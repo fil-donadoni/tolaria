@@ -49,6 +49,7 @@ import {
     raiseTriggerTargetSelection,
 } from "./rules";
 import { resolvePendingTargetKind } from "./constants";
+import { advancePendingTargetGroup } from "./targetGroupWalk";
 
 /** Whether the player who owes a `PendingTarget` opened it themselves
  *  (`"announced"`) or the engine opened it at them (`"raised"`). */
@@ -309,11 +310,14 @@ export function applyRaisedTargetFinalization(
     const kind = resolvePendingTargetKind(pt.kind);
     if (pendingTargetOrigin(kind) !== "raised") return false;
 
+    // CR 707.10c / 601.2c — a copy retarget of a multi-group spell queues the
+    // spell's later groups: load the next one and rest on it; only the last
+    // group's completion falls through to the write below.
+    if (advancePendingTargetGroup(state, pt) === "advanced") return true;
+
     // CR 601.2c — a multi-group selection locked earlier groups' picks into
     // `priorSelected`; concatenate in declaration order so the stack item's
-    // `targets` are positionally indexable by the Effect Script. (No raised
-    // producer queues `remainingRequirements` today, but the concat costs
-    // nothing and keeps this identical to the announced path.)
+    // `targets` are positionally indexable by the Effect Script.
     const targets = [...(pt.priorSelected ?? []), ...pt.selected];
     const divideAmounts =
         pt.divideTotal !== undefined && targets.length > 0
