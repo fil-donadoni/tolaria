@@ -5627,8 +5627,8 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         );
         if (counterChain !== null) return counterChain;
 
-        // The whole sentence, by exactly one of its three readers (a frame
-        // chain, the sentence table, a leading duration over a member list);
+        // The whole sentence, by exactly one of its two readers (a frame
+        // chain, the sentence table);
         // only when none reads it whole is it split at ", then" into two
         // sentences (CR 608.2c), so an exact shape with its own ", then"
         // (the loot, the library look) is never re-read as a chain.
@@ -5637,7 +5637,7 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         // CR 608.2c — ", then" opens after ANY head, a frame chain included
         // ("Return a creature you control to its owner's hand, then destroy
         // all creatures", issue #6631): the head is re-read whole by the
-        // same three readers. A sentence that opened a frame chain and is
+        // same two readers. A sentence that opened a frame chain and is
         // not a ", then" chain either owns its connectors: its refusal is
         // final, never the table's.
         const chained = readThenChain(span, ctx, (tail) =>
@@ -5658,20 +5658,25 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
  * singular "you control a …" clauses is the only conjunction read here.
  */
 /**
- * CR 608.2c — a whole sentence, by exactly one of its three readers: the Verb
- * Frame chain (`verbFrames.ts`), the table of whole-sentence kinds
- * (`effectSentence`), or a leading duration over a member list
- * (`readLeadingDuration`). `oneOf` semantics, not first-match (`rule.ts`
+ * CR 608.2c — a whole sentence, by exactly one of its two readers: the Verb
+ * Frame chain (`verbFrames.ts`) or the table of whole-sentence kinds
+ * (`effectSentence`). `oneOf` semantics, not first-match (`rule.ts`
  * guarantee 3): a sentence two readers accept is an ambiguity of the GRAMMAR
  * and fails the card — which is what makes a kind and a frame chain that read
  * the same sentence impossible to keep side by side (issue #6557).
  *
- * The frame and duration readers answer `null` when the sentence never opened
- * them (no frame verb, no duration at its head), and then the table's own
- * refusal is the one reported — so a sentence neither layer touches keeps the
- * gap key it had. A reader the sentence DID open reports its own refusal: it
- * is the nearer diagnosis, and the member it names is what the Clause Family
- * report groups by.
+ * The frame reader answers `null` when the sentence never opened it (no
+ * frame verb), and then the table's own refusal is the one reported — so a
+ * sentence no frame touches keeps the gap key it had. A frame chain the
+ * sentence DID open reports its own refusal: it is the nearer diagnosis, and
+ * the member it names is what the Clause Family report groups by.
+ *
+ * A leading duration over a member list ("Until end of turn, <member>") is
+ * not a reader: the Composition Rule that read it was retired with no corpus
+ * consumer (issue #6624) — only `set-color-choice` had an open duration slot,
+ * and moving the duration to the tail of every other kind's member reads three
+ * corpus sentences, none on a card that graduates. The exact shapes that
+ * spell their own leading duration out stay the table's.
  */
 function wholeSentence(
     span: string,
@@ -5689,7 +5694,6 @@ function wholeSentenceBy(
     ctx: unknown,
     frames: ReturnType<typeof readFrameChain>
 ): RuleResult<SentenceIR> {
-    const duration = readLeadingDuration(span, ctx);
     const table = effectSentence(span, ctx);
     const readers: readonly {
         readonly label: string;
@@ -5704,7 +5708,6 @@ function wholeSentenceBy(
                       ? ok({ role: "effect" as const, effect: frames.value })
                       : frames,
         },
-        { label: "a leading duration", result: duration },
         {
             label: "a sentence kind",
             result: table.ok
@@ -5725,7 +5728,7 @@ function wholeSentenceBy(
     const opened = readers.filter(
         (r) => r.label !== "a sentence kind" && r.result !== null
     );
-    if (opened.length === 0) return readers[2]!.result!;
+    if (opened.length === 0) return readers[1]!.result!;
     return opened.map((r) => r.result!).reduce((a, b) => deeperFailure(a, b));
 }
 
@@ -5740,76 +5743,6 @@ function deeperFailure(
         return compareTraces(a.trace, b.trace) >= 0 ? a : b;
     if (a.trace !== undefined) return a;
     return b;
-}
-
-/**
- * CR 611.2a — the LEADING DURATION Composition Rule (issue #6557): "Until end
- * of turn, <member>[, then <member>]" is the members with that duration on
- * EVERY one of them, exactly as each would read with the duration printed at
- * its own tail. A member with no duration slot (a draw, a search), or one
- * that already carries a duration, has nothing the leading phrase can govern
- * and refuses the sentence rather than let the duration fall off silently.
- *
- * `null` when the sentence opens no duration this grammar knows; the exact
- * shapes that spell their own leading duration out ("Until end of turn, you
- * may play lands and cast spells from your graveyard") stay the table's,
- * because their member list is not one the sentence grammar reads.
- */
-const LEADING_DURATION = /^(Until [^,]+|This turn), (.+)$/;
-function readLeadingDuration(
-    span: string,
-    ctx: unknown
-): RuleResult<SentenceIR> | null {
-    const lead = span.match(LEADING_DURATION);
-    if (lead === null) return null;
-    const duration = durationRule.run(uncapitalise(lead[1]!), ctx);
-    if (!duration.ok) return null;
-    const rest = sentenceRule.run(capitalise(lead[2]!), ctx);
-    if (!rest.ok) return rest;
-    const members =
-        rest.value.role === "effect"
-            ? [rest.value.effect]
-            : rest.value.role === "then-chain"
-              ? rest.value.effects
-              : null;
-    if (members === null)
-        return fail(
-            `a leading duration governs effects, not a ${rest.value.role}`,
-            span
-        );
-    const governed: EffectSentenceIR[] = [];
-    for (const member of members) {
-        const timed = withLeadingDuration(member, duration.value);
-        if (typeof timed === "string") return fail(timed, lead[2]!);
-        governed.push(timed);
-    }
-    return ok(
-        governed.length === 1
-            ? { role: "effect" as const, effect: governed[0]! }
-            : { role: "then-chain" as const, effects: governed }
-    );
-}
-
-/**
- * One member with the leading duration on it, or why it cannot take one. The
- * kinds with an OPEN duration slot — printed with or without a duration, as
- * `set-color-choice` is (CR 611.2a: without one the effect lasts
- * indefinitely) — are the only ones a leading phrase can govern; a kind whose
- * duration is mandatory already read it at its tail, and a kind with none is
- * not a continuous effect.
- */
-function withLeadingDuration(
-    member: EffectSentenceIR,
-    duration: DurationIR
-): EffectSentenceIR | string {
-    switch (member.kind) {
-        case "set-color-choice":
-            return member.duration === undefined
-                ? { ...member, duration }
-                : "a member of a leading-duration sentence already carries its own duration";
-        default:
-            return `"${member.kind ?? "a verb frame chain"}" has no duration slot a leading duration can govern`;
-    }
 }
 
 export const insteadRule: Rule<SentenceIR> = rule<SentenceIR>(
