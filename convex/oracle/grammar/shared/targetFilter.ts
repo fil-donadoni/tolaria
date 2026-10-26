@@ -1635,8 +1635,8 @@ export function zoneChoiceFilterFromDescriptor(
  * matches the given description"), as an `EffectCardFilter`.
  *
  * The argument classes the `search` Verb Frame accepts (`verbFrames.ts`):
- * card types, subtypes, one supertype, colours and a numeric mana-value
- * ceiling, always on a CARD noun — a library holds cards, so "a creature"
+ * card types, subtypes, one supertype, colours, excluded card types
+ * ("nonland") and a numeric mana-value ceiling, always on a CARD noun — a library holds cards, so "a creature"
  * without "card" is a phrase we have misread. Every other descriptor clause
  * (a chosen type, an exclusion, a controller, a P/T bound, "X") fails the
  * frame by name rather than searching wider or narrower than the card said.
@@ -1658,6 +1658,7 @@ export function librarySearchFilterFromDescriptor(
                 "subtypes",
                 "supertypes",
                 "colors",
+                "excludeTypes",
                 "mvFilter",
                 "card",
                 "plural",
@@ -1684,6 +1685,11 @@ export function librarySearchFilterFromDescriptor(
     const colors = descriptor.colors;
     if (colors !== undefined)
         filter.color = colors.length === 1 ? colors[0]! : [...colors];
+    // CR 205.2a — "nonland card": a card type the match must NOT have.
+    const excludeTypes = descriptor.excludeTypes;
+    if (excludeTypes !== undefined && excludeTypes.length > 0)
+        filter.excludeType =
+            excludeTypes.length === 1 ? excludeTypes[0]! : [...excludeTypes];
     const mv = descriptor.mvFilter;
     if (mv !== undefined) {
         if (

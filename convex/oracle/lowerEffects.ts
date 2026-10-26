@@ -5035,16 +5035,31 @@ function lowerFrameChain(
                         ? { ...frame.filter, name: site.selfName }
                         : frame.filter;
                 const statedQuality = Object.keys(filter).length > 0;
+                // CR 107.3 — "X cards": the X the source announced, an exact
+                // computed count (clamped to the library when no quality is
+                // stated, CR 609.3).
+                let count: EffectChoiceCount;
+                if (frame.count === "X") {
+                    const amount = lowerAmount({ kind: "x" }, site);
+                    if (!amount.ok) return amount;
+                    if (statedQuality)
+                        return unlowerable(
+                            'a search for "X" cards that states a quality is a range up to X, which no Op count reads'
+                        );
+                    count = amount.value;
+                } else {
+                    count =
+                        statedQuality || frame.upTo
+                            ? { min: 0, max: frame.count }
+                            : frame.count;
+                }
                 ops.push({
                     op: "choice",
                     kind: "search-library",
                     player: "controller",
                     zone: "library",
                     ...(statedQuality ? { filter } : {}),
-                    count:
-                        statedQuality || frame.upTo
-                            ? { min: 0, max: frame.count }
-                            : frame.count,
+                    count,
                     prompt: `Search your library for ${frame.phrase.split(SELF_MARKER).join(site.selfName)}.`,
                     bind,
                 });
