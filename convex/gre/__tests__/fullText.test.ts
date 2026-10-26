@@ -813,7 +813,7 @@ describe("full-text effect — entering presents first (CR 614.12)", () => {
         return card;
     }
 
-    it("a cast entry gets the presented card's entry counters (CR 121.6)", () => {
+    it("a cast entry gets the presented card's entry counters (CR 614.1c)", () => {
         withEntryFixtures(() => {
             const state = graveyardOf([inGraveyard(CLOCKWORK_BEAST, "beast")]);
             const spell = pushSpell(state, SHAPESHIFTER, "p1");
