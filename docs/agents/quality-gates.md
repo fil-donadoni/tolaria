@@ -178,10 +178,10 @@ path that is not a module (`.claude/hooks/*.sh`, `settings.json`,
 `.github/{workflows,actions}/**` YAML) still admits
 `node-tooling` **whole**, prose still appends `node[docs]`, and the rest — a
 source-scanning census like `branches.test.ts` or `perf-test-boundary.test.ts`
-— reds at the next health run, the residual risk ADR 0154 accepts. Past 400
-related files (a hub edit) the named projects run whole: the filter argv
-would otherwise approach Linux's 128 KiB per-argument cap to select what the
-bare project selects anyway. `test-reach.test.ts` pins the mirror of project
+— reds at the next health run, the residual risk ADR 0154 accepts. A hub
+edit's reach runs file by file too: past `FILTER_BYTES_PER_RUN` (64 KiB of
+filters, half Linux's 128 KiB per-argument cap) the filters split into
+consecutive runs, never the bare project (ADR 0154 §15). `test-reach.test.ts` pins the mirror of project
 membership against `vitest.config.ts` file by file, so a misplaced filter can
 neither match nothing nor silently skip.
 
@@ -197,8 +197,8 @@ against vitest's own `getTestDependencies` graph over the same trees:
 
 vitest forced the whole suite on 3 of 11 `engine` rows because `package.json`
 is in its `forceRerunTriggers`; the walker relates 67–82 files there. The
-largest single module, `src/lib/card-utils.ts`, relates 263 — still under the
-whole-project threshold.
+largest single module, `src/lib/card-utils.ts`, relates 263 — under the
+whole-project threshold of the time (retired by ADR 0154 §15).
 
 **Measured cost, one real `land` log against the same tree** (PR #5510, 3
 files under `scripts/**`, `engine`):

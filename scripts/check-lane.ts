@@ -702,7 +702,7 @@ export function classifyLane(
         );
         // SCOPED BY THE IMPORT GRAPH (ADR 0154 §2): the `node` and `dom`
         // tests the diff reaches, in ONE vitest run over the projects they
-        // belong to. A new `src` test file is itself in the diff, so it is
+        // belong to (split only past the argument limit, `pushRelated`). A new `src` test file is itself in the diff, so it is
         // planned. A test file NO project selects is in no project here
         // either, so it is never planned: that class is
         // `src-test-env-split.test.ts`'s, and it runs in health.
