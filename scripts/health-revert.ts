@@ -248,7 +248,9 @@ function main(): number {
                 )
             );
             must("git", ["add", REGRESSION_LEDGER_PATH], wt);
-            must("git", ["commit", "--amend", "--no-edit"], wt);
+            // No hooks: `git revert` ran none, and a lint-staged run in the
+            // throwaway worktree would turn a good revert into a failed try.
+            must("git", ["commit", "--amend", "--no-edit", "--no-verify"], wt);
             say(`acknowledged ${losses.length} ready loss(es) in the revert`);
         }
 

@@ -964,6 +964,13 @@ describe("revertAcknowledgements — a revert of a card-shipping PR passes check
         ).toEqual([]);
     });
 
+    it("the ledger is rewritten in its own bytes: nothing acknowledged → unchanged; no file → an empty ledger", () => {
+        expect(ledgerTextWith(baseLedger, [])).toBe(baseLedger);
+        expect(ledgerTextWith(null, [])).toBe(
+            `${JSON.stringify({ acknowledged: [] }, null, 4)}\n`
+        );
+    });
+
     it("a revert that drops no ready card acknowledges nothing", () => {
         expect(
             revertAcknowledgements(readyRegressions(base, base), {
