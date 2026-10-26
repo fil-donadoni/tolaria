@@ -259,20 +259,9 @@ export default function DeckBuilderShell({
                     chrome lever left to reclaim once a search is active (the
                     header has no spare width to keep the tag row on its own
                     row — measured edge-to-edge at 1180px), so it folds down
-                    to this one small trigger there too. */}
+                    to one trigger there too, hosted in `SaveDeckBar`'s action cluster
+                    (issue #3679) so it reaches the 44px rung for free. */}
                 {basicsBar && !portrait && !isSourceDock && basicsBar}
-                {basicsBar && isSourceDock && (
-                    <div className="shrink-0 px-4 md:px-6">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => setBasicsOpen(true)}
-                        >
-                            Add Basic
-                        </Button>
-                    </div>
-                )}
 
                 <DragDropProvider
                     manager={manager}
@@ -558,6 +547,18 @@ export default function DeckBuilderShell({
                         onBack={onDone}
                         backLabel={backLabel}
                         legality={legality}
+                        dockAction={
+                            basicsBar && isSourceDock ? (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => setBasicsOpen(true)}
+                                    style={{ minHeight: "var(--control-h)" }}
+                                >
+                                    Add Basic
+                                </Button>
+                            ) : undefined
+                        }
                         // Issue #1631 fixup R-F7: defaults to
                         // `headerFoldableActions` when the caller passes ONE
                         // control to both slots (the pool builder's
