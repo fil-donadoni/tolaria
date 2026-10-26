@@ -12,7 +12,10 @@
  * when it cannot be, nothing is made (exit 4, no re-dispatch); the revert is
  * made in a throwaway worktree beside the primary checkout — a conflict (a
  * later PR depends on the culprit) records the rung `stuck` and exits 3,
- * which the next ladder run hands to the fixer (ADR 0158 § 3); then a repair issue is
+ * which the next ladder run hands to the fixer (ADR 0158 § 3); every card the
+ * revert drops from `ready` is acknowledged in the revert commit, `trackedBy`
+ * the culprit's reopened issue, so `check:oracle` admits the shrink;
+ * then a repair issue is
  * filed and recorded on the pivot (`health-fix`, what `base-health` admits a
  * repair by), the branch (`fix/issue-<repair issue>`, issue #6071) pushed, the PR opened and labelled `ready-to-land`,
  * and the culprit PR's closing issues reopened with the evidence and
@@ -29,6 +32,7 @@
  * docs/guides/github-pipeline.md § health-fix.
  */
 import { spawnSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { CLAIM_LABEL, PR_OPEN_LABEL } from "./lib/claim-labels";
@@ -41,15 +45,23 @@ import {
     revertBranch,
     revertIssueBody,
     revertIssueTitle,
+    revertAcknowledgements,
     revertPrBody,
     type Culprit,
 } from "./lib/health-ladder";
 import { recordPivotRepairIssue } from "./lib/health-pivot";
 import { evidenceStore, machineName } from "./lib/health-verdict-store";
 import { READY_LABEL } from "./lib/land-labels";
+import { parseLockfile } from "./lib/oracle-lockfile";
+import {
+    REGRESSION_LEDGER_PATH,
+    ledgerTextWith,
+    readyRegressions,
+} from "./lib/oracle-state-regressions";
 import { primaryCheckout } from "./lib/primary-checkout";
 
 const SHA = /^[0-9a-f]{40}$/;
+const LOCKFILE = "data/oracle-compiled.json";
 
 function arg(name: string): string | undefined {
     const i = process.argv.indexOf(name);
@@ -146,6 +158,9 @@ function main(): number {
         run("git", ["worktree", "prune"], root);
         must("git", ["worktree", "add", "--detach", wt, ORIGIN_BASE], root);
         made = true;
+        const cardsAt = () =>
+            parseLockfile(readFileSync(join(wt, LOCKFILE), "utf8")).cards;
+        const baseCards = cardsAt();
         const reverted = run("git", ["revert", "--no-edit", full], wt);
         if (!reverted.ok) {
             run("git", ["revert", "--abort"], wt);
@@ -155,6 +170,11 @@ function main(): number {
             return 3;
         }
         say(`reverted ${culprit.sha} (${subject})`);
+        // The cards the culprit graduated leave `ready` with the revert:
+        // `check:oracle` refuses that shrink unacknowledged (issue #6936).
+        const losses = readyRegressions(baseCards, cardsAt());
+        if (losses.length > 0)
+            say(`the revert drops ${losses.length} card(s) from ready`);
         if (dryRun) {
             say("(dry run) the revert applies — nothing pushed or filed");
             return 0;
@@ -217,6 +237,22 @@ function main(): number {
                       .split("\n")
                       .filter(Boolean)
                       .map(Number);
+
+        if (losses.length > 0) {
+            const ledger = join(wt, REGRESSION_LEDGER_PATH);
+            writeFileSync(
+                ledger,
+                ledgerTextWith(
+                    readFileSync(ledger, "utf8"),
+                    revertAcknowledgements(losses, { culprit, culpritIssues })
+                )
+            );
+            must("git", ["add", REGRESSION_LEDGER_PATH], wt);
+            // No hooks: `git revert` ran none, and a lint-staged run in the
+            // throwaway worktree would turn a good revert into a failed try.
+            must("git", ["commit", "--amend", "--no-edit", "--no-verify"], wt);
+            say(`acknowledged ${losses.length} ready loss(es) in the revert`);
+        }
 
         const branch = revertBranch(issue);
         must(
