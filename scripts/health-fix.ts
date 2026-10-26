@@ -106,6 +106,7 @@ import { closingIssueRefs } from "./lib/red-land-gate";
 import {
     LADDER_ATTEMPT_ENV,
     pivotRepairOrigins,
+    readPivotRepairOrigins,
     recordPivotRepairIssue,
 } from "./lib/health-pivot";
 import { FAILED_LABEL } from "./lib/land-labels";
@@ -845,7 +846,9 @@ function declaredRepairPrs(
     cwd: string,
     episode: readonly { attempt: { pr?: number } | null }[]
 ): number[] {
-    const { ladder, foreign } = pivotRepairOrigins(cwd);
+    // Throws on an unreadable pivot: the facts then wait, never read "no
+    // repair declared" and revert beside one.
+    const { ladder, foreign } = readPivotRepairOrigins(cwd);
     const issues = [...ladder, ...foreign];
     const prs = new Set(
         episode.flatMap((r) =>
@@ -1060,6 +1063,10 @@ function ladderRun(argv: readonly string[]): number {
                 red,
                 "--culprit",
                 rung.culprit.sha,
+                // The tip the facts were read on: a commit landed since was
+                // never checked for a declared repair (issue #6766).
+                "--base",
+                tip,
                 "--attempt",
                 String(rung.attempt),
                 "--why",

@@ -177,6 +177,23 @@ export function pivotRepairIssues(
     }
 }
 
+/** `pivotRepairOrigins`, throwing when the pivot cannot be read — for a
+ *  caller that must wait on an outage rather than read "no repair"
+ *  (the lineage verdict, issue #6766). */
+export function readPivotRepairOrigins(
+    root: string,
+    opts: PivotOpts = {}
+): { ladder: number[]; foreign: number[] } {
+    const sha = standingRedSha(root, opts);
+    if (sha === null) return { ladder: [], foreign: [] };
+    const held = pivotStore(root, FIX_CONTEXT, opts).read(sha);
+    const ladder = held?.ladderIssues ?? [];
+    return {
+        ladder,
+        foreign: (held?.issues ?? []).filter((n) => !ladder.includes(n)),
+    };
+}
+
 /** The standing RED's repair issues split by who declared them (issue
  *  #6554): the ladder's own attempt's, and every other session's. */
 export function pivotRepairOrigins(
@@ -184,14 +201,7 @@ export function pivotRepairOrigins(
     opts: PivotOpts = {}
 ): { ladder: number[]; foreign: number[] } {
     try {
-        const sha = standingRedSha(root, opts);
-        if (sha === null) return { ladder: [], foreign: [] };
-        const held = pivotStore(root, FIX_CONTEXT, opts).read(sha);
-        const ladder = held?.ladderIssues ?? [];
-        return {
-            ladder,
-            foreign: (held?.issues ?? []).filter((n) => !ladder.includes(n)),
-        };
+        return readPivotRepairOrigins(root, opts);
     } catch (e) {
         warn("the repair issues could not be read", e);
         return { ladder: [], foreign: [] };

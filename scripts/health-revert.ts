@@ -5,7 +5,7 @@
  * on a branch off the base tip, and the revert goes through the queue as the
  * standing RED's declared repair.
  *
- *   bun scripts/health-revert.ts --sha <red> --culprit <sha> [--why <text>] [--dry-run]
+ *   bun scripts/health-revert.ts --sha <red> --culprit <sha> [--base <sha>] [--why <text>] [--dry-run]
  *
  * In order: the attempt is recorded on the pivot (`health-fix-attempt`,
  * rung `revert`) before anything else, so a second ladder run waits — and
@@ -108,7 +108,7 @@ function main(): number {
     const dryRun = process.argv.includes("--dry-run");
     if (red === undefined || !SHA.test(red) || culpritArg === undefined) {
         console.error(
-            "usage: health-revert.ts --sha <red full sha> --culprit <sha> [--attempt <n>] [--why <text>] [--dry-run]"
+            "usage: health-revert.ts --sha <red full sha> --culprit <sha> [--base <sha>] [--attempt <n>] [--why <text>] [--dry-run]"
         );
         return 2;
     }
@@ -164,7 +164,13 @@ function main(): number {
         // once the revert applies; it is pushed from HEAD, never checked out
         // here, so no local branch can be held by a killed run's worktree.
         run("git", ["worktree", "prune"], root);
-        must("git", ["worktree", "add", "--detach", wt, ORIGIN_BASE], root);
+        // `--base`: the tip the ladder read its facts on (issue #6766) — a
+        // commit landed since was never checked for a declared repair.
+        must(
+            "git",
+            ["worktree", "add", "--detach", wt, arg("--base") ?? ORIGIN_BASE],
+            root
+        );
         made = true;
         const cardsAt = () =>
             parseLockfile(readFileSync(join(wt, LOCKFILE), "utf8")).cards;
@@ -345,13 +351,25 @@ function main(): number {
         say(`PR #${pr} queued as the repair of ${red.slice(0, 8)}`);
 
         for (const { n, dependent } of reopening)
-            reopenForAFreshPass(root, n, issue, {
-                red,
-                culprit,
-                revertPr: pr,
-                evidence,
-                dependent,
-            }).forEach(say);
+            reopenForAFreshPass(
+                root,
+                n,
+                dependent === undefined
+                    ? [issue]
+                    : [
+                          issue,
+                          ...reopening
+                              .filter((r) => r.dependent === undefined)
+                              .map((r) => r.n),
+                      ],
+                {
+                    red,
+                    culprit,
+                    revertPr: pr,
+                    evidence,
+                    dependent,
+                }
+            ).forEach(say);
         return 0;
     } catch (e) {
         // Not the revert itself: an API error, a refused push — retried
@@ -414,12 +432,14 @@ function openIssueTitled(root: string, title: string): number | null {
  * The culprit's issue back in the queue, for a fresh pass — but natively
  * BLOCKED BY the revert's repair issue, which the revert PR closes when it
  * lands: a revert that never lands leaves it blocked, never re-implemented
- * on top of itself. Returns one line per act, failures named.
+ * on top of itself. A dependent's issue is blocked by the culprit's issues
+ * too (issue #6766): it re-lands on top of the culprit, never before it.
+ * Returns one line per act, failures named.
  */
 function reopenForAFreshPass(
     root: string,
     n: number,
-    repairIssue: number,
+    blockers: readonly number[],
     comment: Parameters<typeof reopenComment>[0]
 ): string[] {
     const out: string[] = [];
@@ -432,19 +452,21 @@ function reopenForAFreshPass(
         );
         return r;
     };
-    const id = run(
-        "gh",
-        ["api", `repos/{owner}/{repo}/issues/${repairIssue}`, "--jq", ".id"],
-        root
-    );
-    act(`blocked by issue #${repairIssue}`, [
-        "api",
-        "-X",
-        "POST",
-        `repos/{owner}/{repo}/issues/${n}/dependencies/blocked_by`,
-        "-F",
-        `issue_id=${id.out}`,
-    ]);
+    for (const blocker of blockers) {
+        const id = run(
+            "gh",
+            ["api", `repos/{owner}/{repo}/issues/${blocker}`, "--jq", ".id"],
+            root
+        );
+        act(`blocked by issue #${blocker}`, [
+            "api",
+            "-X",
+            "POST",
+            `repos/{owner}/{repo}/issues/${n}/dependencies/blocked_by`,
+            "-F",
+            `issue_id=${id.out}`,
+        ]);
+    }
     act("reopened", [
         "issue",
         "reopen",

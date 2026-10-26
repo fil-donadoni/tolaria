@@ -88,6 +88,11 @@ export interface Culprit {
     pr: number | null;
 }
 
+/** A commit a revert PR reverts, with the full sha `land` checks it by. */
+export interface RevertedCommit extends Culprit {
+    full: string;
+}
+
 const CULPRIT_LINE = new RegExp(
     `^${LADDER_MARK.replace(/[*]/g, "\\*")}(?:PR #(\\d+)|a direct commit) · \`([0-9a-f]{7,40})\``
 );
@@ -230,12 +235,17 @@ export function commitRef(c: { sha: string; pr: number | null }): string {
     return c.pr !== null ? `PR #${c.pr}` : `\`${c.sha.slice(0, 12)}\``;
 }
 
-/** Does `message` name the culprit — its sha, or its PR as a squash subject
- *  or a revert title prints it? A false positive only makes the ladder wait. */
-function namesCulprit(message: string, culprit: Culprit): boolean {
-    if (message.includes(culprit.sha)) return true;
+/** Is `message` a revert of the culprit — a `This reverts commit <sha>`
+ *  line, or a `Revert` subject naming its sha or PR? A mere mention (a
+ *  dependent's "follow-up to #N") is not. A false positive only waits. */
+function revertsCulprit(message: string, culprit: Culprit): boolean {
+    if (message.includes(`This reverts commit ${culprit.sha}`)) return true;
+    const subject = message.split("\n", 1)[0];
+    if (!/^Revert\b/.test(subject)) return false;
     return (
-        culprit.pr !== null && new RegExp(`#${culprit.pr}(?!\\d)`).test(message)
+        subject.includes(culprit.sha) ||
+        (culprit.pr !== null &&
+            new RegExp(`#${culprit.pr}(?!\\d)`).test(subject))
     );
 }
 
@@ -257,9 +267,11 @@ export function lineageHold(facts: LadderFacts): string | null {
     );
     if (repair !== undefined)
         return `${commitRef(repair)} is a declared repair of the RED`;
-    const revert = facts.sinceRed.find((c) => namesCulprit(c.message, culprit));
+    const revert = facts.sinceRed.find((c) =>
+        revertsCulprit(c.message, culprit)
+    );
     if (revert !== undefined)
-        return `${commitRef(revert)} names the culprit ${commitRef(culprit)} — it may revert it`;
+        return `${commitRef(revert)} reverts the culprit ${commitRef(culprit)}`;
     return null;
 }
 
@@ -322,7 +334,8 @@ export function ladderRung(facts: LadderFacts): Rung {
             kind: "hold",
             why: `the ladder already stopped on this RED episode`,
         };
-    if (red !== facts.tip) {
+    // An unladdered RED falls through to its own wait below.
+    if (red !== facts.tip && facts.laddered) {
         const held = lineageHold(facts);
         if (held !== null)
             return {
@@ -622,7 +635,7 @@ export function revertPrBody(input: {
     /** Every issue the reverted commits closed, reopened for a fresh pass. */
     culpritIssues: readonly number[];
     /** Later commits reverted together with the culprit (issue #6766). */
-    dependents?: readonly Culprit[];
+    dependents?: readonly RevertedCommit[];
 }): string {
     const who =
         input.culprit.pr !== null
@@ -640,7 +653,12 @@ export function revertPrBody(input: {
         "",
         // Verified by `land`, never a bare claim (issue #6071): the base has
         // moved since the last GREEN, and batch health never walks.
-        revertRestoresLine(input.revertedSha),
+        // One line per reverted commit: `land` checks each path against the
+        // parent of the oldest one touching it (issue #6766).
+        ...[
+            ...(input.dependents ?? []).map((d) => d.full),
+            input.revertedSha,
+        ].map(revertRestoresLine),
         "",
         "## Preset scenario",
         "",

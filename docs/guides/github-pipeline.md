@@ -956,9 +956,11 @@ when the revert conflicts or no culprit is named) reads the culprit off the
 RED's `- **culprit:**` evidence line. In order: the `revert` rung is
 recorded `attempting`; `git revert` of the culprit off
 the base tip, in a throwaway detached worktree — a conflict (a later PR depends on
-the culprit) pulls in every later commit touching a conflicting path, and
-the set is reverted together, newest first, in one PR
-(`scripts/lib/health-revert-set.ts`, issue #6766); a set past **3** commits
+the culprit) pulls in the oldest later commit touching a conflicting path,
+one at a time until every revert applies, and the set is reverted together,
+newest first, in one PR (`scripts/lib/health-revert-set.ts`, issue #6766;
+one `check:ui: revert of <sha>` line per reverted commit, each DOM path
+checked against the parent of the oldest one touching it); a set past **3** commits
 records it `stuck` with a `cap:` note naming every commit, and the next run
 stops on it; a conflict no later commit explains records it `stuck` and
 exits 3, and the next run hands the RED to the fixer (a second RED after it stops); a

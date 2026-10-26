@@ -1,10 +1,22 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { issuesToReopen, reopenComment } from "../lib/health-ladder";
+import {
+    issuesToReopen,
+    reopenComment,
+    revertPrBody,
+} from "../lib/health-ladder";
 import { planRevertSet } from "../lib/health-revert-set";
+import { revertedCommitsOf } from "../lib/ui-scope";
+import { landingRestoresParent } from "../ui-gate/verify-receipt";
 
 /**
  * The revert set of a culprit later commits depend on (issue #6766), on a
@@ -38,6 +50,7 @@ beforeEach(() => {
     git("config", "user.email", "t@example.com");
     git("config", "user.name", "t");
     git("config", "commit.gpgsign", "false");
+    mkdirSync(join(repo, "src", "ui"), { recursive: true });
     commit("base", { "a.txt": "1\n2\n3\n", "b.txt": "x\n" });
 });
 
@@ -101,6 +114,40 @@ describe("planRevertSet — the culprit and the later commits it needs (issue #6
         });
         expect(comment).toContain("PR #102 depends on PR #100");
         expect(comment).toContain("PR #7000 reverts both");
+    });
+
+    it("`land`'s revert line holds for a set: each DOM path back at the parent of the oldest reverted commit touching it", () => {
+        const before = {
+            "src/ui/Panel.tsx": "export const a = 1;\n",
+            "src/ui/Other.tsx": "export const b = 1;\n",
+        };
+        commit("ui files", before);
+        const culprit = commit("feat: panel (#100)", {
+            "src/ui/Panel.tsx": "export const a = 2;\n",
+        });
+        commit("dep: panel and other (#102)", {
+            "src/ui/Panel.tsx": "export const a = 3;\n",
+            "src/ui/Other.tsx": "export const b = 3;\n",
+        });
+        const base = git("rev-parse", "HEAD");
+        const p = plan(culprit);
+        expect(p.kind).toBe("applies");
+        const changed = git("diff", "--name-only", base, "HEAD").split("\n");
+        expect(changed.sort()).toEqual(Object.keys(before).sort());
+
+        const body = revertPrBody({
+            issue: 6001,
+            red: "a".repeat(40),
+            culprit: p.set[1],
+            revertedSha: p.set[1].full,
+            culpritIssues: [],
+            dependents: [p.set[0]],
+        });
+        const reverted = revertedCommitsOf(body);
+        expect(reverted).toEqual([p.set[0].full, p.set[1].full]);
+        expect(landingRestoresParent(reverted, changed, repo)).toBe(true);
+        // The culprit alone does not account for the dependent's own path.
+        expect(landingRestoresParent(culprit, changed, repo)).toBe(false);
     });
 
     it("a set past the cap is not made: the plan names every commit it needs", () => {

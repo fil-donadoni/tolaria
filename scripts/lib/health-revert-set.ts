@@ -4,9 +4,9 @@
  * with, reverted newest first in one worktree, so one PR carries them.
  *
  * The set grows from the conflicts themselves: a revert step that does not
- * apply names its conflicting paths, and every later commit (newer than the
- * one being reverted, not yet in the set) touching one of them joins the set;
- * the worktree is reset to the base and the whole set tried again. It ends
+ * apply names its conflicting paths, and the OLDEST later commit (newer than
+ * the one being reverted, not yet in the set) touching one of them joins the
+ * set; the worktree is reset to the base and the whole set tried again. It ends
  * when every revert applies, when a conflict names no later commit to add
  * (the revert does not apply — the fixer's, ADR 0158 § 3), or when the set
  * passes `MAX_REVERT_SET` (the ladder stops, naming every commit in it).
@@ -16,12 +16,10 @@
  */
 import { spawnSync } from "node:child_process";
 import { prOfSubject } from "./health-bisect";
-import { MAX_REVERT_SET, type Culprit } from "./health-ladder";
+import { MAX_REVERT_SET, type RevertedCommit } from "./health-ladder";
 
 /** One commit of a revert set, as the ladder's texts name it. */
-export interface RevertCommit extends Culprit {
-    /** The full sha `git revert` takes. */
-    full: string;
+export interface RevertCommit extends RevertedCommit {
     subject: string;
 }
 
@@ -81,12 +79,22 @@ function tryRevert(
 ): { at: RevertCommit; paths: string[] } | null {
     must(["reset", "--hard", "--quiet", base], wt);
     for (const c of set) {
-        if (git(["revert", "--no-edit", c.full], wt).ok) continue;
+        const r = spawnSync("git", ["revert", "--no-edit", c.full], {
+            cwd: wt,
+            encoding: "utf8",
+        });
+        if (r.status === 0) continue;
         const paths = lines(
             git(["diff", "--name-only", "--diff-filter=U"], wt).out
         );
         git(["revert", "--abort"], wt);
         must(["reset", "--hard", "--quiet", base], wt);
+        // No conflicting path: not a dependency (an empty revert, an
+        // identity error) — the caller's failed try, never a conflict.
+        if (paths.length === 0)
+            throw new Error(
+                `git revert ${c.sha} failed with no conflict: ${`${r.stderr ?? ""}${r.stdout ?? ""}`.trim().slice(0, 200)}`
+            );
         return { at: c, paths };
     }
     return null;
@@ -137,7 +145,10 @@ export function planRevertSet(input: {
         );
         if (joining.length === 0)
             return { kind: "conflict", set, paths: failed.paths };
-        for (const s of joining) dependents.add(s);
+        // One at a time, the oldest first — the likeliest direct dependent:
+        // a hot path (a lockfile, an index) must not pull in every later
+        // commit that ever touched it.
+        dependents.add(joining[joining.length - 1]);
         if (dependents.size + 1 > cap) return { kind: "cap", set: setOf() };
     }
 }

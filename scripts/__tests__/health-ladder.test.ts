@@ -210,8 +210,28 @@ describe("ladderRung — a bisected RED is the lineage verdict of later tips (is
         ];
         expect(ladderRung(replay({ sinceRed }))).toMatchObject({
             kind: "wait",
-            why: expect.stringContaining("names the culprit"),
+            why: expect.stringContaining("reverts the culprit"),
         });
+        const gitRevert = [
+            {
+                sha: TIP,
+                pr: null,
+                message:
+                    'Revert "x"\n\nThis reverts commit e7e3aa389e99ffffffffffffffffffffffffffff.',
+            },
+        ];
+        expect(ladderRung(replay({ sinceRed: gitRevert })).kind).toBe("wait");
+    });
+
+    it("a later commit merely mentioning the culprit's PR does not hold the revert", () => {
+        const sinceRed = [
+            {
+                sha: TIP,
+                pr: 6657,
+                message: "follow-up to #6562 (#6657)\n\nBuilds on #6562.",
+            },
+        ];
+        expect(ladderRung(replay({ sinceRed })).kind).toBe("revert");
     });
 
     it("a revert PR the ladder recorded, merged, waits for health on its tip", () => {
