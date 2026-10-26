@@ -374,7 +374,9 @@ import {
 import {
     copiableDefId,
     copiableImagePrintId,
+    presentFullTextOnEntry,
     syncFullTextEffects,
+    withdrawFullText,
 } from "./fullText";
 import type { ContinuousEffect } from "./continuousEffects";
 import {
@@ -3739,12 +3741,6 @@ function finalizeSpellResolution(
      *  below does not park it a second time. */
     entryOpts?: { asEntersResolved?: boolean }
 ): void {
-    // Unknown ids (synthetic test fixtures) collapse to the vanilla path —
-    // same tolerance `resolveTopOfStackInner` applies to its own lookup.
-    const finalCardId = (item.card as { id?: string } | undefined)?.id;
-    const cardDef = finalCardId
-        ? (tryGetDefinition(finalCardId) ?? undefined)
-        : undefined;
     const isPermanent = item.types.some((t) =>
         CASTABLE_PERMANENT_TYPES.includes(
             t as (typeof CASTABLE_PERMANENT_TYPES)[number]
@@ -3790,6 +3786,10 @@ function finalizeSpellResolution(
         // completeness/parity with the non-cast callsite
         // (`stageReanimatedOnBattlefield`) and token creation
         // (`createToken`).
+        //
+        // CR 614.12 — the chokepoint and the entry reads below see the full
+        // text this permanent will present once it is on the battlefield.
+        presentFullTextOnEntry(state, item, item.castById);
         const enterDestination = enterBattlefieldDestinationFor(
             state,
             {
@@ -3804,6 +3804,7 @@ function finalizeSpellResolution(
             { asEntersResolved: entryOpts?.asEntersResolved }
         );
         if (enterDestination === "exile") {
+            withdrawFullText(state, item);
             item.zone = "exile";
             resetStackTransientState(item);
             getPlayer(state, item.ownerId).exile.push(item);
@@ -3906,6 +3907,7 @@ function finalizeSpellResolution(
                     delete item.targets;
                     delete item.illegalTargetSlots;
                 } else {
+                    withdrawFullText(state, item);
                     sendStackItemToGraveyard(state, item);
                     return;
                 }
@@ -3914,6 +3916,14 @@ function finalizeSpellResolution(
             }
         }
         item.zone = "battlefield";
+        // Read off the definition the permanent PRESENTS, after any full text
+        // above. Unknown ids (synthetic test fixtures) collapse to the vanilla
+        // path — same tolerance `resolveTopOfStackInner` applies to its own
+        // lookup.
+        const enteringId = (item.card as { id?: string } | undefined)?.id;
+        const cardDef = enteringId
+            ? (tryGetDefinition(enteringId) ?? undefined)
+            : undefined;
         // CR 400.7 / 608.2h (issue #2001) — a cast-and-resolved permanent is
         // a genuine battlefield entry (the exile/as-enters-choice redirects
         // above already returned before this point). If this instance id
@@ -9678,6 +9688,10 @@ function stageReanimatedOnBattlefield(
     // tutor-to-battlefield, the graveyard-set batch path), so every one of
     // those call sites passes `wasCast: false` here. A redirected permanent
     // never touches the battlefield — none of the ETB machinery below runs.
+    //
+    // CR 614.12 — the chokepoint reads the full text this permanent will
+    // present once it is on the battlefield.
+    presentFullTextOnEntry(state, card, controllerId);
     const enterDestination = enterBattlefieldDestinationFor(
         state,
         {
@@ -9692,6 +9706,7 @@ function stageReanimatedOnBattlefield(
         { asEntersResolved: entryOpts?.asEntersResolved }
     );
     if (enterDestination === "exile") {
+        withdrawFullText(state, card);
         resetBattlefieldTransientState(card, state);
         // CR 614 — same as the land block above: nothing entered, so nothing
         // may carry the pending line into exile (PR #3023 review, B1).
@@ -9782,6 +9797,10 @@ function stageReanimatedOnBattlefield(
     // ETB trigger ever observes an intermediate tapped state (the resolution
     // ignores this stackless choice — `resolutionSuspendedOnChoice` — and the
     // active player's next priority window resolves it).
+    //
+    // CR 614.12 — the full text presented above survives the CR 400.7 reset;
+    // its retained-text rows went with the old object's grants.
+    presentFullTextOnEntry(state, card, controllerId);
     const putCardId = (card.card as { id?: string }).id;
     const putDef = putCardId ? tryGetDefinition(putCardId) : undefined;
     // CR 121.6 / 614.1c (issue #1693) — the entry-counters replacement applies
@@ -11078,6 +11097,9 @@ function abortStagedEntryTo(
     entry: StagedEntry,
     destination: "graveyard"
 ): void {
+    // CR 614.12 — a parked object keeps the full text it would enter with
+    // (`presentFullTextOnEntry`); abandoned, it leaves as its own card.
+    withdrawFullText(state, entry.card);
     if (entry.origin === "token") return;
     if (entry.origin === "spell") {
         sendStackItemToGraveyard(state, entry.card as StackItem);
@@ -19713,6 +19735,10 @@ export function createTokenPermanents(
             // it names nothing about the placeholder — it is what a later
             // TIMED copy effect on this token reverts to (`applyTimedCopy`).
         }
+        // CR 614.12 — a token copy of a full-text permanent enters presenting
+        // the text it will have on the battlefield, so the entry counters
+        // below and the chokepoint read the presented card.
+        presentFullTextOnEntry(state, token, controllerId);
         // CR 702.30a — a token copy of an echo permanent entered under this
         // controller too (`markEnteredThisTurn` is not on the token path).
         armEchoOnArrival(token);
@@ -19804,6 +19830,7 @@ export function createTokenPermanents(
             { declaredEntersWith: spec.entersWith }
         );
         if (enterDestination === "exile") {
+            withdrawFullText(state, token);
             token.zone = "exile";
             owner.exile.push(token);
             ids.push(id);

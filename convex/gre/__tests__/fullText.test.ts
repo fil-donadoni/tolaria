@@ -16,10 +16,12 @@ import { describe, it, expect } from "vitest";
 import {
     binRevealedTopCard,
     buildSpellContext,
+    createTokenPermanents,
     discardToGraveyard,
     getPlayer,
     payExileThisCost,
     payGraveyardCostCards,
+    putReanimatedSetOnBattlefield,
     recomputeContinuousEffects,
     removeFromZone,
     removePermanentTo,
@@ -28,6 +30,7 @@ import {
     type GameState,
 } from "../state";
 import { checkStateBasedActions } from "../sba";
+import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import { applyCopy, presentedDefId } from "../copy";
@@ -39,6 +42,7 @@ import { projectPublicState } from "../../gameProjections";
 import { getEffectiveColors } from "../../cards/effectiveColors";
 import { getDefinition, withTemporaryDefinition } from "../../cards/registry";
 import type { CardDefinition } from "../../cards/types";
+import { voiceOfAll } from "../../cards/sets/pls/white.cards";
 import {
     makeInstance,
     makePlayer,
@@ -62,6 +66,13 @@ const CONSPIRACY = "411c9f22-2df0-4a63-b2be-fa02612a6ef8";
 /** Frozen Shade — `{B}: This creature gets +1/+1 until end of turn.` */
 const SHADE = "d0bd76c8-4cff-4c15-9686-7a299b589814";
 const SHADE_PUMP = "frozen-shade-ability";
+/** Clockwork Beast — "This creature enters with seven +1/+0 counters on it." */
+const CLOCKWORK_BEAST = "27f916a2-0ace-44b5-99dc-72979af34db9";
+/** Polar Kraken — "This creature enters tapped." */
+const POLAR_KRAKEN = "aee01e9c-0445-4228-a73a-3e5744844ed3";
+/** Containment Priest — "If a nontoken creature would enter and it wasn't
+ *  cast, exile it instead." */
+const CONTAINMENT_PRIEST = "c2c794b9-09da-49be-b258-b0e21f1663e3";
 
 /** Volrath's Shapeshifter's shape: "As long as the top card of your graveyard
  *  is a creature card, this creature has the full text of that card and has
@@ -686,6 +697,396 @@ describe("full-text effect — wire format (projectPublicState)", () => {
                     origin: "card-abilities",
                 },
             ]);
+        });
+    });
+});
+
+// CR 614.12 — "check the characteristics of the permanent as it would exist on
+// the battlefield, taking into account … continuous effects from the
+// permanent's own static abilities that would apply to it once it's on the
+// battlefield". The full text is one of those, so the text it is about to
+// present decides the entry replacements.
+describe("full-text effect — entering presents first (CR 614.12)", () => {
+    /** A creature that enters tapped AND owes a non-copy as-enters choice, so
+     *  an entry parks on the choice and resumes presenting it. */
+    const TAPPED_PAYER = "test-full-text-tapped-payer";
+    const tappedPayerDef: CardDefinition = {
+        id: TAPPED_PAYER,
+        name: "Full Text Test Tapped Payer",
+        rarity: "common",
+        oracleText:
+            "This creature enters tapped.\nAs this creature enters, pay up to 2 life.",
+        manaCost: { B: 1 },
+        types: ["Creature"],
+        subtypes: ["Horror"],
+        power: 3,
+        toughness: 3,
+        entersTapped: true,
+        entersWith: { asEnters: [{ kind: "payLife", cap: 2 }] },
+    };
+    /** Exiles every creature that would enter, cast or not, token or not. */
+    const EXILER = "test-full-text-entry-exiler";
+    const exilerDef: CardDefinition = {
+        id: EXILER,
+        name: "Full Text Test Entry Exiler",
+        rarity: "common",
+        oracleText: "If a creature would enter, exile it instead.",
+        types: ["Artifact"],
+        replacementEffects: [
+            {
+                id: "test-full-text-exile-entering-creature",
+                oracleText: "If a creature would enter, exile it instead.",
+                eventKind: "enters-battlefield",
+                appliesTo: (event) =>
+                    event.kind === "enters-battlefield" &&
+                    event.types.includes("Creature"),
+                replace: (event) => ({
+                    kind: "modified",
+                    event: { ...event, destination: "exile" },
+                }),
+            },
+        ],
+    };
+
+    /** A 0/0 that owes a `body` choice ("As this enters, choose 2/2 or 4/4"):
+     *  its answer writes the body onto the parked object. */
+    const BODY_PICKER = "test-full-text-body-picker";
+    const bodyPickerDef: CardDefinition = {
+        id: BODY_PICKER,
+        name: "Full Text Test Body Picker",
+        rarity: "common",
+        oracleText:
+            "As this creature enters, it becomes your choice of 2/2 or 4/4.",
+        manaCost: { G: 1 },
+        types: ["Creature"],
+        subtypes: ["Shapeshifter"],
+        power: 0,
+        toughness: 0,
+        entersWith: {
+            asEnters: [
+                {
+                    kind: "body",
+                    options: [
+                        { id: "2-2", label: "2/2", power: 2, toughness: 2 },
+                        { id: "4-4", label: "4/4", power: 4, toughness: 4 },
+                    ],
+                },
+            ],
+        },
+    };
+    /** Mox Diamond's shape: "If this would enter, you may discard a land card
+     *  instead. If you do, put it onto the battlefield. If you don't, put it
+     *  into its owner's graveyard." */
+    const DISCARD_OR_BIN = "test-full-text-discard-or-bin";
+    const discardOrBinDef: CardDefinition = {
+        id: DISCARD_OR_BIN,
+        name: "Full Text Test Discard Or Bin",
+        rarity: "common",
+        oracleText:
+            "If this creature would enter, you may discard a land card instead. If you do, put it onto the battlefield. If you don't, put it into its owner's graveyard.",
+        manaCost: { G: 1 },
+        types: ["Creature"],
+        subtypes: ["Elf"],
+        power: 1,
+        toughness: 1,
+        entersWith: {
+            asEnters: [
+                {
+                    kind: "discard",
+                    filter: { type: "Land" },
+                    ifDeclined: "graveyard",
+                },
+            ],
+        },
+    };
+
+    function withEntryFixtures<T>(fn: () => T): T {
+        return withShapeshifter(() =>
+            withTemporaryDefinition(tappedPayerDef, () =>
+                withTemporaryDefinition(exilerDef, () =>
+                    withTemporaryDefinition(bodyPickerDef, () =>
+                        withTemporaryDefinition(discardOrBinDef, fn)
+                    )
+                )
+            )
+        );
+    }
+
+    function graveyardOf(
+        graveyard: CardInstanceState[],
+        opponentBoard: CardInstanceState[] = []
+    ): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", { life: 20, graveyard }),
+                makePlayer("p2", { battlefield: opponentBoard }),
+            ],
+        });
+    }
+
+    function onP2Battlefield(cardId: string, id: string): CardInstanceState {
+        return makeInstance(cardId, { id, controllerId: "p2", ownerId: "p2" });
+    }
+
+    /** Census row B: the Shapeshifter (top of p1's graveyard) is lifted out
+     *  and put onto the battlefield by an effect. */
+    function reanimateShifter(state: GameState): void {
+        const graveyard = getPlayer(state, "p1").graveyard;
+        const [card] = graveyard.splice(
+            graveyard.findIndex((c) => c.id === "shifter"),
+            1
+        );
+        putReanimatedSetOnBattlefield(state, [{ card, controllerId: "p1" }]);
+    }
+
+    /** Census row C: a token copy of the Shapeshifter. */
+    function tokenCopyOfShifter(state: GameState): string | undefined {
+        return createTokenPermanents(
+            state,
+            { name: "Copy", types: ["Creature"], power: 0, toughness: 0 },
+            "p1",
+            1,
+            undefined,
+            { copyOf: { source: { card: { id: SHAPESHIFTER } } } }
+        )[0];
+    }
+
+    function answerHead(state: GameState, ids: string[]): void {
+        const head = (state.pendingChoices ?? [])[0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ids,
+        });
+    }
+
+    function onBattlefield(state: GameState, id: string): CardInstanceState {
+        const card = getPlayer(state, "p1").battlefield.find(
+            (c) => c.id === id
+        );
+        if (!card) throw new Error(`${id} is not on p1's battlefield`);
+        return card;
+    }
+
+    it("a cast entry gets the presented card's entry counters (CR 614.1c)", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf([inGraveyard(CLOCKWORK_BEAST, "beast")]);
+            const spell = pushSpell(state, SHAPESHIFTER, "p1");
+            resolveTopOfStack(state);
+            const shifter = onBattlefield(state, spell.id);
+            expect(presentedDefId(shifter)).toBe(CLOCKWORK_BEAST);
+            expect(shifter.counters?.["+1/+0"]).toBe(7);
+            expect(pt(state, spell.id)).toEqual([7, 4]);
+        });
+    });
+
+    it("a reanimated entry reads the card under it once it has left the graveyard", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf([
+                inGraveyard(CLOCKWORK_BEAST, "beast"),
+                inGraveyard(SHAPESHIFTER, "shifter"),
+            ]);
+            reanimateShifter(state);
+            const shifter = onBattlefield(state, "shifter");
+            expect(presentedDefId(shifter)).toBe(CLOCKWORK_BEAST);
+            expect(shifter.counters?.["+1/+0"]).toBe(7);
+            expect(abilityIds(shifter)).toContain(DISCARD);
+        });
+    });
+
+    it("a token copy enters with them too (CR 707.2: the copy is the printed Shapeshifter)", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf([inGraveyard(CLOCKWORK_BEAST, "beast")]);
+            const id = tokenCopyOfShifter(state)!;
+            const token = onBattlefield(state, id);
+            expect(presentedDefId(token)).toBe(CLOCKWORK_BEAST);
+            expect(token.counters?.["+1/+0"]).toBe(7);
+        });
+    });
+
+    it("enters tapped when the presented card does (CR 614.1c)", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf([inGraveyard(POLAR_KRAKEN, "kraken")]);
+            const spell = pushSpell(state, SHAPESHIFTER, "p1");
+            resolveTopOfStack(state);
+            const shifter = onBattlefield(state, spell.id);
+            expect(presentedDefId(shifter)).toBe(POLAR_KRAKEN);
+            expect(shifter.isTapped).toBe(true);
+        });
+    });
+
+    it("a Clone on top offers the as-enters copy choice; copying replaces the full text", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf(
+                [inGraveyard(CLONE, "clone")],
+                [onP2Battlefield(BEARS, "bears")]
+            );
+            const spell = pushSpell(state, SHAPESHIFTER, "p1");
+            resolveTopOfStack(state);
+            expect(state.pendingChoices?.[0]?.asEntersKind).toBe("copy");
+            expect(state.pendingChoices?.[0]?.candidateIds).toEqual(["bears"]);
+            const parked = state.stagedEntries?.[0]?.card;
+            expect(parked?.id).toBe(spell.id);
+            expect(presentedDefId(parked!)).toBe(CLONE);
+
+            answerHead(state, ["bears"]);
+
+            // CR 613.1a — the copy effect replaces layer 1, the full-text
+            // ability with it.
+            const copy = onBattlefield(state, spell.id);
+            expect(presentedDefId(copy)).toBe(BEARS);
+            expect(copy.fullTextAnchor).toBeUndefined();
+        });
+    });
+
+    it("a parked cast entry presents again when its choice is answered", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf([inGraveyard(TAPPED_PAYER, "payer")]);
+            const spell = pushSpell(state, SHAPESHIFTER, "p1");
+            resolveTopOfStack(state);
+            expect(state.pendingChoices?.[0]?.asEntersKind).toBe("payLife");
+
+            answerHead(state, ["2"]);
+
+            const shifter = onBattlefield(state, spell.id);
+            expect(presentedDefId(shifter)).toBe(TAPPED_PAYER);
+            expect(shifter.isTapped).toBe(true);
+            expect(getPlayer(state, "p1").life).toBe(18);
+        });
+    });
+
+    it("a parked token entry presents again when its choice is answered", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf([inGraveyard(TAPPED_PAYER, "payer")]);
+            const id = tokenCopyOfShifter(state)!;
+            expect(state.pendingChoices?.[0]?.asEntersKind).toBe("payLife");
+
+            answerHead(state, ["2"]);
+
+            const token = onBattlefield(state, id);
+            expect(presentedDefId(token)).toBe(TAPPED_PAYER);
+            expect(token.isTapped).toBe(true);
+        });
+    });
+
+    it("a presented as-enters mode is offered with the presented card's modes", () => {
+        withEntryFixtures(() => {
+            const voice = voiceOfAll();
+            const state = graveyardOf([inGraveyard(voice.id, "voice")]);
+            const spell = pushSpell(state, SHAPESHIFTER, "p1");
+            resolveTopOfStack(state);
+            const head = state.pendingChoices?.[0];
+            expect(head?.asEntersKind).toBe("mode");
+            expect(head?.options?.map((o) => o.id)).toEqual(
+                voice.modes!.map((m) => m.id)
+            );
+
+            answerHead(state, [voice.modes![0].id]);
+
+            const shifter = onBattlefield(state, spell.id);
+            expect(presentedDefId(shifter)).toBe(voice.id);
+            expect(shifter.chosenModeId).toBe(voice.modes![0].id);
+        });
+    });
+
+    it("a presented body answer survives a cast entry's resume (CR 614.1c)", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf([inGraveyard(BODY_PICKER, "picker")]);
+            const spell = pushSpell(state, SHAPESHIFTER, "p1");
+            resolveTopOfStack(state);
+            expect(state.pendingChoices?.[0]?.asEntersKind).toBe("body");
+
+            answerHead(state, ["4-4"]);
+
+            expect(presentedDefId(onBattlefield(state, spell.id))).toBe(
+                BODY_PICKER
+            );
+            expect(pt(state, spell.id)).toEqual([4, 4]);
+        });
+    });
+
+    it("a parked reanimated entry keeps its full text and its retained text", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf([
+                inGraveyard(TAPPED_PAYER, "payer"),
+                inGraveyard(SHAPESHIFTER, "shifter"),
+            ]);
+            reanimateShifter(state);
+            expect(state.pendingChoices?.[0]?.asEntersKind).toBe("payLife");
+
+            answerHead(state, ["2"]);
+
+            const shifter = onBattlefield(state, "shifter");
+            expect(presentedDefId(shifter)).toBe(TAPPED_PAYER);
+            expect(shifter.isTapped).toBe(true);
+            expect(abilityIds(shifter)).toEqual([DISCARD]);
+        });
+    });
+
+    it("an aborted as-enters entry goes to the graveyard as its own card", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf([inGraveyard(DISCARD_OR_BIN, "binner")]);
+            const spell = pushSpell(state, SHAPESHIFTER, "p1");
+            resolveTopOfStack(state);
+            if (state.pendingChoices?.[0]?.asEntersKind === "discard") {
+                answerHead(state, []);
+            }
+            expect(state.stagedEntries).toBeUndefined();
+            const binned = getPlayer(state, "p1").graveyard.find(
+                (c) => c.id === spell.id
+            );
+            expect(binned).toBeDefined();
+            expect(binned!.fullTextAnchor).toBeUndefined();
+            expect(presentedDefId(binned!)).toBe(SHAPESHIFTER);
+            expect(binned!.grantedActivatedAbilities).toBeUndefined();
+        });
+    });
+
+    function expectExiledAsItself(state: GameState, id: string): void {
+        const exiled = getPlayer(state, "p1").exile.find((c) => c.id === id);
+        expect(exiled).toBeDefined();
+        expect(exiled!.fullTextAnchor).toBeUndefined();
+        expect(presentedDefId(exiled!)).toBe(SHAPESHIFTER);
+        expect(exiled!.grantedActivatedAbilities).toBeUndefined();
+        expect(getPlayer(state, "p1").battlefield).toHaveLength(0);
+    }
+
+    it("a reanimated entry exiled by Containment Priest leaves no presented identity in exile", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf(
+                [
+                    inGraveyard(CRAW_WURM, "wurm"),
+                    inGraveyard(SHAPESHIFTER, "shifter"),
+                ],
+                [onP2Battlefield(CONTAINMENT_PRIEST, "priest")]
+            );
+            reanimateShifter(state);
+            expectExiledAsItself(state, "shifter");
+        });
+    });
+
+    it("a cast entry exiled by a replacement leaves no presented identity in exile", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf(
+                [inGraveyard(CRAW_WURM, "wurm")],
+                [onP2Battlefield(EXILER, "exiler")]
+            );
+            const spell = pushSpell(state, SHAPESHIFTER, "p1");
+            resolveTopOfStack(state);
+            expectExiledAsItself(state, spell.id);
+        });
+    });
+
+    it("a token entry exiled by a replacement leaves no presented identity in exile", () => {
+        withEntryFixtures(() => {
+            const state = graveyardOf(
+                [inGraveyard(CRAW_WURM, "wurm")],
+                [onP2Battlefield(EXILER, "exiler")]
+            );
+            const id = tokenCopyOfShifter(state)!;
+            expectExiledAsItself(state, id);
         });
     });
 });
