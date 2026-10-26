@@ -44,7 +44,7 @@ const buttonVariants = cva(
             // issue #2792): the plate grows under touch, glyph/text size stays.
             // A consumer `min-h-*` / `h-*` / `size-*` would win through
             // tailwind-merge, so one must reference `--touch-min` (guarded by
-            // button-touch-floor.test.ts).
+            // button-touch-floor.guard.test.ts).
             //
             // v4 rungs 40 / 48 (ADR 0103, issue #2723). `max(--control-h,40px)`
             // rather than a flat 40px, so the COARSE pointer keeps its 44px
