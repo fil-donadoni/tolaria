@@ -363,7 +363,7 @@ import {
     emitBlockersConfirmedEvents,
     emitAttackersDeclaredEvents,
     finalizeDrawReplacementPay,
-    isSorceryTiming,
+    isSorceryTimingFor,
     wasCastOffSorceryTiming,
 } from "./gre/phases";
 import {
@@ -2672,7 +2672,7 @@ export function beginNonStackFilterCostActivation(
     }
     // CR 602.5 / 602.5b — the same timing and precondition gates every other
     // activation entry point runs before cost lock.
-    assertActivationTimingLegal(state, card, ability);
+    assertActivationTimingLegal(state, card, player.id, ability);
     const precondition = activationPreconditionViolation(state, card, ability);
     if (precondition !== null) throw new Error(precondition);
     // CR 302.1 — a {T} leg needs an untapped, non-summoning-sick source.
@@ -5030,7 +5030,7 @@ export function finalizeTargetSelection(
                 );
             }
         }
-        assertActivationTimingLegal(state, card, ability);
+        assertActivationTimingLegal(state, card, player.id, ability);
         // CR 606 — re-validate a targeted loyalty ability at commit (the timing
         // / once-per-turn / below-0 gates), since the board may have changed
         // between opening the target prompt and confirming it.
@@ -9028,7 +9028,7 @@ export const autoTapForPayment = mutation({
         // Timing-aware Demand filter (issue #475, CR 307 / 601.3a): sorcery-
         // speed hand spells count as preservable Demands only at sorcery timing
         // (own main, empty stack, holding priority); instant-speed spells count
-        // in any window. Reuses the engine's canonical `isSorceryTiming` helper.
+        // in any window. Asked of the paying player via `isSorceryTimingFor`.
         // On-board activated-ability Demands (issue #476, CR 602.1): a
         // firebreathing creature's "{R}: +1/+0" and other mana-costed activated
         // abilities on the paying player's battlefield are also plays they
@@ -9036,7 +9036,7 @@ export const autoTapForPayment = mutation({
         // ability) — repeatable activations don't multiply the Demand (PRD
         // user story 12) — and is timing-filtered the same way (sorcery-speed
         // abilities count only at sorcery timing).
-        const sorceryTiming = isSorceryTiming(state);
+        const sorceryTiming = isSorceryTimingFor(state, player.id);
         const demands: Demand[] = [
             ...buildHandSpellDemands(
                 player.hand,
@@ -14432,7 +14432,7 @@ export const activateManaAbility = mutation({
         // Ornitier: "Activate only during your turn and only once each
         // turn."). Mirrors the check every other activation entry point runs
         // before cost lock.
-        assertActivationTimingLegal(state, card, ability);
+        assertActivationTimingLegal(state, card, args.playerId, ability);
         // CR 602.5 — the ability's own restriction and an
         // `activation-restriction` static (Cursed Totem), read through the
         // one authority every other activation entry point reads.
