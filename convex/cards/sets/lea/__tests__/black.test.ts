@@ -3139,20 +3139,20 @@ describe("Word of Command (controlled cast — land branch, CR 305.2 / 608.2, AD
         }
     });
 
-    it("picking a land plays it under the opponent's control, consuming their land drop (CR 305.2)", () => {
+    it("picking a land on the controller's turn does not play it: the opponent can't play a land off-turn (CR 305.3)", () => {
         const state = seed();
         resolveTopOfStack(state);
         submitChoiceThenSba(state, ["p2-forest"]);
 
         const p2 = state.players[1];
-        // Forest left p2's hand and is on p2's battlefield, controlled by p2.
-        expect(p2.hand.map((c) => c.id)).not.toContain("p2-forest");
-        const onBf = p2.battlefield.find((c) => c.id === "p2-forest");
-        expect(onBf).toBeDefined();
-        expect(onBf!.controllerId).toBe("p2");
-        // CR 305.2 — the opponent's one-land-per-turn drop is consumed.
-        expect(p2.landsPlayedThisTurn).toBe(1);
-        // WoC itself resolved into its controller's (p1's) graveyard.
+        // p1 is the active player; the instruction to p2 is ignored.
+        expect(p2.hand.map((c) => c.id)).toContain("p2-forest");
+        expect(
+            p2.battlefield.find((c) => c.id === "p2-forest")
+        ).toBeUndefined();
+        // No land drop spent.
+        expect(p2.landsPlayedThisTurn ?? 0).toBe(0);
+        // WoC itself still resolved into its controller's (p1's) graveyard.
         const wocInGy = state.players[0].graveyard.some(
             (c) => c.card.id === wordOfCommand.id
         );
@@ -3160,13 +3160,28 @@ describe("Word of Command (controlled cast — land branch, CR 305.2 / 608.2, AD
         expect(state.stack.length).toBe(0);
     });
 
-    it("if the opponent already played a land this turn, the chosen land is not played (CR 305.2 'if able')", () => {
-        const state = seed({ p2LandsPlayedThisTurn: 1 });
+    it("cast on the opponent's own turn, the chosen land is played under their control, consuming their drop (CR 305.2, 305.3)", () => {
+        const state = seed();
+        state.activePlayerId = "p2";
         resolveTopOfStack(state);
         submitChoiceThenSba(state, ["p2-forest"]);
 
         const p2 = state.players[1];
-        // The Forest stays in hand — playing it is not "able".
+        expect(p2.hand.map((c) => c.id)).not.toContain("p2-forest");
+        const onBf = p2.battlefield.find((c) => c.id === "p2-forest");
+        expect(onBf).toBeDefined();
+        expect(onBf!.controllerId).toBe("p2");
+        expect(p2.landsPlayedThisTurn).toBe(1);
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("on the opponent's own turn with the drop already spent, the chosen land is not played (CR 305.2 'if able')", () => {
+        const state = seed({ p2LandsPlayedThisTurn: 1 });
+        state.activePlayerId = "p2";
+        resolveTopOfStack(state);
+        submitChoiceThenSba(state, ["p2-forest"]);
+
+        const p2 = state.players[1];
         expect(p2.hand.map((c) => c.id)).toContain("p2-forest");
         expect(
             p2.battlefield.find((c) => c.id === "p2-forest")
@@ -3211,6 +3226,8 @@ describe("Word of Command (controlled cast — land branch, CR 305.2 / 608.2, AD
 
     it("wire format: the played land is public on the opponent's battlefield", () => {
         const state = seed();
+        // CR 305.3 — the land is only playable on the opponent's own turn.
+        state.activePlayerId = "p2";
         resolveTopOfStack(state);
         submitChoiceThenSba(state, ["p2-forest"]);
         // Viewer = p1: the opponent's battlefield is always public.
@@ -3423,7 +3440,7 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         expect(state.players[0].manaPool.B).toBe(0);
     });
 
-    it("land branch: the chosen land is played under the OPPONENT's control (CR 305.2)", () => {
+    it("land branch: on the controller's turn the opponent's land is NOT played (CR 305.3)", () => {
         const oppSwamp = makeInstance(swamp.id, {
             id: "opp-swamp-in-hand",
             controllerId: "p2",
@@ -3436,35 +3453,7 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         castWordOfCommand(state);
         submitPick(state, "opp-swamp-in-hand");
 
-        // The land is on the opponent's battlefield and counted their land drop.
-        expect(
-            state.players[1].battlefield.find(
-                (c) => c.id === "opp-swamp-in-hand"
-            )
-        ).toBeDefined();
-        expect(state.players[1].landsPlayedThisTurn).toBe(1);
-    });
-
-    it("land branch: opponent already played a land this turn → land NOT played (CR 305.2)", () => {
-        const oppSwamp = makeInstance(swamp.id, {
-            id: "opp-swamp-in-hand",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "hand",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", {
-                    hand: [oppSwamp],
-                    landsPlayedThisTurn: 1,
-                }),
-            ],
-        });
-        castWordOfCommand(state);
-        submitPick(state, "opp-swamp-in-hand");
-
-        // The land stayed in hand; the drop count is unchanged.
+        // The land stayed in hand and no land drop was spent.
         expect(
             state.players[1].battlefield.find(
                 (c) => c.id === "opp-swamp-in-hand"
@@ -3472,6 +3461,28 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         ).toBeUndefined();
         expect(
             state.players[1].hand.find((c) => c.id === "opp-swamp-in-hand")
+        ).toBeDefined();
+        expect(state.players[1].landsPlayedThisTurn ?? 0).toBe(0);
+    });
+
+    it("land branch: on the opponent's own turn the land is played under THEIR control (CR 305.2, 305.3)", () => {
+        const oppSwamp = makeInstance(swamp.id, {
+            id: "opp-swamp-in-hand",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: [oppSwamp] })],
+        });
+        state.activePlayerId = "p2";
+        castWordOfCommand(state);
+        submitPick(state, "opp-swamp-in-hand");
+
+        expect(
+            state.players[1].battlefield.find(
+                (c) => c.id === "opp-swamp-in-hand"
+            )
         ).toBeDefined();
         expect(state.players[1].landsPlayedThisTurn).toBe(1);
     });
