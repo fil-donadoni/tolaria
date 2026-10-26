@@ -53,7 +53,7 @@
  * (the replay's) unless this Bot's regression issue is open. Lateness is
  * exit 0 with a `derived state is late` line health carries onto its GREEN
  * record, and past `DERIVED_GRACE_MS` an issue filed once (`area:workflow`,
- * by title) — never a RED, never `pending` (issue #6990: three hours of a
+ * by title) — never a RED, never `pending` (ADR 0159: three hours of a
  * blocked queue were a 75-min replay's push timeout). A compile on the
  * pinned corpus, seconds. The deployment keeps asking `--fresh`: a stale
  * verdict never holds it.
