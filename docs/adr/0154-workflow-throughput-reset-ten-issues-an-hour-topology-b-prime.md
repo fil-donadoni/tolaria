@@ -300,7 +300,11 @@ their measured cost, declared.
 PR #6849's diff 295 files admitted, 8.5 s wall; PR #6562's 291 files, 8.6 s;
 PR #5868's 53 files, 9.5 s. The per-file walls are amortised (the bot
 projects run `isolate: false`), so the step's wall is the import of the first
-file per worker plus the sum — inside the 10 s budget on all three. Replay:
+file per worker plus the sum — inside the 10 s budget on all three. So
+`totalS` bounds a sum of WARM marginal costs, not the step's wall; the wall
+is what the three measurements above show. A bot file the PR itself adds has
+no row until the next `bot:costs` refresh, so it is named `unmeasured` and
+runs in health — the lane does not yet gate a new bot file. Replay:
 PR #6849's two censuses are planned; PR #5868's red file runs as §12's
 `blade-index`; PR #6562's `botReachLibraryPut.bot.test.ts` (2.3 s) is named
 past the lane budget with its cost.

@@ -2925,6 +2925,19 @@ describe("scoped lanes admit the reached bot files by measured cost (issue #6943
         expect(botStep(p)!.command).not.toContain(SEARCH_COST_TEST);
     });
 
+    it("a cheap guard the diff does not admit leaves its file to the cost admission", () => {
+        // `src/**` is no `search-cost` input: the guard is not planned.
+        const p = plan(
+            ["src/lib/ai/brain-client.ts"],
+            source(
+                { "bot-node": [SEARCH_COST_TEST] },
+                { [SEARCH_COST_TEST]: 1_176 }
+            )
+        );
+        expect(ids(p.run)).not.toContain("search-cost");
+        expect(botStep(p)!.command).toContain(SEARCH_COST_TEST);
+    });
+
     it("the cards lane leaves bot[cards]'s partition to it", () => {
         const sets = "convex/cards/__tests__/aiEffectsGuard.bot.test.ts";
         const p = classifyLane(
