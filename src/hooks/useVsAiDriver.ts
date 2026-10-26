@@ -244,10 +244,11 @@ export function useVsAiDriver(
     // Match, legacy row) → the stored lobby choice, read at the search site.
     // `undefined` = still loading: the search WAITS for it, otherwise an
     // event Match's first move could be searched at the wrong strength.
-    const matchDifficulty = useResilientQuery(
+    const matchDifficultyQuery = useResilientQuery(
         api.gameReads.getMatchBotDifficulty,
         botId ? { gameId } : "skip"
-    ).data;
+    );
+    const matchDifficulty = matchDifficultyQuery.data;
     const botOwesInput = !!(
         botId &&
         (tick === null ||
@@ -373,10 +374,12 @@ export function useVsAiDriver(
     }, [botManifest]);
     const retryTick = tickQuery.retry;
     const retryBotState = botStateQuery.retry;
+    const retryMatchDifficulty = matchDifficultyQuery.retry;
     const retryDriverSubscriptions = useCallback(() => {
         retryTick();
         retryBotState();
-    }, [retryTick, retryBotState]);
+        retryMatchDifficulty();
+    }, [retryTick, retryBotState, retryMatchDifficulty]);
     const [thinking, setThinking] = useState(false);
     // Rung 5's banner, stored WITH the state version it belongs to so the
     // exposed value can be DERIVED (below) rather than cleared from an effect:
@@ -1320,7 +1323,10 @@ export function useVsAiDriver(
         // Either query giving up is the same outcome for the player: the bot
         // stops moving. The tick is reported first because it is the one that
         // gates everything else.
-        subscriptionError: tickQuery.error ?? botStateQuery.error,
+        subscriptionError:
+            tickQuery.error ??
+            botStateQuery.error ??
+            matchDifficultyQuery.error,
         retrySubscription: retryDriverSubscriptions,
     };
 }
