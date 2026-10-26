@@ -6,8 +6,10 @@
  * the moment the base moves. On every push to the base, `pr-refresh.yml` runs
  * this on a `lane` runner:
  *
- *   for each `ready-to-land` PR GitHub reports `CONFLICTING`, or whose files
- *   the push just touched:
+ *   for each `ready-to-land` PR GitHub reports `CONFLICTING`, a `merge:manual`
+ *   one whose files the push just touched, or (only while the base lineage is
+ *   RED) a `queue:held` one — never one Mergify holds `queued` unless it
+ *   conflicts (issue #6957):
  *     rebase onto the base in a worktree of the primary checkout with the SAME
  *     steps `land` runs (`lib/rebase-resolve.ts`: merge drivers, the
  *     `REGENERATED_ARTIFACTS` resolver), then force-push with a lease;
@@ -35,6 +37,12 @@ import {
     seedPinnedCorpus,
 } from "./lib/corpus-cache";
 import { gh, netEnv } from "./lib/gh";
+import {
+    githubVerdictStore,
+    lineageBlocks,
+    originRepo,
+    readVerdictLineage,
+} from "./lib/health-verdict-store";
 import { issueOfBranch } from "./lib/issue-worktree";
 import { labelArgs, READY_LABEL } from "./lib/land-runner";
 import {
@@ -289,9 +297,24 @@ function main(): number {
         flag(argv, "--before"),
         flag(argv, "--after")
     );
-    const candidates = selectRefreshCandidates(listQueued(), touched).filter(
-        (c) => only === null || String(c.pr.number) === only
+    // A held PR is rebased only under a RED (issue #6957); an unreadable
+    // store reads as no RED, so the doubt costs no push.
+    const lineage = readVerdictLineage(() =>
+        githubVerdictStore({
+            repo: process.env.GITHUB_REPOSITORY || originRepo(primary),
+        })
     );
+    if (lineage.error) log(`verdict store unreadable (${lineage.error})`);
+    const red = lineageBlocks(lineage.kind);
+    log(`health lineage ${lineage.kind}`);
+    const selected = (pr: RefreshPr) =>
+        only === null || String(pr.number) === only;
+    const candidates = selectRefreshCandidates(listQueued(), touched, {
+        red,
+        onSkip: (pr, why) => {
+            if (selected(pr)) log(`PR #${pr.number}: ${why}`);
+        },
+    }).filter((c) => selected(c.pr));
     if (candidates.length === 0) {
         log("no queued PR to refresh");
         return 0;

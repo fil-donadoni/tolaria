@@ -21,11 +21,12 @@
  * `needsRequeue` is the GREEN that puts it back.
  */
 import { closingIssueRefs, redLandGate } from "./red-land-gate";
-import { FAILED_LABEL, READY_LABEL } from "./land-labels";
+import { FAILED_LABEL, HELD_LABEL, READY_LABEL } from "./land-labels";
 import {
     DESCRIPTION_MAX,
     lineageBlocks,
     type Lineage,
+    type LineageKind,
 } from "./health-verdict-store";
 
 export const TRUSTED_AUTHOR_CONTEXT = "trusted-author";
@@ -133,6 +134,58 @@ export function needsRequeue(input: {
         !labels.includes(FAILED_LABEL) &&
         !labels.includes(MERGIFY_QUEUED_LABEL)
     );
+}
+
+/**
+ * How long a posted `@mergifyio requeue` is given to take before the hold is
+ * released anyway: a re-gate fired by another event minutes later must not
+ * read Mergify's latency as a refusal.
+ */
+export const REQUEUE_GRACE_MS = 10 * 60_000;
+
+/**
+ * What a re-gate does with a `queue:held` PR once the base is off RED (issue
+ * #6957). Keyed on the label, never on a `base-health` transition: a PR whose
+ * status was already green when the RED cleared never transitions, and its
+ * stale label made `pr-refresh` rebase it on every base push.
+ *
+ * Two steps, because Mergify's dequeue reason is sticky (issue #6163): with
+ * the label gone and the reason still `checks-failed`, `.mergify.yml`'s "a PR
+ * the queue rejects is a repair pick" labels the PR `land-failed`. So:
+ *  - `requeue` — the PR would enter the queue and no `@mergifyio requeue`
+ *    was posted since it was labelled held: post one, KEEP the label;
+ *  - `release` — the PR is `queued` again (the hold is over), is no longer
+ *    `ready-to-land` or is already `land-failed`, or a requeue older than
+ *    `REQUEUE_GRACE_MS` did not take: remove the label and let the
+ *    repair-pick rules judge it;
+ *  - `none` — not held, the lineage still blocks or cannot be read, this
+ *    PR's own `base-health` or `trusted-author` is not green (an entry gate,
+ *    not the PR's red: the label keeps it off the repair-pick rules), or a
+ *    requeue is still within its grace.
+ */
+export type HeldAction = "none" | "requeue" | "release";
+
+export function heldPrAction(input: {
+    labels: readonly string[];
+    lineage: { kind: LineageKind; error?: string };
+    baseHealth: GateState | undefined;
+    trustedAuthor: GateState | undefined;
+    /** When the newest requeue since the hold was posted, or null. Read
+     *  only when the answer matters: it costs two API calls. */
+    lastRequeueAt: () => string | null;
+    now: number;
+}): HeldAction {
+    const { labels } = input;
+    if (!labels.includes(HELD_LABEL)) return "none";
+    if (input.lineage.error || lineageBlocks(input.lineage.kind)) return "none";
+    if (input.baseHealth !== "success") return "none";
+    if (labels.includes(MERGIFY_QUEUED_LABEL)) return "release";
+    if (!labels.includes(READY_LABEL) || labels.includes(FAILED_LABEL))
+        return "release";
+    if (input.trustedAuthor !== "success") return "none";
+    const at = input.lastRequeueAt();
+    if (at === null) return "requeue";
+    return input.now - Date.parse(at) < REQUEUE_GRACE_MS ? "none" : "release";
 }
 
 /** `TRUSTED_AUTHORS` as the repository variable holds it: logins separated

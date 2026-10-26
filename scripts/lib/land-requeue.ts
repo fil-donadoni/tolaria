@@ -8,7 +8,7 @@
  * GREEN-side requeue, issue #6110). Pure; `land-ready.ts` is the I/O.
  */
 import { FAILED_LABEL, READY_LABEL } from "./land-runner";
-import { MERGIFY_QUEUED_LABEL } from "./pr-gate";
+import { MERGIFY_QUEUED_LABEL, REQUEUE_COMMENT } from "./pr-gate";
 
 export interface PrComment {
     author: { login: string };
@@ -26,6 +26,26 @@ export function lastDequeueAt(comments: readonly PrComment[]): string | null {
             (c) =>
                 /mergify/i.test(c.author.login) &&
                 /dequeued|removed from the queue/i.test(c.body)
+        )
+        .map((c) => c.createdAt)
+        .sort();
+    return stamps.at(-1) ?? null;
+}
+
+/**
+ * When the newest `@mergifyio requeue` (`REQUEUE_COMMENT`, by anyone) was
+ * posted at or after `since` — the time the PR was last labelled
+ * `queue:held` — or null; null too when `since` is unknown. `pr-gate` posts
+ * one per hold, never one per sweep (issue #6957).
+ */
+export function lastRequeueSince(
+    comments: readonly PrComment[],
+    since: string | null
+): string | null {
+    if (since === null) return null;
+    const stamps = comments
+        .filter(
+            (c) => c.body.trim() === REQUEUE_COMMENT && c.createdAt >= since
         )
         .map((c) => c.createdAt)
         .sort();

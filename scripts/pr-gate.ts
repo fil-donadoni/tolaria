@@ -18,13 +18,17 @@
  * `GITHUB_SERVER_URL` / `GITHUB_RUN_ID` for each status's link.
  * `--dry-run` prints the statuses and posts nothing. Each status is decided
  * and posted on its own: one that cannot be read or written is reported and
- * skipped, and the run exits 1. A PR whose `base-health` turns green after
- * being held gets `@mergifyio requeue` (issue #6110). An unreadable verdict store posts
+ * skipped, and the run exits 1. Off RED, a PR labelled `queue:held` gets
+ * `@mergifyio requeue` once per hold, and loses the label once it is
+ * `queued` again or the requeue did not take within its grace
+ * (`heldPrAction`, issues #6110, #6957); an unlabelled PR whose `base-health` turns green after being held
+ * gets the requeue alone. An unreadable verdict store posts
  * `base-health` `pending` and exits 1.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { HELD_LABEL } from "./lib/land-labels";
+import { lastRequeueSince, type PrComment } from "./lib/land-requeue";
 import { pivotRepairIssues } from "./lib/health-pivot";
 import {
     githubVerdictStore,
@@ -38,6 +42,8 @@ import {
     BASE_HEALTH_CONTEXT,
     baseHealthStatus,
     gatePrOf,
+    heldPrAction,
+    MERGIFY_QUEUED_LABEL,
     needsRequeue,
     REQUEUE_COMMENT,
     parseTrustedAuthors,
@@ -48,6 +54,7 @@ import {
     trustedAuthorStatus,
     type GateState,
     type GateStatus,
+    type HeldAction,
     type RestPr,
 } from "./lib/pr-gate";
 
@@ -73,6 +80,25 @@ function ghLines<T>(run: GhRunner, path: string, jq: string): T[] {
 /** Every path the PR touches; a rename contributes its old name too. */
 function prFiles(run: GhRunner, repo: string, pr: number): string[] {
     return ghLines<string>(run, prFilesApiPath(repo, pr), PR_FILES_JQ);
+}
+
+/** The PR's conversation comments, in `PrComment`'s shape. */
+function prComments(run: GhRunner, repo: string, pr: number): PrComment[] {
+    return ghLines<PrComment>(
+        run,
+        `repos/${repo}/issues/${pr}/comments?per_page=100`,
+        ".[] | {author: {login: .user.login}, body, createdAt: .created_at} | tojson"
+    );
+}
+
+/** When the PR was last labelled `queue:held`, or null. */
+function heldSince(run: GhRunner, repo: string, pr: number): string | null {
+    const stamps = ghLines<string>(
+        run,
+        `repos/${repo}/issues/${pr}/events?per_page=100`,
+        `.[] | select(.event == "labeled" and .label.name == "${HELD_LABEL}") | .created_at | tojson`
+    );
+    return stamps.sort().at(-1) ?? null;
 }
 
 function argValue(flag: string): string | undefined {
@@ -201,43 +227,80 @@ function main(): number {
             }
         }
         // The GREEN that releases a held PR requeues it: Mergify does not.
+        // Keyed on the `queue:held` label (issue #6957), the base-health
+        // transition only for a PR the RED held without labelling it.
         const next = posted.get(BASE_HEALTH_CONTEXT);
         const trustedState = posted.get(TRUSTED_AUTHOR_CONTEXT);
-        if (
+        const labels = (raw.labels ?? []).map((l) => l.name);
+        const edit = (args: string[]): void => {
+            if (dryRun) return;
+            try {
+                gh(run, args);
+            } catch (e) {
+                failed++;
+                console.error(`PR #${raw.number}: ${(e as Error).message}`);
+            }
+        };
+        const requeue = () =>
+            edit([
+                "pr",
+                "comment",
+                String(raw.number),
+                "--repo",
+                repo,
+                "--body",
+                REQUEUE_COMMENT,
+            ]);
+        let action: HeldAction;
+        try {
+            action = heldPrAction({
+                labels,
+                lineage,
+                baseHealth: next,
+                trustedAuthor: trustedState,
+                lastRequeueAt: () =>
+                    lastRequeueSince(
+                        prComments(run, repo, raw.number),
+                        heldSince(run, repo, raw.number)
+                    ),
+                now: Date.now(),
+            });
+        } catch (e) {
+            failed++;
+            console.error(`PR #${raw.number}: ${(e as Error).message}`);
+            continue;
+        }
+        if (action === "requeue") {
+            console.log(
+                `PR #${raw.number}: ${REQUEUE_COMMENT} (${HELD_LABEL} kept until it is ${MERGIFY_QUEUED_LABEL})`
+            );
+            requeue();
+        } else if (action === "release") {
+            console.log(
+                `PR #${raw.number}: hold over — removing ${HELD_LABEL}`
+            );
+            edit([
+                "pr",
+                "edit",
+                String(raw.number),
+                "--repo",
+                repo,
+                "--remove-label",
+                HELD_LABEL,
+            ]);
+        } else if (
             next &&
             trustedState &&
+            !labels.includes(HELD_LABEL) &&
             needsRequeue({
-                labels: (raw.labels ?? []).map((l) => l.name),
+                labels,
                 prior,
                 next,
                 trustedAuthor: trustedState,
             })
         ) {
             console.log(`PR #${raw.number}: ${REQUEUE_COMMENT}`);
-            if (!dryRun)
-                try {
-                    gh(run, [
-                        "pr",
-                        "edit",
-                        String(raw.number),
-                        "--repo",
-                        repo,
-                        "--remove-label",
-                        HELD_LABEL,
-                    ]);
-                    gh(run, [
-                        "pr",
-                        "comment",
-                        String(raw.number),
-                        "--repo",
-                        repo,
-                        "--body",
-                        REQUEUE_COMMENT,
-                    ]);
-                } catch (e) {
-                    failed++;
-                    console.error(`PR #${raw.number}: ${(e as Error).message}`);
-                }
+            requeue();
         }
     }
     return failed === 0 ? 0 : 1;

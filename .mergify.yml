@@ -41,6 +41,17 @@ priority_rules:
           - label=queue:priority
       priority: high
 
+# `pr-gate` requeues the PRs a RED held with `@mergifyio requeue`, posted with
+# the job's `GITHUB_TOKEN` (`github-actions[bot]`), which has no repository
+# permission: under the default `sender-permission>=write` Mergify refused
+# every such requeue (issue #6957). The bot is admitted for `requeue` alone.
+commands_restrictions:
+    requeue:
+        conditions:
+            - or:
+                  - sender-permission>=write
+                  - sender=github-actions[bot]
+
 merge_protections_settings:
     # Queue a PR as soon as it is labelled; the queue rule's
     # `queue_conditions` decide whether it may enter.
@@ -80,7 +91,9 @@ pull_request_rules:
     # `base-health` green, so it stays a repair pick.
     # `queue:held` outlives the RED: once `base-health` is green again the
     # dequeue reason still stands until the PR is requeued, and the rule
-    # above would match. `pr-gate` removes the label when it requeues.
+    # below would match. `pr-gate` requeues the PR first and removes the
+    # label only once it is `queued` again, or the requeue did not take
+    # (issue #6957).
     - name: a dequeue under a RED is a hold
       conditions:
           - check-failure=base-health
@@ -124,8 +137,9 @@ pull_request_rules:
     #
     # Not under a RED: the lane tests the PR merged with the base, so a RED
     # reds every PR's lane, and that red is the base's (issue #6256). The rule
-    # below holds the PR instead; `pr-refresh` rebases a held PR on every base
-    # push (a fresh lane on the moved base), and `pr-gate`'s GREEN requeues it.
+    # below holds the PR instead; while the RED stands `pr-refresh` rebases a
+    # held PR on every base push (a fresh lane on the moved base), and
+    # `pr-gate`'s GREEN requeues it (issue #6957).
     - name: a red land refusal on a queue PR is a repair pick
       conditions:
           - label=ready-to-land
