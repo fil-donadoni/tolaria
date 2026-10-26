@@ -66,6 +66,16 @@ export async function saveGameState(
     // `dependsOnCounters` or a conditioned `keyword-grant`, so this adds no
     // duplicate/skipped SBA behavior and is cheap on the common case.
     recomputeContinuousEffects(state as GameState);
+    // A `retained` reveal has now reached a stable snapshot: drop the flag so
+    // the next resolution's `pendingReveals` clear removes it.
+    const pending = (state as GameState).pendingReveals;
+    if (pending?.some((r) => r.retained)) {
+        (state as GameState).pendingReveals = pending.map((r) => {
+            const persisted = { ...r };
+            delete persisted.retained;
+            return persisted;
+        });
+    }
     // ADR 0047 — maintain the authoritative Expected Input at the persistence
     // seam. Every stable point flows through `saveGameState`, so recomputing
     // here keeps the persisted + projected field coherent with the settled
