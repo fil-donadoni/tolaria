@@ -10,9 +10,10 @@ import { clearSession } from "~/lib/session";
 import { requestBugReport } from "~/lib/bug-report-requests";
 import ClearYieldsButton from "./clear-yields-button";
 import ManageYieldsButton from "./manage-yields-button";
+import DecklistView from "./decklist-view";
 import { lobbyHrefForMatch } from "~/lib/matchNavigation";
 
-type Step = "menu" | "confirm-concede" | "confirm-forfeit";
+type Step = "menu" | "decklist" | "confirm-concede" | "confirm-forfeit";
 
 type PauseMenuDialogProps = {
     open: boolean;
@@ -56,6 +57,12 @@ export default function PauseMenuDialog({
     // ONE terminator (ADR 0080), so it never splits either.
     const isBo3 = !isManualGame && match?.bestOf === 3;
 
+    // Issue #2241 — the viewer's OWN seat only (Solo: the seat they control, as
+    // `playerId` follows it). The projection strips the opponent's deck, and
+    // there is deliberately no fallback to another seat. Null for a legacy
+    // match-less Game or while the Match meta loads.
+    const ownDeck = match?.players.find((p) => p.id === playerId)?.deck ?? null;
+
     const handleOpenChange = (nextOpen: boolean) => {
         if (!nextOpen) setStep("menu");
         onOpenChange(nextOpen);
@@ -95,6 +102,31 @@ export default function PauseMenuDialog({
             setIsBusy(false);
         }
     };
+
+    if (step === "decklist" && ownDeck) {
+        return (
+            <GameDialog
+                open={open}
+                onOpenChange={handleOpenChange}
+                title="Decklist"
+                subtitle={ownDeck.name}
+                showCloseButton
+                dismissable
+            >
+                <DecklistView
+                    maindeck={ownDeck.maindeck}
+                    sideboard={ownDeck.sideboard}
+                />
+                <Button
+                    variant="secondary"
+                    className="w-full mt-3"
+                    onClick={() => setStep("menu")}
+                >
+                    Back
+                </Button>
+            </GameDialog>
+        );
+    }
 
     if (step === "confirm-concede") {
         return (
@@ -174,6 +206,15 @@ export default function PauseMenuDialog({
                     Renders nothing while the viewing seat holds no yields. */}
                 <ClearYieldsButton variant="menu" />
                 <ManageYieldsButton variant="menu" />
+                {ownDeck && (
+                    <Button
+                        variant="secondary"
+                        className="w-full"
+                        onClick={() => setStep("decklist")}
+                    >
+                        Decklist
+                    </Button>
+                )}
                 {/* Issue #3419 — the bug report's in-game home on the portrait
                     bar, whose four tabs are already at their touch-target
                     budget. The menu closes first: the dialog belongs to the
