@@ -1,3 +1,5 @@
+// lane-scans: src/**
+// lane-cost: 8 s (vitest Duration 7.69 s, tests 0.65 s, 2026-10-27)
 // Static guard for issue #2792 (WCAG 2.5.8, ADR 0101 §2): the dense Button
 // rungs (`xs`, `icon`, `icon-sm`, `icon-xs`) get their coarse-pointer 44px
 // floor from `min-h/min-w: var(--touch-min)`. `cn` is `twMerge(clsx(…))`, so
