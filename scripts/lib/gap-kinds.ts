@@ -31,6 +31,7 @@ import {
     type GapFiling,
 } from "./gap-issues";
 import { gapOf } from "./grammar-gaps";
+import { renderGrammarGapTargetFiles } from "./grammar-gap-target-files";
 import { isMustCovered } from "./target-completed";
 import type { BotFindingVerdict } from "./bot-findings-merge";
 import { type CardRow, type Lockfile } from "./oracle-lockfile";
@@ -515,6 +516,9 @@ export function buildFragmentGapFilings(inputs: KindInputs): GapFiling[] {
                     `Enforced-Target cards held (${names.length}): ${names.join(", ")}`,
                     "",
                     "The work is `/grammar-rule` on this key. The gap disappears when the rule lands and no card carries it — this issue closes through that PR, or at the next landing's `gaps:sync` once no card carries it.",
+                    // The rule's module, so a sibling gap one rule also
+                    // closes is serialised behind this one (issue #6921).
+                    ...renderGrammarGapTargetFiles(key),
                 ].join("\n"),
         };
     });
