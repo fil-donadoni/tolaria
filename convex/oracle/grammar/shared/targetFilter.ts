@@ -65,6 +65,7 @@ import {
     type RuleResult,
     subGrammar,
 } from "../../rule";
+import { SELF_MARKER } from "../../normalize";
 import { keywordVocabulary } from "./keywordVocabulary";
 import {
     ARTIFACT_SUBTYPES,
@@ -116,6 +117,11 @@ export interface DescriptorIR {
      *  filter turns it into `isToken: false`. */
     readonly nontoken?: true;
     readonly controller?: "you" | "opponent";
+    /** CR 201.5 — "other creatures" / "creature other than this creature": the
+     *  set without the SOURCE object itself. A reference, not a type filter, so
+     *  it sits beside the clauses and each converter either encodes it
+     *  (`excludeSource`, the flag the hand-written catalogue uses) or refuses. */
+    readonly excludeSource?: true;
     readonly tapped?: "tapped" | "untapped";
     readonly combatRole?: readonly ("attacking" | "blocking")[];
     readonly requireAbility?: string;
@@ -195,6 +201,39 @@ function plural(word: string): string | null {
     return word.endsWith("s") ? word.slice(0, -1) : null;
 }
 
+/**
+ * Nouns Oracle text uses for "the object this ability is printed on".
+ *
+ * Modern templating writes "this creature" / "this artifact"; older wordings
+ * (and the gold fixtures reconstructed from them) name the card, which
+ * `normalize.ts` has already replaced with `{self}`. Both are the same referent
+ * and both are accepted; a noun outside the table is refused rather than
+ * assumed to be self, because "this creature" and "that creature" differ by one
+ * word and by the whole meaning.
+ */
+const SELF_NOUNS: ReadonlySet<string> = new Set([
+    "creature",
+    "artifact",
+    "enchantment",
+    "land",
+    "planeswalker",
+    "permanent",
+    "card",
+    "token",
+    "Aura",
+    "Equipment",
+    "Vehicle",
+]);
+
+/** True when the span names the source object (CR 700.7). */
+export function isSelfPhrase(span: string): boolean {
+    if (span === SELF_MARKER) return true;
+    if (!span.startsWith("this ")) return false;
+    return SELF_NOUNS.has(span.slice("this ".length));
+}
+
+const SELF_NOUN_LIST: readonly string[] = [...SELF_NOUNS];
+
 // ── Adjectives ─────────────────────────────────────────────────────────────
 
 /**
@@ -233,6 +272,8 @@ export interface DescriptorState {
     /** See `DescriptorIR.nontoken`. */
     nontoken?: true;
     controller?: "you" | "opponent";
+    /** See `DescriptorIR.excludeSource`. */
+    excludeSource?: true;
     /** CR 508.5 — `controller` came from "defending player controls". */
     defendingPlayer?: true;
     tapped?: "tapped" | "untapped";
@@ -319,6 +360,12 @@ function readAdjective(
             return `colour "${token}" beside a colour disjunction`;
         if (into.colors.includes(color)) return `colour "${token}" twice`;
         into.colors.push(color);
+        return null;
+    }
+    // CR 201.5 — "other": every object of the set except the source itself.
+    if (lower === "other") {
+        if (into.excludeSource === true) return `"${token}" twice`;
+        into.excludeSource = true;
         return null;
     }
     // CR 111.1 — "nontoken" before the "non<word>" readers below, none of
@@ -483,6 +530,10 @@ const QUALIFIERS: readonly (readonly [string, Qualifier])[] = [
     // picked. Both spellings print; the corpus uses the first after "permanent
     // you control" (Luminescent Rain, Distant Melody) and the second after a
     // bare noun (And They Shall Know No Fear, Kindred Dominance).
+    ...SELF_NOUN_LIST.map(
+        (noun) => [` other than this ${noun}`, setExcludeSource] as const
+    ),
+    [` other than ${SELF_MARKER}`, setExcludeSource],
     [" of that type", setChosenType],
     [" of the chosen type", setChosenType],
     [" from your graveyard", (into) => setGraveyard(into, "you")],
@@ -499,6 +550,13 @@ const QUALIFIERS: readonly (readonly [string, Qualifier])[] = [
         },
     ],
 ];
+
+/** CR 201.5 — "other than this creature" / "other than {self}": the source. */
+function setExcludeSource(into: DescriptorState): string | null {
+    if (into.excludeSource === true) return "two source exclusions";
+    into.excludeSource = true;
+    return null;
+}
 
 function setChosenType(into: DescriptorState): string | null {
     if (into.chosenType === true) return "two chosen-type clauses";
@@ -1049,6 +1107,7 @@ function finish(
     }
     if (state.nontoken === true) out.nontoken = true;
     if (state.controller !== undefined) out.controller = state.controller;
+    if (state.excludeSource === true) out.excludeSource = true;
     if (state.tapped !== undefined) out.tapped = state.tapped;
     if (state.combatRole !== undefined) out.combatRole = state.combatRole;
     if (state.requireAbility !== undefined)
@@ -1225,6 +1284,8 @@ export function targetRequirementFromDescriptor(
     if (descriptor.mvFilter) requirement.mvFilter = descriptor.mvFilter;
     // CR 111.1 — "target nontoken creature": `TargetRequirement.isToken`.
     if (descriptor.nontoken === true) requirement.isToken = false;
+    // CR 201.5 — "other creature" / "creature other than this creature".
+    if (descriptor.excludeSource === true) requirement.excludeSource = true;
     if (descriptor.zone !== undefined) {
         // CR 404.1 — the graveyard's owner is named by `zoneOwner` alone; a
         // trailing "you control" would be dropped here, so it is refused.
@@ -1266,8 +1327,10 @@ export function permanentFilterFromDescriptor(
      * cost sites this converter was written for (a sacrifice filter) have no
      * colour reader on their payment path; a CONDITION site does — the trigger
      * gate and the static gate both read live colours (issue #4126).
+     * `excludeSource: true` admits "other" (CR 201.5): only a site whose
+     * payment or match path honours `PermanentFilter.excludeSource` opts in.
      */
-    allow: { readonly colors?: true } = {}
+    allow: { readonly colors?: true; readonly excludeSource?: true } = {}
 ): RuleResult<PermanentFilter> {
     if (descriptor.player !== undefined || descriptor.anyTarget === true)
         return fail("a player cannot be sacrificed", "player");
@@ -1286,6 +1349,7 @@ export function permanentFilterFromDescriptor(
                 "plural",
                 "nontoken",
                 ...(allow.colors === true ? ["colors", "multicolored"] : []),
+                ...(allow.excludeSource === true ? ["excludeSource"] : []),
             ].includes(field)
         ) {
             return fail(
@@ -1311,6 +1375,8 @@ export function permanentFilterFromDescriptor(
     if (descriptor.nontoken === true) filter.isToken = false;
     if (Object.keys(filter).length === 0)
         return fail("cost filter matches everything", "filter");
+    // CR 201.5 — "other": the filter's own self-exclusion flag.
+    if (descriptor.excludeSource === true) filter.excludeSource = true;
     return ok(filter as PermanentFilter);
 }
 
