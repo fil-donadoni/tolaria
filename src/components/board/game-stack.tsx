@@ -28,7 +28,7 @@ import ManageYieldsButton from "./manage-yields-button";
  *  {@link ABOVE_CONTROLLER_POD_EXPR}'s fixed part (8rem + 0.5rem) plus the
  *  header and padding. A literal so Tailwind sees it. */
 const DESKTOP_ROWS_MAX_H =
-    "max-h-[min(70vh,calc(100vh-var(--controller-pod-h,0px)-14.5rem))]";
+    "max-h-[min(70vh,calc(100dvh-var(--controller-pod-h,0px)-14.5rem))]";
 
 /** Portrait's clearance-bound bottom edge — the SAME literal Tailwind class
  *  the viewer battlefield band itself uses for this edge
