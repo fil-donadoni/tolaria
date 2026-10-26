@@ -1942,9 +1942,9 @@ describe("land.ts — the check:ui receipt is owed by the owed predicate, whatev
         });
     });
 
-    it("a full-lane diff (src + convex) touching an owed glob with no receipt is refused", () => {
+    it("a mixed diff (src + convex, engine since issue #6989) touching an owed glob with no receipt is refused", () => {
         const diff = ["convex/gre/state.ts", "src/index.css"];
-        expect(classifyLane(diff).lane).toBe("full");
+        expect(classifyLane(diff).lane).toBe("engine");
         expect(
             skinReceiptInvalidForDiff(diff, REPO_ROOT, "no receipt", noScope)
         ).toBe(true);
@@ -1958,9 +1958,9 @@ describe("land.ts — the check:ui receipt is owed by the owed predicate, whatev
         ).toBe(false);
     });
 
-    it("a full-lane diff whose src paths are test-only lands without a receipt", () => {
+    it("a mixed diff whose src paths are test-only lands without a receipt", () => {
         const diff = ["convex/gre/state.ts", "src/lib/__tests__/state.test.ts"];
-        expect(classifyLane(diff).lane).toBe("full");
+        expect(classifyLane(diff).lane).toBe("engine");
         expect(skinReceiptInvalidForDiff(diff, REPO_ROOT, "no receipt")).toBe(
             false
         );

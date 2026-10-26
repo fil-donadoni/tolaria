@@ -732,9 +732,9 @@ export interface LaneFallbackRate {
  *
  * WHY IT IS ITS OWN ROW and not a slice of {@link laneHistogram}: the
  * histogram counts `full` runs, and `full` has two causes that cost the same
- * and mean opposite things. A diff spanning `src/**` and `convex/**` is
- * `full` BY DESIGN — that is the mixed case ADR 0136 §3 deliberately refuses
- * to narrow. A diff stopped by a path outside every rule is `full` BY
+ * and mean opposite things. A diff spanning `src/**` and `convex/**` was
+ * `full` BY DESIGN until issue #6989 scoped it (it is `engine` now; older
+ * receipts still carry it). A diff stopped by a path outside every rule is `full` BY
  * FALLBACK, and each one is a question: should that path have a lane? Nothing
  * measured the second kind, which is how `.claude/**` went on charging
  * `check:pr` for a `SKILL.md` for as long as it did.
@@ -808,8 +808,9 @@ export function parseLaneLine(log: string): string | null {
  *
  * Returns null for every other shape, and that is the load-bearing part: the
  * OTHER `full` rationale ("spanning src/** and convex|scripts|data/**") is the
- * mixed case, `full` by design rather than by fallback, and it carries no
- * such clause. So a null here means "not a fallback", never "could not tell".
+ * mixed case, `full` by design rather than by fallback until issue #6989
+ * moved it to `engine` — receipts before it still carry it — and it carries
+ * no such clause. So a null here means "not a fallback", never "could not tell".
  */
 export function parseLaneForcingPath(log: string): string | null {
     const m = log.match(

@@ -227,14 +227,14 @@ describe("check-lane — path classification (issue #2740)", () => {
             );
         });
 
-        it("mixed with src/** and convex/** it is still full; the rest of .github/ stays full", () => {
+        it("mixed with src/** and convex/** it is the scoped mixed case (issue #6989); the rest of .github/ stays full", () => {
             expect(
                 classifyLane([
                     ".github/workflows/pr-gate.yml",
                     "src/components/Board.tsx",
                     "convex/gre/combat.ts",
                 ]).lane
-            ).toBe("full");
+            ).toBe("engine");
             for (const p of [
                 ".github/CODEOWNERS",
                 ".github/ISSUE_TEMPLATE/bug.yml",
@@ -616,30 +616,17 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         ).not.toContain("node[docs]");
     });
 
-    it("prose over a src + convex mix is still full — prose never narrows a mixed code diff", () => {
+    it("prose over a src + convex mix rides with the mixed case (issue #6989)", () => {
         const plan = classifyLane([
             "docs/adr/0111.md",
             "src/components/board/Card.tsx",
             "convex/gre/phases.ts",
         ]);
-        expect(plan.lane).toBe("full");
-        expect(ids(plan.run)).toEqual([
-            "check:pr:app",
-            "vitest(bot)",
-            "check:gaps",
-            "check:targets",
-            "check:test-hygiene",
-            "blade-index",
-            "search-cost",
-            "eval-weights-fit",
-            "bot-pins",
-            "check:baseline-shrink",
-            "check:derived-in-diff",
-            "check:issue-log-comments",
-            "check:duplicate-test-blocks",
-        ]);
-        expect(plan.rationale).toContain("spanning src/**");
-        expect(plan.rationale).not.toContain("prose");
+        expect(plan.lane).toBe("engine");
+        expect(ids(plan.run)).not.toContain("check:pr:app");
+        expect(plan.run.at(-1)!.id).toBe("node[docs]");
+        expect(plan.rationale).toContain("src/** and convex|scripts|data/**");
+        expect(plan.rationale).toContain("prose");
     });
 
     it("prose over an unrecognised path is still full", () => {
@@ -660,12 +647,34 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         expect(classifyLane(["scripts/gate.ts"]).lane).toBe("engine");
     });
 
-    it("mixed src + convex ⇒ full", () => {
-        const plan = classifyLane([
-            "src/components/board/Card.tsx",
-            "convex/gre/engine.ts",
-        ]);
-        expect(plan.lane).toBe("full");
+    /**
+     * Issue #6989 — the mixed case is the `engine` lane plus the `dom` tests
+     * the walk reaches: no `check:pr:app`, so no whole-repo prettier, no
+     * whole-tree suite, no bundle build.
+     */
+    it("mixed src + convex ⇒ engine, scoped by the import graph with dom", () => {
+        const plan = classifyLane(
+            ["src/components/board/Card.tsx", "convex/gre/engine.ts"],
+            undefined,
+            () => ({
+                "node-engine": ["convex/gre/__tests__/engine.test.ts"],
+                "node-tooling": [],
+                dom: ["src/components/board/Card.test.tsx"],
+            })
+        );
+        expect(plan.lane).toBe("engine");
+        expect(plan.run).toContainEqual({
+            id: "vitest(related)",
+            command:
+                "bunx vitest run --project node-engine --project dom 'convex/gre/__tests__/engine.test.ts' 'src/components/board/Card.test.tsx'",
+        });
+        expect(ids(plan.run)).toEqual(
+            expect.arrayContaining(["tsc[all]", "check:index", "cr:lint"])
+        );
+        expect(ids(plan.run)).not.toContain("check:pr:app");
+        expect(ids(plan.skip)).not.toContain("dom");
+        expect(ids(plan.skip)).toContain("bundle");
+        expect(plan.rationale).toContain("dom tests the diff reaches");
     });
 
     it("package.json ⇒ full, even alongside a src-only diff", () => {
@@ -727,11 +736,11 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
                 other
             ).toBe("engine");
         }
-        // Beside src/** it is the mixed case, like any other code.
+        // Beside src/** it is the mixed case, like any other code (#6989).
         expect(
             classifyLane(["convex/cards/sets/lea/red.cards.ts", "src/app.tsx"])
                 .lane
-        ).toBe("full");
+        ).toBe("engine");
         // Prose rides along without changing the lane (ADR 0136 §3).
         const withProse = classifyLane([
             "convex/cards/sets/lea/red.cards.ts",
@@ -741,7 +750,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         expect(ids(withProse.run).at(-1)).toBe("node[docs]");
     });
 
-    it("data/** alone ⇒ engine; data/** beside src/** ⇒ full", () => {
+    it("data/** alone ⇒ engine; data/** beside src/** ⇒ the mixed engine case", () => {
         expect(classifyLane(["data/cr/comprehensive-rules.txt"]).lane).toBe(
             "engine"
         );
@@ -749,7 +758,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
             classifyLane(["convex/gre/engine.ts", "data/cr/VERSION.json"]).lane
         ).toBe("engine");
         expect(classifyLane(["src/app.tsx", "data/card-index.json"]).lane).toBe(
-            "full"
+            "engine"
         );
     });
 
@@ -764,7 +773,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         // Mixed with a real src file it is the mixed case, not skin.
         expect(
             classifyLane(["src/app.tsx", "scripts/ui-gate/report.css"]).lane
-        ).toBe("full");
+        ).toBe("engine");
     });
 
     it("an asset-only diff outside every rule ⇒ full (#2740 review)", () => {
@@ -2591,13 +2600,13 @@ describe("check-lane — every check:* script is in a lane or health-only by cos
 });
 
 /**
- * Issue #6149 — the `full` lane is `check:pr` verbatim EXCEPT its bot half:
- * `check:pr:app` (pinned to `check:pr` by `check-guards-scope.test.ts`), then
- * the bot fast lane over the files the diff reaches through the import graph,
- * or whole when a path is a Bot input or forces the full gate on its own. The
- * bot walk is pinned in `test-reach.test.ts`; here, the plan built from it.
+ * Issue #6989 — the `full` lane is `check:pr` verbatim again: `check:pr:app`
+ * (pinned to `check:pr` by `check-guards-scope.test.ts`) then the bot fast
+ * lane WHOLE. Issue #6149 scoped that bot half for the `src/**` + `convex/**`
+ * mix; the mix is the `engine` lane now, and every `full` diff left holds a
+ * path no walk can scope.
  */
-describe("the full lane's bot half is scoped by the import graph (issue #6149)", () => {
+describe("the full lane is check:pr verbatim; the mixed case is scoped (issues #6149, #6989)", () => {
     const MIX = ["src/components/board/Card.tsx", "convex/game.ts"];
     const TOTAL = 352;
     /** A bot walk answering `r`; `asked` records every diff it was asked. */
@@ -2609,112 +2618,135 @@ describe("the full lane's bot half is scoped by the import graph (issue #6149)",
                 asked.push(paths);
                 return { "bot-node": [], "bot-dom": [], ...r };
             },
-            costs: () => ({}),
+            costs: () => ({
+                "convex/__tests__/a.bot.test.ts": 1_000,
+                "src/lib/b.bot.test.ts": 1_000,
+            }),
             budget: () => ({ perFileMs: 5_000, totalMs: 10_000 }),
         };
         return { source, asked };
     };
+    const noNode = (): RelatedTests => ({
+        "node-engine": [],
+        "node-tooling": [],
+        dom: [],
+    });
     const plan = (files: string[], source: BotReachSource) =>
-        classifyLane(files, undefined, undefined, undefined, source);
+        classifyLane(files, undefined, noNode, undefined, source);
     const botStep = (p: LanePlan) => p.run.find((c) => c.id === BOT_STEP);
 
-    it("a src + convex diff that touches no Bot input runs only the reached bot files", () => {
+    it("a src + convex diff is engine, its reached bot files admitted by cost", () => {
         const { source, asked } = botOnly({
             "bot-node": ["convex/__tests__/a.bot.test.ts"],
             "bot-dom": ["src/lib/b.bot.test.ts"],
         });
         const p = plan(MIX, source);
-        expect(p.lane).toBe("full");
+        expect(p.lane).toBe("engine");
         expect(asked).toEqual([MIX]);
         expect(botStep(p)).toEqual({
             id: BOT_STEP,
             command:
                 "TOLARIA_BOT_FAST=1 bunx vitest run --project bot-node --project bot-dom 'convex/__tests__/a.bot.test.ts' 'src/lib/b.bot.test.ts'",
         });
-        expect(p.botReach).toMatchObject({ run: 2, total: TOTAL });
-        // The app half is still `check:pr`'s, whole.
-        expect(p.run[0]).toEqual({
-            id: "check:pr:app",
-            command: "bun run check:pr:app",
+        expect(p.botReach!.why).toContain("measured cost");
+    });
+
+    it("a Bot input in a mixed diff is admitted by cost, like any engine diff (issue #6943)", () => {
+        const { source, asked } = botOnly({
+            "bot-node": ["convex/__tests__/a.bot.test.ts"],
         });
+        const p = plan([...MIX, "convex/gre/evaluate.ts"], source);
+        expect(p.lane).toBe("engine");
+        expect(asked).toHaveLength(1);
+        expect(botStep(p)!.command).not.toBe(BOT_FAST_LANE);
     });
 
-    it("a bot project with no reached file is never named", () => {
-        const { source } = botOnly({
-            "bot-dom": ["src/lib/b.bot.test.ts"],
-        });
-        expect(botStep(plan(MIX, source))!.command).toBe(
-            "TOLARIA_BOT_FAST=1 bunx vitest run --project bot-dom 'src/lib/b.bot.test.ts'"
-        );
-    });
-
-    it("nothing reached ⇒ a skip line naming health, never an empty run", () => {
-        const { source } = botOnly({});
-        const p = plan(MIX, source);
-        expect(botStep(p)).toBeUndefined();
-        expect(p.skip.find((s) => s.id === BOT_STEP)?.reason).toMatch(
-            /import graph.*health/
-        );
-        expect(p.botReach).toMatchObject({ run: 0, total: TOTAL });
-    });
-
-    it("a BOT_GLOBS diff runs the whole bot fast lane, without asking the walk", () => {
-        for (const bot of [
-            "convex/gre/ai/blade/scenarios.ts",
-            "convex/gre/evaluate.ts",
-            "src/lib/ai/brain-client.ts",
+    it("a path that forces the full gate runs check:pr:app and the whole bot fast lane, never asking the walk", () => {
+        for (const forcing of [
+            "bun.lock",
+            "vite.config.ts",
+            "vitest.setup.node.ts",
+            "foo/x",
         ]) {
-            const { source, asked } = botOnly({
-                "bot-node": ["convex/__tests__/a.bot.test.ts"],
+            const { source, asked } = botOnly({});
+            const p = plan([...MIX, forcing], source);
+            expect(p.lane, forcing).toBe("full");
+            expect(p.run[0], forcing).toEqual({
+                id: "check:pr:app",
+                command: "bun run check:pr:app",
             });
-            const p = plan([...MIX, bot], source);
-            expect(p.lane, bot).toBe("full");
-            expect(botStep(p), bot).toEqual({
+            expect(botStep(p), forcing).toEqual({
                 id: BOT_STEP,
                 command: BOT_FAST_LANE,
             });
-            expect(p.botReach, bot).toMatchObject({ run: TOTAL, total: TOTAL });
-            expect(p.botReach!.why, bot).toContain(`${bot} is a Bot input`);
-            expect(asked, bot).toEqual([]);
-        }
-    });
-
-    it("a Bot hash input outside BOT_GLOBS runs it whole too", () => {
-        // `convex/gre/state.ts` is in the hash (`isBotSourceFile`), not a glob.
-        const { source } = botOnly({});
-        const p = plan([...MIX, "convex/gre/state.ts"], source);
-        expect(botStep(p)!.command).toBe(BOT_FAST_LANE);
-    });
-
-    it("a path that forces the full gate on its own runs it whole — no walk sees its reach", () => {
-        for (const forcing of ["bun.lock", "vitest.setup.node.ts", "foo/x"]) {
-            const { source, asked } = botOnly({});
-            const p = plan(["src/x.tsx", forcing], source);
-            expect(p.lane, forcing).toBe("full");
-            expect(botStep(p)?.command, forcing).toBe(BOT_FAST_LANE);
+            expect(p.botReach, forcing).toMatchObject({
+                run: TOTAL,
+                total: TOTAL,
+            });
+            expect(p.botReach!.why, forcing).toContain(
+                `${forcing} forces the full gate`
+            );
             expect(asked, forcing).toEqual([]);
         }
-    });
-
-    it("past WHOLE_PROJECT_AT reached files the bot fast lane runs whole", () => {
-        const many = Array.from(
-            { length: WHOLE_PROJECT_AT + 1 },
-            (_, i) => `convex/t${i}.bot.test.ts`
+        // An empty diff is fail-closed whole too.
+        expect(botStep(plan([], botOnly({}).source))!.command).toBe(
+            BOT_FAST_LANE
         );
-        const { source } = botOnly({ "bot-node": many });
-        expect(botStep(plan(MIX, source))!.command).toBe(BOT_FAST_LANE);
     });
 
-    it("--plan prints the bot reach, files run over total", () => {
+    /** Issue #6989 acceptance: the diffs that move a bundle budget — the
+     *  dependency set, the lockfile, the Vite config — still run both bundle
+     *  checks, through the `full` lane's `check:pr:app`. */
+    it("a dependency, lockfile or vite.config diff still runs both bundle checks", () => {
+        const scripts = (
+            JSON.parse(
+                readFileSync(resolve(__dirname, "../../package.json"), "utf8")
+            ) as { scripts: Record<string, string> }
+        ).scripts;
+        expect(scripts["check:pr:app"]).toContain("bun run check:all:inner");
+        for (const n of ["check:bundle", "check:convex-bundle"])
+            expect(scripts["check:all:inner"], n).toContain(`bun run ${n}`);
+        const deps = new Map([["package.json", "full" as const]]);
+        for (const files of [
+            ["package.json"],
+            ["bun.lock"],
+            ["vite.config.ts"],
+            ["src/app.tsx", "convex/game.ts", "bun.lock"],
+        ]) {
+            const p = classifyLane(
+                files,
+                undefined,
+                noNode,
+                deps,
+                botOnly({}).source
+            );
+            expect(p.lane, files.join()).toBe("full");
+            expect(ids(p.run), files.join()).toContain("check:pr:app");
+        }
+        // `package.json` whose `scripts` alone moved is engine, no bundle.
+        const scriptsOnly = classifyLane(
+            ["package.json"],
+            undefined,
+            noNode,
+            new Map([["package.json", "engine" as const]]),
+            botOnly({}).source
+        );
+        expect(scriptsOnly.lane).toBe("engine");
+        expect(ids(scriptsOnly.skip)).toContain("bundle");
+    });
+
+    it("--plan prints the bot reach, and what forced a whole run", () => {
         const { source } = botOnly({
             "bot-node": ["convex/__tests__/a.bot.test.ts"],
         });
-        const out = renderPlan(plan(MIX, source), "4f2a91c");
-        expect(out).toMatch(
-            new RegExp(`^bot:\\s+1/${TOTAL} bot fast lane files \\(scoped`, "m")
+        expect(renderPlan(plan(MIX, source), "4f2a91c")).toMatch(
+            new RegExp(
+                `^bot:\\s+1/${TOTAL} bot fast lane files \\(admitted by measured cost`,
+                "m"
+            )
         );
         const whole = renderPlan(
-            plan([...MIX, "convex/gre/search.ts"], botOnly({}).source),
+            plan(["convex/gre/search.ts", "bun.lock"], botOnly({}).source),
             "4f2a91c"
         );
         expect(whole).toMatch(
@@ -2723,7 +2755,6 @@ describe("the full lane's bot half is scoped by the import graph (issue #6149)",
                 "m"
             )
         );
-        // A scoped lane has no bot half to print.
         expect(renderPlan(classifyLane(["docs/adr/0111.md"]), "x")).not.toMatch(
             /^bot:/m
         );

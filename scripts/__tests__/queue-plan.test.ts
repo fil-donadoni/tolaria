@@ -1337,11 +1337,11 @@ describe("queue planner — lane homogeneity (issue #2743, closing PRD #2738)", 
         );
     });
 
-    it("computes lane from real target files, never from the area:* label — a UI-labelled issue whose diff reaches convex/** is `full`, and it does not corrupt the batch (acceptance criterion 2)", () => {
+    it("computes lane from real target files, never from the area:* label — a UI-labelled issue whose diff reaches convex/** is `engine` (the mixed case, issue #6989), and it does not corrupt the batch (acceptance criterion 2)", () => {
         const issues = [
             issue(100, { labels: ["area:ui-ux", "ready-for-agent"] }),
             // Mislabelled: carries the UI hypothesis but its OWN declared
-            // files also reach convex/**, so its real lane is `full`.
+            // files also reach convex/**, so its real lane is `engine`.
             issue(200, { labels: ["area:ui-ux", "ready-for-agent"] }),
             issue(300, { labels: ["area:ui-ux", "ready-for-agent"] }),
         ];
@@ -1360,7 +1360,7 @@ describe("queue planner — lane homogeneity (issue #2743, closing PRD #2738)", 
         const plan = planBatch(issues, CONFIG, makePort(details));
 
         // #100 sets the batch lane to `skin`. #200's real files land in
-        // `full` despite its `area:ui-ux` label, so it is deferred — the
+        // `engine` despite its `area:ui-ux` label, so it is deferred — the
         // mislabel degrades it to a stricter gate, it does not corrupt
         // anyone else's admission. #300, genuinely skin, still joins.
         expect(numbers(plan)).toEqual([100, 300]);
@@ -1373,7 +1373,7 @@ describe("queue planner — lane homogeneity (issue #2743, closing PRD #2738)", 
             })
         );
         expect(plan.deferred.find((d) => d.number === 200)!.reason).toContain(
-            "full"
+            "engine"
         );
     });
 

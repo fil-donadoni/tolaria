@@ -593,9 +593,14 @@ describe("parseLaneForcingPath (issue #4376)", () => {
     });
 
     it("returns null for the MIXED full diff — full by design, not by fallback", () => {
-        const log = receipt(["src/App.tsx", "convex/gre/sba.ts"]);
+        // A receipt from before issue #6989, which moved the mix to `engine`.
+        const log =
+            "lane:  full   (HEAD abc1234def56, 2 files spanning src/** and convex|scripts|data/** — the mixed case never gets a narrowed gate)\n";
         expect(parseLaneLine(log)).toBe("full");
         expect(parseLaneForcingPath(log)).toBeNull();
+        const now = receipt(["src/App.tsx", "convex/gre/sba.ts"]);
+        expect(parseLaneLine(now)).toBe("engine");
+        expect(parseLaneForcingPath(now)).toBeNull();
     });
 
     it("returns null for a narrowed lane", () => {
