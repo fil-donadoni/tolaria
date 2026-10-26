@@ -1,4 +1,4 @@
-// The four Composition Rules of the compositional pilot (issue #6557,
+// The Composition Rules of the compositional pilot (issue #6557,
 // CR 608.2c), generalised from the idioms that bound each to one head:
 //
 //  1. the `, then` / `. Then` CHAIN between any two members the sentence
