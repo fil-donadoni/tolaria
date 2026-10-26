@@ -252,8 +252,9 @@ export function headerHashDrift(
  * it now compiles — no verdict, or one for a definition that moved — in
  * corpus order. Not drift: tier 3 carries verdicts and never plays, so such a
  * row regenerates byte-identical (ADR 0105 § 7.2). It is the base's to play:
- * `derive:sync`'s write path plays exactly these rows, and health waits on
- * them through `derive:sync --settled`, `pending` within the grace.
+ * `derive:sync`'s write path plays exactly these rows, and health reports
+ * them late through `derive:sync --settled` — an issue past the grace,
+ * never a wait (ADR 0159).
  *
  * The miss set is the probe's — the one `oracle:compile --play-misses`
  * plays — so the two can never disagree about what is stale. A session's

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
     LANDINGS_PER_BATCH,
     batchDue,
+    healthRunsPending,
     landingsIn,
     pushOwesBatchRun,
     subjectsBetween,
@@ -122,6 +123,24 @@ describe("pushOwesBatchRun — the newest verdict's sha to the pushed tip, total
                 inFlight: () => false,
             })
         ).toBe(false);
+    });
+});
+
+describe("healthRunsPending — a dispatched gate not yet past its setup holds the next dispatch", () => {
+    it("asks for queued and in-progress health.yml runs, true on either", () => {
+        const seen: string[] = [];
+        const none = (args: string[]) => {
+            seen.push(args[args.indexOf("--status") + 1]!);
+            return "[]";
+        };
+        expect(healthRunsPending(none)).toBe(false);
+        expect(seen).toEqual(["queued", "in_progress"]);
+        expect(
+            healthRunsPending((args) =>
+                args.includes("in_progress") ? '[{"databaseId":1}]' : "[]"
+            )
+        ).toBe(true);
+        expect(healthRunsPending(() => '[{"databaseId":2}]')).toBe(true);
     });
 });
 

@@ -45,6 +45,7 @@ import {
     BOT_REPLAY_PATHS,
     CARD_INDEX_PATH,
     DERIVED_LATE_LABELS,
+    DERIVED_LATE_TITLE_PREFIX,
     DERIVED_PATHS,
     DERIVE_SYNC_COMMIT_SUBJECT,
     DERIVE_SYNC_PATHS,
@@ -666,7 +667,16 @@ describe("--settled — a late Bot state is reported on a GREEN verdict, never p
         expect(derivedLateTitle("drift", BOT)).toBe(
             derivedLateTitle("drift", "sha256:other")
         );
-        expect(DERIVED_LATE_LABELS).toEqual(["bug", "area:workflow"]);
+        // Not `bug`: `bug` + `area:workflow` is board P0 by rule (issue #6902).
+        expect(DERIVED_LATE_LABELS).toEqual(["enhancement", "area:workflow"]);
+        expect(
+            derivedLateTitle("drift", BOT).startsWith(DERIVED_LATE_TITLE_PREFIX)
+        ).toBe(true);
+        expect(
+            derivedLateTitle("bot-hash", BOT).startsWith(
+                DERIVED_LATE_TITLE_PREFIX
+            )
+        ).toBe(true);
         const body = renderDerivedLateIssue({
             sha: "abcdef0123456789",
             kind: "bot-hash",
@@ -1194,5 +1204,30 @@ describe("pushDerivedCommit — landed / coalesced / failed against a bare remot
         expect(
             transientPushFailure(answer("remote: Permission to o/r denied"))
         ).toBe(false);
+        // Credentials and size refusals repeat: never retried.
+        expect(
+            transientPushFailure(
+                answer(
+                    "fatal: unable to access 'https://github.com/o/r/': The requested URL returned error: 403"
+                )
+            )
+        ).toBe(false);
+        expect(
+            transientPushFailure(answer("error: RPC failed; HTTP 413 curl 22"))
+        ).toBe(false);
+        expect(
+            transientPushFailure(
+                answer(
+                    "fatal: unable to access 'https://github.com/o/r/': The requested URL returned error: 502"
+                )
+            )
+        ).toBe(true);
+        expect(
+            transientPushFailure(
+                answer(
+                    "fatal: unable to access 'https://github.com/o/r/': Failed to connect to github.com port 443"
+                )
+            )
+        ).toBe(true);
     });
 });

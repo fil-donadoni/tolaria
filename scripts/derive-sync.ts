@@ -108,6 +108,7 @@ import {
     BOT_REPLAY_COMMIT_SUBJECT,
     BOT_REPLAY_PATHS,
     DERIVED_LATE_LABELS,
+    DERIVED_LATE_TITLE_PREFIX,
     DERIVED_PATHS,
     DERIVE_SYNC_COMMIT_SUBJECT,
     DERIVE_SYNC_PATHS,
@@ -302,16 +303,82 @@ function headCommittedAtMs(): number {
     );
 }
 
-/** Since when the tip's Bot state has been late (ADR 0159): a late drift
- *  sweep counts from the tip's commit (the misses appeared at its landing);
- *  a late replay from the commit that moved the Bot hash off the header's —
- *  a tip's age resets at every landing, the Bot hash's does not. */
+/** Since when the tip's Bot state has been late (ADR 0159) — never the
+ *  tip's own commit, whose age resets at every landing: a late replay
+ *  counts from the commit that moved the Bot hash off the header's; a late
+ *  drift sweep from the first landing after the base's last derive commit
+ *  (the sweep that would have played the misses). HEAD's time only when
+ *  neither can be read. */
 function lateSinceMs(kind: LateKind, headerBotHash: string): number {
     if (kind === "bot-hash") {
         const moved = botHashMove(headerBotHash).movedAtMs;
         if (moved !== null) return moved;
     }
-    return headCommittedAtMs();
+    const lastDerive = git([
+        "log",
+        "-1",
+        "--format=%H",
+        `--grep=^${DERIVE_SYNC_COMMIT_SUBJECT.slice(0, 11)}`,
+        "HEAD",
+    ]).stdout.trim();
+    const oldestSince =
+        lastDerive === ""
+            ? ""
+            : (git(["log", "--reverse", "--format=%ct", `${lastDerive}..HEAD`])
+                  .stdout.trim()
+                  .split("\n")[0] ?? "");
+    return /^\d+$/.test(oldestSince)
+        ? Number(oldestSince) * 1000
+        : headCommittedAtMs();
+}
+
+/** The open late issues closed with a comment once the Bot state is
+ *  current again (ADR 0159): listed by label and title prefix, never
+ *  searched (the search index lags). A `gh` failure is said, not fatal. */
+function closeLateIssues(): void {
+    for (const issue of openLateIssues()) {
+        try {
+            gh([
+                "issue",
+                "close",
+                String(issue.number),
+                "--comment",
+                `\`derive:sync --settled\` on ${git(["rev-parse", "HEAD"]).stdout.trim().slice(0, 10)}: the Bot state is current again — closed by the predicate (ADR 0159).`,
+            ]);
+            say(`closed the late issue #${issue.number}`);
+        } catch (error) {
+            complain(
+                `could not close issue #${issue.number}: ${String(error)}`
+            );
+        }
+    }
+}
+
+/** Every open issue under the late label whose title carries the late
+ *  prefix. Empty on a `gh` failure. */
+function openLateIssues(): { number: number; title: string }[] {
+    try {
+        const rows = JSON.parse(
+            gh([
+                "issue",
+                "list",
+                "--state",
+                "open",
+                "--label",
+                DERIVED_LATE_LABELS[1]!,
+                "--limit",
+                "100",
+                "--json",
+                "number,title",
+            ])
+        ) as { number: number; title: string }[];
+        return rows.filter((r) =>
+            r.title.startsWith(DERIVED_LATE_TITLE_PREFIX)
+        );
+    } catch (error) {
+        complain(`could not list the open late issues: ${String(error)}`);
+        return [];
+    }
 }
 
 /** `--settled` (ADR 0159): fresh or stale as `--fresh` (exit 1 on stale),
@@ -331,12 +398,13 @@ function settled(noFile: boolean): number {
     }
     if (c.current) {
         say("this tree is derived-fresh and its Bot verdicts are current");
+        if (!noFile) closeLateIssues();
         return 0;
     }
     const lock = readLockfile();
     const since = lateSinceMs(c.kind, lock.header.botHash);
     const lateMs = Date.now() - since;
-    say(derivedLateLine(c.why, new Date(since).toISOString()));
+    console.log(derivedLateLine(c.why, new Date(since).toISOString()));
     if (lateMs < DERIVED_GRACE_MS)
         say(
             `late by ${Math.round(lateMs / 60_000)} min, within the ${Math.round(DERIVED_GRACE_MS / 60_000)}-minute grace — not filed`
@@ -648,8 +716,11 @@ function acknowledgedRegressions(): ReadonlySet<string> {
 }
 
 /** The open issue titled exactly `title` under `label` (the regression
- *  issue for THIS tree's Bot, the late issue), or null. A `gh` failure is a
- *  null too: filing twice is the smaller harm beside never sweeping again. */
+ *  issue for THIS tree's Bot, the late issue), or null. Listed, never
+ *  searched: the search index lags by minutes, and a filing from the
+ *  replay beside one from a concurrent gate would file twice. A `gh`
+ *  failure is a null too: filing twice is the smaller harm beside never
+ *  sweeping again. */
 function openIssueByTitle(title: string, label: string): number | null {
     try {
         const rows = JSON.parse(
@@ -660,10 +731,8 @@ function openIssueByTitle(title: string, label: string): number | null {
                 "open",
                 "--label",
                 label,
-                "--search",
-                `in:title "${title}"`,
                 "--limit",
-                "20",
+                "100",
                 "--json",
                 "number,title",
             ])

@@ -318,7 +318,16 @@ export function derivedLateLine(why: string, sinceIso: string): string {
 
 /** The labels the late issue is stamped with at filing
  *  (`docs/agents/triage-labels.md` § Every new issue is stamped). */
-export const DERIVED_LATE_LABELS: readonly string[] = ["bug", "area:workflow"];
+export const DERIVED_LATE_LABELS: readonly string[] = [
+    "enhancement",
+    "area:workflow",
+];
+
+/** Every late title starts with this — `--settled` closes the open ones
+ *  by it once the Bot state is current again. Not `bug`: `bug` +
+ *  `area:workflow` is board P0 by rule (`issue:workflow-band`, issue
+ *  #6902), and a lateness that cures itself is no P0. */
+export const DERIVED_LATE_TITLE_PREFIX = "Derived state late:";
 
 /** The late issue's title — one per Bot hash for a late replay (the fix is
  *  that replay's commit, which moves the header), one standing title for a
@@ -326,8 +335,8 @@ export const DERIVED_LATE_LABELS: readonly string[] = ["bug", "area:workflow"];
  *  never filed twice. */
 export function derivedLateTitle(kind: LateKind, treeBotHash: string): string {
     return kind === "bot-hash"
-        ? `Derived state late: the Bot-play replay has not caught up with Bot ${treeBotHash.replace(/^sha256:/, "").slice(0, 12)}`
-        : "Derived state late: the drift sweep has not played the tip's Bot-verdict misses";
+        ? `${DERIVED_LATE_TITLE_PREFIX} the Bot-play replay has not caught up with Bot ${treeBotHash.replace(/^sha256:/, "").slice(0, 12)}`
+        : `${DERIVED_LATE_TITLE_PREFIX} the drift sweep has not played the tip's Bot-verdict misses`;
 }
 
 /**
@@ -384,7 +393,7 @@ export function renderDerivedLateIssue(input: {
         "",
         runs,
         "",
-        "**Desired behavior:** the job's next run lands its commit on the base (`gh workflow run post-merge.yml --ref staging -f job=bot-replay` re-dispatches the replay by hand; `-f job=housekeeping` the drift sweep). Once the header's Bot hash is the tree's and no `ready` row lacks a verdict, `derive:sync --settled` prints no late line and this issue closes. A run that keeps failing names the cause in its log — fix the runner, the push or the sweep, never the predicate.",
+        "**Desired behavior:** the job's next run lands its commit on the base (`gh workflow run post-merge.yml --ref staging -f job=bot-replay` re-dispatches the replay by hand; `-f job=housekeeping` the drift sweep). Once the header's Bot hash is the tree's and no `ready` row lacks a verdict, `derive:sync --settled` prints no late line and closes this issue itself on its next run (by title prefix). A run that keeps failing names the cause in its log — fix the runner, the push or the sweep, never the predicate.",
         "",
         "## Band",
         "",
@@ -746,9 +755,10 @@ export const PUSH_RETRY_BACKOFF_MS: readonly number[] = [
 
 /** git's and curl's lines for a failure that may pass on a retry — the
  *  network, the remote's availability — never a refusal (a hook, a lease,
- *  credentials), which repeats. */
+ *  credentials: `unable to access … 403`, `RPC failed; HTTP 413`), which
+ *  repeats. */
 const TRANSIENT_PUSH =
-    /could not resolve host|connection (timed out|reset|refused)|early eof|rpc failed|http 5\d\d|remote end hung up|unable to access|operation timed out|ssl_error|gnutls|the remote end hung up|transfer closed|couldn't connect/i;
+    /could not resolve host|failed to connect|connection (timed out|reset|refused)|early eof|rpc failed; (curl \d+|http 5\d\d)|remote end hung up|operation timed out|ssl_error|gnutls|transfer closed|couldn't connect|returned error: 5\d\d/i;
 
 /** Whether a failed push's answer is transient: a timeout, or stderr naming
  *  the network. Pure. */

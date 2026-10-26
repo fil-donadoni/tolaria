@@ -72,13 +72,18 @@ since <t>: <why>` line. `health-main` reads it (`derivePredicateAnswer`,
   `derivedTipVerdict` carry `late`) onto the GREEN record (`last.json`'s
   `derivedLate`, a `health-main: derived: stale since …` line) and gates
   the tip as any other;
-- past `DERIVED_GRACE_MS` **files an issue** (`bug`, `area:workflow`, one
-  title per Bot hash for a late replay, one standing title for a late drift
-  sweep; idempotent by title on every later run) naming the Bot-hash commit
-  range and the latest `post-merge` runs. `--no-file` keeps a by-hand run
-  from filing. The grace counts from the commit that moved the Bot hash
-  (not from the tip, whose age resets at every landing) for the replay, and
-  from the tip's commit for the drift sweep.
+- past `DERIVED_GRACE_MS` **files an issue** (`enhancement`,
+  `area:workflow` — not `bug`, whose pair with `area:workflow` is board P0
+  by rule, issue #6902; one title per Bot hash for a late replay, one
+  standing title for a late drift sweep; idempotent by title on every later
+  run, listed by label and never searched) naming the Bot-hash commit range
+  and the latest `post-merge` runs, and **closes** every open late issue
+  itself once the state is current. `--no-file` keeps a by-hand run from
+  filing or closing; a hosted `early` run passes it (no `issues:`
+  permission). The grace never counts from the tip, whose age resets at
+  every landing: from the commit that moved the Bot hash for the replay,
+  from the first landing after the base's last derive commit for the drift
+  sweep.
 
 Never `pending`, never RED, for question 2. The deployment predicate
 (`--fresh`) is unchanged: it never asked.
@@ -121,10 +126,15 @@ is a commit whose subject ends in ` (#N)`, read through the compare
 endpoint — a hosted checkout is shallow) since the newest verdict in the
 store, and no run is in flight on the pivot (`pivotRunInFlight`). Any
 unreadable fact answers "not due". The `50 */2` cron stays as the fallback,
-not as the clock that decides when the next GREEN can exist. `health.yml#gate`
+not as the clock that decides when the next GREEN can exist. "In flight" is the
+pivot's run marker or a queued / running `health.yml` run (the marker
+appears only after the gate's job setup and admission wait). `health.yml#gate`
 joins `SERIALISED_JOBS` (`concurrency: { group: health-gate,
 cancel-in-progress: false }`): an event dispatch and a cron run never gate
-one tip twice on two runners.
+one tip twice on two runners. The group also queues a declared repair's
+dispatch behind a gate already running — at most one run (~15 min), and
+that run's RED or GREEN on the older tip is what the repair's own run then
+supersedes; issue #6553's "at once" is a queue position, not a parallel run.
 
 ## Consequences
 

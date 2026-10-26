@@ -14,6 +14,30 @@
  */
 import { gh } from "./gh";
 import { pivotRunInFlight } from "./health-pivot";
+
+/** health.yml's queued or running runs — a gate dispatched but not yet
+ *  past its job setup has no pivot marker, and every push until it does
+ *  would dispatch again (review of this PR, finding 4). */
+export function healthRunsPending(
+    run: (args: string[]) => string = gh
+): boolean {
+    for (const status of ["queued", "in_progress"]) {
+        const out = run([
+            "run",
+            "list",
+            "--workflow",
+            "health.yml",
+            "--status",
+            status,
+            "--limit",
+            "1",
+            "--json",
+            "databaseId",
+        ]);
+        if ((JSON.parse(out) as unknown[]).length > 0) return true;
+    }
+    return false;
+}
 import { originRepo, verdictStore } from "./health-verdict-store";
 
 /** Landings per batch health run (ADR 0154: 20 landings / 8 h; the clock
@@ -70,7 +94,9 @@ export function subjectsBetween(
  * Total: any unreadable fact answers "not due" — the cron's turn, which is
  * only slower, never wrong. The newest verdict of ANY status counts: an
  * INFRA or a RED on a recent tip is a run that happened; the ladder and the
- * cron own what follows it.
+ * cron own what follows it. "In flight" is a pivot run marker OR a queued /
+ * running `health.yml` run: the marker appears only after the gate's job
+ * setup and admission wait.
  */
 export function pushOwesBatchRun(
     root: string,
@@ -87,9 +113,10 @@ export function pushOwesBatchRun(
             deps.latestVerdictSha ??
             (() => verdictStore(root).latest()?.sha ?? null)
         )();
-        // No verdict within the history the store reads: that history is
-        // itself more than a batch of unverdicted commits (`HISTORY_DEPTH`
-        // 60 ≥ 20), so the run is due unless one is in flight.
+        // No verdict within the history the store reads (`HISTORY_DEPTH`
+        // 60 commits — about 25–35 landings on the current base, the rest
+        // derive / sync commits): a batch of unverdicted landings in all
+        // likelihood, so the run is due unless one is in flight.
         const landings =
             latest === null
                 ? LANDINGS_PER_BATCH
@@ -106,7 +133,7 @@ export function pushOwesBatchRun(
                     root,
                     deps.now ?? Date.now(),
                     RUN_IN_FLIGHT_MAX_MS
-                ) !== null)
+                ) !== null || healthRunsPending())
         )();
         return batchDue({ landingsSinceVerdict: landings, inFlight });
     } catch {

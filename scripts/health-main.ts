@@ -822,9 +822,14 @@ function finishPending(ctx: RunCtx, reason: string): never {
 function judgeDerivedTip(
     wt: string,
     tip: string,
-    root: string
+    root: string,
+    mode: HealthRunMode
 ): ReturnType<typeof derivedTipVerdict> {
-    const r = spawnSync("bun", ["run", "derive:sync", "--settled"], {
+    // A hosted `early` run holds no `issues:` permission (ADR 0159): it
+    // reports the late line and never tries to file or close.
+    const args = ["run", "derive:sync", "--settled"];
+    if (mode === "early") args.push("--no-file");
+    const r = spawnSync("bun", args, {
         cwd: wt,
         encoding: "utf8",
         timeout: 10 * 60_000,
@@ -1316,7 +1321,12 @@ async function main(): Promise<void> {
             // predicate and before any gate (ADR 0157, issue #6248); never
             // under `release`, which proves the exact tip whole.
             if (step.name === WORKTREE_BOOTSTRAP && !release) {
-                const judged = judgeDerivedTip(wt, tip, root);
+                const judged = judgeDerivedTip(
+                    wt,
+                    tip,
+                    root,
+                    ctx.mode ?? "default"
+                );
                 if (judged.kind === "fresh" && judged.late)
                     ctx.derivedLate = judged.late;
                 if (judged.kind === "pending") {
