@@ -1175,9 +1175,9 @@ export const BOT_FAST_LANE =
  *     vitest setup files whose closure no walk enters, anything unrecognised
  *     — no import edge names what such a path can move.
  *
- * The `src/**` + `convex/**` mix, the one `full` shape with neither, is the
- * `engine` lane since issue #6989 and admits its reached bot files by cost
- * there (issue #6943), a Bot input included, like any engine diff.
+ * The `src/**` + `convex/**` mix, the one shape with neither, is not `full`
+ * (issue #6989): it is the `engine` lane, which admits its reached bot files
+ * by cost (`admittedBotTests`), a Bot input included.
  */
 export function forcesWholeBotLane(path: string, cls: PathClass): boolean {
     return matchesBotGlob(path) || isBotSourceFile(path) || cls === "full";
