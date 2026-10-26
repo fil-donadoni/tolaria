@@ -218,6 +218,10 @@ import { choiceCandidates } from "./ai/choiceCandidates";
 // dominated by `pass`" seam. Opt-in per caller (see `EnumerateMovesOptions`).
 import { isDominatedNoOpMove, isProbeEligibleMove } from "./ai/dominance";
 import { isFutileShieldMove } from "./ai/futileShield";
+import {
+    triggerHasNoLegalTarget,
+    withoutFutileKickerVariants,
+} from "./ai/futileKicker";
 import { collapseInterchangeableMoves } from "./ai/interchangeable";
 
 /** One land tap the executor must perform to fund a cast/activation.
@@ -3317,14 +3321,7 @@ function evokeCastIsWasteful(
         (t) => t.id !== EVOKE_SACRIFICE_TRIGGER_ID
     );
     if (own.length === 0) return false;
-    const source = targetingSourceFromCard(card, false);
-    return own.every(
-        (t) =>
-            t.targetRequirement !== undefined &&
-            !(t.modes && t.modes.length > 0) &&
-            getLegalTargets(state, t.targetRequirement, source, player.id)
-                .length === 0
-    );
+    return own.every((t) => triggerHasNoLegalTarget(state, player, card, t));
 }
 
 /** CR 107.3a / 702.33a (issue #2141) — the candidate X values for a cast
@@ -3646,8 +3643,16 @@ function enumerateCastMovesFromZone(
     // always including `undefined` (not kicked). A card with no `kickers`
     // yields the single `undefined` variant, leaving every non-Kicker card's
     // enumeration byte-identical.
+    // Issue #6904 — Bot-only: a variant paying a futile Kicker (its only
+    // payoff a gated targeted trigger with no legal target) is dominated.
     const kickerVariants: (KickerPayments | undefined)[] = def
-        ? enumerateKickerVariants(state, player, def, card)
+        ? withoutFutileKickerVariants(
+              state,
+              player,
+              card,
+              def,
+              enumerateKickerVariants(state, player, def, card)
+          )
         : [undefined];
     // CR 702.27a (issue #2081) — Buyback is a simple binary axis: pay the flat
     // extra mana cost, or don't. No shipped card combines Buyback with a
