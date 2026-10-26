@@ -7,8 +7,9 @@
  * At the end of each vitest invocation it writes one `DurationFile`: every
  * test that ran, its project, its duration and the timeout it ran under (its
  * own `it(…, ms)` override, else its project's `testTimeout`), kept when at or
- * above `RECORD_FLOOR` of that budget. It never fails the run: a write error
- * is reported on stderr and dropped.
+ * above `RECORD_FLOOR` of that budget — and, for every file of a bot project,
+ * its wall (`FileWall`, issue #6943: the lane's per-file cost table). It never
+ * fails the run: a write error is reported on stderr and dropped.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -16,9 +17,11 @@ import { isAgent } from "std-env";
 import type { Reporter, TestModule } from "vitest/node";
 import {
     DURATIONS_ENV,
+    FILE_WALL_PROJECT,
     headroomRatio,
     RECORD_FLOOR,
     type DurationFile,
+    type FileWall,
     type TestDuration,
 } from "./test-headroom";
 
@@ -34,6 +37,16 @@ export interface DurationModule {
             result(): { state: string };
             diagnostic(): { duration: number } | undefined;
         }>;
+    };
+    /** vitest's `TestModule.state()` / `.diagnostic()` — read for the file
+     *  wall only (issue #6943). */
+    state?(): string;
+    diagnostic?(): {
+        environmentSetupDuration: number;
+        prepareDuration: number;
+        collectDuration: number;
+        setupDuration: number;
+        duration: number;
     };
 }
 
@@ -62,6 +75,35 @@ export function collectDurations(
     return out;
 }
 
+/** The wall of every bot-project file in one invocation (issue #6943): every
+ *  phase vitest times for the module, summed — a census's cost is its import,
+ *  not its milliseconds of assertions. */
+export function collectFileWalls(
+    modules: readonly DurationModule[],
+    root: string
+): FileWall[] {
+    const out: FileWall[] = [];
+    for (const m of modules) {
+        if (!FILE_WALL_PROJECT.test(m.project.name)) continue;
+        const d = m.diagnostic?.();
+        if (d === undefined) continue;
+        const wall =
+            d.environmentSetupDuration +
+            d.prepareDuration +
+            d.collectDuration +
+            d.setupDuration +
+            d.duration;
+        if (!Number.isFinite(wall)) continue;
+        out.push({
+            file: relative(root, m.moduleId).split("\\").join("/"),
+            project: m.project.name,
+            wallMs: Math.round(wall),
+            state: m.state?.() ?? "unknown",
+        });
+    }
+    return out;
+}
+
 export class DurationReporter implements Reporter {
     private readonly dir: string;
     private readonly root: string;
@@ -73,12 +115,11 @@ export class DurationReporter implements Reporter {
 
     onTestRunEnd(testModules: ReadonlyArray<TestModule>): void {
         try {
+            const modules = testModules as unknown as readonly DurationModule[];
             const file: DurationFile = {
                 version: 1,
-                records: collectDurations(
-                    testModules as unknown as readonly DurationModule[],
-                    this.root
-                ),
+                records: collectDurations(modules, this.root),
+                files: collectFileWalls(modules, this.root),
             };
             mkdirSync(this.dir, { recursive: true });
             writeFileSync(

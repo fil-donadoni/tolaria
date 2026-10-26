@@ -99,6 +99,14 @@ import { matchesBotGlob } from "./lib/bot-globs";
 import { TREE_ROLE_ENV } from "./lib/derived-state";
 import { isBotSourceFile } from "./lib/bot-source-files";
 import {
+    admitByCost,
+    COSTS_PATH,
+    formatCost,
+    readBotBudget,
+    readBotTestCosts,
+    type BotBudget,
+} from "./lib/bot-test-costs";
+import {
     botRelatedTests,
     botTests,
     reachIndex,
@@ -128,14 +136,17 @@ function defaultRelated(paths: string[]): RelatedTests {
     return relatedTests(memoisedIndex, paths);
 }
 
-/** The bot fast lane's own index (issue #6149), walked only by a `full`
- *  diff that touches no Bot input: ~1.5 s over 352 files. */
+/** The bot fast lane's own index (issue #6149), walked by a `full` diff
+ *  that touches no Bot input and by every scoped code lane (issue #6943):
+ *  ~1.5 s over 352 files. */
 let memoisedBotIndex: ReachIndex<BotProject> | null = null;
 const botIndex = () =>
     (memoisedBotIndex ??= reachIndex(REPO_ROOT, botTests(REPO_ROOT)));
 const defaultBotReach: BotReachSource = {
     total: () => botIndex().tests.size,
     related: (paths) => botRelatedTests(botIndex(), paths),
+    costs: () => readBotTestCosts(REPO_ROOT),
+    budget: () => readBotBudget(REPO_ROOT),
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -480,18 +491,24 @@ export interface LanePlan {
     run: PlannedCheck[];
     skip: SkippedCheck[];
     /**
-     * `full` only (issue #6149): how many bot fast lane files the plan runs,
-     * of how many — `--plan` prints it, the receipt carries it.
+     * How many bot fast lane files the plan runs, of how many — `--plan`
+     * prints it, the receipt carries it: the `full` lane's bot half (issue
+     * #6149) and every scoped code lane's cost admission (issue #6943).
      */
     botReach?: { run: number; total: number; why: string };
 }
 
-/** What the `full` lane's bot half asks of the bot walk (issue #6149). */
+/** What a lane asks of the bot walk: the `full` lane's bot half (issue
+ *  #6149), and every scoped code lane's admission by cost (issue #6943). */
 export interface BotReachSource {
     /** How many files the bot fast lane holds (`botTests`) — no walk. */
     total(): number;
     /** The bot fast lane files `paths` reach, per project — the walk. */
     related(paths: string[]): BotRelatedTests;
+    /** Each bot file's measured cost, ms (`COSTS_PATH`) — scoped lanes only. */
+    costs(): Readonly<Record<string, number>>;
+    /** `laneBotBudget` (`tolaria.config.json`) — scoped lanes only. */
+    budget(): Pick<BotBudget, "perFileMs" | "totalMs">;
 }
 
 /** Extensions `prettier --check` has a parser for (see package.json § format). */
@@ -562,8 +579,9 @@ export function classifyLane(
      */
     overrides: ReadonlyMap<string, PathClass> = new Map(),
     /**
-     * The bot fast lane files the diff reaches (issue #6149), injectable for
-     * the reason `related` is. Called ONLY in the `full` branch.
+     * The bot fast lane files the diff reaches (issue #6149) and what they
+     * cost (issue #6943), injectable for the reason `related` is. Called in
+     * the `full` branch and every scoped code branch, never in `docs`.
      */
     botReach: BotReachSource = defaultBotReach
 ): LanePlan {
@@ -679,6 +697,9 @@ export function classifyLane(
             run,
             skip
         );
+        const bot = admittedBotTests(files, botReach, () => false);
+        run.push(...bot.run);
+        skip.push(...bot.skip);
         skip.push(
             {
                 id: "tsc[convex,node]",
@@ -700,7 +721,14 @@ export function classifyLane(
         );
         appendCheapGuards(files, run, skip);
         appendDocsGuards(files, run);
-        return { lane, rationale: skinRationale(files), files, run, skip };
+        return {
+            lane,
+            rationale: skinRationale(files),
+            files,
+            run,
+            skip,
+            botReach: bot.reach,
+        };
     }
 
     if (lane === "cards") {
@@ -734,6 +762,12 @@ export function classifyLane(
                 command: "bunx vitest run --project bot-node convex/cards/",
             }
         );
+        // Beyond `bot[cards]`, the reached bot files by cost (issue #6943).
+        const bot = admittedBotTests(files, botReach, (f) =>
+            f.startsWith("convex/cards/")
+        );
+        run.push(...bot.run);
+        skip.push(...bot.skip);
         skip.push(
             {
                 id: "tsc[app,scripts]",
@@ -751,7 +785,14 @@ export function classifyLane(
         );
         appendCheapGuards(files, run, skip);
         appendDocsGuards(files, run);
-        return { lane, rationale: cardsRationale(files), files, run, skip };
+        return {
+            lane,
+            rationale: cardsRationale(files),
+            files,
+            run,
+            skip,
+            botReach: bot.reach,
+        };
     }
 
     run.push(
@@ -789,6 +830,9 @@ export function classifyLane(
     } else {
         pushRelated(reach, ["node-engine", "node-tooling"], run, skip);
     }
+    const bot = admittedBotTests(files, botReach, () => false);
+    run.push(...bot.run);
+    skip.push(...bot.skip);
     skip.push(
         {
             id: "dom",
@@ -798,7 +842,14 @@ export function classifyLane(
     );
     appendCheapGuards(files, run, skip);
     appendDocsGuards(files, run);
-    return { lane, rationale: engineRationale(files), files, run, skip };
+    return {
+        lane,
+        rationale: engineRationale(files),
+        files,
+        run,
+        skip,
+        botReach: bot.reach,
+    };
 }
 
 /**
@@ -883,6 +934,9 @@ export const CHEAP_GUARDS: readonly {
     /** It compares the PR to its merge base, so on the base tip — where
      *  health runs — it has nothing to compare and is no health step. */
     diffOnly?: true;
+    /** The bot test files it runs WHOLE, which the cost admission (issue
+     *  #6943) then leaves out rather than run twice. */
+    runsBotFiles?: readonly string[];
 }[] = [
     {
         id: "check:gaps",
@@ -904,6 +958,7 @@ export const CHEAP_GUARDS: readonly {
         admits: /^(convex\/gre\/ai\/blade\/|data\/blade-(card-index|reproducers)\.json$|scripts\/lib\/blade-card-index\.ts$|scripts\/__tests__\/blade-card-index-drift\.bot\.test\.ts$)/,
         lacks: "no changed path under convex/gre/ai/blade/**, data/blade-{card-index,reproducers}.json or their builder — the blade card index cannot drift",
         command: `bunx vitest run --project bot-node ${BLADE_INDEX_DRIFT_TEST}`,
+        runsBotFiles: [BLADE_INDEX_DRIFT_TEST],
     },
     // Issue #6545: the ISMCTS cost-counter pin, a `bot-node` file no scoped
     // lane relates — exact clone / SBA-sweep / layer-7-walk counts any change
@@ -919,6 +974,7 @@ export const CHEAP_GUARDS: readonly {
         admits: /^convex\/((gre|cards|oracle)\/|debugScenarioSpec\.ts$)/,
         lacks: "no changed path under convex/{gre,cards,oracle}/** nor convex/debugScenarioSpec.ts — nothing a search iteration runs on moved, so its cost counters cannot",
         command: `bunx vitest run --project bot-node ${SEARCH_COST_TEST}`,
+        runsBotFiles: [SEARCH_COST_TEST],
     },
     // Issue #6559 (ADR 0154 §12 follow-up): the Weight Fit's reproducibility
     // guard — the committed DEFAULT_EVAL_WEIGHTS must be the fit of the blade
@@ -948,6 +1004,7 @@ export const CHEAP_GUARDS: readonly {
         admits: /^convex\/((gre|cards|oracle)\/|debugScenarioSpec\.ts$)/,
         lacks: "no changed path under convex/{gre,cards,oracle}/** nor convex/debugScenarioSpec.ts — nothing the evaluation-value pins derive from moved",
         command: `bunx vitest run --project bot-node ${BOT_PINS_TESTS.join(" ")}`,
+        runsBotFiles: BOT_PINS_TESTS,
     },
     {
         id: "check:baseline-shrink",
@@ -1029,7 +1086,7 @@ const MODULE_PATH = /\.([cm]?[jt]sx?)$/;
 const HEALTH_ONLY_SKIPS: SkippedCheck[] = [
     {
         id: "bot fast lane",
-        reason: "health-only (ADR 0154 §3): its byte-identity pins red on base drift, not on the PR — 29 of 34 vitest reds at land",
+        reason: "health's beyond the cost admission (ADR 0154 §13, issue #6943): the unreached bot files, and the reached ones named over budget or unmeasured above, run in health's test:bot",
     },
     {
         id: "bundle",
@@ -1104,6 +1161,101 @@ export const BOT_FAST_LANE =
  */
 export function forcesWholeBotLane(path: string, cls: PathClass): boolean {
     return matchesBotGlob(path) || isBotSourceFile(path) || cls === "full";
+}
+
+/**
+ * A scoped code lane's bot tests (issue #6943, ADR 0154 §13): the
+ * bot fast lane files the diff reaches through the import graph — the walk
+ * and census admission the `full` lane's bot half uses — admitted by MEASURED
+ * cost, never by suite: each under `laneBotBudget.perFileS`, cheapest first,
+ * until the admitted sum would pass `totalS` (`admitByCost`). A hub edit
+ * reaching most of the suite has no `WHOLE_PROJECT_AT` switch here: the
+ * budget decides, so the censuses — the cheapest files — always make it in.
+ *
+ * Nothing is dropped silently: a reached file over its budget, past the
+ * lane's, or with no row in `COSTS_PATH` is NAMED in a skip line with its
+ * cost (issue #6943 acceptance). `exclude` removes the files another planned
+ * step already runs whole: the cheap guards' (`runsBotFiles`) and, in the
+ * `cards` lane, `bot[cards]`'s partition.
+ */
+function admittedBotTests(
+    files: string[],
+    source: BotReachSource,
+    exclude: (file: string) => boolean
+): {
+    run: PlannedCheck[];
+    skip: SkippedCheck[];
+    reach: NonNullable<LanePlan["botReach"]>;
+} {
+    const total = source.total();
+    const guardFiles = new Set(
+        CHEAP_GUARDS.filter((g) => files.some((p) => g.admits.test(p))).flatMap(
+            (g) => g.runsBotFiles ?? []
+        )
+    );
+    const reach = source.related(files);
+    const projectOf = new Map<string, BotProject>();
+    for (const p of ["bot-node", "bot-dom"] as const)
+        for (const f of reach[p])
+            if (!guardFiles.has(f) && !exclude(f)) projectOf.set(f, p);
+    const why = "admitted by measured cost (issue #6943)";
+    if (projectOf.size === 0)
+        return {
+            run: [],
+            skip: [
+                {
+                    id: BOT_STEP,
+                    reason: "no bot fast lane test reaches a changed path through the import graph (beyond the steps above) — an unreachable bot test is health's (ADR 0154 §2)",
+                },
+            ],
+            reach: { run: 0, total, why },
+        };
+    const budget = source.budget();
+    const adm = admitByCost([...projectOf.keys()], source.costs(), budget);
+    const listed = (xs: { file: string; ms: number }[]) =>
+        xs.map((x) => `${x.file} (${formatCost(x.ms)})`).join(", ");
+    const skip: SkippedCheck[] = [];
+    if (adm.admitted.length === 0)
+        skip.push({
+            id: BOT_STEP,
+            reason: `${projectOf.size} bot files reached, none admitted — each is named below with its cost`,
+        });
+    if (adm.overFile.length > 0)
+        skip.push({
+            id: `${BOT_STEP}:over-file-budget`,
+            reason: `health's — each costs more than laneBotBudget.perFileS (${formatCost(budget.perFileMs)}): ${listed(adm.overFile)}`,
+        });
+    if (adm.overTotal.length > 0)
+        skip.push({
+            id: `${BOT_STEP}:over-lane-budget`,
+            reason: `health's — past laneBotBudget.totalS (${formatCost(budget.totalMs)}) once ${adm.admitted.length} cheaper files (${formatCost(adm.admittedMs)}) were in: ${listed(adm.overTotal)}`,
+        });
+    if (adm.unmeasured.length > 0)
+        skip.push({
+            id: `${BOT_STEP}:unmeasured`,
+            reason: `health's until measured — no row in ${COSTS_PATH} (\`bun run bot:costs\`): ${adm.unmeasured.join(", ")}`,
+        });
+    const reachLine = {
+        run: adm.admitted.length,
+        total,
+        why: `${why}: ${projectOf.size} reached, ${formatCost(adm.admittedMs)} admitted`,
+    };
+    if (adm.admitted.length === 0) return { run: [], skip, reach: reachLine };
+    const named = (["bot-node", "bot-dom"] as const).filter((p) =>
+        adm.admitted.some((f) => projectOf.get(f) === p)
+    );
+    const projectFlags = named.map((p) => `--project ${p}`).join(" ");
+    const ordered = [...adm.admitted].sort();
+    return {
+        run: [
+            {
+                id: BOT_STEP,
+                command: `TOLARIA_BOT_FAST=1 bunx vitest run ${projectFlags} ${ordered.map(shellQuote).join(" ")}`,
+            },
+        ],
+        skip,
+        reach: reachLine,
+    };
 }
 
 /**
