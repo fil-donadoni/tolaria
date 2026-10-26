@@ -29,6 +29,69 @@ import {
     type WriteOutcome,
 } from "./health-verdict-store";
 
+/**
+ * The RED the ladder climbs at `sha` (issue #6986): the store's verdict, or
+ * — when the store holds none for it — the RED a scheduled run held back
+ * for this ladder (`defersRed`). `held` says the store never took it: the
+ * ladder writes it there only once the fresh run did not clear it, so a RED
+ * that clears is never written at all.
+ */
+export function ladderRed(
+    stored: Verdict | null,
+    held: Verdict | null,
+    sha: string
+): { verdict: Verdict | null; held: boolean } {
+    if (stored !== null || held?.sha !== sha || held.status !== "red")
+        return { verdict: stored, held: false };
+    return { verdict: held, held: true };
+}
+
+/** What `settleHeldRed` acts through — the ladder's I/O, injected. */
+export interface HeldRedEffects {
+    note(line: string): void;
+    /** Writes the held RED on the verdict store. */
+    writeRed(v: Verdict): WriteOutcome;
+    /** Drops the held RED from disk. */
+    clear(): void;
+}
+
+/**
+ * The held RED once the ladder has its exit code (`code`, 0 = no RED
+ * stands): written to the store when it stands, dropped either way — the
+ * GREEN that cleared it is the run's one write. A write that throws leaves
+ * it on disk for the next health run (`flushDeferredRed`). Not held, or a
+ * dry run: nothing. Returns `code`.
+ */
+export function settleHeldRed(
+    input: {
+        held: boolean;
+        verdict: Verdict | null;
+        code: number;
+        dryRun: boolean;
+    },
+    fx: HeldRedEffects
+): number {
+    const { held, verdict, code } = input;
+    if (!held || input.dryRun) return code;
+    if (code !== 0 && verdict !== null) {
+        try {
+            const out = fx.writeRed(verdict);
+            fx.note(
+                out.written
+                    ? "the held RED stands — written to the store"
+                    : `the held RED not written — ${out.reason}`
+            );
+        } catch (e) {
+            fx.note(
+                `the held RED could not be written — ${(e as Error).message}`
+            );
+            return code;
+        }
+    }
+    fx.clear();
+    return code;
+}
+
 /** What a fresh run of one RED re-runs. */
 export type FreshRun =
     | { kind: "tests"; step: string; files: string[] }

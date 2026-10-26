@@ -797,6 +797,13 @@ pending run of the newest tip (allowed because the workflow is hosted-only —
 **The [RED ladder](#g-red-ladder)** (`scripts/health-bisect.ts`, decisions
 in `scripts/lib/health-bisect.ts`) runs on a `lane` runner:
 
+A scheduled run's RED is **held** off the store until this rung settles
+it (`defersRed`, `red-deferred.json` beside `last.json`, issue #6986): the
+store takes one verdict per run — the GREEN when the fresh run does not
+reproduce it, else the held RED, written before the bisect — so a flake
+never dequeues the queue. A held RED its ladder never settled (a killed
+job) is written by the next health run before it gates.
+
 1. **[Flake check](#g-flake-check).** The RED's failing test files — read
    from its evidence, which always has room for them — re-run once, fresh,
    at the RED sha in a throwaway worktree (`worktree:init`, then
@@ -1496,11 +1503,14 @@ label is off (`dequeued_label: null`).
 
 A RED on the base is not the PR's red (issue #6110). When one arrives with PRs
 queued, [`pr-gate`](#pr-gate)'s re-gate posts `base-health` red on each, and
-Mergify may dequeue them with `checks-failed`. The repair-pick rule carries
-`-check-failure=base-health` and `-label=queue:held`, so it does not fire; a
-second rule (`a dequeue under a RED is a hold`) puts `queue:held` on the PR,
-because the dequeue reason outlives the RED and the first condition alone would
-match again once the GREEN lands. The PR keeps
+Mergify may dequeue them with `checks-failed`. `pr-gate` labels each queue PR
+`queue:held` BEFORE it posts that failure (`holdsBeforeRed`, issue #6986): the
+status alone is read when Mergify's rule runs, not when the dequeue happened,
+and a RED that cleared in between left 21 PRs `land-failed`. The repair-pick
+rule carries `-check-failure=base-health` and `-label=queue:held`, so it does
+not fire; a second rule (`a dequeue under a RED is a hold`) puts `queue:held`
+on a PR the label missed, because the dequeue reason outlives the RED and the
+first condition alone would match again once the GREEN lands. The PR keeps
 `ready-to-land`, has no `land-failed`, and no pass is spent on it. The GREEN or
 AMBER that follows re-gates the same PRs, and `pr-gate` releases each
 `queue:held` PR in two steps, keyed on the label, never on a `base-health`
