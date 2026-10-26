@@ -1889,56 +1889,29 @@ export const seraph = defineCard(() => ({
             scope: "any-other",
             condition: (event, self) =>
                 event.damagedBySources.includes(self.id),
-            // NOT DSL-migratable yet — RE-ASSESSED (issue #1403/#1600): the
-            // `$event.<field>` capture grammar gap this comment used to cite
-            // (ADR 0048) shipped via ADR 0049/issue #865, but the ACTUAL
-            // blocker is narrower and still open — `CREATURE_DIED` has no row
-            // in `EVENT_FIELD_REGISTRY` (`convex/cards/mechanicsRegistry.ts`)
-            // censusing the dying creature's instance id, so a
-            // `delayedTrigger` capture can't read `deadCreature.id` off the
-            // firing event declaratively yet (the "stop-and-issue on an
-            // uncensused mechanic" rule — `.claude/rules/gre-development.md`
-            // — applies; a migration PR does not invent the registry row
-            // inline). This is NOT the same idiom as Liberate/Flickerwisp's
-            // exile-based "blink" (#1401/#1403) — this is a CR 603.7c
-            // GRAVEYARD reanimation off a death trigger, a structurally
-            // different capture source. tracked-by: #1600. Stays resolve().
-            resolve: (ctx, _event, deadCreature) => {
-                ctx.scheduleDelayedTrigger(
-                    SERAPH_ID,
-                    "seraph-reanimate",
-                    "next-end-step",
-                    {
-                        deadId: deadCreature.id,
-                        controllerId: ctx.controller,
-                    }
-                );
-            },
+            // CR 603.7c / 400.7e: a delayed trigger created off a death
+            // trigger; the dying card is captured from the firing event
+            // (`$event.card`) and returned from its graveyard at the next end
+            // step under this ability's controller.
+            effects: [
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText:
+                        "Put that card onto the battlefield under your control at the beginning of the next end step.",
+                    capture: { $dead: { ref: "$event.card" } },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$dead" },
+                            from: "graveyard",
+                            to: "battlefield",
+                            controller: "controller",
+                        },
+                    ],
+                },
+            ],
         }),
-    ],
-    // NOT DSL-migratable (ADR 0045; re-assessed issue #1600): the trigger
-    // above is itself still blocked on the `CREATURE_DIED` event-field
-    // registry gap, so this delayed body has nothing declarative to key off
-    // yet regardless. `runDelayedTriggerBody`'s payload→binding auto-seed
-    // (interpreter.ts) DID since gain a graveyard/exile departed-object
-    // fallback (issue #1470) — worth re-checking once the trigger-level gap
-    // above closes, since that half of this comment's original blocker may
-    // already be moot. tracked-by: #1600.
-    delayedTriggers: [
-        {
-            id: "seraph-reanimate",
-            oracleText:
-                "Put that card onto the battlefield under your control at the beginning of the next end step.",
-            timing: "next-end-step",
-            resolve: (ctx, payload) => {
-                if (!payload.deadId || !payload.controllerId) return;
-                ctx.returnToBattlefield(
-                    payload.controllerId,
-                    payload.deadId,
-                    "graveyard"
-                );
-            },
-        },
     ],
 }));
 // Shield Bearer — 0/3 banding wall-style creature (CR 702.22).

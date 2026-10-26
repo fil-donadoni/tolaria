@@ -1630,63 +1630,29 @@ export const krovikanVampire = defineCard(() => ({
             scope: "any-other",
             condition: (event, self) =>
                 event.damagedBySources.includes(self.id),
-            // NOT DSL-migratable yet — RE-ASSESSED (issue #1403/#1600): the
-            // `$event.<field>` capture grammar gap this comment used to cite
-            // (ADR 0048) shipped via ADR 0049/issue #865, but the ACTUAL
-            // blocker is narrower and still open — `CREATURE_DIED` has no row
-            // in `EVENT_FIELD_REGISTRY` (`convex/cards/mechanicsRegistry.ts`)
-            // censusing the dying creature's instance id, so a
-            // `delayedTrigger` capture can't read `deadCreature.id` off the
-            // firing event declaratively yet (the "stop-and-issue on an
-            // uncensused mechanic" rule — `.claude/rules/gre-development.md`
-            // — applies; a migration PR does not invent the registry row
-            // inline). This is NOT the same idiom as Liberate/Flickerwisp's
-            // exile-based "blink" (#1401/#1403) — this is a CR 603.7c
-            // GRAVEYARD reanimation off a death trigger, a structurally
-            // different capture source. tracked-by: #1600. Stays resolve().
-            resolve: (ctx, _event, deadCreature) => {
-                ctx.scheduleDelayedTrigger(
-                    KROVIKAN_VAMPIRE_ID,
-                    "krovikan-vampire-reanimate",
-                    "next-end-step",
-                    {
-                        deadId: deadCreature.id,
-                        controllerId: ctx.controller,
-                    }
-                );
-            },
+            // CR 603.7c / 400.7e: a delayed trigger created off a death
+            // trigger; the dying card is captured from the firing event
+            // (`$event.card`) and returned from its graveyard at the next end
+            // step under this ability's controller.
+            effects: [
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText:
+                        "Put that card onto the battlefield under your control at the beginning of the end step.",
+                    capture: { $dead: { ref: "$event.card" } },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$dead" },
+                            from: "graveyard",
+                            to: "battlefield",
+                            controller: "controller",
+                        },
+                    ],
+                },
+            ],
         }),
-    ],
-    delayedTriggers: [
-        {
-            id: "krovikan-vampire-reanimate",
-            oracleText:
-                "Put that card onto the battlefield under your control at the beginning of the end step.",
-            timing: "next-end-step",
-            // NOT DSL-migratable (ADR 0045, re-assessed migration PRD #795;
-            // re-re-assessed issue #1600): the declarative `moveZone` Op's
-            // graveyard→battlefield leg auto-detects the reanimated card's
-            // ACTUAL graveyard owner (`getGraveyardCardOwner`) and passes it
-            // as `returnToBattlefield`'s pile-owner arg, with `controller` as
-            // a SEPARATE reanimating-player arg. This closure instead passes
-            // `payload.controllerId` (the Vampire's controller) as the
-            // pile-owner arg directly — a pre-existing call shape this
-            // migration must not silently change (an Op-based rewrite would
-            // search a DIFFERENT player's graveyard whenever the dead
-            // creature isn't the Vampire controller's own, the common case).
-            // Also still blocked upstream on the trigger-level capture gap
-            // above (no `CREATURE_DIED` `EVENT_FIELD_REGISTRY` row yet).
-            // tracked-by: #1600. Stays resolve() to avoid a hidden behaviour
-            // change; not re-verified as correct/buggy in this migration pass.
-            resolve: (ctx, payload) => {
-                if (!payload.deadId || !payload.controllerId) return;
-                ctx.returnToBattlefield(
-                    payload.controllerId,
-                    payload.deadId,
-                    "graveyard"
-                );
-            },
-        },
     ],
 }));
 // Legions of Lim-Dûl — snow swampwalk (CR 702.14 / 205.4a): can't be blocked
