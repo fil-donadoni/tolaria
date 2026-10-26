@@ -85,6 +85,7 @@
  */
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -2252,9 +2253,15 @@ function main(): void {
         LANE_VERDICT_DIR
     );
     const tree = git(["rev-parse", "HEAD^{tree}"], cwd).trim();
+    // `--regenerate-derived` rewrites the tree uncommitted: its bytes are
+    // part of what is tested, so they are part of the key.
+    const uncommitted = createHash("sha256")
+        .update(git(["diff", "HEAD"], cwd))
+        .update(git(["ls-files", "-o", "--exclude-standard"], cwd))
+        .digest("hex");
     const verdictKey = laneVerdictKey(
         tree,
-        process.env[TREE_ROLE_ENV] ?? "",
+        `${process.env[TREE_ROLE_ENV] ?? ""}:${uncommitted}`,
         plan.run.map((c) => c.command)
     );
     const prior =
@@ -2266,6 +2273,16 @@ function main(): void {
         console.error(
             `check:lane: tree ${prior.tree.slice(0, 10)} already lane-green (proved at ${prior.provedAt.slice(0, 10)}, ${prior.at}) — ${prior.steps} step(s) not re-run; ${LANE_FORCE_ENV}=1 forces`
         );
+        // The JSON contract holds on a skip: a green receipt that says why.
+        const skipped = renderJson(
+            plan,
+            head,
+            { outcomes: [], ok: true, totalMs: 0 },
+            head
+        );
+        const skipOut = process.env[LANE_JSON_OUT_ENV];
+        if (skipOut) writeFileSync(skipOut, skipped);
+        if (json) console.log(skipped);
         process.exit(0);
     }
 
@@ -2290,14 +2307,21 @@ function main(): void {
     );
 
     if (result.ok) {
-        writeLaneVerdict(verdictDir, {
-            tree,
-            key: verdictKey,
-            lane: plan.lane,
-            provedAt: head,
-            at: new Date().toISOString(),
-            steps: plan.run.length,
-        });
+        // A store failure is a future miss, never a red lane.
+        try {
+            writeLaneVerdict(verdictDir, {
+                tree,
+                key: verdictKey,
+                lane: plan.lane,
+                provedAt: head,
+                at: new Date().toISOString(),
+                steps: plan.run.length,
+            });
+        } catch (err) {
+            console.error(
+                `check:lane: verdict not recorded (${(err as Error).message})`
+            );
+        }
     }
     process.exit(result.ok ? 0 : 1);
 }

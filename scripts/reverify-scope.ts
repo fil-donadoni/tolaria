@@ -3,7 +3,7 @@
  * `bun run reverify:scope` — after a rebase, the tests the base's move owes a
  * re-run (issue #6650). Reads `base:drift`'s receipt for the pre-rebase base
  * sha B, diffs B → origin/<base>, intersects with the branch's own reach.
- * `--conflicts a,b` adds hand-resolved files. Prints the vitest command, or
+ * `--conflicts=a,b` adds hand-resolved files. Prints the vitest command, or
  * says the receipt carries everything.
  */
 import { spawnSync } from "node:child_process";
@@ -24,10 +24,21 @@ const lines = (s: string) => s.split("\n").filter((l) => l !== "");
 const gitDir = git(["rev-parse", "--absolute-git-dir"]).trim();
 const receipt = JSON.parse(readFileSync(join(gitDir, RECEIPT_FILE), "utf8"));
 const arg = process.argv.find((a) => a.startsWith("--conflicts="));
-const conflicts = arg ? arg.slice("--conflicts=".length).split(",") : [];
+const conflicts = arg
+    ? arg
+          .slice("--conflicts=".length)
+          .split(",")
+          .filter((f) => f !== "")
+    : [];
+if (typeof receipt.rebasedFrom !== "string") {
+    console.error(
+        "reverify:scope: the receipt records no rebase (run `bun run base:drift --rebase` first) — re-verify in full"
+    );
+    process.exit(2);
+}
 
 const baseDelta = lines(
-    git(["diff", "--name-only", `${receipt.baseSha}..${ORIGIN_BASE}`])
+    git(["diff", "--name-only", `${receipt.rebasedFrom}..${ORIGIN_BASE}`])
 );
 const branchFiles = lines(
     git(["diff", "--name-only", `${ORIGIN_BASE}...HEAD`])

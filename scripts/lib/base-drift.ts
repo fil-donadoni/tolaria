@@ -413,6 +413,9 @@ export interface DriftReceipt {
     coupled: string[];
     prs: number[];
     verdict: DriftVerdict["kind"];
+    /** The merge-base BEFORE the last `--rebase` (issue #6650): the B a
+     *  re-verify diffs against B'. Absent until a rebase happened. */
+    rebasedFrom?: string;
 }
 
 /** The receipt's file name, under the worktree's own git dir. */
@@ -421,9 +424,11 @@ export const RECEIPT_FILE = "base-drift.json";
 export function buildReceipt(
     report: DriftReport,
     verdict: DriftVerdict,
-    now: Date
+    now: Date,
+    rebasedFrom?: string
 ): DriftReceipt {
     return {
+        ...(rebasedFrom === undefined ? {} : { rebasedFrom }),
         at: now.toISOString(),
         branch: report.branch,
         branchHead: report.branchHead,

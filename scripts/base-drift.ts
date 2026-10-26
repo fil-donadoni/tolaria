@@ -19,7 +19,7 @@
  * stays the caller's (`git push --force-with-lease`).
  */
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
     buildReceipt,
@@ -88,9 +88,11 @@ function main(): void {
     const open = noPrs ? [] : readOpenPrs();
     let report = buildReport(measureDrift(gitSeam, ORIGIN_BASE), open, ownPr);
     let verdict = driftVerdict(report);
+    let rebasedFrom: string | undefined;
     let exit =
         verdict.kind === "current" ? 0 : verdict.kind === "rebase" ? 3 : 4;
     if (verdict.kind === "rebase" && doRebase) {
+        const preRebaseMergeBase = report.mergeBase;
         const r = spawnSync("git", ["rebase", "-q", ORIGIN_BASE], {
             encoding: "utf8",
         });
@@ -118,14 +120,27 @@ function main(): void {
                 ownPr
             );
             verdict = driftVerdict(report);
+            rebasedFrom = preRebaseMergeBase;
             exit = 0;
             console.log(
                 `base:drift: rebased onto ${ORIGIN_BASE} @ ${report.baseSha.slice(0, 10)} — push with \`git push --force-with-lease\``
             );
         }
     }
-    const receipt = buildReceipt(report, verdict, new Date());
     const gitDir = git(["rev-parse", "--absolute-git-dir"]).trim();
+    // A later CURRENT run keeps the rebase's origin while the head is the same.
+    if (rebasedFrom === undefined) {
+        try {
+            const prev = JSON.parse(
+                readFileSync(join(gitDir, RECEIPT_FILE), "utf8")
+            );
+            if (prev.branchHead === report.branchHead)
+                rebasedFrom = prev.rebasedFrom;
+        } catch {
+            /* no previous receipt */
+        }
+    }
+    const receipt = buildReceipt(report, verdict, new Date(), rebasedFrom);
     writeFileSync(join(gitDir, RECEIPT_FILE), JSON.stringify(receipt, null, 2));
     if (json) console.log(JSON.stringify({ ...report, verdict }, null, 2));
     else console.log(renderReport(report, verdict));
