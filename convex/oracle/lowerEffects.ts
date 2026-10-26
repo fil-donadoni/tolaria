@@ -1181,6 +1181,16 @@ export class SentenceWalk {
         this.binds = binds;
     }
 
+    /**
+     * CR 603.3d — a walk for a REFLEXIVE ability's body: its targets are
+     * announced when it goes on the stack, independently of the resolving
+     * ability's, so it allocates from its own slots (index 0 is ITS first
+     * target); binding names stay script-wide unique.
+     */
+    reflexive(): SentenceWalk {
+        return new SentenceWalk(new TargetSlots(), this.binds);
+    }
+
     /** A walk over the same targets from `from`, sharing binding names. */
     replaying(from: number): SentenceWalk & {
         readonly targets: ReplayedTargetSlots;
@@ -3286,7 +3296,15 @@ function lowerSentenceBody(
                     return unlowerable(
                         '"If you do" reads an optional action that leaves no evidence it was paid (CR 118.12)'
                     );
-                const gated = gatedSentence(sentence.then, walk, site);
+                const gated =
+                    sentence.reflexive === undefined
+                        ? gatedSentence(sentence.then, walk, site)
+                        : lowerReflexive(
+                              sentence.reflexive,
+                              sentence.then,
+                              walk,
+                              site
+                          );
                 if (!gated.ok) return gated;
                 paid = evidence.ops;
                 then = [
@@ -5043,7 +5061,10 @@ function lowerFrameChain(
     // EVIDENCE the sacrifice left (the bind of the Op that moved something;
     // an empty bind — the source already gone, nothing picked — fails the
     // gate, CR 118.3), never on the instruction alone.
-    const inner = gatedSentence(sentence.then, walk, site);
+    const inner =
+        sentence.reflexive === undefined
+            ? gatedSentence(sentence.then, walk, site)
+            : lowerReflexive(sentence.reflexive, sentence.then, walk, site);
     if (!inner.ok) return inner;
     const evidence = paidEvidence(ops, walk, "sacrificed");
     if (evidence === null)
@@ -5364,6 +5385,68 @@ function paidEvidence(
         };
     }
     return null;
+}
+
+/** Every binding name an Op list reads (`ref`, `binding`) and every one it defines (`bind`). */
+function collectBindings(
+    node: unknown,
+    reads: Set<string>,
+    defines: Set<string>
+): void {
+    if (Array.isArray(node)) {
+        for (const item of node) collectBindings(item, reads, defines);
+        return;
+    }
+    if (typeof node !== "object" || node === null) return;
+    for (const [key, value] of Object.entries(node)) {
+        if (typeof value === "string" && value.startsWith("$")) {
+            if (key === "bind") defines.add(value);
+            else if (key === "ref" || key === "binding")
+                reads.add(value.split(".")[0]!);
+        } else collectBindings(value, reads, defines);
+    }
+}
+
+/**
+ * CR 603.12 — "[action]. When you do, <effect>.": the effect becomes a
+ * REFLEXIVE triggered ability, a separate stack object that announces its own
+ * targets (CR 603.3d) once the action has been performed. `capture` is the only
+ * data crossing into the body (`validateEffectScript`), so a body reading a
+ * binding of the resolving ability ("that creature's power") has no antecedent
+ * here and is refused rather than lowered with a dangling ref (CR 608.2h).
+ */
+function lowerReflexive(
+    text: string,
+    then: EffectSentenceIR,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    const inner = walk.reflexive();
+    const body = gatedSentence(then, inner, site);
+    if (!body.ok) return body;
+    const requirements = inner.targets.requirements();
+    if (requirements.length > 1)
+        return unlowerable(
+            "a reflexive ability announcing more than one target group is not a printed form (CR 603.3d)"
+        );
+    const reads = new Set<string>();
+    const defines = new Set<string>();
+    collectBindings(body.value, reads, defines);
+    for (const name of reads)
+        if (!defines.has(name))
+            return unlowerable(
+                `a reflexive ability reads "${name}", which crosses no capture (CR 608.2h)`
+            );
+    return lowered([
+        {
+            op: "reflexiveTrigger",
+            oracleText: text.endsWith(".") ? text : `${text}.`,
+            ...(requirements.length === 1
+                ? { targetRequirement: requirements[0]! }
+                : {}),
+            effects: body.value,
+        },
+    ]);
 }
 
 function gatedSentence(

@@ -7586,6 +7586,16 @@
         "source": "compiled"
     },
     {
+        "name": "Boilerbilges Ripper",
+        "scryfallId": "1a68009c-83cd-455f-81e9-bdd720d23a43",
+        "oracleId": "0cbe2a00-4303-4ade-98b5-4172d97f15fb",
+        "firstSet": "dsk",
+        "firstPrintId": "1a68009c-83cd-455f-81e9-bdd720d23a43",
+        "firstPrintSet": "dsk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Boiling Rock Prison",
         "scryfallId": "1c2e2220-54d1-4180-93a0-964e3b0ba8b8",
         "oracleId": "6caabc45-4644-4941-a2f3-f04ee7b50a89",
@@ -10317,6 +10327,16 @@
         "firstPrintId": "3700a61f-76fe-42e6-be93-0ba319b7b543",
         "firstPrintSet": "ody",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Cavalier of Night",
+        "scryfallId": "f03109b9-54a8-4d68-97c2-e42c7d5c2d41",
+        "oracleId": "27c2b8ce-17b9-4f6c-8444-3bdc636dd413",
+        "firstSet": "m20",
+        "firstPrintId": "f03109b9-54a8-4d68-97c2-e42c7d5c2d41",
+        "firstPrintSet": "m20",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -13100,6 +13120,16 @@
         "firstSet": "tdm",
         "firstPrintId": "490eb213-9ae2-4b45-abec-6f1dfc83792a",
         "firstPrintSet": "tdm"
+    },
+    {
+        "name": "Cornered Crook",
+        "scryfallId": "a3aff1ea-1d25-49c3-a2d9-f435124a5969",
+        "oracleId": "4477eeab-a51a-4dc2-9c97-83f2551d8b54",
+        "firstSet": "mkm",
+        "firstPrintId": "a3aff1ea-1d25-49c3-a2d9-f435124a5969",
+        "firstPrintSet": "mkm",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Corpse Cur",
@@ -24096,6 +24126,16 @@
         "source": "compiled"
     },
     {
+        "name": "Flaxen Intruder // Welcome Home",
+        "scryfallId": "06bd1ad2-fb5d-4aef-87d1-13a341c686fa",
+        "oracleId": "bacedc99-46d9-4757-8a27-8df77d7c2f02",
+        "firstSet": "eld",
+        "firstPrintId": "06bd1ad2-fb5d-4aef-87d1-13a341c686fa",
+        "firstPrintSet": "eld",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Fledgling Djinn",
         "scryfallId": "1b0fdf2a-d6d2-42da-8f41-0f67dd0bf4d2",
         "oracleId": "2c73ef77-ae58-401f-8747-538c4cd075d0",
@@ -26478,6 +26518,16 @@
         "firstSet": "ice",
         "firstPrintId": "6a4f5a28-0bd2-4cc4-b67f-324e89193caa",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "General Traag, Heart of Stone",
+        "scryfallId": "e02e971f-6008-4c82-acd2-2aed13009ccb",
+        "oracleId": "ade54bb7-3df8-4578-add8-1f85afee57ab",
+        "firstSet": "tmt",
+        "firstPrintId": "e02e971f-6008-4c82-acd2-2aed13009ccb",
+        "firstPrintSet": "tmt",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Generous Ent",
@@ -56174,6 +56224,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ruthless Lawbringer",
+        "scryfallId": "927b5498-23f1-47c0-b441-7daaeb54f9b8",
+        "oracleId": "82b6a283-9897-4ce1-8de3-e7579cc9b75b",
+        "firstSet": "otj",
+        "firstPrintId": "927b5498-23f1-47c0-b441-7daaeb54f9b8",
+        "firstPrintSet": "otj",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Rydia's Return",
         "scryfallId": "40a06165-2835-4610-86a1-7f684992fcf2",
         "oracleId": "0d007479-c5e8-4aa1-b53e-fa962783deee",
@@ -60210,6 +60270,16 @@
         "source": "compiled"
     },
     {
+        "name": "Shrapnel Slinger",
+        "scryfallId": "a6147bdc-4e02-48be-9ab9-c212f70d9194",
+        "oracleId": "b400536c-ea8b-4237-90da-1d3ac139881d",
+        "firstSet": "one",
+        "firstPrintId": "a6147bdc-4e02-48be-9ab9-c212f70d9194",
+        "firstPrintSet": "one",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Shredded Sails",
         "scryfallId": "8b10219a-aa72-4431-9a6a-984109a605c8",
         "oracleId": "ea908d2d-d443-4385-a71a-ebb00938cd57",
@@ -62328,6 +62398,16 @@
         "firstSet": "lea",
         "firstPrintId": "7c67788e-d713-47c3-ab9f-b8a6212ae24f",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Smoke Bomb",
+        "scryfallId": "fd57bdd4-9b93-4a0c-8c80-46bc02af9a3c",
+        "oracleId": "c262e015-f379-484f-894f-1a1deb3c75cc",
+        "firstSet": "acr",
+        "firstPrintId": "fd57bdd4-9b93-4a0c-8c80-46bc02af9a3c",
+        "firstPrintSet": "acr",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Smokespew Invoker",
@@ -72596,6 +72676,16 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Undead Butler",
+        "scryfallId": "2c9b8582-8887-4652-82e2-f9b11ee21545",
+        "oracleId": "426fa8e8-b0f9-4b6c-b22b-04ec2073187a",
+        "firstSet": "vow",
+        "firstPrintId": "2c9b8582-8887-4652-82e2-f9b11ee21545",
+        "firstPrintSet": "vow",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Undead Gladiator",
         "scryfallId": "bbc779d9-3200-4369-9289-1a8e90e243b9",
         "oracleId": "4da2425d-2118-4116-855d-2ef80693a7b7",
@@ -72632,6 +72722,16 @@
         "firstSet": "scg",
         "firstPrintId": "e6b3bcfe-be82-458b-ba59-ecb84436d747",
         "firstPrintSet": "scg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Undercity Eliminator",
+        "scryfallId": "a67a4c5e-215b-4f03-87f7-c1af4f9f0a63",
+        "oracleId": "93cb9c7e-d6d3-4b1e-8bcf-2a4a1d95a549",
+        "firstSet": "mkm",
+        "firstPrintId": "a67a4c5e-215b-4f03-87f7-c1af4f9f0a63",
+        "firstPrintSet": "mkm",
         "rarity": "uncommon",
         "source": "compiled"
     },

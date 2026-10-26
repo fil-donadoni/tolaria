@@ -304,6 +304,8 @@ export interface FrameChainIR {
      * effect runs only on the evidence the chain's sacrifice left.
      */
     readonly then?: EffectSentenceIR;
+    /** CR 603.12 — the sentence text when `then` is a reflexive ability. */
+    readonly reflexive?: string;
 }
 
 export type FrameName = FrameIR["frame"];
