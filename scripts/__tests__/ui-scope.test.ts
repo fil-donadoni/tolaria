@@ -18,6 +18,7 @@ import {
     renderUiScope,
     renderWalkOwed,
     uiWalkOwed,
+    isNonDomPath,
     type ScopeSurface,
 } from "../lib/ui-scope";
 import type { SurfaceEdits } from "../lib/ui-surface-edits";
@@ -722,6 +723,28 @@ describe("uiWalkOwed — a diff owes a walk only when it can move layout (issue 
         ).toBe(false);
         // The path rules still apply: a public asset is owed whatever it is.
         expect(owed("public/manifest.json", `{}`).owed).toBe(true);
+    });
+
+    it('ignores comment-only lines: prose such as "a fixed count" is not positioning (issue #6941)', () => {
+        const prose = [
+            "/** the fixed `sacrificeCount` the payer must pick */",
+            "// no fixed count here, z-index never mind",
+            " * overflow-auto is only mentioned",
+            "export const x = 1;",
+        ].join("\n");
+        expect(owed("src/components/x/leaf.tsx", prose).owed).toBe(false);
+        // a trailing comment sits on a CODE line: that line is still read
+        expect(
+            owed(
+                "src/components/x/leaf.tsx",
+                `<div className="fixed inset-0" /> // overlay`
+            ).owed
+        ).toBe(true);
+    });
+
+    it("treats the headless self-play harness as non-DOM (issue #6941)", () => {
+        expect(isNonDomPath("src/lib/ai/selfplay/playGame.ts")).toBe(true);
+        expect(isNonDomPath("src/lib/ai/bot-view.ts")).toBe(false);
     });
 
     it("fails closed: a file gone or unreadable stays owed", () => {
