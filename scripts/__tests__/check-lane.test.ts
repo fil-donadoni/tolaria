@@ -971,10 +971,9 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         });
 
         it("no scoped lane runs a bot project WHOLE; each names the health-only skips", () => {
-            // A cheap guard runs ONE bot-node file by admission (issue #5940,
-            // issue #6545); the cost admission (issue #6943) names files —
-            // never the bare project, even for a Bot input the live walk
-            // reaches widely.
+            // A cheap guard runs ONE bot-node file by admission; the cost
+            // admission (issue #6943) names files — never the bare project,
+            // even for a Bot input the live walk reaches widely.
             for (const files of [
                 ["src/lib/ai/brain-client.ts"],
                 ["convex/gre/ai/search.ts"],

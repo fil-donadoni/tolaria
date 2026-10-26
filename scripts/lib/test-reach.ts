@@ -1,9 +1,8 @@
 /**
  * Which tests a diff can reach through the import graph (ADR 0154 §2, issue
  * #5464) — the scoping `check:lane` runs for the `engine` and `skin` lanes in
- * place of whole vitest projects, and for the bot files every code lane
- * admits (`botTests` / `botRelatedTests`: the `full` lane's bot half, issue
- * #6149; the scoped lanes' admission by measured cost, issue #6943).
+ * place of whole vitest projects, and for the `full` lane's bot half
+ * (`botTests` / `botRelatedTests`, issue #6149).
  *
  * A test is RELATED to a diff when the diff contains the test itself or any
  * module in the test's transitive local import closure. That is the question
