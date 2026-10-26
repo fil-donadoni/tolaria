@@ -170,6 +170,9 @@ export function isNonDomPath(path: string): boolean {
         /(?:^|\/)__tests__\//.test(path) ||
         /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(path) ||
         /^scripts\//.test(path) ||
+        // The headless self-play harness: run by scripts and bot tests, imported
+        // by no route (issue #6941).
+        path.startsWith("src/lib/ai/selfplay/") ||
         /\.md$/.test(path)
     );
 }
@@ -570,8 +573,20 @@ export function owedByPath(path: string): string | null {
     return null;
 }
 
+/** `source` without its comment-only lines (`//`, `/*`, ` * `). Prose such as
+ *  "a fixed count" is not a positioning rule (issue #6941: `bot-view.ts`
+ *  owed a walk on the word "fixed" in a JSDoc). Trailing comments stay: a
+ *  line that also holds code is never dropped. */
+function withoutCommentLines(source: string): string {
+    return source
+        .split("\n")
+        .filter((line) => !/^\s*(?:\/\/|\/\*|\*)/.test(line))
+        .join("\n");
+}
+
 /** The rule the CONTENT of a changed file trips, or `null`. */
-export function owedByContent(source: string): string | null {
+export function owedByContent(rawSource: string): string | null {
+    const source = withoutCommentLines(rawSource);
     if (Z_INDEX_CONTENT.test(source)) return "declares a z-index";
     if (POSITIONED_CONTENT.test(source)) {
         return "declares fixed / sticky positioning or a portal";

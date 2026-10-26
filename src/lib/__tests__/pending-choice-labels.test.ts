@@ -228,6 +228,14 @@ describe("the battlefield-or-stack source pool (issue #5601)", () => {
                 choice({ kind: "choose-permanents", zone: "battlefield" })
             )
         ).toBe(false);
+        // Issue #6941 — an "any target" pick (cascade free cast, Word of
+        // Command) declares no `allControllers` yet its candidates sit on the
+        // opponent's battlefield.
+        expect(
+            pendingChoiceSpansAllBattlefields(
+                choice({ kind: "choose-damage-target", zone: "battlefield" })
+            )
+        ).toBe(true);
     });
 
     it("offers a stack object only to the chooser, and only off the allow-list", () => {

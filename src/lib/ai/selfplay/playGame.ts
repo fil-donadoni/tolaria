@@ -58,7 +58,10 @@ import {
     type RepetitionHistory,
 } from "@convex/gre/ai/repetition";
 import { effectivePermanentView } from "@convex/gre/permanentView";
-import { eligibleZonePickCards } from "@convex/gre/zonePickEligibility";
+import {
+    choiceSpansAllBattlefields,
+    eligibleZonePickCards,
+} from "@convex/gre/zonePickEligibility";
 import { getCardColorIdentity, getColorsFromCost } from "@convex/cards/colors";
 import { tryGetDefinition } from "@convex/cards";
 import {
@@ -208,7 +211,7 @@ export function listCandidates(
         return eligibleZonePickCards(state, head);
     }
     if (head.zone === "battlefield") {
-        const pool = head.allControllers
+        const pool = choiceSpansAllBattlefields(head)
             ? state.players.flatMap((p) => p.battlefield)
             : zoneOwner.battlefield;
         const filtered = head.filter

@@ -15,6 +15,18 @@ import { computeHardSkipFilters } from "./phases";
 import { effectivePermanentView } from "./permanentView";
 import { damageSourceChoicePool } from "./damageSourceChoice";
 
+/** Whether a battlefield pick draws from EVERY player's battlefield rather
+ *  than `zoneOwnerId ?? playerId`'s. `allControllers` says so explicitly; a
+ *  `choose-damage-target` pick ("any target", CR 115.4 / CR 601.2c) always does:
+ *  its submit validator (`submitDamageTargetPick`) trusts `candidateIds` alone,
+ *  so a producer that omits `allControllers` (cast-during-resolution target,
+ *  Word of Command) must not shrink the pool to the chooser's own battlefield.
+ *  The ONE reader of this scope — the server enumerator, the live Bot view and
+ *  the self-play lister all call it. */
+export function choiceSpansAllBattlefields(head: PendingChoice): boolean {
+    return head.allControllers === true || head.kind === "choose-damage-target";
+}
+
 /** The cards the chooser may legally include in a zone-pick submission — the
  *  enumeration mirror of `applyPendingChoiceSubmit`'s per-id validation: zone
  *  membership (of `zoneOwnerId ?? playerId`, or every battlefield for
@@ -30,7 +42,7 @@ export function eligibleZonePickCards(
     let pool: CardInstanceState[];
     switch (head.zone) {
         case "battlefield":
-            pool = head.allControllers
+            pool = choiceSpansAllBattlefields(head)
                 ? state.players.flatMap((p) => p.battlefield)
                 : zoneOwner.battlefield;
             break;
