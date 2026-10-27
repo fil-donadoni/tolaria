@@ -87,6 +87,14 @@ export default function LimitedStandingsRow({
                         Bot
                     </span>
                 )}
+                {seat?.isDropped && (
+                    <span
+                        data-slot="dropped-marker"
+                        className="shrink-0 rounded-sm border border-border-subtle/60 px-1 text-[10px] tracking-wide uppercase text-text-muted"
+                    >
+                        Dropped
+                    </span>
+                )}
                 {colors.length > 0 && (
                     <span
                         data-slot="deck-colors"

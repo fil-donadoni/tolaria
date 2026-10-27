@@ -18,6 +18,7 @@ import {
     CUBE_PACK_SIZE,
 } from "./cube";
 import type { GetBoosterConfig, ResolveCardMeta } from "./eventLogic";
+import { isAutoDrivenSeat } from "./droppedSeat";
 import type { DraftPackCard, LimitedEventSeat } from "./eventTypes";
 
 /** Pass direction alternates every booster round (PRD #1107 story 12: "left,
@@ -244,7 +245,7 @@ function assignFreshPack(
     timerConfig: TimerConfig | undefined,
     chooseBotPick?: ChooseBotPick
 ): { seat: LimitedEventSeat; update?: SeatTimerUpdate } {
-    if (!timerConfig || seat.isBot) {
+    if (!timerConfig || isAutoDrivenSeat(seat)) {
         return {
             seat: { ...seat, currentPack: pack, defaultPickId: undefined },
         };
@@ -618,7 +619,8 @@ export function runBotAutoPicks(
     for (let i = 0; i < MAX_AUTO_PICK_ITERATIONS; i++) {
         if (completed) break;
         const seatIndex = curSeats.findIndex(
-            (s) => s.isBot && s.currentPack && s.currentPack.length > 0
+            (s) =>
+                isAutoDrivenSeat(s) && s.currentPack && s.currentPack.length > 0
         );
         if (seatIndex === -1) break;
 
@@ -719,7 +721,7 @@ export function resolveAutoPickTimeout(
     chooseBotPick: ChooseBotPick
 ): AutoPickResolution | null {
     const seat = seats[seatIndex];
-    if (!seat || seat.isBot) return null;
+    if (!seat || isAutoDrivenSeat(seat)) return null;
     if ((seat.pickSeq ?? 0) !== expectedSeq) return null;
     if (!seat.currentPack || seat.currentPack.length === 0) return null;
 

@@ -3,9 +3,9 @@ import { Button } from "@/components/ui/button";
 import { copyText } from "~/lib/clipboard";
 
 /** The event page's ⋯ menu (PRD #5383, issue #5389): every secondary action —
- *  Copy link, Leave seat, Cancel / Close event — lives here, never beside the
- *  hero's CTA. Leave and Cancel/Close only OPEN their confirm dialogs; the
- *  page owns those.
+ *  Copy link, Cancel / Close event — lives here, never beside the hero's CTA
+ *  (Leave Event is the hero's own button). Cancel/Close only OPENS its confirm
+ *  dialog; the page owns it.
  *
  *  A plain in-flow disclosure rather than a portal popover: it needs no
  *  positioning engine for three items, and stays reachable in tests. Closes on
@@ -13,7 +13,6 @@ import { copyText } from "~/lib/clipboard";
 export default function LimitedEventMenu({
     eventId,
     canInvite,
-    onLeave,
     onCancel,
     cancelLabel,
     disabled,
@@ -21,8 +20,6 @@ export default function LimitedEventMenu({
     eventId: string;
     /** True while seating is open: the link can still bring a player in. */
     canInvite: boolean;
-    /** Present only when the viewer may leave their seat. */
-    onLeave: (() => void) | undefined;
     /** Present only when the viewer may cancel / close the event. */
     onCancel: (() => void) | undefined;
     cancelLabel: string;
@@ -87,16 +84,6 @@ export default function LimitedEventMenu({
                               ? "Share invite link"
                               : "Copy event link"}
                     </button>
-                    {onLeave && (
-                        <button
-                            type="button"
-                            disabled={disabled}
-                            className="rounded-sm px-3 py-2 text-left text-sm text-text hover:bg-surface-elevated disabled:text-text-disabled"
-                            onClick={choose(onLeave)}
-                        >
-                            Leave Seat
-                        </button>
-                    )}
                     {onCancel && (
                         <button
                             type="button"

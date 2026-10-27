@@ -26,7 +26,12 @@ export interface StandingsSeatLookup {
  *  `swiss.ts`'s `SwissResultSource` / `eventTypes.ts`'s
  *  `LimitedPairingResultSource`). Only `"timeout"` gets special scoring
  *  treatment here — see `recordPairing` below. */
-export type StandingsResultSource = "played" | "simulated" | "bye" | "timeout";
+export type StandingsResultSource =
+    | "played"
+    | "simulated"
+    | "bye"
+    | "timeout"
+    | "concession";
 
 export interface StandingsPairingResult {
     winsA: number;
