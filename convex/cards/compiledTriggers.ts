@@ -303,7 +303,7 @@ export type CompiledTriggerHead =
     | {
           readonly kind: "phase";
           readonly phase: Phase;
-          /** Every step the head names, when more than one (CR 603.6a). */
+          /** Every step the head names, when more than one (CR 500.1). */
           readonly phases?: readonly Phase[];
           readonly scope: TriggerScope;
       }
