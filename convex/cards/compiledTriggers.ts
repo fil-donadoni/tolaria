@@ -182,6 +182,15 @@ export type CompiledTriggerCondition =
      */
     | { readonly kind: "self-has-type"; readonly type: CardType }
     /**
+     * CR 603.4 — "if it's on the battlefield": the source is still on the
+     * battlefield, checked as the trigger would trigger and again as it
+     * resolves. Read off the state view, so an absent view fails closed.
+     * Matches by instance id: a source blinked while the ability is on the
+     * stack returns under the same id (CR 400.7) and still passes, because
+     * `selfView` carries no departed-object signal — out of scope here.
+     */
+    | { readonly kind: "self-on-battlefield" }
+    /**
      * CR 404.2 + CR 603.4 — "if this card is in your graveyard with a
      * creature card directly above it": the card on top of the source in its
      * owner's pile is a creature card. Read off the state view, so an absent
@@ -376,6 +385,10 @@ function conditionHolds(
     if (condition.kind === "self-has-type")
         return self.types.includes(condition.type);
     if (state === undefined) return false;
+    if (condition.kind === "self-on-battlefield")
+        return state.players.some((p) =>
+            p.battlefield.some((permanent) => permanent.id === self.id)
+        );
     if (condition.kind === "graveyard-creature-above")
         return creatureCardDirectlyAboveInGraveyard(state, self);
     if (condition.kind === "holds-exile-bundle")
