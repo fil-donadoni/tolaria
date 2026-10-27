@@ -94,6 +94,43 @@ export function temporaryDefensiveKeywords(
     state: GameState,
     card: CardInstanceState
 ): string[] {
+    return temporaryKeywordOccurrences(state, card, isDefensiveKeyword);
+}
+
+/** The DURATION-SCOPED NON-defensive keyword occurrences currently LIVE on
+ *  `card` — a this-turn evasion / combat / utility grant ("gains flying until
+ *  end of turn", "gains first strike until end of turn", a Jump-style spell).
+ *  The same three narrowings as {@link temporaryDefensiveKeywords}, the
+ *  complementary keyword set (issue #5927).
+ *
+ *  Why the evaluator wants this list at all: such a grant ends at this turn's
+ *  cleanup (CR 514.2), so it is the keyword twin of an until-end-of-turn pump,
+ *  which the realized body already excludes (ADR 0020 §2) — its worth is the
+ *  combat it changes, which the rollouts play out, never lasting material. A
+ *  flat `KEYWORD_BONUS` credit on it is what made the bot pay a mana and tap a
+ *  body to give its own creature flying with no attack to make, or the
+ *  opponent's creature flying for nothing. The take-back is unconditional
+ *  (no "quiet" gate): a defensive grant answers a threat the position can
+ *  show, a combat grant's only payoff is a combat the search simulates. */
+export function temporaryCombatKeywords(
+    state: GameState,
+    card: CardInstanceState
+): string[] {
+    return temporaryKeywordOccurrences(
+        state,
+        card,
+        (keyword) => !isDefensiveKeyword(keyword)
+    );
+}
+
+/** The shared collector behind the two lists above: every duration-scoped
+ *  layer-6 keyword grant live on `card` whose keyword `accept` admits, counted
+ *  against what `staticAbilities` actually holds. */
+function temporaryKeywordOccurrences(
+    state: GameState,
+    card: CardInstanceState,
+    accept: (keyword: string) => boolean
+): string[] {
     // PRD #2064 S6b — a duration-scoped grant is a REGISTRY entry now, not a
     // `duration`-keyed row on the card, so the Bot's "this bonus expires" test
     // reads the registry. Same question, same answer, different home: an entry
@@ -115,7 +152,7 @@ export function temporaryDefensiveKeywords(
     // claimed twice.
     const available = new Map<string, number>();
     for (const keyword of card.staticAbilities) {
-        if (!isDefensiveKeyword(keyword)) continue;
+        if (!accept(keyword)) continue;
         available.set(keyword, (available.get(keyword) ?? 0) + 1);
     }
     if (available.size === 0) return [];

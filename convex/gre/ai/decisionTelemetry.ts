@@ -141,7 +141,7 @@ export const ROOT_RULE_ALLOWLIST: Record<
     "standing-spend-hold": {
         kind: "rule",
         issue: 3319,
-        why: "the missing half of the fire rule outside the mover's own sorcery window: a spend that leaves the position no better is dominated by keeping the permanent",
+        why: "the missing half of the fire rule outside the mover's own sorcery window: a spend that leaves the position no better is dominated by keeping the permanent — a standing spend (the permanent given up), or a transient one (an effect that expires this turn, paid with a mana or a tap, issue #5927)",
     },
     "resolved-payoff": {
         kind: "rule",
