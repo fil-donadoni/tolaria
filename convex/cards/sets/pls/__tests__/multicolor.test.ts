@@ -2261,6 +2261,44 @@ describe("Radiant Kavu ({R}{G}{W} Creature — filter-scoped prevention, CR 615)
 // Rith's Charm (CR 601.2b / 700.2 / 615 / 111) — issue #1955
 // ===========================================================================
 describe("Rith's Charm ({R}{G}{W} Instant — three modes, CR 700.2)", () => {
+    it("mode 3 chooses its source without targeting (CR 609.7a): no target, hexproof is choosable, no player is offered", () => {
+        const mode = rithsCharm.modes!.find((m) => m.id === "prevent-source")!;
+        expect(mode.targetRequirement).toBeUndefined();
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "hex",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            staticAbilities: ["hexproof"],
+                        }),
+                    ],
+                }),
+            ],
+        });
+        const item = pushSpell(state, rithsCharm.id, "p1");
+        item.chosenModeIds = ["prevent-source"];
+        resolveTopOfStack(state);
+        const ids = state.pendingChoices![0]!.candidateIds!;
+        expect(ids).toContain("hex");
+        expect(ids).not.toContain("p1");
+        expect(ids).not.toContain("p2");
+        submitChoice(state, ["hex"]);
+        expect(
+            runDamageReplacement(
+                state,
+                "hex",
+                "p2",
+                { type: "player", id: "p1" },
+                2,
+                false
+            )
+        ).toBeNull();
+    });
+
     function board(): GameState {
         return makeState({
             players: [
@@ -2314,7 +2352,8 @@ describe("Rith's Charm ({R}{G}{W} Instant — three modes, CR 700.2)", () => {
 
     it("mode 3 prevents ALL damage the chosen source would deal, combat AND non-combat (CR 615)", () => {
         const state = board();
-        castMode(state, "prevent-source", [{ type: "permanent", id: "bear" }]);
+        castMode(state, "prevent-source");
+        submitChoice(state, ["bear"]);
         const dealt = (isCombat: boolean) =>
             runDamageReplacement(
                 state,
@@ -2332,7 +2371,8 @@ describe("Rith's Charm ({R}{G}{W} Instant — three modes, CR 700.2)", () => {
 
     it("mode 3's shield is recipient-agnostic — it also stops damage to a permanent", () => {
         const state = board();
-        castMode(state, "prevent-source", [{ type: "permanent", id: "bear" }]);
+        castMode(state, "prevent-source");
+        submitChoice(state, ["bear"]);
         expect(
             runDamageReplacement(
                 state,
@@ -2345,16 +2385,17 @@ describe("Rith's Charm ({R}{G}{W} Instant — three modes, CR 700.2)", () => {
         ).toBeNull();
     });
 
-    // CR 609.7 — "an activated ability, triggered ability, or spell can be a
-    // source of damage" is the entire reason mode 3's target requirement
-    // admits `"spell"` (issue #2051's divergence). A Lightning Bolt on the
-    // stack, shielded by mode 3, must deal NO damage when it resolves.
-    it("mode 3 shields a SPELL on the stack — the shielded Bolt deals no damage (CR 609.7, issue #2051)", () => {
+    // CR 609.7a — a spell on the stack is a legal source. A Lightning Bolt on
+    // the stack, shielded by mode 3, must deal NO damage when it resolves.
+    it("mode 3 shields a SPELL on the stack — the shielded Bolt deals no damage (CR 609.7a)", () => {
         const state = board();
         const bolt = pushSpell(state, lightningBolt.id, "p2", [
             { type: "player", id: "p1" },
         ]);
-        castMode(state, "prevent-source", [{ type: "spell", id: bolt.id }]);
+        castMode(state, "prevent-source");
+        // CR 609.7a — the spell on the stack is chosen on resolution, not
+        // targeted.
+        submitChoice(state, [bolt.id]);
         // Rith's Charm has resolved (establishing the shield) and left only
         // the Bolt on the stack; resolve it now.
         expect(state.stack.map((s) => s.id)).toEqual([bolt.id]);

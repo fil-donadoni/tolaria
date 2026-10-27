@@ -8,6 +8,7 @@
 // artifacts (no coloured cost) live in colorless.ts.
 
 import { defineCard, type SpellContext } from "../../types";
+import { pickDamageSource } from "../../abilities";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 
@@ -95,8 +96,8 @@ export const boneFlute = defineCard(() => ({
 // choice would deal damage to you this turn, prevent half that damage, rounded
 // down." (CR 605 activated ability; CR 615.1 one-shot, source-matched
 // prevent-half shield via the new `addPlayerDamagePreventionShield`. The "source
-// of your choice" is a permanent target — typically the attacker/burn source —
-// scoped to the activating player.)
+// of your choice" is chosen on resolution, not targeted (CR 609.7a) —
+// typically the attacker/burn source — scoped to the activating player.)
 export const darkSphere = defineCard(() => ({
     id: "72cfe9b9-677d-4ecb-83ab-67fb6481371d",
     rarity: "uncommon",
@@ -112,19 +113,21 @@ export const darkSphere = defineCard(() => ({
                 "{T}, Sacrifice this artifact: The next time a source of your choice would deal damage to you this turn, prevent half that damage, rounded down.",
             cost: { tap: true, sacrifice: true },
             useStack: true,
-            // "A source of your choice" — any permanent (CR 609.7). The shield
-            // matches that source instance and prevents half its next hit to
-            // the activating player.
-            targetRequirement: {
-                type: "any",
-                count: 1,
-            },
+            // protocol card: no DSL Op yet builds a half-down player shield
+            // (`addPlayerDamagePreventionShield`) keyed on a chosen source.
+            // "A source of your choice" (CR 609.7a) is chosen on resolution,
+            // never targeted: any permanent or spell on the stack, never a
+            // player. The shield matches that source instance and prevents
+            // half its next hit to the activating player.
             resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type !== "permanent") return;
+                const sourceId = pickDamageSource(ctx, {
+                    choiceId: `dark-sphere-source-${ctx.sourceInstanceId}`,
+                    prompt: "Dark Sphere: choose the source whose next damage to you is halved.",
+                });
+                if (sourceId === undefined) return;
                 ctx.addPlayerDamagePreventionShield(
                     ctx.controller,
-                    { sourceInstanceId: t.id },
+                    { sourceInstanceId: sourceId },
                     "half-down",
                     { phase: "end-of-turn" },
                     1

@@ -16,7 +16,11 @@ import {
     type SpellContext,
     type TargetSelection,
 } from "../../types";
-import { makeDualLand, makeTapForMana } from "../../abilities";
+import {
+    makeDualLand,
+    makeTapForMana,
+    pickDamageSource,
+} from "../../abilities";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -762,15 +766,14 @@ export const ivoryCup = defineCard(() =>
 // damage to target creature this turn, that source deals that damage to you
 // instead." (CR 614 one-shot transient redirection.) The activated ability
 // targets the creature at activation (CR 601.2c) and resolves with a
-// `requestChoice` step that asks the activator to name the specific source
-// (CR 109.4 — typically a battlefield permanent). The chosen source id is
-// baked into a `from-source-to-permanent-redirect` shield (generalized in
-// issue #1939 to carry a player-or-permanent `redirectTo`; here always
-// `{type:"player"}`, the activator) with `remaining: 1`. The shield
-// self-purges either on first match or at end of turn. If the activator's
-// `requestChoice` is skipped (the engine prompt can return an empty list
-// when no candidates exist), the shield falls back to wildcard-source
-// matching so the activation isn't wasted.
+// source-choice step (CR 609.7a: a permanent or a spell on the stack, chosen
+// on resolution and never targeted — only the creature is a target). The
+// chosen source id is baked into a `from-source-to-permanent-redirect` shield
+// (generalized in issue #1939 to carry a player-or-permanent `redirectTo`;
+// here always `{type:"player"}`, the activator) with `remaining: 1`. The
+// shield self-purges either on first match or at end of turn. With no source
+// to choose, no shield is made. protocol card: no DSL Op yet builds this
+// redirection shield keyed on a chosen source.
 export const jadeMonolith = defineCard(() => ({
     id: "4a77e0f1-449d-4a7d-9fa0-ba7598f7a73a",
     rarity: "rare",
@@ -790,16 +793,11 @@ export const jadeMonolith = defineCard(() => ({
             resolve: (ctx: SpellContext) => {
                 const t = ctx.targets[0];
                 if (!t || t.type !== "permanent") return;
-                const sourcePicks = ctx.requestChoice({
-                    playerId: ctx.controller,
+                const sourceId = pickDamageSource(ctx, {
                     choiceId: `jm-source-${ctx.sourceInstanceId}`,
-                    kind: "pick-source",
-                    zone: "battlefield",
-                    count: 1,
                     prompt: "Jade Monolith: pick the source whose next damage to the chosen creature is redirected to you.",
                 });
-                if (sourcePicks === undefined) return;
-                const sourceId = sourcePicks[0];
+                if (sourceId === undefined) return;
                 ctx.addDamageRedirectionShield({
                     kind: "from-source-to-permanent-redirect",
                     sourceInstanceId: sourceId,
