@@ -28,6 +28,7 @@ import {
     type ExpectedShares,
     type GetSignalFacts,
 } from "../draftSignal";
+import { CUBE_SOURCE_KEY } from "../cubeSource";
 import type { DraftPackCard } from "../eventTypes";
 
 const FACTS: Record<string, CardSignalFacts> = {
@@ -270,7 +271,7 @@ describe("Expected share — derived from the generator config", () => {
 
     it("is uniform over the pool for a cube", () => {
         const e = computeExpectedShares(
-            "cube",
+            CUBE_SOURCE_KEY,
             () => null,
             ["blue", "red"],
             getFacts
