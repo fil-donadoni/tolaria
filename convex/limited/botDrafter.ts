@@ -162,6 +162,14 @@ import { cardValueById } from "../gre/cardValue";
 // `GetCardEvalMeta`/`GetPickRating` already follow.
 import { capabilitySatisfiedBy } from "./capabilityRegistry";
 import type { CardProfile, GetCardProfile } from "./cardProfilesCore";
+import {
+    SIGNAL_COLOURS,
+    effectiveSignal,
+    type CardSignalFacts,
+    type DraftSignalInput,
+    type GetSignalFacts,
+    type SignalColour,
+} from "./draftSignal";
 import type { DraftPackCard, LimitedPoolCard } from "./eventTypes";
 import { PICK_RATING_MAX, PICK_RATING_MIN } from "./pickRatings";
 
@@ -444,7 +452,9 @@ export type PickTermKey =
     | "colourCommitment"
     | "castability"
     | "fixingValue"
-    | "curveFit";
+    | "curveFit"
+    | "colourSignal"
+    | "archetypeSignal";
 
 /** One Pool card that contributed to a term — the term's PROVENANCE (ADR
  *  0073: "the specific Pool cards that produced it"). */
@@ -1274,8 +1284,173 @@ function comboEdgeTerm(
     };
 }
 
+/** Rating points per unit of effective Draft Signal read (share surplus ×
+ *  cards removed upstream, `draftSignal.ts`). Small: the signal steers close
+ *  calls, it never decides them. */
+const SIGNAL_RATING_PER_UNIT = 0.1;
+
+/** Cap on one signal term's raw value, before the shared contextual clamp. */
+const SIGNAL_RAW_CAP = 0.5;
+
+/** Pool size, in colour pips / archetype-weighted cards, at which the Pool
+ *  counts as fully able to be "settled" — below it, concentration is scaled
+ *  down so a seat with one pick is not already considered committed. */
+const COLOUR_SETTLE_UNITS = 12;
+const ARCHETYPE_SETTLE_UNITS = 4;
+
+/** 0..1 measure of how settled a Pool is on few axis values: the share of the
+ *  two largest accumulators, scaled by how much Pool there is. Monotone: adding
+ *  to the largest accumulator never lowers it. */
+function settledness(counts: readonly number[], settleUnits: number): number {
+    const total = counts.reduce((a, b) => a + b, 0);
+    if (total <= 0) return 0;
+    const [first = 0, second = 0] = [...counts].sort((a, b) => b - a);
+    return ((first + second) / total) * Math.min(1, total / settleUnits);
+}
+
+/** Colour Signal (PRD #1616, issue #3736): the Draft Signal read says upstream
+ *  seats are not taking a colour the candidate belongs to. Bonus-only; scaled
+ *  by `1 − settledness` of the Pool's colours, since a seat already settled
+ *  has little use for a signal. */
+function colourSignalTerm(
+    candidate: CardEvalMeta,
+    poolMeta: readonly CardEvalMeta[],
+    signal: DraftSignalInput | undefined
+): PickTerm {
+    if (!signal) {
+        return emptySynergyTerm(
+            "colourSignal",
+            "no Draft Signal read supplied"
+        );
+    }
+    let best: { colour: SignalColour; units: number } | null = null;
+    for (const c of SIGNAL_COLOURS) {
+        if (!candidate.colors.includes(c)) continue;
+        const units = effectiveSignal(
+            signal.read,
+            signal.direction,
+            "colour",
+            c
+        );
+        if (units > 0 && (best === null || units > best.units)) {
+            best = { colour: c, units };
+        }
+    }
+    if (!best) {
+        return emptySynergyTerm(
+            "colourSignal",
+            "no colour of this card reads as open upstream"
+        );
+    }
+    const demand = pipDemandByColor(poolMeta);
+    const weight =
+        1 -
+        settledness(
+            SIGNAL_COLOURS.map((c) => demand[c] ?? 0),
+            COLOUR_SETTLE_UNITS
+        );
+    const raw =
+        Math.min(SIGNAL_RAW_CAP, best.units * SIGNAL_RATING_PER_UNIT) * weight;
+    return {
+        term: "colourSignal",
+        value: raw,
+        rawValue: raw,
+        sources: [],
+        note:
+            `${best.colour} reads open (${best.units.toFixed(2)} effective units, ` +
+            `${signal.direction === 1 ? "left" : "right"} pass current), ` +
+            `weight ${weight.toFixed(2)} for the Pool's colour concentration`,
+    };
+}
+
+/** Archetype Signal (PRD #1616, issue #3736): as `colourSignalTerm`, over the
+ *  candidate's Archetypes (Card Profile) and the Pool's archetype commitment. */
+function archetypeSignalTerm(
+    profile: CardProfile | null,
+    profiled: readonly PoolProfileEntry[],
+    signal: DraftSignalInput | undefined
+): PickTerm {
+    if (!signal) {
+        return emptySynergyTerm(
+            "archetypeSignal",
+            "no Draft Signal read supplied"
+        );
+    }
+    if (!profile || profile.archetypes.length === 0) {
+        return emptySynergyTerm(
+            "archetypeSignal",
+            "no Archetype declared — no archetype signal"
+        );
+    }
+    let best: { archetype: string; units: number } | null = null;
+    for (const a of profile.archetypes) {
+        const units = effectiveSignal(
+            signal.read,
+            signal.direction,
+            "archetype",
+            a
+        );
+        if (units > 0 && (best === null || units > best.units)) {
+            best = { archetype: a, units };
+        }
+    }
+    if (!best) {
+        return emptySynergyTerm(
+            "archetypeSignal",
+            "no Archetype of this card reads as open upstream"
+        );
+    }
+    const commitment = new Map<string, number>();
+    for (const entry of profiled) {
+        const w = profileWeight(entry.profile) * entry.copies;
+        for (const a of entry.profile.archetypes) {
+            commitment.set(a, (commitment.get(a) ?? 0) + w);
+        }
+    }
+    const weight =
+        1 - settledness([...commitment.values()], ARCHETYPE_SETTLE_UNITS);
+    const raw =
+        Math.min(SIGNAL_RAW_CAP, best.units * SIGNAL_RATING_PER_UNIT) *
+        weight *
+        profileWeight(profile);
+    return {
+        term: "archetypeSignal",
+        value: raw,
+        rawValue: raw,
+        sources: [],
+        note:
+            `"${best.archetype}" reads open (${best.units.toFixed(2)} effective units, ` +
+            `${signal.direction === 1 ? "left" : "right"} pass current), ` +
+            `weight ${weight.toFixed(2)} for the Pool's archetype concentration`,
+    };
+}
+
+/** Builds the Draft Signal's card-facts lookup from the SAME seams the pick
+ *  uses: `power` is the context-free `baseRating` term. Shared by the Draft Lab
+ *  and the replay so both fold with one definition. */
+export function buildSignalFacts(
+    getCardEvalMeta: GetCardEvalMeta,
+    getPickRating?: GetPickRating,
+    getCardProfile?: GetCardProfile
+): GetSignalFacts {
+    return (scryfallId): CardSignalFacts | null => {
+        const meta = getCardEvalMeta(scryfallId);
+        if (!meta) return null;
+        const rating = getPickRating ? getPickRating(meta.cardId) : null;
+        return {
+            power: baseRatingTerm(meta, rating).value,
+            colours: meta.colors,
+            archetypes: getCardProfile?.(meta.cardId)?.archetypes ?? [],
+        };
+    };
+}
+
 /** Optional knobs on a single candidate's scoring. */
 export interface ScoreCandidateOptions {
+    /** The seat's Draft Signal read and the current round's passing direction
+     *  (`draftSignal.ts`). Omit for "no read" — both signal terms then
+     *  contribute exactly 0 (the live paths today). */
+    draftSignal?: DraftSignalInput;
     /** Total picks in this draft — the horizon the context cap ramps over
      *  (`contextCapForPick`). Defaults to `DEFAULT_DRAFT_PICKS`. */
     totalPicks?: number;
@@ -1335,6 +1510,8 @@ export function scoreCandidate(
         castabilityTerm(candidate, poolMeta),
         fixingValueTerm(candidate, poolMeta),
         curveFitTerm(candidate, poolMeta),
+        colourSignalTerm(candidate, poolMeta, options.draftSignal),
+        archetypeSignalTerm(candidateProfile, profiled, options.draftSignal),
     ];
 
     // One uniform scale over every contextual term, so the CAP binds the SUM
@@ -1376,9 +1553,9 @@ export function scoreCandidate(
 }
 
 /** Every pack a bot seat has been shown, oldest first — the pack it is picking
- *  from is the LAST entry (ADR 0073). UNREAD by the scorer today: Draft Signal
- *  reading (what the packs coming back tell the seat about its neighbours) is
- *  a later slice of PRD #1607. The parameter is wired through every call site
+ *  from is the LAST entry (ADR 0073). UNREAD by the scorer itself: Draft Signal
+ *  reading (what the packs coming back tell the seat about its neighbours)
+ *  arrives folded, as `ScoreCandidateOptions.draftSignal`. The parameter is wired through every call site
  *  NOW because doing it with the reader would mean touching them all twice. */
 export type PacksSeen = readonly (readonly DraftPackCard[])[];
 
@@ -1416,6 +1593,7 @@ export function scorePack(
             totalPicks: options.totalPicks,
             pickNumber: options.pickNumber,
             getCardProfile: options.getCardProfile,
+            draftSignal: options.draftSignal,
         });
     });
 }
