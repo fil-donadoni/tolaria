@@ -4955,9 +4955,9 @@ const RETURN_UP_TO_X_BOUNDED =
     /^Return up to X target (cards) from your graveyard to your hand, where X is the number of (.+) target opponent controls as you cast this spell$/;
 /**
  * CR 107.3 — "<effect>, where X is <count>": the head sentence prints X and the
- * tail defines it. The tail is one of three counts: "the number of <plural
- * descriptor>", "the number of cards in your/their hand minus N" and its
- * mirror "N minus the number of cards in their hand".
+ * tail defines it: "the number of <plural descriptor>", "the number of cards
+ * in your/their hand minus N", its mirror "N minus the number of cards in
+ * their hand", or "the exiled card's mana value".
  */
 const WHERE_X_IS =
     /^(.+), where X is (the number of .+|\S+ minus the number of .+|the exiled card(?:'|’)s mana value)$/;
@@ -6997,9 +6997,9 @@ function libraryHalf(span: string, ctx: unknown) {
 /**
  * CR 107.3 — the count a "where X is …" tail defines, as an amount.
  *
- * Only the two forms a fixture pins: a plural descriptor ("the number of
- * Zombies you control") and the controller's hand less a printed constant. A
- * descriptor clause the count cannot express is the LOWERING's refusal.
+ * Only the forms a fixture pins: a plural descriptor ("the number of Zombies
+ * you control"), a hand less a printed constant or its mirror, and the exiled
+ * card's mana value. A clause the count cannot express is the LOWERING's.
  */
 function whereXAmount(tail: string, ctx: unknown): RuleResult<AmountIR> {
     // CR 202.3 — the card the activation cost exiled; the site binds it.
