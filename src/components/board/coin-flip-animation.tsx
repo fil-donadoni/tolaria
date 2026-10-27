@@ -1,11 +1,8 @@
 import { useEffect } from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { FLIP_ANIM_MS } from "~/lib/random-reveal-pacing";
 
-/** Total coin-spin duration before the chooser auto-acknowledges (ADR 0023 —
- *  animation timing is a CLIENT concern; the engine carries no wall-clock).
- *  Reduced motion shows the landed face statically for the same duration so the
- *  reveal flow and timing are identical. */
-export const FLIP_ANIM_MS = 1600;
+export { FLIP_ANIM_MS };
 
 /** Animated coin (CR 705.2 / ADR 0023). Spins through two landings and settles
  *  on the face parametrized by `result` (1 = heads/WIN, 0 = tails/LOSE), then
