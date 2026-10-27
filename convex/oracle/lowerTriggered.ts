@@ -328,6 +328,8 @@ function lowerCondition(
         }
         case "self-has-type":
             return { kind: "self-has-type", type: condition.type };
+        case "self-on-battlefield":
+            return { kind: "self-on-battlefield" };
         case "controls-more": {
             // CR 603.4 — "that player" must be a player the head introduced,
             // or the comparison is about nobody.
