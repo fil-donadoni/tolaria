@@ -1352,7 +1352,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › Search your library and graveyard for five cards and exile the rest",
-            "issue": 5253
+            "issue": 7095
         },
         {
             "kind": "grammar",
