@@ -64,6 +64,9 @@ export interface PhaseTriggerArgs {
      *  gre/rules.ts). The `effects` body reads the announced slot via
      *  `{ target: 0 }` / `ctx.targets`. */
     targetRequirement?: TargetRequirement;
+    /** CR 603.2h — forwarded onto the built ability: it triggers at most this
+     *  many times each turn per source (`TriggeredAbility.maxTriggersPerTurn`). */
+    maxTriggersPerTurn?: number;
     /** Whose step counts — drives both the trigger filter and the
      *  `scopedPlayerId` passed to `resolve`. See `TriggerScope`. */
     scope: TriggerScope;
@@ -154,6 +157,9 @@ export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
                 ? { sourceTapCondition: args.sourceTapCondition }
                 : {}),
             ...(args.zone ? { zone: args.zone } : {}),
+            ...(args.maxTriggersPerTurn !== undefined
+                ? { maxTriggersPerTurn: args.maxTriggersPerTurn }
+                : {}),
             ...(args.targetRequirement
                 ? { targetRequirement: args.targetRequirement }
                 : {}),
