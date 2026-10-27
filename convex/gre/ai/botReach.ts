@@ -95,6 +95,7 @@ import { graveyardExilePose } from "./botReachGraveyardExile";
 import { countedReturnPose } from "./botReachCountedReturn";
 import { graveyardReturnPose } from "./botReachGraveyardReturn";
 import { mayPayGraveyardPose } from "./botReachMayPayGraveyard";
+import { sacOutletPose } from "./botReachSacOutlet";
 import { graveyardPlayPose } from "./botReachGraveyardPlay";
 import { blinkPose } from "./botReachBlink";
 import { creatureSweepPose } from "./botReachCreatureSweep";
@@ -1055,6 +1056,7 @@ export function botReachSpec(
         ...graveyardReturnPose(def),
         ...countedReturnPose(def),
         ...mayPayGraveyardPose(def),
+        ...sacOutletPose(def),
         ...graveyardPlayPose(def),
         ...blinkPose(def),
         ...creatureSweepPose(def),
