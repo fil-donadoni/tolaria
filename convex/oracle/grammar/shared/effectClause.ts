@@ -1893,6 +1893,13 @@ export type EffectSentenceIR =
            */
           readonly kind: "optional";
           /**
+           * CR 118.12 — who chooses, when it is not the controller: "Then that
+           * permanent's controller may sacrifice a land of their choice."
+           * Absent for "you may". Read off the snapshot of the object the
+           * sentence before acted on (CR 608.2h).
+           */
+          readonly player?: PlayerRefIR;
+          /**
            * The inner clause AS PRINTED, which is what the player is asked.
            * The compiler has no better phrasing to offer a prompt than the
            * words the card itself uses, and inventing one would be a claim
@@ -2374,6 +2381,24 @@ export type SentenceIR =
           readonly text: string;
           readonly effect: EffectSentenceIR;
       }
+    /**
+     * CR 701.21a — "Then that permanent's controller may sacrifice a land of
+     * their choice.", the first half of an `optional` sacrifice by that player; the
+     * `if-the-player-does` after it is the second.
+     */
+    | {
+          readonly role: "optional-sacrifice-cost";
+          readonly text: string;
+          readonly player: PlayerRefIR;
+          readonly effect: FrameChainIR;
+      }
+    /** CR 118.12 — "If the player does, <effect>.": the payoff behind an
+     *  `optional-sacrifice-cost`. */
+    | {
+          readonly role: "if-the-player-does";
+          readonly text: string;
+          readonly effect: FrameChainIR;
+      }
     /** CR 603.12 — "When you do, <effect>.": the reflexive ability the
      *  member before it (an optional action or the controller's own
      *  sacrifice) triggers. Folded by `assembleSentences` like `if-you-do`. */
@@ -2755,6 +2780,12 @@ export function assembleSentences(
         SentenceIR,
         { role: "optional-hand-cost" }
     > | null = null;
+    // CR 701.21a — an optional sacrifice by the acted-on object's controller
+    // waits for the "If the player does" it gates.
+    let optionalSacrificeCost: Extract<
+        SentenceIR,
+        { role: "optional-sacrifice-cost" }
+    > | null = null;
     // CR 121.1 — "You may draw N additional cards" waits for the pick among
     // the cards drawn this turn, then for the price of each card not kept.
     let drawTopdeck: {
@@ -2871,6 +2902,27 @@ export function assembleSentences(
             return {
                 ok: false,
                 reason: '"cards drawn this turn" follows no "You may draw additional cards"',
+            };
+        if (optionalSacrificeCost !== null) {
+            if (sentence.role !== "if-the-player-does")
+                return {
+                    ok: false,
+                    reason: '"may sacrifice a land of their choice" is not followed by "If the player does, …"',
+                };
+            effects.push({
+                kind: "optional",
+                player: optionalSacrificeCost.player,
+                clause: optionalSacrificeCost.text,
+                effect: optionalSacrificeCost.effect,
+                then: sentence.effect,
+            });
+            optionalSacrificeCost = null;
+            continue;
+        }
+        if (sentence.role === "if-the-player-does")
+            return {
+                ok: false,
+                reason: '"If the player does" follows no optional sacrifice by a player',
             };
         if (optionalHandCost !== null) {
             if (sentence.role !== "if-you-do")
@@ -3631,6 +3683,10 @@ export function assembleSentences(
             optionalHandCost = sentence;
             continue;
         }
+        if (sentence.role === "optional-sacrifice-cost") {
+            optionalSacrificeCost = sentence;
+            continue;
+        }
         if (sentence.role === "optional-draw-additional") {
             drawTopdeck = {
                 clause: sentence.text,
@@ -3972,6 +4028,11 @@ export function assembleSentences(
         return {
             ok: false,
             reason: '"You may exile a card from your hand" is the last sentence and gates no effect',
+        };
+    if (optionalSacrificeCost !== null)
+        return {
+            ok: false,
+            reason: '"may sacrifice a land of their choice" is the last sentence and gates no effect',
         };
     if (drawTopdeck !== null)
         return {
@@ -4811,6 +4872,16 @@ const AND_ASSIGNS_NO_COMBAT_DAMAGE =
     /^(.+) and (.+) assigns no combat damage this turn$/;
 /** CR 107.3f (issue #4529) — the payoff sentence of a variable payment. */
 const IF_YOU_DO = /^If you do, (.+)$/;
+/** CR 701.21a — "Then that permanent's controller may sacrifice a land of
+ *  their choice": the optional sacrifice of one permanent of a type, by the
+ *  controller of the object the sentence before acted on. */
+const ACTED_ON_MAY_SACRIFICE =
+    /^Then (that (\w+)(?:'|’)s controller) may sacrifice an? (land) of their choice$/;
+/** CR 118.12 — the payoff sentence behind a sacrificing player. */
+const IF_THE_PLAYER_DOES = /^If the player does, (.+)$/;
+/** CR 707.10 + CR 707.10c — the copy the gated player may make. */
+const THEY_MAY_COPY_THIS_SPELL =
+    "They may copy this spell and may choose a new target for that copy";
 /** CR 603.12 — the reflexive sentence behind an action it triggers off. */
 const WHEN_YOU_DO = /^When you do, (.+)$/;
 /** CR 121.1 — the first half of a `draw-then-ranged-topdeck`, whole. */
@@ -5801,6 +5872,49 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
             if (costPerKept === null || costPerKept < 1)
                 return fail(`"${payOrTopdeck[1]}" is not an amount`, span);
             return ok({ role: "pay-life-or-topdeck" as const, costPerKept });
+        }
+        const actedOnSacrifice = span.match(ACTED_ON_MAY_SACRIFICE);
+        if (actedOnSacrifice !== null) {
+            // The pick is the sacrifice frame's own read of "a land"; the
+            // chooser is swapped for the acted-on object's controller.
+            const chain = readFrameChain(
+                `Sacrifice a ${actedOnSacrifice[3]}`,
+                ctx
+            );
+            if (chain === null) return fail("not a sacrifice", span);
+            if (!chain.ok) return chain;
+            const frame = chain.value.frames[0];
+            if (
+                chain.value.frames.length !== 1 ||
+                frame?.frame !== "sacrifice" ||
+                frame.object.kind !== "chosen"
+            )
+                return fail("not a sacrifice of a chosen permanent", span);
+            const player: PlayerRefIR = {
+                kind: "acted-on-controller" as const,
+                noun: actedOnSacrifice[2]!,
+            };
+            return ok({
+                role: "optional-sacrifice-cost" as const,
+                text: capitalise(
+                    `${actedOnSacrifice[1]} may sacrifice a ${actedOnSacrifice[3]} of their choice`
+                ),
+                player,
+                effect: { frames: [{ ...frame, player }] },
+            });
+        }
+        const ifThePlayerDoes = span.match(IF_THE_PLAYER_DOES);
+        if (ifThePlayerDoes !== null) {
+            if (capitalise(ifThePlayerDoes[1]!) !== THEY_MAY_COPY_THIS_SPELL)
+                return fail(
+                    '"If the player does" feeds only "they may copy this spell"',
+                    span
+                );
+            return ok({
+                role: "if-the-player-does" as const,
+                text: span,
+                effect: { frames: [{ frame: "copySpell" as const }] },
+            });
         }
         const ifYouDo = span.match(IF_YOU_DO);
         if (ifYouDo !== null) {

@@ -249,7 +249,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Celestial Colonnade",
     "Celestial Sword",
     "Chain Lightning",
-    "Chain of Vapor",
     "Chandra, Torch of Defiance",
     "Channel",
     "Chaos Lord",

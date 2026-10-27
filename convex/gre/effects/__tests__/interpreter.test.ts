@@ -37340,3 +37340,51 @@ describe("EffectPredicate `costVictimMatchesFilter` (CR 608.2h, issue #6503)", (
         expect(resolveWith({ cardInstanceId: "v", mv: 0 })).toBe(20);
     });
 });
+
+describe("Effect Script Op: copyResolvingSpell (CR 707.10, CR 707.10c)", () => {
+    function resolvingCopier(player: EffectPlayerRef, scriptId: string) {
+        const id = registerScript(scriptId, [
+            { op: "copyResolvingSpell", player },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        return { state, id };
+    }
+
+    it("copies the resolving spell under the named player and offers them a retarget (CR 707.10c)", () => {
+        const { state, id } = resolvingCopier(
+            { target: 0 },
+            "test-op-copy-resolving-spell-opponent"
+        );
+        // Name p2 through a player target slot.
+        state.stack[0]!.targets = [{ type: "player", id: "p2" }];
+        resolveTopOfStack(state);
+
+        const copy = state.stack.find((s) => s.isCopy === true);
+        expect(copy).toBeDefined();
+        expect(copy!.controllerId).toBe("p2");
+        // The copy is the same card (CR 707.10). A spell with no target has
+        // nothing to retarget, so no prompt is raised (the zero-branch
+        // auto-keep of CR 707.10c).
+        expect((copy!.card as { id: string }).id).toBe(id);
+        expect(state.pendingTarget).toBeUndefined();
+
+        // Wire format: the copy survives projection with its controller.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.stack.find((s) => s.id === copy!.id);
+        expect(slim?.controllerId).toBe("p2");
+    });
+
+    it("skips when the player does not resolve (CR 608.2b)", () => {
+        const { state } = resolvingCopier(
+            { target: 0 },
+            "test-op-copy-resolving-spell-skip"
+        );
+        // No target recorded: the player slot is empty.
+        resolveTopOfStack(state);
+        expect(state.stack.some((s) => s.isCopy === true)).toBe(false);
+        expect(state.pendingTarget).toBeUndefined();
+    });
+});

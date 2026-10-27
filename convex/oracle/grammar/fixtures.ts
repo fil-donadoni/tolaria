@@ -13770,4 +13770,79 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             additionalCosts: { discard: { count: "X" } },
         },
     },
+    // CR 707.10 + CR 118.12 + CR 701.21a (issue #5604) — Chain of Vapor: the bounced permanent's controller (a `$that1.controller` snapshot read after the permanent left the battlefield) may sacrifice a land to gate a copy of this spell, the runtime binding the canned smoke scenario cannot build.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "2167ac25-d042-4b48-b770-8b94acc1a965",
+            name: "Chain of Vapor",
+            manaCost: "{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Return target nonland permanent to its owner's hand. Then that permanent's controller may sacrifice a land of their choice. If the player does, they may copy this spell and may choose a new target for that copy.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Chain of Vapor",
+            types: ["Instant"],
+            manaCost: { U: 1 },
+            oracleText:
+                "Return target nonland permanent to its owner's hand. Then that permanent's controller may sacrifice a land of their choice. If the player does, they may copy this spell and may choose a new target for that copy.",
+            targetRequirement: {
+                count: 1,
+                excludeTypes: ["Land"],
+                type: [
+                    "Artifact",
+                    "Battle",
+                    "Creature",
+                    "Enchantment",
+                    "Land",
+                    "Planeswalker",
+                ],
+            },
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { target: 0 },
+                    to: "hand",
+                    bind: "$that1",
+                },
+                {
+                    op: "mayPay",
+                    player: { ref: "$that1.controller" },
+                    cost: {
+                        permanent: {
+                            action: "sacrifice",
+                            count: 1,
+                            filter: { types: "Land" },
+                        },
+                    },
+                    prompt: "That permanent's controller may sacrifice a land of their choice?",
+                    bind: "$paid2",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid2" },
+                    then: [
+                        {
+                            op: "mayPay",
+                            player: { ref: "$that1.controller" },
+                            prompt: "They may copy this spell and may choose a new target for that copy?",
+                            bind: "$copy3",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$copy3" },
+                            then: [
+                                {
+                                    op: "copyResolvingSpell",
+                                    player: { ref: "$that1.controller" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
