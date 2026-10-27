@@ -112,7 +112,7 @@ import {
     type ResolveSeatStrength,
 } from "./limited/rounds";
 import { computeStandings } from "./limited/standings";
-import { isDroppedSeat } from "./limited/droppedSeat";
+import { isAutoDrivenSeat, isDroppedSeat } from "./limited/droppedSeat";
 import {
     areOtherSeatsRevealed,
     projectLimitedEvent,
@@ -2736,7 +2736,7 @@ export const autoPickSeatTimeout = internalMutation({
         // one asked early); most firings are stale schedules, and a stale one
         // should cost a single small read, not eight Pools.
         const slimSeat = event.seats[args.seatIndex];
-        if (!slimSeat || slimSeat.isBot) return null;
+        if (!slimSeat || isAutoDrivenSeat(slimSeat)) return null;
         if ((slimSeat.pickSeq ?? 0) !== args.expectedSeq) return null;
 
         const hydratedSeats = await hydrateSeats(ctx, event);

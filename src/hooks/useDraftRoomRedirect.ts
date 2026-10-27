@@ -60,7 +60,8 @@ export function useDraftRoomRedirect(
         event.type === "draft" &&
         areDraftPicksLegal(event.status) &&
         event.draftCompletedAt === undefined &&
-        viewerSeat !== undefined;
+        viewerSeat !== undefined &&
+        !viewerSeat.isDropped;
 
     useEffect(() => {
         if (!shouldOpen || firedRef.current) return;

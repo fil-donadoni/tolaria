@@ -3,6 +3,7 @@
 // draft picks made for a dropped Seat, deck completion, and the concession
 // of its pairings.
 import { describe, expect, it } from "vitest";
+import { assertChallengeableSeat } from "../challenge";
 import { dropSeat } from "../eventLogic";
 import { isAutoDrivenSeat, isDroppedSeat } from "../droppedSeat";
 import { computeEventCompletion } from "../completion";
@@ -274,5 +275,20 @@ describe("projectLimitedEvent — the Dropped marker reaches the wire", () => {
             false
         );
         expect(view.seats.map((s) => s.isDropped)).toEqual([false, true]);
+    });
+});
+
+describe("challenges never target a dropped Seat", () => {
+    it("rejects a dropped human like a bot", () => {
+        const event = {
+            seats: [
+                { seatIndex: 0, userId: "u1" },
+                { seatIndex: 1, userId: "u2", droppedAt: NOW },
+            ],
+        };
+        expect(() => assertChallengeableSeat(event, 1, "u1")).toThrow(
+            /seated human opponent/
+        );
+        expect(assertChallengeableSeat(event, 0, "u2").userId).toBe("u1");
     });
 });
