@@ -200,6 +200,10 @@ export const SERIALISED_JOBS: ReadonlySet<string> = new Set([
     // Two replays at once would sweep the same Bot twice and race one push
     // (issue #6463); a dropped pending run re-reads the two hashes next time.
     ".github/workflows/post-merge.yml#bot-replay",
+    // Two refreshes at once would rebase and force-push one PR twice (issue
+    // #6651); a dropped pending run re-reads the PR list and every conflict
+    // from git next time, so the newest base tip's run is the one that goes.
+    ".github/workflows/pr-refresh.yml#refresh",
 ]);
 
 /** Jobs that MAY pin one host by a literal `host:<name>` label (rule

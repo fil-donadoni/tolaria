@@ -17,6 +17,8 @@ import {
     conflictComment,
     parseConflictPaths,
     selectRefreshCandidates,
+    semanticChecks,
+    semanticComment,
     type RefreshPr,
 } from "../lib/pr-refresh";
 import { CORPUS_CACHE_REL } from "../lib/generated-artifacts";
@@ -81,16 +83,43 @@ describe("selectRefreshCandidates", () => {
         ]);
     });
 
-    it("under a RED, takes a queue:held PR on any base push, the range unknown included (issue #6256)", () => {
+    it("under a RED, takes a queue:held PR only when the base push touches its files (issue #6651)", () => {
         const held = ["ready-to-land", "queue:held"];
+        expect(
+            selectRefreshCandidates(
+                [pr({ number: 4, labels: held })],
+                new Set(["a.ts"]),
+                RED
+            ).map((c) => [c.pr.number, c.reason])
+        ).toEqual([[4, "held"]]);
+    });
+
+    it("under a RED, a held PR the base change does not touch is left alone, the range unknown included (issue #6651)", () => {
+        const held = ["ready-to-land", "queue:held"];
+        const skips: string[] = [];
         for (const touched of [new Set(["z.ts"]), null])
             expect(
                 selectRefreshCandidates(
                     [pr({ number: 4, labels: held })],
                     touched,
-                    RED
-                ).map((c) => [c.pr.number, c.reason])
-            ).toEqual([[4, "held"]]);
+                    { red: true, onSkip: (_p, why) => skips.push(why) }
+                )
+            ).toEqual([]);
+        expect(skips).toHaveLength(2);
+    });
+
+    it("takes a PR git merge-tree finds conflicting while GitHub still reads UNKNOWN (issue #6651)", () => {
+        const got = selectRefreshCandidates(
+            [
+                pr({ number: 5, mergeable: "UNKNOWN" }),
+                pr({ number: 6, mergeable: "UNKNOWN" }),
+            ],
+            new Set(),
+            { ...GREEN, localConflicts: new Set([5]) }
+        );
+        expect(got.map((c) => [c.pr.number, c.reason])).toEqual([
+            [5, "conflicting"],
+        ]);
     });
 
     it("off RED, a queue:held label is stale: no held PR is pushed, each skip is told (issue #6957)", () => {
@@ -204,6 +233,36 @@ describe("conflictComment", () => {
     });
 });
 
+describe("conflictComment without a path", () => {
+    it("says git named none instead of printing an empty list (issue #6651)", () => {
+        const body = conflictComment({
+            paths: [],
+            base: "staging",
+            repairable: true,
+        });
+        expect(body).toContain("named no path");
+        expect(body).not.toContain("Conflicting paths");
+    });
+});
+
+describe("semanticChecks", () => {
+    it("admits the cheap census guards a diff reaches, from CHEAP_GUARDS (issue #6651)", () => {
+        const ids = semanticChecks(["data/oracle-lockfile.json"]).map(
+            (c) => c.id
+        );
+        expect(ids).toContain("check:gaps");
+        expect(semanticChecks(["README.md"])).toEqual([]);
+        expect(
+            semanticComment({
+                check: { id: "check:gaps", command: "bun run check:gaps" },
+                detail: "census drift",
+                base: "staging",
+                repairable: true,
+            })
+        ).toContain("bun run check:gaps");
+    });
+});
+
 describe("refreshPr — real git, a bare origin", () => {
     let dir: string;
     let origin: string;
@@ -282,6 +341,28 @@ describe("refreshPr — real git, a bare origin", () => {
             deps
         );
         expect(out).toEqual({ kind: "conflict", paths: ["shared.txt"] });
+        expect(git(["rev-parse", "feat/issue-9"], origin)).toBe(oid);
+    });
+
+    it("a clean rebase that breaks a semantic check is not pushed and names the check (issue #6651)", () => {
+        const oid = queuedBranch("pr.txt");
+        baseMoves("other.txt");
+        const out = refreshPr(
+            primary,
+            { headRefName: "feat/issue-9", headRefOid: oid },
+            {
+                ...deps,
+                semanticRed: () => ({
+                    check: "bun run check:gaps",
+                    detail: "census drift",
+                }),
+            }
+        );
+        expect(out).toEqual({
+            kind: "semantic",
+            check: "bun run check:gaps",
+            detail: "census drift",
+        });
         expect(git(["rev-parse", "feat/issue-9"], origin)).toBe(oid);
     });
 

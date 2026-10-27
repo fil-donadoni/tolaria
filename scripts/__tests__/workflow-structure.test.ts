@@ -55,6 +55,26 @@ describe("the repository's workflows", () => {
     });
 });
 
+describe("pr-refresh's concurrency group (issue #6651)", () => {
+    it("must keep one refresh run live at a time: dropping the job's group is refused", () => {
+        const input = repoInput();
+        const path = ".github/workflows/pr-refresh.yml";
+        const stripped = input.workflows.map((w) => {
+            if (w.path !== path) return w;
+            const text = w.text.replace(
+                /\n {8}concurrency:\n {12}group: pr-refresh\n {12}cancel-in-progress: false/,
+                ""
+            );
+            expect(text).not.toBe(w.text);
+            return { ...w, text };
+        });
+        const broken = checkStructure({ ...input, workflows: stripped });
+        expect(broken.map((v) => [v.file, v.job, v.rule])).toEqual([
+            [path, "refresh", "dispatcher-serialised"],
+        ]);
+    });
+});
+
 const SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1";
 
 const HOSTED = `

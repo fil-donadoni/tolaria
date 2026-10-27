@@ -44,11 +44,14 @@ import {
     readVerdictLineage,
 } from "./lib/health-verdict-store";
 import { issueOfBranch } from "./lib/issue-worktree";
+import { FAILED_LABEL } from "./lib/land-labels";
 import { labelArgs, READY_LABEL } from "./lib/land-runner";
 import {
     conflictComment,
     parseConflictPaths,
     selectRefreshCandidates,
+    semanticChecks,
+    semanticComment,
     type RefreshPr,
 } from "./lib/pr-refresh";
 import { primaryCheckout } from "./lib/primary-checkout";
@@ -61,6 +64,7 @@ export type RefreshOutcome =
     | { kind: "unchanged" }
     | { kind: "pushed"; from: string; to: string }
     | { kind: "conflict"; paths: string[] }
+    | { kind: "semantic"; check: string; detail: string }
     | { kind: "skipped"; reason: string };
 
 export interface RefreshDeps {
@@ -69,6 +73,11 @@ export interface RefreshDeps {
      * gitignored Card Corpus cache the artefact resolver re-derives from).
      */
     prepare: (dir: string, primary: string) => boolean;
+    /**
+     * The first seconds-cost semantic check the rebased tree fails (issue
+     * #6651); defaults to the real cheap-guard run.
+     */
+    semanticRed?: (dir: string) => { check: string; detail: string } | null;
     /** Push the rebased tip (false = a dry run: everything but the push). */
     push: boolean;
 }
@@ -179,7 +188,9 @@ export function refreshPr(
                             .status === 0
                 )
             );
-            return paths.length > 0
+            // git named a conflict but no listable path: say so, never
+            // leave the PR waiting with a silent comment (issue #6651).
+            return paths.length > 0 || /CONFLICT/.test(rebased.stdout)
                 ? { kind: "conflict", paths }
                 : {
                       kind: "skipped",
@@ -205,6 +216,8 @@ export function refreshPr(
         }
         const head = run("git", ["rev-parse", "HEAD"], dir).stdout.trim();
         if (head === pr.headRefOid) return { kind: "unchanged" };
+        const broken = (deps.semanticRed ?? firstSemanticRed)(dir);
+        if (broken !== null) return { kind: "semantic", ...broken };
         if (deps.push) {
             const pushed = run(
                 "git",
@@ -228,6 +241,81 @@ export function refreshPr(
         run("git", ["worktree", "remove", "--force", dir], primary);
         rmSync(dir, { recursive: true, force: true });
     }
+}
+
+/**
+ * Run the seconds-cost semantic checks on the rebased tree, all of them stopping
+ * at the first red: a census, count or derived row the rebase broke surfaces
+ * here, named, instead of in a 20-min lane (issue #6651).
+ */
+function firstSemanticRed(
+    dir: string
+): { check: string; detail: string } | null {
+    const changed = run(
+        "git",
+        ["diff", "--name-only", `origin/${BASE_BRANCH}...HEAD`],
+        dir
+    )
+        .stdout.split("\n")
+        .filter(Boolean);
+    for (const check of semanticChecks(changed)) {
+        const r = run("sh", ["-c", check.command], dir);
+        if (r.status !== 0)
+            return {
+                check: check.command,
+                detail: `${r.stdout}\n${r.stderr}`
+                    .trim()
+                    .split("\n")
+                    .slice(-30)
+                    .join("\n"),
+            };
+    }
+    return null;
+}
+
+/**
+ * The PRs whose head `git merge-tree` cannot merge into the base tip: local
+ * detection, never waiting for GitHub's `mergeable` to leave `UNKNOWN`. A PR
+ * whose branch cannot be fetched is left out (not a conflict).
+ */
+function localConflicts(
+    primary: string,
+    prs: readonly RefreshPr[]
+): Set<number> {
+    const out = new Set<number>();
+    for (const pr of prs) {
+        if (pr.isCrossRepository || pr.mergeable === "CONFLICTING") continue;
+        const fetched = run(
+            "git",
+            [
+                "fetch",
+                "--no-tags",
+                "origin",
+                `+refs/heads/${pr.headRefName}:refs/remotes/origin/${pr.headRefName}`,
+            ],
+            primary
+        );
+        if (fetched.status !== 0) continue;
+        const tip = run(
+            "git",
+            ["rev-parse", `refs/remotes/origin/${pr.headRefName}`],
+            primary
+        ).stdout.trim();
+        if (tip !== pr.headRefOid) continue;
+        // Exit 1 = conflicts; any other non-zero is an error, not a verdict.
+        const merged = run(
+            "git",
+            [
+                "merge-tree",
+                "--write-tree",
+                `origin/${BASE_BRANCH}`,
+                pr.headRefOid,
+            ],
+            primary
+        );
+        if (merged.status === 1) out.add(pr.number);
+    }
+    return out;
 }
 
 function flag(argv: string[], name: string): string | null {
@@ -309,8 +397,18 @@ function main(): number {
     log(`health lineage ${lineage.kind}`);
     const selected = (pr: RefreshPr) =>
         only === null || String(pr.number) === only;
-    const candidates = selectRefreshCandidates(listQueued(), touched, {
+    const queued = listQueued();
+    const candidates = selectRefreshCandidates(queued, touched, {
         red,
+        localConflicts: localConflicts(
+            primary,
+            queued.filter(
+                (pr) =>
+                    selected(pr) &&
+                    pr.labels.includes(READY_LABEL) &&
+                    !pr.labels.includes(FAILED_LABEL)
+            )
+        ),
         onSkip: (pr, why) => {
             if (selected(pr)) log(`PR #${pr.number}: ${why}`);
         },
@@ -338,9 +436,39 @@ function main(): number {
                     `PR #${pr.number} (${reason}): left queued — ${outcome.reason}`
                 );
                 break;
+            case "semantic":
+                log(
+                    `PR #${pr.number} (${reason}): clean rebase, ${outcome.check} red — ${dryRun ? "would label" : "labelling"} land-failed`
+                );
+                if (!dryRun) {
+                    try {
+                        gh(labelArgs.failed(pr.number));
+                        gh([
+                            "pr",
+                            "comment",
+                            String(pr.number),
+                            "--body",
+                            semanticComment({
+                                check: {
+                                    id: outcome.check,
+                                    command: outcome.check,
+                                },
+                                detail: outcome.detail,
+                                base: BASE_BRANCH,
+                                repairable:
+                                    issueOfBranch(pr.headRefName) !== null,
+                            }),
+                        ]);
+                    } catch (err) {
+                        log(
+                            `PR #${pr.number}: labelling failed — ${(err as Error).message.split("\n")[0]}`
+                        );
+                    }
+                }
+                break;
             case "conflict":
                 log(
-                    `PR #${pr.number} (${reason}): conflicts in ${outcome.paths.join(", ")} — ${dryRun ? "would label" : "labelling"} land-failed`
+                    `PR #${pr.number} (${reason}): conflicts in ${outcome.paths.length > 0 ? outcome.paths.join(", ") : "(git named no path)"} — ${dryRun ? "would label" : "labelling"} land-failed`
                 );
                 if (!dryRun) {
                     try {
