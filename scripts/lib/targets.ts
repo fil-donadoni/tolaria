@@ -51,7 +51,7 @@ export type TargetKind = (typeof TARGET_KINDS)[number];
  * day the list was written, so a card written by hand later never counts.
  * A `closedTail` card is Hand Tail by declaration: it owes no `grammar` claim
  * for its own gaps, so a protocol card the DSL cannot express (Doomsday) is
- * not a standing Grammar Gap issue (ADR 0143 Amendment VIII, issue #7095).
+ * not a standing Grammar Gap issue (ADR 0143 Amendment VIII).
  */
 export const COMPLETION_MODES = ["playable", "ready", "closed-tail"] as const;
 export type CompletionMode = (typeof COMPLETION_MODES)[number];
