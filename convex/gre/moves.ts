@@ -217,7 +217,10 @@ import { choiceCandidates } from "./ai/choiceCandidates";
 // Dominance pruning (issue #1887) — the generic "this move is provably
 // dominated by `pass`" seam. Opt-in per caller (see `EnumerateMovesOptions`).
 import { isDominatedNoOpMove, isProbeEligibleMove } from "./ai/dominance";
-import { isFutileShieldMove } from "./ai/futileShield";
+import {
+    isFutileThisTurnMove,
+    isMisdirectedThisTurnMove,
+} from "./ai/futileShield";
 import {
     triggerHasNoLegalTarget,
     withoutFutileKickerVariants,
@@ -6054,7 +6057,10 @@ export function enumerateMoves(
     return candidates.filter((m) => {
         // Issue #5493 — a shield no threat can reach before the bot next holds
         // priority: a static proof, so it runs ahead of the probe gate.
-        if (isFutileShieldMove(state, m)) {
+        if (
+            isFutileThisTurnMove(state, m) ||
+            isMisdirectedThisTurnMove(state, m, playerId)
+        ) {
             options.onPruned?.(m);
             return false;
         }
