@@ -40,10 +40,13 @@ function sharedRepo(
     const statuses = new Map<string, Status[]>();
     const run: GhRunner = (args) => {
         const joined = args.join(" ");
-        if (args[0] === "issue" && args[1] === "view")
+        const issue = /^repos\/[^/]+\/[^/]+\/issues\/(\d+)$/.exec(
+            args[1] ?? ""
+        );
+        if (args[0] === "api" && issue)
             return {
                 status: 0,
-                stdout: closed.has(Number(args[2])) ? "CLOSED\n" : "OPEN\n",
+                stdout: closed.has(Number(issue[1])) ? "closed\n" : "open\n",
                 stderr: "",
             };
         const post = /statuses\/([0-9a-f]{40})$/.exec(

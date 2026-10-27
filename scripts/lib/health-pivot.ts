@@ -134,19 +134,15 @@ function standingRedRun(root: string, opts: PivotOpts): string[] {
 /** Whether `issue` is closed on GitHub. A state that cannot be read counts
  *  as open: a stale repair admitted costs one landing, a live one refused
  *  blocks the base (issue #7139). */
-function issueClosed(root: string, issue: number, opts: PivotOpts): boolean {
+function issueClosed(repo: string, issue: number, opts: PivotOpts): boolean {
+    // REST, not `gh issue view` (GraphQL): its rate limit is the one hit.
     const r = (opts.run ?? realGh)([
-        "issue",
-        "view",
-        String(issue),
-        "--repo",
-        originRepo(root),
-        "--json",
-        "state",
+        "api",
+        `repos/${repo}/issues/${issue}`,
         "--jq",
         ".state",
     ]);
-    return r.status === 0 && r.stdout.trim() === "CLOSED";
+    return r.status === 0 && r.stdout.trim() === "closed";
 }
 
 /** The repair issues held for the standing RED: its own `health-fix`
@@ -161,13 +157,14 @@ function readRepairRecords(
     const [standing, ...earlier] = standingRedRun(root, opts);
     if (standing === undefined) return { issues: [], ladder: [] };
     const store = pivotStore(root, FIX_CONTEXT, opts);
+    const repo = originRepo(root);
     const held = store.read(standing);
     const issues = new Set(held?.issues ?? []);
     const ladder = new Set(held?.ladderIssues ?? []);
     for (const sha of earlier) {
         const prior = store.read(sha);
         for (const n of prior?.issues ?? []) {
-            if (!issues.has(n) && issueClosed(root, n, opts)) continue;
+            if (!issues.has(n) && issueClosed(repo, n, opts)) continue;
             issues.add(n);
             // Re-declared by hand on the later RED, it stays the ladder's.
             if (prior?.ladderIssues?.includes(n)) ladder.add(n);
