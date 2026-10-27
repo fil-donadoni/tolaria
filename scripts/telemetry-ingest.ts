@@ -7,7 +7,6 @@
  *   ~/.claude/projects/<proj>/<session>/subagents/agent-*.jsonl → llm (subagents)
  *
  *   ~/.cache/tolaria/gate-runs/*               → gate_runs, gate_attempts
- *   .claude/telemetry/health/*.log             → health_runs
  *   .claude/telemetry/health/detach.log        → health_detach
  *   .claude/telemetry/health/durations/<sha12>/ → test_headroom(_runs)
  *   .claude/telemetry/gate-lock.jsonl          → gate_lock
@@ -67,7 +66,6 @@ import {
 import {
     parseLaneLine,
     parseLaneForcingPath,
-    parseHealthLogRed,
 } from "./lib/telemetry-latency.ts";
 import {
     classifyLandFailure,
@@ -1253,54 +1251,11 @@ function ingestGateRuns(db: Sqlite): number {
 }
 
 /**
- * Parse every `health-main.ts` per-sha log under `.claude/telemetry/health/`
- * into the durable `health_runs` table (issue #3777, ADR 0136 row 3). Each
- * log is immutable once written — "deduplicated by sha" makes a sha
- * re-gated (and so re-logged) rare — so one already in the table is never
- * re-read.
- */
-function ingestHealthRuns(db: Sqlite): number {
-    const dir = join(PROJECT_DIR, ".claude/telemetry/health");
-    if (!existsSync(dir)) return 0;
-
-    const seen = new Set(
-        db
-            .query<{ sha12: string }, []>("SELECT sha12 FROM health_runs")
-            .all()
-            .map((r) => r.sha12)
-    );
-    const put = db.prepare(
-        "INSERT OR REPLACE INTO health_runs (sha12, red, ts) VALUES (?, ?, ?)"
-    );
-    let n = 0;
-    for (const file of readdirSync(dir)) {
-        const m = file.match(/^([0-9a-f]{12})\.log$/);
-        if (!m) continue;
-        const sha12 = m[1];
-        if (seen.has(sha12)) continue;
-        const path = join(dir, file);
-        let content: string;
-        let mtimeS: number;
-        try {
-            content = readFileSync(path, "utf8");
-            mtimeS = Math.floor(statSync(path).mtimeMs / 1000);
-        } catch {
-            continue;
-        }
-        const red = parseHealthLogRed(content);
-        if (red === null) continue; // incomplete/unparseable — revisit later
-        put.run(sha12, red ? 1 : 0, mtimeS);
-        n++;
-    }
-    return n;
-}
-
-/**
  * Each sealed `health/durations/<sha12>/` directory (`run.json` present,
  * written once the run's offline steps ended) into `test_headroom_runs` +
  * `test_headroom` (issue #5484). A directory still being written has no
  * `run.json` and is revisited; a sealed one already in the table is not
- * re-read — the same sha dedup as `ingestHealthRuns`, so a re-gated sha
+ * re-read — deduplicated by sha, so a re-gated sha
  * keeps its first sealed run (advisory data; a re-gate is rare).
  */
 function ingestTestHeadroom(db: Sqlite): number {
@@ -1823,7 +1778,6 @@ async function quick(): Promise<void> {
     const deadline = t0 + (numFlag("budget-ms") ?? QUICK_BUDGET_MS);
     await recoverRotation(db, EVENTS, HARNESS_CLAUDE);
     const gateRuns = ingestGateRuns(db);
-    const healthRuns = ingestHealthRuns(db);
     const headroomRuns = ingestTestHeadroom(db);
     const detach = await ingestHealthDetach(db, DETACH_LOG);
     const lock = await ingestGateLock(db, GATE_LOCK);
@@ -1851,7 +1805,7 @@ async function quick(): Promise<void> {
     ]);
     db.close();
     console.log(
-        `telemetry:ingest --quick: +${spans} spans, +${gateRuns} gate runs, +${healthRuns} health runs, +${headroomRuns} headroom runs, ` +
+        `telemetry:ingest --quick: +${spans} spans, +${gateRuns} gate runs, +${headroomRuns} headroom runs, ` +
             `+${detach} detach lines, +${lock} gate-lock rows${rotated ? ", tool-events.jsonl rotated" : ""}` +
             `${backlog > 0 ? `, ${(backlog / 1048576).toFixed(0)} MB of spans still to ingest` : ""} ` +
             `in ${((Date.now() - t0) / 1000).toFixed(1)}s`
@@ -1890,7 +1844,6 @@ async function main(): Promise<void> {
     const fetched = refreshIssueMeta(db);
     const fetchedPrs = refreshPrMeta(db);
     const gateRuns = ingestGateRuns(db);
-    const healthRuns = ingestHealthRuns(db);
     const headroomRuns = ingestTestHeadroom(db);
     const detach = await ingestHealthDetach(db, DETACH_LOG);
     const lock = await ingestGateLock(db, GATE_LOCK);
@@ -1918,7 +1871,7 @@ async function main(): Promise<void> {
                 : "") +
             `${attributed} issue-attributed, +${fetched} issue metas, ` +
             `+${fetchedPrs} PR metas, +${gateRuns} gate runs, ` +
-            `+${healthRuns} health runs, +${headroomRuns} headroom runs, +${detach} detach lines, +${lock} gate-lock rows` +
+            `+${headroomRuns} headroom runs, +${detach} detach lines, +${lock} gate-lock rows` +
             `${rotated ? ", tool-events.jsonl rotated" : ""}) → ${DB_PATH}`
     );
     db.close();

@@ -420,10 +420,13 @@ export function isNextIssue(row: SessionLatency): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// The four ADR 0136 KPI rows (issue #3777) — same store, four different
-// joins. Each is a pure reducer over rows the CLI reads out of the mirror;
-// what feeds them (`pr_meta`, `gate_runs`, `health_runs`, `spans.is_error`)
-// is described where each type is declared.
+// The ADR 0136 KPI rows (issue #3777) — same store, different joins. Each
+// is a pure reducer over rows the CLI reads out of the mirror; what feeds
+// them (`pr_meta`, `gate_runs`, `spans`) is described where each type is
+// declared. The "targeted-vitest reds on a RED base" row is retired (issue
+// #7068): its `health_runs` leg parsed per-sha logs that disagreed with the
+// workflow verdicts, and its `land <PR#>` leg stopped being recorded once
+// the Mergify queue took over landing.
 // ─────────────────────────────────────────────────────────────────────────
 
 const HOUR_S = 3600;
@@ -607,65 +610,6 @@ export function blockingFindingRate(
         }));
 }
 
-/** One targeted `vitest run <path>` Bash span with a known outcome. A span
- *  ingested before `spans.is_error` was captured carries no row of this
- *  shape at all — there is no "unknown, assume green" branch here, only
- *  "never observed". */
-export interface VitestRunSpan {
-    session: string;
-    ts: number;
-    red: boolean;
-}
-
-/** The base tip a session's own gate run recorded (`gate_runs.base`, joined
- *  onto the session by PR number: `land <PR#>`'s command names the PR,
- *  `sessions.prs` names the session). */
-export interface SessionBaseSha {
-    session: string;
-    base: string;
-}
-
-/** One health run's verdict, keyed by the 12-hex-char sha prefix
- *  `health-main.ts` names its per-sha log with. */
-export interface HealthVerdict {
-    sha12: string;
-    red: boolean;
-}
-
-export interface RedOnRedBaseline {
-    redRuns: number;
-    onRedBaseline: number;
-    rate: number;
-}
-
-/**
- * Of the targeted vitest runs that went red, how many ran against a base tip
- * health later proved broken — evidence the run's OWN diff was not
- * necessarily at fault. `base` (40 hex chars, from `git rev-parse
- * origin/<base>`) is matched by prefix against each red `sha12`.
- */
-export function redOnRedBaseline(
-    runs: VitestRunSpan[],
-    bases: SessionBaseSha[],
-    health: HealthVerdict[]
-): RedOnRedBaseline {
-    const baseBySession = new Map(bases.map((b) => [b.session, b.base]));
-    const redShas = health.filter((h) => h.red).map((h) => h.sha12);
-
-    const redRuns = runs.filter((r) => r.red);
-    let onRedBaseline = 0;
-    for (const r of redRuns) {
-        const base = baseBySession.get(r.session);
-        if (base && redShas.some((sha12) => base.startsWith(sha12)))
-            onRedBaseline++;
-    }
-    return {
-        redRuns: redRuns.length,
-        onRedBaseline,
-        rate: redRuns.length > 0 ? onRedBaseline / redRuns.length : 0,
-    };
-}
-
 /** One `gate_runs` record's classified lane — `null` when the command was
  *  not `check:lane`/`land` or its log carried no `lane:` line (e.g. a
  *  `check:ui` gate-run, which goes through the same script). */
@@ -759,9 +703,8 @@ export function laneFallbackRate(rows: GateRunLanding[]): LaneFallbackRate {
     };
 }
 
-/** The PR number of a `land <PR#>` gate-run command, else null. Shared by the
- *  base-sha join of {@link redOnRedBaseline} and the landing filter of
- *  {@link laneFallbackRate}, so "what counts as a landing" is one predicate. */
+/** The PR number of a `land <PR#>` gate-run command, else null — the
+ *  landing filter of {@link laneFallbackRate}. */
 export function landPrOfCommand(cmd: string): number | null {
     const m = cmd.match(/^land (\d+)$/);
     return m ? Number(m[1]) : null;
@@ -779,12 +722,6 @@ export function landPrOfCommand(cmd: string): number | null {
  */
 export function isGitCommitCommand(cmd: string): boolean {
     return /(^|&&|[;|])\s*git\s+commit\b/.test(cmd);
-}
-
-/** Same shape check as {@link isGitCommitCommand}, for a targeted
- *  `vitest run <path>` invocation feeding {@link redOnRedBaseline}. */
-export function isTargetedVitestCommand(cmd: string): boolean {
-    return /(^|&&|[;|])\s*(bunx |npx )?vitest run\b/.test(cmd);
 }
 
 /**
@@ -817,26 +754,6 @@ export function parseLaneForcingPath(log: string): string | null {
         /^lane:\s{2,}full\s+\(HEAD\b.*?outside every lane rule \(first: ([^)\n]+)\)/m
     );
     return m ? m[1] : null;
-}
-
-/**
- * Did a `health-main.ts` per-sha log record any failing step? Each step is
- * appended as `===== <cmd> (exit <status>) =====` (`lib/health-step.ts`);
- * ANY status other than `0` is red — the steps run in series and stop at the
- * first one. `status` is Node's `child.on("close", (code, signal) => …)`
- * code, which is `null` (not a number) when the step was killed by a signal
- * or failed to spawn — the log then literally reads `(exit null)`, and a
- * regex that only captured `\d+` would silently drop that line and read a
- * killed run as green if an earlier step happened to exit 0. Matching the
- * exit TOKEN, not just a digit run, closes that. `null` — "unknown", not
- * "green" — only when the log has no `(exit …)` line at all (truncated, or
- * predates this log shape): a parse gap must never manufacture a false
- * green in the one row that exists to catch a red.
- */
-export function parseHealthLogRed(log: string): boolean | null {
-    const exits = [...log.matchAll(/\(exit (\S+)\)/g)].map((m) => m[1]);
-    if (exits.length === 0) return null;
-    return exits.some((token) => token !== "0");
 }
 
 function pad(s: string, w: number, right = true): string {
@@ -891,7 +808,7 @@ export function formatReport(
 }
 
 /**
- * Render the five ADR 0136 KPI rows as a plain-text receipt appended after
+ * Render the ADR 0136 KPI rows as a plain-text receipt appended after
  * {@link formatReport} — same window (the caller passes rows already
  * restricted to the sessions the shared window query selected), one section
  * per row.
@@ -899,7 +816,6 @@ export function formatReport(
 export function formatAdr0136Rows(
     concurrency: ConcurrencyRow[],
     reviewers: ReviewerModelRow[],
-    redOnRed: RedOnRedBaseline,
     lanes: LaneCount[],
     fallback: LaneFallbackRate
 ): string {
@@ -941,13 +857,6 @@ export function formatAdr0136Rows(
             )}`
         );
     }
-
-    out.push("");
-    out.push("  targeted-vitest reds on a base tip later marked RED by health");
-    out.push(
-        `  ${redOnRed.onRedBaseline} / ${redOnRed.redRuns} red runs ` +
-            `(${(redOnRed.rate * 100).toFixed(0)}%) ran against a base health later reddened`
-    );
 
     out.push("");
     out.push("  gate-run lane histogram");

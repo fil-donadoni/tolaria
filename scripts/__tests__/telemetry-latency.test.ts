@@ -19,15 +19,12 @@ import {
     isGitCommitCommand,
     isIssueClosing,
     isNextIssue,
-    isTargetedVitestCommand,
     laneHistogram,
     laneFallbackRate,
     landPrOfCommand,
     parseLaneForcingPath,
-    parseHealthLogRed,
     parseLaneLine,
     quantile,
-    redOnRedBaseline,
     sessionLatency,
     summarise,
     throughputByConcurrency,
@@ -505,34 +502,6 @@ describe("blockingFindingRate", () => {
     });
 });
 
-describe("redOnRedBaseline", () => {
-    it("rates red targeted-vitest runs against a base health later reddened", () => {
-        const result = redOnRedBaseline(
-            [
-                { session: "a", ts: 10, red: true },
-                { session: "b", ts: 20, red: true },
-                { session: "c", ts: 30, red: false }, // green — excluded from the denominator
-            ],
-            [
-                { session: "a", base: "deadbeef0000cafefeed" },
-                { session: "b", base: "0000000000000000000" },
-            ],
-            [{ sha12: "deadbeef0000", red: true }]
-        );
-        expect(result).toEqual({ redRuns: 2, onRedBaseline: 1, rate: 0.5 });
-    });
-
-    it("PROOF OF FAILURE: a green health verdict must not count as red", () => {
-        const brokenResult = redOnRedBaseline(
-            [{ session: "a", ts: 10, red: true }],
-            [{ session: "a", base: "deadbeef0000cafe" }],
-            [{ sha12: "deadbeef0000", red: false }] // GREEN, not red
-        );
-        expect(brokenResult.onRedBaseline).toBe(0);
-        expect(brokenResult.rate).toBe(0);
-    });
-});
-
 describe("laneHistogram", () => {
     it("counts runs and green runs per classified lane", () => {
         const rows = laneHistogram([
@@ -693,7 +662,6 @@ describe("laneFallbackRate (issue #4376)", () => {
         const out = formatAdr0136Rows(
             [],
             [],
-            { redRuns: 0, onRedBaseline: 0, rate: 0 },
             [],
             laneFallbackRate([
                 {
@@ -710,18 +678,12 @@ describe("laneFallbackRate (issue #4376)", () => {
     });
 });
 
-describe("isGitCommitCommand / isTargetedVitestCommand", () => {
+describe("isGitCommitCommand", () => {
     it("recognises a real invocation, at the start or after a shell separator", () => {
         expect(isGitCommitCommand("git commit -m 'fix'")).toBe(true);
         expect(isGitCommitCommand("cd worktree && git commit -am wip")).toBe(
             true
         );
-        expect(
-            isTargetedVitestCommand("bunx vitest run scripts/x.test.ts")
-        ).toBe(true);
-        expect(
-            isTargetedVitestCommand("cd wt && vitest run scripts/x.test.ts")
-        ).toBe(true);
     });
 
     it("PROOF OF FAILURE: a grep for the words must not count as the command", () => {
@@ -731,61 +693,6 @@ describe("isGitCommitCommand / isTargetedVitestCommand", () => {
         expect(isGitCommitCommand(grep)).toBe(false);
         // A naive substring test is what would get this wrong:
         expect(grep.includes("git commit")).toBe(true); // the bug this guards against
-
-        const grepVitest = 'grep -rn "vitest run" scripts/';
-        expect(isTargetedVitestCommand(grepVitest)).toBe(false);
-        expect(grepVitest.includes("vitest run")).toBe(true);
-    });
-});
-
-describe("parseHealthLogRed", () => {
-    it("is red when any step exited non-zero", () => {
-        const log =
-            "\n===== bun run check:all (exit 0) =====\nok\n" +
-            "\n===== bun run test:app (exit 1) =====\nFAIL\n";
-        expect(parseHealthLogRed(log)).toBe(true);
-    });
-
-    it("is green when every step exited zero", () => {
-        const log =
-            "\n===== bun run check:all (exit 0) =====\nok\n" +
-            "\n===== bun run test:app (exit 0) =====\nok\n";
-        expect(parseHealthLogRed(log)).toBe(false);
-    });
-
-    it("is unknown (null) for a log with no exit-code line at all", () => {
-        expect(
-            parseHealthLogRed("still running, no step finished yet\n")
-        ).toBeNull();
-    });
-
-    it("PROOF OF FAILURE: a killed step (exit null) must read as red, not be silently dropped", () => {
-        // health-step.ts's own exit code is Node's child.on("close", (code) => …)
-        // value, which is `null` — not a number — when the step was killed by a
-        // signal or failed to spawn; the log then literally reads "(exit null)".
-        const log = "\n===== bun run check:all (exit null) =====\nkilled\n";
-        // A regex that only captures digits is the exact bug this guards
-        // against: it finds no numeric exit at all and calls the run "unknown".
-        const digitsOnly = (l: string) =>
-            [...l.matchAll(/\(exit (\d+)\)/g)].map((m) => Number(m[1]));
-        expect(digitsOnly(log)).toEqual([]); // the bug: the killed step vanishes
-        expect(parseHealthLogRed(log)).toBe(true); // the real parser calls it red
-    });
-
-    it("PROOF OF FAILURE: a log ending on a later green step must not erase an earlier red", () => {
-        // health-main.ts stops at the FIRST red in practice, so this shape is not
-        // produced today — but the parser must not assume that ordering to stay
-        // correct if a future retry step reruns after a partial failure.
-        const log =
-            "\n===== step-one (exit 1) =====\nFAIL\n" +
-            "\n===== step-two (exit 0) =====\nok\n";
-        expect(parseHealthLogRed(log)).toBe(true);
-        // A parser that looked only at the LAST exit code would get this wrong:
-        const lastOnly = (l: string) => {
-            const exits = [...l.matchAll(/\(exit (\d+)\)/g)];
-            return Number(exits[exits.length - 1][1]) !== 0;
-        };
-        expect(lastOnly(log)).toBe(false); // the bug this test guards against
     });
 });
 
