@@ -472,6 +472,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "untapLockedBy",
             "warped",
             "wasKicked",
+            "zoneStaticSeq",
         ],
         stack: [
             "castOffSorceryTiming",

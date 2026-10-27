@@ -135,6 +135,7 @@ import {
     exileFaceDownCard,
     getOpponentId,
     pushContinuousEffect,
+    stampGraveyardStaticSources,
 } from "./state";
 import type {
     ContinuousEffect,
@@ -1252,6 +1253,9 @@ export function buildStateFromScenario(
             }
         }
     }
+    // CR 113.6b / 613.7d — a graveyard placed by the spec begins applying its
+    // graveyard-functioning statics (Anger) now, not at the first SBA pass.
+    stampGraveyardStaticSources(state);
     syncLayer6(state);
 
     // The placement loop bypasses ETB triggers, so "as ~ enters, choose an

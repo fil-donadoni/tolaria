@@ -1046,6 +1046,9 @@ export const IGNORED_STATE_KEYS = [
 export const IGNORED_INSTANCE_KEYS = [
     "worldSeq",
     "staticSeq",
+    // CR 613.7d — the graveyard twin of `staticSeq`, minted lazily by the
+    // engine, so the same presence argument applies.
+    "zoneStaticSeq",
     // PRD #2064 S3 — the layer-6 base, captured LAZILY the first time
     // `syncLayer6` derives for a permanent. Exactly `staticSeq`'s shape one
     // line up: a bookkeeping cursor whose mere PRESENCE distinguishes a state

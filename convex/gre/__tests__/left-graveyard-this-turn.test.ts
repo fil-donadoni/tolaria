@@ -196,7 +196,7 @@ describe("leftGraveyardThisTurn tally (CR 400.7)", () => {
 
     it("the chokepoint ignores a non-positive count", () => {
         const state = state2p();
-        noteGraveyardDeparture(state.players[0], 0);
+        noteGraveyardDeparture(state.players[0], []);
         expect(state.players[0].leftGraveyardThisTurn).toBeUndefined();
     });
 

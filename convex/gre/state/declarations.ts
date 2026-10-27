@@ -809,6 +809,16 @@ export type CardInstanceState = {
      *  Cleared when the permanent leaves the battlefield, so a permanent that
      *  re-enters is a new object with a new (latest) timestamp. */
     staticSeq?: number;
+    /** CR 613.7d — the layer timestamp of a card sitting in a GRAVEYARD whose
+     *  definition declares a static ability that functions from there (CR
+     *  113.6b, `SourceZoneScope`). Separate from `staticSeq` because that one
+     *  is the BATTLEFIELD object's stamp and survives the trip to the
+     *  graveyard as last-known information; this one is the graveyard
+     *  object's own. Minted by `stampGraveyardStaticSources` at the first
+     *  recompute after the card arrives, cleared at every graveyard departure
+     *  (`noteGraveyardDeparture`), so a card that leaves and comes back is a
+     *  new object with a new (latest) timestamp. */
+    zoneStaticSeq?: number;
     /** Per-turn activation counter keyed by ability id (CR 602.5 — "activate
      *  this ability only once each turn"). Incremented on activation commit,
      *  reset at the active player's turn start. Read by the activation

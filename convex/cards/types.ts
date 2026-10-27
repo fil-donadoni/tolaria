@@ -8536,6 +8536,24 @@ export interface PermanentView {
     manaCostOverride?: ManaCost;
 }
 
+/** One graveyard card as a {@link StaticEffectStateView} sees it. `types` feeds
+ *  graveyard-counting CDAs (CR 604.3, Lhurgoyf). The optional rest is what a
+ *  CR 113.6b graveyard-functioning static ability's source walk reads
+ *  (`graveyardStaticSources`, `gre/layers.ts`): the instance, its definition
+ *  handle, its owner and its CR 613.7d graveyard timestamp. Optional because a
+ *  view built for a P/T read alone (`gre/constants.ts`'s `manaLayerView`) has
+ *  no graveyard to report; a card missing any of them contributes nothing. */
+export interface GraveyardCardView {
+    readonly types: readonly CardType[];
+    readonly id?: string;
+    readonly ownerId?: string;
+    readonly card?:
+        | { readonly id?: string }
+        | Readonly<Record<string, unknown>>;
+    readonly subtypes?: readonly string[];
+    readonly zoneStaticSeq?: number;
+}
+
 /** Minimal read-only view of the battlefield used by characteristic-defining
  *  abilities (CR 604.3) whose value depends on board state — e.g. Nightmare's
  *  "P/T equal to Swamps you control". Intentionally a subset of the engine's
@@ -8560,7 +8578,7 @@ export interface StaticEffectStateView {
          *  projection (`PublicGameState.players[].graveyard` keeps `.types`,
          *  stripping only `.card`), so the count is identical server-side and
          *  after `projectPublicState`. */
-        graveyard: ReadonlyArray<{ readonly types: readonly CardType[] }>;
+        graveyard: ReadonlyArray<GraveyardCardView>;
         /** This player's hand, exposed ONLY as a count (mirrors
          *  `TriggerStateView.hand`, issue #1379) for a "you have N or fewer
          *  cards in hand" board-state gate — e.g. a `pt-buff`/`keyword-grant`
@@ -10590,6 +10608,41 @@ export interface SourceDepartureLinger {
     lingersAfterSourceLeaves?: DurationSpec;
 }
 
+/** CR 113.6b — "An ability that states which zones it functions in functions
+ *  only from those zones." The ZONE OPT-IN of a continuous static ability, the
+ *  static twin of `TriggeredAbility.zone`.
+ *
+ *  Absent — the default and CR 113.6's rule — means the ability functions only
+ *  where its object usually works: on the battlefield for a permanent card, in
+ *  the command zone for an emblem (CR 113.6p). `"graveyard"` means it functions
+ *  from its owner's graveyard and NOWHERE else: the battlefield walks skip it,
+ *  so an Incarnation on the battlefield contributes nothing through it.
+ *
+ *  A graveyard object has no controller, so the source view the layer system
+ *  hands `applies` / `condition` carries the card's OWNER as its controller
+ *  (CR 109.5 — "you" and "your" on an object refer to "its owner (if it has
+ *  no controller)"): "creatures you control" scopes to the graveyard's owner.
+ *
+ *  Declarable only on the CHARACTERISTIC-CHANGING kinds, for the reason
+ *  {@link SourceDepartureLinger} gives: only those flow through the layer
+ *  system's source walks (`gre/layers2to5.ts`, `gre/layer6.ts`,
+ *  `gre/layers.ts`), and `tsc` rejecting it on a rules-modifying kind beats a
+ *  declaration no walk would ever read. */
+export interface SourceZoneScope {
+    zone?: "graveyard";
+}
+
+/** CR 113.6b — does `effect` function from the zone a source walk is reading?
+ *  `zone` is `undefined` for the default walks (battlefield, command zone,
+ *  stack) and `"graveyard"` for the graveyard walk; an effect matches exactly
+ *  the walk of its own declared zone, so no effect is read from two zones. */
+export function staticEffectFunctionsFrom(
+    effect: StaticEffect,
+    zone: SourceZoneScope["zone"]
+): boolean {
+    return (effect as SourceZoneScope).zone === zone;
+}
+
 /** Battlefield-scanned, PLAYER-scoped casting PERMISSION (CR 601.3 / 118.9 /
  *  702.8a) — the grant-polarity sibling of {@link StaticCastRestriction}, which
  *  only ever FORBIDS. A permanent on the battlefield lets a class of cards be
@@ -10716,7 +10769,8 @@ export type StaticEffect =
               | StaticSupertypeSet
               | StaticColorGrant
           ) &
-              SourceDepartureLinger)
+              SourceDepartureLinger &
+              SourceZoneScope)
         /** `activated-grant` is deliberately NOT in the group above, though it is a
          *  layer-6 kind. Its `abilitiesOf` arm reads every activated ability of
          *  every card in the pile LINKED TO THE SOURCE (Agatha's Soul Cauldron's
@@ -10895,6 +10949,24 @@ export const EFFECT_AFFECTS_SELF: StaticKeywordGrant["applies"] = (
     target,
     source
 ) => target.id === source.id;
+
+/** CR 611.3a — the "as long as you control a <subtype>" source gate (Tek's
+ *  five land-type clauses, Anger's "you control a Mountain"). "You" is the
+ *  source view's `controllerId`: a battlefield permanent's controller, or a
+ *  graveyard card's owner (CR 109.5, `graveyardStaticSources`). Any permanent
+ *  carrying the subtype counts — a nonbasic Mountain as much as the basic. */
+export function controlsSubtype(
+    subtype: string
+): (source: PermanentView, state: StaticEffectStateView) => boolean {
+    return (source, state) =>
+        state.players.some((p) =>
+            p.battlefield.some(
+                (c) =>
+                    c.controllerId === source.controllerId &&
+                    c.subtypes.includes(subtype)
+            )
+        );
+}
 
 /** CR 613 board-wide colour census tie-break (issue #1943) — ties a
  *  caller-supplied per-colour counter to the colour(s) tied for the maximum,

@@ -52,6 +52,7 @@ import type {
     ContinuousEffectSlot,
 } from "./continuousEffects";
 import type { Duration } from "./state/declarations";
+import { staticEffectFunctionsFrom } from "../cards/types";
 import type { LayerStateView } from "./layers";
 import {
     STATIC_EFFECT_CTX,
@@ -103,6 +104,9 @@ export function collectLingeringSnapshots(
         const spec = (effect as { lingersAfterSourceLeaves?: DurationSpec })
             .lingersAfterSourceLeaves;
         if (!spec) continue;
+        // CR 113.6b — a graveyard-functioning effect was never applying from
+        // the battlefield, so there is nothing for it to continue.
+        if (!staticEffectFunctionsFrom(effect, undefined)) continue;
         const slot = slotFor(effect);
         if (!slot) continue;
         // CR 611.2c — the source-level "as long as ..." gate, read once against

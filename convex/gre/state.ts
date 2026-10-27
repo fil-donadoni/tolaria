@@ -65,6 +65,7 @@ import {
 } from "../cards";
 import {
     declaresFullTextEffect,
+    declaresGraveyardStaticEffect,
     declaresLingeringStaticEffect,
     getPermanentManaValueCost,
 } from "../cards/registry";
@@ -3856,7 +3857,7 @@ function finalizeSpellResolution(
                     const [reanimated] = ownerPlayer.graveyard.splice(idx, 1);
                     // CR 400.7 — a graveyard-specific splice that predates the
                     // general zone-movers; tallied at the shared chokepoint.
-                    noteGraveyardDeparture(ownerPlayer);
+                    noteGraveyardDeparture(ownerPlayer, reanimated);
                     putReanimatedOnBattlefield(
                         state,
                         reanimated,
@@ -4701,6 +4702,18 @@ export function pushContinuousEffect(
  *  reintroducing the exact ordering bug this function exists to prevent one
  *  layer down (CR 613 layer 4 instead of layer 6). */
 export function allocStaticTimestamp(state: GameState): number {
+    // CR 613.7d — a graveyard card that arrived since the last recompute is
+    // stamped FIRST: it entered its zone before whatever is being stamped now,
+    // so its timestamp must be the earlier one (an Incarnation put into a
+    // graveyard before a Humility enters in the same resolution).
+    stampGraveyardStaticSources(state);
+    return nextStaticTimestamp(state);
+}
+
+/** The next free CR 613.7 timestamp: one past every stamp on the board. The
+ *  read half of `allocStaticTimestamp`, split out so the graveyard stamping it
+ *  runs first can mint through it without recursing. */
+function nextStaticTimestamp(state: GameState): number {
     let max = 0;
     const bump = (seq: number | undefined) => {
         if (seq !== undefined && seq > max) max = seq;
@@ -4730,6 +4743,12 @@ export function allocStaticTimestamp(state: GameState): number {
     const stamped: CardInstanceState[] = [];
     for (const player of state.players) stamped.push(...player.battlefield);
     for (const bundle of state.phasedOut ?? []) stamped.push(...bundle.cards);
+    // CR 613.7d — a graveyard object's own stamp (`zoneStaticSeq`, CR 113.6b)
+    // is one more sourceless-of-the-battlefield record: unscanned, the next
+    // mint would TIE an Incarnation's graveyard grant.
+    for (const player of state.players) {
+        for (const card of player.graveyard) bump(card.zoneStaticSeq);
+    }
     {
         for (const card of stamped) {
             bump(card.staticSeq);
@@ -5043,9 +5062,44 @@ export function recomputeContinuousEffects(state: GameState): void {
     // The staleness class it used to carry goes with it: every gate, of every
     // kind, on every source, is re-evaluated against the live board here,
     // instead of only the kinds someone remembered to list.
+    stampGraveyardStaticSources(state);
     syncFullText(state);
     syncLayers2to5(state);
     syncLayer6(state);
+}
+
+/** CR 113.6b / 613.7d — gives every graveyard card whose definition declares a
+ *  static ability that functions from there its graveyard timestamp, the
+ *  moment it begins applying: an object receives a timestamp when it enters a
+ *  zone, and the layer walks skip a source without one
+ *  (`graveyardStaticSources`, `gre/layers.ts`).
+ *
+ *  Minted lazily rather than at every path that puts a card into a graveyard
+ *  (dying, discarding, milling, a spell resolving, a cost), at the two points
+ *  all of them reach before the order can matter: the recompute, which the SBA
+ *  loop runs first (`gre/sba.ts`), and every other mint
+ *  (`allocStaticTimestamp`), so a card that arrived earlier is never stamped
+ *  after something that arrived later. Cards arriving together are stamped in
+ *  turn order of their owners (CR 613.7m, APNAP), then in graveyard order.
+ *  Deviation: CR 613.7m lets each player choose the relative order of their
+ *  own simultaneous arrivals; graveyard order stands in for that choice, which
+ *  no shipped card can observe (it matters only between two graveyard sources
+ *  of one owner whose effects interact). Idempotent: a stamped card keeps its
+ *  stamp until it leaves (`noteGraveyardDeparture` clears it). */
+export function stampGraveyardStaticSources(state: GameState): void {
+    const active = state.players.findIndex(
+        (p) => p.id === state.activePlayerId
+    );
+    const start = active === -1 ? 0 : active;
+    for (let i = 0; i < state.players.length; i++) {
+        const player = state.players[(start + i) % state.players.length];
+        for (const card of player.graveyard) {
+            if (card.zoneStaticSeq !== undefined) continue;
+            const cardId = (card.card as { id?: string }).id;
+            if (!cardId || !declaresGraveyardStaticEffect(cardId)) continue;
+            card.zoneStaticSeq = nextStaticTimestamp(state);
+        }
+    }
 }
 
 /** CR 613 (PRD #2064 S2/S3/S4) — recomputes every layer for the whole board
@@ -13505,7 +13559,7 @@ export function buildSpellContext(
             const [card] = pile.splice(idx, 1);
             // CR 400.7 — reanimation is a graveyard DEPARTURE (the exile leg of
             // this same primitive is not); tallied at the shared chokepoint.
-            if (fromZone === "graveyard") noteGraveyardDeparture(player);
+            if (fromZone === "graveyard") noteGraveyardDeparture(player, card);
             // CR 205.1a / 613.1d (issue #2993) — "return it to the battlefield.
             // It's an enchantment." Stamped on the instance NOW, between the
             // departure from the pile and the entry, mirroring
@@ -13591,7 +13645,9 @@ export function buildSpellContext(
                 // CR 400.7 — the batch twin of `returnToBattlefield`; each
                 // entry is its own departure from its own owner's graveyard
                 // (the exile leg is not a graveyard departure).
-                if (fromZone === "graveyard") noteGraveyardDeparture(player);
+                if (fromZone === "graveyard") {
+                    noteGraveyardDeparture(player, card);
+                }
                 staged.push({ card, controllerId: controllerId ?? playerId });
             }
             return putReanimatedSetOnBattlefield(
@@ -14302,7 +14358,7 @@ export function buildSpellContext(
             // CR 400.7 — the one BULK departure (Endurance sweeps the whole
             // graveyard into the library): N cards left, so the tally rises by
             // N, which is why the chokepoint takes a count.
-            noteGraveyardDeparture(player, moved.length);
+            noteGraveyardDeparture(player, moved);
             seededShuffle(state, moved);
             clearKnowledge(moved, null);
             player.library.push(...moved);
@@ -20314,14 +20370,22 @@ export function putHandCardOnTopOfLibrary(
  *  the census above is a list to re-derive, not to trust: PR #3410's review
  *  found `exileFaceDownCard` missing from an earlier version of it.
  *
- *  `count` exists for the one bulk mover (Endurance's whole-graveyard sweep):
- *  N cards left, so the tally rises by N. */
+ *  `departed` takes a list for the one bulk mover (Endurance's whole-graveyard
+ *  sweep): N cards left, so the tally rises by N. Taking the CARDS rather
+ *  than a count is what lets this chokepoint also end each one's graveyard
+ *  timestamp. */
 export function noteGraveyardDeparture(
     player: PlayerState,
-    count: number = 1
+    departed: CardInstanceState | readonly CardInstanceState[]
 ): void {
-    if (count <= 0) return;
-    player.leftGraveyardThisTurn = (player.leftGraveyardThisTurn ?? 0) + count;
+    const cards = Array.isArray(departed) ? departed : [departed];
+    // CR 400.7 / 613.7d — the graveyard object's timestamp goes with it; a
+    // card that comes back is a new object and is stamped afresh
+    // (`stampGraveyardStaticSources`).
+    for (const card of cards) delete (card as CardInstanceState).zoneStaticSeq;
+    if (cards.length === 0) return;
+    player.leftGraveyardThisTurn =
+        (player.leftGraveyardThisTurn ?? 0) + cards.length;
 }
 
 /** CR 406 / 118.3 — moves one card from `player`'s graveyard to their exile
@@ -20471,7 +20535,7 @@ export function moveCard(
     // chokepoints: every `SpellContext.moveZone`, `exileCardFromGraveyard`
     // (eternalize / embalm / a cast's exile cost) and graveyard land play
     // reaches the tally here, once, with no caller having to remember it.
-    if (from === "graveyard") noteGraveyardDeparture(player);
+    if (from === "graveyard") noteGraveyardDeparture(player, card);
 
     // ADR 0026 — entering a public zone makes identity universally known, so
     // persistent per-viewer knowledge is meaningless there; empty it so a
@@ -20784,7 +20848,7 @@ export function exileFaceDownCard(
     // exile from the library — so this is latent, which is exactly why it is
     // closed here rather than left for the first "exile a card from your
     // graveyard face down" card to discover it silently.
-    if (from === "graveyard") noteGraveyardDeparture(player);
+    if (from === "graveyard") noteGraveyardDeparture(player, card);
     // The whole point of a face-down exile: knowledge is granted, not stripped.
     if (knowerId === null) delete card.knownTo;
     else card.knownTo = [knowerId];
@@ -20838,7 +20902,7 @@ export function removeFromZone(
     // every cast from the graveyard (flashback CR 702.34a, escape CR 702.138a,
     // Ashen Ghoul's activation seam). A cast is a departure like any other.
     if (from === "graveyard") {
-        noteGraveyardDeparture(player);
+        noteGraveyardDeparture(player, card);
         // CR 611.3a — the graveyard has a new top card.
         refreshFullText(state);
     }
