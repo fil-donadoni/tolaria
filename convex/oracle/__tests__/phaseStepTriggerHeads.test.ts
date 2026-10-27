@@ -100,6 +100,20 @@ describe("phase and step trigger heads — goldens (issue #4545)", () => {
         );
     });
 
+    it("chosen player's upkeep: the head reads the stored choice and names that player (CR 614.12 + CR 603.2b)", () => {
+        const text =
+            "At the beginning of the chosen player's upkeep, that player loses 1 life.";
+        const [ability] = abilitiesOf(enchantment("Chosen Upkeep", text));
+        expect(ability!.head).toEqual({
+            kind: "phase",
+            phase: "UPKEEP",
+            scope: "chosen-player",
+        });
+        expect(JSON.stringify(ability!.effects)).toContain(
+            "$event.activePlayerId"
+        );
+    });
+
     it("Essence Flare: 'that creature' behind the host-controller head is the Aura's host", () => {
         const text =
             "At the beginning of the upkeep of enchanted creature's controller, put a -0/-1 counter on that creature.";
@@ -147,12 +161,23 @@ describe("phase and step trigger heads — goldens (issue #4545)", () => {
 });
 
 describe("phase and step trigger heads — refusals (issue #4545)", () => {
-    it("refuses 'the chosen player's upkeep' — no head scope reads the stored choice", () => {
+    it("refuses 'the chosen player's end step' — only the upkeep is a row", () => {
         expect(
             refused(
                 enchantment(
-                    "Chosen Upkeep",
-                    "At the beginning of the chosen player's upkeep, that player loses 1 life."
+                    "Chosen End",
+                    "At the beginning of the chosen player's end step, that player loses 1 life."
+                )
+            )
+        ).toBe(true);
+    });
+
+    it("refuses 'the chosen opponent's upkeep' — a different head wording", () => {
+        expect(
+            refused(
+                enchantment(
+                    "Chosen Opp Upkeep",
+                    "At the beginning of the chosen opponent's upkeep, that player loses 1 life."
                 )
             )
         ).toBe(true);

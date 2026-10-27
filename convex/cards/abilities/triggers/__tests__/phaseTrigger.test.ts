@@ -120,6 +120,34 @@ describe("resolvePhaseScope", () => {
         ).toBeNull();
     });
 
+    it("scope=chosen-player fires only on the stored chosen player's step (CR 614.12)", () => {
+        const self = makeSelf({ chosenPlayerId: "p2" });
+        expect(
+            resolvePhaseScope(
+                "chosen-player",
+                makeEvent({ activePlayerId: "p2" }),
+                self
+            )
+        ).toBe("p2");
+        expect(
+            resolvePhaseScope(
+                "chosen-player",
+                makeEvent({ activePlayerId: "p1" }),
+                self
+            )
+        ).toBeNull();
+    });
+
+    it("scope=chosen-player never fires without a stored choice", () => {
+        expect(
+            resolvePhaseScope(
+                "chosen-player",
+                makeEvent({ activePlayerId: "p2" }),
+                makeSelf()
+            )
+        ).toBeNull();
+    });
+
     it("scope=host-controller returns null when aura is unattached", () => {
         const self = makeSelf({ attachedTo: undefined });
         expect(
