@@ -6332,6 +6332,12 @@ const OP_SCHEMAS: OpSchemaTable = {
             destination: isSpellStackDestination,
         },
     },
+    // CR 707.10 — "copy this spell": the one field is who controls the copy.
+    copyResolvingSpell: {
+        required: {
+            player: isPlayerRef,
+        },
+    },
     // CR 115.7a — change the target of the target spell. No fields beyond the
     // announced slot: the new target is picked at resolution against the
     // spell's own requirement.

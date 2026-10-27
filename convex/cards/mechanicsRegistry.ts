@@ -3189,6 +3189,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Effect Script Op for the non-counter stack departure (issue #1205 Subtlety, issue #2605 Reprieve) — moves the target SPELL off the stack into a zone of its OWNER\'s ("return target spell to its owner\'s hand", "put target spell on the top or bottom of its owner\'s library") without countering it. Deliberately NOT a `counter` destination: a counter is shut out by "can\'t be countered" (CR 113.6g) and this is not, and nothing watching for a countered spell sees it. `destination` is REQUIRED ("hand" / "library-top" / "library-bottom") — there is no zone a non-counter move silently belongs in, unlike CR 701.6a\'s graveyard default for a counter. An ability on the stack has no card and simply vanishes (CR 113.7a); a COPY of a spell ceases to exist rather than reaching a zone (CR 707.10a). Subtlety itself stays `resolve()`: its destination is an option pick raised to a FOREIGN player mid-resolution, which no literal `destination` can express.',
     },
     {
+        op: "copyResolvingSpell",
+        status: "implemented",
+        cr: "707.10",
+        binding: "SpellContext.copyResolvingSpell + requestCopyRetarget",
+        note: 'Effect Script Op for "[player] may copy this spell and may choose new targets for the copy" (CR 707.10 + CR 707.10c, issue #5604). Routes through the two SpellContext primitives the hand-written chain cards already called: `copyResolvingSpell({ controllerId })` clones the RESOLVING spell onto the stack under `player`\'s control, then `requestCopyRetarget` offers that player new targets for the copy. The "may" is not in the Op: the grammar gates it with a cost-free `mayPay` + `if`, and the preceding optional cost (sacrifice a land, pay {R}{R}) is the same `mayPay` + `if`. The copy re-runs the same script, so the chain can recur. Skipped when `player` does not resolve (CR 608.2b). Used by Chain of Vapor.',
+    },
+    {
         op: "retarget",
         status: "implemented",
         cr: "115.7a",

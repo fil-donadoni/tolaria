@@ -1791,6 +1791,10 @@ const retarget: Valuer<"retarget"> = (_op, ctx) => ({
     tags: ["disruption", "targeted"],
 });
 
+// CR 707.10 — the copy resolves the SAME script, so its consequence is valued
+// by that script's own Ops; the copy node itself carries no material.
+const copyResolvingSpell: Valuer<"copyResolvingSpell"> = () => ZERO_OP_VALUE;
+
 const mayPay: Valuer<"mayPay"> = () => {
     // A "you may pay …" / "unless its controller pays …" decision carries no
     // intrinsic material of its own — its consequence is the `if` branch that
@@ -3264,6 +3268,7 @@ export const OP_VALUERS: {
     counter,
     moveSpellFromStack,
     retarget,
+    copyResolvingSpell,
     mayPay,
     payVariableMana,
     chooseNumber,
@@ -3642,6 +3647,10 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // target of their own choosing: an attack on the spell's controller, not a
     // gift, so it must not be left to the `?? "neutral"` fallback.
     retarget: "harmful",
+    // CR 707.10 — the named player gains a copy of the spell, theirs to
+    // retarget (CR 707.10c): a gift to them, like a free spell, never an
+    // attack. The copy's own consequences are priced by the script's Ops.
+    copyResolvingSpell: "beneficial",
     discard: "harmful",
     // CR 106.4 — the recipient loses every unspent mana: strictly a loss.
     drainManaPool: "harmful",
