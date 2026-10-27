@@ -2076,6 +2076,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Add X mana of any one color",
+            "issue": 7125
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Add one mana of any color",
             "issue": 4593
         },
