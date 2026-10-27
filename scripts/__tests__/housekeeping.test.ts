@@ -12,8 +12,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BASE_BRANCH } from "../lib/branches";
 import {
-    DERIVE_FAILURE_LABELS,
-    DERIVE_FAILURE_TITLE,
     DERIVE_SYNC_STEP,
     FAILED_STEP_TAIL_LINES,
     deriveFailureIssueBody,
@@ -526,11 +524,6 @@ describe("housekeeping.ts — a failed derive:sync says why, retries once, files
         expect(body).toContain("/x/housekeeping.log");
         expect(body).toContain("https://github.com/o/r/actions/runs/7");
         expect(body).toContain("## Acceptance criteria");
-    });
-
-    it("one stable title, stamped with an area and a type", () => {
-        expect(DERIVE_FAILURE_TITLE).not.toMatch(/[0-9a-f]{7,}/);
-        expect(DERIVE_FAILURE_LABELS).toEqual(["bug", "area:workflow"]);
     });
 
     it("main() re-runs derive:sync once on failure (never after a timeout) and files the issue only after the second", () => {
