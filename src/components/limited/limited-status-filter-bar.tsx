@@ -4,6 +4,17 @@ import {
     type LimitedEventStatusChip,
 } from "~/lib/limitedEventStatus";
 import { LIMITED_HUB_CHIP_LABEL } from "~/lib/limited/limitedHub";
+import { useScrollEdges } from "~/hooks/useScrollEdges";
+
+const FADE = "1.5rem";
+
+/** Mask hiding only the edges that still have content beyond them. */
+function edgeFadeMask(edges: { start: boolean; end: boolean }) {
+    if (!edges.start && !edges.end) return undefined;
+    const from = edges.start ? `transparent, #000 ${FADE}` : "#000";
+    const to = edges.end ? `#000 calc(100% - ${FADE}), transparent` : "#000";
+    return `linear-gradient(to right, ${from}, ${to})`;
+}
 
 /** The hub's status chips (issue #2590, reworded by #5388): Waiting /
  *  Drafting / Building / Playing narrow the live sections; History swaps the
@@ -20,11 +31,17 @@ export default function LimitedStatusFilterBar({
     counts: Record<LimitedEventStatusChip, number>;
     onChange: (next: LimitedEventStatusChip | undefined) => void;
 }) {
+    const { ref, edges, onScroll } = useScrollEdges<HTMLDivElement>();
+    const mask = edgeFadeMask(edges);
     return (
         <div
+            ref={ref}
             role="group"
             aria-label="Filter by status"
-            className="flex flex-wrap gap-1.5"
+            data-slot="status-filter-scroller"
+            onScroll={onScroll}
+            style={{ maskImage: mask, WebkitMaskImage: mask }}
+            className="flex min-w-0 max-w-full flex-nowrap gap-1.5 overflow-x-auto overscroll-x-contain"
         >
             {LIMITED_EVENT_STATUS_CHIPS.map((chip) => {
                 const active = value === chip;
