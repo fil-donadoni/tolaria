@@ -46,6 +46,9 @@ export interface PhaseTriggerArgs {
     oracleText: string;
     /** Which step's PHASE_BEGIN to listen for (CR 500.1). */
     phase: Phase;
+    /** CR 603.6a — further steps the same ability fires at ("each of your
+     *  main phases"); `phase` stays the first of them. */
+    phases?: readonly Phase[];
     /** Zone the source must be in to be scanned (CR 113.6b — an ability that
      *  states which zones it functions in functions only from those zones).
      *  Defaults to the battlefield; set `"graveyard"` for upkeep triggers that
@@ -157,7 +160,8 @@ export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
             ...(args.aiEffects ? { aiEffects: args.aiEffects } : {}),
             matches: (event, self, state) => {
                 if (event.type !== "PHASE_BEGIN") return false;
-                if (event.phase !== args.phase) return false;
+                if (!(args.phases ?? [args.phase]).includes(event.phase))
+                    return false;
                 if (
                     resolvePhaseScope(args.scope, event, self, state) === null
                 ) {

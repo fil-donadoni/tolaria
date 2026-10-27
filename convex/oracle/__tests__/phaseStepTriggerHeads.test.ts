@@ -132,6 +132,18 @@ describe("phase and step trigger heads — goldens (issue #4545)", () => {
         );
     });
 
+    it("Carpet of Flowers' head: one ability over both main phases (CR 505.1, CR 603.2) — head only, the condition is another rule's", () => {
+        const text =
+            "At the beginning of each of your main phases, you gain 1 life.";
+        const [ability] = abilitiesOf(enchantment("Both Mains", text));
+        expect(ability!.head).toEqual({
+            kind: "phase",
+            phase: "PRECOMBAT_MAIN",
+            phases: ["PRECOMBAT_MAIN", "POSTCOMBAT_MAIN"],
+            scope: "your",
+        });
+    });
+
     it("Eladamri's Vineyard: the first main phase is the precombat one (CR 505.1); the mana goes to the active player", () => {
         const text =
             "At the beginning of each player's first main phase, that player adds {G}{G}.";
@@ -183,12 +195,23 @@ describe("phase and step trigger heads — refusals (issue #4545)", () => {
         ).toBe(true);
     });
 
-    it("refuses 'each of your main phases' — one ability over two phases", () => {
+    it("refuses 'each main phase' — a head naming no player's turn", () => {
         expect(
             refused(
                 enchantment(
-                    "Both Mains",
-                    "At the beginning of each of your main phases, you gain 1 life."
+                    "Any Main",
+                    "At the beginning of each main phase, you gain 1 life."
+                )
+            )
+        ).toBe(true);
+    });
+
+    it("refuses 'each of your combat phases' — only the main-phase pair is a row", () => {
+        expect(
+            refused(
+                enchantment(
+                    "Both Combats",
+                    "At the beginning of each of your combat phases, you gain 1 life."
                 )
             )
         ).toBe(true);

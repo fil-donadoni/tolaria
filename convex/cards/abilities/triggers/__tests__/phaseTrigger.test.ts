@@ -400,3 +400,28 @@ describe("phaseTrigger factory", () => {
         expect(resolved).toBe(false);
     });
 });
+
+describe("phaseTrigger — several steps (CR 603.6a, CR 505.1)", () => {
+    const ability = phaseTrigger({
+        id: "both-mains",
+        oracleText: "At the beginning of each of your main phases, …",
+        phase: "PRECOMBAT_MAIN",
+        phases: ["PRECOMBAT_MAIN", "POSTCOMBAT_MAIN"],
+        scope: "your",
+        effects: [],
+    });
+    const fires = (event: PhaseBeginEvent) =>
+        ability.matches?.(event, makeSelf(), makeState()) ?? false;
+
+    it("fires at the beginning of each named step, on the controller's turn", () => {
+        expect(fires(makeEvent({ phase: "PRECOMBAT_MAIN" }))).toBe(true);
+        expect(fires(makeEvent({ phase: "POSTCOMBAT_MAIN" }))).toBe(true);
+    });
+
+    it("does not fire at another step, nor on the opponent's main phase", () => {
+        expect(fires(makeEvent({ phase: "UPKEEP" }))).toBe(false);
+        expect(
+            fires(makeEvent({ phase: "POSTCOMBAT_MAIN", activePlayerId: "p2" }))
+        ).toBe(false);
+    });
+});
