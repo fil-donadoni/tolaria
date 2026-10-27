@@ -1,5 +1,5 @@
 /**
- * Issue #3037 — a guild-hybrid pip (CR 107.4e / 202.1a) is mana owed: the cast
+ * Issue #3037 — a guild-hybrid pip (CR 107.4e) is mana owed: the cast
  * affordance (`getLegalActions`) and the Bot's tap planner (`planManaPayment`)
  * must total it like the payment does, so a cost of hybrid pips alone is never
  * read as free. Position: Figure of Destiny `{R/W}` against Islands.
@@ -64,12 +64,21 @@ describe("hybrid pips are owed by both affordability probes (issue #3037)", () =
         expect(legal).toBe(true);
         expect(moves.length).toBeGreaterThan(0);
         for (const m of moves) {
-            if (m.kind !== "cast-spell") continue;
             expect(m.tapPlan).toHaveLength(1);
         }
     });
 
-    it("CR 202.1a — a mixed {1}{R/W}{R/W} is totalled whole: hybrid neither dropped nor doubled", () => {
+    it("CR 107.4e — a pure {R/W} is never a free plan: null on Islands, one tap on a Mountain", () => {
+        const islands = build(["Island", "Island", "Island"]);
+        const pip = { "R/W": 1 } as Record<string, number>;
+        expect(planManaPayment(islands, islands.players[0], pip)).toBeNull();
+        const mountain = build(["Island", "Mountain"]);
+        expect(
+            planManaPayment(mountain, mountain.players[0], pip)
+        ).toHaveLength(1);
+    });
+
+    it("CR 107.4e — a mixed {1}{R/W}{R/W} is totalled whole: hybrid neither dropped nor doubled", () => {
         const state = build(["Mountain", "Plains", "Island", "Island"]);
         const player = state.players[0];
         const cost = { X: 1, "R/W": 2 } as Record<string, number>;
