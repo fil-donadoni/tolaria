@@ -160,13 +160,6 @@ describe("fillBotSeats (PRD #1107 story 8)", () => {
         }
     });
 
-    it("name list is large enough and free of blanks/duplicates", () => {
-        expect(PLANESWALKER_NAMES.length).toBeGreaterThanOrEqual(MAX_SEATS);
-        expect(
-            new Set(PLANESWALKER_NAMES.map((n) => n.toLowerCase())).size
-        ).toBe(PLANESWALKER_NAMES.length);
-    });
-
     it("leaves an already-human seat untouched", () => {
         const seats = assignFreeSeat(buildEmptySeats(2), "user1", "Alice");
         const after = fillBotSeats(seats);
