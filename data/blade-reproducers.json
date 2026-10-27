@@ -2369,6 +2369,7 @@
     "protection colour choice: Mother of Runes picks the opponent's shown colour": null,
     "protection colour choice: negative control — the lethal threat's colour wins over evidence share": null,
     "protection colour choice: Thornscape Master picks the opponent's shown colour (shared seam)": null,
+    "random reveal: the Bot flipper acknowledges the coin flip": null,
     "reachability: counters an opponent's land-targeting activation with Teferi's Response": null,
     "recoverable sweep: casts Armageddon when the Bot keeps its mana in rocks and the opponent has only lands": {
         "cards": [
