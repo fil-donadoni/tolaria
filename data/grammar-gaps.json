@@ -1767,7 +1767,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › As long as the top card of your graveyard is a creature card, this creature has the full text of that card and has the text \"{…}: Discard a card.\"",
-            "issue": 5238
+            "issue": 7168
         },
         {
             "kind": "grammar",
@@ -1777,7 +1777,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › As long as this card is in your graveyard and you control a Mountain, creatures you control have haste",
-            "issue": 5238
+            "issue": 7167
         },
         {
             "kind": "grammar",
