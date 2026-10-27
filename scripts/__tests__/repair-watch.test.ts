@@ -95,12 +95,14 @@ describe("repairWatchDecision (issue #7142)", () => {
         ).not.toBe(first);
     });
 
-    it("a lane runner flapping between busy and idle is not news", () => {
-        const a = repairWatchDecision(input({ lane: "busy" }));
-        const b = repairWatchDecision(input({ lane: "online" }));
-        expect(a.action === "notify" && b.action === "notify").toBe(true);
-        if (a.action !== "notify" || b.action !== "notify") return;
-        expect(a.key).toBe(b.key);
+    it("a lane runner flapping between busy and idle, or one unreadable runners call, is not news", () => {
+        const key = (lane: RepairWatchInput["lane"]) => {
+            const d = repairWatchDecision(input({ lane }));
+            return d.action === "notify" ? d.key : null;
+        };
+        expect(key("online")).not.toBeNull();
+        expect(key("busy")).toBe(key("online"));
+        expect(key("unknown")).toBe(key("online"));
     });
 
     it("a GREEN or AMBER base clears the dedupe and sends nothing", () => {

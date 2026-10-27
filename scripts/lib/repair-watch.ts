@@ -11,9 +11,9 @@
  * `lane` runners, and asks `repairWatchDecision` what to do.
  *
  * Dedupe is `notifyOnce`'s: the notice KEY carries only what makes a stall
- * news — the RED sha, each repair's PR and queue state, whether a `lane`
- * runner is online — never the age, nor `busy` (a runner flapping between
- * jobs must not re-send). A GREEN or AMBER base clears the marker.
+ * news — the RED sha, each repair's PR and queue state, whether the `lane`
+ * runners are offline — never the age, nor `busy` / `unknown` (a runner
+ * flapping between jobs, or one failed API read, must not re-send). A GREEN or AMBER base clears the marker.
  *
  * Every decision here is pure; `scripts/repair-watch.ts` is the I/O.
  */
@@ -168,8 +168,9 @@ export function repairWatchDecision(i: RepairWatchInput): RepairWatchDecision {
             `repair issue #${r.issue}: ${r.pr ? `PR #${r.pr.number}` : "no PR"} — ${r.state}`
         );
     lines.push(`lane runner: ${i.lane}`);
-    // `busy` and `online` are one key: a runner between jobs is no news.
-    const laneKey = i.lane === "busy" ? "online" : i.lane;
+    // Only "the lane is offline" is news: a runner between jobs (`busy` /
+    // `online`) or one unreadable runners call (`unknown`) must not re-send.
+    const laneKey = i.lane === "offline" ? "offline" : "up";
     const key = JSON.stringify({
         sha: i.redSha,
         repairs: rows.map((r) => [r.issue, r.pr?.number ?? null, r.state]),
