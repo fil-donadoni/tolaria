@@ -346,7 +346,7 @@ describe("manland colour clause (CR 613.1e layer 5 / CR 105.3)", () => {
         // The colour reverts at the SAME boundary the P/T and type line do.
         expect(live.animation).toBeUndefined();
         expect(getEffectiveColors(live)).toEqual([]);
-        expect(live.temporaryColorOverride).toBeUndefined();
+        expect(live.temporaryColorOverrides).toBeUndefined();
     });
 
     it("strands no colour override when the animated land leaves the battlefield (CR 400.7)", () => {
@@ -355,7 +355,7 @@ describe("manland colour clause (CR 613.1e layer 5 / CR 105.3)", () => {
             "creeping-tar-pit-animate"
         );
         expect(live.colorOverride).toEqual(["U", "B"]);
-        expect(live.temporaryColorOverride).toBeDefined();
+        expect(live.temporaryColorOverrides).toBeDefined();
 
         resetBattlefieldTransientState(live, state);
 
@@ -363,7 +363,7 @@ describe("manland colour clause (CR 613.1e layer 5 / CR 105.3)", () => {
         // would splice a stale colour back onto a NEW object at the next
         // phase boundary.
         expect(live.colorOverride).toBeUndefined();
-        expect(live.temporaryColorOverride).toBeUndefined();
+        expect(live.temporaryColorOverrides).toBeUndefined();
         expect(getEffectiveColors(live)).toEqual([]);
     });
 

@@ -169,10 +169,9 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
                 ...every.temporarySubtypeChange,
                 duration: upkeep,
             },
-            temporaryColorOverride: {
-                ...every.temporaryColorOverride,
-                duration: upkeep,
-            },
+            temporaryColorOverrides: every.temporaryColorOverrides.map((r) =>
+                r.duration ? { ...r, duration: upkeep } : r
+            ),
             timedCopyEffects: {
                 ...every.timedCopyEffects,
                 effects: every.timedCopyEffects.effects.map((e) => ({
@@ -462,7 +461,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "subtypeAddHolds",
             "supertypeHolds",
             "tapTriggerCommitted",
-            "temporaryColorOverride",
+            "temporaryColorOverrides",
             "textChangeHolds",
             "transformCount",
             "transformedAtDelayedSeq",
