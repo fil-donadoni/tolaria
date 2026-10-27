@@ -19,7 +19,12 @@ import { classifyPairingResult } from "./standings";
  *  "nobody, it's a bye") — `source` is carried on the type purely so
  *  downstream modules (`rounds.ts`, `standings.ts`, both later tickets) share
  *  one Pairing shape with no re-declaration. */
-export type SwissResultSource = "played" | "simulated" | "bye" | "timeout";
+export type SwissResultSource =
+    | "played"
+    | "simulated"
+    | "bye"
+    | "timeout"
+    | "concession";
 
 /** A decided Pairing's outcome — games won by each side within the Match
  *  (Bo1/Bo3, decided elsewhere). A bye's `winsA`/`winsB` are whatever the

@@ -25,6 +25,7 @@
 // read-side primitives they and the UI share.
 
 import { makeRng } from "../gre/rng";
+import { isDroppedSeat } from "./droppedSeat";
 import type { LimitedPairing, LimitedRound } from "./eventTypes";
 import {
     bestOfForGamesFormat,
@@ -42,6 +43,9 @@ import { pairRound, roundsForSeatCount } from "./swiss";
 export interface RoundSeatLookup {
     seatIndex: number;
     isBot?: boolean;
+    /** Present = the occupant dropped (`droppedSeat.ts`): every pairing the
+     *  seat is in resolves as a concession. */
+    droppedAt?: number;
 }
 
 /** A bot seat's evaluated deck strength (`matchSim.ts#evaluateDeckStrength`).
@@ -101,6 +105,49 @@ function isBotSeat(seat: RoundSeatLookup): boolean {
     return seat.isBot === true;
 }
 
+/** The result of a pairing involving a Dropped Seat (a Drop concedes): the dropped side loses with the format's match-win score,
+ *  and two dropped sides draw 0-0. `null` when neither side dropped. A bye is
+ *  never conceded — the seat is not facing anyone. */
+function concessionResultFor(
+    pairing: LimitedPairing,
+    droppedSeats: ReadonlySet<number>,
+    winGames: number
+): LimitedPairing["result"] | null {
+    if (pairing.seatB === undefined) return null;
+    const aDropped = droppedSeats.has(pairing.seatA);
+    const bDropped = droppedSeats.has(pairing.seatB);
+    if (!aDropped && !bDropped) return null;
+    return {
+        winsA: aDropped ? 0 : winGames,
+        winsB: bDropped ? 0 : winGames,
+        source: "concession",
+    };
+}
+
+function droppedSeatIndexes(seats: readonly RoundSeatLookup[]): Set<number> {
+    return new Set(seats.filter(isDroppedSeat).map((seat) => seat.seatIndex));
+}
+
+/** Concedes every undecided pairing that involves a Dropped Seat, in any
+ *  round (only the current round can hold one). Pure; a decided pairing is
+ *  left byte-identical, so calling it twice changes nothing. */
+export function concedeDroppedPairings(input: {
+    rounds: readonly LimitedRound[];
+    seats: readonly RoundSeatLookup[];
+    gamesFormat: LimitedGamesFormat;
+}): LimitedRound[] {
+    const dropped = droppedSeatIndexes(input.seats);
+    const winGames = gamesToWinMatch(input.gamesFormat);
+    return input.rounds.map((round) => ({
+        ...round,
+        pairings: round.pairings.map((pairing) => {
+            if (pairing.result !== undefined) return pairing;
+            const result = concessionResultFor(pairing, dropped, winGames);
+            return result ? { ...pairing, result } : pairing;
+        }),
+    }));
+}
+
 /** Opens one Swiss round (issue #1644): pairs every seat, then decides — in
  *  this same call — every pairing that no human will ever play.
  *
@@ -135,6 +182,7 @@ export function openRound(input: OpenRoundInput): LimitedRound {
         seats.filter(isBotSeat).map((seat) => seat.seatIndex)
     );
     const seatIndexes = seats.map((seat) => seat.seatIndex);
+    const droppedSeats = droppedSeatIndexes(seats);
 
     const rng = makeRng(roundPairingSeed(eventId, roundNumber));
     const paired = pairRound(seatIndexes, previousRounds, rng);
@@ -151,6 +199,14 @@ export function openRound(input: OpenRoundInput): LimitedRound {
                 },
             };
         }
+        // A Dropped Seat concedes the moment its pairing exists, before any
+        // human waits on it or a bot match is simulated against it.
+        const conceded = concessionResultFor(
+            { seatA, seatB },
+            droppedSeats,
+            gamesToWinMatch(gamesFormat)
+        );
+        if (conceded) return { seatA, seatB, result: conceded };
         if (!botSeats.has(seatA) || !botSeats.has(seatB)) {
             // At least one human is in this pairing — it waits to be played.
             return { seatA, seatB };

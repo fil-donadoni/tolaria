@@ -216,7 +216,8 @@ const pairingResultValidator = v.object({
         v.literal("played"),
         v.literal("simulated"),
         v.literal("bye"),
-        v.literal("timeout")
+        v.literal("timeout"),
+        v.literal("concession")
     ),
 });
 const roundValidator = v.object({
@@ -342,6 +343,7 @@ const limitedEventSeatViewValidator = v.object({
     userId: v.optional(v.string()),
     nickname: v.optional(v.string()),
     isBot: v.boolean(),
+    isDropped: v.boolean(),
     isViewer: v.boolean(),
     poolCount: v.union(v.number(), v.null()),
     // Full Pool contents: the viewer's own seat ALWAYS, every other seat once
@@ -1089,8 +1091,12 @@ async function projectEventForViewer(
     return {
         ...base,
         seats: base.seats.map((seatView, i) => {
+            // A Dropped Seat that submitted a deck keeps it; only one without
+            // is Auto-Built.
             const autoBuiltDeck = computeBotAutoBuiltDeck(
-                seats[i],
+                humanDecksBySeat.has(seatView.seatIndex)
+                    ? { ...seats[i], droppedAt: undefined }
+                    : seats[i],
                 eventContext,
                 getAutoBuildCardMeta,
                 resolveBasicLand,

@@ -62,6 +62,7 @@ import {
     type CardEvalMeta,
 } from "./botDrafter";
 import type { GetCardProfile } from "./cardProfilesCore";
+import { isAutoDrivenSeat } from "./droppedSeat";
 import type { LimitedPoolCard } from "./eventTypes";
 import { arePoolsDealt, type LimitedEventStatus } from "./eventStatus";
 
@@ -589,6 +590,9 @@ export function isEventPoolFinal(event: AutoBuildEventContext): boolean {
 /** The subset of a `limitedEvents` seat Auto-Build's completion gate needs. */
 export interface AutoBuildSeatContext {
     isBot?: boolean;
+    /** A Dropped Seat is Auto-Built like a Bot Drafter's (`droppedSeat.ts`);
+     *  the caller withholds it when the seat has a submitted deck. */
+    droppedAt?: number;
     pool?: readonly LimitedPoolCard[];
 }
 
@@ -609,7 +613,7 @@ export function computeBotAutoBuiltDeck(
     resolveBasicLand: ResolveBasicLand,
     options: AutoBuildOptions = {}
 ): AutoBuiltDeck | null {
-    if (!seat.isBot) return null;
+    if (!isAutoDrivenSeat(seat)) return null;
     if (!isEventPoolFinal(event)) return null;
     if (!seat.pool || seat.pool.length === 0) return null;
     return autoBuildDeck(seat.pool, getMeta, resolveBasicLand, options);
