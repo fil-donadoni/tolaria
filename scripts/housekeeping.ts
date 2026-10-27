@@ -405,6 +405,56 @@ export function failedStepTail(output: string, max: number): string[] {
     return lines.slice(-max).map((l) => `  │ ${l}`);
 }
 
+/** The labels of the derive:sync failure issue — the same as the late
+ *  issue `derive:sync --settled` files (`DERIVED_LATE_LABELS`), as a bug. */
+export const DERIVE_FAILURE_LABELS: readonly string[] = [
+    "bug",
+    "area:workflow",
+];
+
+/** One title for every run, so an open issue is found and never filed
+ *  twice: the cause changes run to run, the failure is the same one. */
+export const DERIVE_FAILURE_TITLE =
+    "derive:sync fails in housekeeping: the base's derived state is not being written";
+
+/**
+ * The issue a `derive:sync` that failed twice in one run files (issue
+ * #7068): the base tip, the output tail of the retry — the cause — and
+ * where the full log is. Past `DERIVED_GRACE_MS` health reads the tip RED
+ * at step `derive:sync`, and nothing else names why; the RED @ `1a5903bf`
+ * stood three hours with no repair issue. Pure.
+ */
+export function deriveFailureIssueBody(input: {
+    tip: string;
+    tail: string;
+    logPath: string;
+    runUrl: string | null;
+}): string {
+    return [
+        "## Agent Brief",
+        "",
+        "**Category:** bug",
+        `**Summary:** \`derive:sync\` failed twice in one housekeeping run on base tip \`${input.tip}\`. Until it writes the tip's lockfile header and \`data/catalogue/*\`, health reads the tip derived-stale — RED at step \`derive:sync\` once past the grace (ADR 0157).`,
+        "",
+        "**Cause** (the retry's output tail):",
+        "",
+        "```",
+        input.tail === "" ? "(no output)" : input.tail,
+        "```",
+        "",
+        `**Full log:** \`${input.logPath}\` on the runner${input.runUrl ? ` — ${input.runUrl}` : ""}.`,
+        "",
+        "**Reproduce:** `bun run derive:sync --dry-run` on the tip.",
+        "",
+        "## Acceptance criteria",
+        "",
+        "- [ ] `derive:sync` passes in housekeeping on the base tip",
+        "- [ ] health reads the tip derived-fresh",
+        "",
+        "Filed by `bun run housekeeping` (issue #7068); an open issue under this title is never filed again.",
+    ].join("\n");
+}
+
 /**
  * The steps of one run, in order (what `--dry-run` prints): the batch steps
  * and the per-PR steps only when something merged; `derive:sync` always.
@@ -700,6 +750,63 @@ function listMergedSince(since: string): MergedPr[] {
     );
 }
 
+/** File the derive:sync failure issue (issue #7068) unless one stands open
+ *  under its title. A `gh` failure is said and dropped: the owner's notice
+ *  still names the failure, and the next run files. */
+function fileDeriveFailure(
+    workspace: string,
+    tail: string,
+    logPath: string,
+    say: (line: string) => void
+): void {
+    try {
+        const open = (
+            JSON.parse(
+                gh([
+                    "issue",
+                    "list",
+                    "--state",
+                    "open",
+                    "--label",
+                    DERIVE_FAILURE_LABELS[1]!,
+                    "--limit",
+                    "100",
+                    "--json",
+                    "number,title",
+                ])
+            ) as { number: number; title: string }[]
+        ).find((i) => i.title === DERIVE_FAILURE_TITLE);
+        if (open !== undefined) {
+            say(
+                `derive:sync failed again — issue #${open.number} is open, not filed again`
+            );
+            return;
+        }
+        const tip = spawnSync("git", ["rev-parse", "HEAD"], {
+            cwd: workspace,
+            encoding: "utf8",
+        }).stdout.trim();
+        const runUrl =
+            process.env.GITHUB_RUN_ID && process.env.GITHUB_REPOSITORY
+                ? `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+                : null;
+        const args = [
+            "issue",
+            "create",
+            "--title",
+            DERIVE_FAILURE_TITLE,
+            "--body",
+            deriveFailureIssueBody({ tip, tail, logPath, runUrl }),
+        ];
+        for (const label of DERIVE_FAILURE_LABELS) args.push("--label", label);
+        say(`derive:sync failed twice — filed ${gh(args).trim()}`);
+    } catch (err) {
+        say(
+            `derive:sync failed twice — could not file its issue: ${(err as Error).message.split("\n")[0]}`
+        );
+    }
+}
+
 function main(): void {
     const dryRun = process.argv.includes("--dry-run");
     const sinceArg = flag("--since");
@@ -869,6 +976,8 @@ function main(): void {
         }
         return buf.toString("utf8");
     };
+    /** The output tail of the last step that failed (issue #7068). */
+    let lastTail = "";
     const run = (step: Step): boolean => {
         appendFileSync(logPath, `── ${step.label}\n`);
         const from = statSync(logPath).size;
@@ -895,9 +1004,11 @@ function main(): void {
                     ? `${step.label} killed after ${(step.timeoutMs ?? 0) / 1000}s without finishing`
                     : `${step.label} failed (exit ${r.status ?? r.signal ?? "?"})`
             );
-        if (!ok)
-            for (const line of failedStepTail(output, FAILED_STEP_TAIL_LINES))
-                console.log(line);
+        if (!ok) {
+            const tail = failedStepTail(output, FAILED_STEP_TAIL_LINES);
+            for (const line of tail) console.log(line);
+            lastTail = tail.map((l) => l.replace(/^ {2}│ /, "")).join("\n");
+        }
         return ok;
     };
 
@@ -907,8 +1018,14 @@ function main(): void {
     const pruned = pending.length === 0 || run(PRUNE_REGRESSIONS_STEP);
     // Step 2c: the base's derived state, every run (ADR 0157, issue #6247) —
     // after the two pushes above, so it builds on their commits. Its red is
-    // the run's, never a PR's retry.
-    const derived = run(DERIVE_SYNC_STEP);
+    // the run's, never a PR's retry. A failure is re-run once, and a second
+    // failure files its issue with the cause (issue #7068).
+    let derived = run(DERIVE_SYNC_STEP);
+    if (!derived) {
+        say("derive:sync failed — re-running it once");
+        derived = run(DERIVE_SYNC_STEP);
+        if (!derived) fileDeriveFailure(workspace, lastTail, logPath, say);
+    }
 
     if (pending.length === 0) {
         closeSync(log);

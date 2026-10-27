@@ -12,8 +12,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BASE_BRANCH } from "../lib/branches";
 import {
+    DERIVE_FAILURE_LABELS,
+    DERIVE_FAILURE_TITLE,
     DERIVE_SYNC_STEP,
     FAILED_STEP_TAIL_LINES,
+    deriveFailureIssueBody,
     FIRST_RUN_LOOKBACK_MS,
     GAPS_SYNC_STEP,
     PRUNE_REGRESSIONS_STEP,
@@ -462,7 +465,7 @@ describe("housekeeping.ts — derive:sync runs every run (ADR 0157 § Option 1b,
         const prune = at(
             /const pruned = pending\.length === 0 \|\| run\(PRUNE_REGRESSIONS_STEP\);/
         );
-        const derive = at(/const derived = run\(DERIVE_SYNC_STEP\);/);
+        const derive = at(/let derived = run\(DERIVE_SYNC_STEP\);/);
         const perPr = at(
             /for \(const pr of pending\) \{\n\s+\/\/ A failed prune/
         );
@@ -507,5 +510,33 @@ describe("failedStepTail — a failed step's own last lines, for the job log", (
 
     it("nothing for a step that printed nothing", () => {
         expect(failedStepTail("\n\n", FAILED_STEP_TAIL_LINES)).toEqual([]);
+    });
+});
+
+describe("housekeeping.ts — a failed derive:sync says why, retries once, files its issue (issue #7068)", () => {
+    it("the issue body carries the tip, the cause and the log", () => {
+        const body = deriveFailureIssueBody({
+            tip: "1a5903bf0000",
+            tail: "error: push rejected",
+            logPath: "/x/housekeeping.log",
+            runUrl: "https://github.com/o/r/actions/runs/7",
+        });
+        expect(body).toContain("`1a5903bf0000`");
+        expect(body).toContain("```\nerror: push rejected\n```");
+        expect(body).toContain("/x/housekeeping.log");
+        expect(body).toContain("https://github.com/o/r/actions/runs/7");
+        expect(body).toContain("## Acceptance criteria");
+    });
+
+    it("one stable title, stamped with an area and a type", () => {
+        expect(DERIVE_FAILURE_TITLE).not.toMatch(/[0-9a-f]{7,}/);
+        expect(DERIVE_FAILURE_LABELS).toEqual(["bug", "area:workflow"]);
+    });
+
+    it("main() re-runs derive:sync once on failure and files the issue only after the second", () => {
+        const source = readFileSync("scripts/housekeeping.ts", "utf8");
+        expect(source).toMatch(
+            /let derived = run\(DERIVE_SYNC_STEP\);\n\s+if \(!derived\) \{\n[^}]*derived = run\(DERIVE_SYNC_STEP\);\n\s+if \(!derived\) fileDeriveFailure\(/
+        );
     });
 });
