@@ -630,6 +630,31 @@ newer neighbours they never rendered beside; the next hand-run full walk
 other repair. The rung's worktree is detached; the branch is named only once
 the repair issue exists, and pushed from HEAD.
 
+## Amendment III (2026-10-27, issue #6652) — a PR's own red under a RED, and its repair
+
+A base RED held every PR (`queue:held`) and every dispatcher pass, repairs
+included: a PR whose own `check:lane (advisory)` went red learned it only when
+the hold lifted (PR #6562: 51 min to the label, then 5.1 h to its repair).
+
+**Rule.** While the base is RED, `pr-gate` reads the advisory lane's failing
+test files (its log) and compares them with the standing RED's (the verdict's
+`tests`, the health evidence's `files`):
+
+- **disjoint** (both sets known) → the PR is labelled `land-failed` now, with
+  its own cause in the comment; `ready-to-land` and `queue:held` come off;
+- **overlap** → the hold stays, the RED may be the cause;
+- **unknown** (either set empty: a lane that failed on a step, a RED naming no
+  test) → the hold stays. Fail closed: only a proven disjoint set leaves it.
+
+The dispatcher's `red` hold (`holdAdmitsRepairs`) still starts REPAIR passes
+for `land-failed` PRs; new issue passes and resumes stay held. A repair works
+on its own PR's branch and never the base, so ADR 0116's "no work on a broken
+tip" does not forbid it. Every other hold (unknown health, budget, usage
+limit, kill switch) stands for a reason a repair shares.
+
+**Under a RED the repair** rebases onto the RED tip only to resolve a
+conflict, and is verified against the PR's own failing files, not the base's.
+
 ## What would change the answer
 
 A per-minute Actions fee that reaches public repositories; Anthropic
