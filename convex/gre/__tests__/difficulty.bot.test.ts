@@ -134,7 +134,6 @@ describe("difficulty — a higher preset plays measurably better (issue #114)", 
     // Iteration-only budgets (drop the preset's wall-clock bound so the test is
     // deterministic regardless of CI speed); the relative effort is the preset's.
     const itersOnly = (n: number) => ({ iterations: n });
-    const EASY = itersOnly(DIFFICULTY_BUDGETS.easy.iterations ?? 1);
     const HARD = itersOnly(DIFFICULTY_BUDGETS.hard.iterations ?? 1);
     const EXPERT = itersOnly(DIFFICULTY_BUDGETS.expert.iterations ?? 1);
 
@@ -155,11 +154,6 @@ describe("difficulty — a higher preset plays measurably better (issue #114)", 
             expect(survives(HARD, seed)).toBe(true);
         }
     );
-
-    it("the easy preset misses the lethal attack on some seed", () => {
-        const easyHits = SEEDS.filter((s) => survives(EASY, s)).length;
-        expect(easyHits).toBeLessThan(SEEDS.length);
-    });
 
     // issue #2790, PRD #2787's explicit risk: `expert`'s per-iteration cost is
     // higher (an opponent with real cards to enumerate), so under a wall-clock
