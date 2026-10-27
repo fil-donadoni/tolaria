@@ -1197,11 +1197,11 @@ export const meddlingMage = defineCard(() => ({
     // Effect Script for `OP_VALUERS` to walk, so without this the bot would
     // price a 2/2 for two mana at the blind `base + MV` floor. Valued as a 2/2
     // body plus a soft Duress-grade disruption effect — real but conditional
-    // (it only bites if the opponent holds a copy of the named card): 117 (the
-    // 2/2 body at the committed `latentCreatureDiscount` 0.6973 × 168) + 7 for
+    // (it only bites if the opponent holds a copy of the named card): 118 (the
+    // 2/2 body at the committed `latentCreatureDiscount` 0.7045 × 168) + 7 for
     // the disruption. A refit moves the body this tracks, which
     // `creatureAiValueCalibration.bot.test.ts` reports.
-    aiValue: 124,
+    aiValue: 125,
     entersWith: {
         asEnters: [{ kind: "name", filter: { excludeType: "Land" } }],
     },
