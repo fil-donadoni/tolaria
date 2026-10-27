@@ -12,6 +12,9 @@
  *  - **repair issues** — context `health-fix`, on the standing RED sha, the
  *    `/health-fix` issues whose PR is the repair. `land` on either machine
  *    reads them; they retire with the RED itself (only read under a RED).
+ *    A repair declared on an earlier RED of the same run (no GREEN or AMBER
+ *    since) is still read, while its issue is open (issue #7139): a later
+ *    tip that went RED again still holds the culprit that repair reverts.
  *
  * Only the `github` backend has a pivot: with the `file` store there is one
  * machine's markers and its local ledger already is the whole truth, so every
@@ -24,6 +27,7 @@ import {
     lineageBlocks,
     machineName,
     originRepo,
+    realGh,
     verdictStore,
     type GhRunner,
     type Verdict,
@@ -116,8 +120,61 @@ export function pivotRunInFlight(
 
 /** The standing RED's sha, or null when none stands or the store is down. */
 function standingRedSha(root: string, opts: PivotOpts): string | null {
+    return standingRedRun(root, opts)[0] ?? null;
+}
+
+/** The standing RED's sha and those of the REDs before it back to the last
+ *  GREEN or AMBER, newest first; [] when no RED stands. */
+function standingRedRun(root: string, opts: PivotOpts): string[] {
     const lineage = verdictStore(root, { run: opts.run }).lineage();
-    return lineageBlocks(lineage.kind) ? (lineage.verdict?.sha ?? null) : null;
+    if (!lineageBlocks(lineage.kind) || !lineage.verdict) return [];
+    return (lineage.reds ?? [lineage.verdict]).map((v) => v.sha);
+}
+
+/** Whether `issue` is closed on GitHub. A state that cannot be read counts
+ *  as open: a stale repair admitted costs one landing, a live one refused
+ *  blocks the base (issue #7139). */
+function issueClosed(root: string, issue: number, opts: PivotOpts): boolean {
+    const r = (opts.run ?? realGh)([
+        "issue",
+        "view",
+        String(issue),
+        "--repo",
+        originRepo(root),
+        "--json",
+        "state",
+        "--jq",
+        ".state",
+    ]);
+    return r.status === 0 && r.stdout.trim() === "CLOSED";
+}
+
+/** The repair issues held for the standing RED: its own `health-fix`
+ *  record, plus every still-open issue recorded on an earlier RED of the
+ *  same run, whatever culprit each RED's bisect named — with two stacked
+ *  culprits the later RED still holds the first (issue #7139). Throws when
+ *  the pivot cannot be read. */
+function readRepairRecords(
+    root: string,
+    opts: PivotOpts
+): { issues: number[]; ladder: number[] } {
+    const [standing, ...earlier] = standingRedRun(root, opts);
+    if (standing === undefined) return { issues: [], ladder: [] };
+    const store = pivotStore(root, FIX_CONTEXT, opts);
+    const held = store.read(standing);
+    const issues = new Set(held?.issues ?? []);
+    const ladder = new Set(held?.ladderIssues ?? []);
+    for (const sha of earlier) {
+        const prior = store.read(sha);
+        for (const n of prior?.issues ?? []) {
+            if (!issues.has(n) && issueClosed(root, n, opts)) continue;
+            issues.add(n);
+            // Re-declared by hand on the later RED, it stays the ladder's.
+            if (prior?.ladderIssues?.includes(n)) ladder.add(n);
+        }
+    }
+    const ascending = (s: Set<number>) => [...s].sort((a, b) => a - b);
+    return { issues: ascending(issues), ladder: ascending(ladder) };
 }
 
 /** The env var the ladder's headless fixer carries, so the `repair-issue` it
@@ -161,16 +218,14 @@ export function recordPivotRepairIssue(
     }
 }
 
-/** The repair issues the pivot holds for the standing RED; [] when none. */
+/** The repair issues the pivot holds for the standing RED (carried ones
+ *  included, `readRepairRecords`); [] when none. */
 export function pivotRepairIssues(
     root: string,
     opts: PivotOpts = {}
 ): number[] {
     try {
-        const store = pivotStore(root, FIX_CONTEXT, opts);
-        const sha = standingRedSha(root, opts);
-        if (sha === null) return [];
-        return store.read(sha)?.issues ?? [];
+        return readRepairRecords(root, opts).issues;
     } catch (e) {
         warn("the repair issues could not be read", e);
         return [];
@@ -184,13 +239,10 @@ export function readPivotRepairOrigins(
     root: string,
     opts: PivotOpts = {}
 ): { ladder: number[]; foreign: number[] } {
-    const sha = standingRedSha(root, opts);
-    if (sha === null) return { ladder: [], foreign: [] };
-    const held = pivotStore(root, FIX_CONTEXT, opts).read(sha);
-    const ladder = held?.ladderIssues ?? [];
+    const { issues, ladder } = readRepairRecords(root, opts);
     return {
         ladder,
-        foreign: (held?.issues ?? []).filter((n) => !ladder.includes(n)),
+        foreign: issues.filter((n) => !ladder.includes(n)),
     };
 }
 
