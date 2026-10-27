@@ -422,6 +422,12 @@ export const LANE_CHECK_NAME = "check:lane (advisory)";
  */
 export type RedOwnership = "own" | "overlap" | "unknown";
 
+/** An Actions job log prefixes every line with an ISO timestamp, which the
+ *  FAIL-line pattern (anchored at the line start) would never match. */
+export function stripLogTimestamps(log: string): string {
+    return log.replace(/^\d{4}-\d\d-\d\dT[\d:.]+Z ?/gm, "");
+}
+
 export function redOwnership(
     laneFiles: readonly string[],
     redFiles: readonly string[]
@@ -442,15 +448,15 @@ export function redOwnership(
 export function ownRedAction(input: {
     labels: readonly string[];
     baseHealth: GateState | undefined;
-    laneFailed: boolean;
+    laneFailed: () => boolean;
     ownership: () => RedOwnership;
 }): boolean {
     const { labels } = input;
     return (
         input.baseHealth === "failure" &&
-        input.laneFailed &&
         labels.includes(READY_LABEL) &&
         !labels.includes(FAILED_LABEL) &&
+        input.laneFailed() &&
         input.ownership() === "own"
     );
 }

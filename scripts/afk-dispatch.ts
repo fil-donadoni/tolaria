@@ -77,6 +77,7 @@ import {
     failureStreak,
     holdAdmitsRepairs,
     holdFor,
+    type HoldInput,
     holdReleases,
     hostOfRunnerName,
     lastPassRun,
@@ -568,7 +569,7 @@ async function main(): Promise<void> {
         sinceMs,
         budget.budget
     );
-    const hold = holdFor({
+    const holdInput: HoldInput = {
         dispatcherActive,
         passWorkflowActive: active,
         healthError: lineage.error ?? null,
@@ -578,7 +579,8 @@ async function main(): Promise<void> {
         usageLimitResetAt: usageLimitResetAt(records, now),
         budget,
         reading,
-    });
+    };
+    const hold = holdFor(holdInput);
     const budgetLine = `budget ${reading.pct.toFixed(1)}% of ${budget.budget} over ${budget.hours} h (other machines ${Math.round(reading.remote)})`;
     if (hold) {
         say(`hold (${hold.kind}): ${hold.message}`);
@@ -634,6 +636,10 @@ async function main(): Promise<void> {
                 );
         }
         for (const l of released) say(l);
+        const repairsAdmitted = holdAdmitsRepairs(
+            hold,
+            holdFor({ ...holdInput, red: null })
+        );
         const aged = agedRepairNotice(hold, repairs, dispatchRuns, config, now);
         const agedLines = agedRepairLines(aged.aged, hold);
         for (const l of agedLines) say(l);
@@ -653,13 +659,14 @@ async function main(): Promise<void> {
             );
             fail = true;
         }
-        if (aged.notify) {
+        // Repairs a RED admits are dispatched below: no email for them.
+        if (aged.notify && !repairsAdmitted) {
             say(
                 `failing this run once so GitHub emails the owner: ${aged.aged.length} repair pick(s) wait under the hold`
             );
             fail = true;
         }
-        if (holdAdmitsRepairs(hold) && !DRY_RUN) {
+        if (repairsAdmitted && !DRY_RUN) {
             // Repair passes under a RED (issue #6652): a repair works on its
             // own PR's branch, never the base. New issues and resumes stay held.
             if (repairsUnderHold(slug, passRuns, now)) fail = true;

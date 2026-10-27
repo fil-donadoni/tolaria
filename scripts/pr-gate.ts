@@ -29,11 +29,12 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { failingFiles } from "./lib/health-evidence";
+import { evidenceFiles, failingFiles } from "./lib/health-evidence";
 import { FAILED_LABEL, HELD_LABEL, READY_LABEL } from "./lib/land-labels";
 import { lastRequeueSince, type PrComment } from "./lib/land-requeue";
 import { pivotRepairIssues } from "./lib/health-pivot";
 import {
+    githubEvidenceStore,
     githubVerdictStore,
     lineageBlocks,
     originRepo,
@@ -48,6 +49,7 @@ import {
     heldPrAction,
     holdsBeforeRed,
     LANE_CHECK_NAME,
+    stripLogTimestamps,
     MERGIFY_QUEUED_LABEL,
     needsRequeue,
     ownRedAction,
@@ -170,6 +172,25 @@ function priorBaseHealth(
     return state;
 }
 
+/** The standing RED's failing test files, from the health EVIDENCE (the
+ *  commit comment): the verdict's own `tests` rides a 140-character status
+ *  description and may be cut. No evidence → none (ownership `unknown`). */
+const redFilesCache = new Map<string, string[]>();
+function redFailingFiles(
+    run: GhRunner,
+    repo: string,
+    sha: string | undefined
+): string[] {
+    if (!sha) return [];
+    let files = redFilesCache.get(sha);
+    if (!files) {
+        const body = githubEvidenceStore({ repo, run }).read(sha);
+        files = body === null ? [] : evidenceFiles(body);
+        redFilesCache.set(sha, files);
+    }
+    return files;
+}
+
 /** The PR head's advisory lane: whether it failed and, if so, the test files
  *  its log names. An unreadable log is a failed lane with no files (the
  *  ownership then reads `unknown` and the hold stays). */
@@ -188,7 +209,9 @@ function laneReading(
         return {
             failed: true,
             files: failingFiles(
-                gh(run, ["api", `repos/${repo}/actions/jobs/${id}/logs`])
+                stripLogTimestamps(
+                    gh(run, ["api", `repos/${repo}/actions/jobs/${id}/logs`])
+                )
             ),
         };
     } catch {
@@ -296,43 +319,57 @@ function main(): number {
         }
         // A RED hides a PR's own red (issue #6652): `.mergify.yml` holds the
         // PR instead of labelling it, so the label comes from here when the
-        // lane's failing files are disjoint from the RED's.
-        const redFiles = lineage.verdict?.tests ?? [];
-        let lane: { failed: boolean; files: string[] } | undefined;
-        const ownRed =
-            lineageBlocks(lineage.kind) &&
-            ownRedAction({
-                labels,
-                baseHealth: posted.get(BASE_HEALTH_CONTEXT),
-                laneFailed: (lane ??= laneReading(run, repo, raw.head.sha))
-                    .failed,
-                ownership: () => redOwnership(lane?.files ?? [], redFiles),
-            });
-        if (ownRed) {
-            console.log(
-                `PR #${raw.number}: own lane red, disjoint from the RED — labelling ${FAILED_LABEL}`
-            );
-            edit([
-                "pr",
-                "edit",
-                String(raw.number),
-                "--repo",
-                repo,
-                "--add-label",
-                FAILED_LABEL,
-                "--remove-label",
-                `${READY_LABEL},${HELD_LABEL}`,
-            ]);
-            edit([
-                "pr",
-                "comment",
-                String(raw.number),
-                "--repo",
-                repo,
-                "--body",
-                `**pr-gate: the base is RED, and this PR's own lane is red on files the RED does not fail** (${(lane?.files ?? []).map((f) => `\`${f}\``).join(", ")}) — labelled \`${FAILED_LABEL}\`; a repair may start now. Fix the PR, then \`bun run land:ready <PR#>\`.`,
-            ]);
-            continue;
+        // lane's failing files are disjoint from the RED's. The reads are
+        // lazy (a PR off the queue pays nothing) and a failed read is a
+        // failed PR, never a dead run.
+        if (lineageBlocks(lineage.kind)) {
+            try {
+                let lane: { failed: boolean; files: string[] } | undefined;
+                const ownRed = ownRedAction({
+                    labels,
+                    baseHealth: posted.get(BASE_HEALTH_CONTEXT),
+                    laneFailed: () =>
+                        (lane ??= laneReading(run, repo, raw.head.sha)).failed,
+                    ownership: () =>
+                        redOwnership(
+                            lane?.files ?? [],
+                            redFailingFiles(run, repo, lineage.verdict?.sha)
+                        ),
+                });
+                if (ownRed) {
+                    console.log(
+                        `PR #${raw.number}: own lane red, disjoint from the RED — labelling ${FAILED_LABEL}`
+                    );
+                    const before = failed;
+                    edit([
+                        "pr",
+                        "edit",
+                        String(raw.number),
+                        "--repo",
+                        repo,
+                        "--add-label",
+                        FAILED_LABEL,
+                        "--remove-label",
+                        `${READY_LABEL},${HELD_LABEL}`,
+                    ]);
+                    // Only after the label took: a failed edit retried by the
+                    // next sweep must not repeat the comment.
+                    if (failed === before)
+                        edit([
+                            "pr",
+                            "comment",
+                            String(raw.number),
+                            "--repo",
+                            repo,
+                            "--body",
+                            `**pr-gate: the base is RED, and this PR's own lane is red on files the RED does not fail** (${(lane?.files ?? []).map((f) => `\`${f}\``).join(", ")}) — labelled \`${FAILED_LABEL}\`; a repair may start now. Fix the PR, then \`bun run land:ready <PR#>\`.`,
+                        ]);
+                    continue;
+                }
+            } catch (e) {
+                failed++;
+                console.error(`PR #${raw.number}: ${(e as Error).message}`);
+            }
         }
         // The GREEN that releases a held PR requeues it: Mergify does not.
         // Keyed on the `queue:held` label (issue #6957), the base-health

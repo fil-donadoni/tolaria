@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { Lineage } from "../lib/health-verdict-store";
+import { failingFiles } from "../lib/health-evidence";
 import { lastRequeueSince } from "../lib/land-requeue";
 import {
     BASE_HEALTH_CONTEXT,
@@ -21,6 +22,7 @@ import {
     protectedPaths,
     queuedPrs,
     redOwnership,
+    stripLogTimestamps,
     REQUEUE_GRACE_MS,
     TRUSTED_AUTHOR_CONTEXT,
     trustedAuthorStatus,
@@ -626,7 +628,7 @@ describe("a PR's own red under a base RED (issue #6652)", () => {
         ownRedAction({
             labels,
             baseHealth: "failure",
-            laneFailed: true,
+            laneFailed: () => true,
             ownership: () => "own",
             ...over,
         });
@@ -651,11 +653,33 @@ describe("a PR's own red under a base RED (issue #6652)", () => {
         ["overlap", { ownership: () => "overlap" as const }],
         ["unknown", { ownership: () => "unknown" as const }],
         ["no RED (base-health green)", { baseHealth: "success" as const }],
-        ["lane not red", { laneFailed: false }],
+        ["lane not red", { laneFailed: () => false }],
         ["already land-failed", { labels: ["ready-to-land", "land-failed"] }],
         ["not in the queue", { labels: [] }],
     ])("keeps the hold: %s", (_name, over) => {
         expect(act(over)).toBe(false);
+    });
+
+    it("reads an Actions log: timestamps stripped, FAIL lines found", () => {
+        const log =
+            "2026-10-27T01:02:03.4567890Z  FAIL  |node-engine| scripts/__tests__/a.test.ts > x\n" +
+            "2026-10-27T01:02:04.0000000Z  ✓ other\n";
+        expect(failingFiles(stripLogTimestamps(log))).toEqual([
+            "scripts/__tests__/a.test.ts",
+        ]);
+        expect(failingFiles(log)).toEqual([]);
+    });
+
+    it("does not read the lane at all until the cheap facts hold", () => {
+        let read = 0;
+        act({
+            baseHealth: "success",
+            laneFailed: () => {
+                read++;
+                return true;
+            },
+        });
+        expect(read).toBe(0);
     });
 
     it("does not read the lane's files until the cheap facts hold", () => {

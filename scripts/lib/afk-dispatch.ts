@@ -877,8 +877,14 @@ export function planDispatch(
  * hold stands for a reason a repair shares (an unknown base, the budget, the
  * kill switch).
  */
-export function holdAdmitsRepairs(hold: Hold): boolean {
-    return hold.kind === "red";
+export function holdAdmitsRepairs(
+    hold: Hold,
+    /** `holdFor` over the same input with the RED removed: a RED that is the
+     *  ONLY hold. The budget, usage limit and unreadable records stand under
+     *  a RED too, and a repair pass spends tokens like any other. */
+    holdWithoutRed: Hold | null
+): boolean {
+    return hold.kind === "red" && holdWithoutRed === null;
 }
 
 /** A picker result with nothing in it: a hold that admits repairs plans no

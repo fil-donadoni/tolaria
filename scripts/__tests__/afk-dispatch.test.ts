@@ -1106,14 +1106,25 @@ describe("repairs under a hold (issue #6652)", () => {
         { number: 12, pr: 112, branch: "fix/issue-12", model: "opus" },
     ];
 
-    it("only a RED hold admits repairs; every other hold stands", () => {
-        const kinds = [
-            holdFor(holdInput({ red })),
-            holdFor(holdInput({ healthError: "502" })),
-            holdFor(holdInput({ dispatcherActive: false })),
-            holdFor(holdInput({ budget: { budget: 0, maxPct: 80, hours: 5 } })),
-        ].map((h) => (h ? holdAdmitsRepairs(h) : null));
-        expect(kinds).toEqual([true, false, false, false]);
+    const admits = (over: Parameters<typeof holdInput>[0]) => {
+        const h = holdFor(holdInput(over));
+        return h
+            ? holdAdmitsRepairs(h, holdFor(holdInput({ ...over, red: null })))
+            : null;
+    };
+
+    it("only a RED that is the sole hold admits repairs; every other hold stands", () => {
+        expect([
+            admits({ red }),
+            admits({ healthError: "502" }),
+            admits({ dispatcherActive: false }),
+            admits({ budget: { budget: 0, maxPct: 80, hours: 5 } }),
+            admits({
+                red,
+                reading: { weighted: 8000, pct: 80, remote: 0 },
+            }),
+            admits({ red, usageLimitResetAt: "2026-10-27T20:00:00Z" }),
+        ]).toEqual([true, false, false, false, false, false]);
     });
 
     it("plans the repairs, one slot each, and no new issue or resume", () => {
