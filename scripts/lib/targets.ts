@@ -49,6 +49,9 @@ export type TargetKind = (typeof TARGET_KINDS)[number];
  * `playable` exit over a CLOSED set of hand-written cards: every card `ready`
  * or named in the row's `closedTail` — the hand-written cards accepted on the
  * day the list was written, so a card written by hand later never counts.
+ * A `closedTail` card is Hand Tail by declaration: it owes no `grammar` claim
+ * for its own gaps, so a protocol card the DSL cannot express (Doomsday) is
+ * not a standing Grammar Gap issue (ADR 0143 Amendment VIII).
  */
 export const COMPLETION_MODES = ["playable", "ready", "closed-tail"] as const;
 export type CompletionMode = (typeof COMPLETION_MODES)[number];
@@ -951,11 +954,13 @@ export interface CoverageVerdict {
 }
 
 /** THE state computation — `oracle:report --targets` and `check:targets`
- *  both read it, so there is no second definition of the five states. */
+ *  both read it, so there is no second definition of the five states.
+ *  `inTail`: the card is named in its `closed-tail` Target's `closedTail`. */
 export function coverageVerdict(
     row: CardRow,
     ctx: CoverageContext,
-    completion: CompletionMode = "playable"
+    completion: CompletionMode = "playable",
+    inTail = false
 ): CoverageVerdict {
     // A `ready` or `closed-tail` Target has no NEW Hand Tail: the floor does
     // not apply (issues #4519, #6085).
@@ -963,6 +968,8 @@ export function coverageVerdict(
     const marked = ctx.handTail.has(row.oracleId);
     if (marked && ctx.closure.has(row.oracleId)) return { state: "hand-tail" };
     if (row.state === "ready") return { state: "ready" };
+    // A declared tail card owes no claim (issue #7095): its list IS the claim.
+    if (inTail && completion === "closed-tail") return { state: "hand-tail" };
     if (row.state === "quarantine") {
         // Fail closed: a held card with no reason is the silent quarantine.
         if ((row.quarantineReasons ?? []).length === 0)
@@ -1116,11 +1123,11 @@ export function targetCoverage(
     const closureCompiles: string[] = [];
     for (const card of target.cards) {
         const row = ctx.byOracleId.get(card.oracleId)!;
-        const verdict = coverageVerdict(row, ctx, completion);
+        const inTail = target.closedTail?.has(card.oracleId) === true;
+        const verdict = coverageVerdict(row, ctx, completion, inTail);
         const { state, why: missing } = verdict;
         byState[state].push(card.name);
         if (state !== "ready") notReady.push(card.name);
-        const inTail = target.closedTail?.has(card.oracleId) === true;
         if (completion === "closed-tail" && state !== "ready" && !inTail)
             outsideTail.push(card.name);
         if (inTail && !ctx.handWritten.has(card.oracleId))

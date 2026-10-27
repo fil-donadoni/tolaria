@@ -17,7 +17,7 @@ import {
     parseLockfile,
     type CardRow,
 } from "../lib/oracle-lockfile";
-import { floorlessCardIds } from "../lib/gap-kinds";
+import { enforcedCardIds, floorlessCardIds } from "../lib/gap-kinds";
 import { poolOracleIds } from "../oracle-compile";
 import {
     claimId,
@@ -89,7 +89,7 @@ describe("data/targets.json — the registered Target Lists", () => {
         expect(ids("ready")).toEqual([]);
     });
 
-    it("lists in `closedTail` only cards hand-written today, and the Target stays floorless (issue #6085)", () => {
+    it("lists in `closedTail` only cards hand-written today, and the Target stays floorless outside it (issues #6085, #7095)", () => {
         const metagame = registry.targets.find(
             (t) => t.id === "premodern-metagame"
         )!;
@@ -101,8 +101,17 @@ describe("data/targets.json — the registered Target Lists", () => {
         expect(notWritten).toEqual([]);
         expect(resolved.closedTail!.size).toBe(metagame.closedTail!.length);
         const floorless = floorlessCardIds(registry, ctx);
-        for (const card of resolved.cards)
-            expect(floorless.has(card.oracleId), card.name).toBe(true);
+        const enforced = enforcedCardIds(registry, ctx);
+        for (const card of resolved.cards) {
+            const inTail = resolved.closedTail!.has(card.oracleId);
+            // A tail card owes no claim (issue #7095): the list settles it.
+            expect(floorless.has(card.oracleId), card.name).toBe(!inTail);
+            if (inTail)
+                expect(enforced.has(card.oracleId), card.name).toBe(false);
+        }
+        const doomsday = ctx.byName.get("Doomsday")!.oracleId;
+        expect(resolved.closedTail!.has(doomsday)).toBe(true);
+        expect(floorless.has(doomsday)).toBe(false);
     });
 
     it("resolves every registered Target to 100% oracle ids of the pinned corpus", () => {
@@ -514,6 +523,26 @@ describe("coverage states — exactly one per card", () => {
                 });
         }
     );
+
+    it("settles a `closedTail` card as Hand Tail with no claim, under `closed-tail` only (issue #7095)", () => {
+        // "Below" holds a 1-card gap no claim covers: unclaimed under
+        // `closed-tail` outside the list, Hand Tail inside it.
+        const below = byOracleId.get("b")!;
+        expect(coverageVerdict(below, ctx, "closed-tail").state).toBe(
+            "unclaimed"
+        );
+        expect(coverageVerdict(below, ctx, "closed-tail", true)).toEqual({
+            state: "hand-tail",
+        });
+        // `ready` has no tail to be in; a `ready` row stays `ready`.
+        expect(coverageVerdict(below, ctx, "ready", true).state).toBe(
+            "unclaimed"
+        );
+        expect(
+            coverageVerdict(byOracleId.get("r")!, ctx, "closed-tail", true)
+                .state
+        ).toBe("ready");
+    });
 
     it("raises the floor and gap-pending falls to unclaimed", () => {
         expect(coverageState(byOracleId.get("p1")!, { ...ctx, floor: 5 })).toBe(
