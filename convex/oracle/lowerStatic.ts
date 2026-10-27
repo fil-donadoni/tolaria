@@ -49,7 +49,7 @@ import {
     type CompiledStaticEffect,
 } from "../cards/compiledStatics";
 import type { CompiledTriggeredAbility } from "../cards/compiledTriggers";
-import { PERMANENT_TYPES } from "../cards/types";
+import { PERMANENT_TYPES, type FullTextEffect } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import type {
     AsEntersChoice,
@@ -166,6 +166,13 @@ export interface LoweredStatic {
         /** CR 702.33f — the one kicker a "with its {A} kicker" rider reads;
          *  absent when the rider reads the tally. */
         readonly kickerId?: string;
+    };
+    /** CR 612.6 — the card's full-text effect; `lower.ts` resolves the quoted
+     *  ability's text to the id of the card's own activated ability. */
+    readonly fullText?: {
+        readonly from: FullTextEffect["from"];
+        readonly requiresType: FullTextEffect["requiresType"];
+        readonly retainedAbilityText: string;
     };
     readonly staticAbility?: string;
     /** CR 702.1 — granted, but only ever implemented for a PRINTED keyword. */
@@ -346,6 +353,17 @@ export function lowerStaticClause(
                             keyword: clause.keyword.ability,
                         },
                     ],
+                },
+            };
+        case "full-text-effect":
+            return {
+                ok: true,
+                lowered: {
+                    fullText: {
+                        from: clause.from,
+                        requiresType: clause.requiresType,
+                        retainedAbilityText: clause.retainedAbilityText,
+                    },
                 },
             };
         case "graveyard-keyword-grant": {

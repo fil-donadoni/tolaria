@@ -109,6 +109,8 @@ interface Accumulator {
     readsChosenNameLines: string[];
     /** CR 607.2d — lines that read the card's `chosenSubtypes` ("the chosen type"). */
     readsChosenTypeLines: string[];
+    /** CR 612.6 — the full-text effect read, its retained ability still text. */
+    fullText: NonNullable<LoweredStatic["fullText"]> | undefined;
     /** CR 604.3 — lines that define the card's `*` power and toughness. */
     definesPowerToughnessLines: string[];
     entersWithCounters: {
@@ -626,6 +628,11 @@ function lowerLine(
                 acc.readsChosenNameLines.push(parsed.line);
             if (out.readsChosenType === true)
                 acc.readsChosenTypeLines.push(parsed.line);
+            if (out.fullText !== undefined) {
+                if (acc.fullText !== undefined)
+                    return "a card declares two full-text effects";
+                acc.fullText = out.fullText;
+            }
             if (out.definesPowerToughness === true)
                 acc.definesPowerToughnessLines.push(parsed.line);
             if (out.entersWithCounters !== undefined)
@@ -891,6 +898,7 @@ export function lowerCard(
         asEntersCardNameLines: [],
         readsChosenNameLines: [],
         readsChosenTypeLines: [],
+        fullText: undefined,
         definesPowerToughnessLines: [],
         entersWithCounters: [],
         kickerRiders: [],
@@ -1073,6 +1081,24 @@ export function lowerCard(
             };
     }
     if (acc.kickers !== undefined) definition.kickers = acc.kickers;
+    // CR 612.6 — "has the text "<ability>"" keeps the card's OWN activated
+    // ability with that text; it must exist, or the clause retains nothing.
+    if (acc.fullText !== undefined) {
+        const retained = acc.activatedAbilities.find(
+            (a) => a.oracleText === acc.fullText!.retainedAbilityText
+        );
+        if (retained === undefined)
+            return {
+                ok: false,
+                reason: "a full-text effect retaining an ability the card does not print (CR 612.6)",
+                fragment: acc.fullText.retainedAbilityText,
+            };
+        definition.fullText = {
+            from: acc.fullText.from,
+            requiresType: acc.fullText.requiresType,
+            retainedActivatedAbilityIds: [retained.id],
+        };
+    }
     // CR 201.2a — a line reading "the chosen name" with no choice on the card
     // reads nothing (the engine would lock no spell): refuse, don't ship inert.
     if (
