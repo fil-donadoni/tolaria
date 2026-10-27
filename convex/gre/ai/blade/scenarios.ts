@@ -15621,8 +15621,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        budget: { iterations: 200 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
+        budget: { iterations: 40 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
         tier: "must",
         expect: {
             forbidden: [
@@ -15630,7 +15630,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { kind: "activate-ability", card: "Dega Disciple" },
             ],
         },
-        note: "Issue #6905, position A. A prevent-the-next-N shield (CR 615.1a) and an until-end-of-turn P/T change (CR 611.2) buy nothing when no combat or stack object can reach the creature before the Bot next holds priority; the tap would only cost the source its attack or block. `isFutileThisTurnMove` (`gre/ai/futileShield.ts`) prunes them and `isMisdirectedThisTurnMove` removes the wrongly-signed targets. Pair with the entries below.",
+        note: "Issue #6905, position A. A prevent-the-next-N shield (CR 615.1a) and an until-end-of-turn P/T change (CR 611.2) buy nothing when no combat or stack object can reach the creature before the Bot next holds priority; the tap would only cost the source its attack or block. `isFutileThisTurnMove` (`gre/ai/futileShield.ts`) prunes them and `isMisdirectedThisTurnMove` removes the wrongly-signed targets. Red without the prune at 40 iterations; the entries below are its positive controls.",
     },
     {
         label: "this-turn tap activations: Samite Pilgrim shields its own blocker, never the attacker",
@@ -15678,8 +15678,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        budget: { iterations: 200 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
+        budget: { iterations: 40 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
         tier: "must",
         expect: {
             moves: [
@@ -15737,8 +15737,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        budget: { iterations: 200 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
+        budget: { iterations: 40 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
         tier: "must",
         expect: {
             moves: [
