@@ -16399,4 +16399,33 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #3490, the 'mana was the seat's only answer' half. The Mountain pays either the animation or Bolt, never both; killing the attacker outright beats trading the land for a block. Measured at authoring: casts Bolt on all five seeds. Asserted as forbidden-animate, not as an exact cast, so a different good answer cannot redden it.",
     },
+    {
+        // Issue #5516 — the Bot as the FLIPPER of a coin-flip Random Reveal
+        // (CR 705.2, ADR 0023). The reveal is opened by Mana Crypt's own
+        // upkeep trigger, resolved by the real engine (ADR 0070 §4), never a
+        // hand-seeded pendingChoice. The search surface must answer it with
+        // the no-decision ack. HOW LONG the driver waits before submitting
+        // that ack (the reveal's pacing-table duration, never its think delay)
+        // is client wall-clock and cannot be a blade assertion: it is pinned in
+        // `useVsAiDriver.bot.test.ts`.
+        label: "random reveal: the Bot flipper acknowledges the coin flip",
+        spec: {
+            cards: [
+                { name: "Mana Crypt", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "UPKEEP",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        setup: [{ kind: "phase-trigger" }, { kind: "resolve-top" }],
+        budget: { iterations: 3 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: { moves: [{ kind: "random-reveal-ack" }] },
+        note: "Issue #5516. The Bot flipper's only legal answer to a coin-flip reveal is the ack; the driver delays its submission by the shared reveal pacing table so the viewer's coin animation plays out.",
+    },
 ];
