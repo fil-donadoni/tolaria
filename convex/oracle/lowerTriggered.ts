@@ -131,6 +131,8 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             return { kind: "turned-face-up" };
         case "becomes-tapped":
             return { kind: "tapped", scope: head.scope };
+        case "tapped-for-mana":
+            return { kind: "tapped-for-mana", scope: head.scope };
         case "cycled":
             return { kind: "cycled" };
         case "phase":
@@ -202,6 +204,11 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             : {}),
         ...(playerField !== null
             ? { player: { ref: `$event.${playerField}` } }
+            : {}),
+        // CR 109.4 + CR 303.4b — "its controller" behind a host-tapped head is
+        // the tapped land's controller, not the Aura's.
+        ...(head.kind === "tapped-for-mana"
+            ? { tappedController: { ref: "$event.controllerId" } }
             : {}),
         ...(damagedOpponent !== null
             ? { player: damagedOpponent, opponent: damagedOpponent }

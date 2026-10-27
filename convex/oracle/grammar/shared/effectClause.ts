@@ -659,6 +659,12 @@ export type EffectSentenceIR =
            */
           readonly thatPlayer?: true;
           /**
+           * CR 109.4 + CR 605.4 — "Its controller adds an additional {G}":
+           * the mana goes to the controller of the permanent a host-tapped
+           * head named (`SiteAntecedents.tappedController`).
+           */
+          readonly itsController?: true;
+          /**
            * CR 106.1 + CR 107.1 — "Add {R} for each creature you control": each
            * pip of `mana` is produced once per member of the counted set, read
            * at resolution (a pip written n times counts n times per member).
@@ -4822,7 +4828,8 @@ const CHOOSE_DRAWN_THIS_TURN =
 const PAY_LIFE_OR_TOPDECK =
     /^For each of those cards, pay (\S+) life or put the card on top of your library$/;
 /** CR 106.1 — "Add " then one or more coloured / colorless pip symbols, whole. */
-const ADD_MANA = /^(That player adds|Add) ((?:\{[WUBRGC]\})+)$/;
+const ADD_MANA =
+    /^(That player adds|Its controller adds an additional|Add) ((?:\{[WUBRGC]\})+)$/;
 /** CR 106.1 + CR 107.1 — "Add {R} for each creature you control": the pips,
  *  then the counted-set clause `countedSetRule` reads. */
 const ADD_MANA_FOR_EACH = /^Add ((?:\{[WUBRGC]\})+) (for each .+)$/;
@@ -6941,6 +6948,9 @@ function effectSentence(
             mana: readManaPips(addMana[2]!),
             ...(addMana[1] === "That player adds"
                 ? { thatPlayer: true as const }
+                : {}),
+            ...(addMana[1] === "Its controller adds an additional"
+                ? { itsController: true as const }
                 : {}),
         });
     }

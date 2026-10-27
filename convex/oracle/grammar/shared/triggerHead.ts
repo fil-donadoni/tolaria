@@ -180,6 +180,12 @@ export type TriggerHeadIR =
      */
     | { readonly kind: "becomes-tapped"; readonly scope: "self" }
     /**
+     * CR 605.1b + CR 303.4b — "whenever enchanted land is tapped for mana":
+     * the Aura's host tapped for a mana ability's cost. The tapped land's
+     * controller (`$event.controllerId`) is "its controller" of the body.
+     */
+    | { readonly kind: "tapped-for-mana"; readonly scope: "host" }
+    /**
      * CR 702.29c — "when you cycle this card": the source discarded to pay a
      * cycling cost. Fires from the zone the card lands in, so the pronoun "it"
      * of the body names the card itself.
@@ -395,6 +401,11 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     [
         "whenever enchanted creature is dealt damage",
         { kind: "damage-taken", scope: "host" },
+    ],
+    // CR 605.1b + CR 303.4b — the Aura host tapped for mana.
+    [
+        "whenever enchanted land is tapped for mana",
+        { kind: "tapped-for-mana", scope: "host" },
     ],
     // CR 603.6a — step boundaries (CR 500.1).
     [
@@ -680,6 +691,9 @@ export function headPronounReferent(
         // CR 701.26a — the tapped permanent is the source itself.
         case "becomes-tapped":
             return "source";
+        // CR 303.4b — "its controller" names the host's, not the Aura's.
+        case "tapped-for-mana":
+            return null;
         // CR 702.29c — "it" is the cycled card, i.e. the source.
         case "cycled":
             return "source";

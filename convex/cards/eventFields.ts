@@ -276,6 +276,15 @@ export const EVENT_FIELD_REGISTRY: Record<
     // controller). Unblocks a plain (non-`enteredTrigger`-scoped) `effects[]`
     // body from reading the entering permanent's controller directly off the
     // firing event, mirroring the `PHASE_BEGIN.activePlayerId` row above.
+    // CR 605.1b + CR 109.4 — the controller of the permanent that was tapped:
+    // "whenever enchanted land is tapped for mana, ITS CONTROLLER adds …".
+    PERMANENT_TAPPED: {
+        controllerId: {
+            family: "player",
+            resolve: (e) =>
+                e.type === "PERMANENT_TAPPED" ? e.controllerId : undefined,
+        },
+    },
     PERMANENT_ENTERED: {
         controllerId: {
             family: "player",

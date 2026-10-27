@@ -234,6 +234,8 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     "power-reached": () => true,
     // CR 701.26a — the source just became tapped and is still on the battlefield.
     tapped: () => true,
+    // CR 605.1b — the Aura's host is tapped for mana while the source stays put.
+    "tapped-for-mana": () => true,
     // CR 702.29c — the cycled card functions from the zone it was discarded
     // to, the same departure `activatedAbilitySourceOnBattlefield` names.
     cycled: () => false,

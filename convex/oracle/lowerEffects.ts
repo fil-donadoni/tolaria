@@ -212,6 +212,11 @@ export interface SiteOptions {
 export interface SiteAntecedents {
     /** "that player". */
     readonly player?: EffectPlayerRef;
+    /**
+     * CR 109.4 — "its controller": the controller of the permanent a
+     * host-tapped head fired for, set only by that head.
+     */
+    readonly tappedController?: EffectPlayerRef;
     /** "that opponent" — set only by a head that names an OPPONENT. */
     readonly opponent?: EffectPlayerRef;
     /**
@@ -4937,6 +4942,16 @@ function lowerSentenceBody(
                     };
                 }
                 return lowered([{ op: "addMana", mana }]);
+            }
+            if (sentence.itsController === true) {
+                const named = site.antecedents?.tappedController;
+                return named !== undefined
+                    ? lowered([
+                          { op: "addMana", mana: sentence.mana, player: named },
+                      ])
+                    : unlowerable(
+                          '"its controller" names no player at this site'
+                      );
             }
             if (sentence.thatPlayer !== true)
                 return lowered([{ op: "addMana", mana: sentence.mana }]);
