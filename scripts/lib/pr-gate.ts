@@ -403,3 +403,60 @@ export function baseHealthStatus(input: {
         `health ${kind} ${where} — not a declared repair (${known}); held until GREEN/AMBER`
     );
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// A PR's own red under a base RED (issue #6652)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The check run `pr-check.yml`'s lane job posts. */
+export const LANE_CHECK_NAME = "check:lane (advisory)";
+
+/**
+ * Whose red a PR's failing lane is, set against the standing RED's failing
+ * test files (the verdict's `tests`, from the health evidence):
+ *  - `own` — both sets are known and disjoint: the RED cannot be the cause;
+ *  - `overlap` — they share a file: the RED may be the cause, the hold stays;
+ *  - `unknown` — either set is empty (a lane that failed on a step, not a
+ *    test; a RED that names no test): nothing proves the PR's red is its own.
+ * Fails closed: only `own` leaves the hold.
+ */
+export type RedOwnership = "own" | "overlap" | "unknown";
+
+/** An Actions job log prefixes every line with an ISO timestamp, which the
+ *  FAIL-line pattern (anchored at the line start) would never match. */
+export function stripLogTimestamps(log: string): string {
+    return log.replace(/^\d{4}-\d\d-\d\dT[\d:.]+Z ?/gm, "");
+}
+
+export function redOwnership(
+    laneFiles: readonly string[],
+    redFiles: readonly string[]
+): RedOwnership {
+    if (laneFiles.length === 0 || redFiles.length === 0) return "unknown";
+    const red = new Set(redFiles);
+    return laneFiles.some((f) => red.has(f)) ? "overlap" : "own";
+}
+
+/**
+ * Whether a re-gate labels a held PR `land-failed` now (issue #6652): the
+ * base is RED (`base-health` failure), the PR is in the queue
+ * (`ready-to-land`, not already `land-failed`), its own advisory lane is red
+ * and the failing files are disjoint from the RED's. `.mergify.yml` stands
+ * down under a RED (the lane tests the PR merged with the base), so without
+ * this the PR waits for the GREEN to learn its own red.
+ */
+export function ownRedAction(input: {
+    labels: readonly string[];
+    baseHealth: GateState | undefined;
+    laneFailed: () => boolean;
+    ownership: () => RedOwnership;
+}): boolean {
+    const { labels } = input;
+    return (
+        input.baseHealth === "failure" &&
+        labels.includes(READY_LABEL) &&
+        !labels.includes(FAILED_LABEL) &&
+        input.laneFailed() &&
+        input.ownership() === "own"
+    );
+}

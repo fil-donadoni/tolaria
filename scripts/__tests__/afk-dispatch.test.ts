@@ -8,6 +8,7 @@ import {
     agedRepairNotice,
     budgetReading,
     failureStreak,
+    holdAdmitsRepairs,
     holdFor,
     holdReleases,
     hostOfRunnerName,
@@ -20,6 +21,7 @@ import {
     passRunIssue,
     passSlots,
     planDispatch,
+    planRepairsUnderHold,
     queueAdmission,
     queueDepth,
     usageLimitResetAt,
@@ -1094,5 +1096,55 @@ describe("admission by queue depth (issue #6988)", () => {
             readFileSync(join(__dirname, "../../tolaria.config.json"), "utf8")
         );
         expect(parseAfkDispatchConfig(repo)).toMatchObject(LIMITS);
+    });
+});
+
+describe("repairs under a hold (issue #6652)", () => {
+    const red = { sha: "a".repeat(40), failedStep: "test:app" } as never;
+    const repairs = [
+        { number: 11, pr: 111, branch: "feat/issue-11", model: "sonnet" },
+        { number: 12, pr: 112, branch: "fix/issue-12", model: "opus" },
+    ];
+
+    const admits = (over: Parameters<typeof holdInput>[0]) => {
+        const h = holdFor(holdInput(over));
+        return h
+            ? holdAdmitsRepairs(h, holdFor(holdInput({ ...over, red: null })))
+            : null;
+    };
+
+    it("only a RED that is the sole hold admits repairs; every other hold stands", () => {
+        expect([
+            admits({ red }),
+            admits({ healthError: "502" }),
+            admits({ dispatcherActive: false }),
+            admits({ budget: { budget: 0, maxPct: 80, hours: 5 } }),
+            admits({
+                red,
+                reading: { weighted: 8000, pct: 80, remote: 0 },
+            }),
+            admits({ red, usageLimitResetAt: "2026-10-27T20:00:00Z" }),
+        ]).toEqual([true, false, false, false, false, false]);
+    });
+
+    it("plans the repairs, one slot each, and no new issue or resume", () => {
+        const plan = planRepairsUnderHold(
+            { free: ["mbp", "hw"], online: ["mbp", "hw"] },
+            repairs
+        );
+        expect(plan.dispatch).toEqual([
+            { issue: 11, model: "sonnet", resume: true, host: null, pr: 111 },
+            { issue: 12, model: "opus", resume: true, host: null, pr: 112 },
+        ]);
+        expect(plan.release).toEqual([]);
+        expect(plan.held).toEqual([]);
+    });
+
+    it("never more repairs than free slots", () => {
+        const plan = planRepairsUnderHold(
+            { free: ["mbp"], online: ["mbp"] },
+            repairs
+        );
+        expect(plan.dispatch.map((d) => d.issue)).toEqual([11]);
     });
 });

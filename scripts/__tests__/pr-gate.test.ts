@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { Lineage } from "../lib/health-verdict-store";
+import { failingFiles } from "../lib/health-evidence";
 import { lastRequeueSince } from "../lib/land-requeue";
 import {
     BASE_HEALTH_CONTEXT,
@@ -16,9 +17,12 @@ import {
     holdsBeforeRed,
     isMergifyQueuePr,
     needsRequeue,
+    ownRedAction,
     parseTrustedAuthors,
     protectedPaths,
     queuedPrs,
+    redOwnership,
+    stripLogTimestamps,
     REQUEUE_GRACE_MS,
     TRUSTED_AUTHOR_CONTEXT,
     trustedAuthorStatus,
@@ -615,5 +619,78 @@ describe("lastRequeueSince — one requeue per hold (issue #6957)", () => {
         const old = [c("@mergifyio requeue", "2026-10-25T14:00:00Z")];
         expect(lastRequeueSince(old, HELD_AT)).toBeNull();
         expect(lastRequeueSince(old, null)).toBeNull();
+    });
+});
+
+describe("a PR's own red under a base RED (issue #6652)", () => {
+    const labels = ["ready-to-land"];
+    const act = (over: Partial<Parameters<typeof ownRedAction>[0]> = {}) =>
+        ownRedAction({
+            labels,
+            baseHealth: "failure",
+            laneFailed: () => true,
+            ownership: () => "own",
+            ...over,
+        });
+
+    it("redOwnership: disjoint files are the PR's own, a shared file is not", () => {
+        expect(redOwnership(["a.test.ts"], ["b.test.ts"])).toBe("own");
+        expect(redOwnership(["a.test.ts", "b.test.ts"], ["b.test.ts"])).toBe(
+            "overlap"
+        );
+    });
+
+    it("redOwnership fails closed: an empty set on either side is unknown", () => {
+        expect(redOwnership([], ["b.test.ts"])).toBe("unknown");
+        expect(redOwnership(["a.test.ts"], [])).toBe("unknown");
+    });
+
+    it("labels a held PR land-failed when its red lane is disjoint from the RED", () => {
+        expect(act()).toBe(true);
+    });
+
+    it.each([
+        ["overlap", { ownership: () => "overlap" as const }],
+        ["unknown", { ownership: () => "unknown" as const }],
+        ["no RED (base-health green)", { baseHealth: "success" as const }],
+        ["lane not red", { laneFailed: () => false }],
+        ["already land-failed", { labels: ["ready-to-land", "land-failed"] }],
+        ["not in the queue", { labels: [] }],
+    ])("keeps the hold: %s", (_name, over) => {
+        expect(act(over)).toBe(false);
+    });
+
+    it("reads an Actions log: timestamps stripped, FAIL lines found", () => {
+        const log =
+            "2026-10-27T01:02:03.4567890Z  FAIL  |node-engine| scripts/__tests__/a.test.ts > x\n" +
+            "2026-10-27T01:02:04.0000000Z  ✓ other\n";
+        expect(failingFiles(stripLogTimestamps(log))).toEqual([
+            "scripts/__tests__/a.test.ts",
+        ]);
+        expect(failingFiles(log)).toEqual([]);
+    });
+
+    it("does not read the lane at all until the cheap facts hold", () => {
+        let read = 0;
+        act({
+            baseHealth: "success",
+            laneFailed: () => {
+                read++;
+                return true;
+            },
+        });
+        expect(read).toBe(0);
+    });
+
+    it("does not read the lane's files until the cheap facts hold", () => {
+        let read = 0;
+        act({
+            baseHealth: "success",
+            ownership: () => {
+                read++;
+                return "own";
+            },
+        });
+        expect(read).toBe(0);
     });
 });

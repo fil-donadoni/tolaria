@@ -75,7 +75,9 @@ import {
     agedRepairNotice,
     budgetReading,
     failureStreak,
+    holdAdmitsRepairs,
     holdFor,
+    type HoldInput,
     holdReleases,
     hostOfRunnerName,
     lastPassRun,
@@ -87,6 +89,7 @@ import {
     parseTrustedAuthors,
     passSlots,
     planDispatch,
+    planRepairsUnderHold,
     queueAdmission,
     queueDepth,
     usageLimitResetAt,
@@ -97,6 +100,7 @@ import {
     type PassRecord,
     type RepairPick,
     type RunnerRow,
+    type DispatchPlan,
     type WorkflowRun,
 } from "./lib/afk-dispatch";
 
@@ -459,6 +463,63 @@ function dispatchPass(d: Dispatch): void {
     ]);
 }
 
+/** Dispatches the `land-failed` repairs while a hold that admits them stands
+ *  (`holdAdmitsRepairs`). Returns true when an act failed. Unreadable lists
+ *  or slots cost the repairs this run, never the hold's own reporting. */
+function repairsUnderHold(
+    slug: string,
+    passRuns: readonly WorkflowRun[],
+    now: number
+): boolean {
+    let plan: DispatchPlan;
+    try {
+        const slots = passSlots(
+            runners(slug),
+            process.env.RUNNER_NAME ?? null,
+            passRuns
+        );
+        if (slots.free.length === 0) {
+            say("repairs under hold: no free pass runner");
+            return false;
+        }
+        const config: PlanConfig = {
+            batchCap: slots.free.length,
+            staleClaimHours: DEFAULTS.staleClaimHours,
+            defaultImplModel: DEFAULTS.defaultImplModel,
+            now: new Date(now).toISOString(),
+            excludeHitl: true,
+        };
+        plan = planRepairsUnderHold(
+            slots,
+            repairDispatchables(slug, passRuns, config)
+        );
+    } catch (err) {
+        say(
+            `repairs under hold unreadable (${(err as Error).message.split("\n")[0]}) — none this run`
+        );
+        return false;
+    }
+    const lines: string[] = [];
+    let failed = false;
+    for (const d of plan.dispatch) {
+        try {
+            dispatchPass(d);
+            lines.push(
+                `dispatched #${d.issue} (${d.model}, repair PR #${d.pr})`
+            );
+        } catch (err) {
+            failed = true;
+            lines.push(
+                `dispatch #${d.issue} failed: ${(err as Error).message.split("\n")[0]}`
+            );
+        }
+    }
+    const shown = lines.length ? lines : ["no repair to dispatch"];
+    for (const l of shown) say(`repairs under hold: ${l}`);
+    summary(["", ...shown.map((l) => `- repairs under hold: ${l}`)]);
+    return failed;
+}
+
 async function main(): Promise<void> {
     const slug = repo();
     const owner = process.env.GITHUB_REPOSITORY_OWNER ?? slug.split("/")[0];
@@ -508,7 +569,7 @@ async function main(): Promise<void> {
         sinceMs,
         budget.budget
     );
-    const hold = holdFor({
+    const holdInput: HoldInput = {
         dispatcherActive,
         passWorkflowActive: active,
         healthError: lineage.error ?? null,
@@ -518,7 +579,8 @@ async function main(): Promise<void> {
         usageLimitResetAt: usageLimitResetAt(records, now),
         budget,
         reading,
-    });
+    };
+    const hold = holdFor(holdInput);
     const budgetLine = `budget ${reading.pct.toFixed(1)}% of ${budget.budget} over ${budget.hours} h (other machines ${Math.round(reading.remote)})`;
     if (hold) {
         say(`hold (${hold.kind}): ${hold.message}`);
@@ -574,6 +636,10 @@ async function main(): Promise<void> {
                 );
         }
         for (const l of released) say(l);
+        const repairsAdmitted = holdAdmitsRepairs(
+            hold,
+            holdFor({ ...holdInput, red: null })
+        );
         const aged = agedRepairNotice(hold, repairs, dispatchRuns, config, now);
         const agedLines = agedRepairLines(aged.aged, hold);
         for (const l of agedLines) say(l);
@@ -593,11 +659,17 @@ async function main(): Promise<void> {
             );
             fail = true;
         }
-        if (aged.notify) {
+        // Repairs a RED admits are dispatched below: no email for them.
+        if (aged.notify && !repairsAdmitted) {
             say(
                 `failing this run once so GitHub emails the owner: ${aged.aged.length} repair pick(s) wait under the hold`
             );
             fail = true;
+        }
+        if (repairsAdmitted && !DRY_RUN) {
+            // Repair passes under a RED (issue #6652): a repair works on its
+            // own PR's branch, never the base. New issues and resumes stay held.
+            if (repairsUnderHold(slug, passRuns, now)) fail = true;
         }
         if (fail) process.exit(1);
         return;
