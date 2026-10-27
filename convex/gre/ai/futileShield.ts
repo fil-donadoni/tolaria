@@ -318,7 +318,7 @@ function landTypeChangeOf(
     const subtype = op.subtypes[0]!;
     if (!(subtype in LAND_SUBTYPE_MANA)) return null;
     if (op.family === "creature") return null;
-    // CR 611.2 — only a change that ends with this turn.
+    // CR 611.2a — only a change that ends with this turn.
     if (
         !op.duration ||
         op.duration.phase !== "end-of-turn" ||
@@ -398,15 +398,19 @@ function shieldIsFutile(
 }
 
 /** Regeneration shields already on the stack for `permanentId`: an object
- *  whose whole script is `regenerate` Ops naming it (CR 701.19a). It resolves
- *  before anything the bot could later respond to, so it counts as a shield
- *  already granted. */
+ *  whose whole script is `regenerate` Ops naming it (CR 701.19a). Only those
+ *  ABOVE every threatening object count — they resolve first (CR 608.1), so
+ *  the shield stands before any threat below them; one under a threat comes
+ *  too late for it, and is not counted. */
 function pendingRegenerationShields(
     state: GameState,
     permanentId: string
 ): number {
     let pending = 0;
-    for (const item of state.stack) {
+    // The top of the stack is its last element; stop at the first threat.
+    for (let i = state.stack.length - 1; i >= 0; i--) {
+        const item = state.stack[i]!;
+        if (!isHarmlessStackItem(item, false)) break;
         const script = stackItemScript(item);
         if (!script || script.length === 0) continue;
         const sourceId = item.triggerSourceId ?? item.id;
@@ -436,10 +440,10 @@ const BLOCKS_AHEAD_PHASES: ReadonlySet<string> = new Set([
     "DECLARE_ATTACKERS",
 ]);
 
-/** A basic land type or "land type(s)" in Oracle text — a card that reads the
- *  type a land-type change writes. */
+/** A basic land type, its landwalk ("gains mountainwalk"), or "land type(s)"
+ *  in Oracle text — a card that reads the type a land-type change writes. */
 const LAND_TYPE_WORDS =
-    /\b(plains|islands?|swamps?|mountains?|forests?|land types?)\b/i;
+    /\b(plains|islands?|swamps?|mountains?|forests?)(walk)?\b|\bland types?\b/i;
 
 /** Is an until-end-of-turn change of `land` to `subtype` provably unused
  *  before `moverId` next holds priority — see the module header. */
@@ -515,7 +519,8 @@ function anyLandTypeReader(state: GameState, moverId: string): boolean {
 function readsLandTypes(card: CardInstanceState): boolean {
     const def = tryGetDefinition(card.card.id as string);
     if (!def) return true;
-    let text = def.oracleText ?? "";
+    if (def.oracleText === undefined) return true;
+    let text = def.oracleText;
     for (const ability of def.activatedAbilities ?? []) {
         if (ability.oracleText && isLandTypeChangeScript(ability.effects)) {
             text = text.replace(ability.oracleText, "");
@@ -698,7 +703,9 @@ function isHarmlessOp(op: EffectOp, harmless: ReadonlySet<string>): boolean {
 
 /** Ops that neither tap a permanent nor destroy or damage one: a shield
  *  (CR 701.19a / 615.1a) only protects, and a land-type change (CR 305.7)
- *  only rewrites a type line. */
+ *  only rewrites a type line and strips abilities (CR 305.7) — a creature
+ *  that shrinks for losing "as long as you control a Forest" dies only on
+ *  damage already marked, which the bound counts on its own. */
 const NON_TAPPING_HARMLESS_OPS: ReadonlySet<string> = new Set([
     "draw",
     "gainLife",

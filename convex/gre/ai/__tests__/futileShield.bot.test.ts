@@ -635,6 +635,52 @@ describe("isFutileThisTurnMove — pending shields on the stack (issue #6915)", 
         expect(isFutileThisTurnMove(state, move)).toBe(true);
     });
 
+    it("keeps a second shield when the burn sits above the pending one (CR 608.1)", () => {
+        const state = withPriority(
+            position(FAMILIAR, [
+                { kind: "activate", card: "Nightscape Familiar" },
+                {
+                    kind: "cast",
+                    card: "Lightning Bolt",
+                    by: "opp",
+                    target: "Nightscape Familiar",
+                },
+            ]),
+            0
+        );
+        expect(state.stack).toHaveLength(2);
+        const move = onlyActivation(state, 0, "Nightscape Familiar");
+        expect(isFutileThisTurnMove(state, move)).toBe(false);
+    });
+
+    it("keeps a land-type change while a card in hand can grant landwalk", () => {
+        const state = position({
+            cards: [
+                {
+                    name: "Reef Shaman",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                {
+                    name: "Swamp",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "River Merfolk", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        });
+        const moves = activationsOf(state, 0, "Reef Shaman");
+        expect(moves.length).toBeGreaterThan(0);
+        expect(moves.some((m) => isFutileThisTurnMove(state, m))).toBe(false);
+    });
+
     it("prunes Regenerate against a land-type change on the stack (CR 305.7)", () => {
         const state = withPriority(
             position(
