@@ -19,7 +19,7 @@
  * `--dry-run` prints the statuses and posts nothing. Each status is decided
  * and posted on its own: one that cannot be read or written is reported and
  * skipped, and the run exits 1. Off RED, or under RED for a declared
- * repair (issue #7140), a PR labelled `queue:held` gets
+ * repair (its own `base-health` green), a PR labelled `queue:held` gets
  * `@mergifyio requeue` once per hold, and loses the label once it is
  * `queued` again or the requeue did not take within its grace
  * (`heldPrAction`, issues #6110, #6957); an unlabelled PR whose `base-health` turns green after being held
