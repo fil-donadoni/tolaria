@@ -185,6 +185,9 @@ export type CompiledTriggerCondition =
      * CR 603.4 — "if it's on the battlefield": the source is still on the
      * battlefield, checked as the trigger would trigger and again as it
      * resolves. Read off the state view, so an absent view fails closed.
+     * Matches by instance id: a source blinked while the ability is on the
+     * stack returns under the same id (CR 400.7) and still passes, because
+     * `selfView` carries no departed-object signal — out of scope here.
      */
     | { readonly kind: "self-on-battlefield" }
     /**
