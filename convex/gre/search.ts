@@ -6387,8 +6387,9 @@ function isHoldableSpend(state: GameState, pid: string, move: Move): boolean {
  *  standing in a live combat (`isInLiveCombat`) — a first strike on a blocked
  *  attacker is decided by the damage step, and an evasion or protection grant
  *  on a declared attacker whose blocks are not yet declared restricts those
- *  blocks (CR 509.1b, CR 702.16f), both of which the search plays out. Read
- *  off Op semantics and the combat state, never a card name (ADR 0102). */
+ *  blocks (an evasion ability, CR 509.1b; protection, CR 702.16f), and both
+ *  are played out by the rollouts. Read off Op semantics and the combat
+ *  state, never a card name (ADR 0102). */
 function isTransientSpendActivation(
     state: GameState,
     pid: string,
