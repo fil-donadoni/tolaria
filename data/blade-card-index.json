@@ -651,6 +651,13 @@
             "needsSetup": false
         }
     ],
+    "Stone Kavu": [
+        {
+            "label": "starved search: pumps toughness in response to damage removal",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Stone Rain": [
         {
             "label": "board-aware removal: casts Stone Rain on a land when there is nothing better to do",
