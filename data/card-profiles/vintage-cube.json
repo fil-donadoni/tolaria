@@ -43,12 +43,6 @@
             "requires": ["reanimatable", "discard-outlet", "self-mills"],
             "reviewed": false
         },
-        "22924c44-5551-4a48-a574-dfef91a5d4d7": {
-            "archetypes": ["aggro", "graveyard"],
-            "provides": ["value-on-attack", "discard-outlet"],
-            "requires": ["discard-outlet"],
-            "reviewed": false
-        },
         "1be9d9a4-d7ee-4854-abc2-85cabf993ec9": {
             "archetypes": ["reanimator"],
             "provides": ["reanimatable", "value-on-etb", "value-on-attack"],
@@ -61,27 +55,9 @@
             "requires": [],
             "reviewed": false
         },
-        "547f92d4-cd1d-4ca7-a6e2-6473b4d3c832": {
-            "archetypes": ["aggro"],
-            "provides": [],
-            "requires": [],
-            "reviewed": false
-        },
         "4a1f905f-1d55-4d02-9d24-e58070793d3f": {
             "archetypes": ["reanimator"],
             "provides": ["reanimatable", "value-on-etb"],
-            "requires": [],
-            "reviewed": false
-        },
-        "7eb39e97-53c2-4df0-9fb3-a3d6a24ec41f": {
-            "archetypes": ["ramp"],
-            "provides": [],
-            "requires": [],
-            "reviewed": false
-        },
-        "211af1bf-910b-41a5-b928-f378188d1871": {
-            "archetypes": ["aggro"],
-            "provides": ["value-on-attack"],
             "requires": [],
             "reviewed": false
         },
@@ -115,18 +91,6 @@
             "requires": [],
             "reviewed": false
         },
-        "1a67768a-6cd9-4163-b941-752f29c87a8d": {
-            "archetypes": ["aggro", "graveyard"],
-            "provides": [],
-            "requires": ["discard-outlet"],
-            "reviewed": false
-        },
-        "ff37b863-f8c4-4584-8cc2-ac0e096e583f": {
-            "archetypes": ["reanimator", "graveyard"],
-            "provides": ["discard-outlet"],
-            "requires": [],
-            "reviewed": false
-        },
         "55fe6449-1f23-43dc-adee-d144cd505b5c": {
             "archetypes": ["ramp"],
             "provides": [],
@@ -137,12 +101,6 @@
             "archetypes": ["storm", "artifacts", "ramp"],
             "provides": ["cheap-artifact", "value-on-cast"],
             "requires": [],
-            "reviewed": false
-        },
-        "4404fc9c-ef02-479c-9638-0cc163f0b48f": {
-            "archetypes": ["aggro", "graveyard"],
-            "provides": [],
-            "requires": ["discard-outlet"],
             "reviewed": false
         },
         "7928bb14-7631-4830-a756-26d1ea832ba2": {
@@ -256,12 +214,6 @@
         "a211d505-4d40-4914-a9da-220770d6ddbc": {
             "archetypes": ["control", "graveyard"],
             "provides": ["value-on-cast", "self-mills"],
-            "requires": [],
-            "reviewed": false
-        },
-        "a16a6555-2e3a-4587-aacd-0307d696b26c": {
-            "archetypes": ["control"],
-            "provides": [],
             "requires": [],
             "reviewed": false
         },
@@ -385,21 +337,9 @@
             "requires": [],
             "reviewed": false
         },
-        "2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa": {
-            "archetypes": ["control"],
-            "provides": [],
-            "requires": ["value-on-etb"],
-            "reviewed": false
-        },
         "32e670da-7563-4f6a-a7db-4c126a440eb8": {
             "archetypes": ["control"],
             "provides": [],
-            "requires": [],
-            "reviewed": false
-        },
-        "c7e10ca7-1e5d-4224-82cf-798a4d436d72": {
-            "archetypes": ["graveyard"],
-            "provides": ["value-on-etb"],
             "requires": [],
             "reviewed": false
         },
@@ -715,22 +655,10 @@
             "requires": [],
             "reviewed": false
         },
-        "e50709de-e6ef-4dbc-af1e-290fed279f34": {
-            "archetypes": ["aggro", "artifacts"],
-            "provides": [],
-            "requires": [],
-            "reviewed": false
-        },
         "7ea4b5bc-18a4-45db-a56a-ab3f8bd2fb0d": {
             "archetypes": ["control"],
             "provides": [],
             "requires": ["value-on-cast"],
-            "reviewed": false
-        },
-        "49bb0ad3-1082-41f1-82a4-52a4006cc9b6": {
-            "archetypes": ["control"],
-            "provides": [],
-            "requires": [],
             "reviewed": false
         },
         "d573ef03-4730-45aa-93dd-e45ac1dbaf4a": {
@@ -779,12 +707,6 @@
             "archetypes": ["control"],
             "provides": ["value-on-etb"],
             "requires": [],
-            "reviewed": false
-        },
-        "5fe70295-e550-4577-a341-dab6c25aabfd": {
-            "archetypes": ["control"],
-            "provides": [],
-            "requires": ["reanimatable-mv-2"],
             "reviewed": false
         },
         "0ce44270-a684-4489-9077-521456e6dfaa": {
@@ -865,21 +787,9 @@
             "requires": [],
             "reviewed": false
         },
-        "9efbfd67-e0f5-43e0-9fff-1eb4a2bed0d8": {
-            "archetypes": ["aggro", "graveyard"],
-            "provides": [],
-            "requires": ["discard-outlet"],
-            "reviewed": false
-        },
         "45026d57-0324-4312-8b86-2e7d4f581ee9": {
             "archetypes": [],
             "provides": ["self-mills"],
-            "requires": [],
-            "reviewed": false
-        },
-        "b9775175-6763-4826-afc8-dc520a235c36": {
-            "archetypes": ["graveyard"],
-            "provides": ["self-mills", "value-on-etb"],
             "requires": [],
             "reviewed": false
         },
@@ -1153,12 +1063,6 @@
             "requires": [],
             "reviewed": false
         },
-        "318486e0-f255-40f5-8150-dc272eec9d7d": {
-            "archetypes": ["control"],
-            "provides": [],
-            "requires": [],
-            "reviewed": false
-        },
         "a9738cda-adb1-47fb-9f4c-ecd930228c4d": {
             "archetypes": ["aggro"],
             "provides": [],
@@ -1195,24 +1099,6 @@
             "requires": [],
             "reviewed": false
         },
-        "0ecbe097-ba51-42e5-957c-382eb66c08f0": {
-            "archetypes": ["aggro"],
-            "provides": ["value-on-attack"],
-            "requires": [],
-            "reviewed": false
-        },
-        "13b0f27c-a359-4702-833a-82fec161eeec": {
-            "archetypes": ["artifacts"],
-            "provides": ["value-on-etb"],
-            "requires": [],
-            "reviewed": false
-        },
-        "13c5a1ce-932a-4b3d-8b86-ed920e646afc": {
-            "archetypes": ["graveyard", "reanimator"],
-            "provides": ["self-mills", "value-on-etb"],
-            "requires": [],
-            "reviewed": false
-        },
         "327cf118-cc92-4073-85d0-94d2a0a6989a": {
             "archetypes": [],
             "provides": ["self-mills"],
@@ -1229,12 +1115,6 @@
             "archetypes": ["control"],
             "provides": [],
             "requires": [],
-            "reviewed": false
-        },
-        "7e68f4df-88ce-4e09-a03c-7edf40bff167": {
-            "archetypes": ["graveyard", "reanimator"],
-            "provides": [],
-            "requires": ["reanimatable-mv-3", "discard-outlet", "self-mills"],
             "reviewed": false
         },
         "69c1b656-1d67-499c-bf0f-417682a86c7d": {
@@ -1263,12 +1143,6 @@
         },
         "4b851c17-55ed-4671-b471-dc7b34944432": {
             "archetypes": ["combo"],
-            "provides": [],
-            "requires": [],
-            "reviewed": false
-        },
-        "3eb73579-f1c6-4762-81d2-9568ab501fac": {
-            "archetypes": ["control"],
             "provides": [],
             "requires": [],
             "reviewed": false
@@ -1327,12 +1201,6 @@
             "requires": [],
             "reviewed": false
         },
-        "4ba8325a-1203-4125-9111-94d9e2b1f14b": {
-            "archetypes": ["graveyard"],
-            "provides": [],
-            "requires": ["discard-outlet"],
-            "reviewed": false
-        },
         "ab1d1461-1625-4163-aacd-a939f4871fad": {
             "archetypes": [],
             "provides": ["value-on-etb"],
@@ -1381,20 +1249,8 @@
             "requires": [],
             "reviewed": false
         },
-        "c060c178-3c0e-493f-b6f0-ead5b1d6f191": {
-            "archetypes": ["reanimator", "graveyard"],
-            "provides": ["discard-outlet"],
-            "requires": [],
-            "reviewed": false
-        },
         "386ea9eb-abc1-4862-aa2d-8fb808d79490": {
             "archetypes": ["control"],
-            "provides": [],
-            "requires": [],
-            "reviewed": false
-        },
-        "d40b65c1-b24d-492d-81b9-d8474ebdc08c": {
-            "archetypes": ["ramp"],
             "provides": [],
             "requires": [],
             "reviewed": false
@@ -1402,12 +1258,6 @@
         "f1b8413f-c9fc-4cea-b416-a1fcf651b009": {
             "archetypes": ["aggro"],
             "provides": [],
-            "requires": [],
-            "reviewed": false
-        },
-        "71148fd3-0c2c-459e-b8f5-735a0a8dd87f": {
-            "archetypes": ["artifacts", "ramp"],
-            "provides": ["cheap-artifact"],
             "requires": [],
             "reviewed": false
         },
@@ -1496,12 +1346,6 @@
             "reviewed": false
         },
         "e0139f60-d48e-46fb-9f5a-1e3d7558c834": {
-            "archetypes": ["control"],
-            "provides": [],
-            "requires": [],
-            "reviewed": false
-        },
-        "3447aeaf-3b26-442a-99d4-0a7ee76c8e76": {
             "archetypes": ["control"],
             "provides": [],
             "requires": [],
@@ -1615,12 +1459,6 @@
             "requires": [],
             "reviewed": false
         },
-        "2a1bfefd-dae8-49e9-9d56-cc852e3dc93b": {
-            "archetypes": ["control"],
-            "provides": [],
-            "requires": [],
-            "reviewed": false
-        },
         "ecc1027a-8c07-44a0-bdde-fa2844cff694": {
             "archetypes": ["control", "storm"],
             "provides": [],
@@ -1657,12 +1495,6 @@
             "requires": [],
             "reviewed": false
         },
-        "254437f7-7a8a-4b11-9cea-e8e7ea23c59e": {
-            "archetypes": ["control"],
-            "provides": [],
-            "requires": ["value-on-death"],
-            "reviewed": false
-        },
         "cdad38f7-9dfa-4f1b-9fac-41ab2b253f53": {
             "archetypes": [],
             "provides": ["self-mills"],
@@ -1672,12 +1504,6 @@
         "543d55cb-3a6b-4620-af25-10ae74ed32c4": {
             "archetypes": ["reanimator"],
             "provides": ["value-on-death"],
-            "requires": [],
-            "reviewed": false
-        },
-        "a2788d69-6a3a-42f0-8736-cc6b57755ecd": {
-            "archetypes": ["control"],
-            "provides": [],
             "requires": [],
             "reviewed": false
         },
