@@ -686,7 +686,8 @@ any gate (`--fresh`'s question: the header's compiler, registry and pool
 hashes, the catalogue bytes); nothing gated, no verdict stored, exit 0 — for
 one housekeeping period
 (`DERIVED_GRACE_MS`, an hour), and RED at step `derive:sync` past it;
-`release` does not ask and gates the exact tip whole. The tip's Bot-play
+`release` asks the same and is `pending` or RED at `derive:sync` alike
+(ADR 0157 Amendment I, issue #7144) — only GREEN promotes. The tip's Bot-play
 state (a stale `ready` row, the drift sweep's; the header's Bot hash not the
 tree's, the replay's — unless that Bot's regression issue is open; ~18 s
 with the corpus, ADR 0158 § 2b) is NOT a freshness (ADR 0159, issue #6990):

@@ -147,7 +147,8 @@ post-merge job's latency, a minute or two; at worst the hourly cron):
   `pending`, not `RED`, for a grace of one housekeeping period (an hour); a
   tip still stale past it is `RED` with cause `derive:sync`, and `base-health`
   holds the queue as for any RED. `release` is unchanged: it re-proves the
-  exact tip with the full gate, so only a derived-fresh tip can be released.
+  exact tip with the full gate, so only a derived-fresh tip can be released
+  (superseded by Amendment I: `release` judges the derived state too).
 - **History.** One bot commit per merge burst on the base (coalesced, never
   more than one per merge).
 
@@ -243,5 +244,5 @@ held every landing and spawned `/health-fix` on a tree with no defect.
 within the grace it is `pending` — nothing gated, nothing promoted, since only
 GREEN promotes — and past it RED at step `derive:sync`, the writer's failure
 named as such. The intent is kept by the predicate instead of by a red gate.
-Guarded by `scripts/__tests__/health-main-preflight.test.ts` (both modes,
-driven for real).
+Guarded by `scripts/__tests__/health-release-steps.test.ts` (batch and
+`--release`, driven for real).

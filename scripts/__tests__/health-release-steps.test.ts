@@ -487,7 +487,7 @@ describe("health-main — a terminal verdict on the tip: an --under-lock run ski
     }, 120_000);
 });
 
-describe("health-main — a derived-stale tip is PENDING within derive:sync's grace, RED past it, and release never asks (ADR 0157, issue #6248)", () => {
+describe("health-main — a derived-stale tip is PENDING within derive:sync's grace, RED past it — in every mode, release included (ADR 0157, issue #6248, issue #7144)", () => {
     const healthMain = (args: string[], env: NodeJS.ProcessEnv) =>
         spawnSync("bun", [HEALTH_MAIN, `--branch=${BASE_BRANCH}`, ...args], {
             cwd: primary,
@@ -556,7 +556,7 @@ describe("health-main — a derived-stale tip is PENDING within derive:sync's gr
         expect(redMarker()).toBe(true);
     }, 120_000);
 
-    it("--release on the same stale tip runs the full gate as ever — unchanged", async () => {
+    it("--release on the same stale tip is PENDING too and gates nothing — never RED at check:all (issue #7144)", async () => {
         // Async, like `release()` above: the fake deployment the preflight
         // probes is served by this test process, which a `spawnSync` blocks.
         const r = await new Promise<{ code: number | null; out: string }>(
@@ -584,9 +584,13 @@ describe("health-main — a derived-stale tip is PENDING within derive:sync's gr
             }
         );
         expect(r.code, r.out).toBe(0);
-        expect(r.out).not.toContain("PENDING");
-        expect(offlineRan()).toBe(true);
-        expect(lastJson().status).toBe("green");
+        expect(r.out).toMatch(/PENDING @ \w{8} \(derive:sync\)/);
+        expect(offlineRan()).toBe(false);
+        expect(lastJson()).toMatchObject({
+            status: "pending",
+            failedStep: "derive:sync",
+        });
+        expect(redMarker()).toBe(false);
     }, 120_000);
 
     it("pending under a standing RED keeps the red record the marker names (review of PR #6295)", () => {
