@@ -4186,8 +4186,22 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                         duration: { phase: "end-of-turn" },
                     },
                 },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
             ],
-            phase: "BEGINNING_OF_COMBAT",
+            phase: "DECLARE_BLOCKERS",
+            activePlayer: "opp",
+            priority: "me",
+            combat: {
+                attackers: ["Hill Giant"],
+                confirmed: true,
+                blockers: [{ blocker: "Mishra's Factory", blocking: [0] }],
+                blockersConfirmed: true,
+            },
             turn: 3,
             landCount: 2,
             libraryCount: 20,
@@ -4214,7 +4228,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "a pump aimed at the other animated Factory carries no rollout-policy penalty",
         },
-        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Control of the self-pump entry (c): a second animated Assembly-Worker is on the board and the activation that targets it is untouched.",
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed mid-combat (one Factory blocks a Hill Giant, so the pump on it is consumed by combat damage and the futile this-turn prune keeps it): Control of the self-pump entry (c): a second animated Assembly-Worker is on the board and the activation that targets it is untouched.",
     },
     {
         label: "activation timing: holds a sacrifice engine through its own main phase",
