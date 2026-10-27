@@ -108,6 +108,16 @@ describe("selectRefreshCandidates", () => {
         expect(skips).toHaveLength(2);
     });
 
+    it("a held PR's own fork-point range wins over the push's, so a dropped run loses nothing (issue #6651)", () => {
+        const held = ["ready-to-land", "queue:held"];
+        const got = selectRefreshCandidates(
+            [pr({ number: 4, labels: held })],
+            new Set(["z.ts"]),
+            { red: true, touchedSince: () => new Set(["a.ts"]) }
+        );
+        expect(got.map((c) => c.pr.number)).toEqual([4]);
+    });
+
     it("takes a PR git merge-tree finds conflicting while GitHub still reads UNKNOWN (issue #6651)", () => {
         const got = selectRefreshCandidates(
             [

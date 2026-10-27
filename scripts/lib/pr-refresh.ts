@@ -42,6 +42,12 @@ export interface RefreshOptions {
      * GitHub's lagging `mergeable` says (`UNKNOWN` waits for the next push).
      */
     localConflicts?: ReadonlySet<number>;
+    /**
+     * The base's changes since THIS PR forked (merge-base..tip), when known:
+     * it replaces the push's own range, which a concurrency-dropped run no
+     * longer sees whole (issue #6651).
+     */
+    touchedSince?: (pr: RefreshPr) => ReadonlySet<string> | null;
     /** Told about a PR a reason would have taken but a guard left alone. */
     onSkip?: (pr: RefreshPr, why: string) => void;
 }
@@ -74,9 +80,8 @@ export function selectRefreshCandidates(
         if (pr.isCrossRepository) continue;
         if (!pr.labels.includes(READY_LABEL)) continue;
         if (pr.labels.includes(FAILED_LABEL)) continue;
-        const overlap = baseTouched
-            ? pr.files.filter((f) => baseTouched.has(f))
-            : [];
+        const touched = opts.touchedSince?.(pr) ?? baseTouched;
+        const overlap = touched ? pr.files.filter((f) => touched.has(f)) : [];
         if (
             pr.mergeable === "CONFLICTING" ||
             opts.localConflicts?.has(pr.number)

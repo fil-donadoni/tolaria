@@ -318,6 +318,24 @@ function localConflicts(
     return out;
 }
 
+/** What the base changed since `pr` forked from it; null when unknowable. */
+function touchedSince(primary: string, pr: RefreshPr): Set<string> | null {
+    const base = run(
+        "git",
+        ["merge-base", `origin/${BASE_BRANCH}`, pr.headRefOid],
+        primary
+    );
+    if (base.status !== 0) return null;
+    const diff = run(
+        "git",
+        ["diff", "--name-only", base.stdout.trim(), `origin/${BASE_BRANCH}`],
+        primary
+    );
+    return diff.status === 0
+        ? new Set(diff.stdout.split("\n").filter(Boolean))
+        : null;
+}
+
 function flag(argv: string[], name: string): string | null {
     const i = argv.indexOf(name);
     return i >= 0 ? (argv[i + 1] ?? null) : null;
@@ -400,6 +418,11 @@ function main(): number {
     const queued = listQueued();
     const candidates = selectRefreshCandidates(queued, touched, {
         red,
+        // Held PRs only: their fork point, not the push's range, says whether
+        // the base moved under them, so a refresh run dropped by the
+        // concurrency group loses nothing.
+        touchedSince: (pr) =>
+            pr.labels.includes("queue:held") ? touchedSince(primary, pr) : null,
         localConflicts: localConflicts(
             primary,
             queued.filter(
