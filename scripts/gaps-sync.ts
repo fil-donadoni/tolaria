@@ -796,11 +796,15 @@ export function commitAndPushAllowlist(
     // fast-forward, so a run on a feature branch rebased onto the base landed
     // the branch's own commits with the allowlist update, outside the queue.
     // Refused there, the update is re-applied on the fetched tip below.
+    // `--no-verify` (issue #7150): generated state, never code — on a clone
+    // whose `origin/HEAD` is the base, `.husky/pre-push` would run the full
+    // gate inside the push deadline (`pushDerivedCommit`'s note).
     const push = (sha: string, parent: string) =>
         git(
             [
                 "push",
                 "-q",
+                "--no-verify",
                 `--force-with-lease=refs/heads/${BASE_BRANCH}:${parent}`,
                 "origin",
                 `${sha}:refs/heads/${BASE_BRANCH}`,

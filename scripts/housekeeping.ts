@@ -94,8 +94,10 @@ import {
     mkdirSync,
     openSync,
     readFileSync,
+    readSync,
     realpathSync,
     rmSync,
+    statSync,
     writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -380,6 +382,28 @@ export const DERIVE_SYNC_STEP: Step = {
     argv: ["bun", "scripts/derive-sync.ts"],
     timeoutMs: DERIVE_SYNC_TIMEOUT_MS,
 };
+
+/** How many of a failed step's own last lines reach stdout (issue #7150). */
+export const FAILED_STEP_TAIL_LINES = 40;
+
+/** The most a failed step's tail reads back from the log: its last lines
+ *  are near the end, and a sweep's output runs to megabytes. */
+const FAILED_STEP_TAIL_BYTES = 64 * 1024;
+
+/**
+ * A failed step's last `max` non-blank lines, indented under its `failed`
+ * line — what the job log shows (issue #7150): the children write to the
+ * Huawei-local `housekeeping.log`, which nothing publishes, so a bare
+ * `derive:sync failed (exit 1)` was undiagnosable without the machine.
+ * Empty when the step printed nothing. Pure.
+ */
+export function failedStepTail(output: string, max: number): string[] {
+    const lines = output
+        .split("\n")
+        .map((l) => l.trimEnd())
+        .filter((l) => l !== "");
+    return lines.slice(-max).map((l) => `  │ ${l}`);
+}
 
 /**
  * The steps of one run, in order (what `--dry-run` prints): the batch steps
@@ -831,8 +855,23 @@ function main(): void {
 
     const log = openSync(logPath, "a");
     const env = netEnv(process.env);
+    /** The log's bytes from `from` on — a step's own output — capped at
+     *  its last {@link FAILED_STEP_TAIL_BYTES}. */
+    const logSince = (from: number): string => {
+        const end = statSync(logPath).size;
+        const start = Math.max(from, end - FAILED_STEP_TAIL_BYTES);
+        const buf = Buffer.alloc(end - start);
+        const fd = openSync(logPath, "r");
+        try {
+            readSync(fd, buf, 0, buf.length, start);
+        } finally {
+            closeSync(fd);
+        }
+        return buf.toString("utf8");
+    };
     const run = (step: Step): boolean => {
         appendFileSync(logPath, `── ${step.label}\n`);
+        const from = statSync(logPath).size;
         const r = spawnSync(step.argv[0]!, step.argv.slice(1), {
             cwd: workspace!,
             env,
@@ -847,6 +886,8 @@ function main(): void {
             return true;
         }
         const ok = r.status === 0;
+        // Read before `say` appends its own line to the same log.
+        const output = ok ? "" : logSince(from);
         if (!ok)
             say(
                 r.error !== undefined &&
@@ -854,6 +895,9 @@ function main(): void {
                     ? `${step.label} killed after ${(step.timeoutMs ?? 0) / 1000}s without finishing`
                     : `${step.label} failed (exit ${r.status ?? r.signal ?? "?"})`
             );
+        if (!ok)
+            for (const line of failedStepTail(output, FAILED_STEP_TAIL_LINES))
+                console.log(line);
         return ok;
     };
 
