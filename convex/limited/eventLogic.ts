@@ -183,6 +183,30 @@ export function fillBotSeats(
     });
 }
 
+/** Number of human Seats: claimed (`userId` set) and not a Bot Drafter.
+ *  Counted on the FINAL seats (after `fillBotSeats`), so a human who joined
+ *  and left before start never counts. */
+export function countHumanSeats(seats: readonly LimitedEventSeat[]): number {
+    return seats.filter((seat) => seat.userId !== undefined && !seat.isBot)
+        .length;
+}
+
+/** Minimum human Seats at which a draft's Pick Timer is forced on — one
+ *  absent human would otherwise stall every other human (CONTEXT.md, Pick
+ *  Timer). */
+export const FORCED_TIMER_HUMAN_SEATS = 2;
+
+/** The Pick Timer flag a draft actually runs with at start: forced on with
+ *  `FORCED_TIMER_HUMAN_SEATS`+ human Seats, else the creator's choice. */
+export function effectiveDraftTimerEnabled(
+    creatorChoice: boolean | undefined,
+    finalSeats: readonly LimitedEventSeat[]
+): boolean | undefined {
+    return countHumanSeats(finalSeats) >= FORCED_TIMER_HUMAN_SEATS
+        ? true
+        : creatorChoice;
+}
+
 /** Resolves a set code to its checked-in `BoosterConfig`, or `null` when the
  *  set has none — injected so this module never reads the repo data /
  *  registry directly (mirrors `ResolveCard` in `convex/formats.ts`). */
