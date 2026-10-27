@@ -563,13 +563,15 @@ describe("heldPrAction — a queue:held PR off RED (issue #6957)", () => {
         );
     });
 
-    it("does nothing while the lineage blocks or cannot be read, nor on a PR not held", () => {
-        expect(heldPrAction({ ...held, lineage: { kind: "red" } })).toBe(
-            "none"
-        );
-        expect(heldPrAction({ ...held, lineage: { kind: "second-red" } })).toBe(
-            "none"
-        );
+    it("does nothing on a non-repair under RED, a lineage it cannot read, nor a PR not held", () => {
+        for (const kind of ["red", "second-red"] as const)
+            expect(
+                heldPrAction({
+                    ...held,
+                    lineage: { kind },
+                    baseHealth: "failure",
+                })
+            ).toBe("none");
         expect(
             heldPrAction({ ...held, lineage: { kind: "none", error: "502" } })
         ).toBe("none");
@@ -588,9 +590,58 @@ describe("heldPrAction — a queue:held PR off RED (issue #6957)", () => {
                 return null;
             },
         };
-        heldPrAction({ ...counted, lineage: { kind: "red" } });
+        heldPrAction({
+            ...counted,
+            lineage: { kind: "red" },
+            baseHealth: "failure",
+        });
         heldPrAction({ ...counted, labels: [...held.labels, "queued"] });
         expect(reads).toBe(0);
+    });
+});
+
+describe("heldPrAction — a declared repair held under RED (issue #7140)", () => {
+    // 2026-10-27: revert PR #7136 closed repair issue #7135, `base-health`
+    // green under RED @ 5ab0781a, `queue:held` — never requeued, so the RED
+    // that only its landing clears stood until a hand-posted requeue.
+    const NOW = Date.parse("2026-10-27T15:00:00Z");
+    const ago = (min: number) => new Date(NOW - min * 60_000).toISOString();
+    const repair = {
+        labels: ["ready-to-land", "queue:held"],
+        lineage: { kind: "red" as const },
+        baseHealth: "success" as const,
+        trustedAuthor: "success" as const,
+        lastRequeueAt: (): string | null => null,
+        now: NOW,
+    };
+
+    it("requeues it under RED and second RED, keeping the label", () => {
+        expect(heldPrAction(repair)).toBe("requeue");
+        expect(
+            heldPrAction({ ...repair, lineage: { kind: "second-red" } })
+        ).toBe("requeue");
+    });
+
+    it("keeps a non-repair under RED held", () => {
+        expect(heldPrAction({ ...repair, baseHealth: "failure" })).toBe("none");
+        expect(heldPrAction({ ...repair, trustedAuthor: "failure" })).toBe(
+            "none"
+        );
+    });
+
+    it("keeps the grace and the release it has off RED", () => {
+        expect(heldPrAction({ ...repair, lastRequeueAt: () => ago(2) })).toBe(
+            "none"
+        );
+        expect(
+            heldPrAction({
+                ...repair,
+                lastRequeueAt: () => ago(REQUEUE_GRACE_MS / 60_000 + 1),
+            })
+        ).toBe("release");
+        expect(
+            heldPrAction({ ...repair, labels: [...repair.labels, "queued"] })
+        ).toBe("release");
     });
 });
 

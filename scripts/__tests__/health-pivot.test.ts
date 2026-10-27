@@ -18,6 +18,7 @@ import {
     recordPivotRepairIssue,
 } from "../lib/health-pivot";
 import { type GhRunner, machineName } from "../lib/health-verdict-store";
+import { baseHealthStatus, heldPrAction } from "../lib/pr-gate";
 
 const TIP = "a".repeat(40);
 const OLD = "b".repeat(40);
@@ -248,6 +249,40 @@ describe("repair issues on the pivot", () => {
             ladder: [7135],
             foreign: [7140],
         });
+    });
+
+    // The whole 2026-10-27 deadlock, end to end: the ladder's revert PR is
+    // dequeued and `queue:held` when RED B lands; the re-gate must find it a
+    // declared repair AND requeue it, with no hand step (issue #7140).
+    it("a held ladder revert under a moved RED self-heals: base-health green, requeue decided (issue #7140)", () => {
+        const repo = sharedRepo([TIP, OLD], clock);
+        const o = { run: repo.run } as const;
+        repo.seed(OLD, red());
+        recordPivotRepairIssue(root, 7135, { ...o, ladder: true });
+        repo.seed(TIP, red());
+        const labels = ["ready-to-land", "queue:held"];
+        const health = baseHealthStatus({
+            lineage: { kind: "red", verdict: null },
+            pr: {
+                author: "fil-donadoni",
+                body: "Revert the culprit.\n\nCloses #7135",
+                headRef: "fix/issue-7135",
+                headRepo: "owner/name",
+                baseRepo: "owner/name",
+            },
+            repairIssues: pivotRepairIssues(root, o),
+        });
+        expect(health.state).toBe("success");
+        expect(
+            heldPrAction({
+                labels,
+                lineage: { kind: "red" },
+                baseHealth: health.state,
+                trustedAuthor: "success",
+                lastRequeueAt: () => null,
+                now: NOW(),
+            })
+        ).toBe("requeue");
     });
 
     it("stacked REDs: every earlier RED's repair is carried, whatever culprit each names", () => {

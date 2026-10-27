@@ -176,7 +176,9 @@ export const REQUEUE_GRACE_MS = 10 * 60_000;
 
 /**
  * What a re-gate does with a `queue:held` PR once the base is off RED (issue
- * #6957). Keyed on the label, never on a `base-health` transition: a PR whose
+ * #6957), or under RED once it is a declared repair (issue #7140: its own
+ * `base-health` is green, and holding it until the RED clears deadlocks the
+ * repair that clears it). Keyed on the label, never on a `base-health` transition: a PR whose
  * status was already green when the RED cleared never transitions, and its
  * stale label made `pr-refresh` rebase it on every base push.
  *
@@ -189,8 +191,9 @@ export const REQUEUE_GRACE_MS = 10 * 60_000;
  *    `ready-to-land` or is already `land-failed`, or a requeue older than
  *    `REQUEUE_GRACE_MS` did not take: remove the label and let the
  *    repair-pick rules judge it;
- *  - `none` — not held, the lineage still blocks or cannot be read, this
- *    PR's own `base-health` or `trusted-author` is not green (an entry gate,
+ *  - `none` — not held, the lineage cannot be read, this PR's own
+ *    `base-health` (red under RED for a non-repair) or `trusted-author` is
+ *    not green (an entry gate,
  *    not the PR's red: the label keeps it off the repair-pick rules), or a
  *    requeue is still within its grace.
  */
@@ -208,7 +211,9 @@ export function heldPrAction(input: {
 }): HeldAction {
     const { labels } = input;
     if (!labels.includes(HELD_LABEL)) return "none";
-    if (input.lineage.error || lineageBlocks(input.lineage.kind)) return "none";
+    if (input.lineage.error) return "none";
+    // Under RED a green `base-health` is a declared repair (issue #7140):
+    // the RED clears only once it lands, so it is requeued like off RED.
     if (input.baseHealth !== "success") return "none";
     if (labels.includes(MERGIFY_QUEUED_LABEL)) return "release";
     if (!labels.includes(READY_LABEL) || labels.includes(FAILED_LABEL))
