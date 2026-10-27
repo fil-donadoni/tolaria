@@ -17,6 +17,7 @@ import {
 import { getEffectiveToughness } from "../gre/layers";
 import { FRACTAL_TOKEN } from "../cards/sharedTokens";
 import { createTokenPermanents, getPlayer, type GameState } from "../gre/state";
+import type { TokenSpec } from "../cards/types";
 import type { Id } from "../_generated/dataModel";
 import {
     gameStateSeed,
@@ -64,7 +65,18 @@ function board(): GameState {
         priorityPlayerId: ME,
         phase: "PRECOMBAT_MAIN",
     });
-    createTokenPermanents(state, FRACTAL_TOKEN, ME, 1);
+    createTokenPermanents(
+        state,
+        {
+            ...FRACTAL_TOKEN,
+            power: 0,
+            toughness: 0,
+            triggeredAbilities: undefined,
+            activatedAbilities: undefined,
+        } as TokenSpec,
+        ME,
+        1
+    );
     const old = getPlayer(state, ME).battlefield.find((c) => c.isToken)!;
     old.id = "old-fractal";
     old.counters = { "+1/+1": 1 };
