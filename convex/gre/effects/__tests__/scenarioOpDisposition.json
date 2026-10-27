@@ -67,6 +67,10 @@
         "code": "randomness",
         "reason": "Op \"coinFlipSync\" draws a random bit (CR 705) — covered by the Op's interpreter tests"
     },
+    "copyResolvingSpell": {
+        "code": "op-own-tests",
+        "reason": "Op \"copyResolvingSpell\" copies the resolving spell onto the stack — covered by the Op's interpreter tests"
+    },
     "counter": {
         "code": "unmodelled-object-or-zone",
         "reason": "Op \"counter\" targets a spell on the stack — covered by the card's own resolution test"
