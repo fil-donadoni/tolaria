@@ -2261,6 +2261,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › number of set › object descriptor › cards in their hand minus N",
+            "issue": 7101
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › target filter › colors",
             "issue": 4589
         },
@@ -2273,6 +2278,11 @@
             "kind": "grammar",
             "key": "triggered › effect clause › target filter › object descriptor › player or planeswalker",
             "issue": 4589
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › that player, where X is N minus the number of cards in their hand",
+            "issue": 7100
         },
         {
             "kind": "grammar",
