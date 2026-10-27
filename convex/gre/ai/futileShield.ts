@@ -114,7 +114,12 @@ function thisTurnEffectsOf(
     )?.ability;
     if (!ability) return null;
     if (!costIsLossOnly(state, source, ability)) return null;
-    const shields = shieldsOf(ability, source.id, move.targets);
+    const shields = shieldsOf(
+        ability,
+        source.id,
+        move.targets,
+        ability.cost.tap === true
+    );
     if (!shields) return null;
     return { shields, tapCost: ability.cost.tap === true };
 }
@@ -172,7 +177,8 @@ function costIsLossOnly(
 function shieldsOf(
     ability: ActivatedAbility,
     sourceId: string,
-    targets: Extract<Move, { kind: "activate-ability" }>["targets"]
+    targets: Extract<Move, { kind: "activate-ability" }>["targets"],
+    tapCost: boolean
 ): Shield[] | null {
     if (ability.resolve || ability.resolveSteps || ability.effect) return null;
     if (
@@ -188,7 +194,7 @@ function shieldsOf(
     if (!effects || effects.length === 0) return null;
     const out: Shield[] = [];
     for (const op of effects) {
-        const shield = shieldOf(op, sourceId, targets);
+        const shield = shieldOf(op, sourceId, targets, tapCost);
         if (!shield) return null;
         out.push(shield);
     }
@@ -198,7 +204,8 @@ function shieldsOf(
 function shieldOf(
     op: EffectOp,
     sourceId: string,
-    targets: Extract<Move, { kind: "activate-ability" }>["targets"]
+    targets: Extract<Move, { kind: "activate-ability" }>["targets"],
+    tapCost: boolean
 ): Shield | null {
     if (!("op" in op)) return null;
     if (op.op === "regenerate") {
@@ -219,6 +226,11 @@ function shieldOf(
         return permanentId ? { kind: "prevention", permanentId } : null;
     }
     if (op.op === "pump") {
+        // A pump is pruned only when it taps its source: the loss is the
+        // source's attack or block, which no later activation recovers. A
+        // mana-only pump can be made later at the same price, and the locked
+        // verdicts keep it a candidate.
+        if (!tapCost) return null;
         // CR 611.2 — only an until-end-of-turn change; a longer one outlives
         // the turn and can be consumed after the bot's next priority.
         if (

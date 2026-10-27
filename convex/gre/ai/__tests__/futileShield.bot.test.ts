@@ -538,4 +538,25 @@ describe("this-turn tap activations (Samite Pilgrim, Dega Disciple)", () => {
         expect(moves.length).toBeGreaterThan(0);
         expect(moves.some((m) => isFutileThisTurnMove(state, m))).toBe(false);
     });
+
+    it("keeps a mana-only pump: it can be made later at the same price", () => {
+        const state = position({
+            cards: [
+                {
+                    name: "Blazing Rootwalla",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        });
+        const moves = activationsOf(state, 0, "Blazing Rootwalla");
+        expect(moves.length).toBeGreaterThan(0);
+        expect(moves.some((m) => isFutileThisTurnMove(state, m))).toBe(false);
+    });
 });
