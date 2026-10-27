@@ -24,7 +24,7 @@ function vise(tail: string) {
 describe("where X is the number of cards in their hand minus N (CR 402.3)", () => {
     it("reads 'their hand' as the head's player", () => {
         const out = vise("their hand minus 4.");
-        expect(out.state).not.toBe("unparsed");
+        if (out.state === "unparsed") throw new Error("expected a parse");
         expect(JSON.stringify(out.definition)).toContain('"minus":4');
     });
     it("refuses a hand that is not 'your' or 'their'", () => {
