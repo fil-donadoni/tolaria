@@ -4751,13 +4751,13 @@ const RETURN_UP_TO_X_BOUNDED =
 /**
  * CR 107.3 — "<effect>, where X is <count>": the head sentence prints X and the
  * tail defines it. The tail is one of two counts: "the number of <plural
- * descriptor>" and "the number of cards in your hand minus N".
+ * descriptor>" and "the number of cards in your/their hand minus N".
  */
 const WHERE_X_IS =
     /^(.+), where X is (the number of .+|the exiled card(?:'|’)s mana value)$/;
 const EXILED_CARD_MANA_VALUE = /^the exiled card(?:'|’)s mana value$/;
-const CARDS_IN_YOUR_HAND_MINUS =
-    /^the number of cards in your hand minus (\S+)$/;
+const CARDS_IN_HAND_MINUS =
+    /^the number of cards in (your|their) hand minus (\S+)$/;
 /**
  * CR 107.1 — "<player> gains/loses N life for each <set>". The multiplier is a
  * printed number: "X life for each …" is a product of two variables this
@@ -6680,15 +6680,20 @@ function whereXAmount(tail: string, ctx: unknown): RuleResult<AmountIR> {
             kind: "cost-exiled-card-characteristic" as const,
             characteristic: "manaValue" as const,
         });
-    const hand = tail.match(CARDS_IN_YOUR_HAND_MINUS);
+    const hand = tail.match(CARDS_IN_HAND_MINUS);
     if (hand !== null) {
-        const minus = readNumberWord(hand[1]!);
-        if (minus === null) return fail(`"${hand[1]}" is not a number`, tail);
+        const minus = readNumberWord(hand[2]!);
+        if (minus === null) return fail(`"${hand[2]}" is not a number`, tail);
         return ok({
             kind: "counted-difference" as const,
             set: {
                 kind: "cards-in-hand" as const,
-                player: { kind: "you" as const },
+                // CR 402.3 — "their hand" is the hand of the player the
+                // head named; a site that names none refuses the line.
+                player:
+                    hand[1] === "your"
+                        ? ({ kind: "you" } as const)
+                        : ({ kind: "that-player" } as const),
             },
             minus,
         });
