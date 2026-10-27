@@ -419,13 +419,51 @@ function boundCountFilter(descriptor: DescriptorIR): Lowered<EffectCardFilter> {
 function lowerCountedSet(
     set: CountedSetIR,
     slots: TargetSlots,
-    site: SiteOptions
+    site: SiteOptions,
+    /** Only the sites with a fixture count a targeted opponent's board. */
+    readsTargetedOpponent = false
 ): Lowered<EffectCountSpec> {
     if (set.kind === "cards-in-hand") {
         const controller = playerRef(set.player, slots, site);
         return controller.ok
             ? lowered({ zone: "hand", controller: controller.value })
             : controller;
+    }
+    // CR 115.1 — the permanents of a targeted opponent: the same
+    // battlefield filter as the controller's own set, counted over the
+    // announced player's board. The opponent is allocated only once the
+    // filter is known to lower, so a refused clause announces no target.
+    if (set.kind === "target-opponent-permanents") {
+        if (!readsTargetedOpponent)
+            return unlowerable(
+                '"target opponent controls" in a count has no fixture at this site'
+            );
+        // CR 115.1 — a player target announced earlier in the line may be the
+        // same opponent ("Target opponent loses life equal to the number of
+        // Islands target opponent controls"); a second slot would split them.
+        if (slots.requirements().some((r) => r.type === "player"))
+            return unlowerable(
+                '"target opponent controls" beside another player target'
+            );
+        const own = lowerCountedSet(
+            {
+                kind: "permanents",
+                descriptor: { ...set.permanents, controller: "you" },
+            },
+            slots,
+            site
+        );
+        if (!own.ok) return own;
+        const opponent = slots.allocate({
+            type: "player",
+            count: 1,
+            controller: "opponent",
+        });
+        if (!opponent.ok) return opponent;
+        return lowered({
+            ...own.value,
+            controller: { target: opponent.value },
+        });
     }
     // CR 201.2 + CR 404.1 — the cards bearing this card's own name, in every
     // graveyard.
@@ -4942,6 +4980,38 @@ function lowerSentenceBody(
                 },
             ]);
         case "add-mana": {
+            if (sentence.anyOneColor !== undefined) {
+                // CR 106.1a + CR 107.3 — the colour is picked as the effect
+                // resolves: one `optionChoice` mode per colour, each adding
+                // the whole amount in that colour. Only a counted amount has
+                // a fixture; an unbound X or any other magnitude is refused.
+                const amount = sentence.anyOneColor;
+                if (amount.kind !== "counted" || amount.times !== 1)
+                    return unlowerable(
+                        '"X mana of any one color" reads only "where X is the number of …"'
+                    );
+                if (
+                    sentence.thatPlayer === true ||
+                    sentence.itsController === true
+                )
+                    return unlowerable(
+                        '"X mana of any one color" goes to the controller only'
+                    );
+                const spec = lowerCountedSet(amount.set, slots, site, true);
+                if (!spec.ok) return spec;
+                return lowered([
+                    {
+                        op: "optionChoice",
+                        prompt: `${site.selfName}: add mana of which color?`,
+                        modes: colorChoiceModes((color) => [
+                            {
+                                op: "addMana",
+                                mana: { [color]: { count: spec.value } },
+                            },
+                        ]),
+                    },
+                ]);
+            }
             if (sentence.perSet !== undefined) {
                 // CR 106.1 + CR 107.1 — every pip is produced once per member
                 // of the counted set (a pip written n times: n per member).
