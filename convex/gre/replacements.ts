@@ -30,6 +30,7 @@ import type {
     Color,
     CounterPlacedReplacementEvent,
     DamageEffectKind,
+    DamageLifeLossReplacementEvent,
     DamageReplacementEvent,
     DestroyReplacementEvent,
     DiscardReplacementEvent,
@@ -63,6 +64,7 @@ import {
     moveCard,
     putHandCardOnTopOfLibrary,
     putHandCardOntoBattlefield,
+    reduceLifeFromDamage,
 } from "./state";
 
 /** Finds a card instance ANYWHERE in the game — every zone of every player,
@@ -698,10 +700,14 @@ export function applyTransientDamageRedirections(
                 // life adjustment + tally (mirrors Reverse Damage's gain-life
                 // here) rather than re-entering the full damage pipeline.
                 const reflectTo = current.sourceControllerId;
-                getPlayer(state, reflectTo).life -= current.amount;
                 // CR 119.3 — this reflected damage causes life loss; emit
                 // LIFE_LOST so "whenever you lose life" triggers fire.
-                emitLifeLost(state, reflectTo, current.amount, true);
+                emitLifeLost(
+                    state,
+                    reflectTo,
+                    reduceLifeFromDamage(state, reflectTo, current.amount),
+                    true
+                );
                 bumpDamageDealtToPlayer(state, reflectTo, current.amount);
                 if (sh.remaining - 1 > 0) {
                     kept.push({ ...sh, remaining: sh.remaining - 1 });
@@ -841,6 +847,17 @@ export function applyLifeChangeReplacements(
     const kind = event.kind === "lifegain" ? "lifegain" : "lifeloss";
     const result = applyReplacementsLoop(state, kind, event);
     return result === null ? null : (result as LifeChangeReplacementEvent);
+}
+
+/** CR 120.4c — runs the replacement effects that interact with the RESULT of
+ *  damage dealt to a player (the life loss of CR 120.3a), after prevention.
+ *  Returns the possibly-rewritten loss, or null if consumed. */
+export function applyDamageLifeLossReplacements(
+    state: GameState,
+    event: DamageLifeLossReplacementEvent
+): DamageLifeLossReplacementEvent | null {
+    const result = applyReplacementsLoop(state, "damage-lifeloss", event);
+    return result === null ? null : (result as DamageLifeLossReplacementEvent);
 }
 
 export function applyDiscardReplacements(

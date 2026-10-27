@@ -346,6 +346,7 @@ import {
     applyDestroyReplacements,
     applyDiscardReplacements,
     applyGraveyardRedirectCounters,
+    applyDamageLifeLossReplacements,
     applyLifeChangeReplacements,
     applyTapReplacements,
     applyTokenCreatedReplacements,
@@ -5994,9 +5995,13 @@ export function dealDamageFromPermanentToPlayer(
             reduced
         )
     ) {
-        getPlayer(state, finalTarget.id).life -= reduced;
         // CR 119.3 — damage dealt to a player causes that player to lose life.
-        emitLifeLost(state, finalTarget.id, reduced, true);
+        emitLifeLost(
+            state,
+            finalTarget.id,
+            reduceLifeFromDamage(state, finalTarget.id, reduced),
+            true
+        );
     }
     bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
     recordSourceDamagedOpponent(state, source.id, finalTarget.id);
@@ -6157,9 +6162,13 @@ function markDamageFromPermanentSource(
                 reduced
             )
         ) {
-            getPlayer(state, finalTarget.id).life -= reduced;
             // CR 119.3 — damage dealt to a player causes it to lose life.
-            emitLifeLost(state, finalTarget.id, reduced, true);
+            emitLifeLost(
+                state,
+                finalTarget.id,
+                reduceLifeFromDamage(state, finalTarget.id, reduced),
+                true
+            );
         }
         bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
         recordSourceDamagedOpponent(state, source.id, finalTarget.id);
@@ -8479,6 +8488,27 @@ export function loseLifeEmitting(
     if (repl.amount <= 0) return;
     getPlayer(state, repl.playerId).life -= repl.amount;
     emitLifeLost(state, repl.playerId, repl.amount, false);
+}
+
+/** CR 120.4c / 120.3a — turns damage already dealt to a player (post
+ *  prevention, non-infect) into its life loss: runs the replacements that
+ *  interact with that result (Worship), lowers the life total, and returns the
+ *  life ACTUALLY lost so the caller can emit LIFE_LOST. The damage itself
+ *  (DAMAGE_DEALT, lifelink, tallies) stays at the full dealt amount. */
+export function reduceLifeFromDamage(
+    state: GameState,
+    playerId: string,
+    amount: number
+): number {
+    if (amount <= 0) return 0;
+    const repl = applyDamageLifeLossReplacements(state, {
+        kind: "damage-lifeloss",
+        playerId,
+        amount,
+    });
+    if (repl === null || repl.amount <= 0) return 0;
+    getPlayer(state, repl.playerId).life -= repl.amount;
+    return repl.amount;
 }
 
 /** Emits a LIFE_GAINED event for a player whose life total just rose (CR
@@ -12390,9 +12420,13 @@ export function buildSpellContext(
                     reduced
                 );
                 if (!infected) {
-                    getPlayer(state, target.id).life -= reduced;
                     // CR 119.3 — damage dealt to a player causes life loss.
-                    emitLifeLost(state, target.id, reduced, true);
+                    emitLifeLost(
+                        state,
+                        target.id,
+                        reduceLifeFromDamage(state, target.id, reduced),
+                        true
+                    );
                 }
                 bumpDamageDealtToPlayer(state, target.id, reduced);
                 // CR 120.3 (artifact-narrowed) — Reverse Polarity tally.

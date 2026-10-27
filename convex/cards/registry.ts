@@ -36,6 +36,7 @@ import { expandClassLevelBars } from "./abilities/classLevels";
 import { expandCompiledStatics } from "./compiledStatics";
 import { expandShuffleFromAnywhere } from "./abilities/shuffleFromAnywhereReplacement";
 import { expandControllerDamagePrevention } from "./abilities/controllerDamagePrevention";
+import { expandDamageLifeFloor } from "./abilities/damageLifeFloor";
 import { expandDamagePreventionCounterRemoval } from "./abilities/damagePreventionCounterRemoval";
 import { expandCompiledTriggers } from "./compiledTriggers";
 import { insetSpellTwinDefinition } from "./insetSpell";
@@ -608,7 +609,9 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
                                                     expandShuffleFromAnywhere(
                                                         expandDamagePreventionCounterRemoval(
                                                             expandControllerDamagePrevention(
-                                                                base
+                                                                expandDamageLifeFloor(
+                                                                    base
+                                                                )
                                                             )
                                                         )
                                                     )
