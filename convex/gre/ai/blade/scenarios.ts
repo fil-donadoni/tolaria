@@ -16261,4 +16261,142 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #6913 — Strafe on the stack aimed at Stone Kavu, four untapped Plains: the {W} pump (+0/+1) takes the Kavu out of 3-damage range. Pinned at a starved `iterations: 3` budget, where the root pick used to fall to the mean reward of one rollout per child.",
     },
+
+    {
+        label: "defensive self-animation: animates Mishra's Factory to block a lethal attacker",
+        pairOf: {
+            anchor: "defensive self-animation: does NOT animate Mishra's Factory to chump a survivable attacker",
+            discriminant: {
+                kind: "life",
+                detail: "the Bot at 6 life, in range of the 6-power attacker, in place of 20",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Mishra's Factory",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+            life: { me: 6, opp: 20 },
+        },
+        // `opp` is the active player and sends the attack; the walk stops at
+        // the first priority window of the DEFENDER, the only one in which a
+        // body can still be made before blockers are locked (CR 508.2, 509.1).
+        setup: [{ kind: "declare-attackers", haltForDefenderResponse: true }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Mishra's Factory" }],
+        },
+        note: "Issue #3490, defensive window of self-animation (the sibling entries all pin the mover's own END_OF_COMBAT). Craw Wurm is 6 unblocked power into 6 life (CR 510.1b, 704.5a); the only way to survive is the {1} animation and a block (CR 509.1). Measured at authoring: animates on all five seeds at 400 iterations (mean-reward), so neither horizon nor the symmetric `flexibility` credit defeats the animation here.",
+    },
+    {
+        label: "defensive self-animation: does NOT animate Mishra's Factory to chump a survivable attacker",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "life",
+                detail: "the Bot at 6 life, in range of the 6-power attacker, in place of 20",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Mishra's Factory",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        // `opp` is the active player and sends the attack; the walk stops at
+        // the first priority window of the DEFENDER, the only one in which a
+        // body can still be made before blockers are locked (CR 508.2, 509.1).
+        setup: [{ kind: "declare-attackers", haltForDefenderResponse: true }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Mishra's Factory" }],
+        },
+        note: "Issue #3490, minimal pair with the lethal entry: life 20 is the only difference. A 6/4 would simply kill the animated 2/2 for nothing preventable that matters (CR 510.1c), so the land is not risked. Measured at authoring: passes on all five seeds, settled by `material-tiebreak`.",
+    },
+    {
+        label: "defensive self-animation: casts its Lightning Bolt rather than animating Mishra's Factory with the one land",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the one untapped land being the mana for an instant answer in hand",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Mishra's Factory",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 5,
+
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        // `opp` is the active player and sends the attack; the walk stops at
+        // the first priority window of the DEFENDER, the only one in which a
+        // body can still be made before blockers are locked (CR 508.2, 509.1).
+        setup: [{ kind: "declare-attackers", haltForDefenderResponse: true }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Mishra's Factory" }],
+        },
+        note: "Issue #3490, the 'mana was the seat's only answer' half. The Mountain pays either the animation or Bolt, never both; killing the attacker outright beats trading the land for a block. Measured at authoring: casts Bolt on all five seeds. Asserted as forbidden-animate, not as an exact cast, so a different good answer cannot redden it.",
+    },
 ];
