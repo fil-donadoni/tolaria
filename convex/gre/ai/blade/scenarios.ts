@@ -15910,7 +15910,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // minutes — far past the suite's 120 s per-entry ceiling, on the base
         // as much as here (233 s per seed there, where it attacks with the
         // Gorilla). At 100 iterations seeds 0xb1ade, 1 and 2 all keep the
-        // Gorilla home (~40 s per seed); the entry declares two of them.
+        // Gorilla home — ~40 s per seed before the futile-activation pruning
+        // (PR #7119), ~55 s after it, which puts two seeds 10 s under the
+        // ceiling on a loaded machine — so the entry declares one.
         label: "discriminating pair: keeps the 3/3 home rather than tap it beside another attacker into a lethal pumped crackback",
         classification: { kind: "absolute" },
         spec: {
@@ -15999,7 +16001,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 100 },
-        seeds: [0xb1ade, 1],
+        seeds: [0xb1ade],
         tier: "must",
         expect: {
             forbidden: [
