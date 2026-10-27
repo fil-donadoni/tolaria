@@ -21,6 +21,7 @@ import { type GhRunner, machineName } from "../lib/health-verdict-store";
 
 const TIP = "a".repeat(40);
 const OLD = "b".repeat(40);
+const MID = "c".repeat(40);
 
 interface Status {
     state: string;
@@ -29,11 +30,25 @@ interface Status {
     created_at: string;
 }
 
-/** One shared repository: commits newest first, statuses per sha. */
-function sharedRepo(commits: string[], clock: () => string) {
+/** One shared repository: commits newest first, statuses per sha, and the
+ *  issues closed on it (every other issue reads OPEN). */
+function sharedRepo(
+    commits: string[],
+    clock: () => string,
+    closed: ReadonlySet<number> = new Set()
+) {
     const statuses = new Map<string, Status[]>();
     const run: GhRunner = (args) => {
         const joined = args.join(" ");
+        const issue = /^repos\/[^/]+\/[^/]+\/issues\/(\d+)$/.exec(
+            args[1] ?? ""
+        );
+        if (args[0] === "api" && issue)
+            return {
+                status: 0,
+                stdout: closed.has(Number(issue[1])) ? "closed\n" : "open\n",
+                stderr: "",
+            };
         const post = /statuses\/([0-9a-f]{40})$/.exec(
             args.find((a) => a.includes("/statuses/")) ?? ""
         );
@@ -208,6 +223,75 @@ describe("repair issues on the pivot", () => {
         const o = { run: repo.run } as const;
         expect(recordPivotRepairIssue(root, 7, o)).toBeNull();
         expect(pivotRepairIssues(root, o)).toEqual([]);
+    });
+
+    // The 2026-10-27 sequence: the ladder declares #7135 against RED A, a
+    // non-repair commit lands on top, health records RED B on it for the
+    // same culprit — the ladder's revert PR must stay a declared repair.
+    it("a repair declared on an earlier RED of the run is carried to the standing one (issue #7139)", () => {
+        const repo = sharedRepo([TIP, OLD], clock);
+        repo.seed(OLD, red());
+        const o = { run: repo.run } as const;
+        expect(
+            recordPivotRepairIssue(root, 7135, { ...o, ladder: true })
+        ).toMatch(/bbbbbbbb/);
+        repo.seed(TIP, red());
+        expect(pivotRepairIssues(root, o)).toEqual([7135]);
+        expect(pivotRepairOrigins(root, o)).toEqual({
+            ladder: [7135],
+            foreign: [],
+        });
+        // Re-declared by hand on RED B, it stays the ladder's own.
+        recordPivotRepairIssue(root, 7135, o);
+        recordPivotRepairIssue(root, 7140, o);
+        expect(pivotRepairOrigins(root, o)).toEqual({
+            ladder: [7135],
+            foreign: [7140],
+        });
+    });
+
+    it("stacked REDs: every earlier RED's repair is carried, whatever culprit each names", () => {
+        const repo = sharedRepo([TIP, MID, OLD], clock);
+        const o = { run: repo.run } as const;
+        repo.seed(OLD, red());
+        recordPivotRepairIssue(root, 1, o);
+        repo.seed(MID, red());
+        recordPivotRepairIssue(root, 2, { ...o, ladder: true });
+        repo.seed(TIP, red());
+        expect(pivotRepairOrigins(root, o)).toEqual({
+            ladder: [2],
+            foreign: [1],
+        });
+    });
+
+    it("a GREEN or an AMBER between two REDs ends the run: nothing carried", () => {
+        for (const between of [
+            { state: "success", description: "GREEN · test · omarchy" },
+            { state: "pending", description: "AMBER · repair · omarchy" },
+        ]) {
+            const repo = sharedRepo([TIP, MID, OLD], clock);
+            const o = { run: repo.run } as const;
+            repo.seed(OLD, red());
+            recordPivotRepairIssue(root, 7, o);
+            repo.seed(MID, {
+                ...between,
+                context: "health",
+                created_at: clock(),
+            });
+            repo.seed(TIP, red());
+            expect(pivotRepairIssues(root, o)).toEqual([]);
+        }
+    });
+
+    it("a closed repair issue (its PR merged) is not carried; the standing RED's own still reads", () => {
+        const repo = sharedRepo([TIP, OLD], clock, new Set([7, 9]));
+        const o = { run: repo.run } as const;
+        repo.seed(OLD, red());
+        recordPivotRepairIssue(root, 7, o);
+        recordPivotRepairIssue(root, 8, o);
+        repo.seed(TIP, red());
+        recordPivotRepairIssue(root, 9, o);
+        expect(pivotRepairIssues(root, o)).toEqual([8, 9]);
     });
 
     it("an unreachable store reads as no issues, never a throw", () => {
