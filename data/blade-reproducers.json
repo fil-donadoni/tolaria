@@ -1789,6 +1789,101 @@
     "known top: plays the creature instead when the known top is a blank": null,
     "land search: fetches the basic that is the only source of the hand's colour": null,
     "land search: fetches the utility land when the hand's colours are covered": null,
+    "land-type change: Reef Shaman makes a Forest to cast the green spell in hand": {
+        "cards": [
+            {
+                "name": "Reef Shaman",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 4,
+        "landCount": 0,
+        "libraryCount": 20
+    },
+    "land-type change: Reef Shaman makes a Mountain for the Lightning Bolt in hand": {
+        "cards": [
+            {
+                "name": "Reef Shaman",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Swamp",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true
+            }
+        ],
+        "phase": "END_STEP",
+        "activePlayer": "opp",
+        "priority": "me",
+        "turn": 4,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "loyalty: activates Liliana's −2 to eat the opponent's only creature": {
         "cards": [
             {
@@ -2313,6 +2408,7 @@
         "turn": 6,
         "libraryCount": 20
     },
+    "regeneration shield: Nightscape Familiar regenerates against lethal burn": null,
     "regeneration shield: regenerates against a destroy spell on the stack": null,
     "removal: Disenchant takes the artifact whose per-turn trigger outranks its floor (issue #5151)": {
         "cards": [

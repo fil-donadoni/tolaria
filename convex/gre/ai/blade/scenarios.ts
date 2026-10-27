@@ -15878,6 +15878,283 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #6905, position C. The 3/3 cannot kill the 6/4 Craw Wurm, +2/+0 makes it (CR 510.1); the pump on the Bot's own attacker is the only correctly-signed target, and -2/-0 only ever points at an opposing creature.",
     },
     {
+        label: "land-type change: Reef Shaman stays untapped at the opponent's end step with nothing to read the new type",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "a spell in hand only the new land type can pay for",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Reef Shaman",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Merfolk of the Pearl Trident",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Swamp",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+            ],
+            phase: "END_STEP",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Reef Shaman" }],
+        },
+        note: "Issue #6915, position A. An until-end-of-turn land-type change (CR 305.7) buys nothing when no landwalker, type-reading card, stack object or newly payable cost can use the new type before the Bot next holds priority: the opponent's lands are tapped and every cost the Bot holds is already payable. `isFutileThisTurnMove` (`gre/ai/futileShield.ts`) prunes it; the `setSubtype` sign stays neutral. Red without the prune: the Bot re-types a land on 10 of 10 seeds at 40 iterations and 8 of 10 at 200.",
+    },
+    {
+        label: "land-type change: Reef Shaman makes a Mountain for the Lightning Bolt in hand",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "every cost the Bot holds is already payable",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Reef Shaman",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Swamp",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+            ],
+            phase: "END_STEP",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Reef Shaman" }],
+        },
+        note: "Issue #6915, position B — the discriminating twin of position A: Lightning Bolt in hand and no red source. A land of the Bot's own made a Mountain gains {T}: Add {R} (CR 305.6), so the prune must leave the own-land targets standing; the opponent's tapped lands stay pruned.",
+    },
+    {
+        label: "land-type change: Reef Shaman makes a Forest to cast the green spell in hand",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "no green source for the green spell in hand",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Reef Shaman",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        tier: "stretch",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Reef Shaman",
+                    target: "Island",
+                },
+            ],
+        },
+        note: "Issue #6915, main-phase variant of position B: a {1}{G} spell and only Islands. An Island made a Forest gains {T}: Add {G} (CR 305.6), the one way to cast the Bears, so the prune must leave the own-land target standing (pinned by `futileShield.bot.test.ts`). `stretch`, not `must`: the search does not yet find the activate → resolve → cast line even at 4000 iterations, though it casts the Bears once the Island is already a Forest — a look-ahead gap independent of the prune (issue #7267).",
+    },
+    {
+        label: "regeneration shield: one pending Nightscape Familiar shield is enough",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "lethal burn aimed at the regenerator",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Nightscape Familiar",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Ancestral Recall", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            manaPool: { me: { B: 2 }, opp: { U: 1 } },
+        },
+        // The Bot's own activation reaches the stack through the real
+        // pipeline and parks priority on the opponent, whose harmless draw
+        // spell hands it back with both objects on the stack.
+        setup: [
+            { kind: "activate", card: "Nightscape Familiar" },
+            {
+                kind: "cast",
+                card: "Ancestral Recall",
+                by: "opp",
+                target: "opp",
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Nightscape Familiar" },
+            ],
+        },
+        note: "Issue #6915, position C. The Bot's own regeneration on the stack is a shield already granted (CR 701.19a), never a threat, and a draw spell can neither destroy nor damage; the stack threat bound used to count both, so every further activation looked warranted while mana lasted.",
+    },
+    {
+        label: "regeneration shield: Nightscape Familiar regenerates against lethal burn",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "only the Bot's own shield and a harmless spell on the stack",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Nightscape Familiar",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
+            priority: "opp",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            manaPool: { opp: { R: 1 } },
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Lightning Bolt",
+                by: "opp",
+                target: "Nightscape Familiar",
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Nightscape Familiar" }],
+        },
+        note: "Issue #6915, position D — the discriminating twin of position C: 3 damage to a 1/1 is a destruction a shield replaces (CR 701.19a, CR 704.5g), so the tightened threat bound must still count the burn and the Bot must regenerate.",
+    },
+    {
         // Issue #6913 — a STARVED root search must not pick below what the
         // 1-ply rollout policy already chooses. The human casts Strafe (3
         // damage) at the Bot's Stone Kavu (3/3, `{W}: +0/+1`); the Bot holds

@@ -58,6 +58,31 @@
  *     end of turn; player-scoped and source-scoped shields are kept (a
  *     painland's mana ability damages its controller without the stack).
  *
+ * LAND-TYPE CHANGES (issue #6915). An until-end-of-turn `setSubtype` to a
+ * basic land type on a land (CR 305.7 — the land loses its old land types
+ * and the abilities its rules text generated, and gains the new type's
+ * intrinsic mana ability, CR 305.6) is the same this-turn shape: the Op is
+ * signed `neutral` on purpose (fixing, mana denial and landwalk all share it),
+ * so with nothing to read the new type it ties with `pass`. It is pruned only
+ * when no consumer exists before the bot next holds priority — every one of
+ * these keeps the move:
+ *
+ *   * anything on the stack (an object may read the type as it resolves);
+ *   * a landwalker while blocks can still be declared this turn (CR 702.14c
+ *     is checked at the declaration, CR 509.1b), or an extra phase queued;
+ *   * a type-reading card — Oracle text naming a basic land type or "land
+ *     type(s)" — on any battlefield or in the mover's hand or graveyard;
+ *     the land-type changes themselves are read out of the text first;
+ *   * a land with any ability beyond an uncosted mana ability (stripping it
+ *     is a payoff);
+ *   * an UNTAPPED land of another player (its mana changes colour before the
+ *     bot's next priority — the opponent taps it after the bot passes);
+ *   * an UNTAPPED land of the mover's own whose new colour turns a cost in
+ *     hand, or a non-mana activation on the mover's battlefield, from
+ *     unpayable to payable (`canPayCost` with the land's unit replaced).
+ *     Combinations of several costs, and cards cast from other zones, are
+ *     not modelled: a narrowing.
+ *
  * Covers printed AND granted activations (Zombie Master's "{B}: Regenerate
  * this permanent."), via `getEffectiveActivatedAbilities`. Casting a
  * shield-only spell is not covered: a cast can trigger "whenever you cast"
@@ -82,7 +107,18 @@ import {
 import { effectiveTriggeredAbilities, findTriggeredAbility } from "../copy";
 import { tryGetDefinition } from "../../cards";
 import { getStaticAdditionalSacrifices } from "../state";
-import { isSpellStackItem, PERMANENT_TYPES } from "../constants";
+import {
+    isLand,
+    isManaAbilityDefinition,
+    isSpellStackItem,
+    PERMANENT_TYPES,
+} from "../constants";
+import { LAND_SUBTYPE_MANA } from "../manaColors";
+import {
+    canPayCost,
+    getProducibleManaUnits,
+    manaUnitsFor,
+} from "../manaAvailability";
 import { SOURCE_BINDING } from "../effects/interpreter";
 import { getEffectivePower } from "../layers";
 import { misdirectedTargetCount } from "./beneficence";
@@ -94,9 +130,9 @@ const LOSS_ONLY_COST_KEYS: ReadonlySet<string> = new Set(["tap", "mana"]);
 /** CR 510.4 — up to two combat damage steps. */
 const COMBAT_THREATS = 2;
 
-type ShieldKind = "regeneration" | "prevention" | "pump";
+type ShieldKind = "regeneration" | "prevention" | "pump" | "landType";
 
-type Shield = { kind: ShieldKind; permanentId: string };
+type Shield = { kind: ShieldKind; permanentId: string; subtype?: string };
 
 /** The this-turn effects `move` creates when it activates an ability whose
  *  WHOLE script is shields / until-end-of-turn P/T changes paid for with a
@@ -104,7 +140,7 @@ type Shield = { kind: ShieldKind; permanentId: string };
 function thisTurnEffectsOf(
     state: GameState,
     move: Move
-): { shields: Shield[]; tapCost: boolean } | null {
+): { shields: Shield[]; tapCost: boolean; moverId: string } | null {
     if (move.kind !== "activate-ability") return null;
     if (state.gameOver) return null;
     const source = findPermanent(state, move.cardInstanceId);
@@ -121,7 +157,11 @@ function thisTurnEffectsOf(
         ability.cost.tap === true
     );
     if (!shields) return null;
-    return { shields, tapCost: ability.cost.tap === true };
+    return {
+        shields,
+        tapCost: ability.cost.tap === true,
+        moverId: source.controllerId,
+    };
 }
 
 /** True when `move` activates an ability whose only outcome is a this-turn
@@ -133,7 +173,7 @@ export function isFutileThisTurnMove(state: GameState, move: Move): boolean {
     if (move.kind !== "activate-ability") return false;
     if (move.targets.length > 0 && anyBecameTargetListener(state)) return false;
     return effects.shields.every((s) =>
-        shieldIsFutile(state, s, effects.tapCost)
+        shieldIsFutile(state, s, effects.tapCost, effects.moverId)
     );
 }
 
@@ -194,6 +234,22 @@ function shieldsOf(
     if (!effects || effects.length === 0) return null;
     const out: Shield[] = [];
     for (const op of effects) {
+        // CR 608.2d — the land type "of your choice" is an `optionChoice`
+        // whose every mode is one land-type change; each mode is a shield.
+        if ("op" in op && op.op === "optionChoice") {
+            if (op.modes.length === 0) return null;
+            for (const mode of op.modes) {
+                if (mode.effects.length !== 1) return null;
+                const shield = landTypeChangeOf(
+                    mode.effects[0]!,
+                    sourceId,
+                    targets
+                );
+                if (!shield) return null;
+                out.push(shield);
+            }
+            continue;
+        }
         const shield = shieldOf(op, sourceId, targets, tapCost);
         if (!shield) return null;
         out.push(shield);
@@ -247,7 +303,31 @@ function shieldOf(
         const permanentId = permanentNamed(op.target, sourceId, targets);
         return permanentId ? { kind: "pump", permanentId } : null;
     }
-    return null;
+    return landTypeChangeOf(op, sourceId, targets);
+}
+
+/** CR 305.7 — an until-end-of-turn change of a permanent's land type to one
+ *  literal basic land type; `null` for any other Op or shape. */
+function landTypeChangeOf(
+    op: EffectOp,
+    sourceId: string,
+    targets: Extract<Move, { kind: "activate-ability" }>["targets"]
+): Shield | null {
+    if (!("op" in op) || op.op !== "setSubtype") return null;
+    if (!Array.isArray(op.subtypes) || op.subtypes.length !== 1) return null;
+    const subtype = op.subtypes[0]!;
+    if (!(subtype in LAND_SUBTYPE_MANA)) return null;
+    if (op.family === "creature") return null;
+    // CR 611.2a — only a change that ends with this turn.
+    if (
+        !op.duration ||
+        op.duration.phase !== "end-of-turn" ||
+        (op.duration.skip ?? 0) > 0
+    ) {
+        return null;
+    }
+    const permanentId = permanentNamed(op.target, sourceId, targets);
+    return permanentId ? { kind: "landType", permanentId, subtype } : null;
 }
 
 /** The battlefield permanent a selector names: `$source`, or an announced
@@ -281,10 +361,19 @@ function anyBecameTargetListener(state: GameState): boolean {
 function shieldIsFutile(
     state: GameState,
     shield: Shield,
-    tapCost: boolean
+    tapCost: boolean,
+    moverId: string
 ): boolean {
     const permanent = findPermanent(state, shield.permanentId);
     if (!permanent) return false;
+    if (shield.kind === "landType") {
+        return landTypeChangeIsFutile(
+            state,
+            permanent,
+            shield.subtype!,
+            moverId
+        );
+    }
     const threats = threatsTo(state, permanent, tapCost, shield.kind);
     // A P/T change is consumed by combat damage involving the creature (even
     // an unblocked attacker deals its power to the player) or a marked-damage
@@ -302,7 +391,202 @@ function shieldIsFutile(
     ) {
         return true;
     }
-    return (permanent.regenerationShields ?? 0) >= threats;
+    const shields =
+        (permanent.regenerationShields ?? 0) +
+        pendingRegenerationShields(state, permanent.id);
+    return shields >= threats;
+}
+
+/** Regeneration shields already on the stack for `permanentId`: an object
+ *  whose whole script is `regenerate` Ops naming it (CR 701.19a). Only those
+ *  ABOVE every threatening object count — they resolve first (CR 608.1), so
+ *  the shield stands before any threat below them; one under a threat comes
+ *  too late for it, and is not counted. */
+function pendingRegenerationShields(
+    state: GameState,
+    permanentId: string
+): number {
+    let pending = 0;
+    // The top of the stack is its last element; stop at the first threat.
+    for (let i = state.stack.length - 1; i >= 0; i--) {
+        const item = state.stack[i]!;
+        if (!isHarmlessStackItem(item, false)) break;
+        const script = stackItemScript(item);
+        if (!script || script.length === 0) continue;
+        const sourceId = item.triggerSourceId ?? item.id;
+        const targets = item.targets ?? [];
+        if (
+            script.every(
+                (op) =>
+                    "op" in op &&
+                    op.op === "regenerate" &&
+                    permanentNamed(op.target, sourceId, targets) === permanentId
+            )
+        ) {
+            pending += script.length;
+        }
+    }
+    return pending;
+}
+
+/** Phases from which a declare-blockers step can still come this turn. */
+const BLOCKS_AHEAD_PHASES: ReadonlySet<string> = new Set([
+    "MULLIGAN",
+    "UNTAP",
+    "UPKEEP",
+    "DRAW",
+    "PRECOMBAT_MAIN",
+    "BEGINNING_OF_COMBAT",
+    "DECLARE_ATTACKERS",
+]);
+
+/** A basic land type, its landwalk ("gains mountainwalk"), or "land type(s)"
+ *  in Oracle text — a card that reads the type a land-type change writes. */
+const LAND_TYPE_WORDS =
+    /\b(plains|islands?|swamps?|mountains?|forests?)(walk)?\b|\bland types?\b/i;
+
+/** Is an until-end-of-turn change of `land` to `subtype` provably unused
+ *  before `moverId` next holds priority — see the module header. */
+function landTypeChangeIsFutile(
+    state: GameState,
+    land: CardInstanceState,
+    subtype: string,
+    moverId: string
+): boolean {
+    if (!isLand(land)) return false;
+    if (state.stack.length > 0) return false;
+    if (!hasOnlyPlainManaAbilities(land)) return false;
+    if (landwalkCanStillMatter(state)) return false;
+    if (anyLandTypeReader(state, moverId)) return false;
+    if (!land.isTapped) {
+        if (land.controllerId !== moverId) return false;
+        if (retypeUnlocksACost(state, land, subtype, moverId)) return false;
+    }
+    return true;
+}
+
+/** CR 305.7 strips what a land's rules text generated: a land is "plain" when
+ *  that is nothing beyond uncosted, script-free mana abilities. */
+function hasOnlyPlainManaAbilities(land: CardInstanceState): boolean {
+    if (land.staticAbilities.length > 0) return false;
+    if (effectiveTriggeredAbilities(land).length > 0) return false;
+    const def = tryGetDefinition(land.card.id as string);
+    if (!def || (def.staticEffects?.length ?? 0) > 0) return false;
+    return getEffectiveActivatedAbilities(land).every(
+        ({ ability }) =>
+            isManaAbilityDefinition(ability) &&
+            !ability.effects &&
+            !ability.resolve &&
+            Object.entries(ability.cost).every(
+                ([key, value]) =>
+                    value === undefined || value === false || key === "tap"
+            )
+    );
+}
+
+/** CR 702.14c / 509.1b — a landwalker reads the defender's land types when
+ *  blockers are declared; any landwalker keeps the change while such a
+ *  declaration can still come this turn. */
+function landwalkCanStillMatter(state: GameState): boolean {
+    const blocksAhead =
+        BLOCKS_AHEAD_PHASES.has(state.phase) ||
+        (state.phase === "DECLARE_BLOCKERS" &&
+            !state.combat?.blockersConfirmed) ||
+        (state.extraPhases?.length ?? 0) > 0;
+    if (!blocksAhead) return false;
+    return state.players.some((p) =>
+        p.battlefield.some((c) =>
+            c.staticAbilities.some((k) => /walk$/i.test(k))
+        )
+    );
+}
+
+function anyLandTypeReader(state: GameState, moverId: string): boolean {
+    for (const player of state.players) {
+        const zones =
+            player.id === moverId
+                ? [player.battlefield, player.hand, player.graveyard]
+                : [player.battlefield];
+        for (const zone of zones) {
+            if (zone.some(readsLandTypes)) return true;
+        }
+    }
+    return false;
+}
+
+/** Does the card's Oracle text, less its own land-type-change abilities, name
+ *  a land type? An unknown definition reads as a reader. */
+function readsLandTypes(card: CardInstanceState): boolean {
+    const def = tryGetDefinition(card.card.id as string);
+    if (!def) return true;
+    if (def.oracleText === undefined) return true;
+    let text = def.oracleText;
+    for (const ability of def.activatedAbilities ?? []) {
+        if (ability.oracleText && isLandTypeChangeScript(ability.effects)) {
+            text = text.replace(ability.oracleText, "");
+        }
+    }
+    return LAND_TYPE_WORDS.test(text);
+}
+
+function isLandTypeChangeScript(
+    effects: readonly EffectOp[] | undefined
+): boolean {
+    if (!effects || effects.length === 0) return false;
+    return effects.every((op) => {
+        if (!("op" in op)) return false;
+        if (op.op === "optionChoice") {
+            return op.modes.every((m) => isLandTypeChangeScript(m.effects));
+        }
+        return op.op === "setSubtype";
+    });
+}
+
+/** Does replacing `land`'s mana unit with `subtype`'s colour (CR 305.6) turn
+ *  any cost the mover holds from unpayable to payable? An unreadable census
+ *  answers `true`. */
+function retypeUnlocksACost(
+    state: GameState,
+    land: CardInstanceState,
+    subtype: string,
+    moverId: string
+): boolean {
+    const player = state.players.find((p) => p.id === moverId);
+    if (!player) return true;
+    const units = manaUnitsFor(state, player);
+    const own = getProducibleManaUnits(land, moverId)[0];
+    const at = own
+        ? units.findIndex(
+              (u) => u.size === own.size && [...own].every((c) => u.has(c))
+          )
+        : -1;
+    if (at < 0) return true;
+    const retyped = units.map((u, i) =>
+        i === at ? new Set([LAND_SUBTYPE_MANA[subtype]!]) : u
+    );
+    const opts = { life: player.life };
+    return demandedCosts(player).some(
+        (cost) =>
+            !canPayCost(units, cost, opts) && canPayCost(retyped, cost, opts)
+    );
+}
+
+/** The mana costs the mover may want to pay this turn: every card in hand and
+ *  every non-mana activation on its battlefield. */
+function demandedCosts(player: GameState["players"][number]) {
+    const costs: NonNullable<ActivatedAbility["cost"]["mana"]>[] = [];
+    for (const card of player.hand) {
+        const cost = tryGetDefinition(card.card.id as string)?.manaCost;
+        if (cost) costs.push(cost);
+    }
+    for (const card of player.battlefield) {
+        for (const { ability } of getEffectiveActivatedAbilities(card)) {
+            if (ability.cost.mana && !isManaAbilityDefinition(ability)) {
+                costs.push(ability.cost.mana);
+            }
+        }
+    }
+    return costs;
 }
 
 /** An upper bound on the destruction / damage events that can reach
@@ -397,20 +681,44 @@ function isHarmlessStackItem(item: StackItem, tapCost: boolean): boolean {
     const script = stackItemScript(item);
     if (!script || script.length === 0) return false;
     const harmless = tapCost ? NON_TAPPING_HARMLESS_OPS : HARMLESS_OPS;
-    return script.every((op) => "op" in op && harmless.has(op.op));
+    return script.every((op) => isHarmlessOp(op, harmless));
 }
 
-/** Ops that can neither destroy a permanent nor deal damage. */
-const HARMLESS_OPS: ReadonlySet<string> = new Set([
-    "tapUntap",
-    "skipNextUntap",
-    "draw",
-    "gainLife",
-]);
+/** An `optionChoice` is harmless when every mode is (CR 608.2d — the mode is
+ *  picked on resolution, so any of them may happen). */
+function isHarmlessOp(op: EffectOp, harmless: ReadonlySet<string>): boolean {
+    if (!("op" in op)) return false;
+    if (op.op === "optionChoice") {
+        return (
+            op.modes.length > 0 &&
+            op.modes.every(
+                (m) =>
+                    m.effects.length > 0 &&
+                    m.effects.every((inner) => isHarmlessOp(inner, harmless))
+            )
+        );
+    }
+    return harmless.has(op.op);
+}
 
+/** Ops that neither tap a permanent nor destroy or damage one: a shield
+ *  (CR 701.19a / 615.1a) only protects, and a land-type change (CR 305.7)
+ *  only rewrites a type line and strips abilities (CR 305.7) — a creature
+ *  that shrinks for losing "as long as you control a Forest" dies only on
+ *  damage already marked, which the bound counts on its own. */
 const NON_TAPPING_HARMLESS_OPS: ReadonlySet<string> = new Set([
     "draw",
     "gainLife",
+    "regenerate",
+    "preventDamage",
+    "setSubtype",
+]);
+
+/** Ops that can neither destroy a permanent nor deal damage. */
+const HARMLESS_OPS: ReadonlySet<string> = new Set([
+    ...NON_TAPPING_HARMLESS_OPS,
+    "tapUntap",
+    "skipNextUntap",
 ]);
 
 /** The script a stack object resolves — `effects`, else the `aiEffects`
