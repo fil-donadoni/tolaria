@@ -454,6 +454,13 @@
             "needsSetup": true
         }
     ],
+    "Nightscape Familiar": [
+        {
+            "label": "regeneration shield: Nightscape Familiar regenerates against lethal burn",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Phlage, Titan of Fire's Fury": [
         {
             "label": "escape: casts Phlage from the graveyard",
@@ -523,6 +530,18 @@
     "Ravenous Rats": [
         {
             "label": "opponent's choice: casts Ravenous Rats into a two-card hand",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Reef Shaman": [
+        {
+            "label": "land-type change: Reef Shaman makes a Forest to cast the green spell in hand",
+            "tier": "stretch",
+            "needsSetup": false
+        },
+        {
+            "label": "land-type change: Reef Shaman makes a Mountain for the Lightning Bolt in hand",
             "tier": "must",
             "needsSetup": false
         }
