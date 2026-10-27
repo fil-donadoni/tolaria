@@ -13,7 +13,8 @@ import {
     makeState,
 } from "../cards/__tests__/setup.helper";
 import { getCardByName } from "../cards/index";
-import type { GameState, ManaCost } from "../gre/state";
+import type { ManaCost } from "../cards/types";
+import type { GameState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
     makeMutationCtx,
