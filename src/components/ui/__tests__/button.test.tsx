@@ -95,17 +95,15 @@ describe("Button — v4 40/48 rungs (ADR 0103)", () => {
         );
     });
 
-    // Deliberately NOT retargeted (see the comment on `size` in button.tsx):
-    // enlarging every board HUD glyph to a 44px square is a layout change with
-    // cross-surface blast radius, tracked as #2792. This row exists so that
-    // widening the v4 rungs to the icon sizes is a conscious edit to a failing
-    // test rather than a silent board reflow.
+    // Issue #2792: the dense rungs keep their fixed-px plate on a fine pointer
+    // and carry the `--touch-min` floor (0px fine, 44px coarse) on both axes.
     it.each(["icon", "icon-sm", "icon-xs", "xs"] as const)(
-        "size %s is left on its own dense rung, not the v4 plate rung",
+        "size %s carries the --touch-min floor, not the v4 plate rung",
         (size) => {
-            expect(classTokens(renderButton({ size }))).not.toContain(
-                "min-h-[max(var(--control-h),40px)]"
-            );
+            const tokens = classTokens(renderButton({ size }));
+            expect(tokens).toContain("min-h-[var(--touch-min)]");
+            expect(tokens).toContain("min-w-[var(--touch-min)]");
+            expect(tokens).not.toContain("min-h-[max(var(--control-h),40px)]");
         }
     );
 

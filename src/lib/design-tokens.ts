@@ -158,6 +158,11 @@ export const CONTROL_HEIGHT_TOKENS: readonly TokenSpec[] = [
         role: "dense rung: small buttons, segmented pills",
     },
     {
+        name: "--touch-min",
+        value: "0px",
+        role: "touch floor for dense Button rungs (xs, icon*): 0px on fine, var(--control-h-coarse) under @media (pointer: coarse) — issue #2792",
+    },
+    {
         name: "--control-h-xs",
         value: "28px",
         role: "short-viewport floor (landscape phone contextual bar, issue #2662) — WCAG 2.5.8 AA minimum (24x24) with margin, not pointer-aware",

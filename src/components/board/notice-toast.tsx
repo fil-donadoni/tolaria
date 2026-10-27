@@ -58,7 +58,7 @@ export default function NoticeToast({
                         size="xs"
                         onClick={onDismiss}
                         aria-label="Dismiss notice"
-                        className="min-h-6 min-w-6 px-1 text-sm leading-none"
+                        className="min-h-[max(var(--touch-min),1.5rem)] min-w-[max(var(--touch-min),1.5rem)] px-1 text-sm leading-none"
                     >
                         ×
                     </Button>

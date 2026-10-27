@@ -34,28 +34,34 @@ const buttonVariants = cva(
                 ghost: "btn-tone-ghost",
                 link: "border-transparent bg-transparent font-sans tracking-normal text-text-muted underline-offset-4 shadow-none hover:bg-transparent hover:text-parchment hover:underline",
             },
-            // Height comes from the pointer token (ADR 0101 §2, issue #2581):
-            // `--control-h` is 44px on a coarse pointer and 32px on a fine
-            // one, `--control-h-sm` the dense rung 4px under it. `min-h`, not
-            // `h`, so a wrapping label still grows the plate instead of
-            // overflowing it. The three icon-only rungs and `xs` are
-            // deliberately NOT retargeted here — enlarging every board HUD
-            // glyph to a 44px square is a layout change with cross-surface
-            // blast radius, tracked separately (#2792), not the token slice.
+            // Height comes from the pointer token (ADR 0101 §2): `--control-h`
+            // is 44px on a coarse pointer and 32px on a fine one,
+            // `--control-h-sm` the dense rung 4px under it. `min-h`, not `h`,
+            // so a wrapping label still grows the plate instead of
+            // overflowing it.
             //
-            // v4 rungs 40 / 48 (ADR 0103, issue #2723). `max(--control-h,40px)`
-            // rather than a flat 40px, so the COARSE pointer keeps its 44px
-            // WCAG 2.5.8 target and only the fine-pointer rung moves (32 → 40).
-            // A flat 40 would have SHRUNK every touch button by 4px, which is
+            // The dense rungs (`xs`, `icon*`) keep their fixed-px plate on a
+            // fine pointer and add a `--touch-min` floor (0px fine, 44px
+            // coarse): the plate grows under touch, glyph/text size stays. A
+            // consumer `min-h-*` / `h-*` / `size-*` would win through
+            // tailwind-merge, so it must reference `--touch-min` (guarded by
+            // button-touch-floor.guard.test.ts, issue #2792).
+            //
+            // v4 rungs 40 / 48 (ADR 0103). `max(--control-h,40px)` rather
+            // than a flat 40px, so the COARSE pointer keeps its 44px WCAG
+            // 2.5.8 target and only the fine-pointer rung moves (32 → 40). A
+            // flat 40 would have SHRUNK every touch button by 4px, which is
             // the one direction this rung must never go.
             size: {
                 default: "min-h-[max(var(--control-h),40px)] px-4 py-2 text-sm",
                 sm: "min-h-[var(--control-h-sm)] px-3 py-1.5 text-xs",
-                xs: "px-2 py-0.5 text-xs",
+                xs: "min-h-[var(--touch-min)] min-w-[var(--touch-min)] px-2 py-0.5 text-xs",
                 lg: "min-h-12 px-5 py-2.5 text-base",
-                icon: "size-8 p-0",
-                "icon-sm": "size-7 p-0 [&_svg:not([class*='size-'])]:size-3.5",
-                "icon-xs": "size-6 p-0 [&_svg:not([class*='size-'])]:size-3",
+                icon: "size-8 min-h-[var(--touch-min)] min-w-[var(--touch-min)] p-0",
+                "icon-sm":
+                    "size-7 min-h-[var(--touch-min)] min-w-[var(--touch-min)] p-0 [&_svg:not([class*='size-'])]:size-3.5",
+                "icon-xs":
+                    "size-6 min-h-[var(--touch-min)] min-w-[var(--touch-min)] p-0 [&_svg:not([class*='size-'])]:size-3",
             },
         },
         defaultVariants: {
