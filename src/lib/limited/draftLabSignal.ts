@@ -20,41 +20,22 @@ import type { DraftPackCard } from "@convex/limited/eventTypes";
 import { getRuntimeBoosterConfig } from "@convex/limited/registry";
 import { draftLabGetCardEvalMeta } from "./draftLabCardMeta";
 
-/** Memo of expected shares per (pack source, cube pool, lookups) — computing
- *  one walks a whole sheet or cube pool, and a draft asks 360 times. */
-const expectedCache = new WeakMap<object, Map<string, ExpectedShares | null>>();
-
+/** Expected shares of one pack source. Recomputed per call, never memoised
+ *  across calls: the shares depend on the rating lookup, the profile lookup,
+ *  the booster registry and the cube pool, and a cache keyed on any subset of
+ *  them would make a run's picks depend on what ran before it. */
 function expectedFor(
     sourceKey: string,
     cubePool: readonly string[] | undefined,
     getPickRating: GetPickRating,
     getCardProfile: GetCardProfile | undefined
 ): ExpectedShares | null {
-    // Keyed on the lookups' identity: a changed rating/profile lookup is a
-    // different power scale and must not reuse a stale share.
-    const cacheKey = getPickRating;
-    let perSource = expectedCache.get(cacheKey);
-    if (!perSource) {
-        perSource = new Map();
-        expectedCache.set(cacheKey, perSource);
-    }
-    const key = `${sourceKey}|${cubePool?.length ?? 0}|${getCardProfile ? "p" : "-"}`;
-    if (!perSource.has(key)) {
-        perSource.set(
-            key,
-            computeExpectedShares(
-                sourceKey,
-                getRuntimeBoosterConfig,
-                cubePool,
-                buildSignalFacts(
-                    draftLabGetCardEvalMeta,
-                    getPickRating,
-                    getCardProfile
-                )
-            )
-        );
-    }
-    return perSource.get(key) ?? null;
+    return computeExpectedShares(
+        sourceKey,
+        getRuntimeBoosterConfig,
+        cubePool,
+        buildSignalFacts(draftLabGetCardEvalMeta, getPickRating, getCardProfile)
+    );
 }
 
 /** Folds the pack a seat is about to pick from into its Signal state and
