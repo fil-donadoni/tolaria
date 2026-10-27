@@ -22,6 +22,7 @@ import type {
 import type { ManaProductionIR } from "./grammar/ir";
 import { printManaCost } from "./manaCost";
 import {
+    countFilterOf,
     declareTargets,
     lowerSentence,
     SentenceWalk,
@@ -36,6 +37,11 @@ export { declareTargets } from "./lowerEffects";
 export type LowerAbilityResult =
     | { readonly ok: true; readonly ability: ActivatedAbility }
     | { readonly ok: false; readonly reason: string };
+
+/** `activationCondition` holds ONE comparison: two conditional restrictions
+ *  on one ability have no field to meet in. */
+const TWO_CONDITIONS =
+    "two conditional activation restrictions on one ability (activationCondition holds one comparison)";
 
 /** CR 602.5 — restriction sentences onto the ability's own fields. */
 function applyRestrictions(
@@ -68,6 +74,8 @@ function applyRestrictions(
                 break;
             case "own-graveyard-at-least":
                 // CR 602.1b / 109.5 — "your graveyard" is the controller's.
+                if (ability.activationCondition !== undefined)
+                    return TWO_CONDITIONS;
                 ability.activationCondition = {
                     left: {
                         count: { zone: "graveyard", controller: "controller" },
@@ -76,6 +84,55 @@ function applyRestrictions(
                     right: restriction.count,
                 };
                 break;
+            case "controls-at-least": {
+                // CR 602.5 + CR 109.5 — "you" is the controller; "an opponent"
+                // is their one opponent (`activationConditionHolds`).
+                if (ability.activationCondition !== undefined)
+                    return TWO_CONDITIONS;
+                const filter = countFilterOf(restriction.filter);
+                if (!filter.ok) return filter.reason;
+                ability.activationCondition = {
+                    left: {
+                        count: {
+                            zone: "battlefield",
+                            controller:
+                                restriction.player === "you"
+                                    ? "controller"
+                                    : "opponent",
+                            filter: filter.value,
+                        },
+                    },
+                    op: "ge",
+                    right: restriction.atLeast,
+                };
+                break;
+            }
+            case "opponent-controls-more": {
+                // CR 602.5 + CR 109.5 — strictly more under the opponent's
+                // control than under the controller's; a tie refuses.
+                if (ability.activationCondition !== undefined)
+                    return TWO_CONDITIONS;
+                const filter = countFilterOf(restriction.filter);
+                if (!filter.ok) return filter.reason;
+                ability.activationCondition = {
+                    left: {
+                        count: {
+                            zone: "battlefield",
+                            controller: "opponent",
+                            filter: filter.value,
+                        },
+                    },
+                    op: "gt",
+                    right: {
+                        count: {
+                            zone: "battlefield",
+                            controller: "controller",
+                            filter: structuredClone(filter.value),
+                        },
+                    },
+                };
+                break;
+            }
             default: {
                 const never: never = restriction;
                 return `no lowering for restriction ${JSON.stringify(never)}`;

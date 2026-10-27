@@ -430,6 +430,59 @@ export const comparativeControlsRule: Rule<ComparativeControlsIR> = rule(
 );
 
 /**
+ * CR 109.5 — "you control five or more lands" / "an opponent controls four or
+ * more lands": the PLURAL reading of the `controls` count, the one
+ * {@link ConditionIR}'s `atLeast` was shaped for. `player` is whose
+ * permanents are counted — the ability's controller, or one of their
+ * opponents.
+ */
+export type CountedControlsIR = {
+    readonly kind: "controls-at-least";
+    readonly player: "you" | "opponent";
+    readonly filter: PermanentFilter;
+    readonly atLeast: number;
+};
+
+const COUNTED_CONTROLS =
+    /^(you control|an opponent controls) (\S+) or more (.+)$/;
+
+/**
+ * `"you control two or more black permanents"` — a number word from two up
+ * (one is the singular article's reading, {@link controlsRule}), then a
+ * PLURAL descriptor with no controller clause of its own, read exactly as the
+ * singular form reads its own ({@link controlledFilter}). Written once for
+ * every site that prints the counted form: an activation restriction
+ * (CR 602.5, issue #5258) today, a counted intervening-if when its cut lands.
+ */
+export const countedControlsRule: Rule<CountedControlsIR> = rule(
+    "counted controls",
+    (span, ctx) => {
+        const match = span.match(COUNTED_CONTROLS);
+        if (match === null) return fail("not a counted controls", span);
+        const atLeast = /^[a-z]+$/.test(match[2]!)
+            ? readNumberWord(match[2]!)
+            : null;
+        if (atLeast === null || atLeast < 2)
+            return fail(
+                `"${match[2]}" is not a permanent-count threshold`,
+                span
+            );
+        const descriptor = descriptorRule.run(match[3]!, ctx);
+        if (!descriptor.ok) return descriptor;
+        if (descriptor.value.plural !== true)
+            return fail('"or more" introduces a plural descriptor', span);
+        const filter = controlledFilter(descriptor.value, span);
+        if (!filter.ok) return filter;
+        return ok({
+            kind: "controls-at-least" as const,
+            player: match[1] === "you control" ? "you" : "opponent",
+            filter: filter.value,
+            atLeast,
+        });
+    }
+);
+
+/**
  * `"you control a Goblin"` — the controls clause itself, without the word that
  * introduces it. Shared by the three sites that print it: the intervening "if"
  * above (CR 603.4), a resolution-time "If you control …, … instead" (CR 608.2c)

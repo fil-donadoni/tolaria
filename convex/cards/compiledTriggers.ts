@@ -29,8 +29,7 @@
  * earns its registry row (ADR 0045) — never upfront.
  */
 
-import { getEffectiveColors } from "./effectiveColors";
-import { matchesPermanentFilter } from "./filters";
+import { countControlledMatching } from "./controlledCount";
 import type { PermanentFilter, SpellFilter } from "./filters";
 import type {
     CardType,
@@ -416,7 +415,7 @@ function conditionHolds(
         );
         return players.some(
             (p) =>
-                countMatching(
+                countControlledMatching(
                     p,
                     condition.filter,
                     self,
@@ -429,59 +428,13 @@ function conditionHolds(
     const player = state.players.find((p) => p.id === self.controllerId);
     if (player === undefined) return false;
     return (
-        countMatching(player, condition.filter, self, condition.atLeast) >=
-        condition.atLeast
+        countControlledMatching(
+            player,
+            condition.filter,
+            self,
+            condition.atLeast
+        ) >= condition.atLeast
     );
-}
-
-/**
- * How many of `player`'s battlefield permanents `filter` matches, counting no
- * further than `cap` (the caller only needs "at least N"). Reads the LIVE
- * colours through the one authority every other colour read uses.
- */
-function countMatching(
-    player: TriggerStateView["players"][number],
-    filter: PermanentFilter,
-    self: PermanentView,
-    cap = Infinity
-): number {
-    let matched = 0;
-    for (const permanent of player.battlefield) {
-        if (
-            matchesPermanentFilter(
-                {
-                    id: permanent.id,
-                    types: permanent.types,
-                    subtypes: permanent.subtypes,
-                    supertypes: permanent.supertypes,
-                    staticAbilities: permanent.staticAbilities,
-                    controllerId: permanent.controllerId,
-                    isToken: permanent.isToken,
-                    power: permanent.power,
-                    toughness: permanent.toughness,
-                    // CR 105.2 / 613.1e — the LIVE colours, through the one
-                    // authority every other colour read uses. The engine hands
-                    // this gate the raw game state, whose instances carry no
-                    // `colors` field, so a colour clause ("if you control a
-                    // blue or black permanent") would otherwise match nothing.
-                    colors:
-                        permanent.colors ??
-                        getEffectiveColors(
-                            permanent as unknown as PermanentView
-                        ),
-                },
-                filter,
-                {
-                    selfInstanceId: self.id,
-                    selfControllerId: self.controllerId,
-                }
-            )
-        ) {
-            matched += 1;
-            if (matched >= cap) break;
-        }
-    }
-    return matched;
 }
 
 /**
@@ -496,7 +449,7 @@ function controlsMore(
 ): boolean {
     const counts = new Map<string, number>();
     for (const p of state.players)
-        counts.set(p.id, countMatching(p, condition.filter, self));
+        counts.set(p.id, countControlledMatching(p, condition.filter, self));
     const mine = counts.get(self.controllerId);
     if (mine === undefined) return false;
     const subject = condition.subject;
