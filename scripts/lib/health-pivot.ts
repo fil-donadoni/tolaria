@@ -13,8 +13,8 @@
  *    `/health-fix` issues whose PR is the repair. `land` on either machine
  *    reads them; they retire with the RED itself (only read under a RED).
  *    A repair declared on an earlier RED of the same run (no GREEN or AMBER
- *    since) is still read, while its issue is open (issue #7139): a later
- *    tip that went RED again still holds the culprit that repair reverts.
+ *    since) is still read, while its issue is open: a later tip that went
+ *    RED again still holds the culprit that repair reverts.
  *
  * Only the `github` backend has a pivot: with the `file` store there is one
  * machine's markers and its local ledger already is the whole truth, so every
