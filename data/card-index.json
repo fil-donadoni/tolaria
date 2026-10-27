@@ -2294,6 +2294,14 @@
         "source": "compiled"
     },
     {
+        "name": "Anger",
+        "scryfallId": "fa2920af-e6a1-4939-ab59-67af4430e5b8",
+        "oracleId": "eaabd151-2160-4bff-82c0-3fa88659be98",
+        "firstSet": "jud",
+        "firstPrintId": "fa2920af-e6a1-4939-ab59-67af4430e5b8",
+        "firstPrintSet": "jud"
+    },
+    {
         "name": "Angler Drake",
         "scryfallId": "d14c753e-c5bf-4c34-b408-ac367b6ca6ab",
         "oracleId": "620d7146-b5b3-487c-a24b-f36b10f48df4",

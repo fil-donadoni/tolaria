@@ -55,10 +55,17 @@ export function toLayerState(
         players: players.map((p) => ({
             id: p.id,
             battlefield: p.battlefield.map(toPermanentView),
-            // Graveyard cards feed graveyard-counting CDAs (Lhurgoyf). Only
-            // `.types` is read; the projected client state carries it.
+            // Graveyard cards feed graveyard-counting CDAs (Lhurgoyf) through
+            // `.types`, and CR 113.6b graveyard-functioning static abilities
+            // (Anger) through the instance, definition handle, owner and
+            // CR 613.7d stamp; the projected client state carries all five.
             graveyard: (p.graveyard ?? []).map((c) => ({
                 types: (c.types ?? []) as CardType[],
+                id: c.id,
+                ownerId: c.ownerId,
+                card: c.card as Readonly<Record<string, unknown>>,
+                subtypes: c.subtypes,
+                zoneStaticSeq: (c as { zoneStaticSeq?: number }).zoneStaticSeq,
             })),
             // CR 607.2a — a CDA totalling the cards exiled with its source
             // (Sutured Ghoul) reads the linked pile; dropping the zone here

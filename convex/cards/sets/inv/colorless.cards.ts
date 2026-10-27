@@ -5,12 +5,10 @@
 import type {
     ActivatedAbilityContext,
     GameEvent,
-    PermanentView,
     SpellContext,
     StaticEffectContext,
-    StaticEffectStateView,
 } from "../../types";
-import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
+import { controlsSubtype, defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { firstBlockerOf } from "../../abilities/triggers/rampageTrigger";
 import {
@@ -444,21 +442,9 @@ export const sparringGolem = defineCard(() => ({
 // source against the whole board, re-evaluated every SBA pass by
 // `recomputeContinuousEffects` (`gre/state.ts`) so the keyword appears/
 // disappears as the controller's basics come and go. Each of the three
-// clauses is its own `keyword-grant` entry gated on `controlsBasicLandType`,
-// the same "as long as you control a <land type>" predicate the two P/T
-// clauses above use, extracted to file scope for reuse across all five
-// clauses (issue #1850).
-function controlsBasicLandType(landType: string) {
-    return (source: PermanentView, state: StaticEffectStateView): boolean =>
-        state.players.some((p) =>
-            p.battlefield.some(
-                (c) =>
-                    c.controllerId === source.controllerId &&
-                    c.subtypes.includes(landType)
-            )
-        );
-}
-
+// clauses is its own `keyword-grant` entry gated on `controlsSubtype`
+// (`cards/types.ts`), the same "as long as you control a <land type>"
+// predicate the two P/T clauses above use (issue #1850).
 export const tek = defineCard(() => ({
     id: "c1f38104-a699-4bb9-930a-699f7bbc338a",
     rarity: "rare",
@@ -476,7 +462,7 @@ export const tek = defineCard(() => ({
             applies: EFFECT_AFFECTS_SELF,
             compute: (source, state) => {
                 const controls = (subtype: string) =>
-                    controlsBasicLandType(subtype)(source, state);
+                    controlsSubtype(subtype)(source, state);
                 let power = 0;
                 let toughness = 0;
                 if (controls("Plains")) toughness += 2;
@@ -487,19 +473,19 @@ export const tek = defineCard(() => ({
         {
             kind: "keyword-grant",
             applies: EFFECT_AFFECTS_SELF,
-            condition: controlsBasicLandType("Island"),
+            condition: controlsSubtype("Island"),
             keyword: "flying",
         },
         {
             kind: "keyword-grant",
             applies: EFFECT_AFFECTS_SELF,
-            condition: controlsBasicLandType("Mountain"),
+            condition: controlsSubtype("Mountain"),
             keyword: "first strike",
         },
         {
             kind: "keyword-grant",
             applies: EFFECT_AFFECTS_SELF,
-            condition: controlsBasicLandType("Forest"),
+            condition: controlsSubtype("Forest"),
             keyword: "trample",
         },
     ],

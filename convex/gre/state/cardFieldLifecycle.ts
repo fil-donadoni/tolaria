@@ -172,6 +172,8 @@ export const CARD_FIELD_LIFECYCLE = {
     capturedBindings:           { codec: "record",  reset: NONE },
     worldSeq:                   { codec: "defined", reset: NONE },
     staticSeq:                  { codec: "defined", reset: ZONE },
+    // Also cleared by hand at every graveyard departure (`noteGraveyardDeparture`).
+    zoneStaticSeq:              { codec: "defined", reset: ZONE },
     // Both tallies clear at turn START (`gre/phases.ts`), not at cleanup.
     activationsThisTurn:        { codec: "record",  reset: ["custom:turn", "zone-change"] },
     triggersThisTurn:           { codec: "record",  reset: ["custom:turn", "zone-change"] },

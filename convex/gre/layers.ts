@@ -15,7 +15,10 @@ import {
     tryGetDefinition,
 } from "../cards";
 import { objectHasChosenName } from "../cards/cardNames";
-import { declaresLayer7StaticEffect } from "../cards/registry";
+import {
+    declaresGraveyardStaticEffect,
+    declaresLayer7StaticEffect,
+} from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { getEffectiveColors } from "../cards/effectiveColors";
 import { hasSupertypeLive } from "./snow";
@@ -29,6 +32,7 @@ import type {
 // Type-only (issue #5154): the plan's shape belongs to the Brain module that
 // fills it; a runtime import here would be an engine → AI dependency.
 import type { RestrictionPlan } from "./ai/restrictionPricing";
+import { staticEffectFunctionsFrom } from "../cards/types";
 import type {
     CardType,
     Color,
@@ -109,6 +113,54 @@ export function emblemAsStaticSource(emblem: EmblemInstance): PermanentView {
         // the walk would ship every emblem-granted keyword inert.
         staticSeq: emblem.staticSeq ?? 0,
     } as PermanentView;
+}
+
+/** CR 113.6b — every graveyard card whose definition declares a static ability
+ *  that functions from the graveyard, as the source view the layer walks read
+ *  (`collectSourceEntries`, `collectLayer6Sources`, `collectLayer7Sources`).
+ *
+ *  The view is the card itself with two facts restated for the zone it is in:
+ *
+ *  - `controllerId` is the OWNER. A card in a graveyard has no controller, and
+ *    CR 109.5 resolves "you" on such an object to its owner, so an
+ *    Incarnation's "creatures you control" is its owner's creatures.
+ *  - `staticSeq` is the GRAVEYARD object's timestamp (`zoneStaticSeq`, CR
+ *    613.7d — an object receives a timestamp when it enters a zone), never the
+ *    battlefield stamp the card may still carry from before it died.
+ *
+ *  A card without a `zoneStaticSeq` has not begun applying (it arrived since
+ *  the last recompute, `stampGraveyardStaticSources`) and is skipped, exactly
+ *  like an unstamped permanent in layer 6: an effect with no timestamp has no
+ *  position in its layer. */
+export function graveyardStaticSources(
+    state: StaticEffectStateView
+): PermanentView[] {
+    const sources: PermanentView[] = [];
+    for (const player of state.players) {
+        // A synthetic one-card board (`recomposeLayers2to5ForInstance`) may
+        // carry no graveyard at all.
+        for (const card of player.graveyard ?? []) {
+            // Cheapest test first: this walk runs on every P/T read made
+            // outside a `Layer7Pass`, and almost no graveyard card is stamped.
+            if (card.zoneStaticSeq === undefined) continue;
+            const cardId = (card.card as { id?: string } | undefined)?.id;
+            if (!cardId || card.id === undefined) continue;
+            if (!declaresGraveyardStaticEffect(cardId)) continue;
+            const ownerId = card.ownerId ?? player.id;
+            sources.push({
+                ...(card as unknown as PermanentView),
+                subtypes: [...(card.subtypes ?? [])],
+                isTapped: false,
+                controllerId: ownerId,
+                ownerId,
+                staticSeq: card.zoneStaticSeq,
+                // Read by the CR 613.8a existence check (`gre/dependency.ts`):
+                // CR 109.2 keeps a battlefield-only effect off this object.
+                zone: "graveyard",
+            } as PermanentView);
+        }
+    }
+    return sources;
 }
 
 /** Returns the emblem definition's static effects of a given kind, or [] if the
@@ -342,6 +394,8 @@ type Layer7SourceCandidate = {
  *  (`planCoversBoard`). */
 type Layer7SourcePlan = {
     readonly battlefieldSizes: readonly number[];
+    /** CR 113.6b — a graveyard is a source zone too (`graveyardStaticSources`). */
+    readonly graveyardSizes: readonly number[];
     readonly emblemCount: number;
     readonly candidates: readonly Layer7SourceCandidate[];
 };
@@ -408,11 +462,14 @@ function collectLayer7Sources(state: LayerStateView): Layer7SourcePlan {
     const candidates: Layer7SourceCandidate[] = [];
     const push = (
         source: PermanentView,
-        effects: readonly StaticEffect[]
+        effects: readonly StaticEffect[],
+        zone?: "graveyard"
     ): void => {
         for (let index = 0; index < effects.length; index++) {
             const effect = effects[index];
             if (!isLayer7StaticEffect(effect)) continue;
+            // CR 113.6b — an effect is read from the walk of its own zone only.
+            if (!staticEffectFunctionsFrom(effect, zone)) continue;
             candidates.push({ source, effect, index });
         }
     };
@@ -434,15 +491,22 @@ function collectLayer7Sources(state: LayerStateView): Layer7SourcePlan {
     for (const emblem of state.emblems ?? []) {
         push(emblemAsStaticSource(emblem), getEmblemStaticEffects(emblem));
     }
+    // CR 113.6b — static abilities that function from a graveyard.
+    for (const source of graveyardStaticSources(state)) {
+        const cardId = (source.card as { id?: string }).id;
+        if (!cardId || !declaresLayer7StaticEffect(cardId)) continue;
+        push(source, getStaticEffects(source), "graveyard");
+    }
     return {
         battlefieldSizes: state.players.map((p) => p.battlefield.length),
+        graveyardSizes: state.players.map((p) => p.graveyard?.length ?? 0),
         emblemCount: state.emblems?.length ?? 0,
         candidates,
     };
 }
 
 /** Whether `plan` still describes `state`'s population — the same number of
- *  permanents on each battlefield and the same number of emblems.
+ *  permanents on each battlefield, cards in each graveyard and emblems.
  *
  *  A tripwire, not a proof: it cannot see a source that changed WHAT it is
  *  while staying where it is (a copy effect rewriting `card.id`, a mode
@@ -456,6 +520,11 @@ function planCoversBoard(
     if (sizes.length !== state.players.length) return false;
     for (let i = 0; i < sizes.length; i++) {
         if (sizes[i] !== state.players[i].battlefield.length) return false;
+        if (
+            plan.graveyardSizes[i] !== (state.players[i].graveyard?.length ?? 0)
+        ) {
+            return false;
+        }
     }
     return true;
 }

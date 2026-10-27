@@ -356,6 +356,18 @@ function destroysRulesTextOf(
     victim: PermanentView,
     ctx: StaticEffectContext
 ): boolean {
+    // CR 109.2 — an effect describing objects by type means PERMANENTS of that
+    // type, so a source outside the battlefield (a CR 113.6b graveyard source,
+    // `graveyardStaticSources`) loses its rules text only to an effect that
+    // says it functions in every zone. Humility's "all creatures" does not
+    // reach an Incarnation card in a graveyard.
+    if (
+        (victim as { zone?: string }).zone === "graveyard" &&
+        (template?.effect as { functionsInAllZones?: true } | undefined)
+            ?.functionsInAllZones !== true
+    ) {
+        return false;
+    }
     if (removesAllAbilitiesFrom(entry, template, victim, ctx)) return true;
     // CR 305.7 is a rule about LANDS. A subtype set on anything else leaves its
     // rules text alone.

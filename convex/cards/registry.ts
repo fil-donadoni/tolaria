@@ -120,6 +120,11 @@ const combatRestrictionStaticIds = new Set<string>();
  *  `declaresLingeringStaticEffect`. */
 const lingeringStaticIds = new Set<string>();
 
+/** Ids whose definition declares a static effect that functions from the
+ *  GRAVEYARD (CR 113.6b). Derived by `setRegistryEntry`; see
+ *  `declaresGraveyardStaticEffect`. */
+const graveyardStaticIds = new Set<string>();
+
 /** Ids whose definition declares a CR 612.6 full-text effect. Derived by
  *  `setRegistryEntry`; see `declaresFullTextEffect`. */
 const fullTextIds = new Set<string>();
@@ -140,6 +145,7 @@ const setRegistryEntry = (key: string, def: CardDefinition): void => {
         castPermissionIds.add(key);
     }
     if (declaresLingeringStatic(def)) lingeringStaticIds.add(key);
+    if (declaresGraveyardStatic(def)) graveyardStaticIds.add(key);
     if (def.fullText) fullTextIds.add(key);
 };
 
@@ -209,6 +215,22 @@ const declaresLingeringStatic = (def: CardDefinition): boolean => {
         (def.staticEffects ?? []).some(lingers) ||
         (def.compiledStaticEffects ?? []).some(lingers) ||
         (def.modes ?? []).some((m) => (m.staticEffects ?? []).some(lingers))
+    );
+};
+
+/** CR 113.6b — does any of `def`'s static effects declare it functions from
+ *  the graveyard? The zone twin of `declaresLingeringStatic` above: the zone
+ *  opt-in is orthogonal to the kind, and is admitted only on the
+ *  characteristic-changing arm, hence the same `unknown` predicate. */
+const declaresGraveyardStatic = (def: CardDefinition): boolean => {
+    const fromGraveyard = (e: unknown): boolean =>
+        (e as { zone?: unknown }).zone === "graveyard";
+    return (
+        (def.staticEffects ?? []).some(fromGraveyard) ||
+        (def.compiledStaticEffects ?? []).some(fromGraveyard) ||
+        (def.modes ?? []).some((m) =>
+            (m.staticEffects ?? []).some(fromGraveyard)
+        )
     );
 };
 
@@ -363,6 +385,15 @@ export const declaresLayer6StaticEffect = (cardId: string): boolean =>
  *  two twins above. */
 export const declaresLayer7StaticEffect = (cardId: string): boolean =>
     declaresIndexedStatic(cardId, layer7StaticIds);
+
+/** CR 113.6b — does `cardId`'s definition declare a static effect that
+ *  functions from the graveyard? The precheck every layer's graveyard source
+ *  walk (`graveyardStaticSources`, `gre/layers.ts`) asks of each graveyard
+ *  card, so a graveyard full of cards that declare nothing there costs one
+ *  `Set.has` per card. Same derived-membership discipline and same fail-slow
+ *  trade as the three layer prechecks above. */
+export const declaresGraveyardStaticEffect = (cardId: string): boolean =>
+    declaresIndexedStatic(cardId, graveyardStaticIds);
 
 /** CR 508.1c / 509.1b / 502.3 (issue #5154) — does `cardId`'s definition
  *  declare an attack, block, global-attack or untap restriction static? The
