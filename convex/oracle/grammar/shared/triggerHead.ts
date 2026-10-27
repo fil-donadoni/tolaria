@@ -195,7 +195,7 @@ export type TriggerHeadIR =
     | {
           readonly kind: "phase";
           readonly phase: Phase;
-          readonly scope: "your" | "each" | "host-controller";
+          readonly scope: "your" | "each" | "host-controller" | "chosen-player";
           /**
            * CR 603.2b — the head NAMES the player whose step it is ("each
            * PLAYER'S upkeep"), which is what gives a later "that player" its
@@ -402,6 +402,18 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     [
         "at the beginning of each player's upkeep",
         { kind: "phase", phase: "UPKEEP", scope: "each", namesPlayer: true },
+    ],
+    // CR 614.12 + CR 603.2b — the player the source chose as it entered ("As
+    // this artifact enters, choose an opponent"): the head fires on THAT
+    // player's upkeep and names them, so "that player" has its antecedent.
+    [
+        "at the beginning of the chosen player's upkeep",
+        {
+            kind: "phase",
+            phase: "UPKEEP",
+            scope: "chosen-player",
+            namesPlayer: true,
+        },
     ],
     [
         "at the beginning of your draw step",

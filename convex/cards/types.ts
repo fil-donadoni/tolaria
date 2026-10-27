@@ -12524,14 +12524,17 @@ export const UNDECIDABLE_TRIGGER_GATE: TriggerGate = Object.freeze({
 });
 
 /** Whose step a phase-anchored trigger fires on, relative to its source:
- *  its controller's, every player's, each opponent's, or (an Aura) the
- *  enchanted permanent's controller's. The ONE spelling — `TriggerScope`
+ *  its controller's, every player's, each opponent's, (an Aura) the
+ *  enchanted permanent's controller's, or the player chosen as the source
+ *  entered (`CardInstanceState.chosenPlayerId`, CR 614.12 — The Rack, Black
+ *  Vise). The ONE spelling — `TriggerScope`
  *  (`cards/abilities/triggers/shared.ts`) aliases it. */
 export type PhaseTriggerScope =
     | "your"
     | "each"
     | "opponents"
-    | "host-controller";
+    | "host-controller"
+    | "chosen-player";
 
 /** The source tapped state a CR 603.4 intervening-if asks for — see
  *  `TriggeredAbility.sourceTapCondition`. */

@@ -260,7 +260,8 @@ function resolveScopeAtResolve(
 ): string | null {
     if (scope === "each") return event.activePlayerId;
     if (scope === "your") return ctx.controller;
-    if (scope === "opponents") return event.activePlayerId;
+    if (scope === "opponents" || scope === "chosen-player")
+        return event.activePlayerId;
     // host-controller: re-fetch host at resolve time (CR 603.10 LKI applies
     // to the source, not the target — the host's controller may have changed
     // between trigger and resolve via e.g. Control Magic).
