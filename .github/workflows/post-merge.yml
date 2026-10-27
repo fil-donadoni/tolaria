@@ -189,7 +189,9 @@ jobs:
         # behind it, as it does behind any heavy run there; a pass runner
         # feels nothing, since a session's bare compile no longer queues for a
         # handful of misses. Seconds, no mutex, when the header's hash is the
-        # tree's — the common push. One run at a time; a RUNNING run is never
+        # tree's — the common push. A heavy mutex held by another process at
+        # the start is read, named in one line and exits 0 (issue #6524): the
+        # run never waits for it, so the wall below carries no wait. One run at a time; a RUNNING run is never
         # cancelled (a sweep cut short is a sweep paid for nothing), a pending
         # one dropped loses nothing: the next push or the nightly re-reads the
         # two hashes. The job worktree is at $GITHUB_SHA — the DEFAULT

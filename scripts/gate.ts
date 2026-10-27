@@ -969,7 +969,27 @@ function whoAll(): number {
     return code;
 }
 
-if (tier === "who") process.exit(whoAll());
+/** `who --json` — the holder as one JSON line, for a caller that decides on it
+ *  (issue #6524: `derive:sync --replay-bot` must not queue 2 h on a held mutex).
+ *  The same `readOwner` + `alive` the diagnosis reads; a dead holder is free —
+ *  the head of the queue reclaims it. */
+function whoJson(): number {
+    const owner = readOwner();
+    const holder =
+        owner && alive(owner.pid)
+            ? {
+                  pid: owner.pid,
+                  cwd: owner.cwd,
+                  label: owner.label,
+                  heldMs: Date.now() - (owner.acquiredAt ?? owner.ts),
+              }
+            : null;
+    console.log(JSON.stringify({ holder }));
+    return 0;
+}
+
+if (tier === "who")
+    process.exit(rest.includes("--json") ? whoJson() : whoAll());
 
 /** `yield` is the heavy tier in every respect but the class it queues in (ADR
  *  0136 §6, issue #4965), `job` in every respect but its class and the
