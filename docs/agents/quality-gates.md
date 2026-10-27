@@ -2648,6 +2648,15 @@ to classify yet. Re-run the command after this has been live for a window —
 the `health_runs` side is already populated (134 logs parsed, 24 red), so the
 row will report real numbers as soon as red spans exist to join against.
 
+**Row 3 and `health_runs` are retired (issue #7068).** The table parsed
+per-sha `health-main.ts` logs for a non-zero step exit; once a step could exit
+non-zero without reddening the tip (ADR 0159) and the verdict moved to the
+commit status (issue #5462), the parse disagreed with the workflow verdicts in
+both directions (2026-10-27: two GREEN tips read red, one RED read green), and
+the `land <PR#>` gate-run leg that named each session's base stopped being
+recorded once the Mergify queue took over landing. `telemetry:latency` no
+longer prints the row; `openDb` drops the table.
+
 **The lane histogram is thin for the same reason as row 3, one layer
 up.** `gate_runs` is fed by parsing `gate-run.sh`'s own cache dir, but only
 runs whose `command` file exists carry a lane — and that file is itself new

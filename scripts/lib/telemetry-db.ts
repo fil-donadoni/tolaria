@@ -190,17 +190,6 @@ CREATE TABLE IF NOT EXISTS gate_runs (
     ingested INTEGER NOT NULL
 );
 
--- One row per health-main.ts per-sha log ever seen under
--- .claude/telemetry/health/ (issue #3777, ADR 0136 row 3). The live RED
--- marker only ever names the LATEST red sha; this table is the durable
--- history, rebuilt by parsing each immutable per-sha log rather than
--- sampling the marker.
-CREATE TABLE IF NOT EXISTS health_runs (
-    sha12 TEXT PRIMARY KEY,
-    red   INTEGER NOT NULL,
-    ts    INTEGER NOT NULL             -- the log file's mtime, epoch seconds
-);
-
 -- Test timeout headroom (issue #5484): one row per health run whose
 -- per-test durations were sealed (health/durations/<sha12>/run.json), and
 -- one row per test that run recorded at or above RECORD_FLOOR of its budget
@@ -628,6 +617,9 @@ export function openDb(path: string): Database {
         "CREATE INDEX IF NOT EXISTS gate_attempts_started ON gate_attempts(started)"
     );
     db.exec("CREATE INDEX IF NOT EXISTS gate_lock_ts ON gate_lock(ts)");
+    // Retired (issue #7068): parsed per-sha health logs, which disagreed with
+    // the workflow verdicts (a non-blocking step's exit read as RED).
+    db.exec("DROP TABLE IF EXISTS health_runs");
     return db;
 }
 
