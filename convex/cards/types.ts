@@ -13705,6 +13705,16 @@ export type ReplacementResult =
  *    locks. */
 export type DamageEffectKind = "prevention" | "redirection" | "other";
 
+/** Parameters of the `CardDefinition.damageLifeFloor` static (CR 614.1). */
+export interface DamageLifeFloor {
+    /** Damage that would leave the controller below this life total leaves them
+     *  at it instead. */
+    floor: number;
+    /** Clause only applies while the controller controls a permanent of this
+     *  type ("If you control a creature, …"). Absent = unconditional. */
+    whileControlling?: CardType;
+}
+
 export interface ReplacementEffect {
     id: string;
     oracleText: string;
@@ -21649,6 +21659,13 @@ export interface CardDefinition {
      *  scoped to the source's controller and REMOVES the field — no engine
      *  read ever sees it. */
     preventsDamageToController?: boolean;
+    /** CR 614.1 — "If you control a creature, damage that would reduce your
+     *  life total to less than 1 reduces it to 1 instead." (Worship). JSON-pure
+     *  declaration: `expandDamageLifeFloor` (`abilities/damageLifeFloor.ts`)
+     *  rebuilds it at the `expandDefinition` seam into a `replacementEffects[]`
+     *  `"damage"` entry scoped to the source's controller and REMOVES the
+     *  field — no engine read ever sees it. */
+    damageLifeFloor?: DamageLifeFloor;
     /** Continuous "plays with hand revealed" static (CR 702-adjacent — Zur's
      *  Weirding, Enduring Renewal; issue #735). While ANY permanent with this
      *  flag is on the battlefield, the affected player's hand is projected

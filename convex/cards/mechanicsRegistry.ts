@@ -2753,6 +2753,16 @@ const RULES_MODIFIERS: MechanicRow[] = [
             'StaticEffect kind "activation-restriction" (cards/types.ts) + gre/activationRestrictions.ts (activationRestrictionViolation) + gre/activationPrecondition.ts (activationPreconditionViolation) + gre/constants.ts (getManaTapOptionsDetailed / getActivatedManaAbility / hasManaAbility) + convex/game.ts (tapUntap, tapSourceIntoPayment, activateManaAbility) + src/lib/card-utils.ts (buildTriggerStateView, hasManaAbility, mana menu entries)',
         note: "CR 602.5: \"A player can't begin to activate an ability that's prohibited from being activated.\" The prohibition imposed from OUTSIDE the ability, by a permanent: \"Activated abilities of <permanents> can't be activated\" (Cursed Totem — creatures; Null Rod / Collector Ouphe — artifacts). A battlefield-scanned static read live, like `cast-restriction`: nothing is materialized, so the lock ends when its source leaves or loses its abilities (CR 611.3b, 613.1f). Declarative: a `PermanentFilter` over battlefield permanents (CR 109.2 — a typed description with no zone means a permanent), matched by `matchesPermanentFilter` with the source as `self`, and `exemptManaAbilities` for the \"unless they're mana abilities\" family. Mana abilities are activated abilities (CR 605.1a), so without the exemption they are locked too, intrinsic basic-land mana (CR 305.6) included. ONE predicate, two funnels: non-mana activations read it through `activationPreconditionViolation` (server mutations, the Bot's `enumerateAbilityMoves`, the client `getStackAbilities`); mana activations through the tap-option list (`getManaTapOptionsDetailed` returns none, so auto-tap, the castability census and the Bot's payment planner never commit the source) plus an explicit refusal in each tap mutation. The client reads the same predicate off `buildTriggerStateView`, whose rows carry `card` and `abilitiesSuppressedBy` for it (ADR 0074). Not yet: the chosen-name scope of Pithing Needle (sources in any zone), which waits for its card to show the axis.",
     },
+    {
+        id: "damage-life-floor",
+        name: "Damage Life Floor",
+        kind: "rules-modifier",
+        cr: "614.1",
+        status: "implemented",
+        binding:
+            'CardDefinition.damageLifeFloor (cards/types.ts DamageLifeFloor) + cards/abilities/damageLifeFloor.ts (expandDamageLifeFloor, wired in cards/registry.ts) -> a "damage" replacementEffects[] entry consumed by gre/replacements.ts applyDamageReplacements',
+        note: 'CR 614.1: "damage that would reduce your life total to less than N reduces it to N instead" (Worship). Damage to the static\'s controller from a source without infect (CR 120.3a) is rewritten to life - N (never negative), optionally only while the controller controls a permanent of a given type. A rewrite, not a prevention (CR 615.1a), so "can\'t be prevented" locks do not suppress it.',
+    },
 ];
 
 /** CR 613 characteristic-changing effects declared through a dedicated
