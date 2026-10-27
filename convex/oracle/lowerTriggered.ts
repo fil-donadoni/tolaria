@@ -373,6 +373,10 @@ function lowerCondition(
                 atLeast: condition.atLeast,
             };
         }
+        case "no-mana-added-by-this-ability-this-turn":
+            // The ability's once-per-turn quota, lifted into
+            // `maxTriggersPerTurn` by `lowerTriggeredAbility`, never a gate.
+            return "a per-turn quota is not a board predicate";
     }
 }
 
@@ -429,8 +433,24 @@ export function lowerTriggeredAbility(input: {
             ok: false,
             reason: "an intervening-if behind a cycle head is not read",
         };
+    // CR 603.4 — "if you haven't added mana with this ability this turn" is
+    // the ability's once-per-turn quota, not a gate: only the phase factory
+    // carries the cap, so any other head refuses rather than drop it.
+    const onceEachTurn =
+        input.condition?.kind === "no-mana-added-by-this-ability-this-turn";
+    if (onceEachTurn && input.head.kind !== "phase")
+        return {
+            ok: false,
+            reason: '"if you haven\'t added mana with this ability this turn" needs an "at the beginning of" head',
+        };
+    // The graveyard scan does not count triggerings, so the cap would be lost.
+    if (onceEachTurn && fromGraveyard)
+        return {
+            ok: false,
+            reason: "a per-turn quota is not counted on a graveyard-zone ability",
+        };
     const condition =
-        input.condition !== undefined && !zoneCondition
+        input.condition !== undefined && !zoneCondition && !onceEachTurn
             ? lowerCondition(input.condition, input.head, input.kickers ?? [])
             : undefined;
     if (typeof condition === "string") return { ok: false, reason: condition };
@@ -517,6 +537,7 @@ export function lowerTriggeredAbility(input: {
             oracleText: input.oracleText,
             head: lowerHead(input.head),
             ...(condition !== undefined ? { condition } : {}),
+            ...(onceEachTurn ? { maxTriggersPerTurn: 1 } : {}),
             ...(fromGraveyard ? { zone: "graveyard" as const } : {}),
             ...(resolvesIfTargetsIllegal
                 ? { resolvesIfTargetsIllegal: true as const }

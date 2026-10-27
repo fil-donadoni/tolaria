@@ -325,6 +325,12 @@ export interface CompiledTriggeredAbility {
     /** CR 603.4 — re-checked at resolution; the trigger fizzles when false. */
     readonly condition?: CompiledTriggerCondition;
     /**
+     * CR 603.2h — the ability triggers at most this many times each turn per
+     * source ("if you haven't added mana with this ability this turn"). Phase
+     * heads only (`phaseTrigger`).
+     */
+    readonly maxTriggersPerTurn?: number;
+    /**
      * CR 113.6b — the zone the ability functions from, when not the
      * battlefield. "At the beginning of your upkeep, if this card is in your
      * graveyard, …" (Gigapede, Genesis): the printed intervening-if IS the
@@ -552,6 +558,10 @@ export function resolveCompiledTrigger(
                       ? { condition: gate }
                       : { condition: gate, interveningIf: gate };
               })();
+    if (descriptor.maxTriggersPerTurn !== undefined && head.kind !== "phase")
+        throw new Error(
+            `compiled trigger ${descriptor.id}: maxTriggersPerTurn needs a phase head`
+        );
     if (descriptor.resolvesIfTargetsIllegal && head.kind !== "entered")
         throw new Error(
             `compiled trigger ${descriptor.id}: resolvesIfTargetsIllegal needs an entered head`
@@ -737,6 +747,9 @@ export function resolveCompiledTrigger(
                     : {}),
                 phase: head.phase,
                 ...(head.phases !== undefined ? { phases: head.phases } : {}),
+                ...(descriptor.maxTriggersPerTurn !== undefined
+                    ? { maxTriggersPerTurn: descriptor.maxTriggersPerTurn }
+                    : {}),
                 scope: head.scope,
             });
         case "spell-cast":

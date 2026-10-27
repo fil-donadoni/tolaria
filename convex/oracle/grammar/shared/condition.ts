@@ -126,7 +126,14 @@ export type TriggerConditionIR =
      */
     | { readonly kind: "self-has-type"; readonly type: "Enchantment" }
     /** CR 603.4 — "if an opponent controls more lands than you". */
-    | ComparativeControlsIR;
+    | ComparativeControlsIR
+    /**
+     * CR 603.4 + CR 603.2h — "if you haven't added mana with this ability this
+     * turn": a per-source, per-turn quota on THIS ability, not a board
+     * predicate. Lowering reads it as the ability's once-per-turn cap
+     * (`maxTriggersPerTurn: 1`), counted on the source object.
+     */
+    | { readonly kind: "no-mana-added-by-this-ability-this-turn" };
 
 /**
  * CR 109.5 + CR 603.4 — "an opponent controls more lands than you": a strict
@@ -146,6 +153,10 @@ export type ComparativeControlsIR = {
 };
 
 const ARTICLES: readonly string[] = ["a ", "an "];
+
+/** `"you haven't added mana with this ability this turn"` (CR 603.2h). */
+const NO_MANA_ADDED_BY_THIS_ABILITY =
+    /^you haven't added mana with this ability this turn$/;
 
 /**
  * Filter clauses the CONDITION cannot decide, and therefore must not compile.
@@ -201,6 +212,10 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
                       type: "Enchantment" as const,
                   })
                 : fail(`"${selfType[1]}" is not the source itself`, span);
+        if (NO_MANA_ADDED_BY_THIS_ABILITY.test(clause))
+            return ok({
+                kind: "no-mana-added-by-this-ability-this-turn" as const,
+            });
         const domain = clause.match(BASIC_LAND_TYPES);
         if (domain !== null) return readBasicLandTypes(domain[1]!, span);
         if (COMPARATIVE_CONTROLS.test(clause))
