@@ -9,7 +9,7 @@ import { buildPositionFromSpec } from "../blade/build";
 import type { BladeSetupStep } from "../blade/types";
 import { enumerateMoves, type Move } from "../../moves";
 import { findPermanent } from "../../lookup";
-import { getCardByName } from "../../../cards";
+import { getCardByName, tryGetDefinition } from "../../../cards";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
 import type { GameState } from "../../state";
 import {
@@ -558,5 +558,263 @@ describe("this-turn tap activations (Samite Pilgrim, Dega Disciple)", () => {
         const moves = activationsOf(state, 0, "Blazing Rootwalla");
         expect(moves.length).toBeGreaterThan(0);
         expect(moves.some((m) => isFutileThisTurnMove(state, m))).toBe(false);
+    });
+});
+
+// Issue #6915 — the stack threat bound stops counting objects that provably
+// cannot destroy or damage the shielded permanent: the bot's own pending
+// regeneration (CR 701.19a) counts as a shield already granted.
+describe("isFutileThisTurnMove — pending shields on the stack (issue #6915)", () => {
+    const FAMILIAR: ScenarioSpec = {
+        cards: [
+            {
+                name: "Nightscape Familiar",
+                owner: "me",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
+            { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 4,
+        landCount: 0,
+        libraryCount: 20,
+        manaPool: { me: { B: 2 }, opp: { R: 1 } },
+    };
+
+    function withPriority(state: GameState, seat: Seat): GameState {
+        state.priorityPlayerId = state.players[seat].id;
+        return state;
+    }
+
+    it("prunes a second activation with only its own regeneration on the stack", () => {
+        const state = withPriority(
+            position(FAMILIAR, [
+                { kind: "activate", card: "Nightscape Familiar" },
+            ]),
+            0
+        );
+        expect(state.stack).toHaveLength(1);
+        const move = onlyActivation(state, 0, "Nightscape Familiar");
+        expect(isFutileThisTurnMove(state, move)).toBe(true);
+    });
+
+    it("keeps Regenerate against lethal burn aimed at the creature", () => {
+        const state = withPriority(
+            position({ ...FAMILIAR, activePlayer: "opp", priority: "opp" }, [
+                {
+                    kind: "cast",
+                    card: "Lightning Bolt",
+                    by: "opp",
+                    target: "Nightscape Familiar",
+                },
+            ]),
+            0
+        );
+        const move = onlyActivation(state, 0, "Nightscape Familiar");
+        expect(isFutileThisTurnMove(state, move)).toBe(false);
+    });
+
+    it("prunes a second shield once one is pending against the single burn", () => {
+        const state = withPriority(
+            position({ ...FAMILIAR, activePlayer: "opp", priority: "opp" }, [
+                {
+                    kind: "cast",
+                    card: "Lightning Bolt",
+                    by: "opp",
+                    target: "Nightscape Familiar",
+                },
+                { kind: "activate", card: "Nightscape Familiar" },
+            ]),
+            0
+        );
+        expect(state.stack).toHaveLength(2);
+        const move = onlyActivation(state, 0, "Nightscape Familiar");
+        expect(isFutileThisTurnMove(state, move)).toBe(true);
+    });
+
+    it("prunes Regenerate against a land-type change on the stack (CR 305.7)", () => {
+        const state = withPriority(
+            position(
+                {
+                    ...FAMILIAR,
+                    cards: [
+                        ...FAMILIAR.cards,
+                        {
+                            name: "Reef Shaman",
+                            owner: "opp",
+                            zone: "battlefield",
+                            summoningSick: false,
+                        },
+                        { name: "Forest", owner: "opp", zone: "battlefield" },
+                    ],
+                    activePlayer: "opp",
+                    priority: "opp",
+                },
+                [
+                    {
+                        kind: "activate",
+                        card: "Reef Shaman",
+                        controller: "opp",
+                        target: "Forest",
+                    },
+                ]
+            ),
+            0
+        );
+        expect(state.stack).toHaveLength(1);
+        const move = onlyActivation(state, 0, "Nightscape Familiar");
+        expect(isFutileThisTurnMove(state, move)).toBe(true);
+    });
+});
+
+// Issue #6915 — an until-end-of-turn land-type change (CR 305.7) is pruned
+// when nothing can use the new type before the bot next holds priority.
+describe("isFutileThisTurnMove — land-type changes (CR 305.7, issue #6915)", () => {
+    const SHAMAN = {
+        name: "Reef Shaman",
+        owner: "me",
+        zone: "battlefield",
+        summoningSick: false,
+    } as const;
+
+    function landTargets(state: GameState) {
+        return activationsOf(state, 0, "Reef Shaman");
+    }
+
+    function keptTargetNames(state: GameState): string[] {
+        return landTargets(state)
+            .filter((m) => !isFutileThisTurnMove(state, m))
+            .map((m) => {
+                const slot = m.targets[0];
+                const land =
+                    slot?.type === "permanent"
+                        ? findPermanent(state, slot.id)
+                        : undefined;
+                const name =
+                    land && tryGetDefinition(land.card.id as string)?.name;
+                const seat =
+                    land?.controllerId === state.players[0].id ? "me" : "opp";
+                return `${seat}:${name}`;
+            });
+    }
+
+    const MAIN: ScenarioSpec = {
+        cards: [
+            SHAMAN,
+            { name: "Island", owner: "me", zone: "battlefield" },
+            { name: "Island", owner: "me", zone: "battlefield" },
+            { name: "Merfolk of the Pearl Trident", owner: "me", zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 4,
+        landCount: 0,
+        libraryCount: 20,
+    };
+
+    it("prunes every target in the bot's main phase with no consumer", () => {
+        const state = position(MAIN);
+        expect(landTargets(state).length).toBeGreaterThan(0);
+        expect(keptTargetNames(state)).toEqual([]);
+    });
+
+    it("prunes the opponent's tapped lands on the opponent's turn", () => {
+        const state = position({
+            ...MAIN,
+            cards: [
+                ...MAIN.cards,
+                {
+                    name: "Swamp",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Swamp",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+            ],
+            activePlayer: "opp",
+            priority: "me",
+        });
+        expect(landTargets(state).length).toBeGreaterThan(2);
+        expect(keptTargetNames(state)).toEqual([]);
+    });
+
+    it("keeps an opponent's untapped land: its mana changes before the bot's next priority", () => {
+        const state = position({
+            ...MAIN,
+            cards: [
+                ...MAIN.cards,
+                { name: "Swamp", owner: "opp", zone: "battlefield" },
+            ],
+        });
+        expect(keptTargetNames(state)).toEqual(["opp:Swamp"]);
+    });
+
+    it("keeps the bot's own untapped land when the new colour unlocks a spell in hand", () => {
+        const state = position({
+            ...MAIN,
+            cards: [
+                ...MAIN.cards,
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            ],
+        });
+        expect(keptTargetNames(state)).toEqual(["me:Island", "me:Island"]);
+    });
+
+    it("keeps every target while a landwalker can still attack", () => {
+        const state = position({
+            ...MAIN,
+            cards: [
+                ...MAIN.cards,
+                {
+                    name: "Bog Wraith",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        });
+        expect(keptTargetNames(state)).toHaveLength(landTargets(state).length);
+    });
+
+    it("keeps every target while a permanent reads land types", () => {
+        const state = position({
+            ...MAIN,
+            cards: [
+                ...MAIN.cards,
+                {
+                    name: "Kird Ape",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        });
+        expect(keptTargetNames(state)).toHaveLength(landTargets(state).length);
+    });
+
+    it("keeps every target while anything is on the stack", () => {
+        const state = position(
+            {
+                ...MAIN,
+                cards: [
+                    ...MAIN.cards,
+                    { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+                ],
+                activePlayer: "opp",
+                priority: "opp",
+                manaPool: { opp: { R: 1 } },
+            },
+            [{ kind: "cast", card: "Lightning Bolt", by: "opp", target: "me" }]
+        );
+        state.priorityPlayerId = state.players[0].id;
+        expect(state.stack).toHaveLength(1);
+        expect(keptTargetNames(state)).toHaveLength(landTargets(state).length);
     });
 });
