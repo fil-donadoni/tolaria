@@ -17,6 +17,7 @@ import type {
     ActivatedAbility,
     AlternativeCost,
     CardDefinition,
+    DamageLifeFloor,
     EffectOp,
     KickerCost,
     ManaCost,
@@ -90,6 +91,7 @@ interface Accumulator {
     castAsThoughFlash: boolean;
     damagePreventionCounterRemoval: boolean;
     preventsDamageToController: boolean;
+    damageLifeFloor: DamageLifeFloor | undefined;
     /** CR 305.2 — the sum of the "additional land" lines read. */
     extraLandDrops: number;
     /** CR 401.5 — a "play with the top card of your library revealed" line. */
@@ -590,6 +592,8 @@ function lowerLine(
                 acc.damagePreventionCounterRemoval = true;
             if (out.preventsDamageToController === true)
                 acc.preventsDamageToController = true;
+            if (out.damageLifeFloor !== undefined)
+                acc.damageLifeFloor = out.damageLifeFloor;
             if (out.extraLandDrops !== undefined)
                 acc.extraLandDrops += out.extraLandDrops;
             if (out.revealsLibraryTop !== undefined)
@@ -877,6 +881,7 @@ export function lowerCard(
         castAsThoughFlash: false,
         damagePreventionCounterRemoval: false,
         preventsDamageToController: false,
+        damageLifeFloor: undefined,
         extraLandDrops: 0,
         revealsLibraryTop: false,
 
@@ -1038,6 +1043,9 @@ export function lowerCard(
     // CR 615 — likewise a closure; `expandDefinition` rebuilds it.
     if (acc.preventsDamageToController)
         definition.preventsDamageToController = true;
+    // CR 614.1a — likewise a closure; `expandDefinition` rebuilds it.
+    if (acc.damageLifeFloor !== undefined)
+        definition.damageLifeFloor = acc.damageLifeFloor;
     // CR 702.33d — `count: "kicker"` reads how many times the spell was
     // kicked. "If this creature was kicked, it enters with N counters" means
     // 0 or N, which that tally gives only for a lone, single kicker: a second
