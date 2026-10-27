@@ -26,6 +26,9 @@
  *    Remove a +1/+1 counter" shield: the same JSON-pure-flag-for-a-closure
  *    shape, rebuilt by `expandDefinition` into two `replacementEffects[]`
  *    entries;
+ *  - `damageLifeFloor` — CR 614.1a, the conditional "damage that would reduce
+ *    your life total to less than N reduces it to N instead" declaration,
+ *    rebuilt by `expandDefinition` into a `replacementEffects[]` entry;
  *  - `staticAbilities[]` — the `does-not-untap` marker, which the untap step
  *    reads directly (`gre/phases.ts`). A filtered `untap-restriction` static
  *    would be the wrong encoding for a permanent talking about itself; the
@@ -51,6 +54,7 @@ import type { PermanentFilter } from "../cards/filters";
 import type {
     AsEntersChoice,
     CardDefinition,
+    DamageLifeFloor,
     KickerCost,
 } from "../cards/types";
 import { kickedValue } from "./lowerEffects";
@@ -123,6 +127,9 @@ export interface LoweredStatic {
     readonly damagePreventionCounterRemoval?: true;
     /** CR 615 — "Prevent all damage that would be dealt to you". */
     readonly preventsDamageToController?: true;
+    /** CR 614.1a — "damage that would reduce your life total to less than N
+     *  reduces it to N instead", while the controller controls a creature. */
+    readonly damageLifeFloor?: DamageLifeFloor;
     readonly entersWithCounters?: {
         readonly type: string;
         readonly count: number;
@@ -762,6 +769,16 @@ export function lowerStaticClause(
             return {
                 ok: true,
                 lowered: { damagePreventionCounterRemoval: true },
+            };
+        case "damage-life-floor":
+            return {
+                ok: true,
+                lowered: {
+                    damageLifeFloor: {
+                        floor: clause.floor,
+                        whileControlling: "Creature",
+                    },
+                },
             };
         case "controller-damage-prevention":
             return {

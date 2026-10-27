@@ -376,6 +376,10 @@ export type StaticClauseIR =
     /** CR 615 — "Prevent all damage that would be dealt to you". Lowered to
      *  `preventsDamageToController`. */
     | { readonly kind: "controller-damage-prevention" }
+    /** CR 614.1a + CR 120.4c — "If you control a creature, damage that would
+     *  reduce your life total to less than N reduces it to N instead".
+     *  Lowered to `damageLifeFloor`. */
+    | { readonly kind: "damage-life-floor"; readonly floor: number }
     /**
      * CR 601.2c — "While an opponent is choosing targets as part of casting a
      * spell they control or activating an ability they control, that player
@@ -1868,6 +1872,35 @@ const controllerDamagePreventionRule: Rule<StaticClauseIR> = pattern(
         ok({ kind: "controller-damage-prevention" as const })
 );
 
+// ── Frame: the conditional life floor (CR 614.1a) ───────────────────────────
+
+/**
+ * "If you control a creature, damage that would reduce your life total to less
+ * than 1 reduces it to 1 instead." (Worship.) CR 614.1a: "instead" makes it a
+ * replacement effect; CR 120.4c: it acts on the result of damage, the life
+ * loss. Both numbers must be the same N. The anchored text refuses every
+ * neighbour: an unconditional floor, another condition ("As long as you have
+ * N or more life"), a duration ("Until end of turn, …"), and an emblem.
+ */
+const DAMAGE_LIFE_FLOOR =
+    /^If you control a creature, damage that would reduce your life total to less than (\d+) reduces it to (\d+) instead$/;
+
+const damageLifeFloorRule: Rule<StaticClauseIR> = pattern(
+    "damage life floor",
+    DAMAGE_LIFE_FLOOR,
+    (match): RuleResult<StaticClauseIR> => {
+        if (match[1] !== match[2])
+            return fail(
+                `floor "${match[1]}" differs from "${match[2]}"`,
+                match[2]!
+            );
+        return ok({
+            kind: "damage-life-floor" as const,
+            floor: Number(match[1]),
+        });
+    }
+);
+
 // ── Frames: the enchanted host (CR 303.4b) ────────────────────────────────
 
 /** The nouns "enchanted" is printed with, and the card type each names. */
@@ -2426,6 +2459,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         shuffleFromAnywhereRule,
         damagePreventionCounterRemovalRule,
         controllerDamagePreventionRule,
+        damageLifeFloorRule,
         selfConditionalPumpRule,
         abilityLossPtSetRule,
         chosenTypePumpRule,

@@ -79292,6 +79292,16 @@
         "source": "compiled"
     },
     {
+        "name": "Worship",
+        "scryfallId": "908781a0-1ba4-4027-bd9d-13f9faf08686",
+        "oracleId": "99f9a4c8-b59f-4a41-8577-6c1e4684b240",
+        "firstSet": "usg",
+        "firstPrintId": "908781a0-1ba4-4027-bd9d-13f9faf08686",
+        "firstPrintSet": "usg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Wort, Boggart Auntie",
         "scryfallId": "a08a1377-dede-47c8-8447-c9df125f3b14",
         "oracleId": "6f477e2e-220e-48d9-9236-9564478e796a",
