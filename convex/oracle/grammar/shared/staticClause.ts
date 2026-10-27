@@ -156,6 +156,18 @@ export type StaticClauseIR =
           readonly keyword: KeywordIR;
       }
     /**
+     * CR 612.6 + CR 613.1c — "As long as the top card of your graveyard is a
+     * creature card, <self> has the full text of that card and has the text
+     * "<ability>"": a layer-3 full-text effect, with the quoted ability kept.
+     */
+    | {
+          readonly kind: "full-text-effect";
+          readonly from: "controller-graveyard-top";
+          readonly requiresType: "Creature";
+          /** The quoted ability's Oracle text, resolved to an id in `lower.ts`. */
+          readonly retainedAbilityText: string;
+      }
+    /**
      * CR 113.6b + CR 611.3a — "As long as <self> is in your graveyard and you
      * control a <descriptor>, <filter> have <keyword>": a keyword grant whose
      * source functions from its owner's graveyard, gated on a controls count.
@@ -716,6 +728,40 @@ export const graveyardKeywordGrantRule: Rule<StaticClauseIR> = rule(
             filter: filter.value,
             keyword,
             condition: condition.value,
+        });
+    }
+);
+
+// ── Frame: full text of another object (CR 612.6) ──────────────────────────
+
+const FULL_TEXT_EFFECT =
+    /^As long as the top card of your graveyard is a creature card, (.+?) has the full text of that card and has the text "([^"]+)"$/;
+
+/**
+ * "As long as the top card of your graveyard is a creature card, this
+ * creature has the full text of that card and has the text "{2}: Discard a
+ * card."" (Volrath's Shapeshifter.) CR 612.6: the object whose text is taken
+ * is the top card of the controller's graveyard (CR 404.1), and the quoted
+ * text is the host's own ability it keeps. Other zones, other card types and a
+ * bare "has the full text" with no retained ability stay refused by the
+ * anchored regex.
+ */
+export const fullTextEffectRule: Rule<StaticClauseIR> = rule(
+    "full text effect",
+    (span): RuleResult<StaticClauseIR> => {
+        const match = span.match(FULL_TEXT_EFFECT);
+        if (match === null)
+            return fail(
+                'not "As long as the top card of your graveyard is a creature card, … has the full text of that card and has the text "…""',
+                span
+            );
+        if (!isSelfPhrase(uncapitalise(match[1]!)))
+            return fail(`"${match[1]}" is not the card itself`, span);
+        return ok({
+            kind: "full-text-effect" as const,
+            from: "controller-graveyard-top" as const,
+            requiresType: "Creature" as const,
+            retainedAbilityText: match[2]!,
         });
     }
 );
@@ -2472,6 +2518,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         anthemRule,
         keywordGrantRule,
         graveyardKeywordGrantRule,
+        fullTextEffectRule,
         costModifierRule,
         offTurnCostModifierRule,
         abilityCostModifierRule,

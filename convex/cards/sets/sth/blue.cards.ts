@@ -36,7 +36,6 @@ export const manaLeak = defineCard(() => ({
 // card's full text (name, mana cost, colour, types, abilities, P/T) plus its
 // own "{2}: Discard a card." Layer 3 (CR 613.1c), not copiable (CR 707.2);
 // the engine side is `gre/fullText.ts` (issue #6741).
-// hand-tail: As long as the top card of your graveyard is a creature card, this creature has the full text of that card and has the text "{2}: Discard a card." (#7062)
 export const volrathsShapeshifter = defineCard(() => ({
     id: "ec89ee13-34ef-41c8-8fe4-0a6b21df2032",
     rarity: "rare",
@@ -51,11 +50,11 @@ export const volrathsShapeshifter = defineCard(() => ({
     fullText: {
         from: "controller-graveyard-top",
         requiresType: "Creature",
-        retainedActivatedAbilityIds: ["volraths-shapeshifter-discard"],
+        retainedActivatedAbilityIds: ["volrath-s-shapeshifter-ability"],
     },
     activatedAbilities: [
         {
-            id: "volraths-shapeshifter-discard",
+            id: "volrath-s-shapeshifter-ability",
             oracleText: "{2}: Discard a card.",
             cost: { mana: { X: 2 } },
             useStack: true,
