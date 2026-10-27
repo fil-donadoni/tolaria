@@ -226,7 +226,7 @@ export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
 
 /** Scope resolution for the `resolveSteps` path, where the firing
  *  `PhaseBeginEvent` is not re-threaded by the engine. `your` / `host-
- *  controller` derive from the live context; `each` / `opponents` map to the
+ *  controller` derive from the live context; `each` / `opponents` / `chosen-player` map to the
  *  active player, which at an upkeep step is the trigger's controller — every
  *  current `resolveSteps` consumer is a `your`-scoped upkeep trigger. */
 function resolveScopeFromCtx(
@@ -239,7 +239,7 @@ function resolveScopeFromCtx(
         if (!hostId) return null;
         return ctx.getController({ type: "permanent", id: hostId });
     }
-    // each / opponents — the scoped player is the player whose step it is (the
+    // each / opponents / chosen-player — the scoped player is the player whose step it is (the
     // active player), NOT the trigger's controller (Worms of the Earth fires on
     // EACH player's upkeep and the scoped player is that upkeep's active
     // player). `apNapOrder()[0]` is the active player (CR 101.4); fall back to
