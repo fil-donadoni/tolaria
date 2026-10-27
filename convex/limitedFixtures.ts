@@ -284,7 +284,10 @@ export const seedUiGateFixtures = internalMutation({
             "draft",
             now
         );
-        const draftSeats = fillBotSeats(seatViewer(user._id, user.nickname));
+        const draftSeats = fillBotSeats(
+            seatViewer(user._id, user.nickname),
+            FIXTURE_SEED
+        );
         draftSeats[0] = { ...draftSeats[0], currentPack: pack, pool };
         await saveSeats(ctx, draftEventId, draftSeats, {
             status: "started",
