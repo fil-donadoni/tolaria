@@ -1,20 +1,15 @@
 // `damageLifeFloor` — declarative template for the CR 614 life-floor clause
 // "If you control a creature, damage that would reduce your life total to less
 // than 1 reduces it to 1 instead." (Worship). Expanded at the
-// `expandDefinition` seam into one `replacementEffects[]` entry, so the damage
-// pipeline (`runDamageReplacement`) needs no new hook.
+// `expandDefinition` seam into one `replacementEffects[]` entry on the
+// `"damage-lifeloss"` event: the RESULT of damage (CR 120.4c), seen after
+// prevention, so the damage itself (lifelink, triggers) is untouched.
 import type {
     CardDefinition,
     CardType,
     DamageLifeFloor,
     ReplacementEffect,
 } from "../types";
-
-/** CR 120.3a — only damage from a source without infect causes life loss;
- *  infect damage gives poison counters (CR 120.3b) and never touches life. */
-function causesLifeLoss(sourceStaticAbilities: ReadonlyArray<string>): boolean {
-    return !sourceStaticAbilities.includes("infect");
-}
 
 export function damageLifeFloor(args: {
     id: string;
@@ -26,42 +21,31 @@ export function damageLifeFloor(args: {
     return {
         id: args.id,
         oracleText: args.oracleText,
-        eventKind: "damage",
-        // CR 615.1a — the clause never says "prevent": a rewrite, not a shield.
-        damageEffectKind: "other",
-        // CR 614.1a — the damage event is replaced when it would take the
-        // controller's life total below `floor`.
+        eventKind: "damage-lifeloss",
+        // CR 120.4c — only the life loss damage causes to the controller.
         appliesTo: (event, self, state) => {
-            if (event.kind !== "damage") return false;
-            if (event.target.type !== "player") return false;
-            if (event.target.id !== self.controllerId) return false;
-            if (!causesLifeLoss(event.sourceStaticAbilities)) return false;
+            if (event.kind !== "damage-lifeloss") return false;
+            if (event.playerId !== self.controllerId) return false;
+            const me = state.players.find((p) => p.id === self.controllerId);
+            if (me === undefined) return false;
             if (
                 whileControlling !== undefined &&
-                !state.players.some(
-                    (p) =>
-                        p.id === self.controllerId &&
-                        p.battlefield.some(
-                            (c) =>
-                                c.controllerId === self.controllerId &&
-                                c.types.includes(whileControlling)
-                        )
+                !me.battlefield.some(
+                    (c) =>
+                        c.controllerId === self.controllerId &&
+                        c.types.includes(whileControlling)
                 )
             )
                 return false;
-            const life = state.players.find(
-                (p) => p.id === self.controllerId
-            )?.life;
-            return life !== undefined && life - event.amount < floor;
+            return me.life - event.amount < floor;
         },
-        // CR 119.3 / 614.1 — "reduces it to N instead": the damage dealt
-        // becomes exactly what leaves the life total at `floor`. A life total
-        // already at or below `floor` takes no damage (the clause never raises
-        // life).
+        // CR 614.1 — "reduces it to N instead": the life lost becomes exactly
+        // what leaves the total at `floor`. A total already at or below
+        // `floor` loses nothing (the clause never raises life).
         replace: (event, ctx) => {
-            if (event.kind !== "damage") return { kind: "consumed" };
+            if (event.kind !== "damage-lifeloss") return { kind: "consumed" };
             const life =
-                ctx.state.players.find((p) => p.id === event.target.id)?.life ??
+                ctx.state.players.find((p) => p.id === event.playerId)?.life ??
                 0;
             return {
                 kind: "modified",

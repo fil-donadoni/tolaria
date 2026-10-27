@@ -1,7 +1,7 @@
-// CR 614.1 — "damage that would reduce your life total to less than N reduces
-// it to N instead" (Worship), declared as `CardDefinition.damageLifeFloor` and
-// expanded into a "damage" replacement. Driven through the real
-// `runDamageReplacement` funnel.
+// CR 120.4c / 614.1 — "damage that would reduce your life total to less than N
+// reduces it to N instead" (Worship), declared as `CardDefinition.damageLifeFloor`
+// and expanded into a replacement on the RESULT of damage (life loss), seen
+// after prevention (CR 120.4b). Driven through a real damage sink.
 
 import { describe, expect, it } from "vitest";
 import {
@@ -14,7 +14,8 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import { runDamageReplacement } from "../state";
+import { dealDamageFromPermanentToPlayer } from "../state";
+import type { GameState } from "../state";
 
 const WORSHIP: CardDefinition = {
     id: "test-damage-life-floor-worship",
@@ -35,14 +36,14 @@ const CREATURE: CardDefinition = {
     toughness: 2,
 };
 
-function hit(opts: {
+function run(opts: {
     life: number;
     amount: number;
     creature?: boolean;
     target?: string;
-    sourceStatic?: string[];
+    halfDownShield?: boolean;
     def?: CardDefinition;
-}): number {
+}): { state: GameState; lifeOfTarget: number } {
     const def = opts.def ?? WORSHIP;
     return withTemporaryDefinition(def, () =>
         withTemporaryDefinition(CREATURE, () => {
@@ -54,6 +55,10 @@ function hit(opts: {
                 id: "bear",
                 controllerId: "p1",
             });
+            const source = makeInstance(CREATURE.id, {
+                id: "attacker",
+                controllerId: "p2",
+            });
             const state = makeState({
                 players: [
                     makePlayer("p1", {
@@ -63,55 +68,95 @@ function hit(opts: {
                                 ? [worship]
                                 : [worship, bear],
                     }),
-                    makePlayer("p2", { life: opts.life }),
+                    makePlayer("p2", {
+                        life: opts.life,
+                        battlefield: [source],
+                    }),
                 ],
             });
-            const out = runDamageReplacement(
+            const target = opts.target ?? "p1";
+            if (opts.halfDownShield)
+                state.playerDamagePrevention = [
+                    {
+                        playerId: target,
+                        match: {},
+                        mode: "half-down",
+                        remaining: 1,
+                        duration: { phase: "end-of-turn" },
+                    },
+                ];
+            dealDamageFromPermanentToPlayer(
                 state,
-                "bolt",
+                source,
                 "p2",
-                { type: "player", id: opts.target ?? "p1" },
-                opts.amount,
-                false,
-                false
+                target,
+                opts.amount
             );
-            return out?.amount ?? 0;
+            return {
+                state,
+                lifeOfTarget: state.players.find((p) => p.id === target)!.life,
+            };
         })
     );
 }
 
-describe("damage life floor (CR 614.1)", () => {
-    it("expands into one 'other'-kind damage replacement and drops the field", () => {
+describe("damage life floor (CR 120.4c, 614.1)", () => {
+    it("expands into one damage-lifeloss replacement and drops the field", () => {
         const expanded = expandDefinition(WORSHIP);
         expect(expanded.damageLifeFloor).toBeUndefined();
         expect(
-            expanded.replacementEffects!.map((r) => [r.id, r.damageEffectKind])
-        ).toEqual([["test-worship-damage-life-floor", "other"]]);
+            expanded.replacementEffects!.map((r) => [r.id, r.eventKind])
+        ).toEqual([["test-worship-damage-life-floor", "damage-lifeloss"]]);
     });
 
-    it("clamps lethal damage so the life total lands on the floor", () => {
-        expect(hit({ life: 3, amount: 10 })).toBe(2);
-    });
-
-    it("clamps exactly-lethal damage", () => {
-        expect(hit({ life: 3, amount: 3 })).toBe(2);
+    it("lands lethal damage on the floor", () => {
+        expect(run({ life: 3, amount: 10 }).lifeOfTarget).toBe(1);
+        expect(run({ life: 3, amount: 3 }).lifeOfTarget).toBe(1);
     });
 
     it("leaves damage that stays at or above the floor alone", () => {
-        expect(hit({ life: 3, amount: 2 })).toBe(2);
-        expect(hit({ life: 20, amount: 5 })).toBe(5);
+        expect(run({ life: 3, amount: 2 }).lifeOfTarget).toBe(1);
+        expect(run({ life: 20, amount: 5 }).lifeOfTarget).toBe(15);
     });
 
-    it("deals nothing when the life total is already at the floor", () => {
-        expect(hit({ life: 1, amount: 4 })).toBe(0);
+    it("loses nothing when already at the floor, but the damage is still dealt", () => {
+        const { state, lifeOfTarget } = run({ life: 1, amount: 4 });
+        expect(lifeOfTarget).toBe(1);
+        const dealt = (state.pendingEvents ?? []).filter(
+            (e) => e.type === "DAMAGE_DEALT"
+        );
+        expect(dealt).toHaveLength(1);
+        expect(dealt[0]).toMatchObject({ amount: 4 });
+        expect(
+            (state.pendingEvents ?? []).some((e) => e.type === "LIFE_LOST")
+        ).toBe(false);
+    });
+
+    it("emits LIFE_LOST for the life actually lost, not the damage", () => {
+        const { state } = run({ life: 3, amount: 10 });
+        expect(
+            (state.pendingEvents ?? []).filter((e) => e.type === "LIFE_LOST")
+        ).toEqual([expect.objectContaining({ amount: 2, fromDamage: true })]);
+    });
+
+    it("sees the damage AFTER prevention (CR 120.4b before 120.4c)", () => {
+        // 10 damage, half prevented -> 5 dealt; 3 life - 5 -> floored to 1.
+        // (Clamping the damage first would deal 2, halve it to 1, leave 2.)
+        expect(
+            run({ life: 3, amount: 10, halfDownShield: true }).lifeOfTarget
+        ).toBe(1);
     });
 
     it("does not apply without a creature the controller controls", () => {
-        expect(hit({ life: 3, amount: 10, creature: false })).toBe(10);
+        expect(run({ life: 3, amount: 10, creature: false }).lifeOfTarget).toBe(
+            -7
+        );
     });
 
     it("does not protect the opponent", () => {
-        expect(hit({ life: 3, amount: 10, target: "p2" })).toBe(10);
+        expect(run({ life: 3, amount: 10, target: "p2" }).lifeOfTarget).toBe(
+            -7
+        );
     });
 
     it("an unconditional floor ignores the board", () => {
@@ -120,6 +165,8 @@ describe("damage life floor (CR 614.1)", () => {
             id: "test-damage-life-floor-uncond",
             damageLifeFloor: { floor: 1 },
         };
-        expect(hit({ life: 3, amount: 10, creature: false, def })).toBe(2);
+        expect(
+            run({ life: 3, amount: 10, creature: false, def }).lifeOfTarget
+        ).toBe(1);
     });
 });

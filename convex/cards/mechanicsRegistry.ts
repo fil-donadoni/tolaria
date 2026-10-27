@@ -2757,11 +2757,11 @@ const RULES_MODIFIERS: MechanicRow[] = [
         id: "damage-life-floor",
         name: "Damage Life Floor",
         kind: "rules-modifier",
-        cr: "614.1",
+        cr: "120.4c",
         status: "implemented",
         binding:
-            'CardDefinition.damageLifeFloor (cards/types.ts DamageLifeFloor) + cards/abilities/damageLifeFloor.ts (expandDamageLifeFloor, wired in cards/registry.ts) -> a "damage" replacementEffects[] entry consumed by gre/replacements.ts applyDamageReplacements',
-        note: 'CR 614.1: "damage that would reduce your life total to less than N reduces it to N instead" (Worship). Damage to the static\'s controller from a source without infect (CR 120.3a) is rewritten to life - N (never negative), optionally only while the controller controls a permanent of a given type. A rewrite, not a prevention (CR 615.1a), so "can\'t be prevented" locks do not suppress it.',
+            'CardDefinition.damageLifeFloor (cards/types.ts DamageLifeFloor) + cards/abilities/damageLifeFloor.ts (expandDamageLifeFloor, wired in cards/registry.ts) -> a "damage-lifeloss" replacementEffects[] entry consumed by gre/replacements.ts applyDamageLifeLossReplacements via gre/state.ts reduceLifeFromDamage (every damage-to-player sink)',
+        note: 'CR 120.4c: damage is processed into its results, as modified by replacement effects that interact with those results; CR 614.1: "damage that would reduce your life total to less than N reduces it to N instead" (Worship). The floor acts on the life LOSS (CR 120.3a, so never on infect poison), AFTER prevention (CR 120.4b), and leaves the damage itself (DAMAGE_DEALT, lifelink, tallies) whole. Optionally only while the controller controls a permanent of a given type.',
     },
 ];
 

@@ -13106,6 +13106,7 @@ export type ReplacementEventKind =
     | "damage"
     | "lifegain"
     | "lifeloss"
+    | "damage-lifeloss"
     | "discard"
     | "lose-game"
     | "tap"
@@ -13152,6 +13153,17 @@ export interface DamageReplacementEvent {
  *  and "if you would lose life, sacrifice/discard instead" intercept these. */
 export interface LifeChangeReplacementEvent {
     kind: "lifegain" | "lifeloss";
+    playerId: string;
+    amount: number;
+}
+
+/** CR 120.4c — the RESULT of damage dealt to a player: the life loss it causes
+ *  (CR 120.3a), after every CR 614 / 615 effect on the damage itself. Distinct
+ *  from `"lifeloss"`: "lose life" replacements (Lich) do not see it, and a
+ *  "damage that would reduce your life total to less than N" clause (Worship)
+ *  sees only it. `amount` is the life about to be lost. */
+export interface DamageLifeLossReplacementEvent {
+    kind: "damage-lifeloss";
     playerId: string;
     amount: number;
 }
@@ -13471,6 +13483,7 @@ export interface CounterPlacedReplacementEvent {
 export type ReplacementEvent =
     | DamageReplacementEvent
     | LifeChangeReplacementEvent
+    | DamageLifeLossReplacementEvent
     | DiscardReplacementEvent
     | LoseGameReplacementEvent
     | TapReplacementEvent
