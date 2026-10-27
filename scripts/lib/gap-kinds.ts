@@ -45,6 +45,7 @@ import {
     type ResolveContext,
     type TargetKind,
     type TargetRegistry,
+    type TargetRow,
 } from "./targets";
 
 /** One priority Target, resolved to the oracle ids it requires. */
@@ -140,6 +141,8 @@ export function rankedTargetIds(registry: TargetRegistry): Set<string> {
  * `closed-tail`, issue #6085) is owed its claims whether or not it is enforced: enforcing it would red
  * `check:targets` on every card until the filer has run, a standing RED that
  * blocks every pick, so the filer's scope reads the completion mode itself.
+ * A `closedTail` card is owed nothing by its floorless Target
+ * ({@link owedCardIds}).
  */
 export function enforcedCardIds(
     registry: TargetRegistry,
@@ -148,10 +151,22 @@ export function enforcedCardIds(
     const ids = new Set<string>();
     for (const row of registry.targets) {
         if (row.enforced !== true && !isFloorless(row.completion)) continue;
-        for (const card of resolveTarget(row, ctx).cards)
-            ids.add(card.oracleId);
+        for (const id of owedCardIds(row, ctx)) ids.add(id);
     }
     return ids;
+}
+
+/**
+ * A Target's cards minus its `closedTail`: a declared tail card is Hand Tail
+ * by the list itself, so no claim is owed for its gaps — a protocol card the
+ * DSL cannot express (Doomsday) is not a standing Grammar Gap issue (ADR 0143
+ * Amendment VIII, issue #7095; `coverageVerdict`'s `inTail`).
+ */
+function owedCardIds(row: TargetRow, ctx: ResolveContext): string[] {
+    const target = resolveTarget(row, ctx);
+    return target.cards
+        .map((card) => card.oracleId)
+        .filter((id) => target.closedTail?.has(id) !== true);
 }
 
 /**
@@ -159,7 +174,8 @@ export function enforcedCardIds(
  * `closed-tail`, issue #6085) — the ones the hand-tail floor does not apply
  * to: a gap holding one owes a `grammar`
  * claim however few corpus cards carry it, and the card is never owed a
- * `hand-tail` claim ({@link KindInputs.floorless}).
+ * `hand-tail` claim ({@link KindInputs.floorless}). Its `closedTail` cards
+ * are not in it ({@link owedCardIds}).
  */
 export function floorlessCardIds(
     registry: TargetRegistry,
@@ -168,8 +184,7 @@ export function floorlessCardIds(
     const ids = new Set<string>();
     for (const row of registry.targets) {
         if (!isFloorless(row.completion)) continue;
-        for (const card of resolveTarget(row, ctx).cards)
-            ids.add(card.oracleId);
+        for (const id of owedCardIds(row, ctx)) ids.add(id);
     }
     return ids;
 }
