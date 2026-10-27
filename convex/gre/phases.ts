@@ -59,6 +59,7 @@ import {
     runDamageReplacement,
     tapPermanent,
     untapPermanent,
+    tickColorOverrideLedger,
     tickDuration,
     withCardsPutIntoLibraryBatch,
 } from "./state";
@@ -3582,22 +3583,12 @@ function tickAllDurations(state: GameState): void {
     }
 
     // Timed colour override (CR 305.7 / 613.1d — issue #1065, Kavu Chameleon
-    // "becomes the color of your choice until end of turn"). On expiry,
-    // restore whatever colorOverride the permanent carried before (undefined
-    // clears it entirely) — mirrors the temporarySubtypeChange purge above.
+    // "becomes the color of your choice until end of turn"). Each ledger row
+    // ends at its own boundary (issue #2936, CR 613.7); what remains shows
+    // through — mirrors the temporarySubtypeChange purge above.
     for (const p of state.players) {
         for (const card of p.battlefield) {
-            const change = card.temporaryColorOverride;
-            if (!change) continue;
-            const next = tickDuration(change.duration, view);
-            if (next === null) {
-                card.colorOverride = change.restoreColorOverride
-                    ? [...change.restoreColorOverride]
-                    : undefined;
-                card.temporaryColorOverride = undefined;
-            } else {
-                card.temporaryColorOverride = { ...change, duration: next };
-            }
+            tickColorOverrideLedger(card, (d) => tickDuration(d, view));
         }
     }
     // CR 613.1b-e (PRD #2064 S4) — recompose layers 2-5 now that the expired

@@ -605,7 +605,7 @@ export type CardInstanceState = {
         /** CR 613.1e layer 5 (issue #3459) — the colours the animate clause
          *  asked for ("becomes a 3/2 BLUE AND BLACK Elemental creature",
          *  Creeping Tar Pit), as PROVENANCE. The colours themselves live in
-         *  `colorOverride` / `temporaryColorOverride`, which the `setColor` Op
+         *  `colorOverride` / `temporaryColorOverrides`, which the `setColor` Op
          *  writes identically (CR 105.3), so the live fields cannot say WHO set
          *  them; without this a lowered animation round-trips colourless. Same
          *  footing as `setPower`/`setToughness` above — what was ASKED, never
@@ -1126,20 +1126,23 @@ export type CardInstanceState = {
      *  guard), and read ONLY by the client's token-art resolver
      *  (`src/lib/tokenArt.ts`) to pick the Token Print of that edition. */
     sourcePrintId?: string;
-    /** Timed color override (CR 305.7 / 613.1d — "becomes the color of your
-     *  choice until end of turn", Kavu Chameleon, issue #1065). While
-     *  present, `colorOverride` above has been overwritten with `colors`;
-     *  `restoreColorOverride` captures the prior override (undefined if there
-     *  wasn't one) so the phase-boundary purge (`tickAllDurations`) can splice
-     *  it back — or clear `colorOverride` entirely — when `duration` expires.
-     *  Distinct from the indefinite `setColorOverride` call (no duration,
-     *  Dream Coat / Shyft's "lasts indefinitely"). Pushed by
-     *  `SpellContext.setColorOverride`'s optional `duration` parameter. */
-    temporaryColorOverride?: {
+    /** Timed color override LEDGER (CR 305.7 / 613.1d / 613.7 — "becomes the
+     *  color of your choice until end of turn", Kavu Chameleon, issue #1065;
+     *  Dwarven Song, Sylvan Paradise, issue #2936). Oldest first, so array
+     *  order IS the layer-5 timestamp order and `colorOverride` above always
+     *  equals the LAST row's `colors` while the ledger is live. A row with a
+     *  `duration` ends at its own boundary (`tickAllDurations`), independently
+     *  of the rows around it; the optional FIRST row without a `duration` is
+     *  the indefinite override that was underneath (a copy effect's colour,
+     *  Dream Coat), captured when the first timed row was pushed, which the
+     *  ledger falls back to once every timed row has expired. Absent when no
+     *  timed override is live. Written by `applyColorOverrideToPermanent`,
+     *  the one writer behind `SpellContext.setColorOverride` and the animate
+     *  clause's `colors`. */
+    temporaryColorOverrides?: {
         colors: Color[];
-        restoreColorOverride?: Color[];
-        duration: Duration;
-    };
+        duration?: Duration;
+    }[];
     /** Copy effect anchor (CR 707.2, 706). When this permanent is a copy of
      *  another (Clone, Copy Artifact, Vesuvan Doppelganger), `card.id` is
      *  overwritten with the copied object's definition id so every

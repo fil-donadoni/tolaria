@@ -31,7 +31,7 @@
 //         |                                          | `grantedSubtypes`, `grantedSubtypesAdd`,
 //         |                                          | `grantedSupertypes`, `removedSupertypes`,
 //         |                                          | `printedSubtypes`
-//     5   | `colorOverride`, `temporaryColorOverride`| `grantedColors`
+//     5   | `colorOverride`, `temporaryColorOverrides`| `grantedColors`
 //
 // and the pre-layer bases — `baseControllerId` (layer 2), `baseTypes` /
 // `baseSubtypes` (layer 4) — are the twins of `baseStaticAbilities` (layer 6)

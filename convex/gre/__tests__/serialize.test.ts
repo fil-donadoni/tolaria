@@ -559,22 +559,19 @@ describe("gameStates serialize round-trip", () => {
         const state = freshState();
         const land = state.players[1].battlefield[0];
         land.colorOverride = ["G"];
-        land.temporaryColorOverride = {
-            colors: ["G"],
-            restoreColorOverride: undefined,
-            duration: { phase: "end-of-turn" },
-        };
+        land.temporaryColorOverrides = [
+            { colors: ["G"], duration: { phase: "end-of-turn" } },
+        ];
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
         expect(got.colorOverride).toEqual(["G"]);
-        expect(got.temporaryColorOverride).toEqual({
-            colors: ["G"],
-            duration: { phase: "end-of-turn" },
-        });
+        expect(got.temporaryColorOverrides).toEqual([
+            { colors: ["G"], duration: { phase: "end-of-turn" } },
+        ]);
         // Absent when no timed override is active.
         const empty = expandState(compactState(freshState()));
         expect(
-            empty.players[1].battlefield[0].temporaryColorOverride
+            empty.players[1].battlefield[0].temporaryColorOverrides
         ).toBeUndefined();
     });
 
