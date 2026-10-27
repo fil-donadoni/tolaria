@@ -362,9 +362,8 @@ describe("search frame — quantity classes and the reveal argument", () => {
         ]);
     });
 
-    it("refuses the quantity classes still undeclared: 'X cards' (Insidious Dreams), 'exactly two' (Burning-Rune Demon), 'up to X' (Boundless Realms), 'up to one'", () => {
+    it("refuses the quantity classes still undeclared: 'exactly two' (Burning-Rune Demon), 'up to X' (Boundless Realms), 'up to one'", () => {
         for (const text of [
-            "Search your library for X cards, then shuffle and put those cards on top in any order.",
             "Search your library for exactly two cards not named Probe that have different names, put them into your hand, then shuffle.",
             "Search your library for up to X basic land cards, put them onto the battlefield tapped, then shuffle.",
             "Search your library for up to one land card, put it into your hand, then shuffle.",
@@ -682,12 +681,10 @@ describe("search frame — the argument classes of issue #6622 (CR 701.23a)", ()
             )
         );
         // The whole card reads; the smoke generator does not model a
-        // library → exile move, so the row is quarantined by that gate alone.
-        expect(outcome.state).toBe("quarantine");
-        if (outcome.state === "quarantine") {
-            expect(outcome.reasons.map((r) => r.kind)).toEqual([
-                "smoke-scenario",
-            ]);
+        // library → exile move, but the golden fixtures of the multi-card
+        // search (issue #5253) prove that form, so the row is `ready`.
+        expect(outcome.state).toBe("ready");
+        if (outcome.state === "ready") {
             expect(outcome.definition.effects?.slice(0, 2)).toEqual([
                 search("three cards", null, 3),
                 {
