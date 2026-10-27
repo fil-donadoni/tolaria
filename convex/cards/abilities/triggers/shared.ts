@@ -85,6 +85,16 @@ export function resolvePhaseScope(
             ? event.activePlayerId
             : null;
     }
+    // CR 614.12 + CR 603.2b — "the chosen player's upkeep": the step of the
+    // player the source stored as it entered. A source with no stored choice
+    // (never entered through the choice, or the choice was cleared) fires on
+    // no step.
+    if (scope === "chosen-player") {
+        return self.chosenPlayerId !== undefined &&
+            event.activePlayerId === self.chosenPlayerId
+            ? self.chosenPlayerId
+            : null;
+    }
     // host-controller (CR 303.4b — Aura trigger keyed on enchanted permanent).
     if (!self.attachedTo) return null;
     for (const p of state?.players ?? []) {
