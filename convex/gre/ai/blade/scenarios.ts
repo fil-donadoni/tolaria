@@ -3742,6 +3742,51 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #5927, the opponent-target case: the only legal targets are the opposing Hill Giant and the Disciple itself, which taps as the cost. The `announcement-variant` rule can redirect a beneficial grant only to an own-side SIBLING, and the self-target sibling is a pointless self pump (`hold-trick`), so before the fix the misdirected variant could reach the material tie-break on noise. Both variants are transient spends whose settled position is no better than passing, so the hold refuses both; `pass` on every seed.",
     },
     {
+        label: "transient grant: never gives an opposing creature that can't attack flying",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Disciple of Kangee",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Manacles of Decay",
+                    owner: "me",
+                    zone: "battlefield",
+                    attachedTo: "Grizzly Bears",
+                },
+                { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 2 },
+            ],
+            phase: "END_STEP",
+            turn: 6,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "me",
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Disciple of Kangee" },
+            ],
+        },
+        note: "Issue #5927, the review's corner: the opposing Bears sits under the bot's own Manacles of Decay (\"enchanted creature can't attack\"). The restriction discount prices the attack share off the creature's keywords, so with the transient flying credit taken back in full AND the attack share still counting it, a flying grant on the Pacified Bears read as −15 for the opponent — a +15 gain the settled-position probe would have licensed. The share now reads the LASTING keywords only (`lastingStaticAbilities`), the grant moves nothing, and the transient-spend hold refuses it; `pass` on every seed.",
+    },
+    {
         label: "activation timing: does not crack Sylvan Safekeeper with no threat",
         classification: {
             kind: "conditional",

@@ -123,6 +123,27 @@ export function temporaryCombatKeywords(
     );
 }
 
+/** `card.staticAbilities` with the transient combat-keyword occurrences
+ *  ({@link temporaryCombatKeywords}) removed, one occurrence per grant — the
+ *  keyword list a reader that prices the body's LASTING shares must use once
+ *  `evaluateCreature` has taken those occurrences back, so a "can't attack"
+ *  restriction (`ai/restrictionPricing.ts`) does not subtract a flying bonus
+ *  the body no longer carries a second time (issue #5927, review finding). */
+export function lastingStaticAbilities(
+    state: GameState,
+    card: CardInstanceState
+): readonly string[] {
+    const transient = temporaryCombatKeywords(state, card);
+    if (transient.length === 0) return card.staticAbilities;
+    const left = [...transient];
+    return card.staticAbilities.filter((keyword) => {
+        const at = left.indexOf(keyword);
+        if (at < 0) return true;
+        left.splice(at, 1);
+        return false;
+    });
+}
+
 /** The shared collector behind the two lists above: every duration-scoped
  *  layer-6 keyword grant live on `card` whose keyword `accept` admits, counted
  *  against what `staticAbilities` actually holds. */
