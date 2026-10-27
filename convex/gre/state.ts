@@ -24288,8 +24288,9 @@ export function payMayPayCost(
         }
         for (const c of toGiveUp) {
             if (norm.hand.action === "exile") {
-                // CR 701.13 — the pitch-style hand leg (no may-pay card ships
-                // one today; the alternative-cost path owns Force of Will &c.).
+                // CR 701.13 — the pitch-style hand leg (Forsaken City ships
+                // one as a may-pay cost; the alternative-cost path owns Force
+                // of Will &c.).
                 moveCard(player, c.id, "hand", "exile");
             } else {
                 // CR 118.12 — the "unless"/"if you do" payment is a COST the

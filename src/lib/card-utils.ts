@@ -4367,6 +4367,16 @@ export function mayPayRequiredDiscards(cost: MayPayCost | undefined): number {
     return cost.hand.requirements.reduce((a, r) => a + r.count, 0);
 }
 
+/** The verb a `may-pay` hand leg applies to the picked cards. Exile
+ *  (CR 701.13) is the pitch-style leg.
+ *  Discard (CR 701.9) is the default. */
+export function mayPayHandVerb(
+    cost: MayPayCost | undefined
+): "exile" | "discard" {
+    if (!cost || !("hand" in cost) || !cost.hand) return "discard";
+    return cost.hand.action === "exile" ? "exile" : "discard";
+}
+
 /** Whether the chooser's current discard pick satisfies a hand `may-pay`
  *  discard leg (CR 701.9 / 118.9, issue #899): the selection must name exactly
  *  `count` distinct hand cards AND cover every requirement from DISTINCT

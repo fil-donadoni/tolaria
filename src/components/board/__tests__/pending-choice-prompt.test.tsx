@@ -428,3 +428,41 @@ describe("PendingChoicePrompt — the subject card renders above the prompt text
         expect(getByText(/You may cast the card/)).toBeTruthy();
     });
 });
+
+// Issue #2048 — a may-pay hand leg with `action: "exile"` (CR 701.13) is
+// exiled, not discarded; the pick hint must say so.
+describe("PendingChoicePrompt — may-pay hand leg verb (issue #2048)", () => {
+    function mayPayHandChoice(action: "exile" | "discard"): PendingChoice {
+        return {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "me",
+            playerId: "me",
+            kind: "may-pay",
+            zone: "hand",
+            count: 1,
+            prompt: "You may pay.",
+            cost: {
+                hand: {
+                    action,
+                    requirements: [{ filter: {}, count: 1 }],
+                },
+            },
+        } as unknown as PendingChoice;
+    }
+
+    it("says 'exile' for an exile hand leg", () => {
+        const { container } = renderPrompt(mayPayHandChoice("exile"));
+        expect(container.textContent).toContain(
+            "click a card in hand to exile"
+        );
+        expect(container.textContent).not.toContain("to discard");
+    });
+
+    it("says 'discard' for a discard hand leg", () => {
+        const { container } = renderPrompt(mayPayHandChoice("discard"));
+        expect(container.textContent).toContain(
+            "click a card in hand to discard"
+        );
+    });
+});

@@ -12,6 +12,7 @@ import {
     mayPayRequiredSacrifices,
     mayPaySacrificeThreshold,
     mayPaySacrificeSelectionPower,
+    mayPayHandVerb,
     mayPayRequiredDiscards,
     mayPayRequiredGraveyardReturns,
 } from "~/lib/card-utils";
@@ -526,8 +527,8 @@ export default function PendingChoicePrompt({
                                     {needsDiscardPick && (
                                         <p className="text-text-disabled text-xs">
                                             {selected} / {discardPickCount}{" "}
-                                            selected — click a card in hand to
-                                            discard
+                                            selected — click a card in hand to{" "}
+                                            {mayPayHandVerb(choice.cost)}
                                         </p>
                                     )}
                                     {graveyardPickCount > 0 && (
