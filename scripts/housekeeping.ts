@@ -978,6 +978,9 @@ function main(): void {
     };
     /** The output tail of the last step that failed (issue #7068). */
     let lastTail = "";
+    /** Whether the last step was killed at its ceiling — never re-run: a
+     *  second `DERIVE_SYNC_TIMEOUT_MS` would double the job's wall. */
+    let lastTimedOut = false;
     const run = (step: Step): boolean => {
         appendFileSync(logPath, `── ${step.label}\n`);
         const from = statSync(logPath).size;
@@ -997,6 +1000,9 @@ function main(): void {
         const ok = r.status === 0;
         // Read before `say` appends its own line to the same log.
         const output = ok ? "" : logSince(from);
+        lastTimedOut =
+            r.error !== undefined &&
+            (r.error as { code?: string }).code === "ETIMEDOUT";
         if (!ok)
             say(
                 r.error !== undefined &&
@@ -1022,8 +1028,10 @@ function main(): void {
     // failure files its issue with the cause (issue #7068).
     let derived = run(DERIVE_SYNC_STEP);
     if (!derived) {
-        say("derive:sync failed — re-running it once");
-        derived = run(DERIVE_SYNC_STEP);
+        if (!lastTimedOut) {
+            say("derive:sync failed — re-running it once");
+            derived = run(DERIVE_SYNC_STEP);
+        }
         if (!derived) fileDeriveFailure(workspace, lastTail, logPath, say);
     }
 

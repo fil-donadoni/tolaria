@@ -1557,8 +1557,8 @@ checked produces a combination no lane ran: the draft was cut from the tip
 before that commit. The commits that land outside the queue are
 `derive:sync`, `gaps:sync` and `oracle:prune-regressions`, which write
 only data files that a lane re-derives or reconciles (the lockfile header,
-`data/catalogue/*`, the gap allowlist, the regression acknowledgements).
-They push after every merge batch and every hour. The other source is a hand merge
+`data/catalogue/*`, the gap allowlist, the regression acknowledgements),
+pushed by housekeeping on every merge batch, and `derive:sync` hourly too. The other source is a hand merge
 (`merge:manual`, a `.github/` or `.mergify.yml` PR), which can touch
 `scripts/`. `always` would bring back issue #6245 for every derived push
 in order to cover the rare hand merge. With `batch_size: 1` and

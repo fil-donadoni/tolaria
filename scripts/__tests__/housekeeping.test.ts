@@ -533,10 +533,10 @@ describe("housekeeping.ts — a failed derive:sync says why, retries once, files
         expect(DERIVE_FAILURE_LABELS).toEqual(["bug", "area:workflow"]);
     });
 
-    it("main() re-runs derive:sync once on failure and files the issue only after the second", () => {
+    it("main() re-runs derive:sync once on failure (never after a timeout) and files the issue only after the second", () => {
         const source = readFileSync("scripts/housekeeping.ts", "utf8");
         expect(source).toMatch(
-            /let derived = run\(DERIVE_SYNC_STEP\);\n\s+if \(!derived\) \{\n[^}]*derived = run\(DERIVE_SYNC_STEP\);\n\s+if \(!derived\) fileDeriveFailure\(/
+            /let derived = run\(DERIVE_SYNC_STEP\);\n\s+if \(!derived\) \{\n\s+if \(!lastTimedOut\) \{\n[^}]*derived = run\(DERIVE_SYNC_STEP\);\n\s+\}\n\s+if \(!derived\) fileDeriveFailure\(/
         );
     });
 });

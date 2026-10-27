@@ -2582,7 +2582,7 @@ Three new SQLite tables feed them, each populated at ingest: `pr_meta` (merged-
 at, fetched from GitHub the way `issue_meta` fetches issue state — 60 PRs per
 ingest, capped the same way), `gate_runs` (a durable mirror of `gate-run.sh`'s
 cache dir, read before its own `TOLARIA_GATE_RUN_KEEP_DAYS` pruning drops it),
-and `health_runs` (every `health-main.ts` per-sha log parsed for a non-zero
+and `health_runs` (retired, issue #7068 — see below; every `health-main.ts` per-sha log parsed for a non-zero
 step exit — the live RED only ever names the LATEST red sha, so this
 is the only way to recover history). `spans.is_error` is a new column, fed by
 `.claude/hooks/timing-log.sh` capturing `tool_response.is_error`; it did not
