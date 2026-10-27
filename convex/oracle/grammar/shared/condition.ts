@@ -125,6 +125,12 @@ export type TriggerConditionIR =
      * type, so the second firing is gated out).
      */
     | { readonly kind: "self-has-type"; readonly type: "Enchantment" }
+    /**
+     * CR 603.4 — "if it's on the battlefield": the source named by its zone,
+     * re-read as the trigger resolves. A permanent that left the battlefield
+     * with the ability on the stack makes the intervening-if false.
+     */
+    | { readonly kind: "self-on-battlefield" }
     /** CR 603.4 — "if an opponent controls more lands than you". */
     | ComparativeControlsIR
     /**
@@ -212,6 +218,8 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
                       type: "Enchantment" as const,
                   })
                 : fail(`"${selfType[1]}" is not the source itself`, span);
+        if (SELF_ON_BATTLEFIELD.test(clause))
+            return ok({ kind: "self-on-battlefield" as const });
         if (NO_MANA_ADDED_BY_THIS_ABILITY.test(clause))
             return ok({
                 kind: "no-mana-added-by-this-ability-this-turn" as const,
@@ -286,6 +294,13 @@ const SELF_IN_GRAVEYARD =
  * second type waits for a card that prints it.
  */
 const SELF_HAS_TYPE = /^(.+) is an enchantment$/;
+
+/**
+ * CR 603.4 — the source named by its zone. Only the pronoun the corpus prints
+ * behind an ETB head ("When this Aura enters, if it's on the battlefield");
+ * a named or typed subject waits for a card that prints it.
+ */
+const SELF_ON_BATTLEFIELD = /^it's on the battlefield$/;
 
 /** CR 305.6 — the domain count, over the triggering player's lands. */
 const BASIC_LAND_TYPES =
