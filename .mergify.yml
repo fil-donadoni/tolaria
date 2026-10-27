@@ -142,13 +142,29 @@ pull_request_rules:
     # below holds the PR instead; while the RED stands `pr-refresh` rebases a
     # held PR on every base push (a fresh lane on the moved base), and
     # `pr-gate`'s GREEN requeues it (issue #6957).
+    - name: a red advisory lane on a queue PR is a repair pick
+      conditions:
+          - label=ready-to-land
+          - -check-failure=base-health
+          - -label=queue:held
+          - check-failure=check:lane (advisory)
+      actions:
+          label:
+              add:
+                  - land-failed
+              remove:
+                  - ready-to-land
+          comment:
+              message: |
+                  **merge queue: `check:lane (advisory)` is red on this PR** — labelled `land-failed`.
+
+                  The red check is the lane, not a refusal job: [its run on this branch](https://github.com/fil-donadoni/tolaria/actions/workflows/pr-check.yml?query=branch%3A{{ head }}) holds the failing step. Fix the PR, then `bun run land:ready <PR#>`.
     - name: a red land refusal on a queue PR is a repair pick
       conditions:
           - label=ready-to-land
           - -check-failure=base-health
           - -label=queue:held
           - or:
-                - check-failure=check:lane (advisory)
                 - check-failure=ui-receipt
                 - check-failure=scenario
                 - check-failure=retired-rows
@@ -164,7 +180,7 @@ pull_request_rules:
               message: |
                   **merge queue: a `land` refusal is red on this PR** — labelled `land-failed`.
 
-                  The red check is one of `pr-check`'s refusal jobs (see the PR's checks). Fix the PR — a body edit re-runs them — then `bun run land:ready <PR#>`.
+                  The red check is one of `pr-check`'s refusal jobs (`ui-receipt`, `scenario`, `retired-rows`, `robustness-baseline`, `repair-proof`): [its run on this branch](https://github.com/fil-donadoni/tolaria/actions/workflows/pr-check.yml?query=branch%3A{{ head }}) names which. Fix the PR — a body edit re-runs them — then `bun run land:ready <PR#>`.
     - name: a red advisory lane under a RED is a hold
       conditions:
           - label=ready-to-land

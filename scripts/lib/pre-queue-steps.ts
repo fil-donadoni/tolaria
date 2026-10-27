@@ -70,7 +70,9 @@ const TEST_FILE = /\.test\.tsx?$/;
  * Structural guards that red on a NEW file the diff adds. An added path that
  * `admits` runs `test`. The observed case: a new `scripts/__tests__/*.test.ts`
  * not classified in `docs-lane.ts` (PR #5528, PR #5545). The import-graph walk
- * cannot select these — they read the tree through `fs`.
+ * cannot select these — they read the tree through `fs`. A new `data/` file
+ * not classified in `generated-artifacts.ts` reds the lane the same way (PR
+ * #6562 failure 1, issue #6654).
  */
 export const NEW_FILE_GUARDS: readonly {
     admits: RegExp;
@@ -87,6 +89,10 @@ export const NEW_FILE_GUARDS: readonly {
     {
         admits: /^src\/.*\.test\.tsx?$/,
         test: "scripts/__tests__/src-test-env-split.test.ts",
+    },
+    {
+        admits: /^data\//,
+        test: "scripts/__tests__/generated-artifact-merge.test.ts",
     },
 ];
 
