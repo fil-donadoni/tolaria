@@ -14860,7 +14860,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             forbidden: [{ kind: "activate-ability", card: "Charging Troll" }],
         },
-        note: "Issue #5493, position A. Sleeping Potion taps and locks the Troll but never destroys it, and a regeneration shield only replaces destruction (CR 701.19a) and ends with the turn (CR 514.2) — the activation buys nothing, and the bot keeps priority before any later threat resolves (CR 117.3b). `isFutileShieldMove` (`gre/ai/futileShield.ts`) prunes it. Proof-of-failure: with the prune disabled the bot activates the Troll on seeds 1 and 2 of five — the `pass` tie the issue describes.",
+        note: "Issue #5493, position A. Sleeping Potion taps and locks the Troll but never destroys it, and a regeneration shield only replaces destruction (CR 701.19a) and ends with the turn (CR 514.2) — the activation buys nothing, and the bot keeps priority before any later threat resolves (CR 117.3b). `isFutileThisTurnMove` (`gre/ai/futileShield.ts`) prunes it. Proof-of-failure: with the prune disabled the bot activates the Troll on seeds 1 and 2 of five — the `pass` tie the issue describes.",
     },
     {
         label: "regeneration shield: holds Regenerate against the Aura's own tap trigger",
@@ -15576,5 +15576,179 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe: "casts Thornscape Battlemage paying the {W} Kicker",
         },
         note: "Issue #6904 — the other half of the pair: with an artifact the {W}-kicked variants are offered again, and the Bot takes the Sol Ring.",
+    },
+    {
+        label: "this-turn tap activations: leaves Samite Pilgrim and Dega Disciple untapped in a quiet main phase",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "no combat and an empty stack, so nothing can consume a this-turn shield or P/T change",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Samite Pilgrim",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Dega Disciple",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 40 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Samite Pilgrim" },
+                { kind: "activate-ability", card: "Dega Disciple" },
+            ],
+        },
+        note: "Issue #6905, position A. A prevent-the-next-N shield (CR 615.1a) and an until-end-of-turn P/T change (CR 611.2) buy nothing when no combat or stack object can reach the creature before the Bot next holds priority; the tap would only cost the source its attack or block. `isFutileThisTurnMove` (`gre/ai/futileShield.ts`) prunes them and `isMisdirectedThisTurnMove` removes the wrongly-signed targets. Red without the prune at 40 iterations; the entries below are its positive controls.",
+    },
+    {
+        label: "this-turn tap activations: Samite Pilgrim shields its own blocker, never the attacker",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the Bot's blocker faces lethal combat damage",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Samite Pilgrim",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_BLOCKERS",
+            activePlayer: "opp",
+            priority: "me",
+            combat: {
+                attackers: ["Hill Giant"],
+                confirmed: true,
+                blockers: [{ blocker: "Grizzly Bears", blocking: [0] }],
+                blockersConfirmed: true,
+            },
+            turn: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 40 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Samite Pilgrim",
+                    target: "Grizzly Bears",
+                },
+            ],
+        },
+        note: "Issue #6905, position B — the discriminating twin of position A: the same Pilgrim, now with its blocker facing 3 damage a shield of 3 absorbs (Domain counts Plains, Mountain, Swamp). The prune must leave the own-creature target standing and the sign check must drop the attacker as a target.",
+    },
+    {
+        label: "this-turn tap activations: Dega Disciple pumps its own blocked attacker to kill the blocker",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "+2/+0 turns the Bot's blocked attacker into a kill",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Dega Disciple",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_BLOCKERS",
+            activePlayer: "me",
+            priority: "me",
+            combat: {
+                attackers: ["Hill Giant"],
+                confirmed: true,
+                blockers: [{ blocker: "Craw Wurm", blocking: [0] }],
+                blockersConfirmed: true,
+            },
+            turn: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 40 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Dega Disciple",
+                    target: "Hill Giant",
+                },
+            ],
+        },
+        note: "Issue #6905, position C. The 3/3 cannot kill the 6/4 Craw Wurm, +2/+0 makes it (CR 510.1); the pump on the Bot's own attacker is the only correctly-signed target, and -2/-0 only ever points at an opposing creature.",
     },
 ];
