@@ -445,6 +445,11 @@
     ],
     "Mishra's Factory": [
         {
+            "label": "defensive self-animation: animates Mishra's Factory to block a lethal attacker",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
             "label": "land search: fetches the utility land when the hand's colours are covered",
             "tier": "must",
             "needsSetup": true
