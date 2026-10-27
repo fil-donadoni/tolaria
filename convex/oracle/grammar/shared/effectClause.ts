@@ -673,6 +673,13 @@ export type EffectSentenceIR =
            * at resolution (a pip written n times counts n times per member).
            */
           readonly perSet?: CountedSetIR;
+          /**
+           * CR 106.1a + CR 107.3 — "Add X mana of any one color, where X is
+           * …" (Carpet of Flowers): this many mana, all of ONE colour the
+           * controller picks as the effect resolves. `mana` is then empty: the
+           * colour is not printed, so there is no pip to tally.
+           */
+          readonly anyOneColor?: AmountIR;
       }
     /** CR 106.1 + CR 608.2c (Cabal Ritual) — "Add {B}{B}{B}. <Ability word> —
      *  Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your
@@ -3812,7 +3819,8 @@ export function assembleSentences(
                 previous === undefined ||
                 previous.kind !== "add-mana" ||
                 previous.thatPlayer === true ||
-                previous.perSet !== undefined
+                previous.perSet !== undefined ||
+                previous.anyOneColor !== undefined
             )
                 return {
                     ok: false,
@@ -4991,6 +4999,9 @@ const ADD_MANA =
 /** CR 106.1 + CR 107.1 — "Add {R} for each creature you control": the pips,
  *  then the counted-set clause `countedSetRule` reads. */
 const ADD_MANA_FOR_EACH = /^Add ((?:\{[WUBRGC]\})+) (for each .+)$/;
+/** CR 106.1a + CR 107.3 — "Add X mana of any one color": X is the "where X
+ *  is …" tail's, bound by `bindWhereX`; a bare X stays unbound and refused. */
+const ADD_X_MANA_OF_ANY_ONE_COLOR = /^Add X mana of any one color$/;
 /** CR 608.2c — the replacement sentence of a conditional ritual, whole. */
 const ADD_MANA_INSTEAD_IF_COUNT =
     /^Add ((?:\{[WUBRGC]\})+) instead if there are (\S+) or more cards in your graveyard$/;
@@ -6992,6 +7003,10 @@ function bindWhereX(
             return sentence.count.kind === "x"
                 ? { ...sentence, count: amount }
                 : null;
+        case "add-mana":
+            return sentence.anyOneColor?.kind === "x"
+                ? { ...sentence, anyOneColor: amount }
+                : null;
         case "conjunction": {
             const effects = sentence.effects.map((e) => bindWhereX(e, amount));
             return effects.every((e) => e !== null)
@@ -7221,6 +7236,14 @@ function effectSentence(
             perSet: set.value,
         });
     }
+
+    // ── add X mana of one chosen colour (CR 106.1a, CR 107.3) ──────────────
+    if (ADD_X_MANA_OF_ANY_ONE_COLOR.test(span))
+        return ok({
+            kind: "add-mana" as const,
+            mana: {},
+            anyOneColor: { kind: "x" as const },
+        });
 
     // ── pump (CR 613.4c, layer 7c) ─────────────────────────────────────────
     const pump = span.match(PUMP);
