@@ -401,7 +401,7 @@ describe("phaseTrigger factory", () => {
     });
 });
 
-describe("phaseTrigger — several steps (CR 603.6a, CR 505.1)", () => {
+describe("phaseTrigger — several steps (CR 500.1, CR 505.1)", () => {
     const ability = phaseTrigger({
         id: "both-mains",
         oracleText: "At the beginning of each of your main phases, …",

@@ -206,7 +206,7 @@ export type TriggerHeadIR =
            */
           readonly namesPlayer?: true;
           /**
-           * CR 603.6a — a head naming SEVERAL steps ("each of your main
+           * CR 500.1 — a head naming SEVERAL steps ("each of your main
            * phases"): one ability that fires at the beginning of each, so
            * `phase` is the first and this lists all of them.
            */

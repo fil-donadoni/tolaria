@@ -46,7 +46,7 @@ export interface PhaseTriggerArgs {
     oracleText: string;
     /** Which step's PHASE_BEGIN to listen for (CR 500.1). */
     phase: Phase;
-    /** CR 603.6a — further steps the same ability fires at ("each of your
+    /** CR 500.1 — further steps the same ability fires at ("each of your
      *  main phases"); `phase` stays the first of them. */
     phases?: readonly Phase[];
     /** Zone the source must be in to be scanned (CR 113.6b — an ability that
