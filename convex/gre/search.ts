@@ -5611,7 +5611,7 @@ export function selectRootMove(
     // a blade position ever shows it costing the bot a real play, the narrowing
     // goes here.
     //
-    // The SECOND spend shape (issue #5927): an activation whose whole payoff
+    // The SECOND spend shape: an activation whose whole payoff
     // EXPIRES THIS TURN (`isTransientSpendActivation` — "target creature
     // gains flying until end of turn", CR 514.2). The leaf prices such a grant
     // at nothing outside the combat it changes (`evaluateCreature` takes the
