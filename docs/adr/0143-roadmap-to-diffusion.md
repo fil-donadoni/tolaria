@@ -35,6 +35,9 @@ Tail. It supersedes the 100% `ready` exit of issue #4519.
 labelled `bug` + `area:workflow` is `P0`, written by `issue:workflow-band` —
 the second script that may write `P0`.
 
+**Amended 2026-10-27** (issue #7095, Amendment VIII): a `closedTail` card owes
+no `grammar` claim — the list settles it as Hand Tail.
+
 ## Context
 
 Tolaria is deployed and played by a few friends. The owner asked for the road
@@ -430,6 +433,26 @@ The night of 2026-10-24 showed why. Issue #6795 (the dispatcher never ran a
 `land-failed` repair) and issue #6897 (a P1 losing its files to P3 picks) were
 pipeline bugs, and each held the queue for hours behind work of a lower band.
 A pipeline bug costs every issue behind it, so no feature band outranks it.
+
+### A declared tail card owes no claim — Amendment VIII (issue #7095, 2026-10-27)
+
+Amendment VI kept the Target floorless for every card, the 29 `closedTail`
+cards included, so each gap one of them held owed a `grammar` claim however
+few corpus cards carried it. For a protocol card the Effect Script cannot
+express, that claim is an issue no Grammar Rule closes: Doomsday's gap
+(a library + graveyard pick whose second count derives from the first, and
+an exile of the complement of both) is carried by Doomsday alone, so its only
+closing rule is an Op named for one line (issue #1917). The owner's ruling of
+2026-10-27:
+
+- **A `closedTail` card is Hand Tail by the list itself.** `coverageVerdict`
+  settles it `hand-tail` with no claim, and `enforcedCardIds` /
+  `floorlessCardIds` leave it out, so `gaps:sync` files no Grammar Gap for it.
+- **The rest of Amendment VI stands.** A card outside the list is still owed
+  a `grammar` claim for every gap, below the floor or not; the list still only
+  shrinks; a tail card that compiles `ready` is still retired.
+- A tail card's gap still counts toward its key's corpus leverage, so a gap
+  that other cards also hold is filed for them.
 
 ### Format Tiers
 
