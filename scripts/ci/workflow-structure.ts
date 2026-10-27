@@ -212,6 +212,10 @@ export const HOST_PINNED_JOBS: ReadonlyMap<string, string> = new Map([
         ".github/workflows/post-merge.yml#bot-replay",
         "the Bot-play replay is 15 min on the MacBook and 75 on the Huawei; a late replay is an issue, never a RED or a hold (ADR 0159)",
     ],
+    [
+        ".github/workflows/post-merge.yml#repair-watch",
+        "the stalled-repair alert must not run on the `lane` runner's host (the MacBook, ADR 0160), or it sleeps with the lane it reports on; a late alert holds nothing (issue #7142)",
+    ],
 ]);
 
 /** The jobs that MAY run on a `lane` runner (rule `lane-role`, ADR 0160):

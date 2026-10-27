@@ -680,6 +680,7 @@ describe("workflow structure guard", () => {
     it("waives host-pinned for a HOST_PINNED_JOBS job only — the replay pins the fast host (ADR 0159, issue #6990)", () => {
         expect([...HOST_PINNED_JOBS.keys()]).toEqual([
             ".github/workflows/post-merge.yml#bot-replay",
+            ".github/workflows/post-merge.yml#repair-watch",
         ]);
         const pinned = edit(
             SELF_HOSTED,
