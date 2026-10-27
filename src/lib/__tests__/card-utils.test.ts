@@ -6803,19 +6803,16 @@ describe("PLS C4 prevention slice — client affordances (#1955)", () => {
         ).toHaveLength(1);
     });
 
-    it("Rith's Charm mode 3 makes permanents clickable AND enables stack-spell selection", () => {
-        const req = rithsCharm().modes?.[2].targetRequirement;
-        const types = req?.type as string[];
-        // Every permanent type in the requirement marks a battlefield card
-        // clickable (CR 609.7 — the source may be any object).
-        for (const t of ["Creature", "Artifact", "Enchantment", "Land"]) {
-            const perm = makeCardInstance({ types: [t as never] });
-            expect(matchesTargetRequirement(perm, types)).toBe(true);
-        }
-        // …and the "spell" member opens stack selection, so a burn spell on
-        // the stack can be named as the source.
-        expect(wantsSpellTarget(types)).toBe(true);
-        expect(wantsPermanentTarget(types)).toBe(true);
+    it("Rith's Charm mode 3 declares no target: its source is a non-targeted pick-source choice (CR 609.7a)", () => {
+        const mode = rithsCharm().modes?.[2];
+        // No target slot → nothing to click or select on the board/stack at
+        // announcement; the source is chosen on resolution.
+        expect(mode?.targetRequirement).toBeUndefined();
+        const choice = mode?.effects?.find((op) => op.op === "choice");
+        expect(choice).toMatchObject({
+            kind: "pick-source",
+            zone: "battlefield-or-stack",
+        });
     });
 
     it("Pollen Remedy declares a divided requirement, which drives the per-target stepper", () => {
