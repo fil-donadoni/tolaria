@@ -738,16 +738,21 @@ export function resolveCompiledTrigger(
         case "tapped":
             return tappedTrigger({ ...common, scope: head.scope });
         case "tapped-for-mana": {
-            // CR 605.1b — a for-mana tap trigger that only adds mana is a
-            // mana ability: it resolves at once, inside the cost payment.
+            // CR 605.1b — a for-mana tap trigger is a mana ability only when
+            // it could add mana; any other body (a rider like Manabarbs')
+            // uses the stack.
             // CR 605.4 — a fixed extra amount is declared to the predictive
             // potential-mana models (castability gate + auto-tap solver).
+            const addsMana =
+                common.effects !== undefined &&
+                common.effects.length > 0 &&
+                common.effects.every((op) => op.op === "addMana");
             const bonus = fixedExtraMana(common.effects);
             return tappedTrigger({
                 ...common,
                 scope: head.scope,
                 forMana: true,
-                manaAbility: true,
+                ...(addsMana ? { manaAbility: true } : {}),
                 ...(bonus !== undefined
                     ? {
                           manaBonusForPotential: {
@@ -881,6 +886,14 @@ function fixedExtraMana(
     const total: Partial<Record<Color, number>> = {};
     for (const op of effects) {
         if (op.op !== "addMana") return undefined;
+        // The models credit the TAPPED land's controller: any other
+        // recipient gets no bonus.
+        if (
+            typeof op.player !== "object" ||
+            !("ref" in op.player) ||
+            op.player.ref !== "$event.controllerId"
+        )
+            return undefined;
         for (const [color, amount] of Object.entries(op.mana)) {
             if (typeof amount !== "number") return undefined;
             total[color as Color] = (total[color as Color] ?? 0) + amount;

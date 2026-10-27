@@ -270,12 +270,6 @@ export const EVENT_FIELD_REGISTRY: Record<
                 e.type === "PHASE_BEGIN" ? e.activePlayerId : undefined,
         },
     },
-    // CR 603.6a — "whenever a [permanent] enters, ... its controller ..."
-    // (issue #1072 — Tectonic Instability: "tap all lands ITS CONTROLLER
-    // controls" for ANY land entering, not just this permanent's own
-    // controller). Unblocks a plain (non-`enteredTrigger`-scoped) `effects[]`
-    // body from reading the entering permanent's controller directly off the
-    // firing event, mirroring the `PHASE_BEGIN.activePlayerId` row above.
     // CR 605.1b — the controller of the permanent that was tapped:
     // "whenever enchanted land is tapped for mana, ITS CONTROLLER adds …".
     PERMANENT_TAPPED: {
@@ -285,6 +279,12 @@ export const EVENT_FIELD_REGISTRY: Record<
                 e.type === "PERMANENT_TAPPED" ? e.controllerId : undefined,
         },
     },
+    // CR 603.6a — "whenever a [permanent] enters, ... its controller ..."
+    // (issue #1072 — Tectonic Instability: "tap all lands ITS CONTROLLER
+    // controls" for ANY land entering, not just this permanent's own
+    // controller). Unblocks a plain (non-`enteredTrigger`-scoped) `effects[]`
+    // body from reading the entering permanent's controller directly off the
+    // firing event, mirroring the `PHASE_BEGIN.activePlayerId` row above.
     PERMANENT_ENTERED: {
         controllerId: {
             family: "player",

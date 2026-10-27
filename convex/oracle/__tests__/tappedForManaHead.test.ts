@@ -9,6 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { CompiledTriggeredAbility } from "../../cards/compiledTriggers";
+import { resolveCompiledTrigger } from "../../cards/compiledTriggers";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { oracleCard } from "./oracle.fixture";
@@ -125,5 +126,36 @@ describe("tapped-for-mana head — refusals", () => {
                 )
             )
         ).toBe(true);
+    });
+});
+
+describe("tapped-for-mana head — the rebuilt ability (CR 605.1b, 605.4)", () => {
+    const rebuild = (body: string) =>
+        resolveCompiledTrigger(
+            abilitiesOf(aura("Probe Aura", "{G}", body))[0]!
+        );
+
+    it("a mana-adding body is a mana ability with the host bonus declared", () => {
+        const ability = rebuild(WILD_GROWTH);
+        expect(ability.manaAbility).toBe(true);
+        expect(ability.manaBonusForPotential).toEqual({
+            appliesTo: "host",
+            amount: { kind: "fixed", mana: { G: 1 } },
+        });
+    });
+
+    it("a body that adds no mana uses the stack", () => {
+        const ability = rebuild(
+            "Whenever enchanted land is tapped for mana, you gain 1 life."
+        );
+        expect(ability.manaAbility).toBeUndefined();
+        expect(ability.manaBonusForPotential).toBeUndefined();
+    });
+
+    it("mana added to the Aura's controller declares no tapped-land bonus", () => {
+        const ability = rebuild(
+            "Whenever enchanted land is tapped for mana, add {G}."
+        );
+        expect(ability.manaBonusForPotential).toBeUndefined();
     });
 });
