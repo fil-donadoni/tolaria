@@ -7,6 +7,7 @@
 // `convex/__tests__/limitedDeckbuild.test.ts`), so the mutations stay thin
 // DB-read/write shells around it.
 
+import { isDroppedSeat } from "./droppedSeat";
 import type { SeatLookup } from "./poolResolution";
 
 /**
@@ -25,7 +26,7 @@ export function assertChallengeableSeat(
 ): SeatLookup {
     if (!event) throw new Error("Limited Event not found.");
     const seat = event.seats.find((s) => s.seatIndex === challengedSeatIndex);
-    if (!seat || seat.isBot || !seat.userId) {
+    if (!seat || seat.isBot || isDroppedSeat(seat) || !seat.userId) {
         throw new Error("You can only challenge a seated human opponent.");
     }
     if (seat.userId === challengerUserId) {

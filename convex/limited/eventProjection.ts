@@ -7,6 +7,7 @@
 // event" is asserted through the SAME seam the client actually receives —
 // never a hand-built view (the project's known recurring bug class, see
 // `.claude/rules/gre-development.md` § Frontend wiring analysis).
+import { isDroppedSeat } from "./droppedSeat";
 import type {
     DraftPackCard,
     LimitedEventSeat,
@@ -139,6 +140,9 @@ export interface LimitedEventSeatView {
     userId?: string;
     nickname?: string;
     isBot: boolean;
+    /** True once the occupant dropped from the started event (`droppedAt`,
+     *  `droppedSeat.ts`) — the standings' "Dropped" marker. */
+    isDropped: boolean;
     /** True when this seat belongs to the viewer — drives which seat's `pool`
      *  is populated below. */
     isViewer: boolean;
@@ -583,6 +587,7 @@ export function projectLimitedEvent(
                 userId: seat.userId,
                 nickname: seat.nickname,
                 isBot: seat.isBot ?? false,
+                isDropped: isDroppedSeat(seat),
                 isViewer,
                 // `pool` when it's loaded, else the denormalised `poolCount`
                 // the event row carries (`convex/schema.ts`'s `limitedSeats`

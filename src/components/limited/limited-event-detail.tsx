@@ -54,7 +54,7 @@ import { useRoundCascadeRecovery } from "~/hooks/useRoundCascadeRecovery";
  *  header, phase stepper, a hero with the phase's ONE primary CTA
  *  (`limitedEventHero`), secondary actions in the ⋯ menu, then phase tiles.
  *  It shows what the event's phase makes actionable, and nothing else:
- *  - OPEN — the table, plus Join / Start (hero); Leave / Cancel (⋯).
+ *  - OPEN — the table, plus Join / Start (hero); Leave Event (hero) / Cancel (⋯).
  *  - DRAFTING — the way into the Draft Room (issue #2587): the Booster is
  *    NOT here any more, it is `/limited/$eventId/draft`, and a seated player
  *    landing here mid-draft is sent straight there once per tab
@@ -155,7 +155,10 @@ export default function LimitedEventDetail({
     // out-of-scope note: dropping from a started event is a different,
     // undesigned, concession/replacement policy). Independent of `canClose`:
     // the creator, if ALSO seated, sees both actions.
-    const canLeave = seatingOpen && !!viewerSeat;
+    const canLeave =
+        !!viewerSeat &&
+        !viewerSeat.isDropped &&
+        !isEventConcluded(event.status);
     // The creator's ONE close action, for the whole life of the event up to
     // (but not including) its conclusion (issue #2357, tightened by #2674) —
     // no longer OPEN-only. What it DOES branches by phase (hard delete while
@@ -266,11 +269,6 @@ export default function LimitedEventDetail({
                         <LimitedEventMenu
                             eventId={eventId}
                             canInvite={seatingOpen}
-                            onLeave={
-                                canLeave
-                                    ? () => setConfirmLeave(true)
-                                    : undefined
-                            }
                             onCancel={
                                 canClose
                                     ? () => setConfirmCancel(true)
@@ -308,6 +306,9 @@ export default function LimitedEventDetail({
                         pending={pending}
                         onJoin={handleJoin}
                         onStart={handleStartRequest}
+                        onLeave={
+                            canLeave ? () => setConfirmLeave(true) : undefined
+                        }
                         hint={
                             canStart && !viewerSeat
                                 ? "Join a seat first, then start — or start without playing. The free seats will be managed by bots, both for draft and for gameplay"
@@ -438,8 +439,12 @@ export default function LimitedEventDetail({
             <GameDialog
                 open={confirmLeave}
                 onOpenChange={setConfirmLeave}
-                title="Leave this Seat?"
-                subtitle="It returns to open — anyone else can take it."
+                title={seatingOpen ? "Leave this Seat?" : "Leave this event?"}
+                subtitle={
+                    seatingOpen
+                        ? "It returns to open — anyone else can take it. This action cannot be undone."
+                        : "You drop out for good: your remaining Picks are made for you and every remaining Match is conceded. This action cannot be undone."
+                }
             >
                 <div className="mt-4 flex justify-end gap-2">
                     <ActionButton
@@ -449,7 +454,7 @@ export default function LimitedEventDetail({
                     />
                     <ActionButton
                         onClick={handleLeave}
-                        label="Leave Seat"
+                        label="Leave Event"
                         tone="destructive"
                         disabled={pending}
                     />

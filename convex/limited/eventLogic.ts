@@ -97,6 +97,27 @@ export function releaseSeat(
     });
 }
 
+/** Marks the Seat the given user occupies as Dropped (`droppedSeat.ts`),
+ *  stamping `droppedAt` — a Drop from a STARTED event. The Seat keeps its
+ *  `userId`/`nickname` and every payload field. Throws if the user holds no
+ *  Seat; an already-dropped Seat comes back untouched (idempotent, the
+ *  original `droppedAt` survives). */
+export function dropSeat(
+    seats: readonly LimitedEventSeat[],
+    userId: string,
+    now: number
+): LimitedEventSeat[] {
+    const index = seats.findIndex((seat) => seat.userId === userId);
+    if (index === -1) {
+        throw new Error("You do not have a seat in this event.");
+    }
+    return seats.map((seat, i) =>
+        i === index && seat.droppedAt === undefined
+            ? { ...seat, droppedAt: now }
+            : seat
+    );
+}
+
 /** Derives the seating-permutation RNG seed from the event's stored seed —
  *  same discipline as `draftEngine.ts`'s `roundSeed`: a DISJOINT stream off
  *  the one seed persisted on the event row, so the seating stays reproducible

@@ -51,6 +51,10 @@ export interface LimitedEventSeat {
     userId?: string;
     nickname?: string;
     isBot?: boolean;
+    /** Epoch ms the occupant dropped from the started event (`droppedAt`
+     *  present = Dropped, irreversible; see `droppedSeat.ts`). The Seat keeps
+     *  its `userId` and `nickname` for standings. */
+    droppedAt?: number;
     /** `pool.length`, denormalised onto the event row's slim seat so listing
      *  events never has to load the Pool itself (`convex/schema.ts`'s
      *  `limitedSeats` split). Absent on a seat whose Pool has never been
@@ -138,12 +142,15 @@ export type { LimitedGamesFormat } from "./gamesFormat";
  *  - `"simulated"` — a bot-vs-bot pairing resolved by evaluating both drafted
  *    decks (ADR 0076 decision 3: evaluated, never played through the engine).
  *  - `"bye"` — an odd table's unpaired seat, awarded the match win.
- *  - `"timeout"` — the round deadline closed an unplayed human pairing. */
+ *  - `"timeout"` — the round deadline closed an unplayed human pairing.
+ *  - `"concession"` — a Dropped Seat's pairing, lost by it (or a 0-0 draw
+ *    when both sides dropped) the moment it is decided. */
 export type LimitedPairingResultSource =
     | "played"
     | "simulated"
     | "bye"
-    | "timeout";
+    | "timeout"
+    | "concession";
 
 /** The decided outcome of one pairing, in GAMES won by each side (not match
  *  points): standings derive points, match record AND game-win % from this, so

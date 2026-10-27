@@ -188,16 +188,15 @@ describe("LimitedEventDetail skeleton — one primary CTA per phase", () => {
         render(<LimitedEventDetail eventId={"event-1" as never} />);
 
         expect(screen.queryByText("Cancel Event")).toBeNull();
-        expect(screen.queryByText("Leave Seat")).toBeNull();
         expect(screen.queryByText("Share invite link")).toBeNull();
 
         fireEvent.click(screen.getByLabelText("Event actions"));
         const menu = screen.getByTestId("event-menu-list");
         expect(menu.textContent).toContain("Cancel Event");
-        expect(menu.textContent).toContain("Leave Seat");
+        expect(menu.textContent).not.toContain("Leave");
         expect(menu.textContent).toContain("Share invite link");
         expect(screen.getByTestId("event-hero").textContent).not.toMatch(
-            /Cancel Event|Leave Seat/
+            /Cancel Event/
         );
     });
 

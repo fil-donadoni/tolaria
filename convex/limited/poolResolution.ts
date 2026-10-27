@@ -31,6 +31,9 @@ export interface SeatLookup {
      *  only a seated HUMAN, so the challenge gate reads this. Optional so every
      *  pre-existing plain-data fixture stays structurally compatible. */
     isBot?: boolean;
+    /** Dropped from the started event (`droppedSeat.ts`): nobody is left to
+     *  accept a challenge. */
+    droppedAt?: number;
     /** Display name of the seat's occupant, when known. */
     nickname?: string;
     pool?: readonly LimitedPoolCard[];

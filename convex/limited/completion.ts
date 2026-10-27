@@ -9,6 +9,7 @@
 // only, not legality — the AC is "every seat has a deck", not "every seat
 // has a LEGAL deck" (a human's live legality feedback is the deckbuilder's
 // job, `poolResolution.ts`'s `resolveLimitedDeckLegality`).
+import { isAutoDrivenSeat } from "./droppedSeat";
 import { isEventPoolFinal, type AutoBuildEventContext } from "./autoBuild";
 
 /** The minimal Seat shape completion needs — structural, like
@@ -17,6 +18,8 @@ import { isEventPoolFinal, type AutoBuildEventContext } from "./autoBuild";
 export interface CompletionSeatLookup {
     seatIndex: number;
     isBot?: boolean;
+    /** A Dropped Seat never waits on a submitted deck (`droppedSeat.ts`). */
+    droppedAt?: number;
 }
 
 /** Does the human occupying `seatIndex` have a submitted `limited` deck for
@@ -73,7 +76,8 @@ export function computeEventCompletion(
     const hasDeckBySeat = new Set<number>();
     for (const seat of seats) {
         const hasDeck =
-            poolFinal && (seat.isBot ? true : hasHumanDeck(seat.seatIndex));
+            poolFinal &&
+            (isAutoDrivenSeat(seat) ? true : hasHumanDeck(seat.seatIndex));
         if (hasDeck) {
             seatsWithDeck++;
             hasDeckBySeat.add(seat.seatIndex);

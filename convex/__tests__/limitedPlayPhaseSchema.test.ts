@@ -168,7 +168,7 @@ describe("limitedEvents.rounds ↔ LimitedRound (round-trip, no field loss)", ()
         expect(resultSchemaFields.source.optional).toBe(false);
         expect(
             literalMembers(resultSchemaFields.source.fieldType).sort()
-        ).toEqual(["bye", "played", "simulated", "timeout"]);
+        ).toEqual(["bye", "concession", "played", "simulated", "timeout"]);
     });
 });
 

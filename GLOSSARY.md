@@ -1331,6 +1331,10 @@ _Avoid_: Open decks, public pools, spoiler mode
 A numbered position (2–8, chosen by the **Admin**) at a **Limited Event**, occupied by either a **User** (joined via the event lobby) or a **Bot Drafter** (auto-filling every seat still empty at event start). Seat order defines **Draft** passing adjacency. The solo draft — one human, all other seats bots — is a primary use case, not a degenerate one.
 _Avoid_: Slot (that's a **Booster** position), player (a Seat exists before any **Game**)
 
+**Drop**:
+A **Seat**'s occupant leaving a **Limited Event** that has already started (the **Leave Event** button). Irreversible and idempotent; the **Seat** keeps its **User** and nickname and shows as Dropped in the standings. The server then drives the Seat like a **Bot Drafter** — remaining **Picks** made at once, an **Auto-Built Deck** if none was submitted — and every pairing it is in resolves immediately as a loss for it (`source: "concession"`; a 0-0 draw when both sides dropped). Before the event starts, leaving just releases the **Seat**.
+_Avoid_: Forfeit, quit, abandon
+
 **Bot Drafter**:
 The non-human occupant of a **Seat** in a **Limited Event**. Picks and deckbuilds are computed **server-side in Convex** (deterministic, seeded PRNG, no dependency on any connected client) — deliberately unlike the gameplay **Bot**, whose ISMCTS **Brain** runs client-side. A pick is a lightweight scoring decision, not a search.
 _Avoid_: Draft AI, the Bot (that's the gameplay opponent — different component, different host)

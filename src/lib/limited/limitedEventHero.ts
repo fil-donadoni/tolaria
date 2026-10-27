@@ -112,7 +112,10 @@ function startCta(event: HeroEvent): LimitedHeroCta {
  *  they hold one. */
 export function limitedEventHero(
     event: HeroEvent,
-    viewer: { isCreator: boolean; seat: { hasDeck: boolean } | undefined }
+    viewer: {
+        isCreator: boolean;
+        seat: { hasDeck: boolean; isDropped?: boolean } | undefined;
+    }
 ): LimitedEventHero {
     const phase = limitedEventPhase(event);
     const role = limitedViewerRole(viewer.isCreator, viewer.seat !== undefined);
@@ -142,6 +145,7 @@ export function limitedEventHero(
             if (role === "visitor") return act(JOIN);
             return waiting("Waiting for the host to start");
         case "draft":
+            if (seat?.isDropped) return waiting("You dropped from this event");
             return seat
                 ? act({ kind: "draft", label: "Enter the Draft Room" })
                 : waiting("Draft in progress");

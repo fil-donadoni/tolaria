@@ -767,7 +767,8 @@ export default defineSchema({
                                         v.literal("played"),
                                         v.literal("simulated"),
                                         v.literal("bye"),
-                                        v.literal("timeout")
+                                        v.literal("timeout"),
+                                        v.literal("concession")
                                     ),
                                 })
                             ),
@@ -859,6 +860,9 @@ export default defineSchema({
                 // Bot Drafter placeholder (PRD #1107 story 8), set at
                 // `startEvent` for every seat still unclaimed by a human.
                 isBot: v.optional(v.boolean()),
+                // Epoch ms the occupant dropped from the started event
+                // (`convex/limited/droppedSeat.ts`). Absent = still playing.
+                droppedAt: v.optional(v.number()),
                 // How many cards are in this seat's Pool — the ONLY pool fact
                 // the list queries need (`poolCount` on the wire). Denormalised
                 // onto the slim row precisely so listing events never has to

@@ -13,6 +13,7 @@ const SOURCE_LABEL: Record<LimitedPairingResultSource, string> = {
     simulated: "Simulated",
     bye: "Bye",
     timeout: "Round deadline",
+    concession: "Concession",
 };
 
 const OUTCOME_LABEL = {

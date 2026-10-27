@@ -20,6 +20,7 @@ export default function LimitedEventHeroCard({
     pending,
     onJoin,
     onStart,
+    onLeave,
     hint,
 }: {
     eventId: Id<"limitedEvents">;
@@ -28,6 +29,9 @@ export default function LimitedEventHeroCard({
     pending: boolean;
     onJoin: () => void;
     onStart: () => void;
+    /** Present only for a seated viewer of an event not yet finished: opens
+     *  the page's Leave Event confirm. */
+    onLeave?: () => void;
     /** Quiet explanatory line under the CTA. */
     hint?: string;
 }) {
@@ -105,6 +109,18 @@ export default function LimitedEventHeroCard({
                     onClick={handlerFor(secondary.kind)}
                 >
                     {secondary.label}
+                </Button>
+            )}
+            {onLeave && (
+                <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    data-hero-leave
+                    disabled={pending}
+                    onClick={onLeave}
+                >
+                    Leave Event
                 </Button>
             )}
             {hint && <p className="text-sm italic text-text-muted">{hint}</p>}

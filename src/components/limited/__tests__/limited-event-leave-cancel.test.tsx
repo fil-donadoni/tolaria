@@ -1,5 +1,5 @@
-// Leave Seat / Cancel-or-Close Event (issue #1579, extended by issue #2357):
-// an occupant can leave their Seat while it's still OPEN; the creator's one
+// Leave Event / Cancel-or-Close Event (issue #1579, extended by issue #2357):
+// an occupant can leave the event from the hero at any phase before it ends; the creator's one
 // close action now spans the WHOLE life of the event — "Cancel Event" (hard
 // delete) while seating is open, "Close Event" (force-finish in place)
 // afterwards — both gated behind a confirmation dialog and disabled while the
@@ -113,22 +113,50 @@ function makeEvent(overrides: Partial<LimitedEventView>): LimitedEventView {
     } as unknown as LimitedEventView;
 }
 
-describe("LimitedEventDetail — Leave Seat (issue #1579)", () => {
-    it("shows a Leave Seat button for an occupant of an OPEN event", () => {
+describe("LimitedEventDetail — Leave Event (hero button)", () => {
+    const withSeatFlags = (isDropped: boolean) =>
+        makeEvent({}).seats.map((seat) => ({ ...seat, isDropped }));
+
+    it("shows Leave Event beside the hero CTA for a seated viewer, at every non-finished phase", () => {
+        for (const status of ["open", "started", "playing"] as const) {
+            eventMock.mockReturnValue(makeEvent({ status }));
+            const { unmount } = render(
+                <LimitedEventDetail eventId={"event-1" as never} />
+            );
+            const hero = screen.getByTestId("event-hero");
+            expect(hero.textContent).toContain("Leave Event");
+            unmount();
+        }
+    });
+
+    it("keeps Leave Event out of the ⋯ menu", () => {
         eventMock.mockReturnValue(makeEvent({ status: "open" }));
         render(<LimitedEventDetail eventId={"event-1" as never} />);
         openMenu();
-        expect(screen.getByText("Leave Seat")).toBeTruthy();
-    });
-
-    it("hides the Leave Seat button once the event has STARTED", () => {
-        eventMock.mockReturnValue(makeEvent({ status: "started" }));
-        render(<LimitedEventDetail eventId={"event-1" as never} />);
-        openMenu();
         expect(screen.queryByText("Leave Seat")).toBeNull();
+        expect(screen.getByTestId("event-menu-list").textContent).not.toContain(
+            "Leave"
+        );
     });
 
-    it("hides the Leave Seat button for a viewer with no Seat in the event", () => {
+    it("hides Leave Event once the event is finished", () => {
+        eventMock.mockReturnValue(makeEvent({ status: "finished" }));
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+        expect(screen.queryByText("Leave Event")).toBeNull();
+    });
+
+    it("hides Leave Event for a viewer who already dropped", () => {
+        eventMock.mockReturnValue(
+            makeEvent({
+                status: "playing",
+                seats: withSeatFlags(true) as LimitedEventView["seats"],
+            })
+        );
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+        expect(screen.queryByText("Leave Event")).toBeNull();
+    });
+
+    it("hides Leave Event for a viewer with no Seat in the event", () => {
         eventMock.mockReturnValue(
             makeEvent({
                 status: "open",
@@ -150,16 +178,14 @@ describe("LimitedEventDetail — Leave Seat (issue #1579)", () => {
             })
         );
         render(<LimitedEventDetail eventId={"event-1" as never} />);
-        openMenu();
-        expect(screen.queryByText("Leave Seat")).toBeNull();
+        expect(screen.queryByText("Leave Event")).toBeNull();
     });
 
-    it("requires confirmation before calling the leave mutation", () => {
+    it("requires confirmation, and cancel leaves state untouched", () => {
         eventMock.mockReturnValue(makeEvent({ status: "open" }));
         render(<LimitedEventDetail eventId={"event-1" as never} />);
-        openMenu();
 
-        fireEvent.click(screen.getByText("Leave Seat"));
+        fireEvent.click(screen.getByText("Leave Event"));
         expect(leaveMock).not.toHaveBeenCalled();
 
         expect(screen.getByText("Leave this Seat?")).toBeTruthy();
@@ -167,17 +193,25 @@ describe("LimitedEventDetail — Leave Seat (issue #1579)", () => {
         expect(leaveMock).not.toHaveBeenCalled();
     });
 
-    it("calls the leave mutation once the dialog is confirmed", () => {
-        eventMock.mockReturnValue(makeEvent({ status: "open" }));
+    it("states the irreversibility once the event has started", () => {
+        eventMock.mockReturnValue(makeEvent({ status: "started" }));
         render(<LimitedEventDetail eventId={"event-1" as never} />);
-        openMenu();
+        fireEvent.click(screen.getByText("Leave Event"));
+        expect(screen.getByText("Leave this event?")).toBeTruthy();
+        expect(screen.getAllByText(/cannot be undone/).length).toBeGreaterThan(
+            0
+        );
+    });
 
-        fireEvent.click(screen.getByText("Leave Seat"));
-        // Two "Leave Seat" strings now exist — the (still-visible) action
-        // button and the dialog's confirm button — the confirm button is the
-        // last one rendered.
-        const confirmButtons = screen.getAllByText("Leave Seat");
-        fireEvent.click(confirmButtons[confirmButtons.length - 1]);
+    it("calls the leave mutation once the dialog is confirmed", () => {
+        eventMock.mockReturnValue(makeEvent({ status: "playing" }));
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+
+        fireEvent.click(screen.getByText("Leave Event"));
+        // The hero button and the dialog's confirm share the label; the
+        // confirm is the last one rendered.
+        const buttons = screen.getAllByText("Leave Event");
+        fireEvent.click(buttons[buttons.length - 1]);
         expect(leaveMock).toHaveBeenCalledWith({ eventId: "event-1" });
     });
 });

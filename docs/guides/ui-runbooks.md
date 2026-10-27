@@ -541,7 +541,7 @@ and leaves no seat, so the fixtures stay as every other Limited walk expects.
 | ---------------------------- | ----------------------------- | ------------------------------- | ------------------------------------------------------- |
 | `limited-create-event`       | `/limited/new` (issue #5387)  | the `Pack Source` rail step     | the setup route's showcase — Create never pressed       |
 | `limited-table-ring`         | the `open` antechamber        | `View Table` (below `md`)       | the Table Ring dialog; inline ring from `md` up         |
-| `limited-leave-seat-confirm` | the `open` antechamber        | ⋯ menu → `Leave Seat`           | the `Leave this Seat?` confirm — never confirmed        |
+| `limited-leave-seat-confirm` | the `open` antechamber        | hero → `Leave Event`            | the `Leave this Seat?` confirm — never confirmed        |
 | `draft-pool-move-sheet`      | `draft-pool-peek`'s selection | `Move to…` (Peek Panel or menu) | the column-pin `[data-action-sheet]` — no column chosen |
 
 By hand, `Escape` closes the three dialogs and a tap on the scrim closes the
