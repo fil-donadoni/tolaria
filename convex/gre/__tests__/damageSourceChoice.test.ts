@@ -465,6 +465,25 @@ describe("the script's validator rules (issue #5601)", () => {
         delete noDuration.duration;
         expect(errorsOf([pick(), noDuration as EffectOp])).not.toEqual([]);
     });
+
+    // CR 609.7a — Rith's Charm's "prevent ALL damage a source of your choice
+    // would deal this turn": the chosen-source twin of `"all-from-source"`.
+    it("accepts `all-from-chosen-source` over a picks binding and refuses a target slot", () => {
+        const all = (extra: Record<string, unknown> = {}): EffectOp =>
+            ({
+                op: "preventDamage",
+                mode: "all-from-chosen-source",
+                source: { ref: "$chosen" },
+                ...extra,
+            }) as EffectOp;
+        expect(errorsOf([pick(), all()])).toEqual([]);
+        expect(errorsOf([pick(), all({ combatOnly: true })])).toEqual([]);
+        expect(errorsOf([pick(), all({ source: { target: 0 } })])).not.toEqual(
+            []
+        );
+        // No picks binding declared before it: a dangling ref.
+        expect(errorsOf([all()])).not.toEqual([]);
+    });
 });
 
 /** p2's `attackerId` attacks p1 unblocked and combat damage is dealt — the
