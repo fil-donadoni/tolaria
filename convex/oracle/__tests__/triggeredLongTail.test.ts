@@ -676,7 +676,7 @@ describe("triggered long tail — refusals (fail-closed)", () => {
         // Only "their hand" is printed: "your hand" and other counts stay out.
         expect(
             unparsed(
-                "At the beginning of your upkeep, you gain X life, where X is 4 minus the number of cards in your hand."
+                "At the beginning of each player's upkeep, this enchantment deals X damage to that player, where X is 4 minus the number of cards in your hand."
             )
         ).toBe(true);
         expect(
