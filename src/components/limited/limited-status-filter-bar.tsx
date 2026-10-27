@@ -31,7 +31,7 @@ export default function LimitedStatusFilterBar({
     counts: Record<LimitedEventStatusChip, number>;
     onChange: (next: LimitedEventStatusChip | undefined) => void;
 }) {
-    const { ref, edges, onScroll } = useScrollEdges<HTMLDivElement>();
+    const { ref, edges, onScroll } = useScrollEdges<HTMLDivElement>(counts);
     const mask = edgeFadeMask(edges);
     return (
         <div
@@ -41,7 +41,7 @@ export default function LimitedStatusFilterBar({
             data-slot="status-filter-scroller"
             onScroll={onScroll}
             style={{ maskImage: mask, WebkitMaskImage: mask }}
-            className="flex min-w-0 max-w-full flex-nowrap gap-1.5 overflow-x-auto overscroll-x-contain"
+            className="-my-1 flex min-w-0 max-w-full scroll-px-6 flex-nowrap gap-1.5 py-1 overflow-x-auto overscroll-x-contain"
         >
             {LIMITED_EVENT_STATUS_CHIPS.map((chip) => {
                 const active = value === chip;

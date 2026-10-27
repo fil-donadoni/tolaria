@@ -5,7 +5,7 @@ export type ScrollEdges = { start: boolean; end: boolean };
 /** Which horizontal edges of a scroller still have content beyond them
  *  (issue #3684): drives the edge fade that tells a coarse-pointer user the
  *  row scrolls. Recomputed on scroll and on any size change. */
-export function useScrollEdges<T extends HTMLElement>() {
+export function useScrollEdges<T extends HTMLElement>(contentKey?: unknown) {
     const ref = useRef<T>(null);
     const [edges, setEdges] = useState<ScrollEdges>({
         start: false,
@@ -30,6 +30,10 @@ export function useScrollEdges<T extends HTMLElement>() {
         observer.observe(el);
         return () => observer.disconnect();
     }, [measure]);
+
+    // Content can grow without the scroller's own box resizing (a count
+    // gaining a digit): re-measure when the caller's content key changes.
+    useEffect(measure, [measure, contentKey]);
 
     return { ref, edges, onScroll: measure };
 }
