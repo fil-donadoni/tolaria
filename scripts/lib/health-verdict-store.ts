@@ -102,6 +102,10 @@ export interface Lineage {
     /** The verdict the kind is about: the standing RED for `red` /
      *  `second-red`, the AMBER for `amber`, the newest otherwise. */
     verdict: Verdict | null;
+    /** `red` / `second-red` only: the standing RED and every RED before it
+     *  back to the last GREEN or AMBER, newest first — the REDs a repair
+     *  declared on any of them still answers (issue #7139). */
+    reds?: Verdict[];
 }
 
 export interface WriteOutcome {
@@ -163,11 +167,14 @@ export function lineageOf(history: readonly Verdict[]): Lineage {
     if (head.status === "amber") return { kind: "amber", verdict: head };
     if (head.status !== "red") return { kind: "none", verdict: head };
     // A RED. Second when an AMBER stands between it and the last GREEN.
+    const reds = [head];
     for (const v of decided.slice(1)) {
         if (v.status === "green") break;
-        if (v.status === "amber") return { kind: "second-red", verdict: head };
+        if (v.status === "amber")
+            return { kind: "second-red", verdict: head, reds };
+        if (v.status === "red") reds.push(v);
     }
-    return { kind: "red", verdict: head };
+    return { kind: "red", verdict: head, reds };
 }
 
 /** The failing test files named in a vitest run's output — what a repair's
