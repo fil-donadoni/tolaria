@@ -16,8 +16,26 @@
 // own `bestDefenderBlocks` is eval-based; reusing it here would recurse through
 // `evaluate`, so the Clock shares the legality rules and does its own crude,
 // non-eval assignment, exactly as ADR 0018 specifies.)
+//
+// The NEXT OPPOSING COMBAT (issue #6909). The clock is steady-state on purpose,
+// but one half of it is not symmetric in time: when the DEFENDER is the active
+// player, the attacker's next combat comes BEFORE the defender's next untap
+// step (CR 502.3 — only the active player's permanents untap), so a creature
+// the defender tapped this turn — an attacker without vigilance (CR 702.20b),
+// a mana creature — is no blocker in it. And the attacker's board is sized at
+// what its mana buys, not its printed power: the mana-sink pumps and trample
+// grants its permanents carry (`activatedCombatPumps`), paid from the mana
+// base that untaps on its turn, so a firebreather or a Mantle-enchanted cat
+// reads as the crackback it is. Both are read deterministically here rather
+// than left to the rollout to sample: the lethal line needs the opponent to
+// pump N times then swing, a sequence the ε-greedy playout rarely finds.
 
-import { hasInfect, type CardInstanceState, type GameState } from "./state";
+import {
+    hasInfect,
+    type CardInstanceState,
+    type GameState,
+    type PlayerState,
+} from "./state";
 import {
     beginLayer7Pass,
     getEffectivePT,
@@ -29,7 +47,13 @@ import {
     evaluateBlockerKeywords,
     evaluateAttackerKeywords,
 } from "./combatRegistry";
-import type { HeldPump } from "./heldInteraction";
+import {
+    activatedCombatPumps,
+    type ActivatedPump,
+    type HeldPump,
+} from "./heldInteraction";
+import { spendCost, type ManaUnits } from "./manaAvailability";
+import { censusOf, type ManaCensusMemo } from "./manaCensusMemo";
 
 /** Reward magnitude for holding a one-combat-lethal clock (a full fraction).
  *  Forge-scale (ADR 0018) but kept below a creature's worth (~170) so the clock
@@ -53,56 +77,160 @@ export function predictUnblockedDamage(
     attackerId: string,
     defenderId: string,
     /** See `predictUnblockedThreat`. */
-    pass: Layer7Pass = beginLayer7Pass(state)
+    pass: Layer7Pass = beginLayer7Pass(state),
+    memo?: ManaCensusMemo
 ): number {
-    return predictUnblockedThreat(state, attackerId, defenderId, pass).damage;
+    return predictUnblockedThreat(state, attackerId, defenderId, pass, memo)
+        .damage;
 }
 
 /** `predictUnblockedDamage`'s assignment, with the unblocked infect attackers'
- *  power split out as `poison` (issue #5153). */
+ *  power split out as `poison` (issue #5153).
+ *
+ *  The defender's blockers are its creatures — ALL of them in the steady
+ *  state, but only the UNTAPPED ones when the defender is the active player
+ *  (issue #6909): the attacker's next combat then precedes the defender's
+ *  next untap step (CR 502.3), so what the defender tapped this turn stays
+ *  tapped through it and cannot block (CR 509.1a). The attackers carry the
+ *  mana-sink pumps and trample grants their controller's board can pay for
+ *  (`activatedCombatPumps`, budgeted against the mana base by
+ *  `crackbackPumpPlan`); a trampler blocked by one creature still pushes its
+ *  power past that blocker's toughness through (CR 702.19b). */
 export function predictUnblockedThreat(
     state: GameState,
     attackerId: string,
     defenderId: string,
     /** The evaluation's layer-7 pass (issue #4462), when the caller is one;
      *  omitted, this prediction is its own pass. */
-    pass: Layer7Pass = beginLayer7Pass(state)
+    pass: Layer7Pass = beginLayer7Pass(state),
+    /** The evaluation's mana census memo (issue #4461), when the caller is
+     *  one — the pump budget reads the attacker's mana base through it. */
+    memo?: ManaCensusMemo
 ): UnblockedThreat {
     const threat: UnblockedThreat = { damage: 0, poison: 0 };
     const attacker = state.players.find((p) => p.id === attackerId);
     const defender = state.players.find((p) => p.id === defenderId);
     if (!attacker || !defender) return threat;
-    const powerOf = (c: CardInstanceState): number =>
-        getEffectivePT(state, c, { pass }).power;
+    const ptOf = (c: CardInstanceState): EffectivePT =>
+        getEffectivePT(state, c, { pass });
 
-    // Potential attackers: creatures that may attack (not defender-restricted)
-    // and deal positive damage.
-    const attackers = attacker.battlefield
-        .filter(
-            (c) =>
-                isCreature(c) &&
-                evaluateAttackerKeywords(c).eligible &&
-                powerOf(c) > 0
-        )
+    // Potential attackers: creatures that may attack (not defender-restricted).
+    const eligible = attacker.battlefield.filter(
+        (c) => isCreature(c) && evaluateAttackerKeywords(c).eligible
+    );
+    const plan = crackbackPumpPlan(
+        state,
+        attacker,
+        eligible.map((c) => ({ id: c.id, power: ptOf(c).power })),
+        memo
+    );
+    const powerOf = (c: CardInstanceState): number =>
+        ptOf(c).power + (plan.get(c.id)?.power ?? 0);
+    const tramples = (c: CardInstanceState): boolean =>
+        c.staticAbilities.includes("trample") ||
+        (plan.get(c.id)?.trample ?? false);
+    const attackers = eligible
+        .filter((c) => powerOf(c) > 0)
         .sort((a, b) => powerOf(b) - powerOf(a));
 
-    const blockers = defender.battlefield.filter((c) => isCreature(c));
+    // CR 502.3 / 509.1a — the active player's tapped creatures do not untap
+    // before the opponent's next combat, so they are no blockers in it.
+    const tapsPersist = defender.id === state.activePlayerId;
+    const blockers = defender.battlefield.filter(
+        (c) => isCreature(c) && (!tapsPersist || !c.isTapped)
+    );
     const usedBlocker = new Set<string>();
 
     for (const atk of attackers) {
         // The defender spends a blocker on the biggest threats first; one legal,
         // unused blocker stops ALL of an attacker's damage (crude — toughness /
-        // trades are not modelled, only damage prevented).
+        // trades are not modelled, only damage prevented) — except a
+        // trampler's, which pushes past the blocker's toughness (CR 702.19b).
         const blocker = blockers.find(
             (b) =>
                 !usedBlocker.has(b.id) &&
                 evaluateBlockerKeywords(atk, b, defender.battlefield).eligible
         );
-        if (blocker) usedBlocker.add(blocker.id);
-        else if (hasInfect(atk)) threat.poison += powerOf(atk);
-        else threat.damage += powerOf(atk);
+        let through = powerOf(atk);
+        if (blocker) {
+            usedBlocker.add(blocker.id);
+            through = tramples(atk)
+                ? Math.max(0, through - Math.max(0, ptOf(blocker).toughness))
+                : 0;
+        }
+        if (through <= 0) continue;
+        if (hasInfect(atk)) threat.poison += through;
+        else threat.damage += through;
     }
     return threat;
+}
+
+/** What one attacker gains from its controller's mana-sink pumps in the
+ *  predicted combat: the power added and whether trample was bought. */
+export type CrackbackPump = { power: number; trample: boolean };
+
+/** Allocate `player`'s mana-sink pumps (`activatedCombatPumps`) over the
+ *  `attackers` for one combat, bounded by the mana base their permanents
+ *  make — the lands untap on their turn (CR 502.3), so the base, not what
+ *  is untapped now, is the budget. Deterministic and greedy: trample grants
+ *  are bought first (one each — the keyword does not stack), then pumps in
+ *  order of power per pip, each activated as long as the pool pays
+ *  (`spendCost`) and its single-use limit (once per turn, or a `{T}` leg)
+ *  allows. A host-bound pump lands
+ *  on its host (nothing when the host is not among the attackers); a
+ *  targeted pump lands on the biggest attacker. Pure. */
+export function crackbackPumpPlan(
+    state: GameState,
+    player: PlayerState,
+    attackers: ReadonlyArray<{ id: string; power: number }>,
+    memo?: ManaCensusMemo
+): Map<string, CrackbackPump> {
+    const plan = new Map<string, CrackbackPump>();
+    if (attackers.length === 0) return plan;
+    const pumps = activatedCombatPumps(state, player, memo);
+    if (pumps.length === 0) return plan;
+    const ids = new Set(attackers.map((a) => a.id));
+    const biggest = attackers.reduce((best, a) =>
+        a.power > best.power ? a : best
+    );
+    const hostOf = (pump: ActivatedPump): string | null => {
+        if (pump.hostId === undefined) return biggest.id;
+        return ids.has(pump.hostId) ? pump.hostId : null;
+    };
+    const pips = (pump: ActivatedPump): number =>
+        Math.max(
+            1,
+            Object.values(pump.cost).reduce<number>(
+                (sum, v) => sum + (typeof v === "number" ? v : 0),
+                0
+            )
+        );
+    const ordered = [...pumps].sort((a, b) => {
+        if (a.trample !== b.trample) return a.trample ? -1 : 1;
+        return b.power / pips(b) - a.power / pips(a);
+    });
+    let pool: ManaUnits = censusOf(state, player, memo).base;
+    const opts = { life: player.life };
+    for (const pump of ordered) {
+        const host = hostOf(pump);
+        if (host === null) continue;
+        const entry = plan.get(host) ?? { power: 0, trample: false };
+        plan.set(host, entry);
+        const limit =
+            pump.singleUse || (pump.trample && pump.power <= 0)
+                ? 1
+                : Number.POSITIVE_INFINITY;
+        for (let uses = 0; uses < limit; uses++) {
+            const next = spendCost(pool, pump.cost, opts);
+            // Unpayable, or paid with nothing (a cost the reader let through
+            // with no pip): either way the budget is done with this pump.
+            if (next === null || next.length === pool.length) break;
+            pool = next;
+            entry.power += pump.power;
+            if (pump.trample) entry.trample = true;
+        }
+    }
+    return plan;
 }
 
 /** The predicted result of a DECLARED combat: the damage that gets through —
@@ -182,7 +310,11 @@ export function predictCombatOutcome(
     const pumpT = (atk: { id: string }) =>
         atk.id === pumpedId ? (attackerHeldPump?.toughness ?? 0) : 0;
 
-    const blockers = defender.battlefield.filter((c) => isCreature(c));
+    // CR 509.1a — a declared combat's blockers must be untapped: what the
+    // defender tapped (this turn's attackers, a mana creature) sits it out.
+    const blockers = defender.battlefield.filter(
+        (c) => isCreature(c) && !c.isTapped
+    );
     const used = new Set<string>();
     const out: CombatOutcome = {
         faceDamage: 0,
@@ -289,14 +421,16 @@ export function dangerClock(
     state: GameState,
     playerId: string,
     /** See `predictUnblockedDamage`. */
-    pass: Layer7Pass = beginLayer7Pass(state)
+    pass: Layer7Pass = beginLayer7Pass(state),
+    /** See `predictUnblockedThreat`. */
+    memo?: ManaCensusMemo
 ): number {
     const me = state.players.find((p) => p.id === playerId);
     const opp = state.players.find((p) => p.id !== playerId);
     if (!me || !opp) return 0;
 
-    const mine = predictUnblockedThreat(state, me.id, opp.id, pass);
-    const theirs = predictUnblockedThreat(state, opp.id, me.id, pass);
+    const mine = predictUnblockedThreat(state, me.id, opp.id, pass, memo);
+    const theirs = predictUnblockedThreat(state, opp.id, me.id, pass, memo);
     return (
         clockReward(mine, opp.life, opp.poisonCounters ?? 0) -
         clockReward(theirs, me.life, me.poisonCounters ?? 0)
