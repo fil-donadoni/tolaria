@@ -96,6 +96,7 @@
         "post-merge": "bun scripts/post-merge.ts",
         "land:runner": "bun scripts/land-runner.ts",
         "housekeeping": "bun scripts/housekeeping.ts",
+        "repair:watch": "bun scripts/repair-watch.ts",
         "release": "bun scripts/release.ts",
         "lint": "eslint . --cache --cache-location node_modules/.cache/eslint.json --cache-strategy content",
         "lint:fix": "eslint . --fix --cache --cache-location node_modules/.cache/eslint.json --cache-strategy content",

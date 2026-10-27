@@ -16,6 +16,9 @@
 # card once on that tip — pushing the swept lockfile when no card left `ready`,
 # filing a regression issue when one did. A session's bare `oracle:compile`
 # never replays for a Bot hash it did not move.
+# `repair-watch` (issue #7142) is the stalled-repair alert: every 15 min it
+# reads the standing RED and its declared repairs and notifies the owner once
+# per stall past `repairWatch.stallMinutes`.
 # They replace the Huawei's tolaria-housekeeping and tolaria-nightly timers.
 # The hourly schedule also runs `sweep` on EVERY machine (issue #6083):
 # worktrees are machine-local, so the issue worktrees no merge cleans up (PR
@@ -42,12 +45,14 @@ on:
     schedule:
         - cron: "17 * * * *"
         - cron: "40 3 * * *"
+        - cron: "5,20,35,50 * * * *"
     workflow_dispatch:
         inputs:
             job:
                 description: Job to run by hand
                 type: choice
-                options: [housekeeping, nightly, sweep, bot-replay]
+                options:
+                    [housekeeping, nightly, sweep, bot-replay, repair-watch]
                 default: housekeeping
 
 permissions:
@@ -253,6 +258,37 @@ jobs:
             - uses: ./.github/actions/job-setup
             - name: health:nightly
               run: bun run health:nightly
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
+
+    repair-watch:
+        name: stalled-repair alert
+        if: ${{ github.event.schedule == '5,20,35,50 * * * *' || inputs.job == 'repair-watch' }}
+        # The Huawei (`HOST_PINNED_JOBS` waives `host-pinned`, issue #7142):
+        # the alert is about a repair waiting on the `lane` runner, which is
+        # the MacBook's (ADR 0160) — run there, the alert would sleep with the
+        # host it reports on. The Huawei offline costs the alert only; nothing
+        # waits on it. Its dedupe marker is this host's
+        # (`.claude/telemetry/repair-watch/` in the primary checkout), so one
+        # host keeps it. Ticks queued behind a long `maint` job (nightly) run
+        # in seconds once it ends; the marker makes them one notice at most.
+        # Cost: seconds — a verdict-store read off RED; under a RED, one `gh`
+        # call per declared repair and its PR, one runners read. No mutex.
+        runs-on: [self-hosted, maint, "host:huawei"]
+        timeout-minutes: 10
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: repair:watch
+              run: bun run repair:watch
             - name: Remove the job worktree
               if: always()
               shell: bash
