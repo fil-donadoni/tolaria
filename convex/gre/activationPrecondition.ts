@@ -113,7 +113,7 @@ function activationConditionValue(
     const filter = battlefieldFilterOf(spec.filter);
     // CR 404.2 / 402.3 — a graveyard's contents and a hand's SIZE are what
     // every player can see (a hand's cards are hidden, not how many there are).
-    // CR 110.1 — the battlefield is public: the permanents a player controls
+    // CR 400.2 — the battlefield is public: the permanents a player controls
     // that the filter matches.
     const sizeOf = (p: TriggerStateView["players"][number]): number =>
         spec.zone === "battlefield"

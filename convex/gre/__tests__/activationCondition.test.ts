@@ -318,8 +318,9 @@ const OPPONENT_MORE_LANDS: EffectPredicate = {
 };
 
 /** p1 controls the source plus `mine` Forests, p2 controls `theirs` Forests
- *  and `bears` Grizzly Bears. The source is itself a land (CR 305 — it counts
- *  toward "lands you control"). */
+ *  and `bears` Grizzly Bears. The source is itself a land, so it counts
+ *  toward "lands you control" (CR 110.1 — a card on the battlefield is a
+ *  permanent). */
 function landBoard(mine: number, theirs: number, bears = 0): GameState {
     const forests = (owner: "p1" | "p2", n: number) =>
         Array.from({ length: n }, (_, i) =>
