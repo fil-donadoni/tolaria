@@ -127,7 +127,7 @@ export type CountedSetIR =
      */
     | { readonly kind: "named-self-in-all-graveyards" }
     /**
-     * CR 115.1 + CR 109.5 — "the number of Islands target opponent controls":
+     * CR 115.1 — "the number of Islands target opponent controls":
      * the permanents of an opponent the ability TARGETS, announced as it is
      * put on the stack and counted as it resolves. Its noun phrase is
      * `permanents`, not `descriptor`, so no consumer of the controller's own

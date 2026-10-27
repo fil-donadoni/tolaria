@@ -427,7 +427,7 @@ function lowerCountedSet(
             ? lowered({ zone: "hand", controller: controller.value })
             : controller;
     }
-    // CR 115.1 + CR 109.5 — the permanents of a targeted opponent: the same
+    // CR 115.1 — the permanents of a targeted opponent: the same
     // battlefield filter as the controller's own set, counted over the
     // announced player's board. The opponent is allocated only once the
     // filter is known to lower, so a refused clause announces no target.
