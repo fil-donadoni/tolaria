@@ -720,7 +720,7 @@ async function reachDraftPoolStop(page: Page, ctx: WalkContext): Promise<void> {
 /**
  * Land on the `ui-gate/<runId>/open` fixture's antechamber
  * (`/limited/<id>`). Extracted (issue #4422) so the two overlays opened from
- * it — the Table Ring and the Leave Seat confirm — reach the SAME page
+ * it — the Table Ring and the Leave Event confirm — reach the SAME page
  * `limited-antechamber` measures.
  */
 async function reachFixtureAntechamber(
@@ -750,18 +750,15 @@ async function reachFixtureAntechamber(
 }
 
 /** The antechamber's openers for the Limited overlays
- *  (issue #4422), by each button's own visible text. `Leave Seat` is an
- *  `ActionButton`, which wraps its label in a `<span>` — and `:text-is`
+ *  (issue #4422), by each button's own visible text. `Leave Event` (the
+ *  dialog's confirm) is an `ActionButton`, which wraps its label in a `<span>` — and `:text-is`
  *  matches the SMALLEST element carrying the text, i.e. that span, never
  *  the button (measured: UNWALKED at all five viewports while
  *  `limited-antechamber` promised the same button PASS). `:has-text` is
  *  the form that reaches through the wrapper; no other button on the
  *  antechamber contains the phrase. */
 const LIMITED_VIEW_TABLE = 'button:text-is("View Table")';
-const LIMITED_LEAVE_SEAT = 'button:has-text("Leave Seat")';
-/** The event page's ⋯ menu trigger (issue #5389): Copy link, Leave Seat and
- *  Cancel / Close Event live behind it, never beside the hero's CTA. */
-const LIMITED_EVENT_MENU = 'button[aria-label="Event actions"]';
+const LIMITED_LEAVE_EVENT = 'button:has-text("Leave Event")';
 
 /** `ActionSheet`'s own queryable handle (`ui/action-sheet.tsx`, issue #2584):
  *  it portals to `document.body`, so this is the only seam that names it. */
@@ -4003,7 +4000,7 @@ export const SURFACES: readonly Surface[] = [
          * over an event inserted with `user._id`), and the event's seating is
          * still open. So `limited-event-detail.tsx` resolves `canLeave`,
          * `canClose` and `canStart` all true and `canJoin` false: the hero's
-         * CTA is Start now, and the ⋯ menu holds Leave Seat and Cancel Event
+         * CTA is Start now, and the hero holds Leave Event and the ⋯ menu Cancel Event
          * (issue #5389; asserted by the menu's own opener). A fixture
          * that stopped seating the viewer would red these three promises,
          * which is the correct outcome — every walk below assumes that seat.
@@ -4105,7 +4102,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         // Issue #4422 — the antechamber's inline confirm
-        // (`limited-event-detail.tsx`'s two `GameDialog`s: Leave Seat and
+        // (`limited-event-detail.tsx`'s two `GameDialog`s: Leave Event and
         // Cancel/Close Event share one shape, so one of them measures the
         // file). The walk opens `Leave this Seat?` and NEVER confirms it:
         // leaving would unseat the lane from the `open` fixture every later
@@ -4116,10 +4113,10 @@ export const SURFACES: readonly Surface[] = [
             "src/routes/limited-events.route.tsx",
             "src/routes/limited-event-detail.route.tsx",
         ],
-        label: "Leave Seat confirm (/limited/<id> \u2192 Leave Seat)",
+        label: "Leave Event confirm (/limited/<id> \u2192 Leave Event)",
         /**
          * The confirm by its title and its safe exit. The destructive
-         * `Leave Seat` plate is deliberately NOT promised: the antechamber
+         * `Leave Event` plate is deliberately NOT promised: the antechamber
          * button that opened the dialog carries the same accessible name, so
          * the locator would name two elements — the confirm's layout is what
          * this row measures, and `Cancel` is the only plate unique to it.
@@ -4138,10 +4135,9 @@ export const SURFACES: readonly Surface[] = [
         ],
         async walk(page, ctx) {
             await reachFixtureAntechamber(page, ctx);
-            await clickIfVisible(page, LIMITED_EVENT_MENU);
-            if (!(await clickIfVisible(page, LIMITED_LEAVE_SEAT))) {
+            if (!(await clickIfVisible(page, LIMITED_LEAVE_EVENT))) {
                 throw new Unreachable(
-                    "the antechamber offered no `Leave Seat` button — the `open` fixture should seat the lane"
+                    "the antechamber offered no `Leave Event` button — the `open` fixture should seat the lane"
                 );
             }
             if (
@@ -4151,7 +4147,7 @@ export const SURFACES: readonly Surface[] = [
                 ))
             ) {
                 throw new Unreachable(
-                    "`Leave Seat` did not open its confirm dialog"
+                    "`Leave Event` did not open its confirm dialog"
                 );
             }
             await settle(page);

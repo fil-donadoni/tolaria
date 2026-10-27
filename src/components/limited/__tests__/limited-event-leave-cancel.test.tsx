@@ -198,7 +198,9 @@ describe("LimitedEventDetail — Leave Event (hero button)", () => {
         render(<LimitedEventDetail eventId={"event-1" as never} />);
         fireEvent.click(screen.getByText("Leave Event"));
         expect(screen.getByText("Leave this event?")).toBeTruthy();
-        expect(screen.getByText(/cannot be undone/)).toBeTruthy();
+        expect(screen.getAllByText(/cannot be undone/).length).toBeGreaterThan(
+            0
+        );
     });
 
     it("calls the leave mutation once the dialog is confirmed", () => {

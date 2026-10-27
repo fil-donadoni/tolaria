@@ -371,6 +371,7 @@ describe("LimitedEventDetail — standings table (PRD #1628 stories 22-24, issue
                         userId: "user-1",
                         nickname: "Alice",
                         isBot: false,
+                        isDropped: false,
                         isViewer: true,
                         poolCount: 40,
                         pool: null,
@@ -389,6 +390,7 @@ describe("LimitedEventDetail — standings table (PRD #1628 stories 22-24, issue
                     {
                         seatIndex: 1,
                         isBot: true,
+                        isDropped: false,
                         nickname: "Bot 2",
                         isViewer: false,
                         poolCount: 40,
