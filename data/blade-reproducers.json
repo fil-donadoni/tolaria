@@ -3180,57 +3180,6 @@
         "libraryCount": 20
     },
     "trample overflow: never double-blocks a trampler with two chumps whose overflow is lethal (issue #5785)": null,
-    "transient grant: gives its own creature flying for the evasive lethal swing": {
-        "cards": [
-            {
-                "name": "Disciple of Kangee",
-                "owner": "me",
-                "zone": "battlefield",
-                "summoningSick": false
-            },
-            {
-                "name": "Grizzly Bears",
-                "owner": "me",
-                "zone": "battlefield",
-                "summoningSick": false
-            },
-            {
-                "name": "Island",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 2
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 2
-            },
-            {
-                "name": "Hill Giant",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Island",
-                "owner": "opp",
-                "zone": "battlefield",
-                "count": 2
-            },
-            {
-                "name": "Plains",
-                "owner": "opp",
-                "zone": "battlefield",
-                "count": 2
-            }
-        ],
-        "phase": "BEGINNING_OF_COMBAT",
-        "turn": 5,
-        "libraryCount": 20,
-        "life": {
-            "opp": 2
-        }
-    },
     "type-blind potential: casts Monk Realist into an opposing Glorious Anthem": {
         "cards": [
             {

@@ -88,7 +88,7 @@ export const mirrorwoodTreefolk = defineCard(() => ({
     // = 70, `gre/ai/opValuers.ts`, since it costs 4 mana and a stack action
     // per use rather than being a free static shield). Latent worth only —
     // the realized battlefield eval is unaffected (`cardValue.ts` doc).
-    aiValue: 169,
+    aiValue: 168,
     activatedAbilities: [
         {
             id: "mirrorwood-treefolk-redirect",
