@@ -228,3 +228,20 @@ the red rate.
    the merge-base, `check:lane` `derived-in-diff` guard; health treats a
    derived-stale tip as `pending` within the grace. Blocked by issue #6247
    and issue #6246.
+
+## Amendment I (issue #7144, 2026-10-27) — `release` judges the derived state too
+
+"`release` is unchanged" (§ The window, **Health**) let `release` run the full
+gate on a derived-stale tip, where `check:oracle` reds the stale header. Its
+intent — only a derived-fresh tip is released — held, but the RED it wrote is
+the durable base RED: on 2026-10-27 `release` gated `45ca7c6fd` 28 min after
+its commit (inside the grace; housekeeping's `derive:sync` push had been
+outrun by the next merge and its retry failed), wrote RED at `check:all`,
+held every landing and spawned `/health-fix` on a tree with no defect.
+
+`release` now asks `derive:sync --settled` after the bootstrap like every run:
+within the grace it is `pending` — nothing gated, nothing promoted, since only
+GREEN promotes — and past it RED at step `derive:sync`, the writer's failure
+named as such. The intent is kept by the predicate instead of by a red gate.
+Guarded by `scripts/__tests__/health-main-preflight.test.ts` (both modes,
+driven for real).

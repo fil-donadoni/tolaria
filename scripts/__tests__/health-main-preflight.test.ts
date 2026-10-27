@@ -7,6 +7,7 @@ import * as path from "path";
 import { BASE_BRANCH } from "../lib/branches";
 import { withoutCorpusExclusion } from "../lib/corpus-exclusion";
 import {
+    DERIVE_STEP,
     INFRA_REMEDY,
     PREFLIGHT_CONVEX_STEP,
     PREFLIGHT_SKEW_STEP,
@@ -210,4 +211,78 @@ describe("health-main — the deployment-skew preflight of release's browser ste
                 .filter((f) => f.startsWith("tolaria-health-browser-"))
         ).toEqual([]);
     }, 60_000);
+});
+
+describe("health-main — the derived-state judgement precedes the gate in every run mode (issue #7144)", () => {
+    // The tip carries stub scripts: a bootstrap that does nothing, a
+    // `derive:sync --settled` that answers derived-stale, and gates that
+    // leave a marker if they ever run. The tip is minutes old, so the
+    // judgement must end the run `pending` before the first gate — batch
+    // health's answer since ADR 0157, and `release`'s too: the 2026-10-27
+    // RED was `release` gating a derived-stale tip `check:all` red 28 min
+    // after its commit, well inside the grace.
+    const GATED = "gated.marker";
+    const stubTip = (): void => {
+        const gate = `echo gated >> ../${GATED}; exit 1`;
+        fs.writeFileSync(
+            path.join(primary, "package.json"),
+            JSON.stringify({
+                name: "health-derived-stub",
+                scripts: {
+                    "worktree:init": "true",
+                    "derive:sync":
+                        "echo 'derive:sync: this tree is derived-stale — lockfile header: compiler hash drift' >&2; exit 1",
+                    "check:all": gate,
+                    test: gate,
+                },
+            })
+        );
+        git(["add", "package.json"], primary);
+        git(
+            [
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-q",
+                "-m",
+                "stub tip",
+            ],
+            primary
+        );
+        git(["push", "-q", "origin", BASE_BRANCH], primary);
+    };
+
+    for (const args of [[], ["--release"]]) {
+        it(`${args.length === 0 ? "a batch run" : "--release"} ends PENDING at derive:sync on a derived-stale tip within the grace, and gates nothing`, () => {
+            stubTip();
+            const r = spawnSync("bun", [HEALTH_MAIN, ...args], {
+                cwd: primary,
+                encoding: "utf8",
+                timeout: 45_000,
+                env: {
+                    ...withoutCorpusExclusion(),
+                    VITE_CONVEX_URL: "",
+                    TOLARIA_GATE_HELD: "",
+                    TOLARIA_MACHINE_PROBE: JSON.stringify({
+                        load1: 1,
+                        pressure: 1,
+                    }),
+                },
+            });
+            const dir = path.join(primary, ".claude", "telemetry", "health");
+            const last = JSON.parse(
+                fs.readFileSync(path.join(dir, "last.json"), "utf8")
+            ) as Record<string, unknown>;
+
+            expect(last, `${r.stdout}\n${r.stderr}`).toMatchObject({
+                status: "pending",
+                failedStep: DERIVE_STEP,
+            });
+            expect(r.status).toBe(0);
+            expect(fs.existsSync(path.join(dir, "RED"))).toBe(false);
+            expect(fs.existsSync(path.join(tmp, GATED))).toBe(false);
+        }, 60_000);
+    }
 });

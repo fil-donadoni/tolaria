@@ -115,9 +115,10 @@
  * line on the GREEN record (`last.json`'s `derivedLate`) and, past the
  * grace, an issue `--settled` files — never `pending`, never RED. Health
  * judges the tree; the lockfile's Bot state says whether a job caught up.
- * `release` does not ask: it runs the full gate on the exact tip as ever,
- * and `check:oracle` reds a stale header there (ADR 0157, "`release` is
- * unchanged").
+ * `release` asks too (ADR 0157 Amendment I, issue #7144): a stale tip is
+ * `pending` or RED at `derive:sync` there exactly as in a batch run, so a
+ * derive commit still due is never a RED at `check:all`, and a `pending`
+ * release promotes nothing — only a derived-fresh tip is released.
  *
  * `last.json`'s `status` gains `pending` for it.
  */
@@ -1318,9 +1319,12 @@ async function main(): Promise<void> {
                 break;
             }
             // The derived state, judged once the worktree can run the
-            // predicate and before any gate (ADR 0157, issue #6248); never
-            // under `release`, which proves the exact tip whole.
-            if (step.name === WORKTREE_BOOTSTRAP && !release) {
+            // predicate and before any gate (ADR 0157, issue #6248) — in
+            // every mode, `release` included (issue #7144): gating a tip whose
+            // derive commit is still due turns a wait into a RED at
+            // `check:all` that reads as a tree defect and blocks every landing.
+            // A `pending` release promotes nothing (only GREEN does).
+            if (step.name === WORKTREE_BOOTSTRAP) {
                 const judged = judgeDerivedTip(
                     wt,
                     tip,
