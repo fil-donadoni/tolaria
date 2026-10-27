@@ -11720,6 +11720,16 @@
         "source": "compiled"
     },
     {
+        "name": "Clash of Wills",
+        "scryfallId": "665ee42f-8d76-4f8b-9dd3-7455a90f0da7",
+        "oracleId": "56aec5bd-a8e8-403f-b339-0fc817426428",
+        "firstSet": "ori",
+        "firstPrintId": "665ee42f-8d76-4f8b-9dd3-7455a90f0da7",
+        "firstPrintSet": "ori",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Clattering Augur",
         "scryfallId": "a22dd28d-eb65-410a-af17-51b5064c6033",
         "oracleId": "d88f249f-5bf1-448a-91d1-f81538dfd475",
@@ -12739,6 +12749,16 @@
         "firstPrintId": "58d4f5a0-b2d0-4a60-b1e1-bb2140abfd6d",
         "firstPrintSet": "dis",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Condescend",
+        "scryfallId": "e8303b80-e29a-46b8-90b0-c0cfe551b435",
+        "oracleId": "96cf3c10-733d-4110-9dab-43d0cd4e6629",
+        "firstSet": "5dn",
+        "firstPrintId": "e8303b80-e29a-46b8-90b0-c0cfe551b435",
+        "firstPrintSet": "5dn",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -39410,6 +39430,16 @@
         "source": "compiled"
     },
     {
+        "name": "Logic Knot",
+        "scryfallId": "4e946be1-4ed6-4e2c-9782-3f630f8a8e1f",
+        "oracleId": "b2da7acb-d80c-414c-9f7d-753a5d6ccad9",
+        "firstSet": "fut",
+        "firstPrintId": "4e946be1-4ed6-4e2c-9782-3f630f8a8e1f",
+        "firstPrintSet": "fut",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Lone Missionary",
         "scryfallId": "fdc00f4b-ca9a-468a-91e1-c81fe6585765",
         "oracleId": "626f1dc3-3b14-4873-902f-ffec5487a97d",
@@ -48024,6 +48054,16 @@
         "firstSet": "inv",
         "firstPrintId": "c91fca91-7296-422e-b251-d571b710ff71",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Overrule",
+        "scryfallId": "22b83a31-f974-4a49-b9ee-92f7767f11e0",
+        "oracleId": "fa43d688-99de-4774-ac2d-2d01866eef58",
+        "firstSet": "dis",
+        "firstPrintId": "22b83a31-f974-4a49-b9ee-92f7767f11e0",
+        "firstPrintSet": "dis",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Oversoul of Dusk",
@@ -61916,14 +61956,6 @@
         "firstPrintSet": "ody",
         "rarity": "rare",
         "source": "compiled"
-    },
-    {
-        "name": "Skycoach Conductor",
-        "scryfallId": "f9092a09-78a8-421c-868b-115175f4c252",
-        "oracleId": "788d3cfa-7706-4728-9c48-cf7bc963d002",
-        "firstSet": "sos",
-        "firstPrintId": "f9092a09-78a8-421c-868b-115175f4c252",
-        "firstPrintSet": "sos"
     },
     {
         "name": "Skycoach Conductor // All Aboard",

@@ -2647,6 +2647,43 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "spell", count: 1 },
         },
     },
+    // CR 118.12a + CR 107.3a — the punisher counter priced at the spell's own
+    // announced X: "Counter target spell unless its controller pays {X}".
+    // Exhibits a `mayPay` whose generic price is the source's `{ X: true }`,
+    // which the canned generator cannot size, so this fixture is the evidence
+    // that the may-pay/if-not pair prices the X the counter announced.
+    {
+        rule: "counter",
+        card: {
+            oracleId: "56aec5bd-a8e8-403f-b339-0fc817426428",
+            name: "Clash of Wills",
+            manaCost: "{X}{U}",
+            typeLine: "Instant",
+            oracleText: "Counter target spell unless its controller pays {X}.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Clash of Wills",
+            types: ["Instant"],
+            manaCost: { X: "X", U: 1 },
+            oracleText: "Counter target spell unless its controller pays {X}.",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: { controllerOf: { target: 0 } },
+                    cost: { genericEqualTo: { X: true } },
+                    prompt: "Pay {X} to prevent your spell from being countered?",
+                    bind: "$may1",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$may1" } },
+                    then: [{ op: "counter", target: { target: 0 } }],
+                },
+            ],
+            targetRequirement: { type: "spell", count: 1 },
+        },
+    },
     // CR 205.3m (issue #3721) — "Choose a creature type." as a RESOLUTION-time
     // instruction, plus the descriptor that reads its answer back ("of that
     // type"). Two rules in one card, which is the point: the type the first
