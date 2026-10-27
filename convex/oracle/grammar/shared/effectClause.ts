@@ -2949,12 +2949,12 @@ export function assembleSentences(
             if (searchPile.stage === "needs-route") {
                 // "that card" is the single pick, "the rest" the pile's other
                 // cards; "the chosen cards" are several picks.
-                const toHand =
+                const toHand: boolean =
                     sentence.role === "reveal-until-route" &&
                     sentence.match === "hand" &&
                     sentence.rest === "graveyard" &&
                     searchPile.picks === 1;
-                const toGraveyard =
+                const toGraveyard: boolean =
                     sentence.role === "search-pile-route-chosen" &&
                     searchPile.picks > 1;
                 if (!toHand && !toGraveyard)
