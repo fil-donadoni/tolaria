@@ -23,7 +23,6 @@ import {
     worstPerTest,
     type TestDuration,
 } from "../lib/test-headroom";
-import { parseHealthLogRed } from "../lib/telemetry-latency";
 
 /**
  * Test timeout headroom (issue #5484): per-test duration against its
@@ -343,29 +342,5 @@ describe("the report — the 65ab8337 fixture", () => {
 
     it("no line when nothing is above the threshold", () => {
         expect(headroomLine([rec({ durationMs: 15_000 })])).toBeNull();
-    });
-});
-
-describe("the headroom line is advisory — the verdict never reads it", () => {
-    const GREEN_LOG = "===== bun run test (exit 0) =====\n";
-    const RED_LOG = "===== bun run test (exit 1) =====\n";
-
-    it("a green log stays green and a red one red, line or no line", () => {
-        const line = headroomLine([
-            rec({ durationMs: 59_000, timeoutMs: 60_000 }),
-        ])!;
-        expect(parseHealthLogRed(`${GREEN_LOG}${line}\n`)).toBe(
-            parseHealthLogRed(GREEN_LOG)
-        );
-        expect(parseHealthLogRed(`${RED_LOG}${line}\n`)).toBe(
-            parseHealthLogRed(RED_LOG)
-        );
-    });
-
-    it("a test named like a step exit cannot turn a green log red", () => {
-        const line = headroomLine([
-            rec({ test: "a.test.ts > reports (exit 1)", durationMs: 29_000 }),
-        ])!;
-        expect(parseHealthLogRed(`${GREEN_LOG}${line}\n`)).toBe(false);
     });
 });

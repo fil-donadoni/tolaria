@@ -47,8 +47,6 @@ import {
     landPrOfCommand,
     blockingFindingRate,
     isGitCommitCommand,
-    isTargetedVitestCommand,
-    redOnRedBaseline,
     hourlyThroughput,
     throughputByConcurrency,
     summarise,
@@ -59,9 +57,6 @@ import {
     type ReviewSpan,
     type CommitEvent,
     type SessionMergeFact,
-    type VitestRunSpan,
-    type SessionBaseSha,
-    type HealthVerdict,
     type GateRunLane,
 } from "./lib/telemetry-latency.ts";
 import {
@@ -205,7 +200,7 @@ const reviewSpanRows = db
 
 // `cmd LIKE '%…%'` is a cheap pre-filter only — SQLite has no regex here, and
 // a bare substring match would count a `grep -rn "git commit" ...` as a
-// commit (`isGitCommitCommand`/`isTargetedVitestCommand` do the real,
+// commit (`isGitCommitCommand` does the real,
 // shape-aware check once the candidate rows are back in JS).
 const commitEvents = (
     db
@@ -218,25 +213,8 @@ const commitEvents = (
         .all(from, to) as Array<{ session: string; ts: number; cmd: string }>
 ).filter((r) => isGitCommitCommand(r.cmd)) as CommitEvent[];
 
-const vitestSpanRows = (
-    db
-        .query(
-            `SELECT session, ts, cmd, is_error AS isError
-             FROM spans
-             WHERE session IN (${SESSIONS_IN_WINDOW})
-               AND tool = 'Bash' AND cmd LIKE '%vitest%' AND is_error IS NOT NULL`
-        )
-        .all(from, to) as Array<{
-        session: string;
-        ts: number;
-        cmd: string;
-        isError: number;
-    }>
-).filter((r) => isTargetedVitestCommand(r.cmd));
-
-// Not window-filtered by SESSIONS_IN_WINDOW: a PR's merge and a health verdict
-// are facts about the base branch, not about any one session, and row 3 asks
-// about a LATER health verdict — necessarily outside the session's own window.
+// Not window-filtered by SESSIONS_IN_WINDOW: a PR's merge is a fact about the
+// base branch, not about any one session.
 const prMetaRows = db
     .query(
         "SELECT pr, merged_at AS mergedAt FROM pr_meta WHERE merged_at IS NOT NULL"
@@ -265,13 +243,6 @@ const gateRunRows = db
     laneForcedBy: string | null;
     green: number;
     started: number | null;
-}>;
-
-const healthRows = db
-    .query("SELECT sha12, red FROM health_runs")
-    .all() as Array<{
-    sha12: string;
-    red: number;
 }>;
 
 // ─── Issue #5460: the four throughput-target rows ──────────────────────────
@@ -357,30 +328,7 @@ const reviewers = blockingFindingRate(
     sessionMerges
 );
 
-// Row 3 — targeted-vitest reds on a base tip later marked RED by health.
-// The session's base sha comes from its OWN `land <PR#>` gate-run record,
-// joined by PR number — `sessions.prs` names the same PR.
-const vitestSpans: VitestRunSpan[] = vitestSpanRows.map((r) => ({
-    session: r.session,
-    ts: r.ts,
-    red: r.isError === 1,
-}));
-const sessionByPr = new Map<number, string>();
-for (const m of meta) for (const pr of m.prs) sessionByPr.set(pr, m.session);
-const sessionBases: SessionBaseSha[] = [];
-for (const g of gateRunRows) {
-    const pr = landPrOfCommand(g.cmd);
-    if (pr === null || !g.base) continue;
-    const session = sessionByPr.get(pr);
-    if (session) sessionBases.push({ session, base: g.base });
-}
-const health: HealthVerdict[] = healthRows.map((r) => ({
-    sha12: r.sha12,
-    red: r.red === 1,
-}));
-const redOnRed = redOnRedBaseline(vitestSpans, sessionBases, health);
-
-// Row 4 — gate-run lane histogram, windowed by the run's own start time (a
+// Row 3 — gate-run lane histogram, windowed by the run's own start time (a
 // gate run has no session in the general case — a hand-run `check:lane`
 // links to none — so it cannot be windowed through SESSIONS_IN_WINDOW).
 const fromS = Math.floor(new Date(`${from}T00:00:00`).getTime() / 1000);
@@ -394,7 +342,7 @@ const gateRunLanes: GateRunLane[] = inWindow.map((g) => ({
 }));
 const lanes = laneHistogram(gateRunLanes);
 
-// Row 5 — lane fallback rate (issue #4376), over the LANDINGS in the same
+// Row 4 — lane fallback rate (issue #4376), over the LANDINGS in the same
 // window: the `full` runs that were `full` because a path matched no lane
 // rule, as opposed to the mixed src/**-plus-engine diffs `full` is for.
 const fallback = laneFallbackRate(
@@ -435,7 +383,7 @@ if (asJson) {
                 maxHours,
                 cohorts,
                 sessions: rows.slice(0, showSessions),
-                adr0136: { concurrency, reviewers, redOnRed, lanes, fallback },
+                adr0136: { concurrency, reviewers, lanes, fallback },
                 throughput,
             },
             null,
@@ -445,9 +393,7 @@ if (asJson) {
 } else {
     console.log(formatReport(from, to, cohorts, maxHours));
     console.log("");
-    console.log(
-        formatAdr0136Rows(concurrency, reviewers, redOnRed, lanes, fallback)
-    );
+    console.log(formatAdr0136Rows(concurrency, reviewers, lanes, fallback));
     console.log(formatThroughputRows(throughput));
     if (showSessions > 0) {
         console.log("");

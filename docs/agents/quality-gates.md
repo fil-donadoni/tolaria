@@ -2582,7 +2582,7 @@ Three new SQLite tables feed them, each populated at ingest: `pr_meta` (merged-
 at, fetched from GitHub the way `issue_meta` fetches issue state — 60 PRs per
 ingest, capped the same way), `gate_runs` (a durable mirror of `gate-run.sh`'s
 cache dir, read before its own `TOLARIA_GATE_RUN_KEEP_DAYS` pruning drops it),
-and `health_runs` (every `health-main.ts` per-sha log parsed for a non-zero
+and `health_runs` (retired, issue #7068 — see below; every `health-main.ts` per-sha log parsed for a non-zero
 step exit — the live RED only ever names the LATEST red sha, so this
 is the only way to recover history). `spans.is_error` is a new column, fed by
 `.claude/hooks/timing-log.sh` capturing `tool_response.is_error`; it did not
@@ -2647,6 +2647,15 @@ it shipped carries a value, so there is no historical red targeted-vitest run
 to classify yet. Re-run the command after this has been live for a window —
 the `health_runs` side is already populated (134 logs parsed, 24 red), so the
 row will report real numbers as soon as red spans exist to join against.
+
+**Row 3 and `health_runs` are retired (issue #7068).** The table parsed
+per-sha `health-main.ts` logs for a non-zero step exit; once a step could exit
+non-zero without reddening the tip (ADR 0159) and the verdict moved to the
+commit status (issue #5462), the parse disagreed with the workflow verdicts in
+both directions (2026-10-27: two GREEN tips read red, one RED read green), and
+the `land <PR#>` gate-run leg that named each session's base stopped being
+recorded once the Mergify queue took over landing. `telemetry:latency` no
+longer prints the row; `openDb` drops the table.
 
 **The lane histogram is thin for the same reason as row 3, one layer
 up.** `gate_runs` is fed by parsing `gate-run.sh`'s own cache dir, but only

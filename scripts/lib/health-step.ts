@@ -311,6 +311,12 @@ export type DerivedTipVerdict =
  * grace is `pending` — `derive:sync`'s commit is on its way, and gating a
  * tree the base will rewrite in a minute proves nothing the next tip will
  * not prove; stale at or past the grace is `red`.
+ *
+ * RED, never AMBER (decided in issue #7068): AMBER is a landed repair
+ * awaiting health's confirmation, and the lineage reads a RED after it as
+ * the SECOND red that stops the loop — a stale tip has no repair yet. Past
+ * the grace, housekeeping's backstop has failed: it re-runs `derive:sync`
+ * once and files the issue that repairs this RED, with the cause.
  */
 export function derivedTipVerdict(input: {
     /** `derive:sync --settled`'s answer on the tip: null = fresh, else why not. */

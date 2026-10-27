@@ -239,7 +239,7 @@ function pct(ratio: number): string {
 /**
  * The advisory line a health log ends with when a test ran above the
  * threshold, or null. A test name is free text: `(exit ` in it is rewritten
- * so the line can never read as a step's exit (`parseHealthLogRed`).
+ * so a reader grepping the log's step exits never mistakes it for one.
  */
 export function headroomLine(
     records: readonly TestDuration[],
