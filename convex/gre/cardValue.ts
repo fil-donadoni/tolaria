@@ -38,6 +38,7 @@ import {
     dslSpellScriptValue,
 } from "./ai";
 import type { LatentLens } from "./ai/grounding";
+import { declaresDamageShield } from "./ai/replacementPricing";
 import {
     contextFreeGrounding,
     contextFreeLatentLens,
@@ -519,9 +520,10 @@ export function dslLatentPieces(
         // Issue #5163 (ADR 0151) — a standing lock in hand, measured on the
         // board the lens is attached to; context-free (no lens) it stays
         // unmeasured and keeps the floor.
-        standingLockValue: declaresStandingLock(def)
-            ? board?.standingLockWorth?.()
-            : undefined,
+        standingLockValue:
+            declaresStandingLock(def) || declaresDamageShield(def)
+                ? board?.standingLockWorth?.()
+                : undefined,
     };
 }
 

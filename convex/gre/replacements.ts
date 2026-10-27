@@ -233,7 +233,7 @@ export function buildStateView(state: GameState): ReplacementStateView {
     };
 }
 
-function buildPermanentView(card: CardInstanceState): PermanentView {
+export function buildPermanentView(card: CardInstanceState): PermanentView {
     return {
         id: card.id,
         controllerId: card.controllerId,

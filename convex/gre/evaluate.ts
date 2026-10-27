@@ -114,6 +114,10 @@ import {
     restrictionSourceWorth,
     standingLockMargin,
 } from "./ai/restrictionPricing";
+import {
+    declaresDamageShield,
+    replacementStandingWorth,
+} from "./ai/replacementPricing";
 // Issue #2937 — the single authority on which granted keywords are PROTECTIVE
 // and on whether anything the opponent is doing can currently reach the
 // permanent that carries them.
@@ -382,11 +386,30 @@ export function cardValue(
  *  wire projection. */
 function isStandingLockInstance(card: CardInstanceState): boolean {
     const id = String(card.card.id ?? "");
-    // The registry precheck first: nearly no permanent declares a
-    // restriction static, and that answer is one `Set.has`.
-    if (!declaresCombatRestrictionStaticEffect(id)) return false;
     const def = tryGetDefinition(id);
-    return def != null && declaresStandingLock(def);
+    if (def == null) return false;
+    // Issue #5362 — a damage shield is measured the same way: its worth on
+    // this board rides the same lens, so hand and board faces agree.
+    if (declaresDamageShield(def)) return true;
+    if (!declaresCombatRestrictionStaticEffect(id)) return false;
+    return declaresStandingLock(def);
+}
+
+/** Issue #5362 — a permanent's whole standing margin on this board: its
+ *  restrictions (`standingLockMargin`) plus its replacement effects
+ *  (`replacementStandingWorth`, counted once — the source's own credit is all
+ *  a removal takes away). One function behind the board term's lens, the hand
+ *  face and `permanentRealisedValue`. */
+function standingMargin(
+    state: GameState,
+    perm: CardInstanceState,
+    weights: EvalWeights,
+    pass: Layer7Pass
+): number {
+    return (
+        standingLockMargin(state, perm, weights, pass) +
+        replacementStandingWorth(state, perm, weights, pass)
+    );
 }
 
 /** The latent board lens for one card in `player`'s hand, or `undefined` when
@@ -422,12 +445,7 @@ function latentBoardFor(
                         ? {
                               ...contextFreeLatentLens(weights.latent),
                               standingLockWorth: () =>
-                                  standingLockMargin(
-                                      state,
-                                      perm,
-                                      weights,
-                                      pass
-                                  ),
+                                  standingMargin(state, perm, weights, pass),
                           }
                         : undefined,
                     weights.latent,
@@ -440,12 +458,7 @@ function latentBoardFor(
             // Issue #5163 — the board face's own reading, on the board the
             // card would leave behind (see `permanentRealisedValue`).
             standingWorth: (board, perm) =>
-                standingLockMargin(
-                    board,
-                    perm,
-                    weights,
-                    beginLayer7Pass(board)
-                ),
+                standingMargin(board, perm, weights, beginLayer7Pass(board)),
         },
         contextFreeLatentLens(weights.latent)
     );
@@ -1586,7 +1599,7 @@ export function permanentRealisedValue(
     // Issue #5163 — plus the mana axis of an untap lock, ONCE: the locked
     // sources' discount sits in their controllers' `mana` terms and nowhere
     // else (`standingLockMargin`).
-    total += standingLockMargin(state, perm, weights, pass);
+    total += standingMargin(state, perm, weights, pass);
     const controller = state.players.find((p) => p.id === perm.controllerId);
     // CR 118.3 (issue #3530) — what a FINITE source's removal costs is its
     // remaining CHARGES, not a renewable source's price: destroying a depletion
@@ -1790,6 +1803,14 @@ function playerTerms(
         // body stays in `creatures`, what it does to the rest of the board
         // is a presence fact, not a body one.
         terms.permanents += restrictionSourceWorth(state, perm, weights, pass);
+        // Issue #5362 — a standing replacement's worth to its controller
+        // (`replacementStandingWorth`), read once here and by the lens.
+        terms.permanents += replacementStandingWorth(
+            state,
+            perm,
+            weights,
+            pass
+        );
         if (isCreature(perm)) {
             terms.creatures += evaluateCreature(
                 state,

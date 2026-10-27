@@ -13003,6 +13003,118 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #5154. Guards `restrictionSourceWorth` (`ai/restrictionPricing.ts`): the Moat's standing worth is the attack share it takes from the three Bears, read by `permanentRealisedValue` and the board term alike. Measured at 400 iterations over 20 seeds: the Moat 20/20 with the pricing; with `creatureRestrictionDiscount` and `restrictionSourceWorth` returning 0, the Launcher 20/20 (a plain Mightstone in its place was NOT discriminating — 20/20 Moat either way, the rollouts reach the freed attack; a scriptless Jayemdae Tome tied at 16/20).",
     },
     {
+        // DAMAGE PREVENTION PRICING (CR 615.1, issue #5362). The bot holds
+        // Disenchant with two untapped Plains; the opponent has a Solitary
+        // Confinement ("prevent all damage that would be dealt to you") and a
+        // Tawnos's Weaponry (a 2-MV artifact the Op vocabulary reads at its floor). The bot's three Hill Giants are summoning sick ON PURPOSE (as in the Moat entry): the shield is worth the nine power it stops.
+        label: "replacement pricing: Disenchant takes the Solitary Confinement shielding the opponent from three Hill Giants, not the 2-MV artifact (issue #5362)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "The bot's three Hill Giants are summoning sick ON PURPOSE (as in the Moat entry): the shield is worth the nine power it stops.",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Hill Giant",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    summoningSick: true,
+                })),
+                {
+                    name: "Solitary Confinement",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Tawnos's Weaponry",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Solitary Confinement",
+                },
+            ],
+        },
+        note: "Issue #5362. Guards `replacementStandingWorth` (`ai/replacementPricing.ts`): the shield's worth is the opposing power it stops, at `lifeWeight` a point. Pair: the same board without the bot's creatures reads the shield at zero and takes the Weaponry. Proof of failure: with `damageShieldWorth` returning 0 this entry turns red (the Weaponry is taken) and the twin stays green; the committed run is green on the declared seeds.",
+    },
+    {
+        // DAMAGE PREVENTION PRICING (CR 615.1, issue #5362). The bot holds
+        // Disenchant with two untapped Plains; the opponent has a Solitary
+        // Confinement ("prevent all damage that would be dealt to you") and a
+        // Tawnos's Weaponry (a 2-MV artifact the Op vocabulary reads at its floor). The bot has no creature, so the shield stops nothing and reads zero.
+        label: "replacement pricing: with no creature of the bot's to shield against, Disenchant takes the 4-MV artifact, not the Solitary Confinement (issue #5362)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "The bot has no creature, so the shield stops nothing and reads zero.",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                {
+                    name: "Solitary Confinement",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Tawnos's Weaponry",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Tawnos's Weaponry",
+                },
+            ],
+        },
+        note: "Issue #5362. The discriminating twin of the entry above: board-relative, the same Solitary Confinement reads zero when nothing of the bot's could be prevented.",
+    },
+    {
         // Issue #5163 (ADR 0151) — a SYMMETRIC lock read by Differential
         // Reading. The bot holds Disenchant with five Plains against two
         // Mountains, a Winter Orb and a Tawnos's Weaponry (a 2-MV artifact

@@ -2457,6 +2457,94 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "replacement pricing: Disenchant takes the Solitary Confinement shielding the opponent from three Hill Giants, not the 2-MV artifact (issue #5362)": {
+        "cards": [
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Disenchant",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": true
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": true
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": true
+            },
+            {
+                "name": "Solitary Confinement",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Tawnos's Weaponry",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 8,
+        "landCount": 0,
+        "libraryCount": 20
+    },
+    "replacement pricing: with no creature of the bot's to shield against, Disenchant takes the 4-MV artifact, not the Solitary Confinement (issue #5362)": {
+        "cards": [
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Disenchant",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Solitary Confinement",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Tawnos's Weaponry",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 8,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "replenish: casts the mass return with three enchantments in the graveyard": {
         "cards": [
             {
