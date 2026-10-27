@@ -117,6 +117,9 @@ export function findOffenders(source: string, file: string): Offender[] {
 
 describe("Button dense rungs keep the --touch-min floor (issue #2792)", () => {
     it("no dense-size Button className overrides the floor", () => {
+        for (const row of ALLOWLIST) {
+            expect(row.trackedBy).toMatch(/^#\d+$/);
+        }
         const allowed = new Set(ALLOWLIST.map((r) => r.file));
         const offenders = walk(SRC).flatMap((full) => {
             const rel = relative(REPO_ROOT, full);
@@ -127,13 +130,6 @@ describe("Button dense rungs keep the --touch-min floor (issue #2792)", () => {
         expect(
             offenders.map((o) => `${o.file}:${o.line} ${o.classes}`)
         ).toEqual([]);
-    });
-
-    it("every allowlist row names an open-issue tracker", () => {
-        expect(Array.isArray(ALLOWLIST)).toBe(true);
-        for (const row of ALLOWLIST) {
-            expect(row.trackedBy).toMatch(/^#\d+$/);
-        }
     });
 
     it("reds on a bare min-h-6 on a dense Button (proof of failure)", () => {
