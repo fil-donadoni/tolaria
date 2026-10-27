@@ -12,6 +12,7 @@ import {
     type ManaCost,
     type SpellContext,
 } from "../../types";
+import { pickDamageSource } from "../../abilities";
 import { manaCostForCardId } from "../../manaCostLookup";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
@@ -86,16 +87,19 @@ export const eyeForAnEye = defineCard(() => ({
         "The next time a source of your choice would deal damage to you this turn, instead that source deals that much damage to you and Eye for an Eye deals that much damage to that source's controller.",
     manaCost: { W: 2 },
     types: ["Instant"],
-    targetRequirement: { type: ["any", "spell"], count: 1 },
+    // protocol card: no DSL Op yet builds a reflect shield
+    // (`addDamageRedirectionShield`) keyed on a chosen source. The "source of
+    // your choice" (CR 609.7a) is chosen on resolution, not targeted: a
+    // permanent or a spell on the stack, never a player.
     resolve: (ctx: SpellContext) => {
-        const [target] = ctx.targets;
-        if (!target) return;
-        // The "source of your choice" is a permanent or a spell on the stack —
-        // never a player.
-        if (target.type === "player") return;
+        const sourceId = pickDamageSource(ctx, {
+            choiceId: `eye-for-an-eye-source-${ctx.sourceInstanceId}`,
+            prompt: "Eye for an Eye: choose the source whose next damage to you is reflected.",
+        });
+        if (sourceId === undefined) return;
         ctx.addDamageRedirectionShield({
             kind: "reflect-to-source-controller",
-            sourceInstanceId: target.id,
+            sourceInstanceId: sourceId,
             playerId: ctx.controller,
             remaining: 1,
             duration: { phase: "end-of-turn" },

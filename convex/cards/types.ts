@@ -18282,6 +18282,22 @@ export type EffectOp =
           duration: DurationSpec;
           match?: { colors?: Color[]; cardType?: CardType };
       }
+    /** `"all-from-chosen-source"` (CR 609.7a / 615.1a) → the same primitive as
+     *  `"all-from-source"` with an id-scoped shield, but the source is the
+     *  PICKED object of a `choice` Op of `kind: "pick-source"` — chosen on
+     *  resolution, never targeted (CR 115.1), so it may be a spell on the
+     *  stack and hexproof/shroud/protection bar nothing. "Prevent all damage a
+     *  source of your choice would deal this turn" (Rith's Charm's third
+     *  mode). `source` is a bare PICKS ref, read raw with no presence recheck
+     *  (as in `"next-from-source"`: the shield is keyed on the instance id,
+     *  which a permanent spell keeps as it resolves). An uncaptured binding
+     *  creates no shield. `combatOnly` narrows it to COMBAT damage. */
+    | {
+          op: "preventDamage";
+          mode: "all-from-chosen-source";
+          source: { ref: string };
+          combatOnly?: boolean;
+      }
     /** `"all-from-matching"` (CR 615, issue #1955) → the same primitive with a
      *  FILTER-scoped shield and no target named at all: prevent all damage
      *  every source matching `match` would deal this turn (Radiant Kavu:
