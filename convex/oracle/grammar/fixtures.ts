@@ -13517,4 +13517,164 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.23a (search) + CR 406.1 (exile) + CR 701.24a (shuffle) — "Search your library for any number of land cards, exile them, then shuffle" (issue #5253): an open-count `choice` whose find `moveZone`s to exile. Exhibits a runtime-sized `choice` and a `moveZone` on an object the generator does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "34c66f52-dcbf-4d0a-bf7f-cb294bd93e9c",
+            name: "Mana Severance",
+            manaCost: "{1}{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Search your library for any number of land cards, exile them, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Mana Severance",
+            types: ["Sorcery"],
+            manaCost: { X: 1, U: 1 },
+            oracleText:
+                "Search your library for any number of land cards, exile them, then shuffle.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Land" },
+                    count: { min: 0, max: 9007199254740991 },
+                    prompt: "Search your library for any number of land cards.",
+                    bind: "$found1",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "exile",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+        },
+    },
+    // CR 701.23a (search) + CR 205.2a (nonland) + CR 406.1 (exile) — "Search your library for any number of nonland cards, exile them, then shuffle" (issue #5253): the same open-count exile search, on an excluded-type filter.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "3cfb4977-5b6d-4220-9c54-70920b3087ed",
+            name: "Selective Memory",
+            manaCost: "{3}{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Search your library for any number of nonland cards, exile them, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Selective Memory",
+            types: ["Sorcery"],
+            manaCost: { X: 3, U: 1 },
+            oracleText:
+                "Search your library for any number of nonland cards, exile them, then shuffle.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { excludeType: "Land" },
+                    count: { min: 0, max: 9007199254740991 },
+                    prompt: "Search your library for any number of nonland cards.",
+                    bind: "$found1",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "exile",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+        },
+    },
+    // CR 701.23a (search) + CR 406.1 (exile) + CR 701.24a (shuffle) — "Search your library for three cards, exile them, then shuffle" (issue #5253): a printed-count `choice` (no quality, so compelled and clamped by the library, CR 609.3) whose find `moveZone`s to exile.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "541f13aa-a1ed-453a-b719-82daef1be607",
+            name: "Manipulate Fate",
+            manaCost: "{1}{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Search your library for three cards, exile them, then shuffle.\nDraw a card.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Manipulate Fate",
+            types: ["Sorcery"],
+            manaCost: { X: 1, U: 1 },
+            oracleText:
+                "Search your library for three cards, exile them, then shuffle.\nDraw a card.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    count: 3,
+                    prompt: "Search your library for three cards.",
+                    bind: "$found1",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "exile",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+                { op: "draw", player: "controller", count: 1 },
+            ],
+        },
+    },
+    // CR 701.23a (search) + CR 107.3 (X) + CR 401.4 (order) — "Search your library for X cards, then shuffle and put those cards on top in any order" (issue #5253): a `choice` counting the announced X whose find stacks on top after the shuffle, in pick order.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "4badd4e0-e5d7-4516-b220-cea2b02c79aa",
+            name: "Insidious Dreams",
+            manaCost: "{3}{B}",
+            typeLine: "Instant",
+            oracleText:
+                "As an additional cost to cast this spell, discard X cards.\nSearch your library for X cards, then shuffle and put those cards on top in any order.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Insidious Dreams",
+            types: ["Instant"],
+            manaCost: { X: 3, B: 1 },
+            oracleText:
+                "As an additional cost to cast this spell, discard X cards.\nSearch your library for X cards, then shuffle and put those cards on top in any order.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    count: { X: true },
+                    prompt: "Search your library for X cards.",
+                    bind: "$found1",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "library-top",
+                },
+            ],
+            additionalCosts: { discard: { count: "X" } },
+        },
+    },
 ]);

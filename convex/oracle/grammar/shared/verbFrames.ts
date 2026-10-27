@@ -233,8 +233,9 @@ export type FrameIR =
           /** The quantity and description as printed, kept for the prompt. */
           readonly phrase: string;
           /** How many cards the quantity names ("a" = 1, "three" = 3,
-           *  "up to N" = N; "any number of" = {@link ANY_NUMBER}). */
-          readonly count: number;
+           *  "up to N" = N; "any number of" = {@link ANY_NUMBER}; "X" = the
+           *  X the source announced, CR 107.3). */
+          readonly count: number | "X";
           /** "up to N" / "any number of": the quantity itself is a range,
            *  so the find is never compelled, whatever the description. A
            *  printed count ("three cards") is exact, clamped by what the
@@ -399,6 +400,7 @@ export function frameOf(span: string): FrameName | null {
 const SEARCH_ONE = /^(an?) (.+)$/;
 const SEARCH_UP_TO = /^up to (\S+) (.+)$/;
 const SEARCH_ANY_NUMBER = /^any number of (.+)$/;
+const SEARCH_X = /^X (.+)$/;
 const SEARCH_COUNT = /^(\S+) (.+)$/;
 /**
  * "any number of": the engine's open-count idiom — the `choice` Op clamps a
@@ -419,6 +421,9 @@ const NAMED = /^(.+?) named (.+)$/;
 const NAME_LIST = /\b(and|or|and\/or|named)\b/i;
 const REVEAL = new RegExp(`^reveal ${PRONOUN}$`);
 const SHUFFLE_AND_TOP = new RegExp(`^shuffle and put ${PRONOUN} on top$`);
+/** CR 401.4 — "in any order" after a plural find on top of the library: the
+ *  searcher's pick order is the order the cards stack in. */
+const PUT_ON_TOP_ANY_ORDER = /^((?:them|those cards) on top) in any order$/;
 const THAT_PLAYER_SHUFFLES =
     /^(?:that|the) player shuffles(?: their library)?$/;
 /** CR 400.11b + CR 701.20a — the Wish cards' whole member. */
@@ -923,7 +928,7 @@ function readMoveMember(
         objectSpan = rest;
         to = ok({ zone: "exile", owner: "any" });
     } else if (word === "put") {
-        const split = rest.match(PUT_SPLIT);
+        const split = rest.replace(PUT_ON_TOP_ANY_ORDER, "$1").match(PUT_SPLIT);
         if (split === null)
             return fail(
                 '"put" needs a destination ("into", "onto", "on")',
@@ -1172,10 +1177,12 @@ function readSacrificeMember(
  * does nothing. "up to one" is refused too: no corpus card prints it, and
  * reading it would make "up to" and "a" two spellings of one class.
  */
-function readSearchQuantity(
-    rest: string
-):
-    | { readonly count: number; readonly upTo: boolean; readonly noun: string }
+function readSearchQuantity(rest: string):
+    | {
+          readonly count: number | "X";
+          readonly upTo: boolean;
+          readonly noun: string;
+      }
     | { readonly refused: string } {
     const one = rest.match(SEARCH_ONE);
     if (one !== null) return { count: 1, upTo: false, noun: one[2]! };
@@ -1191,6 +1198,8 @@ function readSearchQuantity(
     const anyNumber = rest.match(SEARCH_ANY_NUMBER);
     if (anyNumber !== null)
         return { count: ANY_NUMBER, upTo: true, noun: anyNumber[1]! };
+    const x = rest.match(SEARCH_X);
+    if (x !== null) return { count: "X", upTo: false, noun: x[1]! };
     const counted = rest.match(SEARCH_COUNT);
     const n = counted === null ? null : readNumberWord(counted[1]!);
     if (counted !== null && n !== null && n >= 2)
@@ -1234,7 +1243,7 @@ function readMember(
             ctx
         );
         if (!descriptor.ok) return { refused: descriptor.reason };
-        if ((descriptor.value.plural === true) !== count > 1)
+        if ((descriptor.value.plural === true) !== (count === "X" || count > 1))
             return {
                 refused: `"${rest}" pairs the quantity with the wrong number`,
             };
@@ -1265,7 +1274,7 @@ function readMember(
                     upTo,
                 },
             ],
-            referent: { plural: count > 1, consumed: false },
+            referent: { plural: count === "X" || count > 1, consumed: false },
         };
     }
 
@@ -1289,6 +1298,7 @@ function readMember(
     const shuffleTop = lower.match(SHUFFLE_AND_TOP);
     if (shuffleTop !== null) {
         const pronoun = shuffleTop[1] as PronounIR;
+
         if (referent === null)
             return {
                 refused: `"${pronoun}" names a card no frame before it found`,

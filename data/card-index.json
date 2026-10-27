@@ -12772,6 +12772,16 @@
         "source": "compiled"
     },
     {
+        "name": "Congregation at Dawn",
+        "scryfallId": "2f1b950a-b2fe-4afc-bb79-c9f4c272ea36",
+        "oracleId": "b63dad39-4dd5-4340-953e-b05df1a3c776",
+        "firstSet": "rav",
+        "firstPrintId": "2f1b950a-b2fe-4afc-bb79-c9f4c272ea36",
+        "firstPrintSet": "rav",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Conifer Strider",
         "scryfallId": "72f07879-7893-46d9-9239-8d2625355881",
         "oracleId": "6175197f-cf3c-41df-9d24-b4fffa09631a",
@@ -25120,6 +25130,16 @@
         "source": "compiled"
     },
     {
+        "name": "Foresight",
+        "scryfallId": "a4fe74e0-bcde-4176-8da5-38e78daad5e5",
+        "oracleId": "c9640b04-9751-46d5-b7bf-5b8a8ecf145f",
+        "firstSet": "all",
+        "firstPrintId": "a4fe74e0-bcde-4176-8da5-38e78daad5e5",
+        "firstPrintSet": "all",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Forest",
         "scryfallId": "6f1c8cb0-38eb-408b-94e8-16db83999b3b",
         "oracleId": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
@@ -28374,6 +28394,16 @@
         "firstSet": "rtr",
         "firstPrintId": "e4ec8ada-09a6-449a-ac4a-7d3acbd08014",
         "firstPrintSet": "rtr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Goblin Recruiter",
+        "scryfallId": "6ee791d5-1d48-40e8-b65f-b6aa889f3467",
+        "oracleId": "792e1072-00bf-4f63-b956-5f20cdf09f11",
+        "firstSet": "vis",
+        "firstPrintId": "6ee791d5-1d48-40e8-b65f-b6aa889f3467",
+        "firstPrintSet": "vis",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -34209,6 +34239,16 @@
         "firstPrintId": "7a043cc2-1bd4-4b44-ba23-d2585ffc3841",
         "firstPrintSet": "all",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Insidious Dreams",
+        "scryfallId": "e8a29622-23a6-42c7-8e56-690613572c94",
+        "oracleId": "4badd4e0-e5d7-4516-b220-cea2b02c79aa",
+        "firstSet": "tor",
+        "firstPrintId": "e8a29622-23a6-42c7-8e56-690613572c94",
+        "firstPrintSet": "tor",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -40669,6 +40709,16 @@
         "firstPrintId": "81137c17-18b8-484e-8334-28f143c08177",
         "firstPrintSet": "mir",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Mana Severance",
+        "scryfallId": "854dc5e6-63f7-4c8b-83e5-a364f41c9a15",
+        "oracleId": "34c66f52-dcbf-4d0a-bf7f-cb294bd93e9c",
+        "firstSet": "tmp",
+        "firstPrintId": "854dc5e6-63f7-4c8b-83e5-a364f41c9a15",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -58851,6 +58901,16 @@
         "firstPrintId": "120f0fb0-4831-4759-b58c-05c4be90a4af",
         "firstPrintSet": "kld",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Selective Memory",
+        "scryfallId": "555063cc-99ad-4014-b17b-c4c6b40d2e81",
+        "oracleId": "3cfb4977-5b6d-4220-9c54-70920b3087ed",
+        "firstSet": "wwk",
+        "firstPrintId": "555063cc-99ad-4014-b17b-c4c6b40d2e81",
+        "firstPrintSet": "wwk",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
