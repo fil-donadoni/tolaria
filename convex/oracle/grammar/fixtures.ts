@@ -4671,6 +4671,80 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 701.23a + CR 701.23b (search, up to N, pairwise distinct) + CR 701.20a
+    // (reveal) + CR 701.24a (shuffle) — "Search your library for up to four
+    // cards with different names and reveal them. Target opponent chooses two
+    // of those cards. Put the chosen cards into your graveyard and the rest
+    // into your hand. Then shuffle.": Intuition's pile with `distinctBy` on
+    // the search, a pick of two to the graveyard and the rest to hand (issue
+    // #6475). Gifts Ungiven is the one printing.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "58aec411-167d-4709-8560-793eaaed62c5",
+            name: "Gifts Ungiven",
+            manaCost: "{3}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Search your library for up to four cards with different names and reveal them. Target opponent chooses two of those cards. Put the chosen cards into your graveyard and the rest into your hand. Then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Gifts Ungiven",
+            types: ["Instant"],
+            manaCost: { X: 3, U: 1 },
+            oracleText:
+                "Search your library for up to four cards with different names and reveal them. Target opponent chooses two of those cards. Put the chosen cards into your graveyard and the rest into your hand. Then shuffle.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    count: { min: 0, max: 4 },
+                    distinctBy: "name",
+                    prompt: "Search your library for up to four cards with different names.",
+                    bind: "$found1",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$found1" },
+                },
+                {
+                    op: "choice",
+                    kind: "choose-library-card",
+                    player: { target: 0 },
+                    zoneOwnerId: "controller",
+                    zone: "library",
+                    candidates: [{ ref: "$found1" }],
+                    count: 2,
+                    prompt: "Choose two of the revealed cards. Its owner puts the chosen cards into their graveyard and the rest into their hand.",
+                    bind: "$picked2",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked2" },
+                    player: "controller",
+                    from: "library",
+                    to: "graveyard",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+        },
+    },
     // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) —
     // "Search your library for a creature card, reveal it, then shuffle and put
     // the card on top": the tutor-to-top. Exhibits the same three

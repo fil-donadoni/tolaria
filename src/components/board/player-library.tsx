@@ -21,6 +21,7 @@ import LibraryPlayLandButton from "./library-play-land-button";
 import { buildLibraryPileModel } from "~/lib/library-knowledge";
 import { orderLibrarySearchCards } from "~/lib/library-search-order";
 import { canAddCategorizedPick } from "@convex/gre/categorizedPick";
+import { canAddDistinctPick } from "@convex/gre/distinctPick";
 
 export default function PlayerLibrary({
     player,
@@ -239,6 +240,11 @@ export default function PlayerLibrary({
     // is not enough here: with two creatures revealed the second is illegal
     // even though the cap (the maximum matching) may be far higher.
     const categories = isLibraryPick ? head!.categories : undefined;
+    // CR 701.23a (issue #6475) — a pairwise-distinct search ("different
+    // names"): a card whose key is already picked is not offered, gated
+    // through the SAME leaf predicate the server validates the submit with
+    // (`convex/gre/distinctPick.ts`).
+    const distinctKeys = isLibraryPick ? head!.distinctKeys : undefined;
 
     const onCardClick = isLibraryPick
         ? (card: { id: string }) => {
@@ -261,6 +267,12 @@ export default function PlayerLibrary({
               if (
                   categories &&
                   !canAddCategorizedPick(categories, bufferCtx.buffer, card.id)
+              ) {
+                  return;
+              }
+              if (
+                  distinctKeys &&
+                  !canAddDistinctPick(distinctKeys, bufferCtx.buffer, card.id)
               ) {
                   return;
               }

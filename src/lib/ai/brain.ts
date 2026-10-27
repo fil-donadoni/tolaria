@@ -49,6 +49,7 @@ import {
     canAddCategorizedPick,
     type PickCategory,
 } from "@convex/gre/categorizedPick";
+import { canAddDistinctPick } from "@convex/gre/distinctPick";
 
 /** The minimal slice of game state the bot needs to decide. Built on the
  *  driving client from the full state (the bot's hand is visible to the human's
@@ -370,6 +371,12 @@ export type OwedChoice = {
      *  rejected submission freezes the bot. Undefined = the injective rule,
      *  where any matchable subset is legal. */
     categoryRule?: "cover";
+    /** `search-library` (issue #6475, CR 701.23a) — the pairwise-DISTINCT
+     *  pick's key table (`PendingChoice.distinctKeys`). When present, a bare
+     *  `slice` of the best-valued cards can pick two of one name and the
+     *  server rejects it (freezing the bot), so each addition is tested
+     *  through `canAddDistinctPick`. */
+    distinctKeys?: Record<string, string>;
     /** Whether being picked is the GOOD half or the BAD half for the chooser
      *  (issue #1945, `PendingChoice.pickPolarity`). `"picked-removed"`
      *  (Planar Overlay's bounce) inverts the value ordering: the picks are
@@ -926,6 +933,23 @@ function categorizedGreedyPicks(
     return picks;
 }
 
+/** Greedy best-first walk keeping only picks that leave a distinct-legal set
+ *  (`gre/distinctPick.ts`), up to `max`. */
+function distinctGreedyPicks(
+    keys: Record<string, string>,
+    ordered: readonly { id: string }[],
+    max: number
+): string[] {
+    const picks: string[] = [];
+    for (const candidate of ordered) {
+        if (picks.length >= max) break;
+        if (canAddDistinctPick(keys, picks, candidate.id)) {
+            picks.push(candidate.id);
+        }
+    }
+    return picks;
+}
+
 export function chooseResolution(choice: OwedChoice): string[] {
     const { kind, candidates, min, max } = choice;
     switch (kind) {
@@ -947,6 +971,13 @@ export function chooseResolution(choice: OwedChoice): string[] {
                     bestFirst(candidates),
                     max,
                     false
+                );
+            }
+            if (choice.distinctKeys) {
+                return distinctGreedyPicks(
+                    choice.distinctKeys,
+                    bestFirst(candidates),
+                    min
                 );
             }
             return bestFirst(candidates)

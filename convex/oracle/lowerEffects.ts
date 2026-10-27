@@ -4351,18 +4351,28 @@ function lowerSentenceBody(
             // is refused without it). The pick goes to hand; moving the whole
             // pile to the graveyard after it moves only "the rest", since the
             // pick has already left the library. CR 701.24a — then shuffle.
+            // CR 701.23a / 701.23b (issue #6475) — "up to N cards with
+            // different names": the count is a ceiling (a hidden zone, the
+            // searcher may find fewer) and the set is pairwise distinct.
             const chooser = playerRef(sentence.chooser, slots, site);
             if (!chooser.ok) return chooser;
             const found = walk.nextBind("found");
             const picked = walk.nextBind("picked");
+            const pickedWord = sentence.picks === 1 ? "one" : "two";
+            const restTo = sentence.pickTo === "hand" ? "graveyard" : "hand";
             return lowered([
                 {
                     op: "choice",
                     kind: "search-library",
                     player: "controller",
                     zone: "library",
-                    count: sentence.count,
-                    prompt: `Search your library for ${countWord(sentence.count)} cards.`,
+                    count: sentence.upTo
+                        ? { min: 0, max: sentence.count }
+                        : sentence.count,
+                    ...(sentence.distinctBy
+                        ? { distinctBy: sentence.distinctBy }
+                        : {}),
+                    prompt: `Search your library for ${sentence.upTo ? "up to " : ""}${countWord(sentence.count)} cards${sentence.distinctBy ? " with different names" : ""}.`,
                     bind: found,
                 },
                 { op: "reveal", player: "controller", cards: { ref: found } },
@@ -4373,8 +4383,11 @@ function lowerSentenceBody(
                     zoneOwnerId: "controller",
                     zone: "library",
                     candidates: [{ ref: found }],
-                    count: 1,
-                    prompt: "Choose one of the revealed cards. Its owner puts that card into their hand and the rest into their graveyard.",
+                    count: sentence.picks,
+                    prompt:
+                        sentence.picks === 1
+                            ? "Choose one of the revealed cards. Its owner puts that card into their hand and the rest into their graveyard."
+                            : `Choose ${pickedWord} of the revealed cards. Its owner puts the chosen cards into their ${sentence.pickTo} and the rest into their ${restTo}.`,
                     bind: picked,
                 },
                 {
@@ -4382,14 +4395,14 @@ function lowerSentenceBody(
                     cards: { ref: picked },
                     player: "controller",
                     from: "library",
-                    to: "hand",
+                    to: sentence.pickTo,
                 },
                 {
                     op: "moveZone",
                     cards: { ref: found },
                     player: "controller",
                     from: "library",
-                    to: "graveyard",
+                    to: restTo,
                 },
                 { op: "libraryLook", action: "shuffle", player: "controller" },
             ]);

@@ -23,6 +23,7 @@ import {
     isCategorizedCoverLegal,
     isCategorizedPickLegal,
 } from "./categorizedPick";
+import { isDistinctPickLegal } from "./distinctPick";
 import {
     computeHardSkipFilters,
     drainAutoPasses,
@@ -272,6 +273,16 @@ function assertZonePickLegal(
                 throw new Error(
                     "Those cards can't each be kept for a different category"
                 );
+            }
+        }
+        // CR 701.23a (issue #6475) — a pairwise-DISTINCT search ("up to four
+        // cards with different names"): no two picks may share the key the
+        // choice carried, and a card without one (no power) is not pickable.
+        // Fewer than `count` is fine (CR 701.23b); the count bounds are
+        // checked above.
+        if (head.distinctKeys && head.kind === "search-library") {
+            if (!isDistinctPickLegal(head.distinctKeys, args.cardInstanceIds)) {
+                throw new Error("Those cards must each be different");
             }
         }
         if (head.kind === "order-top" || head.kind === "look-distribute") {

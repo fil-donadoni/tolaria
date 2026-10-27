@@ -131,6 +131,7 @@ import {
     minCategorizedCover,
     forcedCategorizedCover,
 } from "../categorizedPick";
+import { distinctEligibleIds, maxDistinctPicks } from "../distinctPick";
 import { manaCostsEqual } from "../constants";
 import { readTaggedNumber, writeTaggedNumber } from "../numberBinding";
 import {
@@ -2841,6 +2842,32 @@ function resolveChoiceCategories(
             .filter((c) => matchesCardFilter(ctx, c, category.filter))
             .map((c) => c.id),
     }));
+}
+
+/** CR 701.23a (issue #6475) — resolve a `distinctBy` library search into the
+ *  card id → key table the `PendingChoice` carries (`gre/distinctPick.ts`).
+ *  Cut out of the pool `choiceCandidates` produced, so `filter` and
+ *  `candidates` compose. A card with no power (a noncreature, CR 208.3) gets no
+ *  entry under `"power"` and so can never be picked. */
+function resolveDistinctKeys(
+    ctx: SpellContext,
+    op: OpOf<"choice">,
+    zoneOwnerId: string,
+    poolIds: string[] | undefined
+): Record<string, string> {
+    const zoneCards = ctx.getLibraryCards(zoneOwnerId);
+    const keys: Record<string, string> = {};
+    for (const card of zoneCards) {
+        if (poolIds !== undefined && !poolIds.includes(card.id)) continue;
+        const key =
+            op.distinctBy === "power"
+                ? card.power === undefined
+                    ? undefined
+                    : String(card.power)
+                : card.name;
+        if (key !== undefined) keys[card.id] = key;
+    }
+    return keys;
 }
 
 /** Shared tail of `lookDistribute` (issue #984, extended #1266 / #1101): send the
@@ -6510,12 +6537,28 @@ export const OP_EXECUTORS: {
         const categories = op.categories
             ? resolveChoiceCategories(ctx, op, zoneOwnerId, poolIds)
             : undefined;
+        // CR 701.23a (issue #6475) — a pairwise-DISTINCT search ("up to four
+        // cards with different names"): the ceiling is the number of distinct
+        // keys among the cards the filter matched, and a card with no key
+        // (no power) is looked at but never pickable (CR 701.23b — `count` is
+        // only a ceiling).
+        const distinctKeys =
+            op.distinctBy !== undefined &&
+            op.zone === "library" &&
+            op.kind === "search-library" &&
+            !categories
+                ? resolveDistinctKeys(ctx, op, zoneOwnerId, poolIds)
+                : undefined;
         const available = categories
             ? maxCategorizedPicks(categories)
-            : poolSize;
+            : distinctKeys
+              ? maxDistinctPicks(distinctKeys)
+              : poolSize;
         const candidateIds = categories
             ? categorizedEligibleIds(categories)
-            : poolIds;
+            : distinctKeys
+              ? distinctEligibleIds(distinctKeys)
+              : poolIds;
         // CR 608.2b / 701.9b — clamp to what exists; nothing to choose from
         // means no choice at all (and no binding, so consumers skip too).
         // A plain number is an EXACT count; a `{ min, max }` range (issue
@@ -6602,6 +6645,10 @@ export const OP_EXECUTORS: {
             // which is exactly what `chooseCategorized`'s COVER rule permits
             // for a dual land that merely stays where it is.
             ...(categories ? { categories } : {}),
+            // CR 701.23a (issue #6475) — the key table rides the PendingChoice
+            // so the submit validator, the client's click gate and the Bot
+            // read the same `gre/distinctPick.ts` legality.
+            ...(distinctKeys ? { distinctKeys } : {}),
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
         // issue #1282 — when `id` diverges from `bind`, `requestChoice`

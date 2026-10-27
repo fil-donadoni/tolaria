@@ -34,6 +34,7 @@
 
 import { matchesPermanentFilter } from "../../cards/filters";
 import { canAddCategorizedPick } from "../categorizedPick";
+import { canAddDistinctPick } from "../distinctPick";
 import { effectivePermanentView } from "../permanentView";
 import type {
     CardInstanceState,
@@ -987,10 +988,15 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
         );
 
     const categories = choice.categories;
+    // CR 701.23a (issue #6475) — a pairwise-DISTINCT search ("with different
+    // names"): the greedy prefix tests each addition through the same leaf
+    // the server validates with, and a card with no key is not a lead.
+    const distinctKeys = choice.distinctKeys;
     const seenIdentities = new Set<string>();
     const seenKeys = new Set<string>();
     for (const lead of ranked) {
         if (out.length >= CHOICE_TOP_K) break;
+        if (distinctKeys && distinctKeys[lead.card.id] === undefined) continue;
         if (seenIdentities.has(lead.identity)) continue;
         seenIdentities.add(lead.identity);
         // "The best set LED BY this card": the lead, then the next-best cards.
@@ -1009,6 +1015,16 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
                 categories &&
                 !canAddCategorizedPick(
                     categories,
+                    picked.map((p) => p.card.id),
+                    other.card.id
+                )
+            ) {
+                continue;
+            }
+            if (
+                distinctKeys &&
+                !canAddDistinctPick(
+                    distinctKeys,
                     picked.map((p) => p.card.id),
                     other.card.id
                 )
