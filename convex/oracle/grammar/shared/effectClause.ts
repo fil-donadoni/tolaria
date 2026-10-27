@@ -37,6 +37,7 @@ import type { KeywordIR } from "../ir";
 import type { CardType, NameRestriction } from "../../../cards/types";
 import { PERMANENT_TYPES } from "../../../cards/types";
 import type { Phase } from "../../../gre/types";
+import type { PermanentFilter } from "../../../cards/filters";
 import {
     compareTraces,
     fail,
@@ -44,6 +45,7 @@ import {
     rule,
     type FailureTrace,
     type Rule,
+    type RuleContext,
     type RuleResult,
     subGrammar,
 } from "../../rule";
@@ -65,6 +67,7 @@ import type { ParseContext } from "../../types";
 import {
     comparativeControlsRule,
     controlsRule,
+    countedControlsRule,
     kickedConditionRule,
     kickedPermanentConditionRule,
     type ComparativeControlsIR,
@@ -2310,7 +2313,23 @@ export type RestrictionIR =
     /** CR 602.1b (issue #3685) — "Activate only if there are N or more cards
      *  in your graveyard." (Threshold's spelled-out condition), lowered to a
      *  declarative `ActivatedAbility.activationCondition`. */
-    | { readonly kind: "own-graveyard-at-least"; readonly count: number };
+    | { readonly kind: "own-graveyard-at-least"; readonly count: number }
+    /** CR 602.5 + CR 109.5 (issue #5258) — "Activate only if you control five
+     *  or more lands" / "… if an opponent controls four or more lands", lowered
+     *  to a declarative `activationCondition` over the battlefield. */
+    | {
+          readonly kind: "controls-at-least";
+          readonly player: "you" | "opponent";
+          readonly filter: PermanentFilter;
+          readonly atLeast: number;
+      }
+    /** CR 602.5 + CR 109.5 (issue #5258) — "Activate only if an opponent
+     *  controls more lands than you": the strict comparison of
+     *  {@link ComparativeControlsIR}, at activation time. */
+    | {
+          readonly kind: "opponent-controls-more";
+          readonly filter: PermanentFilter;
+      };
 
 /** The two turn-scoped combat restrictions one announced creature can carry. */
 export type CombatRestrictionIR = "cant-block" | "cant-be-blocked";
@@ -5593,8 +5612,45 @@ function readOwnGraveyardAtLeast(span: string): RestrictionIR | undefined {
     return undefined;
 }
 
-function readRestriction(span: string): RestrictionIR | undefined {
-    return RESTRICTIONS.get(span) ?? readOwnGraveyardAtLeast(span);
+/** CR 602.5 — the opener of a restriction that carries a condition. */
+const ACTIVATE_ONLY_IF = /^activate only if (.+)$/i;
+
+/**
+ * CR 602.5 + CR 109.5 (issue #5258) — "Activate only if <player> control(s)
+ * N or more <descriptor>" and "… if an opponent controls more <descriptor>
+ * than you": the board count read through the condition sub-grammar, so a
+ * descriptor this restriction accepts is the one every other "controls" site
+ * accepts. Read on the PRINTED span (a subtype keeps its capital); anything
+ * the sub-grammar refuses ("lands with the same name", a snow count) is
+ * `undefined`, so the sentence fails under its own gap key.
+ */
+function readControlsRestriction(
+    span: string,
+    ctx: RuleContext
+): RestrictionIR | undefined {
+    const match = ACTIVATE_ONLY_IF.exec(span);
+    if (match === null) return undefined;
+    const clause = match[1]!;
+    const counted = countedControlsRule.run(clause, ctx);
+    if (counted.ok) return counted.value;
+    const more = comparativeControlsRule.run(clause, ctx);
+    // The rule refuses "an opponent … than each other player" itself; "that
+    // player" has no head to bind at an activation, and "a player" pairs only
+    // with "each other player".
+    if (!more.ok || more.value.subject !== "opponent") return undefined;
+    return { kind: "opponent-controls-more", filter: more.value.filter };
+}
+
+function readRestriction(
+    span: string,
+    ctx: RuleContext
+): RestrictionIR | undefined {
+    const lower = span.toLowerCase();
+    return (
+        RESTRICTIONS.get(lower) ??
+        readOwnGraveyardAtLeast(lower) ??
+        readControlsRestriction(span, ctx)
+    );
 }
 
 /**
@@ -5604,16 +5660,19 @@ function readRestriction(span: string): RestrictionIR | undefined {
  * its "activate" head) and be different kinds, since a repeated kind is a
  * line we have misread, not a restriction to merge.
  */
-function readRestrictions(span: string): RestrictionIR[] | undefined {
-    const single = readRestriction(span);
+function readRestrictions(
+    span: string,
+    ctx: RuleContext
+): RestrictionIR[] | undefined {
+    const single = readRestriction(span, ctx);
     if (single !== undefined) return [single];
     const parts = span.split(" and only ");
     if (parts.length !== 2) return undefined;
     // Both halves keep the printed "activate only" head ("Any player may
     // activate this ability and only …" is not printed English).
-    if (!parts[0]!.startsWith("activate only ")) return undefined;
-    const first = readRestriction(parts[0]!);
-    const second = readRestriction(`activate only ${parts[1]}`);
+    if (!parts[0]!.toLowerCase().startsWith("activate only ")) return undefined;
+    const first = readRestriction(parts[0]!, ctx);
+    const second = readRestriction(`activate only ${parts[1]}`, ctx);
     if (first === undefined || second === undefined) return undefined;
     if (first.kind === second.kind) return undefined;
     return [first, second];
@@ -5730,7 +5789,7 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         // the list is a closed CR census, so a per-card subset would be a
         // catalogue of card names wearing a grammar's clothes.
         const span = withoutAbilityWord(printed);
-        const restrictions = readRestrictions(span.toLowerCase());
+        const restrictions = readRestrictions(span, ctx);
         if (restrictions !== undefined)
             return ok({ role: "restriction" as const, restrictions });
         if (ADD_MANA_INSTEAD_IF_COUNT.test(span))

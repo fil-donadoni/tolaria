@@ -5735,7 +5735,9 @@ function lowerUpgrade(
  * types, CR 105.1 colours). Any other field is refused rather than dropped: a
  * dropped clause counts permanents the card does not mean.
  */
-function countFilterOf(filter: PermanentFilter): Lowered<EffectCardFilter> {
+export function countFilterOf(
+    filter: PermanentFilter
+): Lowered<EffectCardFilter> {
     const out: EffectCardFilter = {};
     for (const [key, value] of Object.entries(filter)) {
         if (value === undefined) continue;
