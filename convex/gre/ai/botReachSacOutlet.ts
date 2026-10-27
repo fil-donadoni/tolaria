@@ -1,6 +1,6 @@
 /**
  * What the Bot-play sweep puts on the board for a creature whose activated
- * ability sacrifices a creature to deal damage (CR 602.2, CR 118.8,
+ * ability sacrifices a creature to deal damage (CR 602.2,
  * CR 120.3): "{1}, Sacrifice a creature: this deals 1 damage to any target".
  *
  * The position's holder has no spare body to feed the ability and the

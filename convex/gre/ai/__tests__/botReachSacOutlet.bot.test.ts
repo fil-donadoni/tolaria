@@ -1,5 +1,5 @@
 // Bot-play sweep — a creature whose activated ability sacrifices a creature to
-// deal damage (CR 602.2, CR 118.8, CR 120.3) is posed with spare bodies to
+// deal damage (CR 602.2, CR 120.3) is posed with spare bodies to
 // sacrifice and small creatures for the damage to remove. Verdicts go through
 // the real `playBotReach` pipeline.
 
