@@ -95,7 +95,9 @@ pull_request_rules:
     # dequeue reason still stands until the PR is requeued, and the rule
     # below would match. `pr-gate` requeues the PR first and removes the
     # label only once it is `queued` again, or the requeue did not take
-    # (issue #6957).
+    # (issue #6957). A declared repair is requeued under the RED itself:
+    # its own `base-health` is green, and the RED clears only once it
+    # lands (issue #7140).
     - name: a dequeue under a RED is a hold
       conditions:
           - check-failure=base-health
