@@ -222,6 +222,12 @@ export type StaticClauseIR =
      * the abilities that read "the chosen name".
      */
     | { readonly kind: "as-enters-choose-card-name" }
+    /**
+     * CR 614.1c / 614.12a — "As this artifact enters, choose an opponent": a
+     * choice made BEFORE the permanent enters, kept on the permanent as its
+     * `chosenPlayerId` for the abilities that read "the chosen player".
+     */
+    | { readonly kind: "as-enters-choose-opponent" }
     /** CR 601.3a — "Spells with the chosen name can't be cast." Reads the
      *  `chosenName` an `as-enters-choose-card-name` line of the SAME card
      *  made (checked in `lower.ts`). */
@@ -1286,6 +1292,24 @@ const asEntersChooseNonlandCardName: Rule<StaticClauseIR> = pattern(
     (match): RuleResult<StaticClauseIR> =>
         isSelfPhrase(uncapitalise(match[1]!))
             ? ok({ kind: "as-enters-choose-card-name" as const })
+            : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
+);
+
+// ── Frame: as-enters opponent choice (CR 614.1c / 614.12a) ─────────────────
+
+const AS_ENTERS_CHOOSE_OPPONENT = /^As (.+) enters, choose an opponent$/;
+
+/**
+ * "As <self> enters, choose an opponent" — anchored on the WHOLE sentence: a
+ * different chooser or object ("a player", "a card name … and an opponent")
+ * is another form and refuses here.
+ */
+const asEntersChooseOpponent: Rule<StaticClauseIR> = pattern(
+    "as enters choose an opponent",
+    AS_ENTERS_CHOOSE_OPPONENT,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(uncapitalise(match[1]!))
+            ? ok({ kind: "as-enters-choose-opponent" as const })
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
@@ -2375,6 +2399,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         entersWithCounters,
         asEntersChooseCreatureType,
         asEntersChooseNonlandCardName,
+        asEntersChooseOpponent,
         chosenNameSpellsCantBeCast,
         kickedEntersWithRule,
         entersWithEachKickRule,
