@@ -8458,6 +8458,16 @@
         "source": "compiled"
     },
     {
+        "name": "Brawn",
+        "scryfallId": "e9f4b7fc-8793-43af-ade3-b23846a80457",
+        "oracleId": "00876e98-d062-4a12-85e6-86a2b20cf867",
+        "firstSet": "jud",
+        "firstPrintId": "e9f4b7fc-8793-43af-ade3-b23846a80457",
+        "firstPrintSet": "jud",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Brazen Borrower",
         "scryfallId": "c2089ec9-0665-448f-bfe9-d181de127814",
         "oracleId": "c7b044c3-3cfa-407e-bf20-2875e8e04b7b",
@@ -23603,6 +23613,16 @@
         "firstPrintId": "e682bbd3-9f52-452d-b886-a6a8def35f27",
         "firstPrintSet": "5dn",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Filth",
+        "scryfallId": "37de06dc-c0c1-4edb-9732-2d16dbabfb31",
+        "oracleId": "411484ac-a87d-49e8-a7ef-0cd055a872b6",
+        "firstSet": "jud",
+        "firstPrintId": "37de06dc-c0c1-4edb-9732-2d16dbabfb31",
+        "firstPrintSet": "jud",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -74010,6 +74030,16 @@
         "source": "compiled"
     },
     {
+        "name": "Valor",
+        "scryfallId": "58095f6b-d937-4871-b3af-5c6a1d9c04b3",
+        "oracleId": "b2ac84e3-cc3c-49c6-918b-a407ef1ee06c",
+        "firstSet": "jud",
+        "firstPrintId": "58095f6b-d937-4871-b3af-5c6a1d9c04b3",
+        "firstPrintSet": "jud",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Valor in Akros",
         "scryfallId": "22fa0acd-84c3-492e-adf7-e7438db47e0a",
         "oracleId": "56a60fcb-f9b7-438f-9221-eaca8fb2649b",
@@ -78994,6 +79024,16 @@
         "firstSet": "leg",
         "firstPrintId": "ba5aee52-095e-4c69-93eb-5adac11ed1fc",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Wonder",
+        "scryfallId": "44670666-9028-4b4a-a5af-a3bf35fc6a21",
+        "oracleId": "232284f7-c623-4895-9ab9-8b1a39926830",
+        "firstSet": "jud",
+        "firstPrintId": "44670666-9028-4b4a-a5af-a3bf35fc6a21",
+        "firstPrintSet": "jud",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Wood Elves",
