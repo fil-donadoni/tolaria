@@ -11193,7 +11193,7 @@ describe("Effect Script Op: animate (CR 208.2 / 611.1, issue #1317)", () => {
         )!;
         expect(getEffectiveColors(live)).toEqual(["U", "B"]);
         // No duration → no revert record; the only end is a zone change.
-        expect(live.temporaryColorOverride).toBeUndefined();
+        expect(live.temporaryColorOverrides).toBeUndefined();
 
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(

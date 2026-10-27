@@ -3291,7 +3291,7 @@ function unionKeys(
  *  this report open, and a record that did survive a departure would vanish
  *  with no note.
  *
- *  `colorOverride` / `temporaryColorOverride` are written identically by the
+ *  `colorOverride` / `temporaryColorOverrides` are written identically by the
  *  `setColor` Op's primitive and by an animate clause's `colors` (one shared
  *  write, `applyColorOverrideToPermanent`), so the fields cannot say who set
  *  them. Allowlisting them outright would trade an honest "not captured" line
@@ -3300,12 +3300,12 @@ function unionKeys(
  *  its live value is exactly what re-executing the lowered animation writes:
  *
  *   - `colorOverride` — equal, as a SET, to the animation's own `colors`;
- *   - `temporaryColorOverride` — the same colours, the same resolved boundary
- *     (the rebuild re-resolves the lowered `duration` against the same
- *     controller, so the two records must agree phase for phase), and no
- *     `restoreColorOverride` anchor: that anchor is an EARLIER override the
- *     animation reverts to, which the rebuild has no field for and must keep
- *     reporting.
+ *   - `temporaryColorOverrides` — exactly ONE row: the same colours and the
+ *     same resolved boundary (the rebuild re-resolves the lowered `duration`
+ *     against the same controller, so the two must agree phase for phase). A
+ *     second row is an EARLIER override (the indefinite base) or an
+ *     overlapping one the animation falls back to, which the rebuild has no
+ *     field for and must keep reporting.
  *
  *  A `setColor`-sourced override on a permanent that is not animated at all, or
  *  whose animation stated different colours or a different boundary, therefore
@@ -3324,14 +3324,14 @@ function animationRebuildKeys(
         ) {
             allowed.add("colorOverride");
         }
-        const temporary = card.temporaryColorOverride;
+        const rows = card.temporaryColorOverrides;
+        const temporary = rows?.length === 1 ? rows[0] : undefined;
         if (
             temporary &&
-            temporary.restoreColorOverride === undefined &&
             sameStringSet([...temporary.colors], [...colors]) &&
             sameDuration(temporary.duration, card.animation?.duration)
         ) {
-            allowed.add("temporaryColorOverride");
+            allowed.add("temporaryColorOverrides");
         }
     }
     return allowed;

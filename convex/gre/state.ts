@@ -8965,8 +8965,8 @@ export function markEnteredThisTurn(
  *  `SpellContext.setColorOverride` (the `setColor` Op's primitive) and by
  *  `animateAsCreature`'s `colors` clause ("becomes a 3/2 blue and black
  *  Elemental creature", Creeping Tar Pit). Both reach the same field and the
- *  same `temporaryColorOverride` revert record, so a timed colour set restores
- *  the prior override at its phase boundary (`tickAllDurations`, phases.ts)
+ *  same `temporaryColorOverrides` ledger, so a timed colour set ends at its own
+ *  phase boundary (`tickAllDurations`, phases.ts)
  *  regardless of which caller wrote it.
  *
  *  `resolved` is an ALREADY-resolved `Duration` (each caller resolves its own
@@ -8981,16 +8981,81 @@ export function applyColorOverrideToPermanent(
     colors: readonly Color[],
     resolved: Duration | undefined
 ): void {
-    if (resolved) {
-        card.temporaryColorOverride = {
-            colors: [...colors],
-            ...(card.colorOverride
-                ? { restoreColorOverride: [...card.colorOverride] }
-                : {}),
-            duration: resolved,
-        };
+    if (!resolved) {
+        // CR 613.7 — an indefinite write is the latest timestamp, so any live
+        // timed row beneath it is superseded: dropping the ledger is the same
+        // as letting each row expire unseen.
+        card.temporaryColorOverrides = undefined;
+        card.colorOverride = [...colors];
+        return;
     }
+    // A `colorOverride` that is not the ledger's top was written by someone
+    // else since (a copy effect's kept colour, `copy.ts`): that write is the
+    // newest and the ledger underneath is stale, so start a fresh one.
+    const ledger = colorLedgerIsLive(card)
+        ? (card.temporaryColorOverrides ?? [])
+        : [];
+    if (ledger.length === 0 && card.colorOverride) {
+        ledger.push({ colors: [...card.colorOverride] });
+    }
+    ledger.push({ colors: [...colors], duration: resolved });
+    card.temporaryColorOverrides = ledger;
     card.colorOverride = [...colors];
+}
+
+/** The ledger still describes `colorOverride` (its top row is what the
+ *  permanent shows). False when there is no ledger, or when another writer
+ *  replaced `colorOverride` after the last ledger write. */
+function colorLedgerIsLive(card: CardInstanceState): boolean {
+    const ledger = card.temporaryColorOverrides;
+    if (!ledger || ledger.length === 0) return false;
+    const top = ledger[ledger.length - 1].colors;
+    const shown = card.colorOverride;
+    return (
+        shown !== undefined &&
+        shown.length === top.length &&
+        shown.every((c, i) => c === top[i])
+    );
+}
+
+/** CR 611.2a / 613.7 — advance every timed colour row one boundary. Each row
+ *  ends at its OWN duration; `tick` returns the advanced duration, or `null`
+ *  when that row expires. What the permanent shows afterwards is the newest
+ *  row still live, else the indefinite override that was underneath, else
+ *  nothing — never a snapshot taken by another application. */
+export function tickColorOverrideLedger(
+    card: CardInstanceState,
+    tick: (duration: Duration) => Duration | null
+): void {
+    const ledger = card.temporaryColorOverrides;
+    if (!ledger) return;
+    if (!colorLedgerIsLive(card)) {
+        // Overwritten since (see `applyColorOverrideToPermanent`): the newer
+        // write stands, the rows beneath it have nothing left to restore.
+        card.temporaryColorOverrides = undefined;
+        return;
+    }
+    let expired = false;
+    const kept: NonNullable<CardInstanceState["temporaryColorOverrides"]> = [];
+    for (const row of ledger) {
+        if (!row.duration) {
+            kept.push(row);
+            continue;
+        }
+        const next = tick(row.duration);
+        if (next === null) expired = true;
+        else kept.push({ ...row, duration: next });
+    }
+    if (!expired) {
+        card.temporaryColorOverrides = kept;
+        return;
+    }
+    const top = kept[kept.length - 1];
+    card.colorOverride = top ? [...top.colors] : undefined;
+    // Only the indefinite base left: it IS `colorOverride`, nothing to track.
+    card.temporaryColorOverrides = kept.some((r) => r.duration)
+        ? kept
+        : undefined;
 }
 
 /** CR 208.2 / 611.1 — "becomes a creature": the animate PRIMITIVE, extracted
@@ -9074,7 +9139,7 @@ export function animatePermanentAsCreature(
             // PROVENANCE (issue #3459) — what the animate clause ASKED
             // for in its two clauses whose outcome is NOT recoverable
             // from the board: the layer-5 colours land in
-            // `colorOverride` / `temporaryColorOverride`, which the
+            // `colorOverride` / `temporaryColorOverrides`, which the
             // `setColor` Op writes identically, and the keywords become
             // layer-6 registry entries that declare no animation as
             // their origin. Exactly the reason `setPower`/`setToughness`

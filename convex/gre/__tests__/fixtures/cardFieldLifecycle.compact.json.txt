@@ -193,17 +193,21 @@
             ],
             "subtypes": []
           },
-          "temporaryColorOverride": {
-            "colors": [
-              "R"
-            ],
-            "restoreColorOverride": [
-              "B"
-            ],
-            "duration": {
-              "phase": "end-of-turn"
+          "temporaryColorOverrides": [
+            {
+              "colors": [
+                "B"
+              ]
+            },
+            {
+              "colors": [
+                "R"
+              ],
+              "duration": {
+                "phase": "end-of-turn"
+              }
             }
-          },
+          ],
           "sourceTappedPTMods": [
             {
               "power": 1,
@@ -239,7 +243,7 @@
             "tr-1": 1
           },
           "colorOverride": [
-            "B"
+            "R"
           ],
           "grantedColors": [
             {
@@ -595,17 +599,21 @@
         ],
         "subtypes": []
       },
-      "temporaryColorOverride": {
-        "colors": [
-          "R"
-        ],
-        "restoreColorOverride": [
-          "B"
-        ],
-        "duration": {
-          "phase": "end-of-turn"
+      "temporaryColorOverrides": [
+        {
+          "colors": [
+            "B"
+          ]
+        },
+        {
+          "colors": [
+            "R"
+          ],
+          "duration": {
+            "phase": "end-of-turn"
+          }
         }
-      },
+      ],
       "sourceTappedPTMods": [
         {
           "power": 1,
@@ -641,7 +649,7 @@
         "tr-1": 1
       },
       "colorOverride": [
-        "B"
+        "R"
       ],
       "grantedColors": [
         {

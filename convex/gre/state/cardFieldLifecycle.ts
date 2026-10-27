@@ -157,7 +157,7 @@ export const CARD_FIELD_LIFECYCLE = {
     indefiniteSubtypeSet:       { codec: "scalar",  reset: ["custom:zone-change"] },
     enterAttackingTarget:       { codec: "scalar",  reset: NONE },
     entersAsTypeLine:           { codec: "scalar",  reset: NONE },
-    temporaryColorOverride:     { codec: "scalar",  reset: ZONE },
+    temporaryColorOverrides:    { codec: "list",    reset: ZONE },
     sourceTappedPTMods:         { codec: "list",    reset: ZONE },
     untapLockedBy:              { codec: "list",    reset: ZONE },
     // Consumed at the untap step it skips.
