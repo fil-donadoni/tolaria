@@ -88,6 +88,7 @@ import {
     controlsRule,
     graveyardCountRule,
     opponentControlsRule,
+    type ConditionIR,
     type StaticConditionIR,
 } from "./condition";
 import {
