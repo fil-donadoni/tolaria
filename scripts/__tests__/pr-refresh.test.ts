@@ -261,7 +261,7 @@ describe("semanticChecks", () => {
             (c) => c.id
         );
         expect(ids).toContain("check:gaps");
-        expect(semanticChecks(["README.md"])).toEqual([]);
+        expect(semanticChecks(["no/guard/admits/this.xyz"])).toEqual([]);
         expect(
             semanticComment({
                 check: { id: "check:gaps", command: "bun run check:gaps" },
