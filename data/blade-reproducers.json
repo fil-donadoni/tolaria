@@ -671,6 +671,7 @@
         }
     },
     "defensive grant NEGATIVE CONTROL: buys indestructible against a lethal block": null,
+    "defensive self-animation: animates Mishra's Factory to block a lethal attacker": null,
     "depletion land: pays the two-drop with the basics, sparing the land's charge": {
         "cards": [
             {
