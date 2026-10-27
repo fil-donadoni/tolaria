@@ -64,7 +64,7 @@ export const hondenOfSeeingWinds = defineCard(() => ({
 // The compiler reads the line to this same definition
 // (`search-reveal-pile-pick`, issues #5254 and #6475).
 export const giftsUngiven = defineCard(() => ({
-    id: "cc950b6c-0346-4939-b36b-9f10a75f7a32",
+    id: "32b91eb5-ea53-4a21-a2e5-9c545a42fa30",
     rarity: "rare",
     name: "Gifts Ungiven",
     oracleText:
