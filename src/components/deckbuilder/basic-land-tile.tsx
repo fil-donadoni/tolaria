@@ -55,7 +55,12 @@ export default function BasicLandTile({
     };
 
     return (
-        <div className="flex w-14 min-w-0 flex-col items-center gap-1 md:w-20 short-viewport:w-14">
+        // The art carries the width, not the tile (issue #7148): the `−` / `+`
+        // pair is two `icon-xs` plates, floored to `--touch-min` (44px) on a
+        // coarse pointer (issue #2792) — 92px that a fixed 56px tile spilled
+        // into its neighbour, burying `+` under the next tile's `−`. The tile
+        // is as wide as the wider of art and stepper.
+        <div className="flex w-fit flex-col items-center gap-1">
             <PrintingPicker
                 cardName={subtype}
                 cardId={basicLandDefinitionId(subtype)}
@@ -71,7 +76,7 @@ export default function BasicLandTile({
                         aria-label={`Choose ${subtype} art`}
                         aria-haspopup="dialog"
                         title={`Choose ${subtype} art`}
-                        className="aspect-5/7 w-full overflow-hidden rounded-sm border border-border-subtle/40 bg-surface-elevated/40 transition hover:border-accent/60 disabled:opacity-40"
+                        className="aspect-5/7 w-14 overflow-hidden md:w-20 short-viewport:w-14 rounded-sm border border-border-subtle/40 bg-surface-elevated/40 transition hover:border-accent/60 disabled:opacity-40"
                     >
                         {cardId !== null && (
                             <CardImage
