@@ -2071,6 +2071,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › condition › you haven't added mana with this ability this turn",
+            "issue": 7115
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Add one mana of any color",
             "issue": 4593
         },
