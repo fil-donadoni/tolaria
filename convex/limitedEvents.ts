@@ -92,6 +92,7 @@ import {
     assignFreeSeat,
     buildEmptySeats,
     DEFAULT_SEALED_BOOSTER_COUNT,
+    dropSeat,
     fillBotSeats,
     generateSealedPools,
     MAX_SEATS,
@@ -102,6 +103,7 @@ import {
 import { evaluateDeckStrength, type DeckStrength } from "./limited/matchSim";
 import {
     advanceRoundIfComplete,
+    concedeDroppedPairings,
     isRoundComplete,
     openRound,
     resolveExpiredRound,
@@ -110,6 +112,7 @@ import {
     type ResolveSeatStrength,
 } from "./limited/rounds";
 import { computeStandings } from "./limited/standings";
+import { isDroppedSeat } from "./limited/droppedSeat";
 import {
     areOtherSeatsRevealed,
     projectLimitedEvent,
@@ -1844,13 +1847,20 @@ export const joinLimitedEvent = mutation({
     },
 });
 
-/** An occupant leaves their Seat while the event is still OPEN (issue #1579):
- *  the Seat returns to unclaimed (`releaseSeat`), so anyone else — including
- *  the same user later — can `joinLimitedEvent` it again. Rejected once the
- *  event has `started` (mirrors `joinLimitedEvent`'s guard — a Seat mid-Draft
- *  or holding a dealt Sealed Pool can't just vanish; CLAUDE.md issue #1579's
- *  "out of scope: dropping from a started event") and for a caller who holds
- *  no Seat here (`releaseSeat` throws, defense-in-depth beyond the UI gate). */
+/** An occupant leaves the event, at any phase before it concludes.
+ *
+ *  - **Seating open** (`isSeatingOpen`): the Seat returns to unclaimed
+ *    (`releaseSeat`), so anyone — including the same user — can join it again.
+ *  - **Started**: the Seat is **Dropped** (`dropSeat`, GLOSSARY.md) — it keeps
+ *    its User and nickname for standings and never comes back. Whatever the
+ *    table was waiting on from that Seat is resolved server-side at once:
+ *    a Draft's remaining Picks go through the Bot Drafter's pick logic
+ *    (`runBotAutoPicks` drives any `isAutoDrivenSeat`), a missing deck counts
+ *    as Auto-Built (`computeEventCompletion`), and in the Play Phase the
+ *    undecided pairing concedes and the round cascades (`dropSeatInPlay`).
+ *  - **Concluded** (`isEventConcluded`) or already dropped: a no-op.
+ *
+ *  Rejected for a caller who holds no Seat here. */
 export const leaveLimitedEvent = mutation({
     args: { eventId: v.id("limitedEvents") },
     returns: v.null(),
@@ -1858,17 +1868,155 @@ export const leaveLimitedEvent = mutation({
         const user = await getCurrentUser(ctx);
         const event = await ctx.db.get(args.eventId);
         if (!event) throw new Error("Event not found");
-        if (!isSeatingOpen(event.status)) {
-            throw new Error("This event has already started.");
+        if (isSeatingOpen(event.status)) {
+            const seats = releaseSeat(event.seats, user._id);
+            await ctx.db.patch(args.eventId, {
+                seats: asDbSeats(seats),
+                updatedAt: Date.now(),
+            });
+            return null;
         }
-        const seats = releaseSeat(event.seats, user._id);
-        await ctx.db.patch(args.eventId, {
-            seats: asDbSeats(seats),
-            updatedAt: Date.now(),
-        });
+        const seat = event.seats.find((s) => s.userId === user._id);
+        if (!seat) throw new Error("You do not have a seat in this event.");
+        if (isEventConcluded(event.status) || isDroppedSeat(seat)) {
+            return null;
+        }
+
+        const now = Date.now();
+        if (
+            event.type === "draft" &&
+            areDraftPicksLegal(event.status) &&
+            event.draftCompletedAt === undefined
+        ) {
+            await dropSeatInDraft(ctx, event, user._id, now);
+        } else {
+            await ctx.db.patch(args.eventId, {
+                seats: asDbSeats(dropSeat(event.seats, user._id, now)),
+                updatedAt: now,
+            });
+        }
+        // Deckbuild: the dropped Seat now counts as holding a deck, which may
+        // be the last thing the table waited on. Self-gating otherwise.
+        await openPlayPhaseIfReady(ctx, args.eventId, now);
+        const after = await ctx.db.get(args.eventId);
+        if (after && areRoundsRunning(after.status)) {
+            await concedeDroppedPairingsInPlay(ctx, after, now);
+        }
         return null;
     },
 });
+
+/** Drops a Seat mid-Draft: marks it, then runs every auto-driven seat's
+ *  pending pick (the dropped Seat's current pack, queued packs and every pack
+ *  passed to it later) so the table never waits on it. Same transaction
+ *  shape as `submitPick`. */
+async function dropSeatInDraft(
+    ctx: MutationCtx,
+    event: Doc<"limitedEvents">,
+    userId: string,
+    now: number
+): Promise<void> {
+    if (event.seed === undefined) {
+        throw new Error(
+            "This event has no RNG seed — it wasn't started via startLimitedEvent."
+        );
+    }
+    const hydratedSeats = dropSeat(await hydrateSeats(ctx, event), userId, now);
+    const cubePool = await loadCubePool(ctx, event);
+    const timerConfig = buildTimerConfig(event.timerEnabled, now);
+    const getPickRating = await loadEventPickRating(ctx, event.packSlots);
+    const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
+    const cardResolvers = await loadEventCardResolvers(ctx, event.packSlots);
+    const botChoosePick = makeBotChoosePick(
+        getPickRating,
+        getCardProfile,
+        cardResolvers.getCardEvalMeta
+    );
+    const afterPicks = runBotAutoPicks(
+        hydratedSeats,
+        event.draftRound ?? 0,
+        event.draftPacksRemaining ?? event.seats.length,
+        event.packSlots,
+        event.seed,
+        getRuntimeBoosterConfig,
+        cardResolvers.resolveCardMeta,
+        botChoosePick,
+        false,
+        timerConfig,
+        cubePool
+    );
+    await saveSeats(ctx, event._id, afterPicks.seats, {
+        draftRound: afterPicks.draftRound,
+        draftPacksRemaining: afterPicks.draftPacksRemaining,
+        updatedAt: now,
+        ...(afterPicks.completed ? { draftCompletedAt: now } : {}),
+    });
+    await scheduleSeatTimers(
+        ctx,
+        event._id,
+        event.timerEnabled,
+        now,
+        afterPicks.timerUpdates
+    );
+}
+
+/** Play Phase half of a Drop: concedes every undecided pairing of a Dropped
+ *  Seat (`concedeDroppedPairings`), finishes the Match bound behind each one
+ *  so the opponent is free to start their next pairing
+ *  (`finishTimedOutPairingMatch`, the deadline's release path), and cascades
+ *  the rounds exactly as a recorded result does. One read, one write on the
+ *  event document. Later rounds need nothing here: `openRound` concedes a
+ *  Dropped Seat's pairing the moment it exists. */
+async function concedeDroppedPairingsInPlay(
+    ctx: MutationCtx,
+    event: Doc<"limitedEvents">,
+    now: number
+): Promise<void> {
+    const rounds = event.rounds ?? [];
+    const conceded = concedeDroppedPairings({
+        rounds,
+        seats: event.seats,
+        gamesFormat: resolveEventGamesFormat(event),
+    });
+    for (const [r, round] of conceded.entries()) {
+        for (const [p, pairing] of round.pairings.entries()) {
+            if (pairing.matchId === undefined) continue;
+            if (rounds[r].pairings[p].result !== undefined) continue;
+            if (pairing.result?.source !== "concession") continue;
+            const match = await ctx.db.get(pairing.matchId as Id<"matches">);
+            if (match)
+                await finishTimedOutPairingMatch(ctx, match, pairing, now);
+        }
+    }
+
+    let advance: AdvanceRoundResult = { kind: "unchanged" };
+    try {
+        advance = await cascadeEventRounds(ctx, event, conceded, now);
+    } catch (err) {
+        console.error(
+            `leaveLimitedEvent: cascadeEventRounds failed for event ${event._id} — the concessions were recorded without advancing the round`,
+            err
+        );
+    }
+    const finalRounds =
+        advance.kind === "unchanged" ? conceded : advance.rounds;
+    await ctx.db.patch(event._id, {
+        rounds: asDbRounds(finalRounds),
+        ...(advance.kind === "unchanged"
+            ? {}
+            : { currentRound: advance.currentRound }),
+        ...(advance.kind === "eventFinished" ? { status: "finished" } : {}),
+        updatedAt: now,
+    });
+    if (advance.kind === "roundOpened") {
+        await scheduleRoundDeadline(
+            ctx,
+            event._id,
+            finalRounds[finalRounds.length - 1],
+            now
+        );
+    }
+}
 
 /** The event's creator closes the event — the ONE manual creator action, for
  *  the whole life of the event (issue #2357, extending issue #1579's
