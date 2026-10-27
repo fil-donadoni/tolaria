@@ -427,6 +427,31 @@ function lowerCountedSet(
             ? lowered({ zone: "hand", controller: controller.value })
             : controller;
     }
+    // CR 115.1 + CR 109.5 — the permanents of a targeted opponent: the same
+    // battlefield filter as the controller's own set, counted over the
+    // announced player's board. The opponent is allocated only once the
+    // filter is known to lower, so a refused clause announces no target.
+    if (set.kind === "target-opponent-permanents") {
+        const own = lowerCountedSet(
+            {
+                kind: "permanents",
+                descriptor: { ...set.permanents, controller: "you" },
+            },
+            slots,
+            site
+        );
+        if (!own.ok) return own;
+        const opponent = slots.allocate({
+            type: "player",
+            count: 1,
+            controller: "opponent",
+        });
+        if (!opponent.ok) return opponent;
+        return lowered({
+            ...own.value,
+            controller: { target: opponent.value },
+        });
+    }
     // CR 201.2 + CR 404.1 — the cards bearing this card's own name, in every
     // graveyard.
     if (set.kind === "named-self-in-all-graveyards")
@@ -2330,6 +2355,12 @@ function lowerSentenceBody(
         case "deal-damage-each-player-count": {
             // CR 101.4 + CR 120.1 — a `forEach` over the players (APNAP), each
             // dealt the count of the set THEY control, scaled by `times`.
+            // The count is over EACH player's own board: a set naming its own
+            // controller would be overridden by `$each` below, so refuse it.
+            if (sentence.set.kind === "target-opponent-permanents")
+                return unlowerable(
+                    "a per-player count cannot name a targeted opponent"
+                );
             const spec = lowerCountedSet(sentence.set, slots, site);
             if (!spec.ok) return spec;
             return lowered([
@@ -4942,6 +4973,38 @@ function lowerSentenceBody(
                 },
             ]);
         case "add-mana": {
+            if (sentence.anyOneColor !== undefined) {
+                // CR 106.1a + CR 107.3 — the colour is picked as the effect
+                // resolves: one `optionChoice` mode per colour, each adding
+                // the whole amount in that colour. Only a counted amount has
+                // a fixture; an unbound X or any other magnitude is refused.
+                const amount = sentence.anyOneColor;
+                if (amount.kind !== "counted" || amount.times !== 1)
+                    return unlowerable(
+                        '"X mana of any one color" reads only "where X is the number of …"'
+                    );
+                if (
+                    sentence.thatPlayer === true ||
+                    sentence.itsController === true
+                )
+                    return unlowerable(
+                        '"X mana of any one color" goes to the controller only'
+                    );
+                const spec = lowerCountedSet(amount.set, slots, site);
+                if (!spec.ok) return spec;
+                return lowered([
+                    {
+                        op: "optionChoice",
+                        prompt: `${site.selfName}: add mana of which color?`,
+                        modes: colorChoiceModes((color) => [
+                            {
+                                op: "addMana",
+                                mana: { [color]: { count: spec.value } },
+                            },
+                        ]),
+                    },
+                ]);
+            }
             if (sentence.perSet !== undefined) {
                 // CR 106.1 + CR 107.1 — every pip is produced once per member
                 // of the counted set (a pip written n times: n per member).

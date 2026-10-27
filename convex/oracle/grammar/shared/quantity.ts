@@ -125,12 +125,25 @@ export type CountedSetIR =
      * graveyards": the cards, in every player's graveyard, bearing the name of
      * the card that prints the phrase.
      */
-    | { readonly kind: "named-self-in-all-graveyards" };
+    | { readonly kind: "named-self-in-all-graveyards" }
+    /**
+     * CR 115.1 + CR 109.5 — "the number of Islands target opponent controls":
+     * the permanents of an opponent the ability TARGETS, announced as it is
+     * put on the stack and counted as it resolves. Its noun phrase is
+     * `permanents`, not `descriptor`, so no consumer of the controller's own
+     * set can read it by accident: each one must name this kind to count it.
+     */
+    | {
+          readonly kind: "target-opponent-permanents";
+          readonly permanents: DescriptorIR;
+      };
 
 /** CR 201.2 + CR 404.1 — a name count over every graveyard. */
 const NAMED_SELF_IN_ALL_GRAVEYARDS = `the number of cards named ${SELF_MARKER} in all graveyards`;
 
 const ON_THE_BATTLEFIELD = " on the battlefield";
+/** CR 115.1 — the controller clause naming a targeted opponent. */
+const TARGET_OPPONENT_CONTROLS = " target opponent controls";
 
 /** CR 402.3 — the two hands a count is printed over. */
 const CARDS_IN_HAND = /^for each card in (your|target opponent's) hand$/;
@@ -185,6 +198,29 @@ export const numberOfSetRule: Rule<CountedSetIR> = subGrammar(
         // CR 109.2 — "on the battlefield" is the whole-board scope; behind a
         // controller clause it would contradict it, so that stays refused.
         const noun = span.slice("the number of ".length);
+        // CR 115.1 — "<permanents> target opponent controls": the descriptor
+        // in front carries no controller or zone clause of its own.
+        if (noun.endsWith(TARGET_OPPONENT_CONTROLS)) {
+            const permanents = descriptorRule.run(
+                noun.slice(0, -TARGET_OPPONENT_CONTROLS.length),
+                ctx
+            );
+            if (!permanents.ok) return permanents;
+            if (permanents.value.plural !== true)
+                return fail('"the number of" counts a plural descriptor', span);
+            if (
+                permanents.value.controller !== undefined ||
+                permanents.value.zone !== undefined
+            )
+                return fail(
+                    '"target opponent controls" beside another controller or zone clause',
+                    span
+                );
+            return ok({
+                kind: "target-opponent-permanents" as const,
+                permanents: permanents.value,
+            });
+        }
         const wholeBoard = noun.endsWith(ON_THE_BATTLEFIELD);
         const descriptor = descriptorRule.run(
             wholeBoard ? noun.slice(0, -ON_THE_BATTLEFIELD.length) : noun,
