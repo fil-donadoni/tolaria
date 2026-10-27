@@ -213,4 +213,17 @@ describe("replacement pricing — damage prevention (issue #5362)", () => {
             expect(handTerm).toBeCloseTo(entered, 6);
         });
     });
+
+    it("a host-scoped Aura shield keeps its hand value (not measured in hand: the host is not chosen yet)", () => {
+        const ward = getCardByName("Artifact Ward").id;
+        const bears = inst(BEARS, "p1", "bears");
+        const withCard = board([bears], [], {
+            p1: [inst(ward, "p1", "ward", { zone: "hand" })],
+        });
+        const without = board([bears], []);
+        expect(
+            evaluateBreakdown(withCard, "p1").self.hand -
+                evaluateBreakdown(without, "p1").self.hand
+        ).toBeGreaterThan(0);
+    });
 });

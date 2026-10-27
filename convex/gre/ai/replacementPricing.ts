@@ -97,6 +97,13 @@ export function declaresDamageShield(def: CardDefinition): boolean {
     ) {
         return false;
     }
+    // Host-scoped (an Aura's shield reads `self.attachedTo`) or chosen as it
+    // enters: in hand the host / choice does not exist yet, so the board a
+    // card in hand would leave behind cannot be measured (the same exclusion
+    // `declaresStandingLock` makes).
+    if (def.subtypes?.includes("Aura") || def.entersWith?.asEnters?.length) {
+        return false;
+    }
     return effects.some(
         (r) => r.eventKind === "damage" && r.damageEffectKind === "prevention"
     );

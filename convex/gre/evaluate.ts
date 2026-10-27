@@ -386,8 +386,6 @@ export function cardValue(
  *  wire projection. */
 function isStandingLockInstance(card: CardInstanceState): boolean {
     const id = String(card.card.id ?? "");
-    // The registry precheck first: nearly no permanent declares a
-    // restriction static, and that answer is one `Set.has`.
     const def = tryGetDefinition(id);
     if (def == null) return false;
     // Issue #5362 — a damage shield is measured the same way: its worth on
