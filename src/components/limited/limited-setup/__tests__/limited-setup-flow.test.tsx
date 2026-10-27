@@ -4,7 +4,13 @@
 // the cube, the fallback note. The rules themselves are
 // `src/lib/limited/__tests__/limitedSetup.test.ts`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+    cleanup,
+    fireEvent,
+    render,
+    screen,
+    within,
+} from "@testing-library/react";
 import type { DraftableSetInfo, PackSourceInfo } from "~/hooks/useLimitedEvent";
 import { LIMITED_SETUP_STORAGE_KEY } from "~/lib/limited/limitedSetup";
 import LimitedSetupFlow from "../limited-setup-flow";
@@ -172,6 +178,25 @@ describe("LimitedSetupFlow (issue #5387)", () => {
             screen.queryByRole("radiogroup", { name: "Pick Timer" })
         ).toBeNull();
         expect(screen.getByText("Boosters per Seat")).toBeTruthy();
+    });
+
+    it("Draft shows the forced-timer rule under the Pick Timer control, whichever is selected; Sealed does not (issue #2596)", () => {
+        render(<LimitedSetupFlow />);
+        fireEvent.click(railStep("table"));
+        const note = () =>
+            screen.queryByText(
+                "If the draft starts with 2+ humans, the timer is always on."
+            );
+        expect(note()).toBeTruthy();
+        const group = screen.getByRole("radiogroup", { name: "Pick Timer" });
+        expect(group.nextElementSibling).toBe(note());
+        fireEvent.click(within(group).getByRole("radio", { name: "Off" }));
+        expect(note()).toBeTruthy();
+
+        fireEvent.click(railStep("type"));
+        fireEvent.click(screen.getByRole("button", { name: /^Sealed/ }));
+        fireEvent.click(railStep("table"));
+        expect(note()).toBeNull();
     });
 
     it("shows the Pack Source hero and steps with next", () => {

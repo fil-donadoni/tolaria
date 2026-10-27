@@ -93,6 +93,7 @@ import {
     buildEmptySeats,
     DEFAULT_SEALED_BOOSTER_COUNT,
     dropSeat,
+    effectiveDraftTimerEnabled,
     fillBotSeats,
     generateSealedPools,
     MAX_SEATS,
@@ -2120,7 +2121,14 @@ export const startLimitedEvent = mutation({
                 seed
             );
             const now = Date.now();
-            const timerConfig = buildTimerConfig(event.timerEnabled, now);
+            // The seat split is final only here: with 2+ humans the Pick
+            // Timer is forced on, and the result is PERSISTED below so every
+            // later draft mutation reading `event.timerEnabled` agrees.
+            const timerEnabled = effectiveDraftTimerEnabled(
+                event.timerEnabled,
+                seats
+            );
+            const timerConfig = buildTimerConfig(timerEnabled, now);
             const getPickRating = await loadEventPickRating(
                 ctx,
                 event.packSlots
@@ -2178,19 +2186,17 @@ export const startLimitedEvent = mutation({
             await saveSeats(ctx, args.eventId, afterBots.seats, {
                 status: "started",
                 seed,
+                ...(timerEnabled !== undefined ? { timerEnabled } : {}),
                 scorerVersion: SCORER_VERSION,
                 draftRound: afterBots.draftRound,
                 draftPacksRemaining: afterBots.draftPacksRemaining,
                 updatedAt: now,
                 ...(afterBots.completed ? { draftCompletedAt: now } : {}),
             });
-            await scheduleSeatTimers(
-                ctx,
-                args.eventId,
-                event.timerEnabled,
-                now,
-                [...dealt.timerUpdates, ...afterBots.timerUpdates]
-            );
+            await scheduleSeatTimers(ctx, args.eventId, timerEnabled, now, [
+                ...dealt.timerUpdates,
+                ...afterBots.timerUpdates,
+            ]);
             // An ALL-BOT table finishes here: `runBotAutoPicks` drives the
             // whole draft to `draftCompletedAt` in this same mutation, so
             // completion flips inside `startLimitedEvent` and none of the
