@@ -672,7 +672,7 @@ export function literalTokenPT(
     return typeof value === "number" ? value : undefined;
 }
 
-/** Fractal token (CR 111 / 707.2). "0/0 green and blue Fractal creature
+/** Fractal token (CR 111.1). "0/0 green and blue Fractal creature
  *  token" — created by Oracle's Gift (`sets/sos/blue.cards.ts`), which puts
  *  its counters on the tokens in the same resolution (CR 704.3: state-based
  *  actions wait until the spell has finished resolving). Vanilla, so the
