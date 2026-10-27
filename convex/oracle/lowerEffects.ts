@@ -419,7 +419,9 @@ function boundCountFilter(descriptor: DescriptorIR): Lowered<EffectCardFilter> {
 function lowerCountedSet(
     set: CountedSetIR,
     slots: TargetSlots,
-    site: SiteOptions
+    site: SiteOptions,
+    /** Only the sites with a fixture count a targeted opponent's board. */
+    readsTargetedOpponent = false
 ): Lowered<EffectCountSpec> {
     if (set.kind === "cards-in-hand") {
         const controller = playerRef(set.player, slots, site);
@@ -432,6 +434,17 @@ function lowerCountedSet(
     // announced player's board. The opponent is allocated only once the
     // filter is known to lower, so a refused clause announces no target.
     if (set.kind === "target-opponent-permanents") {
+        if (!readsTargetedOpponent)
+            return unlowerable(
+                '"target opponent controls" in a count has no fixture at this site'
+            );
+        // CR 115.1 — a player target announced earlier in the line may be the
+        // same opponent ("Target opponent loses life equal to the number of
+        // Islands target opponent controls"); a second slot would split them.
+        if (slots.requirements().some((r) => r.type === "player"))
+            return unlowerable(
+                '"target opponent controls" beside another player target'
+            );
         const own = lowerCountedSet(
             {
                 kind: "permanents",
@@ -2355,12 +2368,6 @@ function lowerSentenceBody(
         case "deal-damage-each-player-count": {
             // CR 101.4 + CR 120.1 — a `forEach` over the players (APNAP), each
             // dealt the count of the set THEY control, scaled by `times`.
-            // The count is over EACH player's own board: a set naming its own
-            // controller would be overridden by `$each` below, so refuse it.
-            if (sentence.set.kind === "target-opponent-permanents")
-                return unlowerable(
-                    "a per-player count cannot name a targeted opponent"
-                );
             const spec = lowerCountedSet(sentence.set, slots, site);
             if (!spec.ok) return spec;
             return lowered([
@@ -4990,7 +4997,7 @@ function lowerSentenceBody(
                     return unlowerable(
                         '"X mana of any one color" goes to the controller only'
                     );
-                const spec = lowerCountedSet(amount.set, slots, site);
+                const spec = lowerCountedSet(amount.set, slots, site, true);
                 if (!spec.ok) return spec;
                 return lowered([
                     {

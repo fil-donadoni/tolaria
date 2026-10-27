@@ -132,6 +132,22 @@ describe("add X mana of any one color (CR 106.1a, CR 107.3)", () => {
         ).toBe(true);
     });
 
+    it("refuses the targeted-opponent count at a site with no fixture (life, draw)", () => {
+        for (const oracleText of [
+            "When this enchantment enters, target opponent loses life equal to the number of Islands target opponent controls.",
+            "When this enchantment enters, draw X cards, where X is the number of Islands target opponent controls.",
+        ]) {
+            const outcome = compileCard(
+                enchantment("Quota Garden", oracleText)
+            );
+            if (outcome.state !== "unparsed")
+                throw new Error(`compiled: ${oracleText}`);
+            expect(outcome.gaps.map((g) => g.reason)).toEqual([
+                '"target opponent controls" in a count has no fixture at this site',
+            ]);
+        }
+    });
+
     it("refuses a printed amount in place of X", () => {
         expect(
             refused(
