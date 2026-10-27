@@ -641,44 +641,6 @@ export function canPayCost(
     return leftover !== null && leftover >= (normalized.X ?? 0);
 }
 
-/** `units` after paying `cost` once, or `null` when they cannot (the
- *  `canPayCost` verdict). A crude pool reducer for repeated activations
- *  (issue #6909, the crackback estimate's mana-sink pumps): each coloured
- *  pip takes the matching unit with the FEWEST colours (a basic before a
- *  dual), generic and colourless pips take what is left from the end. Fixed
- *  pips only — a hybrid or Phyrexian cost is `canPayCost`'s to judge and is
- *  paid here as if generic. */
-export function spendCost(
-    units: ManaUnits,
-    cost: ManaCost | undefined,
-    opts: { life?: number } = {}
-): ManaUnits | null {
-    if (!cost) return units;
-    if (!canPayCost(units, cost, opts)) return null;
-    const pool = [...units];
-    const takeColor = (color: Color): boolean => {
-        let best = -1;
-        for (let i = 0; i < pool.length; i++) {
-            if (!pool[i].has(color)) continue;
-            if (best < 0 || pool[i].size < pool[best].size) best = i;
-        }
-        if (best < 0) return false;
-        pool.splice(best, 1);
-        return true;
-    };
-    const { normalized } = pricedCost(cost, opts.life ?? 0);
-    let generic = normalized.X ?? 0;
-    for (const [pip, count] of Object.entries(normalized)) {
-        if (pip === "X") continue;
-        for (let i = 0; i < count; i++) {
-            if (!takeColor(pip as Color)) generic += 1;
-        }
-    }
-    if (generic > pool.length) return null;
-    pool.length -= generic;
-    return pool;
-}
-
 /** Whether `units` contain a source for every COLOUR `cost` demands — a
  *  membership question, not a matching one, and deliberately blind to HOW MANY
  *  sources each pip would need.
