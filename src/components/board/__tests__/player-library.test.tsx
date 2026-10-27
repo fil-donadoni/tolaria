@@ -276,6 +276,56 @@ describe("PlayerLibrary", () => {
         expect(toggle).toHaveBeenCalledWith("forest-1");
     });
 
+    it("does not offer a card whose name is already picked in a DISTINCT search (CR 701.23a, issue #6475)", () => {
+        // Gifts Ungiven: "up to four cards with different names". Two Forests
+        // are each eligible and the pair is illegal — the per-click gate runs
+        // the same `canAddDistinctPick` the server validates the submit with.
+        cardsPileSpy.mockClear();
+        const search = [
+            makeCard("forest-1"),
+            makeCard("forest-2"),
+            makeCard("island-1"),
+        ];
+        const player = makePlayer({ count: 3 }, {
+            librarySearch: search,
+        } as Partial<Player>);
+        const toggle = vi.fn();
+        const buffer: PendingChoiceBuffer = {
+            ...noopBuffer,
+            buffer: ["forest-1"],
+            toggle,
+        };
+        renderWithContext(<PlayerLibrary player={player} />, "me", {
+            pendingChoices: [
+                {
+                    stackItemId: "stk",
+                    step: 0,
+                    choiceId: "$found",
+                    playerId: "me",
+                    kind: "search-library",
+                    zone: "library",
+                    isSearch: true,
+                    candidateIds: ["forest-1", "forest-2", "island-1"],
+                    distinctKeys: {
+                        "forest-1": "Forest",
+                        "forest-2": "Forest",
+                        "island-1": "Island",
+                    },
+                    count: { min: 0, max: 2 },
+                    prompt: "Search your library for up to four cards with different names.",
+                },
+            ],
+            buffer,
+        });
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        pileProps.onCardClick({ id: "forest-2" });
+        expect(toggle).not.toHaveBeenCalled();
+        pileProps.onCardClick({ id: "island-1" });
+        expect(toggle).toHaveBeenCalledWith("island-1");
+        pileProps.onCardClick({ id: "forest-1" });
+        expect(toggle).toHaveBeenCalledWith("forest-1");
+    });
+
     it("renders exactly the looked-at top N as a face-up grid for a draw-look-keep pick (Aladdin's Lamp)", () => {
         // Aladdin's Lamp looks at the top X and keeps one to draw. The
         // projection exposes ONLY those X as `libraryPeek` (never the whole
