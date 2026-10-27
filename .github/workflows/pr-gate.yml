@@ -42,6 +42,10 @@ permissions:
     # (issue #6110). Base code only; the PR is read as data.
     pull-requests: write
     statuses: write
+    # A held PR's own red (issue #6652): the lane's check run and its log,
+    # read to compare its failing files with the RED's.
+    checks: read
+    actions: read
 
 jobs:
     gate:

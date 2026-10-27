@@ -75,6 +75,7 @@ import {
     agedRepairNotice,
     budgetReading,
     failureStreak,
+    holdAdmitsRepairs,
     holdFor,
     holdReleases,
     hostOfRunnerName,
@@ -87,6 +88,7 @@ import {
     parseTrustedAuthors,
     passSlots,
     planDispatch,
+    planRepairsUnderHold,
     queueAdmission,
     queueDepth,
     usageLimitResetAt,
@@ -97,6 +99,7 @@ import {
     type PassRecord,
     type RepairPick,
     type RunnerRow,
+    type DispatchPlan,
     type WorkflowRun,
 } from "./lib/afk-dispatch";
 
@@ -459,6 +462,63 @@ function dispatchPass(d: Dispatch): void {
     ]);
 }
 
+/** Dispatches the `land-failed` repairs while a hold that admits them stands
+ *  (`holdAdmitsRepairs`). Returns true when an act failed. Unreadable lists
+ *  or slots cost the repairs this run, never the hold's own reporting. */
+function repairsUnderHold(
+    slug: string,
+    passRuns: readonly WorkflowRun[],
+    now: number
+): boolean {
+    let plan: DispatchPlan;
+    try {
+        const slots = passSlots(
+            runners(slug),
+            process.env.RUNNER_NAME ?? null,
+            passRuns
+        );
+        if (slots.free.length === 0) {
+            say("repairs under hold: no free pass runner");
+            return false;
+        }
+        const config: PlanConfig = {
+            batchCap: slots.free.length,
+            staleClaimHours: DEFAULTS.staleClaimHours,
+            defaultImplModel: DEFAULTS.defaultImplModel,
+            now: new Date(now).toISOString(),
+            excludeHitl: true,
+        };
+        plan = planRepairsUnderHold(
+            slots,
+            repairDispatchables(slug, passRuns, config)
+        );
+    } catch (err) {
+        say(
+            `repairs under hold unreadable (${(err as Error).message.split("\n")[0]}) — none this run`
+        );
+        return false;
+    }
+    const lines: string[] = [];
+    let failed = false;
+    for (const d of plan.dispatch) {
+        try {
+            dispatchPass(d);
+            lines.push(
+                `dispatched #${d.issue} (${d.model}, repair PR #${d.pr})`
+            );
+        } catch (err) {
+            failed = true;
+            lines.push(
+                `dispatch #${d.issue} failed: ${(err as Error).message.split("\n")[0]}`
+            );
+        }
+    }
+    const shown = lines.length ? lines : ["no repair to dispatch"];
+    for (const l of shown) say(`repairs under hold: ${l}`);
+    summary(["", ...shown.map((l) => `- repairs under hold: ${l}`)]);
+    return failed;
+}
+
 async function main(): Promise<void> {
     const slug = repo();
     const owner = process.env.GITHUB_REPOSITORY_OWNER ?? slug.split("/")[0];
@@ -598,6 +658,11 @@ async function main(): Promise<void> {
                 `failing this run once so GitHub emails the owner: ${aged.aged.length} repair pick(s) wait under the hold`
             );
             fail = true;
+        }
+        if (holdAdmitsRepairs(hold) && !DRY_RUN) {
+            // Repair passes under a RED (issue #6652): a repair works on its
+            // own PR's branch, never the base. New issues and resumes stay held.
+            if (repairsUnderHold(slug, passRuns, now)) fail = true;
         }
         if (fail) process.exit(1);
         return;

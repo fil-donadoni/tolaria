@@ -869,6 +869,44 @@ export function planDispatch(
     };
 }
 
+/**
+ * Whether a hold still lets REPAIR passes start (issue #6652). Only `red`: a
+ * repair works on its own PR's branch and never the base, so ADR 0116's "no
+ * work on a broken tip" does not forbid it, and a `land-failed` PR under a RED
+ * is one `pr-gate` proved red on files the RED does not fail. Every other
+ * hold stands for a reason a repair shares (an unknown base, the budget, the
+ * kill switch).
+ */
+export function holdAdmitsRepairs(hold: Hold): boolean {
+    return hold.kind === "red";
+}
+
+/** A picker result with nothing in it: a hold that admits repairs plans no
+ *  resume and no new issue. */
+const NO_PICK: PickResult = {
+    plan: {
+        version: 1,
+        batch: [],
+        deferred: [],
+        skipped: [],
+        staleClaims: [],
+        activeClaims: [],
+    },
+    resume: [],
+    release: [],
+    live: [],
+    untrusted: [],
+};
+
+/** The dispatches under a hold that admits repairs: the `land-failed`
+ *  repairs, one slot each, and never a new issue or a resume. */
+export function planRepairsUnderHold(
+    slots: Slots,
+    repairs: readonly RepairItem[]
+): DispatchPlan {
+    return planDispatch(NO_PICK, slots, () => null, repairs);
+}
+
 /** `TRUSTED_AUTHORS` — logins separated by commas, spaces or new lines. */
 export function parseTrustedAuthors(raw: string | undefined): string[] {
     return (raw ?? "")

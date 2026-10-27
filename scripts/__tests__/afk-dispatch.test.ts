@@ -8,6 +8,7 @@ import {
     agedRepairNotice,
     budgetReading,
     failureStreak,
+    holdAdmitsRepairs,
     holdFor,
     holdReleases,
     hostOfRunnerName,
@@ -20,6 +21,7 @@ import {
     passRunIssue,
     passSlots,
     planDispatch,
+    planRepairsUnderHold,
     queueAdmission,
     queueDepth,
     usageLimitResetAt,
@@ -1094,5 +1096,44 @@ describe("admission by queue depth (issue #6988)", () => {
             readFileSync(join(__dirname, "../../tolaria.config.json"), "utf8")
         );
         expect(parseAfkDispatchConfig(repo)).toMatchObject(LIMITS);
+    });
+});
+
+describe("repairs under a hold (issue #6652)", () => {
+    const red = { sha: "a".repeat(40), failedStep: "test:app" } as never;
+    const repairs = [
+        { number: 11, pr: 111, branch: "feat/issue-11", model: "sonnet" },
+        { number: 12, pr: 112, branch: "fix/issue-12", model: "opus" },
+    ];
+
+    it("only a RED hold admits repairs; every other hold stands", () => {
+        const kinds = [
+            holdFor(holdInput({ red })),
+            holdFor(holdInput({ healthError: "502" })),
+            holdFor(holdInput({ dispatcherActive: false })),
+            holdFor(holdInput({ budget: { budget: 0, maxPct: 80, hours: 5 } })),
+        ].map((h) => (h ? holdAdmitsRepairs(h) : null));
+        expect(kinds).toEqual([true, false, false, false]);
+    });
+
+    it("plans the repairs, one slot each, and no new issue or resume", () => {
+        const plan = planRepairsUnderHold(
+            { free: ["mbp", "hw"], online: ["mbp", "hw"] },
+            repairs
+        );
+        expect(plan.dispatch).toEqual([
+            { issue: 11, model: "sonnet", resume: true, host: null, pr: 111 },
+            { issue: 12, model: "opus", resume: true, host: null, pr: 112 },
+        ]);
+        expect(plan.release).toEqual([]);
+        expect(plan.held).toEqual([]);
+    });
+
+    it("never more repairs than free slots", () => {
+        const plan = planRepairsUnderHold(
+            { free: ["mbp"], online: ["mbp"] },
+            repairs
+        );
+        expect(plan.dispatch.map((d) => d.issue)).toEqual([11]);
     });
 });
