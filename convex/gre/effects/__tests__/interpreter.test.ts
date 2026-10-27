@@ -37377,6 +37377,28 @@ describe("Effect Script Op: copyResolvingSpell (CR 707.10, CR 707.10c)", () => {
         expect(slim?.controllerId).toBe("p2");
     });
 
+    it("offers the copy's controller a copy-retarget prompt for a targeted spell (CR 707.10c)", () => {
+        const id = registerScript(
+            "test-op-copy-resolving-spell-targeted",
+            [{ op: "copyResolvingSpell", player: { target: 1 } }],
+            { targetRequirement: { type: "any", count: 2 } }
+        );
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "player", id: "p1" },
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+
+        const copy = state.stack.find((s) => s.isCopy === true);
+        expect(copy?.controllerId).toBe("p2");
+        expect(state.pendingTarget?.kind).toBe("copy-retarget");
+        expect(state.pendingTarget?.cardInstanceId).toBe(copy!.id);
+        expect(state.pendingTarget?.playerId).toBe("p2");
+    });
+
     it("skips when the player does not resolve (CR 608.2b)", () => {
         const { state } = resolvingCopier(
             { target: 0 },

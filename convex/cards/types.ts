@@ -19698,9 +19698,11 @@ export type EffectOp =
      *  hand-written chain cards call. The "may" is NOT in the Op: the grammar
      *  gates it with a cost-free `mayPay` + `if`. The copy is a fresh
      *  resolution of the same script, so the chain can recur (CR 707.10).
-     *  Skipped when `player` does not resolve (CR 608.2b) or when the effect
-     *  is not a resolving spell. What it deliberately does NOT do: copy a
-     *  DIFFERENT spell on the stack (`copyStackItem`), or copy an ability. */
+     *  Skipped when `player` does not resolve (CR 608.2b). Used from
+     *  a spell's script: the primitive clones the resolving stack item, which
+     *  only an instant or sorcery spell may be (CR 707.10). What it
+     *  deliberately does NOT do: copy a DIFFERENT spell on the stack
+     *  (`copyStackItem`). */
     | {
           op: "copyResolvingSpell";
           /** Who controls the copy and chooses its new targets. */
