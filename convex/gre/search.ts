@@ -6384,10 +6384,11 @@ function isHoldableSpend(state: GameState, pid: string, move: Move): boolean {
  *
  *  Fails open wherever the probe cannot price the exchange: a mana ability
  *  (payment plumbing, CR 605.3a), and a source or a targeted permanent
- *  standing in a live combat exchange (`isInPendingCombatExchange`) — a first
- *  strike on a blocked attacker is decided by the damage step, which the
- *  search plays out. Read off Op semantics and the combat state, never a card
- *  name (ADR 0102). */
+ *  standing in a live combat (`isInLiveCombat`) — a first strike on a blocked
+ *  attacker is decided by the damage step, and an evasion or protection grant
+ *  on a declared attacker whose blocks are not yet declared restricts those
+ *  blocks (CR 509.1b, CR 702.16f), both of which the search plays out. Read
+ *  off Op semantics and the combat state, never a card name (ADR 0102). */
 function isTransientSpendActivation(
     state: GameState,
     pid: string,
@@ -6401,10 +6402,30 @@ function isTransientSpendActivation(
     const ability = effectiveAbilityOf(source, move.abilityId);
     if (!ability || !ability.useStack) return false;
     if (!isTransientOnlyAbility(ability)) return false;
-    if (isInPendingCombatExchange(state, source.id)) return false;
+    if (isInLiveCombat(state, source.id)) return false;
     return move.targets.every(
-        (t) => t.type !== "permanent" || !isInPendingCombatExchange(state, t.id)
+        (t) => t.type !== "permanent" || !isInLiveCombat(state, t.id)
     );
+}
+
+/** Whether the permanent `id` has a combat still ahead of it this turn that a
+ *  this-turn grant can change: a declared attacker before blockers are
+ *  declared (any creature across the table may still block it, and an evasion
+ *  keyword decides which — CR 509.1b), or a creature standing in a pending
+ *  exchange once they are (`isInPendingCombatExchange`). Same phase guard as
+ *  that predicate: `state.combat` outlives the damage steps, so a stale
+ *  declaration must not read as a live one. */
+function isInLiveCombat(state: GameState, id: string): boolean {
+    if (isInPendingCombatExchange(state, id)) return true;
+    if (
+        state.phase !== "DECLARE_ATTACKERS" &&
+        state.phase !== "DECLARE_BLOCKERS"
+    ) {
+        return false;
+    }
+    const combat = state.combat;
+    if (!combat || !combat.confirmed || combat.blockersConfirmed) return false;
+    return combat.attackerIds.includes(id);
 }
 
 /** Whether `move` converts a sacrifice engine `pid` controls whose payoff does
