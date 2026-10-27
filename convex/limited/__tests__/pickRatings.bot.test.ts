@@ -88,15 +88,15 @@ describe("checked-in Vintage Cube Pick Rating file (PRD #1296 Slice D, issue #12
 
     it("Power Nine / format-warping bombs rate above filler (Black Lotus vs. a narrow situational card)", () => {
         const blackLotusId = "b0faa7f2-b547-42c4-a810-839da50dadfe";
-        // Squee, Goblin Nabob — a combo-niche card curated low (1.5) in the
+        // Mana Tithe — a narrow situational card curated low (1.5) in the
         // seed file, both entries hand-verified present in the checked-in
-        // file at authoring time.
-        const squeeId = "4ba8325a-1203-4125-9111-94d9e2b1f14b";
+        // file at authoring time (Squee left the cube, issue #7194).
+        const manaTitheId = "7d48d622-f397-4f31-b1a5-0c23f60aa71c";
         const lotusRating = getPickRating(CUBE_SOURCE_KEY, blackLotusId);
-        const squeeRating = getPickRating(CUBE_SOURCE_KEY, squeeId);
+        const manaTitheRating = getPickRating(CUBE_SOURCE_KEY, manaTitheId);
         expect(lotusRating).not.toBeNull();
-        expect(squeeRating).not.toBeNull();
-        expect(lotusRating!).toBeGreaterThan(squeeRating!);
+        expect(manaTitheRating).not.toBeNull();
+        expect(lotusRating!).toBeGreaterThan(manaTitheRating!);
         expect(lotusRating).toBe(PICK_RATING_MAX);
     });
 
