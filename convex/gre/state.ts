@@ -9018,7 +9018,7 @@ function colorLedgerIsLive(card: CardInstanceState): boolean {
     );
 }
 
-/** CR 611.2b / 613.7 — advance every timed colour row one boundary. Each row
+/** CR 611.2a / 613.7 — advance every timed colour row one boundary. Each row
  *  ends at its OWN duration; `tick` returns the advanced duration, or `null`
  *  when that row expires. What the permanent shows afterwards is the newest
  *  row still live, else the indefinite override that was underneath, else

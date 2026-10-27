@@ -1126,7 +1126,7 @@ export type CardInstanceState = {
      *  guard), and read ONLY by the client's token-art resolver
      *  (`src/lib/tokenArt.ts`) to pick the Token Print of that edition. */
     sourcePrintId?: string;
-    /** Timed color override LEDGER (CR 305.7 / 613.1d / 613.7 — "becomes the
+    /** Timed color override LEDGER (CR 105.3 / 613.1e / 613.7 — "becomes the
      *  color of your choice until end of turn", Kavu Chameleon, issue #1065;
      *  Dwarven Song, Sylvan Paradise, issue #2936). Oldest first, so array
      *  order IS the layer-5 timestamp order and `colorOverride` above always
