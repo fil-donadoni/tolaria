@@ -6828,6 +6828,9 @@ export interface SpellContext {
          *  land, a gold card), so `count.min` is the smallest covering set.
          *  See {@link PendingChoice.categoryRule}. */
         categoryRule?: "cover";
+        /** `search-library` only (issue #6475, CR 701.23a): card id → the key
+         *  no two picks may share. See {@link PendingChoice.distinctKeys}. */
+        distinctKeys?: Record<string, string>;
         /** Bot POLICY hint for a categorized pick (issue #1945): whether
          *  being picked is the good half (`"picked-kept"` — the picks
          *  survive) or the bad half (`"picked-removed"` — the picks are what
@@ -7527,6 +7530,9 @@ export interface SpellContext {
          *  (`EffectCardFilter.hasFlashback`). A shape without the slot fails
          *  that filter CLOSED. */
         flashback?: boolean;
+        /** Printed power (CR 208.3) of a library card; `undefined` for a card
+         *  with none. Read by `choice.distinctBy: "power"` (issue #6475). */
+        power?: number;
     }>;
 
     /** Characteristics of every card `playerId` owns OUTSIDE the game (CR
@@ -19369,6 +19375,25 @@ export type EffectOp =
            *  pool the categories are resolved over) and with `candidates`
            *  (the revealed set, for `choose-library-card`). */
           categories?: { label: string; filter: EffectCardFilter }[];
+          /** CR 701.23a (issue #6475) — a pairwise-DISTINCT pick over a
+           *  library SEARCH: "up to four cards with different names"
+           *  (Gifts Ungiven), "creature cards with different powers"
+           *  (Threats Undetected). The description is on the SET: no two
+           *  picked cards may share the characteristic. `"name"` compares
+           *  card names (CR 201.2); `"power"` compares the power as the
+           *  search sees it, and a card with no power (a noncreature) can
+           *  never satisfy it — so it is not pickable (CR 208.3).
+           *
+           *  One legality authority, the leaf `gre/distinctPick.ts`: the
+           *  submit validator, this Op's `count` ceiling, the client's click
+           *  gate and the Bot's candidate generator all call it. `count` is a
+           *  CEILING (CR 701.23b — a hidden zone, the searcher may find
+           *  fewer): it clamps to the number of distinct keys among the
+           *  cards `filter` matches. `search-library` over `zone: "library"`
+           *  only (validator-enforced); composes with `filter` and
+           *  `candidates`; never pairs with `categories` (no card needs a
+           *  joint semantics). */
+          distinctBy?: "name" | "power";
           /** Pick count, clamped to availability (CR 608.2b). A plain number
            *  is an EXACT count (the chooser must pick that many, down to
            *  however many exist). `{ min, max }` (issue #677) is an OPTIONAL

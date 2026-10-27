@@ -2126,6 +2126,7 @@ function sourcePickErrors(entry: Record<string, unknown>): string[] {
         "bindOther",
         "superlative",
         "categories",
+        "distinctBy",
     ]) {
         if (entry[field] !== undefined) {
             errors.push(
@@ -6047,9 +6048,37 @@ const OP_SCHEMAS: OpSchemaTable = {
             // which zones and kinds may carry it is gated in `check` below
             // (a field validator cannot see its siblings).
             categories: isPickCategoryList,
+            // CR 701.23a (issue #6475) — a pairwise-DISTINCT search pick
+            // ("up to four cards with different names / powers"). Which kind
+            // and zone may carry it is gated in `check` below.
+            distinctBy: (v) => v === "name" || v === "power",
         },
         check: (entry) => {
             const errors: string[] = [];
+            // CR 701.23a (issue #6475) — a distinct pick describes the SET a
+            // hidden-zone SEARCH finds. A revealed set (`choose-library-card`)
+            // is not searched, and no card needs `distinctBy` jointly with
+            // `categories` (an injective category match), so that pairing is
+            // refused rather than given a joint semantics.
+            if (entry.distinctBy !== undefined) {
+                if (
+                    entry.zone !== "library" ||
+                    entry.kind !== "search-library"
+                ) {
+                    errors.push(
+                        '"distinctBy" is valid only with zone: "library" and kind "search-library" (CR 701.23a)'
+                    );
+                }
+                if (
+                    entry.categories !== undefined ||
+                    entry.superlative !== undefined ||
+                    entry.allControllers !== undefined
+                ) {
+                    errors.push(
+                        '"distinctBy" never pairs with "categories", "superlative" or "allControllers"'
+                    );
+                }
+            }
             // CR 701.23a / 701.20a (issue #3808) — a categorised pick is a
             // LIBRARY capability: the two kinds that reach a whole library
             // and nothing else. `search-library` is the CR 701.23a search

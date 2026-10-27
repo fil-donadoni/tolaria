@@ -9,7 +9,7 @@
 //  1. GOLDEN fixture — Intuition compiled whole must produce exactly this
 //     Compiled Definition (the one accepted form).
 //  2. REFUSALS — the neighbours the cluster names that this rule does not
-//     read (a uniqueness constraint on the search, a random pick, another
+//     read (a typed search, a random pick, another
 //     player's library), and the fold's half-runs, so fail-closed is pinned
 //     rather than assumed.
 
@@ -104,15 +104,69 @@ describe("Searched pile, an opponent picks — golden fixture (CR 701.23d search
             },
         });
     });
+
+    it("up to four cards with different names, the picks to graveyard: Gifts Ungiven (CR 701.23a, 701.23b)", () => {
+        const text =
+            "Search your library for up to four cards with different names and reveal them. Target opponent chooses two of those cards. Put the chosen cards into your graveyard and the rest into your hand. Then shuffle.";
+        expectDefinition(instant("Gifts Ungiven", "{3}{U}", text), {
+            name: "Gifts Ungiven",
+            types: ["Instant"],
+            manaCost: { X: 3, U: 1 },
+            oracleText: text,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    count: { min: 0, max: 4 },
+                    distinctBy: "name",
+                    prompt: "Search your library for up to four cards with different names.",
+                    bind: "$found1",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$found1" },
+                },
+                {
+                    op: "choice",
+                    kind: "choose-library-card",
+                    player: { target: 0 },
+                    zoneOwnerId: "controller",
+                    zone: "library",
+                    candidates: [{ ref: "$found1" }],
+                    count: 2,
+                    prompt: "Choose two of the revealed cards. Its owner puts the chosen cards into their graveyard and the rest into their hand.",
+                    bind: "$picked2",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked2" },
+                    player: "controller",
+                    from: "library",
+                    to: "graveyard",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+        });
+    });
 });
 
 describe("Searched pile, an opponent picks — refusals", () => {
     const refused: [string, string, string][] = [
-        [
-            "a uniqueness constraint on the search: Gifts Ungiven",
-            "Instant",
-            "Search your library for up to four cards with different names and reveal them. Target opponent chooses two of those cards. Put the chosen cards into your graveyard and the rest into your hand. Then shuffle.",
-        ],
         [
             "another player's library: Gifts Given",
             "Instant",
