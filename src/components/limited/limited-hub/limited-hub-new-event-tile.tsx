@@ -47,7 +47,6 @@ export default function LimitedHubNewEventTile({
                 <Button
                     type="button"
                     variant="primary"
-                    size="sm"
                     className="!border-surface !bg-surface !bg-none !text-parchment disabled:!border-surface/40 disabled:!bg-surface/40 disabled:!text-parchment/70"
                     disabled={again === null || busy}
                     onClick={onAgain}
@@ -57,7 +56,6 @@ export default function LimitedHubNewEventTile({
                 <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
                     className="!text-surface"
                     onClick={() => void navigate({ to: "/limited/new" })}
                 >

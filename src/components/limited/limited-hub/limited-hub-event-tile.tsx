@@ -76,7 +76,6 @@ export default function LimitedHubEventTile({
                     <Button
                         type="button"
                         variant="primary"
-                        size="sm"
                         data-hub-cta={cta.kind}
                         disabled={cta.kind === "waiting"}
                         onClick={act}
@@ -86,7 +85,6 @@ export default function LimitedHubEventTile({
                     <Button
                         type="button"
                         variant="ghost"
-                        size="sm"
                         onClick={() =>
                             void navigate({
                                 to: "/limited/$eventId",
