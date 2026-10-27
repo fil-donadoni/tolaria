@@ -448,6 +448,7 @@ closing rule is an Op named for one line (issue #1917). The owner's ruling of
 - **A `closedTail` card is Hand Tail by the list itself.** `coverageVerdict`
   settles it `hand-tail` with no claim, and `enforcedCardIds` /
   `floorlessCardIds` leave it out, so `gaps:sync` files no Grammar Gap for it.
+  A quarantined tail card is settled the same way: the list is its claim.
 - **The rest of Amendment VI stands.** A card outside the list is still owed
   a `grammar` claim for every gap, below the floor or not; the list still only
   shrinks; a tail card that compiles `ready` is still retired.
