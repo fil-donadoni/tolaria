@@ -101,6 +101,8 @@ interface Accumulator {
     asEntersCreatureTypeLines: string[];
     /** CR 614.12a — the "as this enters, choose a nonland card name" lines. */
     asEntersCardNameLines: string[];
+    /** CR 614.12a — the "as this enters, choose an opponent" lines read. */
+    asEntersOpponentLines: string[];
     /** CR 601.3a — lines that read the card's `chosenName`. */
     readsChosenNameLines: string[];
     /** CR 607.2d — lines that read the card's `chosenSubtypes` ("the chosen type"). */
@@ -610,6 +612,12 @@ function lowerLine(
                     return "a card declares an as-enters card-name choice twice";
                 acc.asEntersCardNameLines.push(parsed.line);
             }
+            if (out.asEntersOpponent === true) {
+                // Two opponent choices make "the chosen player" ambiguous.
+                if (acc.asEntersOpponentLines.length > 0)
+                    return "a card declares an as-enters opponent choice twice";
+                acc.asEntersOpponentLines.push(parsed.line);
+            }
             if (out.readsChosenName === true)
                 acc.readsChosenNameLines.push(parsed.line);
             if (out.readsChosenType === true)
@@ -874,6 +882,7 @@ export function lowerCard(
 
         asEntersCosts: [],
         asEntersCreatureTypeLines: [],
+        asEntersOpponentLines: [],
         asEntersCardNameLines: [],
         readsChosenNameLines: [],
         readsChosenTypeLines: [],
@@ -1079,8 +1088,11 @@ export function lowerCard(
             fragment: acc.readsChosenTypeLines[0]!,
         };
     if (
-        acc.asEntersCardNameLines.length > 0 &&
-        acc.asEntersCreatureTypeLines.length > 0
+        [
+            acc.asEntersCardNameLines,
+            acc.asEntersCreatureTypeLines,
+            acc.asEntersOpponentLines,
+        ].filter((lines) => lines.length > 0).length > 1
     )
         return {
             ok: false,
@@ -1093,7 +1105,8 @@ export function lowerCard(
         acc.asEntersCosts.length > 1 ||
         (acc.asEntersCosts.length > 0 &&
             (acc.asEntersCardNameLines.length > 0 ||
-                acc.asEntersCreatureTypeLines.length > 0))
+                acc.asEntersCreatureTypeLines.length > 0 ||
+                acc.asEntersOpponentLines.length > 0))
     )
         return {
             ok: false,
@@ -1108,6 +1121,7 @@ export function lowerCard(
         acc.entersWithCounters.length > 0 ||
         acc.asEntersCreatureTypeLines.length > 0 ||
         acc.asEntersCardNameLines.length > 0 ||
+        acc.asEntersOpponentLines.length > 0 ||
         acc.asEntersCosts.length > 0
     )
         definition.entersWith = {
@@ -1133,6 +1147,10 @@ export function lowerCard(
             // cards declare.
             ...(acc.asEntersCosts.length > 0
                 ? { asEnters: [acc.asEntersCosts[0]!] }
+                : {}),
+            // CR 614.1c / 614.12a — the shape Cursed Rack and The Rack declare.
+            ...(acc.asEntersOpponentLines.length > 0
+                ? { asEnters: [{ kind: "opponent" as const }] }
                 : {}),
             // CR 614.12a / 201.4a — "nonland card name", enforced exactly by
             // the filter (the shape Meddling Mage is hand-written with).
