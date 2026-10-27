@@ -14176,6 +14176,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cryptic Caves",
+        "scryfallId": "fde9e9cb-68ab-4856-8ad6-30f66666dd93",
+        "oracleId": "b2eb7a64-a307-4a78-a25d-63fb3ae1e237",
+        "firstSet": "m20",
+        "firstPrintId": "fde9e9cb-68ab-4856-8ad6-30f66666dd93",
+        "firstPrintSet": "m20",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Cryptwailing",
         "scryfallId": "13337c99-7d9e-4464-905b-87e8deb072ac",
         "oracleId": "01d4c859-8b15-4567-a2c4-70a30c709999",
@@ -57328,6 +57338,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Sapseep Forest",
+        "scryfallId": "d1e29d9f-6aa9-49ef-8484-54af216aa509",
+        "oracleId": "8d4dcab0-86e5-4ff8-a90f-78a062664e16",
+        "firstSet": "shm",
+        "firstPrintId": "d1e29d9f-6aa9-49ef-8484-54af216aa509",
+        "firstPrintSet": "shm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Sarcatog",
         "scryfallId": "760a329c-e815-49d3-8df1-d052ce19b0c6",
         "oracleId": "e5afc145-1fc3-4d87-b175-0dcd9a81ae7c",
@@ -68662,6 +68682,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tectonic Edge",
+        "scryfallId": "fdcf5c0f-9d18-406d-a930-c179a781264f",
+        "oracleId": "4927150d-7ff6-4232-b20e-d2ea245ac710",
+        "firstSet": "wwk",
+        "firstPrintId": "fdcf5c0f-9d18-406d-a930-c179a781264f",
+        "firstPrintSet": "wwk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Tectonic Hazard",
         "scryfallId": "5204c781-f568-4c7f-b3f7-ce4dd678689b",
         "oracleId": "9097243a-39fa-4e18-8316-c0e57699c783",
@@ -74376,6 +74406,16 @@
         "source": "compiled"
     },
     {
+        "name": "Vedalken Certarch",
+        "scryfallId": "ffbc2a26-32f1-4d9c-8ee7-74698f64dce0",
+        "oracleId": "337533fb-2783-493c-856f-c41a83cca443",
+        "firstSet": "som",
+        "firstPrintId": "ffbc2a26-32f1-4d9c-8ee7-74698f64dce0",
+        "firstPrintSet": "som",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Vedalken Dismisser",
         "scryfallId": "5225169f-f45b-49f9-890b-b78cb629e0a7",
         "oracleId": "e6ed8820-4276-4ead-ba82-4654a92c415d",
@@ -77519,6 +77559,16 @@
         "firstPrintId": "f6a9fa51-78c3-42e6-8c2e-39658f59ed87",
         "firstPrintSet": "mh1",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Weathered Wayfarer",
+        "scryfallId": "f6601ab1-3862-4aff-82be-be15493fe4b0",
+        "oracleId": "1093fdb6-bd4f-46a8-92e3-5aa46b52bb4f",
+        "firstSet": "ons",
+        "firstPrintId": "f6601ab1-3862-4aff-82be-be15493fe4b0",
+        "firstPrintSet": "ons",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

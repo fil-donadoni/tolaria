@@ -276,14 +276,21 @@ describe("seed:preset --all over the metagame lists (issue #6675)", () => {
         }
     });
 
+    // Zero blocked lists is a legal outcome (every card has landed), so the
+    // loop's own count is asserted rather than left to a per-list expect.
     it("every other list is reported blocked, naming its unresolved cards", () => {
+        const blockedRows = [];
         for (const deck of file.decks) {
             const unresolved = unresolvedOf(deck);
             if (unresolved.length === 0) continue;
             const row = seedOne(deck, "mtgtop8.com", true);
             expect(row.state).toBe("blocked");
             expect(row.problems?.join("\n")).toContain(unresolved.join(", "));
+            blockedRows.push(row);
         }
+        expect(blockedRows).toHaveLength(
+            file.decks.filter((d) => unresolvedOf(d).length > 0).length
+        );
     });
 });
 

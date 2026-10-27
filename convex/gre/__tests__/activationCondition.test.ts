@@ -11,6 +11,7 @@
 // during resolution.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
+import { withTemporaryDefinition } from "../../cards/registry";
 import { activateAbilityOnState } from "../../game";
 import {
     activationConditionErrors,
@@ -22,7 +23,7 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import type { EffectPredicate } from "../../cards/types";
+import type { CardDefinition, EffectPredicate } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 
 const FILLER = getCardByName("Grizzly Bears").id;
@@ -184,8 +185,19 @@ describe("activationConditionHolds — the activation-time subset", () => {
         expect(
             holds({
                 left: {
-                    count: { zone: "battlefield", controller: "controller" },
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { supertype: "Snow" },
+                    },
                 },
+                op: "ge",
+                right: 0,
+            })
+        ).toBe(false);
+        expect(
+            holds({
+                left: { count: { zone: "library", controller: "controller" } },
                 op: "ge",
                 right: 0,
             })
@@ -237,10 +249,23 @@ describe("activationCondition validation — resolution-only shapes fail at auth
         ).toEqual([expect.stringContaining("count.zone")]);
     });
 
-    it("rejects a count with no scope, or an opponent scope", () => {
+    it("rejects a count with no scope, or with two", () => {
         expect(
             validate({
-                left: { count: { zone: "graveyard", controller: "opponent" } },
+                left: { count: { zone: "graveyard" } },
+                op: "ge",
+                right: 7,
+            })
+        ).toEqual([expect.stringContaining("exactly one scope")]);
+        expect(
+            validate({
+                left: {
+                    count: {
+                        zone: "graveyard",
+                        controller: "opponent",
+                        acrossAllPlayers: true,
+                    },
+                },
                 op: "ge",
                 right: 7,
             })
@@ -251,5 +276,209 @@ describe("activationCondition validation — resolution-only shapes fail at auth
         expect(validate(THRESHOLD, false)).toEqual([
             expect.stringContaining("on a mana ability"),
         ]);
+    });
+});
+
+// CR 602.5 + CR 109.5 (issue #5258) — "Activate only if you control five or
+// more lands" / "… if an opponent controls more lands than you": a BATTLEFIELD
+// count, filtered by literal card type or colour. Barbarian Ring's sacrifice
+// ability is the vehicle (its condition swapped for each form); nothing under
+// test reads a card name.
+const LAND = getCardByName("Forest").id;
+const GREEN_BEAR = getCardByName("Grizzly Bears").id;
+
+const lands = (n: number): EffectPredicate => ({
+    left: {
+        count: {
+            zone: "battlefield",
+            controller: "controller",
+            filter: { type: ["Land"] },
+        },
+    },
+    op: "ge",
+    right: n,
+});
+
+const OPPONENT_MORE_LANDS: EffectPredicate = {
+    left: {
+        count: {
+            zone: "battlefield",
+            controller: "opponent",
+            filter: { type: ["Land"] },
+        },
+    },
+    op: "gt",
+    right: {
+        count: {
+            zone: "battlefield",
+            controller: "controller",
+            filter: { type: ["Land"] },
+        },
+    },
+};
+
+/** p1 controls the source plus `mine` Forests, p2 controls `theirs` Forests
+ *  and `bears` Grizzly Bears. The source is itself a land, so it counts
+ *  toward "lands you control" (CR 110.1 — a card on the battlefield is a
+ *  permanent). */
+function landBoard(mine: number, theirs: number, bears = 0): GameState {
+    const forests = (owner: "p1" | "p2", n: number) =>
+        Array.from({ length: n }, (_, i) =>
+            inst(LAND, `${owner}-forest-${i}`, owner)
+        );
+    return makeState({
+        phase: "PRECOMBAT_MAIN",
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+        players: [
+            makePlayer("p1", {
+                battlefield: [
+                    inst(getCardByName("Barbarian Ring").id, "land", "p1"),
+                    ...forests("p1", mine),
+                ],
+            }),
+            makePlayer("p2", {
+                battlefield: [
+                    ...forests("p2", theirs),
+                    ...Array.from({ length: bears }, (_, i) =>
+                        inst(GREEN_BEAR, `bear-${i}`, "p2")
+                    ),
+                ],
+            }),
+        ],
+    });
+}
+
+/** Barbarian Ring with its sacrifice ability's condition replaced. */
+function ringWith(activationCondition: EffectPredicate): CardDefinition {
+    const ring = getCardByName("Barbarian Ring");
+    return {
+        ...ring,
+        activatedAbilities: ring.activatedAbilities!.map((a) =>
+            a.id === "barbarian-ring-sac" ? { ...a, activationCondition } : a
+        ),
+    };
+}
+
+describe("battlefield activationCondition — the server gate (CR 602.5, issue #5258)", () => {
+    it('"you control five or more lands": four refuse, five accept — the source counts', () => {
+        withTemporaryDefinition(ringWith(lands(5)), () => {
+            expect(() =>
+                activate(landBoard(3, 9), "barbarian-ring-sac")
+            ).toThrow("Ability cannot be activated right now");
+            expect(() =>
+                activate(landBoard(4, 0), "barbarian-ring-sac")
+            ).not.toThrow();
+        });
+    });
+
+    it('"an opponent controls more lands than you": strictly more, a tie refuses', () => {
+        withTemporaryDefinition(ringWith(OPPONENT_MORE_LANDS), () => {
+            // p1: the Ring + 2 Forests = 3 lands.
+            expect(() =>
+                activate(landBoard(2, 3), "barbarian-ring-sac")
+            ).toThrow("Ability cannot be activated right now");
+            expect(() =>
+                activate(landBoard(2, 4), "barbarian-ring-sac")
+            ).not.toThrow();
+        });
+    });
+});
+
+describe("battlefield activationCondition — the evaluator (CR 109.5)", () => {
+    it("reads \"opponent\" as the controller's opponent and the filter's type", () => {
+        const state = landBoard(0, 4, 3);
+        const source = state.players[0].battlefield[0];
+        const opponentLands: EffectPredicate = {
+            left: {
+                count: {
+                    zone: "battlefield",
+                    controller: "opponent",
+                    filter: { type: "Land" },
+                },
+            },
+            op: "eq",
+            right: 4,
+        };
+        expect(activationConditionHolds(state, source, opponentLands)).toBe(
+            true
+        );
+    });
+
+    it("reads the LIVE colour (CR 105.2) — a colour filter counts the green permanents", () => {
+        const state = landBoard(0, 0, 2);
+        const source = state.players[0].battlefield[0];
+        // Grizzly Bears is green by its mana cost; a Forest is colourless.
+        const greenAtLeast = (n: number): EffectPredicate => ({
+            left: {
+                count: {
+                    zone: "battlefield",
+                    controller: "opponent",
+                    filter: { color: ["G"] },
+                },
+            },
+            op: "ge",
+            right: n,
+        });
+        expect(activationConditionHolds(state, source, greenAtLeast(2))).toBe(
+            true
+        );
+        expect(activationConditionHolds(state, source, greenAtLeast(3))).toBe(
+            false
+        );
+    });
+
+    it("fails CLOSED on a table with no single opponent", () => {
+        const base = landBoard(0, 9);
+        const alone = { ...base, players: [base.players[0]] };
+        expect(
+            activationConditionHolds(
+                alone,
+                alone.players[0].battlefield[0],
+                OPPONENT_MORE_LANDS
+            )
+        ).toBe(false);
+    });
+});
+
+describe("battlefield activationCondition — validation (issue #5258)", () => {
+    const validate = (activationCondition: unknown) =>
+        validateAbilityEffectScript(
+            { id: "probe", activationCondition, useStack: true },
+            "Probe"
+        );
+
+    it("accepts a literal type or colour filter, and the opponent comparison", () => {
+        expect(validate(lands(5))).toEqual([]);
+        expect(validate(OPPONENT_MORE_LANDS)).toEqual([]);
+    });
+
+    it("rejects a filter key the board view cannot read, and a non-literal value", () => {
+        expect(
+            validate({
+                left: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { supertype: "Snow" },
+                    },
+                },
+                op: "ge",
+                right: 4,
+            })
+        ).toEqual([expect.stringContaining("count.filter.supertype")]);
+        expect(
+            validate({
+                left: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { color: { sacrificed: { read: "colors" } } },
+                    },
+                },
+                op: "ge",
+                right: 2,
+            })
+        ).toEqual([expect.stringContaining("count.filter.color")]);
     });
 });
