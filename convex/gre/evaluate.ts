@@ -1995,7 +1995,7 @@ function valueFromMargin(
     // reward band reads.
     return (
         margin +
-        dangerClock(state, playerId, pass, memo) +
+        dangerClock(state, playerId, pass) +
         declaredCombatDelta(state, me.id, weights, pass, memo) +
         lethalUnblockedDelta(state, playerId, weights, pass) +
         deckOutDelta(me, opp, weights)
@@ -2974,7 +2974,7 @@ export function evaluateBreakdown(
         self,
         opp: oppTerms,
         margin,
-        danger: dangerClock(state, playerId, pass, memo),
+        danger: dangerClock(state, playerId, pass),
         total: evaluate(state, playerId, weights, memo),
     };
 }
