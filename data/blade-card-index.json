@@ -167,6 +167,16 @@
             "needsSetup": false
         },
         {
+            "label": "replacement pricing: Disenchant takes the Solitary Confinement shielding the opponent from three Hill Giants, not the 2-MV artifact (issue #5362)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "replacement pricing: with no creature of the bot's to shield against, Disenchant takes the 4-MV artifact, not the Solitary Confinement (issue #5362)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "restriction pricing: Disenchant takes the Moat grounding three Bears, not the 4-MV artifact with a script (issue #5154)",
             "tier": "must",
             "needsSetup": false
