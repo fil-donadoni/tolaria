@@ -316,6 +316,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › dealDamage+if+mayPay+moveZone",
+            "issue": 7088
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › destroy",
             "issue": 4885
         },
@@ -1777,7 +1782,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › As this artifact enters, choose an opponent",
-            "issue": 5223
+            "issue": 7085
         },
         {
             "kind": "grammar",
@@ -2317,7 +2322,7 @@
         {
             "kind": "grammar",
             "key": "triggered › trigger head › At the beginning of each of your main phases",
-            "issue": 5223
+            "issue": 7087
         },
         {
             "kind": "grammar",
@@ -2332,7 +2337,7 @@
         {
             "kind": "grammar",
             "key": "triggered › trigger head › At the beginning of the chosen player's upkeep",
-            "issue": 5223
+            "issue": 7086
         },
         {
             "kind": "grammar",
