@@ -16105,6 +16105,7 @@
         {"id":"402.3","line":"// CR 402.3 / 701.20a (issue #2150) — a `hand` count DOES admit a filter.","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
         {"id":"402.3","line":"// CR 402.3 / 701.20a (issue #2150) — the hand count's `filter` restriction","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
         {"id":"402.3","line":"// CR 402.3 / 701.20a (issue #2150) — whose HAND this list has already","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
+        {"id":"402.3","line":"// CR 402.3 — \"their hand\" is the hand of the player the","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
         {"id":"402.3","line":"// CR 404.2 / 402.3 — a graveyard's contents and a hand's SIZE are what","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
         {"id":"402.3","line":"// CR 701.23 (search), CR 305.6 (basic land types), CR 402.3 (hidden hand).","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
         {"id":"402.3","line":"// The hand is hidden (CR 402.3), but a `reveal { player, zone: \"hand\" }`","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
