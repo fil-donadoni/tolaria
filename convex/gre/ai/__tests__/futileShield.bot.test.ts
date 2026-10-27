@@ -472,4 +472,70 @@ describe("this-turn tap activations (Samite Pilgrim, Dega Disciple)", () => {
         expect(isMisdirectedThisTurnMove(state, oppPlus, me)).toBe(true);
         expect(isMisdirectedThisTurnMove(state, oppMinus, me)).toBe(false);
     });
+
+    it("keeps a pump that can lower toughness (CR 704.5f)", () => {
+        const state = position({
+            cards: [
+                {
+                    name: "Minion of Tevesh Szat",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 2,
+            libraryCount: 20,
+        });
+        const move = targeting(
+            state,
+            "Minion of Tevesh Szat",
+            "Grizzly Bears"
+        )!;
+        expect(isFutileThisTurnMove(state, move)).toBe(false);
+        expect(
+            isMisdirectedThisTurnMove(state, move, state.players[0].id)
+        ).toBe(false);
+    });
+
+    it("keeps a power pump while blocks are still open (CR 509.1b)", () => {
+        const state = position({
+            cards: [
+                {
+                    name: "Wall of Fire",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayer: "opp",
+            priority: "me",
+            combat: {
+                attackers: ["Craw Wurm"],
+                confirmed: true,
+                blockers: [],
+                blockersConfirmed: false,
+            },
+            turn: 4,
+            libraryCount: 20,
+        });
+        const moves = activationsOf(state, 0, "Wall of Fire");
+        expect(moves.length).toBeGreaterThan(0);
+        expect(moves.some((m) => isFutileThisTurnMove(state, m))).toBe(false);
+    });
 });

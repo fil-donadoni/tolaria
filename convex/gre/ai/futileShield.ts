@@ -227,6 +227,11 @@ function shieldOf(
         ) {
             return null;
         }
+        // CR 704.5f — toughness 0 or less puts the creature into its owner's
+        // graveyard by itself, with no combat or stack object needed: a
+        // shrink that can lower toughness is its own payoff. Only a literal
+        // non-negative toughness change is provably inert on its own.
+        if (typeof op.toughness !== "number" || op.toughness < 0) return null;
         const permanentId = permanentNamed(op.target, sourceId, targets);
         return permanentId ? { kind: "pump", permanentId } : null;
     }
@@ -308,6 +313,18 @@ function threatsTo(
             ? takesPartInCombat(state, permanent)
             : combatDamageCanReach(state, permanent);
     if (inCombat) threats += COMBAT_THREATS;
+    // CR 509.1b — power also decides whether a creature may block (a
+    // "can't be blocked by creatures with power N or less" attacker), and the
+    // bot gets no priority between declaring blockers and the restriction
+    // check, so while blocks are open a pump is never provably idle.
+    if (
+        kind === "pump" &&
+        state.combat &&
+        !state.combat.blockersConfirmed &&
+        state.combat.attackerIds.length > 0
+    ) {
+        threats++;
+    }
     if ((permanent.damageMarked ?? 0) > 0) threats++;
     return threats;
 }
