@@ -35230,6 +35230,14 @@
         "firstPrintSet": "apc"
     },
     {
+        "name": "Jadzi, Steward of Fate",
+        "scryfallId": "a95b6baf-01e6-49c3-9a26-394b127d53c3",
+        "oracleId": "c63b3511-d597-4c6e-9094-eabdeaa8a394",
+        "firstSet": "sos",
+        "firstPrintId": "a95b6baf-01e6-49c3-9a26-394b127d53c3",
+        "firstPrintSet": "sos"
+    },
+    {
         "name": "Jagwasp Swarm",
         "scryfallId": "bd4e933b-de65-4089-877f-c598004b8e7e",
         "oracleId": "376d90f6-2ceb-4d9e-a04d-3dd5bafd1e8b",
