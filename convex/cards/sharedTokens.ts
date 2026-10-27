@@ -671,3 +671,21 @@ export function literalTokenPT(
 ): number | undefined {
     return typeof value === "number" ? value : undefined;
 }
+
+/** Fractal token (CR 111 / 707.2). "0/0 green and blue Fractal creature
+ *  token" — created by Oracle's Gift (`sets/sos/blue.cards.ts`), which puts
+ *  its counters on the tokens in the same resolution (CR 704.3: state-based
+ *  actions wait until the spell has finished resolving). Vanilla, so the
+ *  JSON-pure `EffectTokenSpec` shape (ADR 0046).
+ *
+ *  Deliberately NO pinned `imagePrintId`, the `PEST_TOKEN` treatment: the art
+ *  is the Fractal token of the PRODUCING card's own printing, resolved by the
+ *  client's Token Print resolver (`src/lib/tokenArt.ts`). */
+export const FRACTAL_TOKEN: EffectTokenSpec = {
+    name: "Fractal",
+    types: ["Creature"],
+    subtypes: ["Fractal"],
+    power: 0,
+    toughness: 0,
+    colors: ["G", "U"],
+};
