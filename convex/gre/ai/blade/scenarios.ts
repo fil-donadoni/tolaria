@@ -15882,6 +15882,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // is client wall-clock and cannot be a blade assertion: it is pinned in
         // `useVsAiDriver.bot.test.ts`.
         label: "random reveal: the Bot flipper acknowledges the coin flip",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Mana Crypt", owner: "me", zone: "battlefield" },
