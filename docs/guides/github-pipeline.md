@@ -1549,6 +1549,24 @@ never enters the queue: the owner merges it by hand.
 | Merge method               | `squash`, as `land` merges                                                                                                                                                                                                                                                                                                                                   |
 | Dequeue                    | on `checks-failed` or `checks-timeout`: `ready-to-land` → `land-failed`, plus a comment naming the reason and linking the `queue-lane` runs; Mergify's own dequeue comment (`status_comments: outcomes`) links the failing run of this PR's draft. **Not** when [`base-health`](#g-base-health) is red on the PR: that is [a hold](#a-red-dequeue-is-a-hold) |
 
+**Why `never` covers hand merges too** (issue #7068). Mergify offers
+`always` or `never`, nothing conditional on what the external commit
+touched. With `merge_method: squash` a PR lands on its own head, onto the
+base as it is at merge time. So a commit that lands while a draft is being
+checked produces a combination no lane ran: the draft was cut from the tip
+before that commit. The commits that land outside the queue are
+`derive:sync`, `gaps:sync` and `oracle:prune-regressions`, which write
+only data files that a lane re-derives or reconciles (the lockfile header,
+`data/catalogue/*`, the gap allowlist, the regression acknowledgements).
+They push after every merge batch and every hour. The other source is a hand merge
+(`merge:manual`, a `.github/` or `.mergify.yml` PR), which can touch
+`scripts/`. `always` would bring back issue #6245 for every derived push
+in order to cover the rare hand merge. With `batch_size: 1` and
+`max_parallel_checks: 1`, the exposure is one draft's check window. A
+textual conflict still refuses the squash. A semantic one is batch
+health's to catch: health gates every base tip, and a RED is reverted
+first (ADR 0158). `release` re-proves the exact tip.
+
 `land-failed` is the repair pick's trigger (`afk-dispatch` re-fires the PR's
 issue), and `-label=land-failed` keeps the PR out of the queue until the
 repair's `land:ready` swaps the labels back. Mergify's default `dequeued`
