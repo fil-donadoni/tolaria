@@ -139,6 +139,15 @@ function applyRestrictions(
             }
         }
     }
+    // CR 109.5 — for an activated ability "you" is the player who activated
+    // it, but `activationConditionHolds` reads the SOURCE's controller: under
+    // "Any player may activate this ability" the two differ, so the condition
+    // would measure the wrong player.
+    if (
+        ability.activatableByAnyPlayer === true &&
+        ability.activationCondition !== undefined
+    )
+        return "an activation condition on an ability any player may activate (CR 109.5 — the condition reads the source's controller, not the activator)";
     return null;
 }
 

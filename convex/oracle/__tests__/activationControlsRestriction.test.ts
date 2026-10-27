@@ -239,3 +239,44 @@ describe("controls activation restriction — refused neighbours (fail-closed)",
         ).toBeUndefined();
     });
 });
+
+describe("controls activation restriction — lowering refusals", () => {
+    /** The compile outcome of one probe artifact carrying `line`. */
+    const compileLine = (line: string) =>
+        compileCard(
+            oracleCard({
+                name: "Probe Relic",
+                manaCost: "{2}",
+                typeLine: "Artifact",
+                oracleText: line,
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+
+    it("the condition alone lowers", () => {
+        expect(
+            compileLine(
+                "{T}: Draw a card. Activate only if you control five or more lands."
+            ).state
+        ).toBe("ready");
+    });
+
+    it("two conditional restrictions on one ability (one comparison field)", () => {
+        const outcome = compileLine(
+            "{T}: Draw a card. Activate only if there are seven or more cards in your graveyard and only if you control five or more lands."
+        );
+        expect(outcome.state).not.toBe("ready");
+        expect(JSON.stringify(outcome)).toContain(
+            "two conditional activation restrictions"
+        );
+    });
+
+    it("a condition on an ability any player may activate (CR 109.5 — 'you' is the activator)", () => {
+        const outcome = compileLine(
+            "{T}: Draw a card. Any player may activate this ability. Activate only if you control five or more lands."
+        );
+        expect(outcome.state).not.toBe("ready");
+        expect(JSON.stringify(outcome)).toContain("any player may activate");
+    });
+});
