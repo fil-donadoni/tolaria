@@ -3112,7 +3112,8 @@ function iterate(
     deniedRootKeys?: ReadonlySet<string>,
     actionPriors: ActionPriorConfig | null = null,
     deckKnowledge?: DeckKnowledgeBySeat,
-    opponentModel: OpponentModel | null = null
+    opponentModel: OpponentModel | null = null,
+    openRootByPolicy = false
 ): void {
     const world = determinize(
         rootState,
@@ -3229,6 +3230,27 @@ function iterate(
             }
             node = path[path.length - 1].node;
             continue;
+        }
+
+        // A root the budget cannot open in full: the children it does open
+        // are the whole decision, so open them best-policy-first (the same
+        // first-play urgency a choice node uses) instead of uniformly at
+        // random. `selectOpeningCandidate` spends the same rng draw either
+        // way, so the seeded stream is unchanged.
+        if (openRootByPolicy && depth === 0 && pid === botId && !atChoiceNode) {
+            node.policyValues ??= new Map();
+            const priors = computeActionPriors(
+                world,
+                pid,
+                botId,
+                keyed,
+                weights,
+                node.policyValues
+            );
+            keyed = keyed.map((k) => ({
+                ...k,
+                prior: priors.get(k.key) ?? 0,
+            }));
         }
 
         const untried = keyed.filter((k) => !node.children.has(k.key));
@@ -4920,6 +4942,28 @@ function colorModeTiebreak(
     return winner && topShare > 0 && topShare > runnerUpShare ? winner : null;
 }
 
+/** Iterations per root candidate below which a root counts as starved. */
+const STARVED_ROOT_VISITS_PER_CHILD = 2;
+
+/** Virtual rollouts the 1-ply policy value counts for at a starved root. */
+const STARVED_ROOT_PRIOR_VISITS = 4;
+
+/** Reward-scale policy value per root child, from the root's memoized
+ *  `policyValues` (populated while the starved root was opened by policy
+ *  order). A child with no memoized value is simply absent. */
+function starvedRootPriorRewards(
+    root: Node,
+    weights: EvalWeights
+): Map<string, number> | null {
+    const raw = root.policyValues;
+    if (!raw) return null;
+    const out = new Map<string, number>();
+    for (const [key, value] of raw) {
+        out.set(key, rewardFromValue(value, weights));
+    }
+    return out;
+}
+
 export function selectRootMove(
     root: Node,
     moves: Move[],
@@ -4966,7 +5010,23 @@ export function selectRootMove(
         (e) => e.visits >= maxVisits * (1 - weights.visitTol)
     );
 
-    const mean = (e: Edge) => e.totalReward / e.visits;
+    // A starved root (under `STARVED_ROOT_VISITS_PER_CHILD` iterations per root
+    // candidate): one or two noisy rollouts per child are the whole evidence, so the 1-ply policy
+    // value of each child joins its mean as `STARVED_ROOT_PRIOR_VISITS`
+    // virtual rollouts. Fades on its own as real visits accumulate.
+    const starvedPriors =
+        searchStats !== undefined &&
+        searchStats.iterationsCompleted <
+            STARVED_ROOT_VISITS_PER_CHILD * moves.length
+            ? starvedRootPriorRewards(root, weights)
+            : null;
+    const mean = (e: Edge) => {
+        const prior = starvedPriors?.get(e.key);
+        return prior === undefined
+            ? e.totalReward / e.visits
+            : (e.totalReward + STARVED_ROOT_PRIOR_VISITS * prior) /
+                  (e.visits + STARVED_ROOT_PRIOR_VISITS);
+    };
     const meanMargin = (e: Edge) => e.totalMargin / e.visits;
     const bestMean = explored.reduce((m, e) => Math.max(m, mean(e)), -Infinity);
     const contenders = explored.filter(
@@ -6680,6 +6740,13 @@ function runSearchWithTrace(
             botExtraTurnGrantDelta(state, m, playerId, weights) > 0
     );
 
+    // The budget may leave the root starved: an iteration cap under
+    // `STARVED_ROOT_VISITS_PER_CHILD` per candidate, or a wall-clock cap
+    // (which binds on wide boards before the iteration cap does).
+    const openRootByPolicy =
+        maxIter < STARVED_ROOT_VISITS_PER_CHILD * moves.length ||
+        timeMs !== undefined;
+
     let i = 0;
     // `i` IS the real per-decision iteration count (issue #2682) — until this
     // slice it was computed and immediately discarded: passed to `buildTrace`
@@ -6697,7 +6764,8 @@ function runSearchWithTrace(
             deniedRootKeys,
             actionPriors,
             deckKnowledge,
-            opponentModel
+            opponentModel,
+            openRootByPolicy
         );
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {

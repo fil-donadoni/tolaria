@@ -15751,4 +15751,111 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #6905, position C. The 3/3 cannot kill the 6/4 Craw Wurm, +2/+0 makes it (CR 510.1); the pump on the Bot's own attacker is the only correctly-signed target, and -2/-0 only ever points at an opposing creature.",
     },
+    {
+        // Issue #6913 — a STARVED root search must not pick below what the
+        // 1-ply rollout policy already chooses. The human casts Strafe (3
+        // damage) at the Bot's Stone Kavu (3/3, `{W}: +0/+1`); the Bot holds
+        // four untapped Plains, so one activation saves the creature. At
+        // `iterations: 3` the root opens at most three children and the mean
+        // reward of a single noisy rollout each decides the pick.
+        label: "starved search: pumps toughness in response to damage removal",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Strafe", owner: "me", zone: "hand" },
+                // A late-game board: the wide root (lands, hand casts) is what
+                // starves a three-iteration search of visits per child.
+                { name: "Slimy Kavu", owner: "me", zone: "hand" },
+                { name: "Mogg Jailer", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 6,
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+                { name: "Plains", owner: "opp", zone: "hand", count: 2 },
+                { name: "Benalish Lancer", owner: "opp", zone: "hand" },
+                {
+                    name: "Bloodfire Colossus",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Slimy Kavu",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mogg Jailer",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Quirion Explorer",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Stone Kavu",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Glade Gnarr",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Dega Disciple",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Benalish Lancer",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 4,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 30,
+            life: { me: 3, opp: 2 },
+            libraryCount: 20,
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Strafe",
+                by: "me",
+                target: "Stone Kavu",
+            },
+        ],
+        bot: "opp",
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7],
+        budget: { iterations: 3 },
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Stone Kavu" }],
+        },
+        note: "Issue #6913 — Strafe on the stack aimed at Stone Kavu, four untapped Plains: the {W} pump (+0/+1) takes the Kavu out of 3-damage range. Pinned at a starved `iterations: 3` budget, where the root pick used to fall to the mean reward of one rollout per child.",
+    },
 ];
