@@ -13106,6 +13106,7 @@ export type ReplacementEventKind =
     | "damage"
     | "lifegain"
     | "lifeloss"
+    | "damage-lifeloss"
     | "discard"
     | "lose-game"
     | "tap"
@@ -13152,6 +13153,17 @@ export interface DamageReplacementEvent {
  *  and "if you would lose life, sacrifice/discard instead" intercept these. */
 export interface LifeChangeReplacementEvent {
     kind: "lifegain" | "lifeloss";
+    playerId: string;
+    amount: number;
+}
+
+/** CR 120.4c — the RESULT of damage dealt to a player: the life loss it causes
+ *  (CR 120.3a), after every CR 614 / 615 effect on the damage itself. Distinct
+ *  from `"lifeloss"`: "lose life" replacements (Lich) do not see it, and a
+ *  "damage that would reduce your life total to less than N" clause (Worship)
+ *  sees only it. `amount` is the life about to be lost. */
+export interface DamageLifeLossReplacementEvent {
+    kind: "damage-lifeloss";
     playerId: string;
     amount: number;
 }
@@ -13471,6 +13483,7 @@ export interface CounterPlacedReplacementEvent {
 export type ReplacementEvent =
     | DamageReplacementEvent
     | LifeChangeReplacementEvent
+    | DamageLifeLossReplacementEvent
     | DiscardReplacementEvent
     | LoseGameReplacementEvent
     | TapReplacementEvent
@@ -13704,6 +13717,16 @@ export type ReplacementResult =
  *    side-effect replacement (the face-down turn-up). Applies under both
  *    locks. */
 export type DamageEffectKind = "prevention" | "redirection" | "other";
+
+/** Parameters of the `CardDefinition.damageLifeFloor` static (CR 614.1). */
+export interface DamageLifeFloor {
+    /** Damage that would leave the controller below this life total leaves them
+     *  at it instead. */
+    floor: number;
+    /** Clause only applies while the controller controls a permanent of this
+     *  type ("If you control a creature, …"). Absent = unconditional. */
+    whileControlling?: CardType;
+}
 
 export interface ReplacementEffect {
     id: string;
@@ -21649,6 +21672,13 @@ export interface CardDefinition {
      *  scoped to the source's controller and REMOVES the field — no engine
      *  read ever sees it. */
     preventsDamageToController?: boolean;
+    /** CR 614.1 — "If you control a creature, damage that would reduce your
+     *  life total to less than 1 reduces it to 1 instead." (Worship). JSON-pure
+     *  declaration: `expandDamageLifeFloor` (`abilities/damageLifeFloor.ts`)
+     *  rebuilds it at the `expandDefinition` seam into a `replacementEffects[]`
+     *  `"damage"` entry scoped to the source's controller and REMOVES the
+     *  field — no engine read ever sees it. */
+    damageLifeFloor?: DamageLifeFloor;
     /** Continuous "plays with hand revealed" static (CR 702-adjacent — Zur's
      *  Weirding, Enduring Renewal; issue #735). While ANY permanent with this
      *  flag is on the battlefield, the affected player's hand is projected

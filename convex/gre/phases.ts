@@ -29,6 +29,7 @@ import {
     hasInfectOrWither,
     addCounterToCard,
     markInfectPoisonDamage,
+    reduceLifeFromDamage,
     recordSourceDamagedOpponent,
     recordSourceDamagedPermanent,
     consumePreventionIfAny,
@@ -1552,9 +1553,12 @@ export function applyAllCombatDamage(
                 desc.staticAbilities,
                 reduced
             );
-            if (!infected) {
-                getPlayer(state, finalTarget.id).life -= reduced;
-            }
+            // CR 120.4c — the life loss is the damage's RESULT; Worship-style
+            // floors act on it, not on the damage dealt (`reduced` stays whole
+            // for DAMAGE_DEALT / lifelink / tallies below).
+            const lifeLost = infected
+                ? 0
+                : reduceLifeFromDamage(state, finalTarget.id, reduced);
             // CR 720.3 (issue #1199) — a creature dealing combat damage to the
             // monarch steals the designation for its controller. `becomeMonarch`
             // is idempotent ("unless that player is already the monarch"), so
@@ -1575,11 +1579,11 @@ export function applyAllCombatDamage(
             // so "whenever you lose life" triggers (Oath of Lim-Dûl) fire from
             // combat damage too. Skipped for infect damage above — no life was
             // actually lost, so this trigger correctly does not fire.
-            if (!infected) {
+            if (lifeLost > 0) {
                 events.push({
                     type: "LIFE_LOST",
                     playerId: finalTarget.id,
-                    amount: reduced,
+                    amount: lifeLost,
                     fromDamage: true,
                 });
             }
