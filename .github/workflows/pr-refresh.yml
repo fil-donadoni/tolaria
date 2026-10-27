@@ -5,6 +5,12 @@
 # pick). Pushes go out under the OWNER's credentials, never the workflow
 # token — a push made with GITHUB_TOKEN does not trigger the PR's checks.
 #
+# ONE run live at a time, the newest base tip's the one that follows: a job-level
+# concurrency group keeps the running refresh and replaces an older PENDING one
+# (`cancel-in-progress: false`), so two base commits within a minute — a merge
+# and its `derive:sync` — cost one run. A dropped run loses nothing: every
+# candidate is read fresh from the PR list, `git merge-tree` and each held PR's fork point (issue #6651).
+#
 # `branches:` names the base by literal because a workflow cannot read
 # tolaria.config.json: renaming the base (ADR 0116) means editing this line
 # (docs/guides/github-pipeline.md § pr-refresh). Only a push to that branch
@@ -23,6 +29,9 @@ jobs:
         name: refresh queued PRs
         runs-on: [self-hosted, maint]
         timeout-minutes: 60
+        concurrency:
+            group: pr-refresh
+            cancel-in-progress: false
         steps:
             - name: Job worktree
               shell: bash
