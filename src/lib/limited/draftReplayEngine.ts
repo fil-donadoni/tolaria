@@ -59,7 +59,12 @@ import type {
     LimitedEventSeat,
     LimitedPoolCard,
 } from "@convex/limited/eventTypes";
+import {
+    emptySeatSignalState,
+    type SeatSignalState,
+} from "@convex/limited/draftSignal";
 import { draftLabResolveCardMeta } from "./draftLabCardMeta";
+import { observeLabPack } from "./draftLabSignal";
 
 /** One reconstructed pick: historical fact beside the current scorer's
  *  recomputation (bot seats only). */
@@ -203,6 +208,7 @@ export function reconstructDraftReplay(
     let draftPacksRemaining = dealt.draftPacksRemaining;
 
     const packsSeenBySeat = new Map<number, DraftPackCard[][]>();
+    const signalBySeat = new Map<number, SeatSignalState>();
     const picks: ReplayPickEntry[] = [];
 
     for (let step = 0; step < MAX_STEPS; step++) {
@@ -241,13 +247,29 @@ export function reconstructDraftReplay(
         const packsSeen = [...seenSoFar, pack];
         packsSeenBySeat.set(seatIndex, packsSeen);
 
+        const observed = observeLabPack(
+            signalBySeat.get(seatIndex) ?? emptySeatSignalState(),
+            pack,
+            draftRound,
+            packSlots,
+            cubePool,
+            getPickRating,
+            getCardProfile
+        );
+        signalBySeat.set(seatIndex, observed.state);
+
         let recomputedCardId: string | null = null;
         if (seatInput.isBot) {
             const recomputedPickId = chooseBotPick(
                 pack,
                 seat.pool ?? [],
                 getCardEvalMeta,
-                { packsSeen, getPickRating, getCardProfile }
+                {
+                    packsSeen,
+                    getPickRating,
+                    getCardProfile,
+                    draftSignal: observed.input,
+                }
             );
             const recomputedPackCard = pack.find(
                 (c) => c.pickId === recomputedPickId

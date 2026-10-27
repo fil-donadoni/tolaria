@@ -50,6 +50,11 @@ import {
     CUBE_PACK_SIZE,
 } from "@convex/limited/cube";
 import {
+    emptySeatSignalState,
+    type SeatSignalState,
+} from "@convex/limited/draftSignal";
+import { observeLabPack } from "./draftLabSignal";
+import {
     draftLabResolveCardMeta,
     draftLabGetCardEvalMeta,
 } from "./draftLabCardMeta";
@@ -100,6 +105,10 @@ export interface DraftLabState {
      *  calls, mirroring `runBotAutoPicks`'s own per-run bookkeeping
      *  (`draftEngine.ts`). */
     packsSeenBySeat: ReadonlyMap<number, readonly (readonly DraftPackCard[])[]>;
+    /** Each seat's running Draft Signal state (PRD #1616, issue #3736) — the
+     *  read `colourSignal` / `archetypeSignal` score from, folded from the
+     *  packs the seat has been shown. */
+    signalBySeat: ReadonlyMap<number, SeatSignalState>;
     pickLog: readonly DraftLabPickRecord[];
     /** SNAPSHOT of the cube pool this session deals from (ADR 0062), taken
      *  once at `initDraftLab` — the Lab's analogue of the `cubePool` a real
@@ -233,6 +242,7 @@ export function initDraftLab(
         draftPacksRemaining: dealt.draftPacksRemaining,
         completed: false,
         packsSeenBySeat: new Map(),
+        signalBySeat: new Map(),
         pickLog: [],
         cardProfileRows,
         ...(cubePool ? { cubePool } : {}),
@@ -285,6 +295,17 @@ export function stepDraftLab(
     const seenSoFar = state.packsSeenBySeat.get(seatIndex) ?? [];
     const packsSeen = [...seenSoFar, pack];
 
+    const observed = observeLabPack(
+        state.signalBySeat.get(seatIndex) ?? emptySeatSignalState(),
+        pack,
+        state.draftRound,
+        state.packSlots,
+        state.cubePool,
+        getPickRating,
+        getCardProfile
+    );
+    const draftSignal = observed.input;
+
     const poolMeta = (seat.pool ?? [])
         .map((c) => draftLabGetCardEvalMeta(c.scryfallId))
         .filter((m): m is CardEvalMeta => m !== null);
@@ -299,13 +320,14 @@ export function stepDraftLab(
         packsSeen,
         getPickRating,
         getCardProfile,
+        draftSignal,
         pickNumber: seatPickNumber,
     });
     const chosenPickId = chooseBotPick(
         pack,
         seat.pool ?? [],
         draftLabGetCardEvalMeta,
-        { packsSeen, getPickRating, getCardProfile }
+        { packsSeen, getPickRating, getCardProfile, draftSignal }
     );
 
     const result = applyPick(
@@ -326,6 +348,8 @@ export function stepDraftLab(
 
     const nextPacksSeenBySeat = new Map(state.packsSeenBySeat);
     nextPacksSeenBySeat.set(seatIndex, packsSeen);
+    const nextSignalBySeat = new Map(state.signalBySeat);
+    nextSignalBySeat.set(seatIndex, observed.state);
 
     const record: DraftLabPickRecord = {
         pickIndex: state.pickLog.length + 1,
@@ -343,6 +367,7 @@ export function stepDraftLab(
         draftPacksRemaining: result.draftPacksRemaining,
         completed: result.completed,
         packsSeenBySeat: nextPacksSeenBySeat,
+        signalBySeat: nextSignalBySeat,
         pickLog: [...state.pickLog, record],
     };
 }
