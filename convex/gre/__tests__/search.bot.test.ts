@@ -2853,12 +2853,17 @@ describe("search — action priors + FPU (issue #2684)", () => {
         // CR 502.3), and with that phantom cost gone the Hill Giant outranks
         // the extra land. What this test pins is that the knob DISCRIMINATES —
         // `pass` off, a developing move on — and it still does.
+        //
+        // The budget is two iterations per root candidate (5 moves → 10):
+        // below that the root counts as starved and opens by policy prior
+        // whatever the variant (issue #6913), which would make both arms
+        // agree for a reason that has nothing to do with this knob.
         const state = priorBoard();
         const first = (v: SearchVariant | null) =>
             underVariant(
                 v,
                 () =>
-                    searchWithTrace(state, "p1", { iterations: 1 }, 7).trace!
+                    searchWithTrace(state, "p1", { iterations: 10 }, 7).trace!
                         .candidates[0].label
             );
         expect(first(null)).toBe("pass");
