@@ -54,6 +54,7 @@ import {
     botRegressionTitle,
     botReplayOutcome,
     botReplayPlan,
+    heavyHeldLine,
     derivePlan,
     derivedFreshness,
     derivedLateLine,
@@ -76,12 +77,19 @@ import { PACKED_CORPUS_PATH } from "../lib/packed-corpus";
 import { SEARCH_INDEX_PATH } from "../lib/search-index";
 
 describe("derive:sync --replay-bot — the one Bot-play replay per Bot change (issue #6463)", () => {
+    const heavyHolder = {
+        pid: 1420979,
+        cwd: "/w/tolaria-issue-5274",
+        label: "bun scripts/oracle-compile.ts",
+        heldMs: 102 * 60_000,
+    };
     it("header == tree: current — nothing to sweep, nothing to push", () => {
         expect(
             botReplayPlan({
                 headerBotHash: "sha256:a",
                 treeBotHash: "sha256:a",
                 openRegression: 7,
+                heavyHolder,
             })
         ).toEqual({ kind: "current" });
     });
@@ -92,6 +100,7 @@ describe("derive:sync --replay-bot — the one Bot-play replay per Bot change (i
                 headerBotHash: "sha256:a",
                 treeBotHash: "sha256:b",
                 openRegression: null,
+                heavyHolder: null,
             })
         ).toEqual({ kind: "sweep" });
         expect(
@@ -99,8 +108,24 @@ describe("derive:sync --replay-bot — the one Bot-play replay per Bot change (i
                 headerBotHash: "sha256:a",
                 treeBotHash: "sha256:b",
                 openRegression: 6464,
+                heavyHolder,
             })
         ).toEqual({ kind: "filed", issue: 6464 });
+    });
+
+    // CR-free script logic; issue #6524: a held mutex is a plan, not a wait.
+    it("a sweep owed while another process holds the heavy mutex: held — not waited for", () => {
+        expect(
+            botReplayPlan({
+                headerBotHash: "sha256:a",
+                treeBotHash: "sha256:b",
+                openRegression: null,
+                heavyHolder,
+            })
+        ).toEqual({ kind: "held", holder: heavyHolder });
+        expect(heavyHeldLine(heavyHolder)).toBe(
+            "heavy mutex held by 1420979 (/w/tolaria-issue-5274, bun scripts/oracle-compile.ts, 1h42m) — not waiting; the next push or the nightly retries"
+        );
     });
 
     // The fixture the issue asks for: a Bot change that FREEZES a card.
