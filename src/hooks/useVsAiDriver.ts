@@ -901,6 +901,7 @@ export function useVsAiDriver(
             escalationSignature.current = null;
             retrySignature.current = null;
             stuckSignature.current = null;
+            revealWait.current = null;
         }
 
         // Cheap main-thread gate: only consult the Worker when the bot actually
