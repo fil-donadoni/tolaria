@@ -84,6 +84,8 @@ import { tryGetDefinition } from "../../cards";
 import { getStaticAdditionalSacrifices } from "../state";
 import { isSpellStackItem, PERMANENT_TYPES } from "../constants";
 import { SOURCE_BINDING } from "../effects/interpreter";
+import { getEffectivePower } from "../layers";
+import { misdirectedTargetCount } from "./beneficence";
 
 /** The cost legs whose payment is a pure loss (mana, tapping the source).
  *  Any other key on the cost object fails closed. */
@@ -92,27 +94,62 @@ const LOSS_ONLY_COST_KEYS: ReadonlySet<string> = new Set(["tap", "mana"]);
 /** CR 510.4 — up to two combat damage steps. */
 const COMBAT_THREATS = 2;
 
-type ShieldKind = "regeneration" | "prevention";
+type ShieldKind = "regeneration" | "prevention" | "pump";
 
 type Shield = { kind: ShieldKind; permanentId: string };
 
-/** True when `move` activates an ability whose only outcome is a shield that
- *  no event can consume before it would be needed — see the module header. */
-export function isFutileShieldMove(state: GameState, move: Move): boolean {
-    if (move.kind !== "activate-ability") return false;
-    if (state.gameOver) return false;
+/** The this-turn effects `move` creates when it activates an ability whose
+ *  WHOLE script is shields / until-end-of-turn P/T changes paid for with a
+ *  loss-only cost; `null` for any other move. Shared by both prunes below. */
+function thisTurnEffectsOf(
+    state: GameState,
+    move: Move
+): { shields: Shield[]; tapCost: boolean } | null {
+    if (move.kind !== "activate-ability") return null;
+    if (state.gameOver) return null;
     const source = findPermanent(state, move.cardInstanceId);
-    if (!source) return false;
+    if (!source) return null;
     const ability = getEffectiveActivatedAbilities(source).find(
         (a) => a.ability.id === move.abilityId
     )?.ability;
-    if (!ability) return false;
-    if (!costIsLossOnly(state, source, ability)) return false;
-    const tapCost = ability.cost.tap === true;
-    const shields = shieldsOf(ability, source.id, move.targets);
-    if (!shields) return false;
+    if (!ability) return null;
+    if (!costIsLossOnly(state, source, ability)) return null;
+    const shields = shieldsOf(
+        ability,
+        source.id,
+        move.targets,
+        ability.cost.tap === true
+    );
+    if (!shields) return null;
+    return { shields, tapCost: ability.cost.tap === true };
+}
+
+/** True when `move` activates an ability whose only outcome is a this-turn
+ *  shield or P/T change that no event can consume before it would be needed —
+ *  see the module header. */
+export function isFutileThisTurnMove(state: GameState, move: Move): boolean {
+    const effects = thisTurnEffectsOf(state, move);
+    if (!effects) return false;
+    if (move.kind !== "activate-ability") return false;
     if (move.targets.length > 0 && anyBecameTargetListener(state)) return false;
-    return shields.every((s) => shieldIsFutile(state, s, tapCost));
+    return effects.shields.every((s) =>
+        shieldIsFutile(state, s, effects.tapCost)
+    );
+}
+
+/** True when `move` is a this-turn shield / P/T activation aimed against its
+ *  sign: a protecting shield or a positive pump at the opponent's permanent, a
+ *  negative pump at the mover's own. Pruned rather than ranked — a misdirected
+ *  variant of a script that buys nothing for the mover ties with `pass` and
+ *  can win on rollout noise, and when no correctly-signed target exists
+ *  nothing else is left to prefer. A neutral or unreadable sign is kept. */
+export function isMisdirectedThisTurnMove(
+    state: GameState,
+    move: Move,
+    botId: string
+): boolean {
+    if (!thisTurnEffectsOf(state, move)) return false;
+    return misdirectedTargetCount(state, move, botId) > 0;
 }
 
 function costIsLossOnly(
@@ -140,7 +177,8 @@ function costIsLossOnly(
 function shieldsOf(
     ability: ActivatedAbility,
     sourceId: string,
-    targets: Extract<Move, { kind: "activate-ability" }>["targets"]
+    targets: Extract<Move, { kind: "activate-ability" }>["targets"],
+    tapCost: boolean
 ): Shield[] | null {
     if (ability.resolve || ability.resolveSteps || ability.effect) return null;
     if (
@@ -156,7 +194,7 @@ function shieldsOf(
     if (!effects || effects.length === 0) return null;
     const out: Shield[] = [];
     for (const op of effects) {
-        const shield = shieldOf(op, sourceId, targets);
+        const shield = shieldOf(op, sourceId, targets, tapCost);
         if (!shield) return null;
         out.push(shield);
     }
@@ -166,7 +204,8 @@ function shieldsOf(
 function shieldOf(
     op: EffectOp,
     sourceId: string,
-    targets: Extract<Move, { kind: "activate-ability" }>["targets"]
+    targets: Extract<Move, { kind: "activate-ability" }>["targets"],
+    tapCost: boolean
 ): Shield | null {
     if (!("op" in op)) return null;
     if (op.op === "regenerate") {
@@ -185,6 +224,28 @@ function shieldOf(
         if ("player" in op.to) return null;
         const permanentId = permanentNamed(op.to, sourceId, targets);
         return permanentId ? { kind: "prevention", permanentId } : null;
+    }
+    if (op.op === "pump") {
+        // A pump is pruned only when it taps its source: the loss is the
+        // source's attack or block, which no later activation recovers. A
+        // mana-only pump can be made later at the same price, and the locked
+        // verdicts keep it a candidate.
+        if (!tapCost) return null;
+        // CR 611.2 — only an until-end-of-turn change; a longer one outlives
+        // the turn and can be consumed after the bot's next priority.
+        if (
+            op.duration.phase !== "end-of-turn" ||
+            (op.duration.skip ?? 0) > 0
+        ) {
+            return null;
+        }
+        // CR 704.5f — toughness 0 or less puts the creature into its owner's
+        // graveyard by itself, with no combat or stack object needed: a
+        // shrink that can lower toughness is its own payoff. Only a literal
+        // non-negative toughness change is provably inert on its own.
+        if (typeof op.toughness !== "number" || op.toughness < 0) return null;
+        const permanentId = permanentNamed(op.target, sourceId, targets);
+        return permanentId ? { kind: "pump", permanentId } : null;
     }
     return null;
 }
@@ -224,8 +285,13 @@ function shieldIsFutile(
 ): boolean {
     const permanent = findPermanent(state, shield.permanentId);
     if (!permanent) return false;
-    const threats = threatsTo(state, permanent, tapCost);
-    if (shield.kind === "prevention") return threats === 0;
+    const threats = threatsTo(state, permanent, tapCost, shield.kind);
+    // A P/T change is consumed by combat damage involving the creature (even
+    // an unblocked attacker deals its power to the player) or a marked-damage
+    // check, so it shares the prevention shield's zero-threat test.
+    if (shield.kind === "prevention" || shield.kind === "pump") {
+        return threats === 0;
+    }
     // CR 701.19c — "can't be regenerated" makes any shield inapplicable; an
     // exile-on-death replacement suppresses it the same way. A continuous
     // auto-regeneration replacement already answers every destruction.
@@ -245,22 +311,74 @@ function shieldIsFutile(
 function threatsTo(
     state: GameState,
     permanent: CardInstanceState,
-    tapCost: boolean
+    tapCost: boolean,
+    kind: ShieldKind
 ): number {
     let threats = 0;
     for (const item of state.stack) {
         if (!isHarmlessStackItem(item, tapCost)) threats++;
     }
-    const combat = state.combat;
+    // A P/T change is consumed by the creature's own combat damage, so any
+    // participation counts; a shield only by damage dealt TO it.
+    const inCombat =
+        kind === "pump"
+            ? takesPartInCombat(state, permanent)
+            : combatDamageCanReach(state, permanent);
+    if (inCombat) threats += COMBAT_THREATS;
+    // CR 509.1b — power also decides whether a creature may block (a
+    // "can't be blocked by creatures with power N or less" attacker), and the
+    // bot gets no priority between declaring blockers and the restriction
+    // check, so while blocks are open a pump is never provably idle.
     if (
-        combat &&
-        (combat.attackerIds.includes(permanent.id) ||
-            permanent.id in combat.blockerAssignments)
+        kind === "pump" &&
+        state.combat &&
+        !state.combat.blockersConfirmed &&
+        state.combat.attackerIds.length > 0
     ) {
-        threats += COMBAT_THREATS;
+        threats++;
     }
     if ((permanent.damageMarked ?? 0) > 0) threats++;
     return threats;
+}
+
+function takesPartInCombat(
+    state: GameState,
+    permanent: CardInstanceState
+): boolean {
+    const combat = state.combat;
+    return (
+        !!combat &&
+        (combat.attackerIds.includes(permanent.id) ||
+            permanent.id in combat.blockerAssignments)
+    );
+}
+
+/** Can combat damage be dealt TO `permanent`? Before blockers are confirmed
+ *  every participant may still be blocked or blocking, so it answers `true`.
+ *  Once they are, an attacker nothing blocks, and a creature whose opposing
+ *  creatures all have no positive power (CR 510.1a — a creature with 0 or less
+ *  power assigns no combat damage), are out of reach. An opposing creature
+ *  that cannot be found keeps the shield. */
+function combatDamageCanReach(
+    state: GameState,
+    permanent: CardInstanceState
+): boolean {
+    if (!takesPartInCombat(state, permanent)) return false;
+    const combat = state.combat;
+    if (!combat || !combat.blockersConfirmed) return true;
+    const opposingIds: string[] = [];
+    if (combat.attackerIds.includes(permanent.id)) {
+        for (const [blockerId, blocked] of Object.entries(
+            combat.blockerAssignments
+        )) {
+            if (blocked.includes(permanent.id)) opposingIds.push(blockerId);
+        }
+    }
+    opposingIds.push(...(combat.blockerAssignments[permanent.id] ?? []));
+    return opposingIds.some((id) => {
+        const opposing = findPermanent(state, id);
+        return !opposing || getEffectivePower(state, opposing) > 0;
+    });
 }
 
 /** CR 608.3 — a permanent spell's resolution puts it onto the battlefield and
