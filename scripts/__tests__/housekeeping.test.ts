@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { BASE_BRANCH } from "../lib/branches";
 import {
     DERIVE_SYNC_STEP,
+    FAILED_STEP_TAIL_LINES,
     FIRST_RUN_LOOKBACK_MS,
     GAPS_SYNC_STEP,
     PRUNE_REGRESSIONS_STEP,
@@ -21,6 +22,7 @@ import {
     GIT_STEP_TIMEOUT_MS,
     MAX_ATTEMPTS,
     SWEEP_STEP,
+    failedStepTail,
     needsNextPage,
     nextState,
     noticeDue,
@@ -476,5 +478,34 @@ describe("housekeeping.ts — derive:sync runs every run (ADR 0157 § Option 1b,
         expect(
             redSummary({ retry: [], dropped: [], deriveFailed: false })
         ).toBeNull();
+    });
+});
+
+// Issue #7150: the job log said only `derive:sync failed (exit 1)`; the
+// step's own lines sat in a log on the runner that nothing publishes.
+describe("failedStepTail — a failed step's own last lines, for the job log", () => {
+    it("keeps the last lines, blank ones dropped, each indented under the failed line", () => {
+        const output = [
+            "derive:sync: corpus cache kept",
+            "",
+            "derive:sync: push refused (no answer within 120s) with staging still at c79481af22 — the next housekeeping run retries",
+            "",
+        ].join("\n");
+        expect(failedStepTail(output, FAILED_STEP_TAIL_LINES)).toEqual([
+            "  │ derive:sync: corpus cache kept",
+            "  │ derive:sync: push refused (no answer within 120s) with staging still at c79481af22 — the next housekeeping run retries",
+        ]);
+    });
+
+    it("caps a long output at its LAST lines — where a failure is said", () => {
+        const output = Array.from({ length: 100 }, (_, i) => `line ${i}`).join(
+            "\n"
+        );
+        const tail = failedStepTail(output, 3);
+        expect(tail).toEqual(["  │ line 97", "  │ line 98", "  │ line 99"]);
+    });
+
+    it("nothing for a step that printed nothing", () => {
+        expect(failedStepTail("\n\n", FAILED_STEP_TAIL_LINES)).toEqual([]);
     });
 });

@@ -669,6 +669,13 @@ export function refusalLine(stderr: string, timedOutS?: number): string {
  * remote tip that IS `sha` is a push that landed while the client timed out
  * (landed, not coalesced); any other tip but `head` is a base that moved
  * (coalesced); `head` itself is a refusal with the base unmoved (failed).
+ *
+ * `--no-verify` (issue #7150): the commit is regenerated state, never a
+ * human's code, and `.husky/pre-push` runs the FULL gate on a push to the
+ * branch the local `origin/HEAD` names — `staging` on a clone that follows
+ * the remote's default, `main` on an older one. On the Huawei every derive
+ * push ran `check:all` + `bun run test` inside the 120 s push deadline,
+ * timed out, and was retried as transient: ~11 min, then exit 1.
  */
 export function pushDerivedCommit(
     git: GitRun,
@@ -707,6 +714,7 @@ export function pushDerivedCommit(
             [
                 "push",
                 "-q",
+                "--no-verify",
                 `--force-with-lease=refs/heads/${input.baseBranch}:${input.head}`,
                 "origin",
                 `${input.sha}:refs/heads/${input.baseBranch}`,

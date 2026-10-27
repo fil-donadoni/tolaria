@@ -78,7 +78,13 @@ import {
     heldKindsOf,
 } from "../gaps-sync";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+    chmodSync,
+    mkdirSync,
+    mkdtempSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ALLOWLIST_PATH } from "../check-gaps";
@@ -2650,6 +2656,20 @@ describe("commitAndPushAllowlist — false when the update does not reach the ba
         );
         expect(git(root, ["status", "--porcelain"])).toBe("");
         expect(commitsAhead(root)).toBe(0);
+    });
+
+    // Issue #7150: a clone whose `origin/HEAD` names the base ran the full
+    // gate in `.husky/pre-push` on this push, past its deadline.
+    it("true past a pre-push hook that refuses: the allowlist push never runs the client's hooks", () => {
+        const { bare, root } = repos();
+        const hooks = join(root, ".no-hooks");
+        mkdirSync(hooks, { recursive: true });
+        writeFileSync(join(hooks, "pre-push"), "#!/bin/sh\nexit 1\n");
+        chmodSync(join(hooks, "pre-push"), 0o755);
+        expect(commitAndPushAllowlist(root, addOp(3))).toBe(true);
+        expect(git(bare, ["log", "-1", "--format=%s", BASE_BRANCH])).toBe(
+            ALLOWLIST_COMMIT_SUBJECT
+        );
     });
 
     it("a push that lost the race with a landing is rebuilt on the fetched tip and pushed once more — true, both commits on the base branch", () => {
