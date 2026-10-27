@@ -977,7 +977,7 @@ export function chooseResolution(choice: OwedChoice): string[] {
                 return distinctGreedyPicks(
                     choice.distinctKeys,
                     bestFirst(candidates),
-                    min
+                    max
                 );
             }
             return bestFirst(candidates)

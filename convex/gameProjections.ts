@@ -1746,10 +1746,15 @@ export function projectPublicState(
         // CR 400.11a — a Wish pick's allow-list counts the matching cards in
         // its owner's sideboard: hidden information, so a viewer who is not
         // the chooser gets the pick without it.
+        // CR 400.2 / 701.23a (issue #6475) — a distinct search's key table
+        // names every pickable library card, hidden information: only the
+        // searching player receives it.
         pendingChoices: state.pendingChoices?.map((c) =>
             c.kind === "choose-outside-game-card" && c.playerId !== viewerId
                 ? { ...c, candidateIds: undefined }
-                : c
+                : c.distinctKeys && c.playerId !== viewerId
+                  ? { ...c, distinctKeys: undefined }
+                  : c
         ),
         // CR 613 (ADR 0082, PRD #2064 S5) — the Continuous Effects Registry
         // crosses the wire. It is PUBLIC by construction: every entry describes

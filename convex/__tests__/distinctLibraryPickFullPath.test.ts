@@ -125,6 +125,11 @@ describe("Gifts Ungiven — the distinct search, end to end (CR 701.23a)", () =>
         ).toBe(true);
     });
 
+    it("WIRE: the opponent's projection never carries the searcher's name keys (CR 400.2)", () => {
+        const view = projectPublicState(suspended(), 1, "p2");
+        expect(view.pendingChoices![0].distinctKeys).toBeUndefined();
+    });
+
     it("the real mutation refuses two same-name cards", async () => {
         const state = suspended();
         const { stub, run } = submitHead(state, ["island-1", "island-2"]);
