@@ -19,6 +19,7 @@ import {
     type ResolveCardMeta,
 } from "../eventLogic";
 import type { BoosterConfig } from "../boosterTypes";
+import { PLANESWALKER_NAMES } from "../planeswalkerNames";
 
 describe("buildEmptySeats (PRD #1107 story 2)", () => {
     it("builds seatCount empty seats, indexed from 0", () => {
@@ -128,14 +129,35 @@ describe("releaseSeat (issue #1579)", () => {
 });
 
 describe("fillBotSeats (PRD #1107 story 8)", () => {
-    it("fills every empty seat with a numbered bot", () => {
+    it("fills every empty seat with a distinct planeswalker-named bot", () => {
         let seats = buildEmptySeats(3);
         seats = assignFreeSeat(seats, "user1", "Alice");
-        const after = fillBotSeats(seats);
+        const after = fillBotSeats(seats, 99);
         expect(after[0].userId).toBe("user1");
         expect(after[0].isBot).toBeUndefined();
-        expect(after[1]).toMatchObject({ isBot: true, nickname: "Bot 2" });
-        expect(after[2]).toMatchObject({ isBot: true, nickname: "Bot 3" });
+        expect(after[1].isBot).toBe(true);
+        expect(after[2].isBot).toBe(true);
+        expect(PLANESWALKER_NAMES).toContain(after[1].nickname);
+        expect(PLANESWALKER_NAMES).toContain(after[2].nickname);
+        expect(after[1].nickname).not.toBe(after[2].nickname);
+    });
+
+    it("is deterministic per seed and varies across seeds", () => {
+        const names = (seed: number) =>
+            fillBotSeats(buildEmptySeats(8), seed).map((s) => s.nickname);
+        expect(names(5)).toEqual(names(5));
+        expect(names(5)).not.toEqual(names(6));
+        expect(new Set(names(5)).size).toBe(8);
+    });
+
+    it("never reuses a human nickname, case-insensitively", () => {
+        for (let seed = 0; seed < 50; seed++) {
+            const seats = assignFreeSeat(buildEmptySeats(8), "user1", "jACE");
+            const bots = fillBotSeats(seats, seed).filter((s) => s.isBot);
+            expect(bots.some((s) => s.nickname?.toLowerCase() === "jace")).toBe(
+                false
+            );
+        }
     });
 
     it("leaves an already-human seat untouched", () => {
@@ -217,14 +239,14 @@ describe("randomizeSeatOrder (draft seating)", () => {
         expect(seatingSeed(4242)).toBe(seatingSeed(4242));
     });
 
-    it("bot nicknames match their FINAL seat when filled after the shuffle", () => {
+    it("fills bots after the shuffle without disturbing seat order", () => {
         // This is the call order `startLimitedEvent` uses: shuffle, then fill.
-        const after = fillBotSeats(randomizeSeatOrder(humanFirst(4), 31337));
-        for (const seat of after) {
-            if (seat.isBot) {
-                expect(seat.nickname).toBe(`Bot ${seat.seatIndex + 1}`);
-            }
-        }
+        const shuffled = randomizeSeatOrder(humanFirst(4), 31337);
+        const after = fillBotSeats(shuffled, 31337);
+        after.forEach((seat, i) => {
+            expect(seat.seatIndex).toBe(i);
+            expect(seat.isBot === true).toBe(shuffled[i].userId === undefined);
+        });
     });
 });
 

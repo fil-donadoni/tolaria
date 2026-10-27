@@ -2114,8 +2114,11 @@ export const startLimitedEvent = mutation({
             // humans always sit at 0..n-1 and are permanently upstream of the
             // same bot neighbours (seat order IS the passing order,
             // `passDirection`). Shuffling first also keeps each bot's
-            // `Bot <n>` nickname in step with its FINAL seatIndex.
-            const seats = fillBotSeats(randomizeSeatOrder(event.seats, seed));
+            // name drawn in step with its FINAL seatIndex.
+            const seats = fillBotSeats(
+                randomizeSeatOrder(event.seats, seed),
+                seed
+            );
             const now = Date.now();
             const timerConfig = buildTimerConfig(event.timerEnabled, now);
             const getPickRating = await loadEventPickRating(
@@ -2198,8 +2201,8 @@ export const startLimitedEvent = mutation({
             return null;
         }
 
-        const seats = fillBotSeats(event.seats);
         const seed = freshSeed();
+        const seats = fillBotSeats(event.seats, seed);
         const rng = makeRng(seed);
         const now = Date.now();
         const cardResolvers = await loadEventCardResolvers(

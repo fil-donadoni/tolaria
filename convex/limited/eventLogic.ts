@@ -8,6 +8,7 @@ import { makeRng, shuffleWithRng } from "../gre/rng";
 import { generateBooster } from "./boosterGenerator";
 import type { BoosterConfig } from "./boosterTypes";
 import type { LimitedEventSeat, LimitedPoolCard } from "./eventTypes";
+import { PLANESWALKER_NAMES } from "./planeswalkerNames";
 
 /** 2-8 Seats (PRD #1107 story 2) — a table smaller than 2 can't play a Match,
  *  larger than 8 isn't a supported Draft/Sealed pod size. */
@@ -149,18 +150,37 @@ export function randomizeSeatOrder(
     );
 }
 
+/** Its own PRNG stream, disjoint from the booster and seating streams, so
+ *  naming bots never shifts a pack or a seat order. */
+export function botNameSeed(eventSeed: number): number {
+    return (eventSeed ^ 0x3c6ef372) | 0;
+}
+
 /** Fills every still-empty Seat with a Bot Drafter placeholder at event start
  *  (PRD #1107 story 8) — a draft/sealed pod never stalls waiting for missing
  *  humans. A seat already claimed (human or, idempotently, an existing bot)
- *  is left untouched. */
+ *  is left untouched. Each new bot is named after a distinct planeswalker
+ *  drawn from the event's seeded stream (issue #6912; same seed → same
+ *  names), never one equal (case-insensitive) to another occupant's nickname
+ *  at the table. */
 export function fillBotSeats(
-    seats: readonly LimitedEventSeat[]
+    seats: readonly LimitedEventSeat[],
+    eventSeed = 0
 ): LimitedEventSeat[] {
-    return seats.map((seat) =>
-        seat.userId === undefined && !seat.isBot
-            ? { ...seat, isBot: true, nickname: `Bot ${seat.seatIndex + 1}` }
-            : seat
+    const taken = new Set(
+        seats.flatMap((seat) =>
+            seat.nickname === undefined ? [] : [seat.nickname.toLowerCase()]
+        )
     );
+    const available = PLANESWALKER_NAMES.filter(
+        (name) => !taken.has(name.toLowerCase())
+    );
+    const pool = shuffleWithRng(available, makeRng(botNameSeed(eventSeed)));
+    return seats.map((seat) => {
+        if (seat.userId !== undefined || seat.isBot) return seat;
+        const nickname = pool.shift() ?? `Bot ${seat.seatIndex + 1}`;
+        return { ...seat, isBot: true, nickname };
+    });
 }
 
 /** Resolves a set code to its checked-in `BoosterConfig`, or `null` when the
