@@ -20,7 +20,11 @@ import type {
     TriggeredAbility,
 } from "../../types";
 import { defineCard, AURA_AFFECTS_HOST } from "../../types";
-import { knightStaticAbilities, makeCircleOfProtection } from "../../abilities";
+import {
+    knightStaticAbilities,
+    makeCircleOfProtection,
+    pickDamageSource,
+} from "../../abilities";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
@@ -1143,11 +1147,10 @@ export const resurrection = defineCard(() => ({
 // damage is fully absorbed and the caster gains life equal to the absorbed
 // amount in a single atomic step.
 //
-// "Source of your choice" (CR 109.4) accepts either a battlefield permanent
-// or a stack item (instant/sorcery/activated ability). The `["any","spell"]`
-// target union covers both: `any` yields creatures/planeswalkers/players, and
-// `spell` yields stack items. Players are excluded from being a damage
-// source in practice (the prevention check keys on `sourceInstanceId`).
+// "Source of your choice" (CR 609.7a) is chosen on resolution, never
+// targeted: a permanent or a spell on the stack, never a player. protocol
+// card: no DSL Op yet builds a prevent-and-gain-life shield
+// (`addDamageRedirectionShield`) keyed on a chosen source.
 export const reverseDamage = defineCard(() => ({
     id: "943baea8-b173-4863-a3ab-dd217d483cd9",
     rarity: "rare",
@@ -1156,13 +1159,15 @@ export const reverseDamage = defineCard(() => ({
         "The next time a source of your choice would deal damage to you this turn, prevent that damage. You gain life equal to the damage prevented this way.",
     manaCost: { X: 1, W: 2 },
     types: ["Instant"],
-    targetRequirement: { type: ["any", "spell"], count: 1 },
     resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (!t) return;
+        const sourceId = pickDamageSource(ctx, {
+            choiceId: `reverse-damage-source-${ctx.sourceInstanceId}`,
+            prompt: "Reverse Damage: choose the source whose next damage to you is prevented.",
+        });
+        if (sourceId === undefined) return;
         ctx.addDamageRedirectionShield({
             kind: "prevent-from-source-gain-life",
-            sourceInstanceId: t.id,
+            sourceInstanceId: sourceId,
             playerId: ctx.caster,
             duration: { phase: "end-of-turn" },
         });

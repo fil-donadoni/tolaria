@@ -12,6 +12,7 @@ import type {
     EffectOp,
     ManaCost,
     Rarity,
+    SpellContext,
 } from "../types";
 import { cyclingAbility } from "./cycling";
 
@@ -469,6 +470,31 @@ function formatActivationCost(cost: ManaCost): string {
         for (let i = 0; i < n; i++) parts.push(`{${sym}}`);
     }
     return parts.join("");
+}
+
+/** CR 609.7a — "a source of your choice" for a `resolve()` card: the
+ *  controller picks ONE permanent or spell on the stack as the effect
+ *  resolves, without targeting it (CR 115.1), so shroud/hexproof/protection bar
+ *  no candidate and no player is ever offered (a player is not a damage source
+ *  object). Returns the chosen id, or `undefined` when the choice is pending
+ *  (the caller returns early to let the engine suspend) or nothing qualifies.
+ *  The `resolve()` twin of the DSL `choice` Op's `kind: "pick-source"`. */
+export function pickDamageSource(
+    ctx: SpellContext,
+    args: { choiceId: string; prompt: string }
+): string | undefined {
+    const candidateIds = ctx.getDamageSourceChoiceIds();
+    if (candidateIds.length === 0) return undefined;
+    const picks = ctx.requestChoice({
+        playerId: ctx.controller,
+        choiceId: args.choiceId,
+        kind: "pick-source",
+        zone: "battlefield-or-stack",
+        count: 1,
+        prompt: args.prompt,
+        candidateIds,
+    });
+    return picks?.[0];
 }
 
 export function makeCircleOfProtection(args: {

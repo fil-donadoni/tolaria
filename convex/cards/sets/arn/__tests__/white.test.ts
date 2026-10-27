@@ -10,6 +10,7 @@ import {
     makeState,
     pushSpell,
     resolveActivated,
+    submitChoice,
 } from "../../../__tests__/setup.helper";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -283,10 +284,9 @@ describe("Eye for an Eye (reflect damage to source's controller, CR 614)", () =>
                 makePlayer("p2", { life: 20, battlefield: [tim] }),
             ],
         });
-        pushSpell(state, eyeForAnEye.id, "p1", [
-            { type: "permanent", id: "tim" },
-        ]);
+        pushSpell(state, eyeForAnEye.id, "p1");
         resolveTopOfStack(state);
+        submitChoice(state, ["tim"]);
         resolveActivated(state, tim, "prodigal-sorcerer-ability", [
             { type: "player", id: "p1" },
         ]);
@@ -311,10 +311,9 @@ describe("Eye for an Eye (reflect damage to source's controller, CR 614)", () =>
                 makePlayer("p2", { life: 20, battlefield: [tim, tim2] }),
             ],
         });
-        pushSpell(state, eyeForAnEye.id, "p1", [
-            { type: "permanent", id: "tim" },
-        ]);
+        pushSpell(state, eyeForAnEye.id, "p1");
         resolveTopOfStack(state);
+        submitChoice(state, ["tim"]);
         resolveActivated(state, tim, "prodigal-sorcerer-ability", [
             { type: "player", id: "p1" },
         ]);

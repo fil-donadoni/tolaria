@@ -19,6 +19,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
     resolveActivated,
 } from "../../../__tests__/setup.helper";
 import {
@@ -815,9 +816,8 @@ describe("Dark Sphere / Scarecrow — player damage prevention shields (CR 615.1
                 makePlayer("p2", { battlefield: [threat] }),
             ],
         });
-        resolveActivated(state, sphere, "dark-sphere-prevent-half", [
-            { type: "permanent", id: "threat" },
-        ]);
+        resolveActivated(state, sphere, "dark-sphere-prevent-half");
+        submitChoice(state, ["threat"]);
         const shield = state.playerDamagePrevention?.[0];
         expect(shield?.playerId).toBe("p1");
         expect(shield?.match.sourceInstanceId).toBe("threat");

@@ -2505,6 +2505,7 @@ function isPreventDamageMode(value: unknown): boolean {
         value === "all-combat" ||
         value === "combat-to-and-by" ||
         value === "all-from-source" ||
+        value === "all-from-chosen-source" ||
         value === "all-from-matching" ||
         value === "all-to-matching" ||
         value === "next-n-divided"
@@ -5848,6 +5849,16 @@ const OP_SCHEMAS: OpSchemaTable = {
                         'mode "all-from-source" takes `to: { player }` only'
                     );
                 }
+            } else if (entry.mode === "all-from-chosen-source") {
+                // CR 609.7a — the source is a bare picks ref (a `pick-source`
+                // choice's binding; its family is checked by the ordered ref
+                // pass).
+                requireFields(["source"], ["combatOnly"]);
+                if (has("source") && !isBarePicksRef(entry.source)) {
+                    errors.push(
+                        'mode "all-from-chosen-source" takes `source: { ref }` naming a pick-source choice\'s picks binding'
+                    );
+                }
             } else if (entry.mode === "all-from-matching") {
                 requireFields(["match"], ["combatOnly"]);
                 if (has("match") && !isSourceShieldMatch(entry.match)) {
@@ -8214,7 +8225,8 @@ function checkOpListRefs(
             // other mode's `source` is a battlefield object selector.
             if (
                 entry.op === "preventDamage" &&
-                entry.mode === "next-from-source" &&
+                (entry.mode === "next-from-source" ||
+                    entry.mode === "all-from-chosen-source") &&
                 k === "source"
             ) {
                 collectRefUses(v, "picks", uses);

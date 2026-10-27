@@ -1718,19 +1718,11 @@ export const radiantKavu = defineCard(() => ({
 // burn spell are prevented as well as combat damage. That is the whole point
 // of the clause versus Falling Timber's combat-only one.
 //
-// DIVERGENCE (tracked-by: #2785) — "a source of your choice" is NOT a target (CR 609.7), but the
-// engine has no non-targeted source picker that can also reach a SPELL on the
-// stack, so the mode declares a `targetRequirement` instead. This follows the
-// shipped Circle of Protection precedent exactly (`makeCircleOfProtection`,
-// `cards/abilities/index.ts`, whose whole cycle chooses its source the same
-// way). Observable consequence: a shrouded/hexproof source cannot be chosen
-// and "becomes the target" triggers fire when they should not.
-// tracked-by: #2051.
-//
-// Players are excluded from the requirement (`PERMANENT_TYPES` + `"spell"`
-// rather than the CoP cycle's `"any"`): a damage source is an object
-// (CR 609.7), and a player-typed pick would key a shield that matches no
-// damage source at all.
+// CR 609.7a — "a source of your choice" is chosen on resolution and never
+// targeted: a `pick-source` choice over every permanent and every spell on the
+// stack, so a shrouded/hexproof source can be chosen, no "becomes the target"
+// trigger fires, the mode has no target to fizzle for, and a player is never
+// offered (a damage source is an object).
 export const rithsCharm = defineCard(() => ({
     id: "dd30f389-bac8-4b82-a8a7-6948d43a9f60", // PLS 122
     rarity: "uncommon",
@@ -1776,15 +1768,20 @@ export const rithsCharm = defineCard(() => ({
             label: "Prevent all damage a source of your choice would deal this turn",
             oracleText:
                 "Prevent all damage a source of your choice would deal this turn.",
-            targetRequirement: {
-                type: [...PERMANENT_TYPES, "spell"],
-                count: 1,
-            },
             effects: [
                 {
+                    op: "choice",
+                    kind: "pick-source",
+                    player: "controller",
+                    zone: "battlefield-or-stack",
+                    count: 1,
+                    prompt: "Choose a source.",
+                    bind: "$chosen",
+                },
+                {
                     op: "preventDamage",
-                    mode: "all-from-source",
-                    source: { target: 0 },
+                    mode: "all-from-chosen-source",
+                    source: { ref: "$chosen" },
                 },
             ],
         },

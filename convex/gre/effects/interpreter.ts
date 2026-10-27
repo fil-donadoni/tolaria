@@ -5517,6 +5517,20 @@ export const OP_EXECUTORS: {
             });
             return;
         }
+        if (op.mode === "all-from-chosen-source") {
+            // CR 609.7a / 615.1a — all damage (or all combat damage) the
+            // CHOSEN source would deal this turn, to anyone. The id is read
+            // RAW from the picks binding, as `"next-from-source"` does: the
+            // chosen source may be a spell on the stack. An uncaptured
+            // binding — no legal source to choose — creates no shield.
+            const sourceIds = resolvePicks(ctx, op.source);
+            if (!sourceIds || sourceIds.length === 0) return;
+            ctx.preventAllDamageFromSources({
+                sourceIds,
+                ...(op.combatOnly ? { combatOnly: true } : {}),
+            });
+            return;
+        }
         if (op.mode === "all-from-matching") {
             // CR 615 / 615.6 (issue #1955) — FILTER-scoped: no target is
             // named, and the match is re-read at the moment damage would be

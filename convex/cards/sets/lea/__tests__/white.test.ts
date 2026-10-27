@@ -51,6 +51,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup.helper";
 import { activatePump, grizzlyBearsId } from "./set.helper";
 import { getDefinition } from "../../../index";
@@ -2276,10 +2277,9 @@ describe("Reverse Damage (CR 614 one-shot prevent + gain life)", () => {
                 makePlayer("p2", { battlefield: [bear] }),
             ],
         });
-        pushSpell(state, reverseDamage.id, "p1", [
-            { type: "permanent", id: "bear" },
-        ]);
+        pushSpell(state, reverseDamage.id, "p1");
         resolveTopOfStack(state);
+        submitChoice(state, ["bear"]);
         // Now have the bear deal 4 damage to p1 (via a fake event).
         // Easiest path: directly call into runDamageReplacement-equivalent
         // by casting a Lightning Bolt FROM the bear is not possible; use
@@ -2332,10 +2332,9 @@ describe("Reverse Damage (CR 614 one-shot prevent + gain life)", () => {
                 makePlayer("p2", { battlefield: [bear] }),
             ],
         });
-        pushSpell(state, reverseDamage.id, "p1", [
-            { type: "permanent", id: "bear" },
-        ]);
+        pushSpell(state, reverseDamage.id, "p1");
         resolveTopOfStack(state);
+        submitChoice(state, ["bear"]);
         state.pendingEvents = undefined;
         const result = applyTransientDamageRedirections(state, {
             kind: "damage",
