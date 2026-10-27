@@ -205,6 +205,12 @@ export type TriggerHeadIR =
            * event.
            */
           readonly namesPlayer?: true;
+          /**
+           * CR 603.6a — a head naming SEVERAL steps ("each of your main
+           * phases"): one ability that fires at the beginning of each, so
+           * `phase` is the first and this lists all of them.
+           */
+          readonly phases?: readonly Phase[];
       }
     /**
      * CR 603.2 — "whenever [you / an opponent / a player] casts a spell", with
@@ -453,6 +459,18 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
             phase: "PRECOMBAT_MAIN",
             scope: "each",
             namesPlayer: true,
+        },
+    ],
+    // CR 505.1 + CR 505.1a — a turn has a precombat and a postcombat main
+    // phase; "each of your main phases" is ONE ability firing at the
+    // beginning of both (CR 603.2), not two.
+    [
+        "at the beginning of each of your main phases",
+        {
+            kind: "phase",
+            phase: "PRECOMBAT_MAIN",
+            phases: ["PRECOMBAT_MAIN", "POSTCOMBAT_MAIN"],
+            scope: "your",
         },
     ],
     [
