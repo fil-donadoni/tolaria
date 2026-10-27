@@ -3285,6 +3285,8 @@ function lowerSentenceBody(
                 return unlowerable(
                     "an optional delayed draw is chosen at the delayed trigger, not here"
                 );
+            if (sentence.player !== undefined)
+                return lowerOptionalSacrificeByActedOn(sentence, walk);
             // CR 603.2 + CR 400.7 — "you may put a <descriptor> card from
             // your hand onto the battlefield": the pick's 0..1 count IS the
             // "may" (declining picks nothing), the shape every hand-written
@@ -5143,6 +5145,10 @@ function lowerFrameChain(
                     player: "controller",
                 });
                 break;
+            case "copySpell":
+                return unlowerable(
+                    '"copy this spell" is read only behind a sacrificing player\'s "If the player does"'
+                );
             case "bringFromOutsideGame":
                 ops.push({
                     op: "bringFromOutsideGame",
@@ -5177,6 +5183,87 @@ function lowerFrameChain(
                 filter: {},
             },
             then: inner.value,
+        },
+    ]);
+}
+
+/**
+ * CR 701.21a + CR 118.12 + CR 707.10 — "Then that permanent's controller may
+ * sacrifice a land of their choice. If the player does, they may copy this
+ * spell and may choose a new target for that copy."
+ *
+ * The acted-on object's controller pays a sacrifice as a `mayPay` PERMANENT
+ * cost leg; declining it, or having no such permanent, leaves the bind false
+ * and the gated copy undone. The player is the snapshot read of the object the
+ * sentence before removed (CR 608.2h) and is also the "they" the copy is
+ * offered to, as a second, cost-free decision (CR 707.10 — "may copy").
+ */
+function lowerOptionalSacrificeByActedOn(
+    sentence: Extract<EffectSentenceIR, { kind: "optional" }>,
+    walk: SentenceWalk
+): Lowered<EffectOp[]> {
+    const { player, effect, then } = sentence;
+    const frame =
+        effect.kind === undefined && effect.frames.length === 1
+            ? effect.frames[0]!
+            : null;
+    const copies =
+        then !== undefined &&
+        then.kind === undefined &&
+        then.frames.length === 1 &&
+        then.frames[0]!.frame === "copySpell";
+    if (
+        player?.kind !== "acted-on-controller" ||
+        frame === null ||
+        frame.frame !== "sacrifice" ||
+        frame.object.kind !== "chosen" ||
+        frame.object.count.kind !== "fixed" ||
+        frame.object.count.value !== 1 ||
+        frame.object.superlative !== undefined ||
+        !copies
+    )
+        return unlowerable(
+            "a player other than the controller may sacrifice one chosen permanent only to gate a copy of this spell"
+        );
+    const types = frame.object.filter.type;
+    if (types === undefined || Object.keys(frame.object.filter).length !== 1)
+        return unlowerable(
+            "the sacrificed permanent is described by its card type alone"
+        );
+    const who = lowerActedOnController(player.noun, walk);
+    if (!who.ok) return who;
+    const paid = walk.nextBind("paid");
+    const copy = walk.nextBind("copy");
+    return lowered([
+        {
+            op: "mayPay",
+            player: who.value,
+            cost: {
+                permanent: {
+                    action: "sacrifice",
+                    filter: { types },
+                    count: 1,
+                },
+            },
+            prompt: `${sentence.clause}?`,
+            bind: paid,
+        },
+        {
+            op: "if",
+            predicate: { binding: paid },
+            then: [
+                {
+                    op: "mayPay",
+                    player: who.value,
+                    prompt: "They may copy this spell and may choose a new target for that copy?",
+                    bind: copy,
+                },
+                {
+                    op: "if",
+                    predicate: { binding: copy },
+                    then: [{ op: "copyResolvingSpell", player: who.value }],
+                },
+            ],
         },
     ]);
 }
@@ -5742,8 +5829,12 @@ function lowerActedOnController(
         // a graveyard snapshots its owner there.
         (only.zone !== undefined && only.zone !== "battlefield") ||
         (noun !== "it" &&
-            announcedTypes(only).join() !==
-                noun.charAt(0).toUpperCase() + noun.slice(1))
+            // CR 300.1 — "that permanent" names an announced permanent of any
+            // type (PERMANENT_TYPES, a "nonland permanent" among them).
+            (noun === "permanent"
+                ? announcedTypes(only).join() !== PERMANENT_TYPES.join()
+                : announcedTypes(only).join() !==
+                  noun.charAt(0).toUpperCase() + noun.slice(1)))
     )
         return unlowerable(
             `"${noun === "it" ? "its" : `that ${noun}'s`} controller" names no single object announced and acted on before it (CR 608.2h)`

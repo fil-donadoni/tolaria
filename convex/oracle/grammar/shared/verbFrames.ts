@@ -280,6 +280,16 @@ export type FrameIR =
           readonly unless?: UnlessPaymentIR;
       }
     | {
+          /**
+           * CR 707.10 + CR 707.10c — "copy this spell and may choose a new
+           * target for that copy": the resolving spell copies itself under the
+           * control of the player the gating sentence names. Built by the
+           * "If the player does" Composition Rule, never read from a chain
+           * member, so it has no `VERB_FRAMES` opener.
+           */
+          readonly frame: "copySpell";
+      }
+    | {
           readonly frame: "bringFromOutsideGame";
           /** What the card may be (`OUTSIDE_GAME_FILTERS`), as the Op's filter. */
           readonly filter: EffectCardFilter;

@@ -19706,6 +19706,24 @@ export type EffectOp =
           target: EffectTargetRef;
           destination: SpellStackDestination;
       }
+    /** CR 707.10 + CR 707.10c — "[player] may copy this spell and may choose
+     *  new targets for the copy" (issue #5604): the RESOLVING spell copies
+     *  itself onto the stack under `player`'s control (Chain Lightning, Chain
+     *  of Vapor). Routes through `SpellContext.copyResolvingSpell` then
+     *  `SpellContext.requestCopyRetarget` — the same two primitives the
+     *  hand-written chain cards call. The "may" is NOT in the Op: the grammar
+     *  gates it with a cost-free `mayPay` + `if`. The copy is a fresh
+     *  resolution of the same script, so the chain can recur (CR 707.10).
+     *  Skipped when `player` does not resolve (CR 608.2b). Used from
+     *  a spell's script: the primitive clones the resolving stack item, which
+     *  only an instant or sorcery spell may be (CR 707.10). What it
+     *  deliberately does NOT do: copy a DIFFERENT spell on the stack
+     *  (`copyStackItem`). */
+    | {
+          op: "copyResolvingSpell";
+          /** Who controls the copy and chooses its new targets. */
+          player: EffectPlayerRef;
+      }
     /** CR 115.7a — "change the target of target spell": the effect's
      *  controller picks ANOTHER legal target for the announced spell, written
      *  onto the original stack item in place (not a copy). Routes through
