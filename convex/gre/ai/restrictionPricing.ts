@@ -120,6 +120,7 @@ import {
 import { canPayCost } from "../manaAvailability";
 import { censusOf } from "../manaCensusMemo";
 import { creatureAttackShareRaw, creatureBlockShareRaw } from "../creatureBody";
+import { lastingStaticAbilities } from "./defensiveGrants";
 import { getEffectivePT, type Layer7Pass } from "../layers";
 import { effectivePermanentView } from "../permanentView";
 import { collectUntapRestrictions } from "../phases";
@@ -334,13 +335,18 @@ function buildRestrictionPlan(
                 includeTemporary: false,
                 pass,
             });
+            // Issue #5927 — a keyword granted until end of turn earns no flat
+            // credit in `evaluateCreature`, so the share a restriction takes
+            // off is read from the LASTING keywords only; otherwise a
+            // Pacified creature given flying would lose the bonus twice.
+            const lastingKeywords = lastingStaticAbilities(state, card);
             const attackShare = creatureAttackShareRaw(
                 Math.max(0, lasting.power),
-                card.staticAbilities
+                lastingKeywords
             );
             const blockShare = creatureBlockShareRaw(
                 Math.max(0, lasting.toughness),
-                card.staticAbilities
+                lastingKeywords
             );
 
             // --- attack axis (CR 508.1c) ---
