@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { Reason } from "@convex/formats";
 import { Button } from "~/components/ui/button";
-import { FLOATING_TRIGGER_CLEARANCE } from "~/lib/bug-report-requests";
+import { FLOATING_TRIGGER_CLEARANCE } from "~/lib/floating-trigger-clearance";
 import DeckLegalityChip from "./deck-legality-chip";
 
 interface SaveDeckBarProps {
