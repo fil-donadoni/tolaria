@@ -124,6 +124,7 @@ import {
 import { projectedToGameState } from "~/lib/ai/state-adapter";
 import type { RepetitionHistory } from "@convex/gre/ai/repetition";
 import { getStoredDifficulty } from "~/lib/session";
+import { revealDurationMs } from "~/lib/random-reveal-pacing";
 
 /** A small visible "thinking" beat before the bot acts, so the game does not
  *  feel like it is skipping the opponent's turn instantly. */
@@ -381,6 +382,10 @@ export function useVsAiDriver(
         retryMatchDifficulty();
     }, [retryTick, retryBotState, retryMatchDifficulty]);
     const [thinking, setThinking] = useState(false);
+    // When the Bot's random-reveal ack window was first seen (issue #5516).
+    const revealWait = useRef<{ signature: string; startedAt: number } | null>(
+        null
+    );
     // Rung 5's banner, stored WITH the state version it belongs to so the
     // exposed value can be DERIVED (below) rather than cleared from an effect:
     // a synchronous `setState` inside an effect is a cascading-render hazard,
@@ -896,6 +901,7 @@ export function useVsAiDriver(
             escalationSignature.current = null;
             retrySignature.current = null;
             stuckSignature.current = null;
+            revealWait.current = null;
         }
 
         // Cheap main-thread gate: only consult the Worker when the bot actually
@@ -939,6 +945,23 @@ export function useVsAiDriver(
                 { phase: botState.phase, seq: botState.seq }
             );
             return;
+        }
+
+        // CR 705.2 / ADR 0023, issue #5516 — when the bot is the flipper of a
+        // Random Reveal, its ack waits the reveal's full pacing-table duration
+        // (the SAME one the overlay plays) instead of the think beat, so the
+        // viewer's coin animation is never cut short. Measured from the first
+        // time this window is seen: an effect re-run does not restart the clock.
+        const head = botState.pendingChoices?.[0];
+        let actDelayMs = THINK_DELAY_MS;
+        if (head?.kind === "random-reveal" && head.playerId === botId) {
+            if (revealWait.current?.signature !== signature) {
+                revealWait.current = { signature, startedAt: Date.now() };
+            }
+            actDelayMs = Math.max(
+                THINK_DELAY_MS,
+                revealDurationMs() - (Date.now() - revealWait.current.startedAt)
+            );
         }
 
         // Every non-search realisation is submitted directly — the parked
@@ -1127,7 +1150,7 @@ export function useVsAiDriver(
                     ),
                 { expectedKind: view.owedInput!.kind }
             );
-        }, THINK_DELAY_MS);
+        }, actDelayMs);
 
         return () => window.clearTimeout(timer);
         // `mutations` is rebuilt each render but its callables are stable; depend
