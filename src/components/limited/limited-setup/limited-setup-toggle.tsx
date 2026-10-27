@@ -6,12 +6,15 @@ export default function LimitedSetupToggle({
     label,
     value,
     consequence,
+    note,
     onChange,
 }: {
     label: string;
     value: boolean;
     /** What the current value means, shown under the control. */
     consequence: string;
+    /** A rule that holds whatever the value is, shown directly under the control. */
+    note?: string;
     onChange: (value: boolean) => void;
 }) {
     return (
@@ -28,6 +31,14 @@ export default function LimitedSetupToggle({
                     { value: "on", label: "On" },
                 ]}
             />
+            {note && (
+                <span
+                    className="text-xs text-text-muted"
+                    data-testid="limited-setup-toggle-note"
+                >
+                    {note}
+                </span>
+            )}
             <span className="text-xs text-text-muted">{consequence}</span>
         </div>
     );

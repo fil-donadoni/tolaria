@@ -93,6 +93,7 @@ export default function LimitedSetupTableStep({
                     label="Pick Timer"
                     value={setup.pickTimer}
                     onChange={(pickTimer) => onChange({ pickTimer })}
+                    note="If the draft starts with 2+ humans, the timer is always on."
                     consequence={
                         setup.pickTimer
                             ? "On — each pick's time tightens through the pack on the official schedule; an expired pick auto-picks with the bot engine."
