@@ -188,7 +188,7 @@ describe("activationConditionHolds — the activation-time subset", () => {
                     count: {
                         zone: "battlefield",
                         controller: "controller",
-                        filter: { supertypes: "Snow" },
+                        filter: { supertype: "Snow" },
                     },
                 },
                 op: "ge",
@@ -460,13 +460,13 @@ describe("battlefield activationCondition — validation (issue #5258)", () => {
                     count: {
                         zone: "battlefield",
                         controller: "controller",
-                        filter: { supertypes: "Snow" },
+                        filter: { supertype: "Snow" },
                     },
                 },
                 op: "ge",
                 right: 4,
             })
-        ).toEqual([expect.stringContaining("count.filter.supertypes")]);
+        ).toEqual([expect.stringContaining("count.filter.supertype")]);
         expect(
             validate({
                 left: {
