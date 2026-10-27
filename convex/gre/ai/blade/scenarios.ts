@@ -13059,7 +13059,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5362. Guards `replacementStandingWorth` (`ai/replacementPricing.ts`): the shield's worth is the opposing power it stops, at `lifeWeight` a point. Pair: the same board without the bot's creatures reads the shield at zero and takes the Launcher.",
+        note: "Issue #5362. Guards `replacementStandingWorth` (`ai/replacementPricing.ts`): the shield's worth is the opposing power it stops, at `lifeWeight` a point. Pair: the same board without the bot's creatures reads the shield at zero and takes the Weaponry. Proof of failure: with `damageShieldWorth` returning 0 this entry turns red (the Weaponry is taken) and the twin stays green; the committed run is green on the declared seeds.",
     },
     {
         // DAMAGE PREVENTION PRICING (CR 615.1, issue #5362). The bot holds
