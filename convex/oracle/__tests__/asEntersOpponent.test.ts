@@ -90,4 +90,15 @@ describe("as-enters opponent choice (CR 614.12a)", () => {
             ).state
         ).toBe("unparsed");
     });
+
+    it("REFUSES an opponent choice beside a creature-type choice, naming a real fragment", () => {
+        const outcome = compileCard(
+            trinket(`${LINE}\nAs this artifact enters, choose a creature type.`)
+        );
+        expect(outcome.state).toBe("unparsed");
+        if (outcome.state === "unparsed")
+            expect(
+                outcome.gaps.every((gap) => typeof gap.fragment === "string")
+            ).toBe(true);
+    });
 });

@@ -1087,17 +1087,16 @@ export function lowerCard(
             reason: '"the chosen type" on a card with no as-enters creature-type choice',
             fragment: acc.readsChosenTypeLines[0]!,
         };
-    if (
-        [
-            acc.asEntersCardNameLines,
-            acc.asEntersCreatureTypeLines,
-            acc.asEntersOpponentLines,
-        ].filter((lines) => lines.length > 0).length > 1
-    )
+    const asEntersChoiceLines = [
+        acc.asEntersCardNameLines,
+        acc.asEntersCreatureTypeLines,
+        acc.asEntersOpponentLines,
+    ].filter((lines) => lines.length > 0);
+    if (asEntersChoiceLines.length > 1)
         return {
             ok: false,
             reason: "a card declares two as-enters choices",
-            fragment: acc.asEntersCardNameLines[0]!,
+            fragment: asEntersChoiceLines[0]![0]!,
         };
     // CR 614.12b — two as-enters choices on one card would be staged together
     // and the cost is cost-bearing; the compiler reads exactly one choice.
