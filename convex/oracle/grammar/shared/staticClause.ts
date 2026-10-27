@@ -154,6 +154,17 @@ export type StaticClauseIR =
           readonly filter: PermanentFilter;
           readonly keyword: KeywordIR;
       }
+    /**
+     * CR 113.6b + CR 611.3a — "As long as <self> is in your graveyard and you
+     * control a <descriptor>, <filter> have <keyword>": a keyword grant whose
+     * source functions from its owner's graveyard, gated on a controls count.
+     */
+    | {
+          readonly kind: "graveyard-keyword-grant";
+          readonly filter: PermanentFilter;
+          readonly keyword: KeywordIR;
+          readonly condition: ConditionIR;
+      }
     /** CR 601.2f — a cost modifier on a class of spells, or (CR 602.2b) on
      *  the activated abilities of a class of permanents. */
     | ({
@@ -666,6 +677,46 @@ export const keywordGrantRule: Rule<StaticClauseIR> = rule(
                 keyword,
             });
         })
+);
+
+// ── Frame: keyword grant from the graveyard (CR 113.6b) ────────────────────
+
+const GRAVEYARD_KEYWORD_GRANT =
+    /^As long as (.+?) is in your graveyard and (you control [^,]+), (.+) have ([^,]+)$/;
+
+/**
+ * "As long as this card is in your graveyard and you control a Mountain,
+ * creatures you control have haste." (Anger.) CR 113.6b: the static ability
+ * states the zone it functions in, so the source is the graveyard card. The
+ * condition is the shared "you control a <descriptor>" clause (CR 611.3a); its
+ * neighbours (another zone, another condition, a non-keyword grant) stay
+ * refused by the anchored regex and the shared readers.
+ */
+export const graveyardKeywordGrantRule: Rule<StaticClauseIR> = rule(
+    "graveyard keyword grant",
+    (span, ctx): RuleResult<StaticClauseIR> => {
+        const match = span.match(GRAVEYARD_KEYWORD_GRANT);
+        if (match === null)
+            return fail(
+                'not "As long as <self> is in your graveyard and …"',
+                span
+            );
+        if (!isSelfPhrase(uncapitalise(match[1]!)))
+            return fail(`"${match[1]}" is not the card itself`, span);
+        const keyword = keywordVocabulary().get(match[4]!.toLowerCase());
+        if (keyword === undefined)
+            return fail(`"${match[4]}" is not a keyword`, span);
+        const condition = controlsRule.run(match[2]!, ctx);
+        if (!condition.ok) return condition;
+        const filter = readSubject(match[3]!, "materialised");
+        if (!filter.ok) return filter;
+        return ok({
+            kind: "graveyard-keyword-grant" as const,
+            filter: filter.value,
+            keyword,
+            condition: condition.value,
+        });
+    }
 );
 
 // ── Frame: cost modifier (CR 601.2f) ───────────────────────────────────────
@@ -2419,6 +2470,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
     oneOf(STATIC_CLAUSE, [
         anthemRule,
         keywordGrantRule,
+        graveyardKeywordGrantRule,
         costModifierRule,
         offTurnCostModifierRule,
         abilityCostModifierRule,
