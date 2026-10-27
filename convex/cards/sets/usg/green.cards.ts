@@ -155,8 +155,6 @@ export const fertileGround = defineCard(() => ({
 // zero-Island main phase adds nothing and does not spend the turn's one use.
 // The "you may" is not offered: unspent mana has no cost, so adding is never
 // worse than declining, and a decline would spend the use for nothing.
-//
-// compiler-gap: At the beginning of each of your main phases (#5223)
 export const carpetOfFlowers = defineCard(() => ({
     id: "93abb48a-85f2-432d-8602-0a1d17fbb409",
     rarity: "uncommon",
