@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+    chmodSync,
     mkdirSync,
     mkdtempSync,
     readFileSync,
@@ -1036,6 +1037,24 @@ describe("pushDerivedCommit — landed / coalesced / failed against a bare remot
     );
 
     it("landed: the base tip is the derive commit", () => {
+        const sha = commitOn(clone, head, "d.txt", "derived\n");
+        const r = pushDerivedCommit(runner(clone), input(sha, head));
+        expect(r.outcome).toBe("landed");
+        expect(sh(bare, ["rev-parse", BASE_BRANCH])).toBe(sha);
+    });
+
+    // Issue #7150 — on the Huawei, `origin/HEAD` named the base, so
+    // `.husky/pre-push` ran the full gate on every derive push; it outlived
+    // the 120 s deadline four times and `derive:sync` exited 1 after ~11 min.
+    it("landed past a pre-push hook that refuses: the derive commit never runs the client's hooks", () => {
+        const hooks = join(dir, "hooks");
+        mkdirSync(hooks);
+        writeFileSync(
+            join(hooks, "pre-push"),
+            "#!/bin/sh\necho 'pre-push: full gate' >&2\nexit 1\n"
+        );
+        chmodSync(join(hooks, "pre-push"), 0o755);
+        sh(clone, ["config", "core.hooksPath", hooks]);
         const sha = commitOn(clone, head, "d.txt", "derived\n");
         const r = pushDerivedCommit(runner(clone), input(sha, head));
         expect(r.outcome).toBe("landed");
