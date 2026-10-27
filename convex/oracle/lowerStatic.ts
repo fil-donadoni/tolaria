@@ -348,6 +348,37 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        case "graveyard-keyword-grant": {
+            // CR 611.3a — the condition is read off the LAYER view, so its
+            // filter may only name fields that view can answer.
+            const unreadable = Object.keys(clause.condition.filter).find(
+                (field) => !MATERIALISED_FILTER_FIELDS.has(field)
+            );
+            if (unreadable !== undefined)
+                return {
+                    ok: false,
+                    reason: `a "${unreadable}" clause cannot be read by a static condition`,
+                };
+            return {
+                ok: true,
+                lowered: {
+                    ...grantCensus([clause.keyword]),
+                    effects: [
+                        {
+                            kind: "keyword-grant",
+                            filter: clause.filter,
+                            keyword: clause.keyword.ability,
+                            zone: "graveyard",
+                            condition: {
+                                kind: clause.condition.kind,
+                                filter: clause.condition.filter,
+                                atLeast: clause.condition.atLeast,
+                            },
+                        },
+                    ],
+                },
+            };
+        }
         case "cost-modifier":
             return {
                 ok: true,

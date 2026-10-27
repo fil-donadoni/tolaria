@@ -288,6 +288,11 @@ export type CompiledStaticEffect =
     | ({
           readonly kind: "keyword-grant";
           readonly keyword: string;
+          /** CR 113.6b — "As long as <self> is in your graveyard, …": the
+           *  grant's source functions from its owner's graveyard. */
+          readonly zone?: "graveyard";
+          /** CR 611.3a — "… and you control a <descriptor>". */
+          readonly condition?: CompiledStaticCondition;
       } & CompiledStaticScope)
     /** CR 613.1b layer 2 — "You control enchanted creature." The host only:
      *  no printed control-change sentence names a SET this way. */
@@ -760,6 +765,20 @@ export function resolveCompiledStatic(
                 kind: "keyword-grant",
                 applies: scopePredicate(descriptor),
                 keyword: descriptor.keyword,
+                ...(descriptor.zone !== undefined
+                    ? { zone: descriptor.zone }
+                    : {}),
+                ...(descriptor.condition !== undefined
+                    ? {
+                          condition: (source, state, ctx) =>
+                              staticConditionHolds(
+                                  descriptor.condition!,
+                                  source,
+                                  state,
+                                  ctx
+                              ),
+                      }
+                    : {}),
             };
         case "control-change":
             return { kind: "control-change", applies: AURA_AFFECTS_HOST };

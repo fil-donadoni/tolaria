@@ -15,8 +15,6 @@ import { controlsSubtype, defineCard } from "../../types";
 // presents as the source's controller, so the grant follows Anger into
 // whichever graveyard it is in. The Mountain clause is a CR 611.3a source
 // gate, re-read at every recompute, so losing the last Mountain ends it.
-//
-// hand-tail: "As long as this card is in your graveyard and you control a Mountain, creatures you control have haste." (#2602)
 export const anger = defineCard(() => ({
     id: "fa2920af-e6a1-4939-ab59-67af4430e5b8", // JUD 77
     rarity: "uncommon",
