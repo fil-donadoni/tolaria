@@ -3235,11 +3235,13 @@ function iterate(
         // A root the budget cannot open in full: the children it does open
         // are the whole decision, so open them best-policy-first (the same
         // first-play urgency a choice node uses) instead of uniformly at
-        // random. `selectOpeningCandidate` spends the same rng draw either
-        // way, so the seeded stream is unchanged.
+        // random. The priors steer ONLY the opening pick, never `keyed`, so
+        // the selection term of an already-opened edge is untouched, and
+        // `selectOpeningCandidate` spends the same rng draw either way.
+        let openingPriors: Map<string, number> | null = null;
         if (openRootByPolicy && depth === 0 && pid === botId && !atChoiceNode) {
             node.policyValues ??= new Map();
-            const priors = computeActionPriors(
+            openingPriors = computeActionPriors(
                 world,
                 pid,
                 botId,
@@ -3247,10 +3249,6 @@ function iterate(
                 weights,
                 node.policyValues
             );
-            keyed = keyed.map((k) => ({
-                ...k,
-                prior: priors.get(k.key) ?? 0,
-            }));
         }
 
         const untried = keyed.filter((k) => !node.children.has(k.key));
@@ -3261,7 +3259,15 @@ function iterate(
             // its prior IS its estimate — a choice node opens its candidates in
             // descending prior order. Priority nodes carry a zero prior and keep
             // the historical uniform-random expansion.
-            const pick = selectOpeningCandidate(untried, rng)!;
+            const pick = selectOpeningCandidate(
+                openingPriors
+                    ? untried.map((k) => ({
+                          ...k,
+                          prior: openingPriors.get(k.key) ?? 0,
+                      }))
+                    : untried,
+                rng
+            )!;
             applyMoveInSearch(world, pid, pick.move);
             const edge: Edge = {
                 move: pick.move,
@@ -4946,7 +4952,7 @@ function colorModeTiebreak(
 const STARVED_ROOT_VISITS_PER_CHILD = 2;
 
 /** Virtual rollouts the 1-ply policy value counts for at a starved root. */
-const STARVED_ROOT_PRIOR_VISITS = 4;
+const STARVED_ROOT_PRIOR_VISITS = 8;
 
 /** Reward-scale policy value per root child, from the root's memoized
  *  `policyValues` (populated while the starved root was opened by policy
@@ -5005,21 +5011,23 @@ export function selectRootMove(
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length === 0) return moves[0];
 
-    const maxVisits = pool.reduce((m, e) => Math.max(m, e.visits), 0);
-    const explored = pool.filter(
-        (e) => e.visits >= maxVisits * (1 - weights.visitTol)
-    );
-
-    // A starved root (under `STARVED_ROOT_VISITS_PER_CHILD` iterations per root
-    // candidate): one or two noisy rollouts per child are the whole evidence, so the 1-ply policy
-    // value of each child joins its mean as `STARVED_ROOT_PRIOR_VISITS`
-    // virtual rollouts. Fades on its own as real visits accumulate.
+    // A starved root (under `STARVED_ROOT_VISITS_PER_CHILD` iterations per
+    // root candidate): one or two noisy rollouts per child are the whole
+    // evidence. The visit band then ranks noise (a child that drew one more
+    // iteration is not a better child), so every opened child competes, and
+    // the 1-ply policy value of each joins its mean as
+    // `STARVED_ROOT_PRIOR_VISITS` virtual rollouts. Fades as visits accumulate.
     const starvedPriors =
         searchStats !== undefined &&
         searchStats.iterationsCompleted <
             STARVED_ROOT_VISITS_PER_CHILD * moves.length
             ? starvedRootPriorRewards(root, weights)
             : null;
+    const maxVisits = pool.reduce((m, e) => Math.max(m, e.visits), 0);
+    const explored = starvedPriors
+        ? pool
+        : pool.filter((e) => e.visits >= maxVisits * (1 - weights.visitTol));
+
     const mean = (e: Edge) => {
         const prior = starvedPriors?.get(e.key);
         return prior === undefined
