@@ -17268,6 +17268,7 @@ export function buildSpellContext(
             if (req.randomizeRest) entry.randomizeRest = true;
             if (req.categories) entry.categories = req.categories;
             if (req.categoryRule) entry.categoryRule = req.categoryRule;
+            if (req.distinctKeys) entry.distinctKeys = req.distinctKeys;
             if (req.pickPolarity) entry.pickPolarity = req.pickPolarity;
             if (req.putOnTop) entry.putOnTop = true;
             if (req.isSearch) entry.isSearch = true;
@@ -18564,6 +18565,7 @@ export function buildSpellContext(
             manaValue: number;
             cost: CardManaCost | undefined;
             flashback: boolean;
+            power?: number;
         }> {
             return getPlayer(state, playerId).library.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
@@ -18589,6 +18591,9 @@ export function buildSpellContext(
                     // CR 702.34a — printed or granted flashback, for
                     // `EffectCardFilter.hasFlashback`.
                     flashback: hasFlashback(c),
+                    // CR 208.3 (issue #6475) — printed power, for
+                    // `choice.distinctBy: "power"`.
+                    power: def?.power,
                 };
             });
         },

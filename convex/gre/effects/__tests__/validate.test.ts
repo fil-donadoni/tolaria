@@ -8011,6 +8011,53 @@ describe("count narrowed by a picks binding (CR 608.2h / 701.9a, issue #3807)", 
     });
 });
 
+describe("validateEffectScript — pairwise-distinct search (CR 701.23a, issue #6475)", () => {
+    const search = (overrides: Record<string, unknown> = {}): EffectOp =>
+        ({
+            op: "choice",
+            kind: "search-library",
+            player: "controller",
+            zone: "library",
+            distinctBy: "name",
+            count: { min: 0, max: 4 },
+            prompt: "Search.",
+            bind: "$found",
+            ...overrides,
+        }) as unknown as EffectOp;
+    const refused = (op: EffectOp) =>
+        validateEffectScript(host({ effects: [op] })).some((e) =>
+            /"distinctBy"/.test(e)
+        );
+
+    it("accepts a name or power distinct library search", () => {
+        expect(validateEffectScript(host({ effects: [search()] }))).toEqual([]);
+        expect(
+            validateEffectScript(
+                host({ effects: [search({ distinctBy: "power" })] })
+            )
+        ).toEqual([]);
+    });
+
+    it("refuses an unknown key, another zone or kind, and a pairing with categories", () => {
+        expect(refused(search({ distinctBy: "color" }))).toBe(true);
+        expect(
+            refused(
+                search({ zone: "graveyard", kind: "choose-graveyard-card" })
+            )
+        ).toBe(true);
+        expect(refused(search({ kind: "choose-library-card" }))).toBe(true);
+        expect(
+            refused(
+                search({
+                    categories: [
+                        { label: "Land", filter: { type: "Land" as CardType } },
+                    ],
+                })
+            )
+        ).toBe(true);
+    });
+});
+
 // The three gates issue #3808 added, each a FAIL-CLOSED refusal. They are the
 // only thing standing between an author and a categorised pick validated under
 // the WRONG legality rule — `chooseCategorized`'s COVER rule would let one card

@@ -2078,8 +2078,19 @@ export type EffectSentenceIR =
            */
           readonly kind: "search-reveal-pile-pick";
           readonly count: number;
+          /** "up to N" — the search may find fewer (CR 701.23b), so the count
+           *  is a ceiling. Absent = a quantity search that must find N. */
+          readonly upTo?: true;
+          /** "with different names" — the found set is pairwise distinct
+           *  (CR 701.23a, `choice.distinctBy`, issue #6475). */
+          readonly distinctBy?: "name";
           /** Who picks from the revealed pile. */
           readonly chooser: PlayerRefIR;
+          /** How many cards the chooser picks ("chooses one" / "two"). */
+          readonly picks: number;
+          /** Where the pick goes; the rest of the pile takes the other
+           *  destination. */
+          readonly pickTo: "hand" | "graveyard";
       }
     | {
           /**
@@ -2557,8 +2568,20 @@ export type SentenceIR =
      * and the closing shuffle (`search-pile-shuffle`). Each names an
      * antecedent only the next reads.
      */
-    | { readonly role: "search-reveal-pile"; readonly count: number }
-    | { readonly role: "search-pile-pick"; readonly chooser: PlayerRefIR }
+    | {
+          readonly role: "search-reveal-pile";
+          readonly count: number;
+          readonly upTo?: true;
+          readonly distinctBy?: "name";
+      }
+    | {
+          readonly role: "search-pile-pick";
+          readonly chooser: PlayerRefIR;
+          readonly picks: number;
+      }
+    /** "Put the chosen cards into your graveyard and the rest into your hand"
+     *  — the pick to the graveyard, the rest to hand (Gifts Ungiven). */
+    | { readonly role: "search-pile-route-chosen" }
     | { readonly role: "search-pile-shuffle" }
     /**
      * CR 608.2c — "If you control a <A> and a <B>, <effect> instead": the
@@ -2787,11 +2810,28 @@ export function assembleSentences(
     // CR 701.23d — a searched, revealed pile waits for who picks from it,
     // then for where the pick and the rest go, then for the shuffle.
     let searchPile:
-        | { readonly stage: "needs-chooser"; readonly count: number }
         | {
-              readonly stage: "needs-route" | "needs-shuffle";
+              readonly stage: "needs-chooser";
               readonly count: number;
+              readonly upTo?: true;
+              readonly distinctBy?: "name";
+          }
+        | {
+              readonly stage: "needs-route";
+              readonly count: number;
+              readonly upTo?: true;
+              readonly distinctBy?: "name";
               readonly chooser: PlayerRefIR;
+              readonly picks: number;
+          }
+        | {
+              readonly stage: "needs-shuffle";
+              readonly count: number;
+              readonly upTo?: true;
+              readonly distinctBy?: "name";
+              readonly chooser: PlayerRefIR;
+              readonly picks: number;
+              readonly pickTo: "hand" | "graveyard";
           }
         | null = null;
     // CR 701.20a — a revealed hand waits for the card chosen from it, and the
@@ -2974,22 +3014,36 @@ export function assembleSentences(
                 searchPile = {
                     stage: "needs-route",
                     count: searchPile.count,
+                    ...(searchPile.upTo ? { upTo: true as const } : {}),
+                    ...(searchPile.distinctBy
+                        ? { distinctBy: searchPile.distinctBy }
+                        : {}),
                     chooser: sentence.chooser,
+                    picks: sentence.picks,
                 };
                 continue;
             }
             if (searchPile.stage === "needs-route") {
-                // "that card" is the pick, "the rest" the pile's other cards.
-                if (
-                    sentence.role !== "reveal-until-route" ||
-                    sentence.match !== "hand" ||
-                    sentence.rest !== "graveyard"
-                )
+                // "that card" is the single pick, "the rest" the pile's other
+                // cards; "the chosen cards" are several picks.
+                const toHand: boolean =
+                    sentence.role === "reveal-until-route" &&
+                    sentence.match === "hand" &&
+                    sentence.rest === "graveyard" &&
+                    searchPile.picks === 1;
+                const toGraveyard: boolean =
+                    sentence.role === "search-pile-route-chosen" &&
+                    searchPile.picks > 1;
+                if (!toHand && !toGraveyard)
                     return {
                         ok: false,
                         reason: "a pick from a searched pile is not followed by where its cards go",
                     };
-                searchPile = { ...searchPile, stage: "needs-shuffle" };
+                searchPile = {
+                    ...searchPile,
+                    stage: "needs-shuffle",
+                    pickTo: toHand ? "hand" : "graveyard",
+                };
                 continue;
             }
             // CR 701.24a — the search ends in a shuffle; a pile routed with no
@@ -3002,13 +3056,20 @@ export function assembleSentences(
             effects.push({
                 kind: "search-reveal-pile-pick",
                 count: searchPile.count,
+                ...(searchPile.upTo ? { upTo: true as const } : {}),
+                ...(searchPile.distinctBy
+                    ? { distinctBy: searchPile.distinctBy }
+                    : {}),
                 chooser: searchPile.chooser,
+                picks: searchPile.picks,
+                pickTo: searchPile.pickTo,
             });
             searchPile = null;
             continue;
         }
         if (
             sentence.role === "search-pile-pick" ||
+            sentence.role === "search-pile-route-chosen" ||
             sentence.role === "search-pile-shuffle"
         )
             return {
@@ -3697,7 +3758,14 @@ export function assembleSentences(
             continue;
         }
         if (sentence.role === "search-reveal-pile") {
-            searchPile = { stage: "needs-chooser", count: sentence.count };
+            searchPile = {
+                stage: "needs-chooser",
+                count: sentence.count,
+                ...(sentence.upTo ? { upTo: true as const } : {}),
+                ...(sentence.distinctBy
+                    ? { distinctBy: sentence.distinctBy }
+                    : {}),
+            };
             continue;
         }
         if (sentence.role === "hand-reveal-pick") {
@@ -5238,13 +5306,19 @@ const PILE_OPPONENT_PICKS = /^An opponent chooses one of those piles$/;
 const PILE_ROUTE =
     /^Put (one|that) pile into your hand and the other into your graveyard$/;
 /** CR 701.23d (search) + CR 701.20a (reveal) — a searched pile: "Search your
- *  library for three cards and reveal them". A bare QUANTITY only; a
- *  described search ("three creature cards", "with different names") is not
- *  this window. */
+ *  library for three cards and reveal them", or (CR 701.23a, issue #6475) "up
+ *  to four cards with different names". A bare QUANTITY, optionally "up to"
+ *  and optionally pairwise distinct by name; a typed search ("three creature
+ *  cards", "different powers") is not this window. */
 const SEARCH_REVEAL_PILE =
-    /^Search your library for (\S+) cards and reveal them$/;
-/** The other player's pick from the pile: "Target opponent chooses one". */
-const SEARCH_PILE_PICK = /^Target opponent chooses one$/;
+    /^Search your library for (up to )?(\S+) cards( with different names)? and reveal them$/;
+/** The other player's pick from the pile: "Target opponent chooses one" /
+ *  "Target opponent chooses two of those cards". */
+const SEARCH_PILE_PICK =
+    /^Target opponent chooses (one|two)(?: of those cards)?$/;
+/** The pick to the graveyard, the rest to hand (Gifts Ungiven). */
+const SEARCH_PILE_ROUTE_CHOSEN =
+    /^Put the chosen cards into your graveyard and the rest into your hand$/;
 /** CR 701.24a — the shuffle that ends the search. */
 const SEARCH_PILE_SHUFFLE = /^Then shuffle$/;
 
@@ -6788,19 +6862,27 @@ function libraryHalf(span: string, ctx: unknown) {
         return ok({ role: "pile-opponent-picks" as const });
     const searchPile = span.match(SEARCH_REVEAL_PILE);
     if (searchPile !== null) {
-        const count = readNumberWord(searchPile[1]!);
+        const count = readNumberWord(searchPile[2]!);
         if (count === null || count < 2)
-            return fail(`"${searchPile[1]}" is not a pile's count`, span);
+            return fail(`"${searchPile[2]}" is not a pile's count`, span);
         return ok({
             role: "search-reveal-pile" as const,
             count,
+            ...(searchPile[1] !== undefined ? { upTo: true as const } : {}),
+            ...(searchPile[3] !== undefined
+                ? { distinctBy: "name" as const }
+                : {}),
         } satisfies SentenceIR);
     }
-    if (SEARCH_PILE_PICK.test(span))
+    const searchPick = span.match(SEARCH_PILE_PICK);
+    if (searchPick !== null)
         return ok({
             role: "search-pile-pick" as const,
             chooser: { kind: "target", opponent: true },
+            picks: searchPick[1] === "two" ? 2 : 1,
         } satisfies SentenceIR);
+    if (SEARCH_PILE_ROUTE_CHOSEN.test(span))
+        return ok({ role: "search-pile-route-chosen" as const });
     if (SEARCH_PILE_SHUFFLE.test(span))
         return ok({ role: "search-pile-shuffle" as const });
     const pileRoute = span.match(PILE_ROUTE);

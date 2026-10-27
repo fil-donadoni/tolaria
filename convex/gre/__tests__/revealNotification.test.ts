@@ -375,7 +375,15 @@ describe("CR 701.20a — census: every shipped `reveal` Op notifies (issue #3425
         // Seed every binding family a shipped reveal Op reads: the four picks
         // names its `cards` shape uses, and `$each` in the one forEach-scoped
         // player position (a player binding is the single-element [playerId]).
-        for (const name of ["$picked", "$typecycled", "$found", "$called"]) {
+        // `$found1` is the compiler's numbered form of `$found` (a compiled
+        // search-and-reveal card, issue #6475, keeps it in the set file).
+        for (const name of [
+            "$picked",
+            "$typecycled",
+            "$found",
+            "$found1",
+            "$called",
+        ]) {
             ctx.noteChoice(name, ["p1-lib-0", "p2-lib-0"]);
         }
         ctx.noteChoice("$each", ["p2"]);

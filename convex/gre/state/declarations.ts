@@ -3539,6 +3539,13 @@ export type PendingChoice = {
      *  branch on the SAME field, so the Done gate and the submit validation
      *  can never disagree about which rule applies. */
     categoryRule?: "cover";
+    /** `search-library` only (issue #6475, CR 701.23a) — a pairwise-DISTINCT
+     *  pick ("up to four cards with different names"): maps each pickable
+     *  card's instance id to the key no two picks may share (its name, or its
+     *  power). A card with no entry cannot satisfy the description and is not
+     *  pickable. The legality is the leaf `gre/distinctPick.ts`, which the
+     *  server submit check, the client's click gate and the Bot all call. */
+    distinctKeys?: Record<string, string>;
     /** Whether being PICKED is good or bad for the chooser (issue #1945) — a
      *  pure POLICY hint for the bot, never read by the rules engine.
      *  `"picked-kept"`: the picks survive and the unpicked rest is swept

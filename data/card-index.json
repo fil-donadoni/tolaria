@@ -27274,6 +27274,14 @@
         "source": "compiled"
     },
     {
+        "name": "Gifts Ungiven",
+        "scryfallId": "32b91eb5-ea53-4a21-a2e5-9c545a42fa30",
+        "oracleId": "58aec411-167d-4709-8560-793eaaed62c5",
+        "firstSet": "chk",
+        "firstPrintId": "32b91eb5-ea53-4a21-a2e5-9c545a42fa30",
+        "firstPrintSet": "chk"
+    },
+    {
         "name": "Gigantosaurus",
         "scryfallId": "c1db84d8-d426-4c0d-b44e-5be7b0f5f5bf",
         "oracleId": "e666bae7-dd51-4921-8b89-7e8d423caba0",

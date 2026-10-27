@@ -851,6 +851,11 @@ function buildOwedChoice(
             head.kind === "choose-library-card"
                 ? head.categories
                 : undefined,
+        // issue #6475 (CR 701.23a) — a pairwise-distinct search ("with
+        // different names") constrains the SET, so the policy must test each
+        // addition (`gre/distinctPick.ts`) instead of slicing the best cards.
+        distinctKeys:
+            head.kind === "search-library" ? head.distinctKeys : undefined,
         // issue #1945 — the two extra signals a `choose-categorized` pick
         // carries, both invisible in `categories` alone and both required for
         // a LEGAL, non-self-harming answer:
