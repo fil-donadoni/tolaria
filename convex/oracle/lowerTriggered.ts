@@ -134,7 +134,12 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
         case "cycled":
             return { kind: "cycled" };
         case "phase":
-            return { kind: "phase", phase: head.phase, scope: head.scope };
+            return {
+                kind: "phase",
+                phase: head.phase,
+                scope: head.scope,
+                ...(head.phases !== undefined ? { phases: head.phases } : {}),
+            };
         case "spell-cast":
             return head.filter !== undefined
                 ? { kind: "spell-cast", scope: head.scope, filter: head.filter }
