@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Reason } from "@convex/formats";
 import { Button } from "~/components/ui/button";
+import { FLOATING_TRIGGER_CLEARANCE } from "~/lib/bug-report-requests";
 import DeckLegalityChip from "./deck-legality-chip";
 
 interface SaveDeckBarProps {
@@ -79,7 +80,11 @@ export default function SaveDeckBar({
             // min-height:501px, so this trim also applies at 1440x900x2,
             // not only 1180x820x2 — harmless there (that cell PASSes with
             // unchanged ceilings, it only adds pane height).
-            className="flex flex-wrap items-center gap-2 border-t border-border-subtle/30 bg-surface/60 px-4 py-3 deck-source-dock:py-2 short-viewport:py-1 md:gap-3 md:px-6"
+            // Right padding is the floating bug-report trigger's clearance
+            // (issue #7148), not `md:px-6`: the trigger is fixed in the
+            // bottom-right corner over this band, and at 44px under a coarse
+            // pointer it covered `Done`'s hit point.
+            className={`flex flex-wrap items-center gap-2 border-t border-border-subtle/30 bg-surface/60 px-4 py-3 deck-source-dock:py-2 short-viewport:py-1 md:gap-3 md:pl-6 ${FLOATING_TRIGGER_CLEARANCE}`}
         >
             {onBack && (
                 <Button
