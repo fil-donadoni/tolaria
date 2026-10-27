@@ -270,6 +270,15 @@ export const EVENT_FIELD_REGISTRY: Record<
                 e.type === "PHASE_BEGIN" ? e.activePlayerId : undefined,
         },
     },
+    // CR 605.1b — the controller of the permanent that was tapped:
+    // "whenever enchanted land is tapped for mana, ITS CONTROLLER adds …".
+    PERMANENT_TAPPED: {
+        controllerId: {
+            family: "player",
+            resolve: (e) =>
+                e.type === "PERMANENT_TAPPED" ? e.controllerId : undefined,
+        },
+    },
     // CR 603.6a — "whenever a [permanent] enters, ... its controller ..."
     // (issue #1072 — Tectonic Instability: "tap all lands ITS CONTROLLER
     // controls" for ANY land entering, not just this permanent's own

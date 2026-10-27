@@ -304,6 +304,12 @@ export type CompiledTriggerHead =
     | { readonly kind: "turned-face-up" }
     /** CR 701.26a — "whenever this permanent becomes tapped" (any tap). Self only. */
     | { readonly kind: "tapped"; readonly scope: "self" }
+    /**
+     * CR 605.1b + CR 303.4b — "whenever enchanted land is tapped for mana":
+     * the Aura host's mana-ability tap. The trigger is itself a mana ability
+     * (CR 605.1b) and resolves without the stack.
+     */
+    | { readonly kind: "tapped-for-mana"; readonly scope: "host" }
     /** CR 702.29c — "when you cycle this card". */
     | { readonly kind: "cycled" }
     /** CR 603.8 — "when this creature's power is N or greater" (state trigger). */
@@ -731,6 +737,32 @@ export function resolveCompiledTrigger(
             return turnedFaceUpTrigger(common);
         case "tapped":
             return tappedTrigger({ ...common, scope: head.scope });
+        case "tapped-for-mana": {
+            // CR 605.1b — a for-mana tap trigger is a mana ability only when
+            // it could add mana; any other body (a rider like Manabarbs')
+            // uses the stack.
+            // CR 605.4 — a fixed extra amount is declared to the predictive
+            // potential-mana models (castability gate + auto-tap solver).
+            const addsMana =
+                common.effects !== undefined &&
+                common.effects.length > 0 &&
+                common.effects.every((op) => op.op === "addMana");
+            const bonus = fixedExtraMana(common.effects);
+            return tappedTrigger({
+                ...common,
+                scope: head.scope,
+                forMana: true,
+                ...(addsMana ? { manaAbility: true } : {}),
+                ...(bonus !== undefined
+                    ? {
+                          manaBonusForPotential: {
+                              appliesTo: "host" as const,
+                              amount: { kind: "fixed" as const, mana: bonus },
+                          },
+                      }
+                    : {}),
+            });
+        }
         case "cycled":
             return cycledTrigger(common);
         case "power-reached": {
@@ -843,4 +875,29 @@ export function expandCompiledTriggers(base: CardDefinition): CardDefinition {
         delete expanded.compiledTriggeredGrantTemplates;
     }
     return expanded;
+}
+
+/** CR 605.4 — the constant mana a script of lone `addMana` Ops adds, or
+ *  undefined when any pip is not a plain count (the models then see none). */
+function fixedExtraMana(
+    effects: EffectOp[] | undefined
+): Partial<Record<Color, number>> | undefined {
+    if (effects === undefined || effects.length === 0) return undefined;
+    const total: Partial<Record<Color, number>> = {};
+    for (const op of effects) {
+        if (op.op !== "addMana") return undefined;
+        // The models credit the TAPPED land's controller: any other
+        // recipient gets no bonus.
+        if (
+            typeof op.player !== "object" ||
+            !("ref" in op.player) ||
+            op.player.ref !== "$event.controllerId"
+        )
+            return undefined;
+        for (const [color, amount] of Object.entries(op.mana)) {
+            if (typeof amount !== "number") return undefined;
+            total[color as Color] = (total[color as Color] ?? 0) + amount;
+        }
+    }
+    return total;
 }

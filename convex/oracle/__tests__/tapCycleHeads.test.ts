@@ -5,8 +5,8 @@
 //  1. GOLDENS — each accepted form is a real corpus card compiled whole and
 //     compared with `sortKeys` equality.
 //  2. REFUSALS — the neighbours the heads must NOT read: a tap whose subject is
-//     another permanent ("enchanted land is tapped for mana" needs the tapped
-//     land's controller from the event) and a cycle of ANOTHER card.
+//     another permanent and a cycle of ANOTHER card. ("enchanted land is
+//     tapped for mana" has its own file, `tappedForManaHead.test.ts`.)
 //
 // The engine half (does the rebuilt ability FIRE on the right event?) is the
 // generated smoke test over the lockfile plus the factories' own tests.
@@ -103,22 +103,6 @@ describe("tap and cycle trigger heads — goldens (issue #4547)", () => {
 });
 
 describe("tap and cycle trigger heads — refusals (issue #4547)", () => {
-    it("refuses 'enchanted land is tapped for mana' (Wild Growth): the recipient is the tapped land's controller", () => {
-        expect(
-            refused(
-                oracleCard({
-                    name: "Wild Growth",
-                    manaCost: "{G}",
-                    typeLine: "Enchantment — Aura",
-                    oracleText:
-                        "Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional {G}.",
-                    power: undefined,
-                    toughness: undefined,
-                })
-            )
-        ).toBe(true);
-    });
-
     it("refuses a tap head naming a subject that is not the source", () => {
         expect(
             refused(
