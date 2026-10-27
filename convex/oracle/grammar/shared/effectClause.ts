@@ -659,7 +659,7 @@ export type EffectSentenceIR =
            */
           readonly thatPlayer?: true;
           /**
-           * CR 109.4 + CR 605.4 — "Its controller adds an additional {G}":
+           * CR 605.4 — "Its controller adds an additional {G}":
            * the mana goes to the controller of the permanent a host-tapped
            * head named (`SiteAntecedents.tappedController`).
            */

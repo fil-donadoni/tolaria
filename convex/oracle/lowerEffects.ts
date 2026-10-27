@@ -213,7 +213,7 @@ export interface SiteAntecedents {
     /** "that player". */
     readonly player?: EffectPlayerRef;
     /**
-     * CR 109.4 — "its controller": the controller of the permanent a
+     * CR 303.4b — "its controller": the controller of the permanent a
      * host-tapped head fired for, set only by that head.
      */
     readonly tappedController?: EffectPlayerRef;

@@ -1241,7 +1241,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "White Scarab",
     "Whiteout",
     "Wiitigo",
-    "Wild Growth",
     "Winds of Change",
     "Winnow",
     "Winter Blast",

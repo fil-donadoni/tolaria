@@ -252,6 +252,46 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 605.1b + CR 303.4b — "Whenever enchanted land is tapped for mana, its
+    // controller adds an additional {G}": the host's mana tap, the mana going
+    // to the TAPPED land's controller. Exhibits `addMana` into an `$event`
+    // player, a recipient the canned smoke scenario cannot pick.
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "706ae742-1807-44b7-a4fa-f2e26f61519a",
+            name: "Wild Growth",
+            manaCost: "{G}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional {G}.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Wild Growth",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { G: 1 },
+            oracleText:
+                "Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional {G}.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "wild-growth-trigger",
+                    oracleText:
+                        "Whenever enchanted land is tapped for mana, its controller adds an additional {G}.",
+                    head: { kind: "tapped-for-mana", scope: "host" },
+                    effects: [
+                        {
+                            op: "addMana",
+                            mana: { G: 1 },
+                            player: { ref: "$event.controllerId" },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "Land", count: 1 },
+        },
+    },
     // CR 303.4b + CR 603.2b — "…upkeep of enchanted creature's controller, that
     // player draws a card". Exhibits `draw` into an `$event` player
     // (issue #4545).

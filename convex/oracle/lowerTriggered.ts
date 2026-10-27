@@ -205,7 +205,7 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         ...(playerField !== null
             ? { player: { ref: `$event.${playerField}` } }
             : {}),
-        // CR 109.4 + CR 303.4b — "its controller" behind a host-tapped head is
+        // CR 303.4b — "its controller" behind a host-tapped head is
         // the tapped land's controller, not the Aura's.
         ...(head.kind === "tapped-for-mana"
             ? { tappedController: { ref: "$event.controllerId" } }
