@@ -100,6 +100,8 @@ import {
     applySacrificeSelection,
     sacrificeSourceSnapshot,
     sacrificeCandidates,
+    nextUnmetRequirement,
+    requirementCandidates,
 } from "./gre/sacrificeChoice";
 
 import {
@@ -554,6 +556,7 @@ import { activationRestrictionViolation } from "./gre/activationRestrictions";
 import { commitCast } from "./gre/castCommit";
 import {
     activateAbilityOnState,
+    activationSourceTypes,
     assertActivationTimingLegal,
     assertDiscardFilterCostAffordable,
     assertGameNotOver,
@@ -8754,6 +8757,42 @@ export const tapForActivationPayment = mutation({
             (c) => c.id === args.cardInstanceId
         );
         if (!card) throw new Error("Card not on battlefield");
+
+        // CR 605.3a — a mana ability is activatable here only to pay a mana
+        // payment this announcement still owes. A sacrifice-only cost
+        // (Broadside Bombardiers' Boast) owes none.
+        const paSource = state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === pa.cardInstanceId);
+        const manaStillOwed = !isManaCostCovered(
+            spendablePoolForAbility(
+                player,
+                activationSourceTypes(state, pa.cardInstanceId)
+            ),
+            pa.manaCost,
+            getAbilityManaSubstitutions(state, player.id, paSource)
+        );
+        if (!manaStillOwed) {
+            throw new Error("This activation owes no mana");
+        }
+        // Not a CR rule: the client routes a click on a still-needed sacrifice
+        // victim to the pick, so the server mirrors that gate (issue #3076).
+        const sacReq = pa.sacrificeSelection
+            ? nextUnmetRequirement(pa.sacrificeSelection)
+            : undefined;
+        if (
+            pa.sacrificeSelection &&
+            sacReq &&
+            requirementCandidates(state, args.playerId, sacReq).some(
+                (c) =>
+                    c.id === card.id &&
+                    !pa.sacrificeSelection!.picked.includes(c.id)
+            )
+        ) {
+            throw new Error(
+                "That permanent is an outstanding sacrifice candidate"
+            );
+        }
 
         tapSourceIntoPayment(
             state,
