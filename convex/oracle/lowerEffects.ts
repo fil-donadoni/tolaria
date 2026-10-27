@@ -2860,30 +2860,46 @@ function lowerSentenceBody(
             const bind = walk.nextBind("may");
             // CR 118.12a — the taxed player is the spell's controller.
             const taxed = { controllerOf: target.value };
+            // CR 107.3a — "{X}" is the X the countering spell announced.
+            const announcedX =
+                sentence.unlessPays.kind === "announced-x"
+                    ? lowerAmount({ kind: "x" }, site)
+                    : undefined;
+            if (announcedX !== undefined && !announcedX.ok) return announcedX;
             const payment: Extract<EffectOp, { op: "mayPay" }> =
-                sentence.unlessPays.kind === "flat"
+                announcedX !== undefined
                     ? {
                           op: "mayPay",
                           player: taxed,
-                          // A flat tax is a plain generic `ManaCost`.
-                          cost: { X: sentence.unlessPays.amount },
-                          prompt: `Pay {${sentence.unlessPays.amount}} to prevent your spell from being countered?`,
+                          cost: { genericEqualTo: announcedX.value },
+                          prompt: "Pay {X} to prevent your spell from being countered?",
                           bind,
                       }
-                    : {
-                          op: "mayPay",
-                          player: taxed,
-                          // CR 109.5 — "lands YOU control" is the EFFECT's
-                          // controller, never the taxed player; `times` is
-                          // absent because the printed price is {1} per land
-                          // type and the grammar reads no other
-                          // (`COUNTER_DOMAIN_TAX`).
-                          cost: {
-                              genericEqualTo: { domain: { of: "controller" } },
-                          },
-                          prompt: `Pay {1} for each basic land type among lands ${site.selfName}'s controller controls to prevent your spell from being countered?`,
-                          bind,
-                      };
+                    : sentence.unlessPays.kind === "flat"
+                      ? {
+                            op: "mayPay",
+                            player: taxed,
+                            // A flat tax is a plain generic `ManaCost`.
+                            cost: { X: sentence.unlessPays.amount },
+                            prompt: `Pay {${sentence.unlessPays.amount}} to prevent your spell from being countered?`,
+                            bind,
+                        }
+                      : {
+                            op: "mayPay",
+                            player: taxed,
+                            // CR 109.5 — "lands YOU control" is the EFFECT's
+                            // controller, never the taxed player; `times` is
+                            // absent because the printed price is {1} per land
+                            // type and the grammar reads no other
+                            // (`COUNTER_DOMAIN_TAX`).
+                            cost: {
+                                genericEqualTo: {
+                                    domain: { of: "controller" },
+                                },
+                            },
+                            prompt: `Pay {1} for each basic land type among lands ${site.selfName}'s controller controls to prevent your spell from being countered?`,
+                            bind,
+                        };
             return lowered([
                 payment,
                 {

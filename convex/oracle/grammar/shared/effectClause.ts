@@ -429,13 +429,15 @@ export interface CardCountConditionIR {
  * CR 118.12a — the price a counter's controller may be made to pay to keep
  * their spell on the stack ("… unless its controller pays <tax>").
  *
- * TWO forms: the per-tally generic tax "{N} for each <tally>", whose only tally
- * this grammar reads is CR 207.2c's Domain ("each basic land type among lands
- * you control"), and the FLAT generic tax "{N}" (Mana Leak). Both are generic
- * mana in a `mayPay` cost leg; they differ in whether the amount is a literal
- * or a runtime tally. A tax naming colored mana, {X} or any further rider
- * ("plus an additional …", "for each …", "where X is …") is neither read here
- * nor evidenced by a fixture, and stays refused under its own gap key.
+ * THREE forms: the per-tally generic tax "{N} for each <tally>", whose only
+ * tally this grammar reads is CR 207.2c's Domain ("each basic land type among
+ * lands you control"), the FLAT generic tax "{N}" (Mana Leak), and the
+ * announced-X tax "{X}" (Logic Knot), whose amount is the X the counterspell
+ * itself announced (CR 107.3a). All are generic mana in a `mayPay` cost leg;
+ * they differ in whether the amount is a literal or a runtime value. A tax
+ * naming colored or half mana (the engine cannot pay a half-mana symbol) or any further rider ("plus an additional …", "for each …", "where
+ * X is …") is neither read here nor evidenced by a fixture, and stays refused
+ * under its own gap key.
  */
 export type CounterTaxIR =
     | {
@@ -445,6 +447,10 @@ export type CounterTaxIR =
           readonly kind: "flat";
           /** The printed generic amount, at least 1. */
           readonly amount: number;
+      }
+    | {
+          /** "{X}": the X the countering spell announced. */
+          readonly kind: "announced-x";
       };
 
 /**
@@ -5272,6 +5278,12 @@ const COUNTER_DOMAIN_TAX =
  * rider fail the anchor and refuse the counter.
  */
 const COUNTER_FLAT_TAX = /^ unless its controller pays \{([1-9]\d*)\}$/;
+/**
+ * CR 107.3a — the announced-X tax, whole: "{X}" and nothing after. X is the
+ * value the counterspell's own controller announced; a "where X is …" clause
+ * defines X by text (CR 107.3a excludes it) and fails the anchor.
+ */
+const COUNTER_X_TAX = /^ unless its controller pays \{X\}$/;
 
 /** CR 615.12 — the printed sentence, whole, without its full stop. */
 const SUPPRESS_DAMAGE_PREVENTION = "Damage can't be prevented this turn";
@@ -7793,6 +7805,12 @@ function effectSentence(
                 kind: "counter" as const,
                 subject: subject.value,
                 unlessPays: { kind: "flat", amount: Number(flat[1]) },
+            } satisfies EffectSentenceIR);
+        if (COUNTER_X_TAX.test(rest.slice(taxAt)))
+            return ok({
+                kind: "counter" as const,
+                subject: subject.value,
+                unlessPays: { kind: "announced-x" },
             } satisfies EffectSentenceIR);
         const tax = rest.slice(taxAt).match(COUNTER_DOMAIN_TAX);
         if (tax === null)

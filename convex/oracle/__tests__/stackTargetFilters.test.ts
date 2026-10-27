@@ -402,20 +402,83 @@ describe("the flat counter tax (CR 118.12a)", () => {
     });
 });
 
+describe("the announced-X counter tax (CR 118.12a, CR 107.3a)", () => {
+    it("lowers 'unless its controller pays {X}' to a generic X mayPay — Logic Knot", () => {
+        const oracleText =
+            "Counter target spell unless its controller pays {X}.";
+        expect(
+            sortKeys(compiled(instant("Logic Knot", "{X}{U}{U}", oracleText)))
+        ).toEqual(
+            sortKeys({
+                name: "Logic Knot",
+                types: ["Instant"],
+                manaCost: { X: "X", U: 2 },
+                oracleText,
+                effects: [
+                    {
+                        op: "mayPay",
+                        player: { controllerOf: { target: 0 } },
+                        cost: { genericEqualTo: { X: true } },
+                        prompt: "Pay {X} to prevent your spell from being countered?",
+                        bind: "$may1",
+                    },
+                    {
+                        op: "if",
+                        predicate: { not: { binding: "$may1" } },
+                        then: [{ op: "counter", target: { target: 0 } }],
+                    },
+                ],
+                targetRequirement: { type: "spell", count: 1 },
+            })
+        );
+    });
+
+    it("reads the same price ahead of a rider sentence — Condescend", () => {
+        const def = compiled(
+            instant(
+                "Condescend",
+                "{X}{U}",
+                "Counter target spell unless its controller pays {X}. Scry 2."
+            )
+        );
+        expect(def.effects?.[0]).toMatchObject({
+            op: "mayPay",
+            cost: { genericEqualTo: { X: true } },
+        });
+        expect(def.effects?.some((e) => e.op === "scryReorder")).toBe(true);
+    });
+});
+
 describe("the neighbours these rules refuse (fail-closed, ADR 0105 § 2)", () => {
-    // {X} is the spell's own announced amount; a flat-tax rule that read it
-    // as a digit would price nothing. Condescend prints it.
-    it("refuses a variable tax — Condescend", () => {
+    // A half-mana symbol: the engine has no half-mana payment, so Flaccify's
+    // price is refused rather than rounded.
+    it("refuses a half-mana tax — Flaccify", () => {
         expect(
             refusedAt(
                 instant(
-                    "Condescend",
-                    "{X}{U}",
-                    "Counter target spell unless its controller pays {X}. Scry 2."
+                    "Flaccify",
+                    "{3}{U}",
+                    "Counter target spell unless its controller pays {3}{½}."
                 )
             )
         ).toBe(
-            "effect clause: Counter target spell unless its controller pays {X}"
+            "effect clause: Counter target spell unless its controller pays {3}{½}"
+        );
+    });
+
+    // CR 107.3a — "where X is …" defines X by text, so it is not the
+    // announced-X price; it stays under its own gap key.
+    it("refuses a text-defined X tax — Busted!", () => {
+        expect(
+            refusedAt(
+                instant(
+                    "Busted!",
+                    "{U}",
+                    "Counter target spell unless its controller pays {X}, where X is the number of words in the name with the most words among permanents you control."
+                )
+            )
+        ).toBe(
+            "effect clause > number of set > object descriptor: words in the name with the most words among permanents you control"
         );
     });
 
