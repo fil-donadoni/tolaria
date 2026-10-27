@@ -21,7 +21,7 @@ import { defineCard } from "../../types";
 // order the cards are bottomed in, and the order they are put back on top in
 // after the shuffle (the player sees the same five cards either way, so
 // deciding the order at the last look loses nothing).
-// compiler-gap: As many times as you choose, you may pay 1 life, put those cards on the bottom of your library in any order, then look at the top five cards of your library (#5603)
+// hand-tail: As many times as you choose, you may pay 1 life, put those cards on the bottom of your library in any order, then look at the top five cards of your library (#6743)
 export const limDulsVault = defineCard(() => ({
     id: "f9b0164c-2d4e-48ab-addd-322d9b504739", // ALL 107
     rarity: "uncommon",
