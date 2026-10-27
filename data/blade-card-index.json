@@ -123,13 +123,6 @@
             "needsSetup": false
         }
     ],
-    "Dega Disciple": [
-        {
-            "label": "this-turn tap activations: Dega Disciple pumps its own blocked attacker to kill the blocker",
-            "tier": "must",
-            "needsSetup": false
-        }
-    ],
     "Disenchant": [
         {
             "label": "each-step dig: Disenchant takes the Oath of Druids that digs only the opponent's Craw Wurms, not the 2-MV artifact (issue #5627)",
@@ -541,13 +534,6 @@
             "needsSetup": true
         }
     ],
-    "Samite Pilgrim": [
-        {
-            "label": "this-turn tap activations: Samite Pilgrim shields its own blocker, never the attacker",
-            "tier": "must",
-            "needsSetup": false
-        }
-    ],
     "Sandstorm Salvager": [
         {
             "label": "dominance NEGATIVE CONTROL: activates the Salvager once a token exists",
@@ -649,13 +635,6 @@
             "label": "granted flashback: casts Stingcaster Mage to flash back Lightning Bolt for lethal",
             "tier": "must",
             "needsSetup": false
-        }
-    ],
-    "Stone Kavu": [
-        {
-            "label": "starved search: pumps toughness in response to damage removal",
-            "tier": "must",
-            "needsSetup": true
         }
     ],
     "Stone Rain": [
