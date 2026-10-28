@@ -2972,6 +2972,19 @@ function lowerSentenceBody(
                 return unlowerable("retarget names an announced spell");
             return lowered([{ op: "retarget", target: target.value }]);
         }
+        // CR 400.7 + CR 112.1 — the announced spell leaves the stack for its
+        // owner's hand; `moveSpellFromStack`, never `counter` (CR 701.6a).
+        case "return-spell-to-hand": {
+            const target = spellSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            return lowered([
+                {
+                    op: "moveSpellFromStack",
+                    target: target.value,
+                    destination: "hand",
+                },
+            ]);
+        }
         case "counter-limit-instead":
             return unlowerable(
                 'a counter limit "instead" is a kicker gate\'s replacement (CR 702.33g)'

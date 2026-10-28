@@ -818,6 +818,15 @@ function admits(
         )
     )
         return "a plural owners' hands is the destination of a sweep or of a group of targets, not of one object (CR 400.3)";
+    // CR 400.7 + CR 112.1 — a spell is on the stack, not the battlefield: its
+    // departure has an Op of its own (`moveSpellFromStack`), read by the
+    // "return-spell-to-hand" sentence kind, never by a zone-change frame.
+    if (
+        object.kind === "subject" &&
+        object.subject.kind === "target" &&
+        object.subject.requirement.type === "spell"
+    )
+        return "a spell leaves the stack by its own sentence, not a zone-change frame (CR 400.7)";
     switch (object.kind) {
         case "library-top":
             // CR 701.13a — only exiling the top of a library has an Op

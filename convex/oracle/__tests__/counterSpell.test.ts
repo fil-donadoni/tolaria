@@ -256,7 +256,8 @@ describe("the neighbours this rule refuses (fail-closed, ADR 0105 § 2)", () => 
 // Reprieve compiled its CR 400.7 stack departure (`moveSpellFromStack`, issue
 // #2605) as a permanent's `moveZone`. The refusal lives at `objectSelector`,
 // the one chokepoint every battlefield verb passes — so the guard is written
-// over the CLASS, not over the card that exposed it.
+// over the CLASS, not over the card that exposed it. (The spell bounce itself
+// is now read by its own sentence kind: `returnSpellToHand.test.ts`.)
 describe("no battlefield verb reads a spell (CR 112.1)", () => {
     const ON_THE_STACK =
         "a spell is on the stack, not the battlefield (CR 112.1)";
@@ -266,7 +267,6 @@ describe("no battlefield verb reads a spell (CR 112.1)", () => {
         ["tap", "Tap target spell."],
         ["untap", "Untap target spell."],
         ["regenerate", "Regenerate target spell."],
-        ["bounce", "Return target spell to its owner's hand."],
         ["pump", "Target spell gets +1/+1 until end of turn."],
         ["grant", "Target spell gains flying until end of turn."],
         ["counters", "Put two +1/+1 counters on target spell."],

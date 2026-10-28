@@ -522,6 +522,7 @@ export const EFFECT_SENTENCE_KINDS = [
     "sacrifice-source-at-counters",
     "counter-limit-instead",
     "retarget",
+    "return-spell-to-hand",
     "tap-untap",
     "skip-next-untap",
     "regenerate",
@@ -1286,6 +1287,16 @@ export type EffectSentenceIR =
            * 115.7b–d) are different instructions and stay refused.
            */
           readonly kind: "retarget";
+          readonly subject: SubjectIR;
+      }
+    | {
+          /**
+           * CR 400.7 + CR 112.1 — "Return target spell to its owner's hand":
+           * the announced spell leaves the stack for its owner's hand, which is
+           * NOT a counter (CR 701.6a cancels the spell; this does not). The
+           * subject is always the announced `spell` stack slot.
+           */
+          readonly kind: "return-spell-to-hand";
           readonly subject: SubjectIR;
       }
     | {
@@ -5459,6 +5470,10 @@ const ROUTE_REST: ReadonlyMap<
  */
 const COUNTER_VERB = "counter ";
 
+/** CR 400.7 — "Return target spell to its owner's hand", the whole sentence. */
+const RETURN_SPELL_TO_HAND =
+    /^Return (target spell) to its owner(?:'|’)s hand$/;
+
 /** CR 115.7a — the instruction's opening, sentence-initial casing. */
 const RETARGET_VERB = "Change the target of ";
 /** CR 115.7 — the one subject phrase the retarget rule reads. */
@@ -8066,6 +8081,17 @@ function effectSentence(
             kind: "sacrifice-source-at-counters" as const,
             counter: tally[2]!,
             atLeast,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── return a spell to its owner's hand (CR 400.7) ──────────────────────
+    const spellBounce = span.match(RETURN_SPELL_TO_HAND);
+    if (spellBounce !== null) {
+        const subject = subjectRule.run(spellBounce[1]!, ctx);
+        if (!subject.ok) return subject;
+        return ok({
+            kind: "return-spell-to-hand" as const,
+            subject: subject.value,
         } satisfies EffectSentenceIR);
     }
 
