@@ -44,6 +44,7 @@ const PAYLOAD_KEYS = [
     "currentPack",
     "packQueue",
     "poolArrangement",
+    "draftSignal",
 ] as const;
 
 type PayloadKey = (typeof PAYLOAD_KEYS)[number];
@@ -72,6 +73,7 @@ interface StoredPayload {
     currentPack?: StoredPackCard[];
     packQueue?: StoredPackCard[][];
     poolArrangement?: LimitedEventSeat["poolArrangement"];
+    draftSignal?: LimitedEventSeat["draftSignal"];
 }
 
 /** The seat shape as stored on the event row: identity + small mutable state,
@@ -181,6 +183,9 @@ function expandPayload(
     if (stored.poolArrangement !== undefined) {
         payload.poolArrangement = stored.poolArrangement;
     }
+    if (stored.draftSignal !== undefined) {
+        payload.draftSignal = stored.draftSignal;
+    }
     return payload;
 }
 
@@ -205,6 +210,9 @@ function internPayload(seat: Partial<StoredPayload>): StoredPayload {
     }
     if (seat.poolArrangement !== undefined) {
         payload.poolArrangement = seat.poolArrangement;
+    }
+    if (seat.draftSignal !== undefined) {
+        payload.draftSignal = seat.draftSignal;
     }
     return payload;
 }
@@ -430,6 +438,7 @@ export async function hydrateSeats(
                 currentPack,
                 packQueue,
                 poolArrangement,
+                draftSignal,
                 selectedPickId: _selected,
                 ...rest
             } = stored;
@@ -437,6 +446,7 @@ export async function hydrateSeats(
             void currentPack;
             void packQueue;
             void poolArrangement;
+            void draftSignal;
             void _selected;
             return rest;
         }

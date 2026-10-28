@@ -18,6 +18,7 @@
 import { v, type Infer } from "convex/values";
 import type { CardPins } from "../deckLayout";
 import { cardPinsValidator } from "../deckLayoutStorage";
+import type { SeatSignalState } from "./draftSignal";
 
 /** One physical card opened into a seat's Pool (ADR 0054/0055): the exact
  *  printing drawn from a Booster (`scryfallId`) plus the canonical Card ID
@@ -122,6 +123,14 @@ export interface LimitedEventSeat {
      *  A seat that never returns keeps its marks into deckbuild, which is
      *  correct. Absent means nothing unattended since the last manual Pick. */
     unattendedPickIndices?: number[];
+    /** Draft only (PRD #1616, ADR 0134, issue #3737): this seat's running Draft
+     *  Signal state — the per-direction accumulators plus, per round, the size
+     *  of the first pack the seat saw. Numbers only (no card ids), folded
+     *  forward once per pack the seat receives by `draftSignal.ts#observePack`.
+     *  Bot-internal: `projectLimitedEvent` never copies it, so a live draft
+     *  leaks no signal. Absent (an event started before it existed) reads as an
+     *  empty read. Stored on the seat's `limitedSeats` row. */
+    draftSignal?: SeatSignalState;
 }
 
 export type LimitedEventType = "sealed" | "draft";
@@ -299,3 +308,16 @@ const _entryTypeMatchesValidator: ValidatedPoolArrangementEntry =
     {} as PoolArrangementEntry;
 void _entryValidatorMatchesType;
 void _entryTypeMatchesValidator;
+
+/** Storage validator of {@link SeatSignalState} (issue #3737): accumulators keyed
+ *  by colour / Archetype id, `dealtSizeByRound` keyed by the round number as a
+ *  string. Numbers only, so a seat's row growth is bounded by the Archetype
+ *  registry and the round count, never by the packs seen. */
+const signalAxesValidator = v.object({
+    colour: v.record(v.string(), v.number()),
+    archetype: v.record(v.string(), v.number()),
+});
+export const seatSignalStateValidator = v.object({
+    read: v.object({ left: signalAxesValidator, right: signalAxesValidator }),
+    dealtSizeByRound: v.record(v.string(), v.number()),
+});

@@ -20,6 +20,7 @@ import {
 import type { GetBoosterConfig, ResolveCardMeta } from "./eventLogic";
 import { isAutoDrivenSeat } from "./droppedSeat";
 import type { DraftPackCard, LimitedEventSeat } from "./eventTypes";
+import { emptySeatSignalState, type SeatSignalState } from "./draftSignal";
 
 /** Pass direction alternates every booster round (PRD #1107 story 12: "left,
  *  then right, then left"). Round 0 passes "left" (+1 seat index, mod seat
@@ -240,11 +241,26 @@ export interface SeatTimerUpdate {
  *  caller has one built already (`makeBotChoosePick`,
  *  `convex/limitedEvents.ts`). */
 function assignFreshPack(
-    seat: LimitedEventSeat,
+    receiver: LimitedEventSeat,
     pack: DraftPackCard[],
+    round: number,
     timerConfig: TimerConfig | undefined,
-    chooseBotPick?: ChooseBotPick
+    chooseBotPick?: ChooseBotPick,
+    observePack?: ObservePack
 ): { seat: LimitedEventSeat; update?: SeatTimerUpdate } {
+    // Draft Signal (issue #3737): the pack is folded into the seat's read
+    // exactly once, here, the one place a pack becomes a seat's `currentPack`
+    // (dealt, passed in or dequeued) — before any pick is computed from it.
+    const seat: LimitedEventSeat = observePack
+        ? {
+              ...receiver,
+              draftSignal: observePack(
+                  receiver.draftSignal ?? emptySeatSignalState(),
+                  pack,
+                  round
+              ),
+          }
+        : receiver;
     if (!timerConfig || isAutoDrivenSeat(seat)) {
         return {
             seat: { ...seat, currentPack: pack, defaultPickId: undefined },
@@ -259,7 +275,7 @@ function assignFreshPack(
     const defaultPickId =
         displaySeconds === null
             ? undefined
-            : chooseBotPick?.(seat, pack, [pack]);
+            : chooseBotPick?.(seat, pack, [pack], round);
     const stamped: LimitedEventSeat = {
         ...seat,
         currentPack: pack,
@@ -312,7 +328,9 @@ export function startDraft(
     /** ADR 0095: computes round 0's `defaultPickId` for every human seat a
      *  timer-on event stamps a deadline for. Optional so a timer-off /
      *  no-default-needed call keeps working with no adapter to build. */
-    chooseBotPick?: ChooseBotPick
+    chooseBotPick?: ChooseBotPick,
+    /** Issue #3737: folds each seat's round-0 pack into its Draft Signal. */
+    observePack?: ObservePack
 ): StartDraftResult {
     if (packSlots.length === 0) {
         throw new Error("startDraft: packSlots is empty");
@@ -332,8 +350,10 @@ export function startDraft(
         const { seat: stamped, update } = assignFreshPack(
             { ...seat, pool: [], packQueue: [] },
             packs[i],
+            0,
             timerConfig,
-            chooseBotPick
+            chooseBotPick,
+            observePack
         );
         if (update) timerUpdates.push(update);
         return stamped;
@@ -401,7 +421,10 @@ export function applyPick(
      *  pack passed on, dequeued, or dealt on round advance gets its
      *  `defaultPickId` stamped alongside its deadline. Optional — see
      *  `startDraft`. */
-    chooseBotPick?: ChooseBotPick
+    chooseBotPick?: ChooseBotPick,
+    /** Issue #3737: forwarded to every `assignFreshPack` this call makes, so
+     *  each pack a seat receives is folded into its Draft Signal once. */
+    observePack?: ObservePack
 ): ApplyPickResult {
     const seatCount = seats.length;
     const seat = seats[seatIndex];
@@ -454,8 +477,10 @@ export function applyPick(
             const { seat: stamped, update } = assignFreshPack(
                 target,
                 remaining,
+                round,
                 timerConfig,
-                chooseBotPick
+                chooseBotPick,
+                observePack
             );
             nextSeats[targetIndex] = stamped;
             if (update) timerUpdates.push(update);
@@ -480,8 +505,10 @@ export function applyPick(
         const { seat: stamped, update } = assignFreshPack(
             { ...seatAfterPass, packQueue: restQueue },
             next,
+            round,
             timerConfig,
-            chooseBotPick
+            chooseBotPick,
+            observePack
         );
         nextSeats[seatIndex] = stamped;
         if (update) timerUpdates.push(update);
@@ -505,8 +532,10 @@ export function applyPick(
                 const { seat: stamped, update } = assignFreshPack(
                     { ...s, packQueue: [] },
                     packs[i],
+                    round,
                     timerConfig,
-                    chooseBotPick
+                    chooseBotPick,
+                    observePack
                 );
                 if (update) timerUpdates.push(update);
                 return stamped;
@@ -542,8 +571,22 @@ export function applyPick(
 export type ChooseBotPick = (
     seat: LimitedEventSeat,
     pack: readonly DraftPackCard[],
-    packsSeen: readonly (readonly DraftPackCard[])[]
+    packsSeen: readonly (readonly DraftPackCard[])[],
+    /** The draft round `pack` is picked in: it fixes the passing direction the
+     *  seat's persisted Draft Signal read (`seat.draftSignal`) is scored in.
+     *  Defaults to round 0 for a caller with no Draft Signal to exercise. */
+    round?: number
 ) => string;
+
+/** Folds a pack a seat just received in `round` into its Draft Signal state
+ *  (issue #3737). Injected like `ChooseBotPick`: the card facts and the
+ *  expected shares come from registry-backed seams this module stays free of;
+ *  the fold itself is the one `draftSignal.ts#observePack` the Draft Lab runs. */
+export type ObservePack = (
+    state: SeatSignalState,
+    pack: readonly DraftPackCard[],
+    round: number
+) => SeatSignalState;
 
 /** Result of running every pending Bot Drafter pick to exhaustion. */
 export interface RunBotAutoPicksResult {
@@ -602,7 +645,9 @@ export function runBotAutoPicks(
     /** The draft's FROZEN cube pool, forwarded to every `applyPick` this loop
      *  drives — an all-bot cube table deals EVERY round inside this one call,
      *  so dropping it here would break the singleton invariant on its own. */
-    cubePool?: readonly string[]
+    cubePool?: readonly string[],
+    /** Issue #3737: see `applyPick`. */
+    observePack?: ObservePack
 ): RunBotAutoPicksResult {
     let curSeats: readonly LimitedEventSeat[] = seats;
     let round = draftRound;
@@ -629,7 +674,7 @@ export function runBotAutoPicks(
         const seen = packsSeenBySeat.get(seatIndex) ?? [];
         seen.push(pack);
         packsSeenBySeat.set(seatIndex, seen);
-        const pickId = chooseBotPick(seat, pack, seen);
+        const pickId = chooseBotPick(seat, pack, seen, round);
         const result = applyPick(
             curSeats,
             round,
@@ -642,7 +687,8 @@ export function runBotAutoPicks(
             resolveCardMeta,
             timerConfig,
             cubePool,
-            chooseBotPick
+            chooseBotPick,
+            observePack
         );
         curSeats = result.seats;
         round = result.draftRound;
@@ -718,7 +764,9 @@ export function resolveAutoPickTimeout(
     seats: readonly LimitedEventSeat[],
     seatIndex: number,
     expectedSeq: number,
-    chooseBotPick: ChooseBotPick
+    chooseBotPick: ChooseBotPick,
+    /** The draft round the seat's `currentPack` is picked in (issue #3737). */
+    round = 0
 ): AutoPickResolution | null {
     const seat = seats[seatIndex];
     if (!seat || isAutoDrivenSeat(seat)) return null;
@@ -742,7 +790,12 @@ export function resolveAutoPickTimeout(
     // `packsSeen` (ADR 0073) is the one pack this timeout can account for —
     // the pack in front of the seat. Unread by today's scorer.
     return {
-        pickId: chooseBotPick(seat, seat.currentPack, [seat.currentPack]),
+        pickId: chooseBotPick(
+            seat,
+            seat.currentPack,
+            [seat.currentPack],
+            round
+        ),
         // A 1-card pack (schedulable since issue #2278, and stamped with no
         // Default Pick) denied the Seat nothing — there was one card and it
         // took it. Not an Unattended Pick.
