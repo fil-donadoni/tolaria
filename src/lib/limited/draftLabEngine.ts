@@ -42,6 +42,7 @@ import {
 import type {
     DraftPackCard,
     LimitedEventSeat,
+    LimitedPoolCard,
 } from "@convex/limited/eventTypes";
 import {
     buildCubePool,
@@ -88,6 +89,18 @@ export interface DraftLabPickRecord {
     traces: readonly (PickCandidateTrace | null)[];
     chosenPickId: string;
 }
+
+/** Replaces ONE seat's pick (Cut Experiment, PRD #1616 / issue #3738): given
+ *  the pack the seat faces and its Pool, returns the `pickId` to take, or
+ *  `null` to fall through to the Bot Drafter's own `chooseBotPick`. Test and
+ *  experiment seam only — the Lab UI never supplies one. */
+export type SeatPickPolicy = (
+    pack: readonly DraftPackCard[],
+    pool: readonly LimitedPoolCard[]
+) => string | null;
+
+/** Per-seat pick-policy overrides, keyed by seat index. */
+export type SeatPickPolicies = ReadonlyMap<number, SeatPickPolicy>;
 
 /** The Lab's whole synthetic-draft session state — everything `stepDraftLab`
  *  reads and returns, and everything the UI renders. Plain data, no class,
@@ -273,7 +286,8 @@ function findNextActingSeat(seats: readonly LimitedEventSeat[]): number {
  *  seat has a pack to act on — draft over. Idempotent once completed. */
 export function stepDraftLab(
     state: DraftLabState,
-    getPickRating: GetPickRating
+    getPickRating: GetPickRating,
+    pickPolicies?: SeatPickPolicies
 ): DraftLabState {
     if (state.completed) return state;
 
@@ -323,12 +337,16 @@ export function stepDraftLab(
         draftSignal,
         pickNumber: seatPickNumber,
     });
-    const chosenPickId = chooseBotPick(
-        pack,
-        seat.pool ?? [],
-        draftLabGetCardEvalMeta,
-        { packsSeen, getPickRating, getCardProfile, draftSignal }
-    );
+    const forcedPickId =
+        pickPolicies?.get(seatIndex)?.(pack, seat.pool ?? []) ?? null;
+    const chosenPickId =
+        forcedPickId ??
+        chooseBotPick(pack, seat.pool ?? [], draftLabGetCardEvalMeta, {
+            packsSeen,
+            getPickRating,
+            getCardProfile,
+            draftSignal,
+        });
 
     const result = applyPick(
         state.seats,
@@ -383,12 +401,13 @@ export function runFullDraftLab(
     seed: number,
     packSlots: readonly string[],
     seatCount: number = DRAFT_LAB_SEAT_COUNT,
-    cardProfileRows: readonly ScopedCardProfile[] = []
+    cardProfileRows: readonly ScopedCardProfile[] = [],
+    pickPolicies?: SeatPickPolicies
 ): DraftLabState {
     const getPickRating = buildDraftLabPickRating(packSlots);
     let state = initDraftLab(seed, packSlots, seatCount, cardProfileRows);
     for (let i = 0; i < MAX_STEPS && !state.completed; i++) {
-        state = stepDraftLab(state, getPickRating);
+        state = stepDraftLab(state, getPickRating, pickPolicies);
         if (i === MAX_STEPS - 1) {
             throw new Error(
                 "runFullDraftLab: exceeded the step bound — likely an infinite loop in pass/queue bookkeeping."
