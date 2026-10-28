@@ -21539,6 +21539,161 @@ describe("Effect Script Op: mill (CR 701.17, issue #885)", () => {
     });
 });
 
+// CR 701.17 / 105.2 (issue #7204) — `mill.repeatWhile: "sharedColor"`
+// (Grindstone: "Target player mills two cards. If two cards that share a
+// color were milled this way, repeat this process."). Each pass's milled cards
+// are tested in the graveyard (CR 701.17c); green = BEAR_ID, black =
+// BLACK_CARD_ID, white-blue = GOLD_CREATURE_ID, colourless =
+// COLORLESS_CREATURE_ID.
+describe("Effect Script Op: mill repeatWhile sharedColor (CR 701.17, issue #7204)", () => {
+    function grindstone(name: string, extra: EffectOp[] = []): string {
+        return registerScript(
+            name,
+            [
+                {
+                    op: "mill",
+                    player: { target: 0 },
+                    count: 2,
+                    repeatWhile: "sharedColor",
+                    bindAll: "$milled",
+                },
+                ...extra,
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+    }
+
+    /** p2's library, top first: `[cardId, instanceId]` pairs. */
+    function stateWithLibrary(cards: Array<[string, string]>): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    library: cards.map(([cardId, id]) =>
+                        makeInstance(cardId, {
+                            id,
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "library",
+                        })
+                    ),
+                }),
+            ],
+        });
+    }
+
+    function resolveOnP2(id: string, state: GameState): void {
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+    }
+
+    it("repeats while a pass's two milled cards share a colour, stops on the first pass that does not", () => {
+        const id = grindstone("test-mill-repeat-shared");
+        const state = stateWithLibrary([
+            [BEAR_ID, "g1"],
+            [BEAR_ID, "g2"],
+            [BLACK_CARD_ID, "b1"],
+            [GOLD_CREATURE_ID, "wu1"],
+            [BEAR_ID, "g3"],
+            [BEAR_ID, "g4"],
+        ]);
+        resolveOnP2(id, state);
+        // Pass 1 green+green repeats; pass 2 black+white-blue shares nothing.
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
+            "g1",
+            "g2",
+            "b1",
+            "wu1",
+        ]);
+        expect(state.players[1].library.map((c) => c.id)).toEqual(["g3", "g4"]);
+    });
+
+    it("a multicoloured card shares a colour with a card of one of its colours (CR 105.2b)", () => {
+        const id = grindstone("test-mill-repeat-gold");
+        const state = stateWithLibrary([
+            [GOLD_CREATURE_ID, "wu1"],
+            [GOLD_CREATURE_ID, "wu2"],
+            [BEAR_ID, "g1"],
+            [BLACK_CARD_ID, "b1"],
+            [BEAR_ID, "g2"],
+        ]);
+        resolveOnP2(id, state);
+        expect(state.players[1].library.map((c) => c.id)).toEqual(["g2"]);
+    });
+
+    it("two colourless cards share no colour, so the process does not repeat (CR 105.2c)", () => {
+        const id = grindstone("test-mill-repeat-colorless");
+        const state = stateWithLibrary([
+            [COLORLESS_CREATURE_ID, "c1"],
+            [COLORLESS_CREATURE_ID, "c2"],
+            [BEAR_ID, "g1"],
+            [BEAR_ID, "g2"],
+        ]);
+        resolveOnP2(id, state);
+        expect(state.players[1].library.map((c) => c.id)).toEqual(["g1", "g2"]);
+    });
+
+    it("a mono-colour library mills out and stops on the short pass (CR 701.17b)", () => {
+        const id = grindstone("test-mill-repeat-millout");
+        const state = stateWithLibrary([
+            [BEAR_ID, "g1"],
+            [BEAR_ID, "g2"],
+            [BEAR_ID, "g3"],
+            [BEAR_ID, "g4"],
+            [BEAR_ID, "g5"],
+        ]);
+        expect(() => resolveOnP2(id, state)).not.toThrow();
+        expect(state.players[1].library).toHaveLength(0);
+        expect(state.players[1].graveyard).toHaveLength(5);
+    });
+
+    it("bindAll covers every pass — all the cards milled this way", () => {
+        const id = grindstone("test-mill-repeat-bindall", [
+            {
+                op: "moveZone",
+                cards: { ref: "$milled" },
+                player: { target: 0 },
+                from: "graveyard",
+                to: "hand",
+            },
+        ]);
+        const state = stateWithLibrary([
+            [BEAR_ID, "g1"],
+            [BEAR_ID, "g2"],
+            [BLACK_CARD_ID, "b1"],
+            [GOLD_CREATURE_ID, "wu1"],
+            [BEAR_ID, "g3"],
+        ]);
+        resolveOnP2(id, state);
+        expect(state.players[1].hand.map((c) => c.id).sort()).toEqual([
+            "b1",
+            "g1",
+            "g2",
+            "wu1",
+        ]);
+    });
+
+    it("wire format: every pass's milled cards are face-up in the projected graveyard", () => {
+        const id = grindstone("test-mill-repeat-wire");
+        const state = stateWithLibrary([
+            [BEAR_ID, "g1"],
+            [BEAR_ID, "g2"],
+            [BLACK_CARD_ID, "b1"],
+            [GOLD_CREATURE_ID, "wu1"],
+            [BEAR_ID, "g3"],
+        ]);
+        resolveOnP2(id, state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "b1",
+            "g1",
+            "g2",
+            "wu1",
+        ]);
+        expect(projected.players[1].library.count).toBe(1);
+    });
+});
+
 // CR 400.2 / 608.2b (issue #2600) — "from among them": `mill`'s `bindAll`
 // reports the WHOLE milled set as a picks binding, and a public-zone
 // `choice.candidates` scopes the pick to it. The gap this closes is that a

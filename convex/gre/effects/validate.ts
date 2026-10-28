@@ -2370,6 +2370,12 @@ function isLibraryDestination(value: unknown): boolean {
     );
 }
 
+/** The `repeatWhile` of a `mill` Op (issue #7204, Grindstone) — the
+ *  `MillRepeatCondition` vocabulary. */
+function isMillRepeatCondition(value: unknown): boolean {
+    return value === "sharedColor";
+}
+
 /** The `destination` of a `lookDistribute` Op (issue #1570, Karn, Scion of
  *  Urza's +1 "exile the other") — the whole `LibraryDestination` vocabulary
  *  plus `"exile"`, which sends each un-kept looked-at card to its owner's
@@ -5569,12 +5575,14 @@ const OP_SCHEMAS: OpSchemaTable = {
     // CR 701.17 — mill: move the top `count` cards of a player's
     // library into their graveyard (deterministic; no choice). `player` names
     // whose library is milled; `count` is how many cards.
-    // issue #1095 — optional `bind` snapshots the FIRST card that genuinely
-    // reached the graveyard (Loafing Giant's "if a land card was milled this
-    // way"), mirroring `discardAtRandom`'s bind shape exactly.
-    // issue #2600 — optional `bindAll` binds that same set WHOLE as a PICKS
-    // binding (every id that reached the graveyard, in mill order), the source
-    // a public-zone `choice.candidates` reads to express "from among them".
+    // Optional `bind` snapshots the FIRST card that genuinely reached the
+    // graveyard (Loafing Giant's "if a land card was milled this way"),
+    // mirroring `discardAtRandom`'s bind shape exactly. Optional `bindAll`
+    // binds that same set WHOLE as a PICKS binding (every id that reached the
+    // graveyard, in mill order), the source a public-zone `choice.candidates`
+    // reads to express "from among them". Optional `repeatWhile` mills `count`
+    // again while the pass's milled cards meet the condition (Grindstone's
+    // shared colour).
     mill: {
         required: {
             player: isPlayerRef,
@@ -5583,6 +5591,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         optional: {
             bind: bindingDeclaration("snapshot"),
             bindAll: bindingDeclaration("picks"),
+            repeatWhile: isMillRepeatCondition,
         },
     },
     // CR 701.13 / 406.3 (issue #3235) — exile the top N of a library, face up.
