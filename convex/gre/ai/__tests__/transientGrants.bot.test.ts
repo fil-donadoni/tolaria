@@ -287,6 +287,124 @@ describe("a grant with no combat window is pruned (#5927, `isFutileThisTurnMove`
         );
     });
 
+    it("keeps the flying grant that is what lets the creature attack under Moat", () => {
+        const base = boardSpec("Hill Giant");
+        const state = buildBladeState(
+            scenario("moat", {
+                ...base,
+                cards: [
+                    ...base.cards,
+                    { name: "Moat", owner: "opp", zone: "battlefield" },
+                ],
+            })
+        );
+        expect(isFutileThisTurnMove(state, onlyGrantOn(state, BEARS))).toBe(
+            false
+        );
+    });
+
+    it("keeps the grant on the opposing creature while the bot holds a keyword reader (Hurricane)", () => {
+        const base = boardSpec("Hill Giant", {
+            phase: "END_STEP",
+            turn: 6,
+            activePlayer: "opp",
+            priority: "me",
+        });
+        const state = buildBladeState(
+            scenario("reader", {
+                ...base,
+                cards: [
+                    ...base.cards.filter((c) => c.name !== BEARS),
+                    { name: "Hurricane", owner: "me", zone: "hand" },
+                ],
+            })
+        );
+        const botId = seatPlayerId(state, "me");
+        const grant = onlyGrantOn(state, "Hill Giant");
+        expect(isFutileThisTurnMove(state, grant)).toBe(false);
+        expect(isMisdirectedThisTurnMove(state, grant, botId)).toBe(false);
+    });
+
+    it("keeps the colour rider while a colour reader is in hand (Terror's nonblack)", () => {
+        const base = boardSpec("Hill Giant", {
+            phase: "END_STEP",
+            turn: 6,
+            activePlayer: "opp",
+            priority: "me",
+        });
+        const state = buildBladeState(
+            scenario("colour-reader", {
+                ...base,
+                cards: [
+                    ...base.cards,
+                    { name: "Terror", owner: "me", zone: "hand" },
+                ],
+            })
+        );
+        expect(isFutileThisTurnMove(state, onlyGrantOn(state, BEARS))).toBe(
+            false
+        );
+    });
+
+    it("keeps the grant on its own tapping source while an untap effect is in hand (Twiddle)", () => {
+        const base = boardSpec("Hill Giant", { life: { opp: 2 } });
+        const state = buildBladeState(
+            scenario("untap", {
+                ...base,
+                cards: [
+                    ...base.cards.filter((c) => c.name !== BEARS),
+                    { name: "Twiddle", owner: "me", zone: "hand" },
+                ],
+            })
+        );
+        expect(isFutileThisTurnMove(state, onlyGrantOn(state, DISCIPLE))).toBe(
+            false
+        );
+    });
+
+    it("prunes a first-strike grant before attackers are declared, keeps it on the declared attacker (CR 510.4)", () => {
+        const LEITBUR = "Order of Leitbur";
+        const grantId = getCardByName(LEITBUR).activatedAbilities!.find((a) =>
+            a.effects?.some((op) => "op" in op && op.op === "grantAbility")
+        )!.id;
+        const spec = (overrides: Partial<ScenarioSpec>): ScenarioSpec => ({
+            cards: [
+                {
+                    name: LEITBUR,
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 5,
+            libraryCount: 20,
+            ...overrides,
+        });
+        const grantOf = (state: GameState): Move => {
+            const botId = seatPlayerId(state, "me");
+            const found = enumerateMoves(state, botId).filter(
+                (m) => m.kind === "activate-ability" && m.abilityId === grantId
+            );
+            expect(found).toHaveLength(1);
+            return found[0];
+        };
+        const before = buildBladeState(scenario("leitbur-main", spec({})));
+        expect(isFutileThisTurnMove(before, grantOf(before))).toBe(true);
+        const attacking = buildBladeState(
+            scenario(
+                "leitbur-attacking",
+                spec({
+                    phase: "DECLARE_ATTACKERS",
+                    combat: { attackers: [LEITBUR], confirmed: true },
+                })
+            )
+        );
+        expect(isFutileThisTurnMove(attacking, grantOf(attacking))).toBe(false);
+    });
+
     it("prunes the grant on its own tapping source and misdirects the one on the opposing creature", () => {
         const base = boardSpec("Hill Giant", {
             phase: "END_STEP",

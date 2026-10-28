@@ -43,6 +43,7 @@ import type { CardInstanceState, GameState } from "../state";
 import { castableHeldInteraction } from "../heldInteraction";
 import { isProtectionAbility } from "../protection";
 import { renderKeyword } from "../continuousEffects";
+import { keywordBonusFor } from "../creatureBody";
 
 /** Whether `keyword`'s worth is purely PROTECTIVE — it does nothing except
  *  answer something the opponent is doing.
@@ -119,7 +120,16 @@ export function temporaryCombatKeywords(
     return temporaryKeywordOccurrences(
         state,
         card,
-        (keyword) => !isDefensiveKeyword(keyword)
+        // Only a keyword the table CREDITS (a penalty row such as `defender`
+        // must not be "taken back" upward), never a defensive one.
+        (keyword) =>
+            !isDefensiveKeyword(keyword) && keywordBonusFor(keyword, 1) > 0,
+        // Only a grant that ends with THIS turn (CR 514.2); "until your next
+        // turn" outlives the opponent's combat and keeps its credit.
+        (duration) =>
+            (duration.phase === "end-of-turn" ||
+                duration.phase === "end-of-combat") &&
+            (duration.skip ?? 0) === 0
     );
 }
 
@@ -150,7 +160,11 @@ export function lastingStaticAbilities(
 function temporaryKeywordOccurrences(
     state: GameState,
     card: CardInstanceState,
-    accept: (keyword: string) => boolean
+    accept: (keyword: string) => boolean,
+    endsInWindow: (duration: {
+        phase?: string;
+        skip?: number;
+    }) => boolean = () => true
 ): string[] {
     // PRD #2064 S6b — a duration-scoped grant is a REGISTRY entry now, not a
     // `duration`-keyed row on the card, so the Bot's "this bonus expires" test
@@ -162,6 +176,7 @@ function temporaryKeywordOccurrences(
     for (const entry of state.continuousEffects ?? []) {
         if (entry.layer !== 6) continue;
         if (entry.expiry.kind !== "duration") continue;
+        if (!endsInWindow(entry.expiry.duration)) continue;
         if (entry.affected.kind !== "instances") continue;
         if (!entry.affected.instanceIds.includes(card.id)) continue;
         if (entry.payload.kind !== "keyword-grant") continue;

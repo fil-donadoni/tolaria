@@ -102,21 +102,32 @@
  *   * the recipient's controller's own turn with attackers still to declare,
  *     when the keyword changes the declaration or the blocks: vigilance on a
  *     creature able to attack (CR 702.20b, read at the declaration); an
- *     evasion keyword while at least one untapped opposing creature can block
- *     the recipient now and not with the keyword (`validateBlockerEligibility`
- *     with the keyword added, CR 509.1b — a flying grant into a board of reach
- *     and flyers changes nothing), or the keyword is menace with any blocker
- *     at all (CR 702.111). A damage-step keyword never: it can be granted
- *     after blocks are declared at the same price, when the exchange it
- *     amplifies is known;
+ *     evasion keyword that is what lets the recipient attack at all (a
+ *     "creatures without flying can't attack" restriction, read with the
+ *     keyword added), or while at least one untapped opposing creature can
+ *     block the recipient now and not with the keyword
+ *     (`validateBlockerEligibility` with the keyword added, CR 509.1b — a
+ *     flying grant into a board of reach and flyers changes nothing), or the
+ *     keyword is menace with any blocker at all (CR 702.111). A damage-step
+ *     keyword never: it can be granted after blocks are declared at the same
+ *     price, when the exchange it amplifies is known;
  *   * the opponent's turn with attackers declared and blocks still open, the
  *     recipient untapped (it may block, CR 509.1a; which keywords matter for a
  *     block is not modelled — every one keeps the move);
- *   * an extra phase queued (a second combat may follow).
+ *   * an extra phase queued (a second combat may follow);
+ *   * a KEYWORD READER — Oracle text naming the keyword in a condition ("with
+ *     flying", "creatures without flying", "gains flying") on any battlefield
+ *     or in the mover's hand or graveyard, the grant's own text read out
+ *     first: a Hurricane in hand is a reason to give the opponent's creature
+ *     flying, and the misdirection prune below stands down for the same
+ *     reader.
  *
  * A recipient already tapped, or tapped by the activation's own `{T}` (the
  * source granting to itself), can neither attack (CR 508.1a) nor block
- * (CR 509.1a) before the grant expires. Only a keyword in
+ * (CR 509.1a) before the grant expires — unless the mover holds an untap
+ * effect (a Twiddle in hand, an untap activation on its battlefield): the
+ * `{T}` must be paid before the untap, so "grant it later" cannot reorder
+ * that line and the move is kept. Only a keyword in
  * `COMBAT_KEYWORD_WINDOW` (or a landwalk) qualifies: a defensive keyword is a
  * shield against stack threats and keeps issue #2937's own reading; haste
  * (payable tap abilities, CR 302.6), banding, a granted activated or
@@ -130,9 +141,12 @@
  * A `setColor` until end of turn riding beside the grant (Disciple of
  * Kangee's "and becomes blue") is futile when nothing reads colours before the
  * bot next holds priority — the land-type reading again: Oracle text naming a
- * colour, on any battlefield or in the mover's hand or graveyard, keeps the
- * move (protection from a colour, a colour-gated removal, a colour hoser), the
- * colour changes themselves read out of the text first.
+ * colour, "non<colour>" included, on any battlefield or in the mover's hand or
+ * graveyard, keeps the move (protection from a colour, a colour-gated
+ * removal, a colour hoser), the colour changes themselves read out of the
+ * text first; a live protection, fear or intimidate keyword on any battlefield
+ * is a reader too, whatever text granted it. A script that ONLY changes a
+ * colour (Aurora Griffin) is out of scope and never a shield.
  *
  * Covers printed AND granted activations (Zombie Master's "{B}: Regenerate
  * this permanent."), via `getEffectiveActivatedAbilities`. Casting a
@@ -177,6 +191,8 @@ import {
     validateBlockerEligibility,
 } from "../combat";
 import { misdirectedTargetCount } from "./beneficence";
+import { childOpArrays } from "./effectOpChildren";
+import { isProtectionAbility } from "../protection";
 
 /** The cost legs whose payment is a pure loss (mana, tapping the source).
  *  Any other key on the cost object fails closed. */
@@ -247,7 +263,7 @@ function keywordWindowOf(keyword: string): KeywordWindow | undefined {
 /** A colour, or "color(s)", in Oracle text — a card that reads the colour a
  *  this-turn colour change writes. */
 const COLOR_WORDS =
-    /\b(white|blue|black|red|green|colou?rless|multicolou?red|monocolou?red|colou?rs?)\b/i;
+    /\b(non-?)?(white|blue|black|red|green)\b|\b(colou?rless|multicolou?red|monocolou?red|colou?rs?)\b/i;
 
 /** The this-turn effects `move` creates when it activates an ability whose
  *  WHOLE script is shields / until-end-of-turn P/T changes paid for with a
@@ -303,8 +319,32 @@ export function isMisdirectedThisTurnMove(
     move: Move,
     botId: string
 ): boolean {
-    if (!thisTurnEffectsOf(state, move)) return false;
+    const effects = thisTurnEffectsOf(state, move);
+    if (!effects) return false;
+    // Issue #5927 — a keyword or colour the mover can READ (Hurricane in
+    // hand, a colour-gated removal) makes the opposing-creature variant a
+    // line, not a gift: left to the search.
+    if (
+        effects.shields.some((s) => readerExistsFor(state, s, effects.moverId))
+    ) {
+        return false;
+    }
     return misdirectedTargetCount(state, move, botId) > 0;
+}
+
+/** Whether something can read what `shield` writes — a keyword reader for a
+ *  keyword grant, a colour reader for a colour change; `false` for the
+ *  other kinds. */
+function readerExistsFor(
+    state: GameState,
+    shield: Shield,
+    moverId: string
+): boolean {
+    if (shield.kind === "keyword") {
+        return anyKeywordReader(state, moverId, shield.keyword!);
+    }
+    if (shield.kind === "color") return anyColorReader(state, moverId);
+    return false;
 }
 
 function costIsLossOnly(
@@ -368,6 +408,14 @@ function shieldsOf(
         const shield = shieldOf(op, sourceId, targets, tapCost);
         if (!shield) return null;
         out.push(shield);
+    }
+    // Issue #5927 — a colour change is a shield only as the rider of a
+    // keyword grant; a script that only changes a colour is out of scope.
+    if (
+        out.some((s) => s.kind === "color") &&
+        !out.some((s) => s.kind === "keyword")
+    ) {
+        return null;
     }
     return out;
 }
@@ -536,7 +584,8 @@ function shieldIsFutile(
             permanent,
             shield.keyword!,
             tapCost,
-            shield.tapsRecipient === true
+            shield.tapsRecipient === true,
+            moverId
         );
     }
     if (shield.kind === "color") {
@@ -757,9 +806,6 @@ function demandedCosts(player: GameState["players"][number]) {
     return costs;
 }
 
-/** An upper bound on the destruction / damage events that can reach
- *  `permanent` before its controller next holds priority — see the module
- *  header's three cases. */
 /** Is an until-end-of-turn grant of the combat keyword `keyword` to
  *  `recipient` provably unused before it expires — see the module header
  *  (issue #5927). `tapsRecipient`: the activation's own `{T}` taps it. */
@@ -768,7 +814,8 @@ function keywordGrantIsFutile(
     recipient: CardInstanceState,
     keyword: string,
     tapCost: boolean,
-    tapsRecipient: boolean
+    tapsRecipient: boolean,
+    moverId: string
 ): boolean {
     const window = keywordWindowOf(keyword);
     if (window === undefined) return false;
@@ -776,10 +823,14 @@ function keywordGrantIsFutile(
     if (state.stack.some((item) => !isHarmlessStackItem(item, tapCost))) {
         return false;
     }
+    if (anyKeywordReader(state, moverId, keyword)) return false;
     if (takesPartInCombat(state, recipient)) return false;
     // CR 508.1a / 509.1a — a tapped creature neither attacks nor blocks, and
-    // it stays tapped past this turn's cleanup (CR 502.3).
-    if (recipient.isTapped || tapsRecipient) return true;
+    // it stays tapped past this turn's cleanup (CR 502.3) — unless the mover
+    // can untap it, a line "grant it later" cannot reorder.
+    if (recipient.isTapped || tapsRecipient) {
+        return !moverCanUntap(state, moverId);
+    }
     if ((state.extraPhases?.length ?? 0) > 0) return false;
     const controller = state.players.find(
         (p) => p.id === recipient.controllerId
@@ -803,20 +854,24 @@ function keywordGrantIsFutile(
                     opponent.battlefield,
                     state
                 ).eligible;
-            case "evasion":
-                return (
-                    !validateAttackerEligibility(
-                        recipient,
+            case "evasion": {
+                const eligible = (card: CardInstanceState) =>
+                    validateAttackerEligibility(
+                        card,
                         opponent.battlefield,
                         state
-                    ).eligible ||
-                    !evasionChangesBlocks(
-                        state,
-                        recipient,
-                        keyword,
-                        opponent.battlefield
-                    )
+                    ).eligible;
+                if (!eligible(withKeyword(recipient, keyword))) return true;
+                // The keyword is what lets it attack at all ("creatures
+                // without flying can't attack"): read with the keyword added.
+                if (!eligible(recipient)) return false;
+                return !evasionChangesBlocks(
+                    state,
+                    recipient,
+                    keyword,
+                    opponent.battlefield
                 );
+            }
         }
     }
     // The opponent's turn: the recipient can only block, and the bot holds
@@ -871,6 +926,87 @@ function evasionChangesBlocks(
     );
 }
 
+/** Whether `moverId` holds an effect that untaps a permanent — a card in
+ *  hand or an activation on its battlefield whose script carries an untap
+ *  `tapUntap` Op (Twiddle). An unreadable definition answers `true`. */
+function moverCanUntap(state: GameState, moverId: string): boolean {
+    const player = state.players.find((p) => p.id === moverId);
+    if (!player) return true;
+    for (const card of player.hand) {
+        const def = tryGetDefinition(card.card.id as string);
+        if (!def) return true;
+        if (scriptUntaps(def.effects)) return true;
+    }
+    for (const perm of player.battlefield) {
+        for (const { ability } of getEffectiveActivatedAbilities(perm)) {
+            if (scriptUntaps(ability.effects)) return true;
+        }
+    }
+    return false;
+}
+
+function scriptUntaps(effects: readonly EffectOp[] | undefined): boolean {
+    if (!effects) return false;
+    return effects.some(
+        (op) =>
+            ("op" in op && op.op === "tapUntap" && op.action === "untap") ||
+            childOpArrays(op).some(scriptUntaps)
+    );
+}
+
+/** A reader of `keyword` on any battlefield or in the mover's hand or
+ *  graveyard (see the module header, issue #5927). */
+function anyKeywordReader(
+    state: GameState,
+    moverId: string,
+    keyword: string
+): boolean {
+    for (const player of state.players) {
+        const zones =
+            player.id === moverId
+                ? [player.battlefield, player.hand, player.graveyard]
+                : [player.battlefield];
+        for (const zone of zones) {
+            if (zone.some((card) => readsKeyword(card, keyword))) return true;
+        }
+    }
+    return false;
+}
+
+/** Does the card's Oracle text, less its own keyword-granting abilities and
+ *  reminder text, name `keyword` in a CONDITION — "with flying", "without
+ *  flying", "has flying", "gains flying", "flying creatures"? A keyword line
+ *  of its own ("Flying") is not a reading. An unknown definition reads as a
+ *  reader. */
+function readsKeyword(card: CardInstanceState, keyword: string): boolean {
+    const def = tryGetDefinition(card.card.id as string);
+    if (!def) return true;
+    if (def.oracleText === undefined) return true;
+    let text = def.oracleText;
+    for (const ability of def.activatedAbilities ?? []) {
+        if (ability.oracleText && scriptGrantsKeyword(ability.effects)) {
+            text = text.replace(ability.oracleText, "");
+        }
+    }
+    text = text.replace(/\([^)]*\)/g, "");
+    const word = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(
+        `\\b(with|without|has|have|gains?|loses?|lacks?)\\s+${word}\\b|\\b${word}\\s+creatures?\\b`,
+        "i"
+    ).test(text);
+}
+
+function scriptGrantsKeyword(
+    effects: readonly EffectOp[] | undefined
+): boolean {
+    if (!effects) return false;
+    return effects.some(
+        (op) =>
+            ("op" in op && op.op === "grantAbility") ||
+            childOpArrays(op).some(scriptGrantsKeyword)
+    );
+}
+
 /** Is an until-end-of-turn colour change provably unread before the bot next
  *  holds priority — nothing on the stack, no colour reader in play or in the
  *  mover's hand or graveyard (see the module header, issue #5927). */
@@ -887,6 +1023,19 @@ function colorChangeIsFutile(
 
 function anyColorReader(state: GameState, moverId: string): boolean {
     for (const player of state.players) {
+        // A live colour-reading keyword, whatever text granted it.
+        if (
+            player.battlefield.some((card) =>
+                card.staticAbilities.some(
+                    (k) =>
+                        k === "fear" ||
+                        k === "intimidate" ||
+                        isProtectionAbility(k)
+                )
+            )
+        ) {
+            return true;
+        }
         const zones =
             player.id === moverId
                 ? [player.battlefield, player.hand, player.graveyard]
@@ -920,6 +1069,9 @@ function scriptSetsColor(effects: readonly EffectOp[] | undefined): boolean {
     );
 }
 
+/** An upper bound on the destruction / damage events that can reach
+ *  `permanent` before its controller next holds priority — see the module
+ *  header's three cases. */
 function threatsTo(
     state: GameState,
     permanent: CardInstanceState,
