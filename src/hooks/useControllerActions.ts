@@ -9,6 +9,7 @@ import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { isEditableTarget } from "~/lib/editable-target";
 import { eligibleAttackerIds } from "~/lib/attacker-eligibility";
 import { isPlaneswalker } from "~/lib/card-utils";
+import { anyAttackerOffersExert } from "~/lib/exert-offer";
 import { effectivePower } from "~/lib/effective-stats";
 import {
     computeHasPriority,
@@ -243,7 +244,18 @@ export function useControllerActions(): ControllerState {
             });
             if (declared.length === 0) return;
             if (!defenderHasPlaneswalker) {
-                await confirmAttackers({ gameId, playerId });
+                // CR 508.1g / 701.43d — the exert choice is part of declaring
+                // attackers and lives only while the declaration is
+                // unconfirmed, so an exert-capable attacker leaves the
+                // confirmation to the player.
+                if (
+                    !anyAttackerOffersExert(
+                        viewerPlayer?.battlefield ?? [],
+                        declared
+                    )
+                ) {
+                    await confirmAttackers({ gameId, playerId });
+                }
             } else {
                 attackSequence.begin(declared);
             }
@@ -257,6 +269,7 @@ export function useControllerActions(): ControllerState {
         isBusy,
         eligibleIds,
         defenderHasPlaneswalker,
+        viewerPlayer,
         declareAttackers,
         confirmAttackers,
         attackSequence,
