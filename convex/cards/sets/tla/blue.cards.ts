@@ -128,3 +128,47 @@ export const wanShiTongAllKnowing = defineCard(() => ({
         }),
     ],
 }));
+
+// Boomerang Basics — {U} Sorcery — Lesson, TLA. "Return target nonland
+// permanent to its owner's hand. If you controlled that permanent, draw a
+// card."
+//
+// "Controlled" is a CR 608.2h last-known-information question, but the
+// permanent's controller is only observable while it is still on the
+// battlefield (`objectMatchesFilter` reads `false` once it has left, CR
+// 608.2b), so the `if` is evaluated BEFORE the bounce and each branch carries
+// the same `moveZone`; only the controlled branch draws. The draw follows the
+// bounce, as the Oracle text orders it (CR 608.2c).
+//
+// hand-tail: If you controlled that permanent, draw a card (#7229)
+export const boomerangBasics = defineCard(() => ({
+    id: "17ab958a-abc6-472e-ad6a-97c731d89c74",
+    rarity: "uncommon",
+    name: "Boomerang Basics",
+    oracleText:
+        "Return target nonland permanent to its owner's hand. If you controlled that permanent, draw a card.",
+    manaCost: { U: 1 },
+    types: ["Sorcery"],
+    subtypes: ["Lesson"],
+    // CR 115.1c — "target nonland permanent" (any controller's).
+    targetRequirement: {
+        type: [...PERMANENT_TYPES],
+        count: 1,
+        excludeTypes: "Land",
+    },
+    effects: [
+        {
+            op: "if",
+            predicate: {
+                objectMatchesFilter: { target: 0 },
+                filter: {},
+                controlledBy: "controller",
+            },
+            then: [
+                { op: "moveZone", target: { target: 0 }, to: "hand" },
+                { op: "draw", player: "controller", count: 1 },
+            ],
+            else: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
+        },
+    ],
+}));
