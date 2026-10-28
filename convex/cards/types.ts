@@ -15680,6 +15680,11 @@ export interface EffectMode {
     color?: Color;
 }
 
+/** CR 701.17 (issue #7204) — when a `mill` Op mills again: the condition its
+ *  `repeatWhile` tests over the cards one pass genuinely milled.
+ *  `"sharedColor"` = some two of them share a colour (CR 105.2, Grindstone). */
+export type MillRepeatCondition = "sharedColor";
+
 /** One step of an Effect Script. Ops are small, orthogonal and composable
  *  (target scale ~80k cards) — each maps 1:1 onto a SpellContext primitive.
  *  The Op vocabulary grows freely; the grammar never does (ADR 0045). Op
@@ -17649,13 +17654,32 @@ export type EffectOp =
      *  snapshot read with `$b.types`/`$b.manaValue`, `bindAll` is a set of
      *  instance ids — and Loafing Giant's first-card semantics stay exactly as
      *  shipped. Uncaptured when nothing was milled (CR 608.2b — every reader
-     *  then skips). */
+     *  then skips).
+     *
+     *  Optional `repeatWhile` (issue #7204) — "Target player mills two
+     *  cards. If two cards that share a color were milled this way, repeat
+     *  this process." (Grindstone). After each mill of `count`, the Op tests
+     *  the cards THAT pass genuinely milled against the named condition and,
+     *  when it holds, mills `count` again — the repeat lives inside the one
+     *  mill Op, so no loop construct enters the DSL (ADR 0045 freezes the
+     *  four). `"sharedColor"`: some two of the pass's milled cards have at
+     *  least one colour in common (CR 105.2 — a colourless card shares none,
+     *  not even with another colourless one; read in the graveyard, CR
+     *  701.17c). It always terminates: every pass takes cards off the
+     *  library, and a pass that milled fewer than two cards (CR 701.17b — a
+     *  short library, or a CR 614 redirect to exile, which is not a mill)
+     *  cannot satisfy it. `bind` / `bindAll` cover every pass — all the
+     *  cards "milled this way". Deliberately NOT a generic "repeat N times"
+     *  (that is `count`) nor a card-predicate list: the one axis Oracle
+     *  prints so far is the shared colour, and a second card names the
+     *  next member. */
     | {
           op: "mill";
           player: EffectPlayerRef;
           count: EffectValue;
           bind?: string;
           bindAll?: string;
+          repeatWhile?: MillRepeatCondition;
       }
     /** CR 701.13 / 406.3 (issue #3235) — exile the top `count` card(s) of a
      *  library, FACE UP. The "impulse" first leg: "Exile the top three cards of

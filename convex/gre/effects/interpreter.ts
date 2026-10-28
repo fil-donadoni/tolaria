@@ -102,6 +102,7 @@ import type {
     GainControlDuration,
     ManaCost,
     MayPayCost,
+    MillRepeatCondition,
     MovableZone,
     PermanentFilter,
     SpellContext,
@@ -1455,6 +1456,48 @@ function asFilterArray<T>(value: T | T[] | undefined): T[] | undefined {
  *  The `{ manaSpent: { read: "colors" } }` form (issue #5410) reads the
  *  colours of the mana noted on the activation's payment
  *  (`getNotedManaSpent`), under the same empty-set-on-nothing contract. */
+/** CR 701.17 (issue #7204) — mill `count`, then mill `count` again for as
+ *  long as `repeatWhile` holds over the cards the LAST pass genuinely milled
+ *  (Grindstone: "If two cards that share a color were milled this way, repeat
+ *  this process"). Returns every pass's milled ids in mill order — all the
+ *  cards "milled this way", which `mill.bind` / `bindAll` read. Terminates:
+ *  each pass takes cards off the library, and a pass that milled fewer than
+ *  two (CR 701.17b short library, or a CR 614 redirect to exile — not a mill)
+ *  cannot share a colour. */
+function millPasses(
+    ctx: SpellContext,
+    playerId: string,
+    count: number,
+    repeatWhile: MillRepeatCondition | undefined
+): string[] {
+    const milled: string[] = [];
+    for (;;) {
+        const pass = ctx.millCards(playerId, count);
+        milled.push(...pass);
+        if (repeatWhile !== "sharedColor") return milled;
+        if (!someTwoShareColor(ctx, playerId, pass)) return milled;
+    }
+}
+
+/** CR 105.2 — true iff some two of `ids` (cards in `playerId`'s graveyard,
+ *  read there per CR 701.17c) have a colour in common. A colourless card
+ *  shares nothing, not even with another colourless card. */
+function someTwoShareColor(
+    ctx: SpellContext,
+    playerId: string,
+    ids: readonly string[]
+): boolean {
+    if (ids.length < 2) return false;
+    const wanted = new Set(ids);
+    const colorSets = ctx
+        .getGraveyardCards(playerId)
+        .filter((c) => wanted.has(c.id))
+        .map((c) => c.colors);
+    return colorSets.some((a, i) =>
+        colorSets.slice(i + 1).some((b) => a.some((c) => b.includes(c)))
+    );
+}
+
 function resolveFilterColors(
     ctx: SpellContext,
     value: EffectCardFilter["color"]
@@ -4816,7 +4859,7 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return; // CR 608.2b — player gone, skip
         const count = resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
-        const milledIds = ctx.millCards(playerId, count);
+        const milledIds = millPasses(ctx, playerId, count, op.repeatWhile);
         // issue #1095 — snapshot the FIRST genuinely-milled card (CR 608.2h)
         // so "if a land card was milled this way" (Loafing Giant) can read its
         // last-known types off the binding. Mirrors `discardAtRandom`'s bind

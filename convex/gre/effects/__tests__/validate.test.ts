@@ -7180,6 +7180,29 @@ describe("validateEffectScript — per-cost payment value (ADR 0085 decision 3, 
     });
 });
 
+// CR 701.17 (issue #7204) — `mill.repeatWhile` names a `MillRepeatCondition`.
+describe("Effect Script Op: mill repeatWhile shape (CR 701.17)", () => {
+    const mill = (repeatWhile: unknown): EffectOp =>
+        ({
+            op: "mill",
+            player: "controller",
+            count: 2,
+            repeatWhile,
+        }) as EffectOp;
+
+    it("accepts the sharedColor condition", () => {
+        expect(
+            validateEffectScript(host({ effects: [mill("sharedColor")] }))
+        ).toEqual([]);
+    });
+
+    it("rejects an unknown condition", () => {
+        expect(
+            validateEffectScript(host({ effects: [mill("sharedType")] }))
+        ).not.toEqual([]);
+    });
+});
+
 // CR 122 counting / CR 404 (issue #3243) — the `sum` value member's SHAPE and,
 // more importantly, its ref FAMILY: `of` is a picks position even though the
 // bare key `of` means an OBJECT everywhere else in the value grammar
