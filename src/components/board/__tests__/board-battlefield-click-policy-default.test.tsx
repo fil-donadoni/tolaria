@@ -59,7 +59,6 @@ vi.mock("@convex/_generated/api", () => {
         "selectBlocker",
         "assignBlockerTarget",
         "selectTarget",
-        "deselectTarget",
         "selectAdditionalCost",
         "selectActivationCost",
         "selectSacrifice",
