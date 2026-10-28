@@ -1279,7 +1279,7 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
 
 /** Issue #4896 — the ONE answer the search gives a choice it does not branch
  *  on, or `null` when it has none and must stop there as before. An as-enters
- *  `name-card` head is answered by `nameCardAnswer` (issue #6676); the rest of
+ *  `name-card` head is answered by `nameCardAnswer`; the rest of
  *  this note is the mandatory discard.
  *
  *  A MANDATORY `discard-hand` (CR 701.9b — by default the discarding player

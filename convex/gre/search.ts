@@ -1424,7 +1424,7 @@ const MAX_FORCED_ANSWERS = 8;
 /** Issue #4917 — `decidingPlayer`, after answering every head choice the
  *  search does not branch on but has a forced answer for
  *  (`forcedChoiceAnswer`: a MANDATORY `discard-hand`, CR 701.9b, or a
- *  `name-card` window, issue #6676). The tree
+ *  as-enters `name-card` window). The tree
  *  walk and the rollout ask THIS, never `decidingPlayer` directly, so neither
  *  scores a leaf mid-resolution. Mutates `state` (caller owns it).
  *
