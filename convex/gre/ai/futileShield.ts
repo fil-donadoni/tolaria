@@ -820,8 +820,9 @@ function keywordGrantIsFutile(
         }
     }
     // The opponent's turn: the recipient can only block, and the bot holds
-    // priority again once attackers are declared (CR 508.2), at the same
-    // price — only a declared attack with blocks still open keeps the move.
+    // priority again once attackers are declared (the active player first,
+    // CR 508.2, then the bot as they pass), at the same price — only a
+    // declared attack with blocks still open keeps the move.
     const blocksOpen =
         !!combat &&
         combat.confirmed &&
