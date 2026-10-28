@@ -59,7 +59,7 @@ afterEach(() => {
 
 describe("Rulings entry (issue #4816)", () => {
     it("makes zero requests until the entry is selected, then lists rulings", async () => {
-        const f = vi.fn(async () => ({
+        const f = vi.fn<(url: string) => Promise<unknown>>(async () => ({
             ok: true,
             status: 200,
             json: async () => BODY,
