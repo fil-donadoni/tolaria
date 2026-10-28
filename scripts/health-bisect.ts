@@ -186,7 +186,9 @@ function probeTests(
     targets: readonly ProbeTarget[]
 ): ProbeOutcome {
     const present = targets.filter(
-        (t) => BLADE_FILE.test(t.file) || existsSync(join(wt, t.file))
+        (t) =>
+            (t.test !== undefined && BLADE_FILE.test(t.file)) ||
+            existsSync(join(wt, t.file))
     );
     if (present.length === 0) return "green";
     for (const c of vitestCommands(present))
