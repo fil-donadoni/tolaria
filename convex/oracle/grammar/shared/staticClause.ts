@@ -155,6 +155,16 @@ export type StaticClauseIR =
           readonly filter: PermanentFilter;
           readonly keyword: KeywordIR;
       }
+    /** CR 113.1a + CR 613.1f layer 6 — a quoted triggered ability granted
+     *  to a matching set. */
+    | {
+          readonly kind: "triggered-grant";
+          readonly filter: PermanentFilter;
+          /** The quoted text, full stop included — the granted ability's own
+           *  Oracle text. */
+          readonly text: string;
+          readonly ability: QuotedAbilityIR;
+      }
     /**
      * CR 612.6 + CR 613.1c — "As long as the top card of your graveyard is a
      * creature card, <self> has the full text of that card and has the text
@@ -688,6 +698,74 @@ export const keywordGrantRule: Rule<StaticClauseIR> = rule(
                     ? { ...filter.value, excludeSource: true }
                     : filter.value,
                 keyword,
+            });
+        })
+);
+
+// ── Frame: triggered ability granted to a set (CR 113.1a, CR 613.1f) ───────
+
+/**
+ * CR 113.1a + CR 613.1f — '<plural descriptor> have "<triggered ability>"':
+ * the set-wide twin of the Aura host's quoted triggered grant. The quoted text
+ * is read by the SAME slot a printed triggered ability is, with the type line
+ * of the recipients, so "this creature" inside the quote is the recipient (the
+ * engine resolves a granted ability with the recipient as its source). Only a
+ * triggered quote is read here: an activated or mana quote names a cost the
+ * set-wide grant has no fixture for, and stays in the backlog.
+ */
+export const triggeredGrantRule: Rule<StaticClauseIR> = rule(
+    "triggered grant",
+    (span, rawCtx): RuleResult<StaticClauseIR> =>
+        uniqueSplit("triggered grant", span, " have ", (subject, tail) => {
+            const ctx = rawCtx as ParseContext;
+            const quoted = tail.match(QUOTED_TAIL);
+            if (quoted === null) return null;
+            const filter = readSubject(subject, "materialised");
+            if (!filter.ok) return filter;
+            const types = filter.value.types ?? [];
+            if (types.length !== 1)
+                return fail(
+                    "a quoted ability granted to a set naming no single card type",
+                    span
+                );
+            // CR 201.5a — the source's own name inside the quote would be
+            // the SOURCE, a different object from each recipient.
+            if (quoted[1]!.includes(ctx.selfMarker))
+                return fail("a granted ability naming its source", span);
+            // Any other "this <noun>" must name the RECIPIENT's own type (or
+            // the ability / turn): "this enchantment" would lower to `$source`,
+            // which for a granted ability is the recipient, not the granter.
+            const recipientNoun = types[0]!.toLowerCase();
+            for (const [, noun] of quoted[1]!.matchAll(/\bthis (\w+)/gi))
+                if (
+                    ![recipientNoun, "permanent", "ability", "turn"].includes(
+                        noun!.toLowerCase()
+                    )
+                )
+                    return fail(
+                        `a granted ability naming "this ${noun}", not its recipient`,
+                        span
+                    );
+            const ability = readQuotedAbilityIn(quoted[1]!, {
+                ...ctx,
+                typeLine: {
+                    types: [types[0]! as CardType],
+                    supertypes: [],
+                    subtypes: [],
+                    hostTypeOnly: true,
+                },
+            });
+            if (!ability.ok) return ability;
+            if (ability.value.kind !== "triggered")
+                return fail(
+                    "a quoted ability granted to a set that is not a triggered ability",
+                    span
+                );
+            return ok({
+                kind: "triggered-grant" as const,
+                filter: filter.value,
+                text: quoted[1]!,
+                ability: ability.value,
             });
         })
 );
@@ -2517,6 +2595,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
     oneOf(STATIC_CLAUSE, [
         anthemRule,
         keywordGrantRule,
+        triggeredGrantRule,
         graveyardKeywordGrantRule,
         fullTextEffectRule,
         costModifierRule,

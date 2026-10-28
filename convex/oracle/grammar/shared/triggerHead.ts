@@ -180,6 +180,12 @@ export type TriggerHeadIR =
      */
     | { readonly kind: "becomes-tapped"; readonly scope: "self" }
     /**
+     * CR 603.2 + CR 115.1 — "whenever this creature becomes the target of a
+     * spell or ability": the source named as a target by any spell or ability,
+     * its controller's or not (Ward's opponent narrowing is CR 702.21a's own).
+     */
+    | { readonly kind: "becomes-target" }
+    /**
      * CR 605.1b + CR 303.4b — "whenever enchanted land is tapped for mana":
      * the Aura's host tapped for a mana ability's cost. The tapped land's
      * controller (`$event.controllerId`) is "its controller" of the body.
@@ -599,6 +605,12 @@ export const SELF_HEADS: readonly {
         tail: " becomes tapped",
         ir: { kind: "becomes-tapped", scope: "self" },
     },
+    // CR 603.2 — the source becoming the target of a spell or ability.
+    {
+        opener: "whenever ",
+        tail: " becomes the target of a spell or ability",
+        ir: { kind: "becomes-target" },
+    },
     // CR 702.29c — "when you cycle this card" (the subject is "you cycle X").
     {
         opener: "when you cycle ",
@@ -690,6 +702,9 @@ export function headPronounReferent(
             return head.scope === "self" ? "source" : null;
         // CR 701.26a — the tapped permanent is the source itself.
         case "becomes-tapped":
+            return "source";
+        // CR 603.2 — the targeted permanent is the source itself.
+        case "becomes-target":
             return "source";
         // CR 303.4b — "its controller" names the host's, not the Aura's.
         case "tapped-for-mana":

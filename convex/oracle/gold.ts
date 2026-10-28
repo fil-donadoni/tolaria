@@ -804,6 +804,7 @@ const TRIGGER_HEAD_EVENT: Record<CompiledTriggerHead["kind"], GameEventType> = {
     "power-reached": "STATE_CHECK",
     tapped: "PERMANENT_TAPPED",
     "tapped-for-mana": "PERMANENT_TAPPED",
+    "became-target": "BECAME_TARGET",
     cycled: "CARD_DISCARDED",
     phase: "PHASE_BEGIN",
     "spell-cast": "SPELL_CAST",

@@ -284,4 +284,38 @@ const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
 });
 
 /** CR 113.3c — the ability's own full stop closes the line. */
-export const triggeredSlot: Rule<SlotIR> = terminated(".", triggeredBody);
+/** CR 603.2 — the per-turn limit sentence a trigger may end on, with the
+ *  count its words print ("once" / "twice"). */
+const TRIGGER_LIMIT_SENTENCE =
+    /^(.+)\. This ability triggers only (once|twice) each turn$/;
+const TRIGGER_LIMIT_COUNT = { once: 1, twice: 2 } as const;
+
+/**
+ * "<trigger>. This ability triggers only twice each turn." — the limit is a
+ * property of the ability, not an effect sentence, so it is read off the end
+ * and the rest is the ordinary triggered body. The limit stays attached to the
+ * IR; lowering refuses any head whose factory cannot count it.
+ */
+const limitedTriggeredBody: Rule<SlotIR> = rule(
+    "triggered body with a per-turn limit",
+    (span, ctx) => {
+        const match = span.match(TRIGGER_LIMIT_SENTENCE);
+        if (match === null) return triggeredBody.run(span, ctx);
+        const body = triggeredBody.run(match[1]!, ctx);
+        if (!body.ok) return body;
+        if (body.value.kind !== "triggered")
+            return fail("a per-turn limit behind a non-triggered body", span);
+        return ok({
+            ...body.value,
+            maxTriggersPerTurn:
+                TRIGGER_LIMIT_COUNT[
+                    match[2] as keyof typeof TRIGGER_LIMIT_COUNT
+                ],
+        });
+    }
+);
+
+export const triggeredSlot: Rule<SlotIR> = terminated(
+    ".",
+    limitedTriggeredBody
+);
