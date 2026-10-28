@@ -806,16 +806,27 @@ describe("field repro #2422 — Sylvan Safekeeper does not eat its own lands", (
         });
     }
 
+    /** Issue #6942 — the sacrifice no longer reaches the root at all: with no
+     *  stack object targeting anything, shroud answers nothing before the bot
+     *  next holds priority (`isFutileThisTurnMove`), a stronger verdict than
+     *  the mean-reward ordering this block used to pin. */
+    function assertPrunedAndPasses(state: GameState, seed: number): void {
+        const root = enumerateMoves(state, BOT, { pruneDominatedNoOps: true });
+        expect(
+            root.some(
+                (m) =>
+                    m.kind === "activate-ability" &&
+                    m.cardInstanceId === "keeper"
+            )
+        ).toBe(false);
+        const { move } = searchWithTrace(state, BOT, { iterations: 200 }, seed);
+        expect(move?.kind).not.toBe("activate-ability");
+    }
+
     it.each(SEEDS)(
-        "scores the sacrifice strictly below pass (seed %i)",
+        "never offers the sacrifice at the root (seed %i)",
         (seed) => {
-            const { activation, pass, chosen } = rootRewards(
-                position(),
-                "keeper",
-                seed
-            );
-            expect(activation).toBeLessThan(pass);
-            expect(chosen).not.toContain("Sylvan Safekeeper");
+            assertPrunedAndPasses(position(), seed);
         }
     );
 
@@ -826,15 +837,12 @@ describe("field repro #2422 — Sylvan Safekeeper does not eat its own lands", (
     // invisible, so "sacrifice a land for nothing" acquired a payoff term it
     // did not have when #2155 landed. It must still lose to `pass`.
     it.each(SEEDS)(
-        "still scores below pass in the bot's own sorcery window (seed %i)",
+        "still never offers it in the bot's own sorcery window (seed %i)",
         (seed) => {
-            const { activation, pass, chosen } = rootRewards(
+            assertPrunedAndPasses(
                 { ...position(), phase: "PRECOMBAT_MAIN" },
-                "keeper",
                 seed
             );
-            expect(activation).toBeLessThan(pass);
-            expect(chosen).not.toContain("Sylvan Safekeeper");
         }
     );
 });

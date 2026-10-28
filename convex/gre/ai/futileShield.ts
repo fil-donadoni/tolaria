@@ -94,7 +94,9 @@
  *     sits on the stack ABOVE every threat — a second instance is redundant
  *     (CR 702.11h, 702.12c, 702.16m, 702.18b); a threat placed above the
  *     pending grant keeps the move;
- *   * no threat it can answer exists. Shroud and hexproof only stop
+ *   * the cost sacrifices a permanent and no threat it can answer exists
+ *     (a tap / mana grant stays priced by the quiet-position valuation,
+ *     `defensiveGrants.ts`). Shroud and hexproof only stop
  *     targeting (CR 702.18a, 702.11b), so only a stack object TARGETING the
  *     permanent threatens; indestructible and protection share the shield
  *     count above. Protection on a permanent something is attached to keeps
@@ -194,7 +196,12 @@ type Shield = {
 function thisTurnEffectsOf(
     state: GameState,
     move: Move
-): { shields: Shield[]; tapCost: boolean; moverId: string } | null {
+): {
+    shields: Shield[];
+    tapCost: boolean;
+    sacrificeCost: boolean;
+    moverId: string;
+} | null {
     if (move.kind !== "activate-ability") return null;
     if (state.gameOver) return null;
     const source = findPermanent(state, move.cardInstanceId);
@@ -214,6 +221,7 @@ function thisTurnEffectsOf(
     return {
         shields,
         tapCost: ability.cost.tap === true,
+        sacrificeCost: ability.cost.sacrificeFilter !== undefined,
         moverId: source.controllerId,
     };
 }
@@ -227,7 +235,13 @@ export function isFutileThisTurnMove(state: GameState, move: Move): boolean {
     if (move.kind !== "activate-ability") return false;
     if (move.targets.length > 0 && anyBecameTargetListener(state)) return false;
     return effects.shields.every((s) =>
-        shieldIsFutile(state, s, effects.tapCost, effects.moverId)
+        shieldIsFutile(
+            state,
+            s,
+            effects.tapCost,
+            effects.sacrificeCost,
+            effects.moverId
+        )
     );
 }
 
@@ -448,6 +462,7 @@ function shieldIsFutile(
     state: GameState,
     shield: Shield,
     tapCost: boolean,
+    sacrificeCost: boolean,
     moverId: string
 ): boolean {
     const permanent = findPermanent(state, shield.permanentId);
@@ -461,7 +476,13 @@ function shieldIsFutile(
         );
     }
     if (shield.kind === "keyword") {
-        return keywordGrantIsFutile(state, permanent, shield.keyword!, tapCost);
+        return keywordGrantIsFutile(
+            state,
+            permanent,
+            shield.keyword!,
+            tapCost,
+            sacrificeCost
+        );
     }
     const threats = threatsTo(state, permanent, tapCost, shield.kind);
     // A P/T change is consumed by combat damage involving the creature (even
@@ -524,7 +545,8 @@ function keywordGrantIsFutile(
     state: GameState,
     permanent: CardInstanceState,
     keyword: string,
-    tapCost: boolean
+    tapCost: boolean,
+    sacrificeCost: boolean
 ): boolean {
     // CR 702.11h / 702.12c / 702.16m / 702.18b — a second instance is
     // redundant; an effect that strips the first strips a later grant too.
@@ -546,6 +568,10 @@ function keywordGrantIsFutile(
             : !isHarmlessStackItem(item, tapCost);
         if (threat) return false;
     }
+    // No threat at all: pruned for a sacrifice cost only. A tap / mana grant
+    // stays with the quiet-position valuation (`defensiveGrants.ts`) and the
+    // verdicts that pin it (issue #1890).
+    if (!sacrificeCost) return false;
     // CR 702.18a / 702.11b — combat and marked damage are not theirs to stop.
     if (targetingOnly) return true;
     return threatsTo(state, permanent, tapCost, "keyword") === 0;
