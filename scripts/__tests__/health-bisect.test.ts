@@ -116,11 +116,15 @@ describe("vitestCommands — the blade's specs under their own config", () => {
     it("splits the blade's specs from the default projects", () => {
         expect(
             vitestCommands([
-                "scripts/__tests__/x.test.ts",
-                "convex/gre/ai/blade/__tests__/must.spec.ts",
+                { file: "scripts/__tests__/x.test.ts" },
+                { file: "convex/gre/ai/blade/__tests__/must.spec.ts" },
             ])
         ).toEqual([
-            { args: ["vitest", "run", "scripts/__tests__/x.test.ts"], env: {} },
+            {
+                args: ["vitest", "run", "scripts/__tests__/x.test.ts"],
+                env: {},
+                tests: [{ file: "scripts/__tests__/x.test.ts" }],
+            },
             {
                 args: [
                     "vitest",
@@ -130,6 +134,7 @@ describe("vitestCommands — the blade's specs under their own config", () => {
                     "convex/gre/ai/blade/__tests__/must.spec.ts",
                 ],
                 env: { BLADE_TIER: "must" },
+                tests: [{ file: "convex/gre/ai/blade/__tests__/must.spec.ts" }],
             },
         ]);
     });
