@@ -197,6 +197,13 @@
             "needsSetup": false
         }
     ],
+    "Dwarven Lieutenant": [
+        {
+            "label": "tap-payoff pair: attacks with a Dwarf into walls that absorb it, Magda on board",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Etched Oracle": [
         {
             "label": "counter count: draws with an Etched Oracle that keeps a counter after paying",
@@ -745,6 +752,13 @@
             "label": "activation payoff: cracks Sylvan Safekeeper against removal on the stack",
             "tier": "must",
             "needsSetup": true
+        }
+    ],
+    "Tamiyo, Inquisitive Student": [
+        {
+            "label": "attack-trigger pair: attacks with a 0-power flier into a reach blocker, it investigates on attack",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Teferi's Response": [
