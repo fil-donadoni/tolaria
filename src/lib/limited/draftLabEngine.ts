@@ -102,6 +102,15 @@ export type SeatPickPolicy = (
 /** Per-seat pick-policy overrides, keyed by seat index. */
 export type SeatPickPolicies = ReadonlyMap<number, SeatPickPolicy>;
 
+/** Experiment knobs of a Lab run (Cut Experiment, issue #3738). Absent = the
+ *  Lab's normal behaviour. */
+export interface DraftLabRunOptions {
+    pickPolicies?: SeatPickPolicies;
+    /** `false` withholds the Draft Signal read from every seat's scorer — the
+     *  control arm that isolates what reading the signal adds. */
+    readSignal?: boolean;
+}
+
 /** The Lab's whole synthetic-draft session state — everything `stepDraftLab`
  *  reads and returns, and everything the UI renders. Plain data, no class,
  *  so two independent runs from the same seed can be compared by value
@@ -287,8 +296,9 @@ function findNextActingSeat(seats: readonly LimitedEventSeat[]): number {
 export function stepDraftLab(
     state: DraftLabState,
     getPickRating: GetPickRating,
-    pickPolicies?: SeatPickPolicies
+    options: DraftLabRunOptions = {}
 ): DraftLabState {
+    const { pickPolicies } = options;
     if (state.completed) return state;
 
     const seatIndex = findNextActingSeat(state.seats);
@@ -318,7 +328,8 @@ export function stepDraftLab(
         getPickRating,
         getCardProfile
     );
-    const draftSignal = observed.input;
+    const draftSignal =
+        options.readSignal === false ? undefined : observed.input;
 
     const poolMeta = (seat.pool ?? [])
         .map((c) => draftLabGetCardEvalMeta(c.scryfallId))
@@ -402,12 +413,12 @@ export function runFullDraftLab(
     packSlots: readonly string[],
     seatCount: number = DRAFT_LAB_SEAT_COUNT,
     cardProfileRows: readonly ScopedCardProfile[] = [],
-    pickPolicies?: SeatPickPolicies
+    options: DraftLabRunOptions = {}
 ): DraftLabState {
     const getPickRating = buildDraftLabPickRating(packSlots);
     let state = initDraftLab(seed, packSlots, seatCount, cardProfileRows);
     for (let i = 0; i < MAX_STEPS && !state.completed; i++) {
-        state = stepDraftLab(state, getPickRating, pickPolicies);
+        state = stepDraftLab(state, getPickRating, options);
         if (i === MAX_STEPS - 1) {
             throw new Error(
                 "runFullDraftLab: exceeded the step bound — likely an infinite loop in pass/queue bookkeeping."

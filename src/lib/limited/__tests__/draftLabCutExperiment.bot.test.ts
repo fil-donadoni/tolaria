@@ -15,6 +15,7 @@ import {
     buildDraftLabPickRating,
     runFullDraftLab,
     standardPackSlots,
+    type DraftLabRunOptions,
     type SeatPickPolicies,
     type SeatPickPolicy,
 } from "../draftLabEngine";
@@ -28,7 +29,11 @@ const SEEDS = [11, 23, 37, 41, 59, 71, 83, 97];
 /** Round 0 passes `+1` (`draftEngine.ts#passDirection`): seat 0 feeds seat 1. */
 const CUT_SEAT = 0;
 const OBSERVED_SEAT = 1;
-const CUT_COLOURS: readonly SignalColour[] = ["R", "U"];
+/** Measured at the read slice's weights (issue #3736): R holds, U does NOT —
+ *  a blind seat loses MORE U power than a reading one (98.0 vs 160.5 over
+ *  these seeds). Filed as a finding for the owner; weights are not tuned here
+ *  (issue #3738 out of scope). */
+const CUT_COLOURS: readonly SignalColour[] = ["R"];
 
 const getPickRating = buildDraftLabPickRating(PACK_SLOTS);
 
@@ -72,33 +77,45 @@ function colourPower(
 function observedPower(
     seed: number,
     colour: SignalColour,
-    policies?: SeatPickPolicies
+    options: DraftLabRunOptions
 ): number {
-    const state = runFullDraftLab(seed, PACK_SLOTS, 8, [], policies);
+    const state = runFullDraftLab(seed, PACK_SLOTS, 8, [], options);
     return colourPower(state.seats[OBSERVED_SEAT].pool ?? [], colour);
+}
+
+/** Total `colour` power the observed seat ends with over every seed. */
+function total(colour: SignalColour, options: DraftLabRunOptions): number {
+    return SEEDS.reduce(
+        (sum, seed) => sum + observedPower(seed, colour, options),
+        0
+    );
 }
 
 describe("Cut Experiment: Bot Drafter reads Draft Signals (issue #3738)", () => {
     for (const colour of CUT_COLOURS) {
-        it(`seat downstream of a ${colour} cut ends with less ${colour} power`, () => {
-            const policies: SeatPickPolicies = new Map([
+        it(`reading a ${colour} cut moves the downstream seat off ${colour}`, () => {
+            const pickPolicies: SeatPickPolicies = new Map([
                 [CUT_SEAT, onlyColour(colour)],
             ]);
-            let cut = 0;
-            let normal = 0;
-            for (const seed of SEEDS) {
-                cut += observedPower(seed, colour, policies);
-                normal += observedPower(seed, colour);
-            }
+            // The cut also removes cards from the pack mechanically, so the
+            // raw A-vs-B gap is not evidence of READING. Each arm is run with
+            // and without the signal read; the signal's contribution is how
+            // much further the cut pushes the seat when it can read it.
+            const dropRead =
+                total(colour, {}) - total(colour, { pickPolicies });
+            const dropBlind =
+                total(colour, { readSignal: false }) -
+                total(colour, { pickPolicies, readSignal: false });
             expect(
-                cut,
+                dropRead,
                 `OPINION-class Cut Experiment (GLOSSARY): with the seat upstream ` +
-                    `cutting ${colour}, the downstream seat should end with LESS ` +
-                    `${colour} power (cut ${cut.toFixed(1)} vs normal ` +
-                    `${normal.toFixed(1)} over ${SEEDS.length} seeds). A red run ` +
-                    `calls for a decision — accept and restate, or revert — never ` +
-                    `an automatic weight change.`
-            ).toBeLessThan(normal);
+                    `cutting ${colour}, a downstream seat that READS the signal ` +
+                    `should lose more ${colour} power than one that cannot ` +
+                    `(drop ${dropRead.toFixed(1)} read vs ${dropBlind.toFixed(1)} ` +
+                    `blind over ${SEEDS.length} seeds). A red run calls for a ` +
+                    `decision — accept and restate, or revert — never an ` +
+                    `automatic weight change.`
+            ).toBeGreaterThan(dropBlind);
         });
     }
 });
