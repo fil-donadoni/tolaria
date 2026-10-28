@@ -1169,7 +1169,9 @@ describe("isFutileThisTurnMove — defensive keyword grants (issue #6942)", () =
         const lands = () => bot.battlefield.filter(isLand).length;
         const before = lands();
         // Play the response window out through the real search: the Bot
-        // decides whenever it holds priority, the opponent passes.
+        // decides whenever it holds priority, the opponent passes. A
+        // tripwire, not a proof: it was green before issue #6942 too — the
+        // search never re-activated here; the predicate tests above are.
         for (let step = 0; step < 20 && state.stack.length > 0; step++) {
             const pid = state.priorityPlayerId;
             if (pid === bot.id) {
