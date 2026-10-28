@@ -85,6 +85,16 @@ describe("resolveSeedTarget production (issue #7341)", () => {
         expect(plan.cwd).toBe(primaryCheckout());
         expect(plan.flags).toEqual(["--prod"]);
     });
+
+    it("refuses when a deploy key in the environment would override the CLI login", () => {
+        const plan = resolveSeedTarget(
+            "production",
+            { CONVEX_DEPLOY_KEY: "dev:tolaria|abc" },
+            "/elsewhere"
+        );
+        expect(plan.cwd).toBeUndefined();
+        expect(plan.error).toContain("CONVEX_DEPLOY_KEY");
+    });
 });
 
 describe("parseArgs --prod (issue #7341)", () => {

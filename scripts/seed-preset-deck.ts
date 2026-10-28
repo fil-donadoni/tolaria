@@ -240,6 +240,11 @@ function main(): void {
     // The owner's push between releases (issue #7341): say where the write
     // goes before it happens, since a production row is visible to every user.
     if (args.target === "production" && !args.dryRun) {
+        const plan = resolveSeedTarget("production");
+        if (plan.error) {
+            console.error(`${RED}seed:preset --prod: ${plan.error}${RESET}`);
+            process.exit(1);
+        }
         console.log(
             `${DIM}--prod: writing to the PRODUCTION deployment of the project the` +
                 ` primary checkout is linked to (canonical file wins)${RESET}`
