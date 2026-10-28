@@ -5251,6 +5251,25 @@ function lowerFrameChain(
                 return unlowerable(
                     '"copy this spell" is read only behind a sacrificing player\'s "If the player does"'
                 );
+            // CR 702.16i — the Op's span ("until your next turn") is intrinsic
+            // and the frame reads that wording only.
+            case "protectionFromEverything":
+                ops.push({
+                    op: "setProtectionFromEverything",
+                    player: "controller",
+                });
+                break;
+            // CR 707.2 + CR 111.1 — the controller creates the token.
+            case "copyToken": {
+                const source = objectSelector(frame.source, walk.targets, site);
+                if (!source.ok) return source;
+                ops.push({
+                    op: "createTokenCopy",
+                    source: source.value,
+                    controller: "controller",
+                });
+                break;
+            }
             case "bringFromOutsideGame":
                 ops.push({
                     op: "bringFromOutsideGame",

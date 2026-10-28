@@ -290,6 +290,25 @@ export type FrameIR =
           readonly frame: "copySpell";
       }
     | {
+          /**
+           * CR 702.16i + CR 702.16b — "you gain protection from everything
+           * until your next turn": the controller is protected from every
+           * object for the Op's intrinsic span (cleared at the start of their
+           * next turn). The controller only: the Op takes a player, and the
+           * corpus prints no other recipient this frame has a fixture for.
+           */
+          readonly frame: "protectionFromEverything";
+      }
+    | {
+          /**
+           * CR 707.2 + CR 111.1 — "create a token that's a copy of <object>":
+           * the controller creates a token whose copiable values are the
+           * named object's. The object is the source only ("this creature").
+           */
+          readonly frame: "copyToken";
+          readonly source: SubjectIR;
+      }
+    | {
           readonly frame: "bringFromOutsideGame";
           /** What the card may be (`OUTSIDE_GAME_FILTERS`), as the Op's filter. */
           readonly filter: EffectCardFilter;
@@ -385,10 +404,24 @@ export const VERB_FRAMES: readonly {
         ),
     },
     {
+        name: "protectionFromEverything",
+        opens: /^you gain protection from everything\b/i,
+    },
+    {
+        name: "copyToken",
+        opens: /^create a token that's a copy of /i,
+    },
+    {
         name: "bringFromOutsideGame",
         opens: /^you may reveal an? [^,]+? card you own from outside the game /i,
     },
 ];
+
+function opensFrame(name: FrameName, member: string): boolean {
+    return VERB_FRAMES.some(
+        (frame) => frame.name === name && frame.opens.test(member)
+    );
+}
 
 /** A chain piece that opens a member: a frame, its "then", a reveal, a shuffle. */
 function opensMember(piece: string): boolean {
@@ -429,6 +462,9 @@ export const ANY_NUMBER = Number.MAX_SAFE_INTEGER;
  */
 const NAMED = /^(.+?) named (.+)$/;
 const NAME_LIST = /\b(and|or|and\/or|named)\b/i;
+const PROTECTION_FROM_EVERYTHING =
+    "you gain protection from everything until your next turn";
+const COPY_TOKEN_OPENER = "create a token that's a copy of ";
 const REVEAL = new RegExp(`^reveal ${PRONOUN}$`);
 const SHUFFLE_AND_TOP = new RegExp(`^shuffle and put ${PRONOUN} on top$`);
 /** CR 401.4 — "in any order" after a plural find on top of the library: the
@@ -1381,6 +1417,35 @@ function readMember(
         // A sacrifice produces no referent a later frame could name: the
         // pronoun rule binds the LAST find, and this is not one.
         return { frames: [sacrifice.value], referent };
+    }
+    if (opensFrame("protectionFromEverything", lower)) {
+        // CR 702.16i — the Op's span is "until your next turn", fixed: any
+        // other duration is a different effect.
+        if (lower !== PROTECTION_FROM_EVERYTHING)
+            return {
+                refused: `"${member}" — only "you gain protection from everything until your next turn" is read`,
+            };
+        return {
+            frames: [{ frame: "protectionFromEverything" }],
+            referent,
+        };
+    }
+    if (opensFrame("copyToken", lower)) {
+        const objectSpan = lower.slice(COPY_TOKEN_OPENER.length);
+        const subject = subjectRule.run(objectSpan, ctx);
+        if (!subject.ok) return { refused: subject.reason, failure: subject };
+        // CR 707.2 — only the source is read: an announced target or the
+        // site's creature needs a whole-card fixture no card compiles to yet
+        // (Schema Thief, Necroduality), and a pronoun, a card or a sweep is
+        // another copy effect (Populate, Clone Legion's for-each).
+        if (subject.value.kind !== "self")
+            return {
+                refused: `"${objectSpan}" is not an object a token copy is read from — only the source is`,
+            };
+        return {
+            frames: [{ frame: "copyToken", source: subject.value }],
+            referent,
+        };
     }
     const fromOutside = lower.match(BRING_FROM_OUTSIDE_GAME);
     if (fromOutside !== null) {
