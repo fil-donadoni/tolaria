@@ -227,7 +227,7 @@ describe("choice — a computed { min: 0, max } search ceiling (CR 701.23h)", ()
 
     it("a ceiling of 0 raises nothing — not even the no-hit search an EMPTY library would get", () => {
         // p1 has nothing exiled AND an empty library: a literal-ceiling search
-        // would still raise a 0-pick look (CR 401.4); a computed 0 asks for no
+        // would still raise a 0-pick look (CR 701.23a); a computed 0 asks for no
         // card at all, so there is no search to perform.
         const state = makeState({
             players: [

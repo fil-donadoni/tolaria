@@ -86,7 +86,7 @@ export const ephemerate = defineCard(() => ({
 // searches their library for a basic land card. Those players put those cards
 // onto the battlefield tapped, then shuffle. Overload {4}{W}{W}."
 //
-// CR 702.96 (issue #3215). The exile is ONE `forEach { set: "targets" }`:
+// CR 702.96 Overload (issue #3215). The exile is ONE `forEach { set: "targets" }`:
 // printed, that set is the single announced target; overloaded it is every
 // creature the caster doesn't control, computed with targeting restrictions
 // bypassed (CR 702.96b), which is how an overloaded Winds exiles a hexproof
