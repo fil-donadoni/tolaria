@@ -154,8 +154,8 @@ export const windsOfAbandon = defineCard(() => ({
                                 controller: { ref: "$each" },
                             },
                         },
-                        op: "gt",
-                        right: 0,
+                        op: "ge",
+                        right: 1,
                     },
                     then: [
                         {
