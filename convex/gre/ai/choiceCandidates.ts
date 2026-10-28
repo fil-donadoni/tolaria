@@ -51,6 +51,7 @@ import {
     getPendingChoiceMax,
     getPendingChoiceMin,
     getPlayer,
+    isStacklessEntryPark,
     mayPayDiscardChoiceRequired,
     mayPayHandAutoSelection,
     mayPayHandLegCount,
@@ -1277,7 +1278,7 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
 };
 
 /** Issue #4896 — the ONE answer the search gives a choice it does not branch
- *  on, or `null` when it has none and must stop there as before. A
+ *  on, or `null` when it has none and must stop there as before. An as-enters
  *  `name-card` head is answered by `nameCardAnswer` (issue #6676); the rest of
  *  this note is the mandatory discard.
  *
@@ -1301,7 +1302,13 @@ export function forcedChoiceAnswer(
     state: GameState,
     choice: PendingChoice
 ): Move | null {
-    if (choice.kind === "name-card") return nameCardAnswer(state, choice);
+    // Only the as-enters name (CR 614.1c): a mid-resolution `nameCard` (Cabal
+    // Therapy) still stops, scored by its script valuation — a public-zone
+    // name rarely hits the hidden hand, so resolving it read as a dud.
+    if (choice.kind === "name-card")
+        return isStacklessEntryPark(choice)
+            ? nameCardAnswer(state, choice)
+            : null;
     if (choice.kind !== "discard-hand" || choice.asEntersKind) return null;
     const min = getPendingChoiceMin(choice.count);
     if (min <= 0) return null;

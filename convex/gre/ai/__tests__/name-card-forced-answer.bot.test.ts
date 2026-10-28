@@ -64,6 +64,37 @@ function battlefieldMage(s: GameState) {
         .battlefield.find((c) => idOf(c) === mageId);
 }
 
+/** Cast Cabal Therapy at the opponent and resolve it up to its
+ *  mid-resolution `nameCard` Op: a name-card head ON the stack. */
+function midCabalTherapy(): GameState {
+    const s = buildPositionFromSpec({
+        cards: [
+            { name: "Cabal Therapy", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
+            { name: "Lightning Bolt", owner: "opp", zone: "graveyard" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 3,
+        libraryCount: 20,
+    });
+    const me = s.activePlayerId;
+    const opp = s.players.find((p) => p.id !== me)!.id;
+    const therapyId = getCardByName("Cabal Therapy").id;
+    const therapy = s.players
+        .find((p) => p.id === me)!
+        .hand.find((c) => idOf(c) === therapyId)!;
+    const cast = enumerateMoves(s, me).find(
+        (m) =>
+            m.kind === "cast-spell" &&
+            m.cardInstanceId === therapy.id &&
+            (m.targets ?? []).some((t) => t.type === "player" && t.id === opp)
+    );
+    if (!cast) throw new Error("no Cabal Therapy cast at the opponent");
+    applyMoveInSearch(s, me, cast);
+    resolveTopOfStack(s);
+    return s;
+}
+
 describe("advanceToDecision — a name-card window is answered, not scored (issue #6676)", () => {
     it("the position the walk used to stop at: the as-enters name, no decider", () => {
         const mid = midMeddlingMage([]);
@@ -108,6 +139,15 @@ describe("advanceToDecision — a name-card window is answered, not scored (issu
             kind: "name-card",
             cardName: "Meddling Mage",
         });
+    });
+
+    it("leaves a mid-resolution nameCard unanswered (Cabal Therapy keeps its script valuation)", () => {
+        const mid = midCabalTherapy();
+        const head = mid.pendingChoices![0]!;
+        expect(head.kind).toBe("name-card");
+        expect(head.stackItemId).not.toBe("");
+        // A public-zone name ("Lightning Bolt") is legal here, yet unanswered.
+        expect(forcedChoiceAnswer(mid, head)).toBeNull();
     });
 
     it("never names a card in the chooser's own hand — no self-lock", () => {
