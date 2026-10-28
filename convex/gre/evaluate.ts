@@ -122,7 +122,11 @@ import {
 // Issue #2937 — the single authority on which granted keywords are PROTECTIVE
 // and on whether anything the opponent is doing can currently reach the
 // permanent that carries them.
-import { isQuietFor, temporaryDefensiveKeywords } from "./ai/defensiveGrants";
+import {
+    isQuietFor,
+    temporaryCombatKeywords,
+    temporaryDefensiveKeywords,
+} from "./ai/defensiveGrants";
 import { inertKeywordDiscount } from "./ai/keywordRelevance";
 import { carriesEachStepEngine } from "./ai/cardScriptValue";
 import {
@@ -272,6 +276,11 @@ export function evaluateCreature(
     const pt = getEffectivePT(state, card, { includeTemporary: false, pass });
     const lastingPower = Math.max(0, pt.power);
     const quietGrants = quietDefensiveGrants(state, card);
+    // Issue #5927 — the keyword twin of the P/T exclusion above: an evasion /
+    // combat keyword granted "until end of turn" ends at cleanup (CR 514.2)
+    // and is worth only the combat it changes, which the rollouts play out.
+    // Taken back unconditionally; the defensive rows keep their threat gate.
+    const transientGrants = temporaryCombatKeywords(state, card);
     return (
         creatureValueRaw(
             Math.max(0, pt.power),
@@ -296,13 +305,17 @@ export function evaluateCreature(
         // position (`ai/defensiveGrants.ts`, fail-closed in every clause), so
         // no other board's valuation moves.
         flatBonusOf(quietGrants, lastingPower) -
+        flatBonusOf(transientGrants, lastingPower) -
         // Issue #5356 — the same table's bonus for a keyword that does
         // NOTHING against the players this creature faces:
         // landwalk with no such land across the table (CR 702.14c);
         // protection from a colour they have not shown (CR 702.16a).
         // Fail-open: zero unless
         // the board proves the keyword inert (`ai/keywordRelevance.ts`).
-        inertKeywordDiscount(state, card, lastingPower, quietGrants) +
+        inertKeywordDiscount(state, card, lastingPower, [
+            ...quietGrants,
+            ...transientGrants,
+        ]) +
         // `card` doubles as the ability-gate subject (issue #1936): the
         // trigger system already treats a raw `CardInstanceState` as the
         // `PermanentView` a CR 603.4 condition reads, so a gated trigger's

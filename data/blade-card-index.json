@@ -130,6 +130,13 @@
             "needsSetup": false
         }
     ],
+    "Disciple of Kangee": [
+        {
+            "label": "transient grant: gives its own creature flying for the evasive lethal swing",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Disenchant": [
         {
             "label": "each-step dig: Disenchant takes the Oath of Druids that digs only the opponent's Craw Wurms, not the 2-MV artifact (issue #5627)",
