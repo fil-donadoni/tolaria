@@ -109,10 +109,18 @@ const semicolonGroups: Rule<KeywordIR[][]> = listOf(
 
 export const KEYWORD_LINE_SLOT = "keyword-line";
 
+/**
+ * CR 702.85c — "If a spell has multiple instances of cascade, each triggers
+ * separately": "Cascade, cascade" is a printed shape, and `expandCascade`
+ * counts every literal repeat. Registry-keyed by mechanic id, not by name.
+ */
+const REPEATABLE_KEYWORD_IDS: ReadonlySet<string> = new Set(["cascade"]);
+
 /** One `keywords` slot, refusing a keyword named twice on the line. */
 function keywordsSlot(keywords: readonly KeywordIR[]): RuleResult<SlotIR> {
     const seen = new Set<string>();
     for (const k of keywords) {
+        if (REPEATABLE_KEYWORD_IDS.has(k.registryId)) continue;
         // The same keyword twice on one line is not a shape Magic prints;
         // it is a sign the line was misread, so it fails rather than being
         // silently deduped.
