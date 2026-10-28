@@ -79,10 +79,12 @@ export function stripAnsi(output: string): string {
 /**
  * One vitest FAIL line, either label form: `FAIL  |proj| path > test`
  * (no colour) or `FAIL   proj  path > test` (colour stripped). Group 1 is
- * the project when there is one, group 2 the test file.
+ * the project when there is one (group 2 in the coloured form), group 3 the
+ * test file, group 4 the test's name — its describe chain and its own name,
+ * joined by ` > ` — when the line names a test rather than a whole file.
  */
 export const VITEST_FAIL_LINE =
-    /^\s*(?:[❯>×✗]\s*)?FAIL\s+(?:\|([^|\n]+)\|\s+|([\w@.:/-]+)\s+(?=\S+\.(?:test|spec)\.[cm]?[jt]sx?\b))?(\S+\.(?:test|spec)\.[cm]?[jt]sx?)\b/gm;
+    /^\s*(?:[❯>×✗]\s*)?FAIL\s+(?:\|([^|\n]+)\|\s+|([\w@.:/-]+)\s+(?=\S+\.(?:test|spec)\.[cm]?[jt]sx?\b))?(\S+\.(?:test|spec)\.[cm]?[jt]sx?)\b(?: > ([^\n]*\S))?/gm;
 
 /** Every FAIL line, project-tagged or not (`lib/health-retry.ts`). */
 export const ANY_FAIL_LINE = /^\s*(?:[❯>×✗]\s*)?FAIL\s+\S/gm;
@@ -91,6 +93,9 @@ export interface FailLine {
     /** The vitest project, when the line names one. */
     project?: string;
     file: string;
+    /** The test's name (`suite > test`), when the line names one — a FAIL
+     *  line for a whole file (a suite that failed to load) names none. */
+    name?: string;
 }
 
 /** The FAIL lines of a vitest run's output, in order, colours stripped. */
@@ -98,8 +103,41 @@ export function failLines(output: string): FailLine[] {
     const out: FailLine[] = [];
     for (const m of stripAnsi(output).matchAll(VITEST_FAIL_LINE)) {
         const project = (m[1] ?? m[2])?.trim();
-        out.push(project ? { project, file: m[3] } : { file: m[3] });
+        const name = m[4]?.trim();
+        out.push({
+            ...(project ? { project } : {}),
+            file: m[3],
+            ...(name ? { name } : {}),
+        });
     }
+    return out;
+}
+
+/** One failing test the RED ladder re-runs: a test by its name, or a whole
+ *  file when no FAIL line named a test in it. */
+export interface FailingTest {
+    file: string;
+    name?: string;
+}
+
+/**
+ * The failing tests a published body names (issue #7339): every FAIL line of
+ * its excerpt that names a test, plus — as a whole file — each file of its
+ * `- **files:**` line no such line covers (a suite that failed to load, an
+ * excerpt cut short). Unique, in order.
+ */
+export function evidenceTests(body: string): FailingTest[] {
+    const out: FailingTest[] = [];
+    const seen = new Set<string>();
+    for (const l of failLines(body)) {
+        if (l.name === undefined) continue;
+        const key = `${l.file}\n${l.name}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ file: l.file, name: l.name });
+    }
+    for (const file of evidenceFiles(body))
+        if (!out.some((t) => t.file === file)) out.push({ file });
     return out;
 }
 
