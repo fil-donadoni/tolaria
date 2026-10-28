@@ -16111,11 +16111,16 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         bot: "me",
         budget: { iterations: 200 },
         seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-        tier: "must",
+        tier: "stretch",
+        beyondBudget: {
+            cause: "horizon",
+            passesAt: { iterations: 1600 },
+            note: "The payoff sits behind activate → land-type choice → resolve → cast (issue #7322). Under the weights restored by the revert of PR #7296 the activation ties `pass` on the material tie-break at the production 400-iteration budget and below (10 of 10 seeds pass at 200); 1200 iterations still passes on 2 of 10 seeds, 1600 and 2000 activate on 10 of 10. Missing knowledge: depth to the payoff, which the prune (`isFutileThisTurnMove`) already leaves standing.",
+        },
         expect: {
             moves: [{ kind: "activate-ability", card: "Reef Shaman" }],
         },
-        note: "Issue #6915, position B — the discriminating twin of position A: Lightning Bolt in hand and no red source. A land of the Bot's own made a Mountain gains {T}: Add {R} (CR 305.6), so the prune must leave the own-land targets standing; the opponent's tapped lands stay pruned.",
+        note: "Issue #6915, position B — the discriminating twin of position A: Lightning Bolt in hand and no red source. A land of the Bot's own made a Mountain gains {T}: Add {R} (CR 305.6), so the prune must leave the own-land targets standing; the opponent's tapped lands stay pruned. `stretch` since issue #7322: see `beyondBudget`; the prune itself stays pinned by `futileShield.bot.test.ts`.",
     },
     {
         label: "land-type change: Reef Shaman makes a Forest to cast the green spell in hand",
