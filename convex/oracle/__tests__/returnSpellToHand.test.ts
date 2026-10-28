@@ -60,6 +60,10 @@ describe("return target spell to its owner's hand (CR 400.7)", () => {
             "a spell sent to a library",
             "Put target spell on the top of its owner's library.",
         ],
+        [
+            "a spell sent to the caster's hand",
+            "Return target spell to your hand.",
+        ],
         ["a sweep of spells", "Return all spells to their owners' hands."],
     ])("refuses %s", (_label, text) => {
         expect(compileCard(instant("Probe", "{U}", text)).state).toBe(

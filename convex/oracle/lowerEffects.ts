@@ -5514,9 +5514,9 @@ function lowerMoveFrame(
                 subject.kind === "target" &&
                 subject.requirement.type === "spell"
             ) {
-                if (to.zone !== "hand")
+                if (to.zone !== "hand" || to.owner !== "its-owner")
                     return unlowerable(
-                        `a spell is not moved to ${to.zone} by this frame (CR 400.7)`
+                        `a spell is not moved to ${to.owner}'s ${to.zone} by this frame (CR 400.7)`
                     );
                 const spell = spellSelector(subject, slots, site);
                 if (!spell.ok) return spell;
