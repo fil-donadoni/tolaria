@@ -98,11 +98,6 @@
             "issue": 4533
         },
         {
-            "key": "(op) › moveSpellFromStack",
-            "op": "moveSpellFromStack",
-            "issue": 4532
-        },
-        {
             "key": "(op) › randomExileToHand",
             "op": "randomExileToHand",
             "issue": 5178

@@ -5506,6 +5506,32 @@ function lowerMoveFrame(
         }
         case "subject": {
             const subject = object.subject;
+            // CR 400.7 + CR 112.1 — a spell is on the stack, not the
+            // battlefield: "Return target spell to its owner's hand" is the
+            // stack departure `moveSpellFromStack` spells, and NOT a counter
+            // (CR 701.6a cancels the spell; a bounce does not).
+            if (
+                subject.kind === "target" &&
+                subject.requirement.type === "spell"
+            ) {
+                if (to.zone !== "hand" || to.owner !== "its-owner")
+                    return unlowerable(
+                        `a spell is not moved to ${to.owner}'s ${to.zone} by this frame (CR 400.7)`
+                    );
+                const spell = spellSelector(subject, slots, site);
+                if (!spell.ok) return spell;
+                if ("ref" in spell.value)
+                    return unlowerable(
+                        "a spell bounce names an announced spell"
+                    );
+                return lowered([
+                    {
+                        op: "moveSpellFromStack",
+                        target: spell.value,
+                        destination: "hand",
+                    },
+                ]);
+            }
             // CR 701.13a — the target shape's `moveZone` re-derives a departed
             // object in a graveyard and SKIPS a battlefield one bound for
             // exile or a graveyard: the source, "that creature" or the

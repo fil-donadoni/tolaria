@@ -913,7 +913,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Remand",
     "Remove Enchantments",
     "Remove Soul",
-    "Reprieve",
     "Reset",
     "Restock",
     "Reverse Damage",
