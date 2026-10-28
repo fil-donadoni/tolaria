@@ -21,6 +21,7 @@ import { describe, expect, it } from "vitest";
 import type { CardDefinition, CardType } from "../../cards/types";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
+import type { OracleCard } from "../types";
 import { oracleCard } from "./oracle.fixture";
 
 function spell(
@@ -514,4 +515,102 @@ describe("From among them — the mill's pick names the mill's own set (CR 400.2
         // ago: the candidates are the mill's binding, and nothing else.
         expect(choice.candidates).toEqual([{ ref: mill.bindAll }]);
     });
+});
+
+// CR 608.2c + CR 701.17a — the MANDATORY pick onto the battlefield: "Mill N
+// cards. Then put a creature card from among them onto the battlefield."
+const VASTLANDS_SCAVENGER: OracleCard = {
+    oracleId: "3a97bc8d-bd81-468e-9277-eba4fac11ee0",
+    name: "Vastlands Scavenger // Bind to Life",
+    manaCost: "{1}{G}{G} // {4}{G}",
+    typeLine: "Creature — Bear Druid // Instant",
+    oracleText: "",
+    power: "4",
+    toughness: "4",
+    layout: "prepare",
+    faces: [
+        {
+            name: "Vastlands Scavenger",
+            manaCost: "{1}{G}{G}",
+            typeLine: "Creature — Bear Druid",
+            oracleText:
+                "Deathtouch\nThis creature enters prepared. (While it's prepared, you may cast a copy of its spell. Doing so unprepares it.)",
+            power: "4",
+            toughness: "4",
+        },
+        {
+            name: "Bind to Life",
+            manaCost: "{4}{G}",
+            typeLine: "Instant",
+            oracleText:
+                "Mill seven cards. Then put a creature card from among them onto the battlefield.",
+        },
+    ],
+};
+
+describe("From among them — a mandatory pick onto the battlefield (CR 608.2c)", () => {
+    it("Vastlands Scavenger // Bind to Life: mill, then the creature pick enters", () => {
+        const outcome = compileCard(VASTLANDS_SCAVENGER);
+        expect(outcome.state).toBe("ready");
+        if (outcome.state === "unparsed") return;
+        expect(sortKeys(outcome.definition.insetSpell?.effects)).toEqual(
+            sortKeys([
+                {
+                    op: "mill",
+                    player: "controller",
+                    count: 7,
+                    bindAll: "$milled1",
+                },
+                {
+                    op: "choice",
+                    kind: "choose-graveyard-card",
+                    player: "controller",
+                    zone: "graveyard",
+                    candidates: [{ ref: "$milled1" }],
+                    filter: { type: "Creature" },
+                    count: 1,
+                    prompt: "Put a creature card from among the milled cards onto the battlefield.",
+                    bind: "$pick2",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$pick2" },
+                    player: "controller",
+                    from: "graveyard",
+                    to: "battlefield",
+                },
+            ])
+        );
+    });
+
+    const refused: [string, string][] = [
+        [
+            "an instruction-less 'You may' version (a different, optional form)",
+            "Mill seven cards. You may put a creature card from among them onto the battlefield.",
+        ],
+        [
+            "a pick behind an effect that put no cards in view",
+            "Draw two cards. Then put a creature card from among them onto the battlefield.",
+        ],
+        [
+            "a pick from another player's mill",
+            "Target player mills seven cards. Then put a creature card from among them onto the battlefield.",
+        ],
+        [
+            "a pick behind a mill of a single card",
+            "Mill a card. Then put a creature card from among them onto the battlefield.",
+        ],
+        [
+            "an instant card (cannot be put onto the battlefield)",
+            "Mill seven cards. Then put an instant card from among them onto the battlefield.",
+        ],
+    ];
+    for (const [why, text] of refused) {
+        it(`refuses ${why}`, () => {
+            expect(
+                compileCard(spell("Refusal Probe", "{4}{G}", text, "Instant"))
+                    .state
+            ).toBe("unparsed");
+        });
+    }
 });

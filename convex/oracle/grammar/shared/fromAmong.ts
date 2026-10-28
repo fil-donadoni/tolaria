@@ -55,6 +55,10 @@ export interface AmongPickSentenceIR {
 /** The printed back-reference: the antecedent's set. */
 const BACK_REFERENCE = "from among them";
 const AMONG_PICK = new RegExp(`^(an? .+ card) ${BACK_REFERENCE}$`);
+/** "Put <pick> onto the battlefield" — the mandatory pick, no "You may". */
+const PICK_BATTLEFIELD = new RegExp(
+    `^(?:Then p|P)ut (an? .+ card ${BACK_REFERENCE}) onto the battlefield$`
+);
 /** "You may reveal <pick> and put it into your hand". */
 const PICK_REVEAL = new RegExp(
     `^You may reveal (an? .+ card ${BACK_REFERENCE}) and put it into your hand$`
@@ -167,4 +171,19 @@ function pickFilter(descriptor: DescriptorIR): EffectCardFilter | string {
     if (Object.keys(filter).length === 0)
         return "a pick from among them names what card it takes";
     return filter;
+}
+
+/**
+ * CR 608.2c + CR 701.17a — "Put a creature card from among them onto the
+ * battlefield": the MANDATORY pick of one card out of the antecedent's set
+ * (no "You may"), put onto the battlefield. `null` = the sentence prints no
+ * such pick. Only a mill is read as its antecedent (`assembleSentences`).
+ */
+export function readAmongBattlefieldSentence(
+    span: string,
+    ctx: unknown
+): RuleResult<AmongPickIR> | null {
+    const match = span.match(PICK_BATTLEFIELD);
+    if (match === null) return null;
+    return amongPickRule.run(match[1]!, ctx);
 }

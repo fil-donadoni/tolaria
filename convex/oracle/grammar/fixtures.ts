@@ -13446,6 +13446,60 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 608.2c + CR 701.17a — "Mill seven cards. Then put a creature card from
+    // among them onto the battlefield.": the MANDATORY pick (no "You may")
+    // reaches only the cards the mill put into the graveyard and enters the
+    // battlefield. A prepare layout compiles its second face as an ordinary
+    // card (`compileInsetLayout`), so the fixture is Vastlands Scavenger's
+    // Bind to Life face. Exhibits the same card-dependent forms as the
+    // optional mill pick above: the `choice` reads the `$milled` binding only
+    // the mill writes, and the `moveZone` changes zones on an object the
+    // generator does not model.
+    {
+        rule: "from among",
+        card: {
+            oracleId: "3a97bc8d-bd81-468e-9277-eba4fac11ee0",
+            name: "Bind to Life",
+            manaCost: "{4}{G}",
+            typeLine: "Instant",
+            oracleText:
+                "Mill seven cards. Then put a creature card from among them onto the battlefield.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Bind to Life",
+            types: ["Instant"],
+            manaCost: { X: 4, G: 1 },
+            oracleText:
+                "Mill seven cards. Then put a creature card from among them onto the battlefield.",
+            effects: [
+                {
+                    op: "mill",
+                    player: "controller",
+                    count: 7,
+                    bindAll: "$milled1",
+                },
+                {
+                    op: "choice",
+                    kind: "choose-graveyard-card",
+                    player: "controller",
+                    zone: "graveyard",
+                    candidates: [{ ref: "$milled1" }],
+                    filter: { type: "Creature" },
+                    count: 1,
+                    prompt: "Put a creature card from among the milled cards onto the battlefield.",
+                    bind: "$pick2",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$pick2" },
+                    player: "controller",
+                    from: "graveyard",
+                    to: "battlefield",
+                },
+            ],
+        },
+    },
     // CR 701.17a + CR 400.2 + CR 110.4a — the same mill pick over "a permanent
     // card", a type LIST: its `choice` is a different card-dependent form from
     // Eerie Gravestone's single type, and a spell rather than an ability
