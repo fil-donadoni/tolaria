@@ -430,6 +430,7 @@ if (typeof HTMLLabelElement !== "undefined") {
 // `vi.spyOn(globalThis, "fetch")` — all three replace this value and restore
 // it afterwards. Installed by plain assignment (not `vi.stubGlobal`) so
 // `vi.unstubAllGlobals()` restores THIS fetch, never happy-dom's real one.
+const unstubbedFetchCalls: string[] = [];
 globalThis.fetch = function unstubbedTestFetch(
     input: Parameters<typeof fetch>[0]
 ): Promise<Response> {
@@ -439,11 +440,16 @@ globalThis.fetch = function unstubbedTestFetch(
             : input instanceof URL
               ? input.href
               : input.url;
-    throw new Error(
+    const message =
         `Un-stubbed test network call: fetch(${url}) — stub it in this test ` +
-            `(vi.mock the network module, vi.stubGlobal("fetch", …) or ` +
-            `vi.spyOn(globalThis, "fetch")); a dom test never reaches the network.`
-    );
+        `(vi.mock the network module, vi.stubGlobal("fetch", …) or ` +
+        `vi.spyOn(globalThis, "fetch")); a dom test never reaches the network.`;
+    // Recorded as well as thrown: product code calls `fetch` inside `async`
+    // functions and effects, where the throw becomes a rejection the component
+    // may swallow in its own error path — the `afterEach` below reds the test
+    // regardless.
+    unstubbedFetchCalls.push(message);
+    throw new Error(message);
 } as typeof fetch;
 
 afterEach(() => {
@@ -458,4 +464,6 @@ afterEach(() => {
     document
         .querySelectorAll("[data-base-ui-portal]")
         .forEach((node) => node.remove());
+    const leaked = unstubbedFetchCalls.splice(0);
+    if (leaked.length > 0) throw new Error(leaked.join("\n"));
 });
