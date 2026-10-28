@@ -1,6 +1,10 @@
 /** Which face of a card a preview surface is showing. */
 export type CardPreviewMode = "computed" | "printed";
 
+/** What a preview mount can SHOW: the persisted modes plus the on-demand
+ *  `rulings` view (issue #4816), which is never a Settings default. */
+export type CardPreviewView = CardPreviewMode | "rulings";
+
 /** Phase-2 toggle (winner B): the computed live-text face is the default
  *  (modern oracle, granted/lost abilities, effective P/T); the "printed" face
  *  shows the original printing as-is. Hidden by its hosts when the card has no
@@ -17,9 +21,12 @@ export default function CardPreviewModeToggle({
     computedLabel = "Live text",
     printedLabel = "Printed card",
     className = "mx-3 mt-2",
+    showRulings = false,
 }: {
-    mode: CardPreviewMode;
-    onChange: (mode: CardPreviewMode) => void;
+    mode: CardPreviewView;
+    onChange: (mode: CardPreviewView) => void;
+    /** Adds the third `Rulings` entry (issue #4816). */
+    showRulings?: boolean;
     computedLabel?: string;
     printedLabel?: string;
     className?: string;
@@ -28,7 +35,10 @@ export default function CardPreviewModeToggle({
         <div
             className={`flex justify-center gap-1 rounded-sm bg-surface-elevated/60 p-0.5 ${className}`}
         >
-            {(["computed", "printed"] as const).map((m) => (
+            {(showRulings
+                ? (["computed", "printed", "rulings"] as const)
+                : (["computed", "printed"] as const)
+            ).map((m) => (
                 <button
                     key={m}
                     type="button"
@@ -40,7 +50,11 @@ export default function CardPreviewModeToggle({
                             : "text-text-muted hover:text-parchment"
                     }`}
                 >
-                    {m === "computed" ? computedLabel : printedLabel}
+                    {m === "computed"
+                        ? computedLabel
+                        : m === "printed"
+                          ? printedLabel
+                          : "Rulings"}
                 </button>
             ))}
         </div>

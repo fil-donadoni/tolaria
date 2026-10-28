@@ -6,7 +6,7 @@ import { useViewportMode } from "~/hooks/useViewportMode";
 import CardPreviewFace from "~/components/cards/card-preview-face";
 import PrintedFaceImage from "~/components/cards/printed-face-image";
 import CardPreviewModeToggle, {
-    type CardPreviewMode,
+    type CardPreviewView,
 } from "~/components/cards/card-preview-mode-toggle";
 import { acceptsShortcut } from "~/lib/keyboard-shortcuts";
 import EditingActionButton from "./editing-action-button";
@@ -83,7 +83,7 @@ export default function InspectOverlay({
     layout,
 }: InspectOverlayProps) {
     const viewportMode = useViewportMode();
-    const [mode, setMode] = useState<CardPreviewMode>("computed");
+    const [mode, setMode] = useState<CardPreviewView>("computed");
     const panelRef = useRef<HTMLDivElement>(null);
 
     // ESCAPE CLOSES, AND FOCUS COMES IN WITH THE OVERLAY (issue #2593).
