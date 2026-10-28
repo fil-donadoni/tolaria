@@ -291,7 +291,7 @@ export type FrameIR =
       }
     | {
           /**
-           * CR 702.16i + CR 702.16b — "you gain protection from everything
+           * CR 702.16j — "you gain protection from everything
            * until your next turn": the controller is protected from every
            * object for the Op's intrinsic span (cleared at the start of their
            * next turn). The controller only: the Op takes a player, and the
@@ -1419,7 +1419,7 @@ function readMember(
         return { frames: [sacrifice.value], referent };
     }
     if (opensFrame("protectionFromEverything", lower)) {
-        // CR 702.16i — the Op's span is "until your next turn", fixed: any
+        // CR 702.16j — the Op's span is "until your next turn", fixed: any
         // other duration is a different effect.
         if (lower !== PROTECTION_FROM_EVERYTHING)
             return {

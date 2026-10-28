@@ -5251,7 +5251,7 @@ function lowerFrameChain(
                 return unlowerable(
                     '"copy this spell" is read only behind a sacrificing player\'s "If the player does"'
                 );
-            // CR 702.16i — the Op's span ("until your next turn") is intrinsic
+            // CR 702.16j — the Op's span ("until your next turn") is intrinsic
             // and the frame reads that wording only.
             case "protectionFromEverything":
                 ops.push({

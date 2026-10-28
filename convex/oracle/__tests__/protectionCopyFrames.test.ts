@@ -1,4 +1,4 @@
-// Two verb frames (CR 702.16i, CR 707.2; issue #4533):
+// Two verb frames (CR 702.16j, CR 707.2; issue #4533):
 //
 //  1. GOLDEN fixtures — real corpus cards compiled whole: "You gain protection
 //     from everything until your next turn." (The Stasis Coffin →
@@ -27,7 +27,7 @@ const PROPAGATOR_TEXT =
 const ADEPHAGE_TRIGGER =
     "Whenever this creature deals combat damage to a player, create a token that's a copy of this creature.";
 
-describe("protection from everything frame — golden (CR 702.16i)", () => {
+describe("protection from everything frame — golden (CR 702.16j)", () => {
     it("activated slot: The Stasis Coffin", () => {
         const card = oracleCard({
             name: "The Stasis Coffin",
