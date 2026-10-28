@@ -53,6 +53,7 @@ vi.mock("@convex/_generated/api", () => ({
             cancelAutoPass: "cancelAutoPass",
             submitMayPay: "submitMayPay",
             selectTarget: "selectTarget",
+            deselectTarget: "deselectTarget",
         },
     },
 }));

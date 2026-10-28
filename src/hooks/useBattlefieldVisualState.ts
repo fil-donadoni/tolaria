@@ -27,6 +27,7 @@ import {
     buildTriggerStateView,
     pendingCastHasImprovise,
     pendingCastRemainingGeneric,
+    isPickedTarget,
 } from "~/lib/card-utils";
 import {
     pendingChoiceRoutesToBattlefield,
@@ -458,6 +459,11 @@ export function useBattlefieldVisualState(
         }
 
         if (isSelectingTarget) {
+            // CR 601.2c — a pick of the current group stays clickable: the
+            // click un-picks it (issue #2302).
+            if (isPickedTarget(pendingTarget, "permanent", card.id)) {
+                return true;
+            }
             if (
                 !pendingTarget ||
                 !matchesTargetRequirement(card, pendingTarget.targetType)
@@ -694,10 +700,7 @@ export function useBattlefieldVisualState(
 
         const isTargetSelected =
             isSelectingTarget &&
-            !!pendingTarget &&
-            pendingTarget.selected.some(
-                (t) => t.type === "permanent" && t.id === card.id
-            );
+            isPickedTarget(pendingTarget, "permanent", card.id);
 
         const isValidChoice =
             isSelectingChoice &&
@@ -729,7 +732,7 @@ export function useBattlefieldVisualState(
         const interactive = isSelectingChoice
             ? isValidChoice
             : isSelectingTarget
-              ? !!isValidTarget
+              ? !!isValidTarget || isTargetSelected
               : (isMe &&
                     (manaSource ||
                         isImproviseArtifact ||

@@ -63,6 +63,10 @@ function nameplateShadow(
 ): string | undefined {
     const STRONG = "var(--color-accent-strong)";
     if (isTargetable) {
+        // A picked target (click un-picks) rings heavier than a candidate.
+        if (isPlayerPicked) {
+            return `0 0 0 3px ${STRONG}, 0 0 20px 2px color-mix(in oklab, ${STRONG} 55%, transparent)`;
+        }
         return `0 0 0 2px ${STRONG}, 0 0 16px 1px color-mix(in oklab, ${STRONG} 45%, transparent)`;
     }
     if (isDamagePickable) {
