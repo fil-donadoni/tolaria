@@ -237,7 +237,7 @@ export type BladeSetupStep =
      *  pre-float it in the spec's `manaPool`. `target` is rejected here.
      *
      *  `sacrifice` (issue #6942) narrows a targeted activation by the card
-     *  NAME its sacrifice cost gives up (CR 118.5 — "Sacrifice a land" over a
+     *  NAME its sacrifice cost gives up (CR 701.21a — "Sacrifice a land" over a
      *  board of Forests and Mountains is two distinct legal activations). Only
      *  read alongside `target`. */
     | {

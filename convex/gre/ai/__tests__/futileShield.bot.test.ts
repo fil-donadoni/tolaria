@@ -1193,6 +1193,110 @@ describe("isFutileThisTurnMove — defensive keyword grants (issue #6942)", () =
         ).toBe(true);
     });
 
+    it("keeps the sacrifice while a stack object targets a land it could sacrifice", () => {
+        const state = position(
+            {
+                ...SAFEKEEPER,
+                cards: [
+                    ...SAFEKEEPER.cards,
+                    { name: "Stone Rain", owner: "me", zone: "hand" },
+                    { name: "Plains", owner: "opp", zone: "battlefield" },
+                ],
+            },
+            [{ kind: "cast", card: "Stone Rain", by: "me", target: "Plains" }]
+        );
+        const moves = activationsOf(state, 1, "Sylvan Safekeeper");
+        expect(moves.length).toBeGreaterThan(0);
+        for (const move of moves) {
+            expect(isFutileThisTurnMove(state, move)).toBe(false);
+        }
+    });
+
+    it("keeps a tap-cost protection grant with no threat (issue #1890 verdicts)", () => {
+        const state = withPriority(
+            position({
+                cards: [
+                    {
+                        name: "Mother of Runes",
+                        owner: "opp",
+                        zone: "battlefield",
+                        summoningSick: false,
+                    },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 3,
+                landCount: 3,
+                libraryCount: 20,
+            }),
+            1
+        );
+        const moves = activationsOf(state, 1, "Mother of Runes");
+        expect(moves.length).toBeGreaterThan(0);
+        for (const move of moves) {
+            expect(isFutileThisTurnMove(state, move)).toBe(false);
+        }
+    });
+
+    it("never calls a keyword aimed at the opponent's creature misdirected", () => {
+        const state = withPriority(
+            position({
+                cards: [
+                    {
+                        name: "Crimson Acolyte",
+                        owner: "opp",
+                        zone: "battlefield",
+                    },
+                    { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 3,
+                landCount: 3,
+                libraryCount: 20,
+                manaPool: { opp: { W: 1 } },
+            }),
+            1
+        );
+        const bears = getCardByName("Grizzly Bears").id;
+        const atBears = activationsOf(state, 1, "Crimson Acolyte").filter((m) =>
+            m.targets.some((t) => findPermanent(state, t.id)?.card.id === bears)
+        );
+        expect(atBears.length).toBeGreaterThan(0);
+        for (const move of atBears) {
+            expect(
+                isMisdirectedThisTurnMove(state, move, state.players[1].id)
+            ).toBe(false);
+        }
+    });
+
+    it("keeps a sacrifice-cost regeneration shield: the sacrifice doctrine is keyword-only", () => {
+        const state = withPriority(
+            position({
+                cards: [
+                    {
+                        name: "Goblin Turncoat",
+                        owner: "opp",
+                        zone: "battlefield",
+                    },
+                    {
+                        name: "Raging Goblin",
+                        owner: "opp",
+                        zone: "battlefield",
+                    },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 3,
+                landCount: 3,
+                libraryCount: 20,
+            }),
+            1
+        );
+        const moves = activationsOf(state, 1, "Goblin Turncoat");
+        expect(moves.length).toBeGreaterThan(0);
+        for (const move of moves) {
+            expect(isFutileThisTurnMove(state, move)).toBe(false);
+        }
+    });
+
     it("is wired into the root enumeration's dominance prune", () => {
         const state = position(SAFEKEEPER, [
             { kind: "cast", card: "Gray Ogre", by: "me" },

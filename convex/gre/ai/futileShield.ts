@@ -94,7 +94,9 @@
  *     sits on the stack ABOVE every threat — a second instance is redundant
  *     (CR 702.11h, 702.12c, 702.16m, 702.18b); a threat placed above the
  *     pending grant keeps the move;
- *   * the cost sacrifices a permanent and no threat it can answer exists
+ *   * the cost sacrifices a permanent, nothing on the stack targets a
+ *     permanent the cost could sacrifice, and no threat the grant answers
+ *     exists
  *     (a tap / mana grant stays priced by the quiet-position valuation,
  *     `defensiveGrants.ts`). Shroud and hexproof only stop
  *     targeting (CR 702.18a, 702.11b), so only a stack object TARGETING the
@@ -102,8 +104,9 @@
  *     count above. Protection on a permanent something is attached to keeps
  *     the move — the Aura or Equipment falls off (CR 702.16c, 702.16d).
  *
- * A SACRIFICE cost (issue #6942) is a pure loss too unless something reads
- * what it puts into a graveyard: it qualifies only while no card on any
+ * A SACRIFICE cost (issue #6942), on a keyword grant only, is a pure loss
+ * too unless something reads what it puts into a graveyard, or the mover
+ * controls a permanent it does not own: it qualifies only while no card on any
  * battlefield, nor in the mover's hand or graveyard, names a graveyard,
  * dying, sacrificing, leaving the battlefield or threshold in its Oracle text
  * (the source's own sacrifice-cost ability excepted). Any other cost leg
@@ -122,6 +125,7 @@ import type {
     ActivatedAbility,
     EffectOp,
     EffectObjectSelector,
+    PermanentFilter,
 } from "../../cards/types";
 import type { CardInstanceState, GameState, StackItem } from "../state";
 import type { Move } from "../moves";
@@ -148,6 +152,9 @@ import {
 import { SOURCE_BINDING } from "../effects/interpreter";
 import { getEffectivePower } from "../layers";
 import { isProtectionAbility } from "../protection";
+import { matchesPermanentFilter } from "../../cards/filters";
+import { effectivePermanentView } from "../permanentView";
+import { liveSupertypesOf } from "../snow";
 import { misdirectedTargetCount } from "./beneficence";
 import { isDefensiveKeyword } from "./defensiveGrants";
 
@@ -155,7 +162,7 @@ import { isDefensiveKeyword } from "./defensiveGrants";
  *  Any other key on the cost object fails closed. */
 const LOSS_ONLY_COST_KEYS: ReadonlySet<string> = new Set(["tap", "mana"]);
 
-/** The sacrifice-another-permanent cost legs (CR 118.5) — a pure loss only
+/** The sacrifice-another-permanent cost legs (CR 701.21a) — a pure loss only
  *  while nothing reads the graveyard trip (`sacrificeIsLossOnly`). */
 const SACRIFICE_COST_KEYS: ReadonlySet<string> = new Set([
     "sacrificeFilter",
@@ -166,7 +173,7 @@ const SACRIFICE_COST_KEYS: ReadonlySet<string> = new Set([
  *  leaves / sacrifice trigger, a graveyard count (threshold), a graveyard
  *  reader. */
 const SACRIFICE_PAYOFF_WORDS =
-    /graveyard|\bdies\b|\bdie\b|sacrific|leaves the battlefield|threshold/i;
+    /graveyard|\bdies\b|\bdie\b|\bdied\b|sacrific|(leaves|left) the battlefield|threshold/i;
 
 /** CR 702.18a / 702.11b — keywords whose whole effect is to stop targeting. */
 const TARGETING_ONLY_KEYWORDS: ReadonlySet<string> = new Set([
@@ -199,7 +206,7 @@ function thisTurnEffectsOf(
 ): {
     shields: Shield[];
     tapCost: boolean;
-    sacrificeCost: boolean;
+    sacrificeFilter: PermanentFilter | undefined;
     moverId: string;
 } | null {
     if (move.kind !== "activate-ability") return null;
@@ -218,10 +225,16 @@ function thisTurnEffectsOf(
         ability.cost.tap === true
     );
     if (!shields) return null;
+    const sacrificeFilter = ability.cost.sacrificeFilter;
+    // A sacrifice is read as a pure loss for keyword grants only (issue
+    // #6942); a pump or shield paid with one keeps the old doctrine.
+    if (sacrificeFilter && shields.some((s) => s.kind !== "keyword")) {
+        return null;
+    }
     return {
         shields,
         tapCost: ability.cost.tap === true,
-        sacrificeCost: ability.cost.sacrificeFilter !== undefined,
+        sacrificeFilter,
         moverId: source.controllerId,
     };
 }
@@ -239,7 +252,7 @@ export function isFutileThisTurnMove(state: GameState, move: Move): boolean {
             state,
             s,
             effects.tapCost,
-            effects.sacrificeCost,
+            effects.sacrificeFilter,
             effects.moverId
         )
     );
@@ -256,7 +269,12 @@ export function isMisdirectedThisTurnMove(
     move: Move,
     botId: string
 ): boolean {
-    if (!thisTurnEffectsOf(state, move)) return false;
+    const effects = thisTurnEffectsOf(state, move);
+    if (!effects) return false;
+    // A keyword aimed at the opponent's permanent can be the payoff itself:
+    // protection drops their Aura (CR 702.16c), shroud fizzles their pump
+    // (CR 702.18a).
+    if (effects.shields.some((s) => s.kind === "keyword")) return false;
     return misdirectedTargetCount(state, move, botId) > 0;
 }
 
@@ -462,7 +480,7 @@ function shieldIsFutile(
     state: GameState,
     shield: Shield,
     tapCost: boolean,
-    sacrificeCost: boolean,
+    sacrificeFilter: PermanentFilter | undefined,
     moverId: string
 ): boolean {
     const permanent = findPermanent(state, shield.permanentId);
@@ -481,7 +499,8 @@ function shieldIsFutile(
             permanent,
             shield.keyword!,
             tapCost,
-            sacrificeCost
+            sacrificeFilter,
+            moverId
         );
     }
     const threats = threatsTo(state, permanent, tapCost, shield.kind);
@@ -546,10 +565,13 @@ function keywordGrantIsFutile(
     permanent: CardInstanceState,
     keyword: string,
     tapCost: boolean,
-    sacrificeCost: boolean
+    sacrificeFilter: PermanentFilter | undefined,
+    moverId: string
 ): boolean {
     // CR 702.11h / 702.12c / 702.16m / 702.18b — a second instance is
-    // redundant; an effect that strips the first strips a later grant too.
+    // redundant. The keyword list is the effective layer-6 one, and any
+    // object that could strip it gives the bot priority again once it has
+    // resolved, before anything below it does.
     if (permanent.staticAbilities.includes(keyword)) return true;
     // CR 702.16c / 702.16d — protection drops what is attached to it.
     if (isProtectionAbility(keyword) && anyAttachedTo(state, permanent.id)) {
@@ -562,16 +584,24 @@ function keywordGrantIsFutile(
     for (let i = state.stack.length - 1; i >= 0; i--) {
         const item = state.stack[i]!;
         if (isPendingKeywordGrant(item, permanent.id, keyword)) return true;
-        const threat = targetingOnly
-            ? targetsPermanent(item, permanent.id) ||
-              (tapCost && !isHarmlessStackItem(item, true))
-            : !isHarmlessStackItem(item, tapCost);
+        // CR 702.16b — protection also answers a targeting permanent spell
+        // (an Aura), which `isHarmlessStackItem` passes.
+        const threat =
+            targetsPermanent(item, permanent.id) ||
+            (targetingOnly
+                ? tapCost && !isHarmlessStackItem(item, true)
+                : !isHarmlessStackItem(item, tapCost));
         if (threat) return false;
     }
     // No threat at all: pruned for a sacrifice cost only. A tap / mana grant
     // stays with the quiet-position valuation (`defensiveGrants.ts`) and the
     // verdicts that pin it (issue #1890).
-    if (!sacrificeCost) return false;
+    if (!sacrificeFilter) return false;
+    // A stack object aimed at a permanent the cost could sacrifice (a steal,
+    // a removal spell) makes the sacrifice itself an answer.
+    if (stackTargetsASacrificeCandidate(state, sacrificeFilter, moverId)) {
+        return false;
+    }
     // CR 702.18a / 702.11b — combat and marked damage are not theirs to stop.
     if (targetingOnly) return true;
     return threatsTo(state, permanent, tapCost, "keyword") === 0;
@@ -596,6 +626,31 @@ function isPendingKeywordGrant(
     );
 }
 
+function stackTargetsASacrificeCandidate(
+    state: GameState,
+    filter: PermanentFilter,
+    moverId: string
+): boolean {
+    const mover = state.players.find((p) => p.id === moverId);
+    if (!mover) return true;
+    return state.stack.some((item) =>
+        (item.targets ?? []).some((t) => {
+            const card = mover.battlefield.find((c) => c.id === t.id);
+            return (
+                !!card &&
+                matchesPermanentFilter(
+                    effectivePermanentView(state, card),
+                    filter,
+                    {
+                        selfControllerId: moverId,
+                        supertypesOf: liveSupertypesOf,
+                    }
+                )
+            );
+        })
+    );
+}
+
 function targetsPermanent(item: StackItem, permanentId: string): boolean {
     return (item.targets ?? []).some((t) => t.id === permanentId);
 }
@@ -606,7 +661,7 @@ function anyAttachedTo(state: GameState, permanentId: string): boolean {
     );
 }
 
-/** CR 118.5 — a sacrifice is a pure loss while no card can read the
+/** CR 701.21a — a sacrifice is a pure loss while no card can read the
  *  permanent's trip to the graveyard. An unknown definition or Oracle text
  *  reads as a reader. */
 function sacrificeIsLossOnly(
@@ -614,6 +669,12 @@ function sacrificeIsLossOnly(
     source: CardInstanceState,
     ability: ActivatedAbility
 ): boolean {
+    // Sacrificing a permanent the mover controls but does not own denies it
+    // to its owner — a payoff no Oracle word reveals.
+    const mover = state.players.find((p) => p.id === source.controllerId);
+    if (!mover || mover.battlefield.some((c) => c.ownerId !== mover.id)) {
+        return false;
+    }
     for (const player of state.players) {
         const zones =
             player.id === source.controllerId
