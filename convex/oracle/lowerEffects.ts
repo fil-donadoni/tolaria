@@ -5520,6 +5520,10 @@ function lowerMoveFrame(
                     );
                 const spell = spellSelector(subject, slots, site);
                 if (!spell.ok) return spell;
+                if ("ref" in spell.value)
+                    return unlowerable(
+                        "a spell bounce names an announced spell"
+                    );
                 return lowered([
                     {
                         op: "moveSpellFromStack",
