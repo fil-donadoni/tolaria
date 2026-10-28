@@ -18,6 +18,7 @@ import type {
     Color,
     ControlChangeCondition,
     CopyEffectOptions,
+    CopyExcept,
     CostLegs,
     CostReductionAmount,
     DelayedTriggerTiming,
@@ -1152,10 +1153,11 @@ export type CardInstanceState = {
      *  the battlefield (`revertCopy`). Its presence marks the instance as an
      *  active copy and survives Vesuvan's upkeep re-copy unchanged. */
     copiedFrom?: string;
-    /** CR 707.2's "except its base power and toughness are N/N" clause, as
-     *  stamped on THIS copy (Eternalize's 4/4, issue #2076). Present only
-     *  while the instance is an active copy whose copy effect named the
-     *  exception; `revertCopy` clears it.
+    /** CR 707.2's "except" clause, as stamped on THIS copy (Eternalize's
+     *  "4/4 black Zombie with no mana cost", Fable's "except it has haste").
+     *  Present only while the instance is an active copy whose copy effect
+     *  named an exception or inherited one from its source; `revertCopy`
+     *  clears it.
      *
      *  It exists because the exception is a COPIABLE value, not a layer-7
      *  continuous effect: CR 707.3 — "the copy's copiable values become the
@@ -1170,10 +1172,9 @@ export type CardInstanceState = {
      *  5/5 on the instance, and CR 707.2's own example says a Clone of it is
      *  not). Isolating the exception is what keeps the two apart.
      *
-     *  Named for the CR's own word so the remaining exception shapes — colour,
-     *  added subtypes, granted keywords, "no mana cost", none of which survive
-     *  a copy-of-the-copy today either — widen it purely additively. */
-    copyExcept?: { basePower?: number; baseToughness?: number };
+     *  Every member is the RESOLVED value (`CopyExcept`, CR 707.9b): base
+     *  P/T, colour, added types/subtypes, added keywords, "no mana cost". */
+    copyExcept?: CopyExcept;
     /** The "except" options (`CopyEffectOptions`) of the copy effect this
      *  permanent currently presents (CR 707.9 — "copy effects may include
      *  modifications or exceptions to the copying process"). Written by
@@ -4264,21 +4265,20 @@ export type PassUntilActionIntent = {
  *
  *  The pairing to keep true: this type carries whatever `CopySource`
  *  (`gre/copy.ts`) declares a copy source contributes, minus what the
- *  definition id already answers. Widen one and the other owes a field —
- *  issue #2963, which will make the remaining "except" clauses (colours,
- *  additional subtypes, no mana cost) inherit off the SOURCE INSTANCE rather
- *  than be rebuilt from the copied definition, is exactly that day. */
+ *  definition id already answers. Widen one and the other owes a field;
+ *  `copyExcept` carries the whole resolved "except" clause (`CopyExcept`), so
+ *  widening THAT type widens both at once. */
 /** One copy effect's layer-1 contribution, as recorded on
  *  `CardInstanceState.timedCopyEffects` (issue #3236): WHAT was copied, locked
  *  in when the effect began (CR 611.2c), and the effect's own "except" clause
  *  (CR 707.9). Enough to re-apply the effect through `applyCopy` and nothing
- *  more — `sourceCopyExcept` is the CR 707.3 "except it's N/N" stamp the
- *  copied object carried, already cleared for a face-down source exactly as
+ *  more — `sourceCopyExcept` is the CR 707.3 `CopyExcept` stamp the copied
+ *  object carried, already cleared for a face-down source exactly as
  *  `applyCopy` decides for a live one. */
 export type TimedCopyLayer = {
     /** The definition id the copied object presented (CR 707.2). */
     sourceDefId: string;
-    sourceCopyExcept?: { basePower?: number; baseToughness?: number };
+    sourceCopyExcept?: CopyExcept;
     /** The face-up source's `imagePrintId` when the layer was recorded, so a
      *  re-materialised layer shows the same art. Cosmetic. */
     sourceImagePrintId?: string;
@@ -4295,12 +4295,12 @@ export type LastKnownCopiable = {
      *  content-derived and re-synthesizable (`cards/registry.ts`), so it stays
      *  resolvable after CR 704.5d removes the token's instance from state. */
     defId: string;
-    /** CR 707.3 — the "except it's N/N" clause a previous copy effect stamped
-     *  on this object (issue #2076), which copying it inherits. Omitted when
+    /** CR 707.3 — the "except" clause a previous copy effect stamped on this
+     *  object (`CopyExcept`), which copying it inherits. Omitted when
      *  the permanent carried none, and omitted for a FACE-DOWN permanent,
      *  which contributes no exception (CR 707.2 — its copiable values are the
      *  face-down body) exactly as `applyCopy` decides for a live source. */
-    copyExcept?: { basePower?: number; baseToughness?: number };
+    copyExcept?: CopyExcept;
     /** The `imagePrintId` the permanent showed at departure, so a token copy
      *  made from this record shows the same art. Omitted for a face-down
      *  permanent (CR 708.5: the print would name the hidden card). Cosmetic. */

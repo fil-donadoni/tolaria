@@ -5,7 +5,11 @@ import type {
     AttackManaTaxPayment,
     PileChoiceNotice,
 } from "@convex/gre/state";
-import type { ManaCost, TargetSelection } from "@convex/cards/types";
+import type {
+    CopyExcept,
+    ManaCost,
+    TargetSelection,
+} from "@convex/cards/types";
 
 export type { AttackManaTaxPayment, PileChoiceNotice };
 import type { SacrificeSelection } from "@convex/gre/sacrificeChoice";
@@ -477,12 +481,12 @@ export interface CardInstance {
      *  "original version" renders it. Mirrors
      *  `CardInstanceState.preCopyImagePrintId`. */
     preCopyImagePrintId?: string;
-    /** CR 707.2's "except its base power and toughness are N/N" clause stamped
-     *  on this copy, so a copy OF it inherits the exception (CR 707.3). Mirrors
+    /** CR 707.2's "except" clause stamped on this copy, so a copy OF it
+     *  inherits the exception (CR 707.3). Mirrors
      *  `CardInstanceState.copyExcept` in `convex/gre/state.ts`; forwarded by
      *  `slimCard` because the client-side Brain re-runs the copy path over
      *  projected state (ADR 0074). */
-    copyExcept?: { basePower?: number; baseToughness?: number };
+    copyExcept?: CopyExcept;
     /** Noted mana banked on a mana-battery permanent (CR 106.10 — Jeweled
      *  Amulet, Ice Cauldron). Per-colour amounts the artifact will add when its
      *  "remove a charge counter" ability resolves. Forwarded by `slimCard` (the

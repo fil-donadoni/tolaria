@@ -4013,13 +4013,10 @@ export interface CopyEffectOptions {
      *  ability-stripping effect that removes GRANTED abilities, which a
      *  `grantAbility` Op after the fact would not.
      *
-     *  It is NOT yet inherited by a copy OF the copy the way
-     *  `basePower`/`baseToughness` are (CR 707.3): this list is rebuilt from
-     *  the COPIED CARD's definition on every application, so a second copy
-     *  loses the keyword — tracked by #2963. Fully recomputed from `opts` on
-     *  every application (a re-copy without the option leaves no stale keyword
-     *  behind), same idempotency shape as
-     *  `additionalTypes`/`additionalSubtypes`. */
+     *  Being copiable, it is inherited by a copy OF the copy (CR 707.3) through
+     *  the `CopyExcept` stamp, like every member of the clause. Recomputed on
+     *  every application (a re-copy of an object carrying no such clause
+     *  leaves no stale keyword behind). */
     additionalStaticAbilities?: string[];
     /** CR 707.2 "except its base power and toughness are N/N" — the copy's
      *  BASE P/T (layer 7a) replaces the copied object's printed values.
@@ -4029,12 +4026,9 @@ export interface CopyEffectOptions {
      *  a future "except its base power is 1" clause needs no new field.
      *
      *  Being copiable, it is also INHERITED by a copy of the copy (CR 707.3 —
-     *  a Clone of an Eternalize token is 4/4). `applyCopy` cannot read that
-     *  back off the copied card's definition, which holds the printed body, so
-     *  it stamps the clause on the copy as `CardInstanceState.copyExcept` and
-     *  re-reads it from the SOURCE instance on the next application; a clause
-     *  named by the new copy effect itself wins over the inherited one
-     *  (issue #2076). */
+     *  a Clone of an Eternalize token is 4/4), through the `CopyExcept` stamp;
+     *  a clause named by the new copy effect itself wins over the inherited
+     *  one. */
     basePower?: number;
     baseToughness?: number;
     /** CR 707.2 "except it's [colour]" — an explicit colour SET on the copy
@@ -4061,6 +4055,34 @@ export interface CopyEffectOptions {
      *  prefers over the definition-derived art. */
     imagePrintId?: string;
 }
+
+/** CR 707.9b — "the final set of values for that characteristic becomes part
+ *  of the copiable values of the copy": the "except" clause a copy effect
+ *  LEFT on the copy, resolved, so a copy OF the copy inherits it (CR 707.3).
+ *  `applyCopy` cannot read these back off the copied card's definition, which
+ *  holds only the printed values, so it stamps them on the copy as
+ *  `CardInstanceState.copyExcept` and re-reads them from the SOURCE on the
+ *  next application.
+ *
+ *  Each member is the RESULT, not the option that asked for it: the source's
+ *  inherited stamp merged with the new copy effect's own clause (`applyCopy`).
+ *  `colorOverride` is the colour the copy effect set, whether named outright
+ *  (Eternalize's black) or kept from the copier (`copyColor: false` — CR
+ *  707.3's own Vesuvan example: a Clone of the Doppelganger is blue).
+ *
+ *  Not here: `additionalTriggeredAbilityIds` (a grant sourced from the
+ *  recipient's OWN printed id, not a copiable value carried by the object)
+ *  and `imagePrintId` (art, never a characteristic). */
+export type CopyExcept = Pick<
+    CopyEffectOptions,
+    | "basePower"
+    | "baseToughness"
+    | "colorOverride"
+    | "additionalTypes"
+    | "additionalSubtypes"
+    | "additionalStaticAbilities"
+    | "noManaCost"
+>;
 
 /** CR 615 / 510.1c — a SOURCE-scoped damage-prevention shield: it prevents
  *  damage the matched SOURCE would deal, to ANY recipient. Every other shield
