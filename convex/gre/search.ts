@@ -1299,7 +1299,7 @@ export function applyMoveInSearch(
         }
 
         case "name-card": {
-            // CR 201.3 / 614.1c (issue #6676) — never a search DECISION (no
+            // CR 201.4a / 614.1c (issue #6676) — never a search DECISION (no
             // candidate generator: which name is worth naming is a valuation
             // question, issue #2467), but no longer a dead end either: the
             // walk answers the window with `forcedChoiceAnswer`'s one legal

@@ -522,7 +522,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: 'CR 712.12 land-play reachability. `MoveMatcher` has no field for the chosen FACE, so the predicate shape (as for adventure / overload): a `{ kind: "play-land", card: "Sink into Stupor" }` matcher would pass on a front-face play that cannot legally exist, which is the one outcome this entry has to be able to fail on.',
     },
     {
-        // AS-ENTERS NAME CHOICE reachability (CR 614.1c / 201.3, issue #6676).
+        // AS-ENTERS NAME CHOICE reachability (CR 614.1c / 201.4a, issue #6676).
         // The bot's main phase, an empty board, Meddling Mage and the two
         // lands that cast it. A 2/2 for two on an empty board is the Grizzly
         // Bears decision; the Mage's lock costs its controller nothing here.

@@ -1327,7 +1327,7 @@ export function forcedChoiceAnswer(
     };
 }
 
-/** Issue #6676 — the one name the search gives a `name-card` window (CR 201.3,
+/** Issue #6676 — the one name the search gives a `name-card` window (CR 201.4a,
  *  an as-enters name CR 614.1c), or `null` when no card in sight is a legal
  *  answer. Without it the walk stopped at the window and scored the leaf with
  *  the spell spent and the permanent still staged — a Meddling Mage read as

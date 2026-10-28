@@ -2,7 +2,7 @@
  * The tree walk and the rollout answer a `name-card` window (issue #6676).
  *
  * An as-enters name choice (CR 614.1c — Meddling Mage's "As this creature
- * enters, choose a nonland card name", CR 201.3) has no in-tree candidate
+ * enters, choose a nonland card name", CR 201.4a) has no in-tree candidate
  * generator, so `decidingPlayer` returns `null` at it. The walk used to stop
  * right there and score the leaf with the creature spell spent and the
  * permanent still staged, so casting Meddling Mage always read worse than
@@ -72,7 +72,7 @@ describe("advanceToDecision — a name-card window is answered, not scored (issu
         expect(battlefieldMage(mid)).toBeUndefined();
     });
 
-    it("lands the permanent with a legal nonland name (CR 614.1c, CR 201.3)", () => {
+    it("lands the permanent with a legal nonland name (CR 614.1c, CR 201.4a)", () => {
         const mid = midMeddlingMage([]);
         expect(advanceToDecision(mid)).toBe(mid.activePlayerId);
         expect(mid.pendingChoices ?? []).toHaveLength(0);

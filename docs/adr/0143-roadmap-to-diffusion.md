@@ -397,6 +397,9 @@ files, which is not a computed gap.
 
 ### The metagame's Hand Tail is closed — Amendment VI (issue #6085, 2026-10-19)
 
+_Superseded by Amendment IX (issue #6676): the metagame completes on
+`playable`._
+
 The v1 gate's first clause (§ The v1 gate) admits a Hand Tail declared by
 name. The issue #3838 grill tightened it for `premodern-metagame` to
 **100% `ready`** (`completion: "ready"`, issue #4519), so every hand-written
@@ -454,6 +457,31 @@ closing rule is an Op named for one line (issue #1917). The owner's ruling of
   shrinks; a tail card that compiles `ready` is still retired.
 - A tail card's gap still counts toward its key's corpus leverage, so a gap
   that other cards also hold is filed for them.
+
+### The metagame completes on playable — Amendment IX (issue #6676, 2026-10-28)
+
+The owner's ruling (grill of 2026-10-24, confirmed 2026-10-28) reverses
+Amendment VI. `premodern-metagame` is complete when every card of its 25
+lists is **playable**, `ready` OR hand-written: `completion: "playable"`, the
+mode every other Target uses, and `closedTail` is dropped. Those cards exist
+and play. Grammar growth is the pool Target's job (the frame backlog,
+`oracle:report --frames`, issue #6632), not the job of one-card issues on
+cards that already play.
+
+- **The measure** (base `8aca6581d`, 2026-10-28): 310 of 310 playable. 301
+  are `ready`. The other 9 are hand-written: Animate Dead, Decree of Justice,
+  Doomsday, Frantic Search, Lim-Dûl's Vault, Mana Short, Price of Progress,
+  Shallow Grave and Standstill. The 24 October count of 297 was taken while
+  13 cards had no definition at all. Twelve of them are `ready` today, and
+  Lim-Dûl's Vault is a protocol card.
+- **Amendment VIII's list clause has nothing left to read.** With no
+  `closedTail`, a tail card is settled by its own `hand-tail:` marker. Animate
+  Dead, Doomsday and Lim-Dûl's Vault carry one.
+- **The Target leaves the ranking.** A completed Target keeps its row and is
+  still measured, but it has no `priority`, so it no longer ranks Grammar
+  Gaps (§ Format Tiers). `vintage-cube` takes priority 1. Priority 2 is left
+  open: the owner decides later whether a `modern-metagame` Target takes it.
+  `format-premodern` stays at 3.
 
 ### Format Tiers
 
