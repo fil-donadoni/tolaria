@@ -48,7 +48,7 @@
  * construction and replaying them would double-apply.
  */
 
-import type { CardType } from "../cards/types";
+import type { CardDefinition, CardType, CopyExcept } from "../cards/types";
 import { recomposeLayer6ForInstance } from "./layer6";
 import { recomposeLayers2to5ForInstance } from "./layers2to5";
 import type { CardInstanceState } from "./state/declarations";
@@ -63,6 +63,30 @@ export interface CopiableValues {
     power: number | undefined;
     toughness: number | undefined;
     staticAbilities: string[];
+}
+
+/** CR 613.1a / 707.9b — the layer-1 values of `def` presented through a copy
+ *  effect's resolved "except" clause (`CopyExcept`): the clause's base P/T
+ *  replaces the printed one, its types, subtypes and keywords are appended.
+ *  The ONE reading of the stamp every layer-1 rebuild shares (`applyCopy`,
+ *  the look-back, a full-text effect's underlying values). */
+export function copiableValuesOf(
+    def: CardDefinition,
+    except: CopyExcept | undefined
+): CopiableValues {
+    return {
+        types: [...def.types, ...(except?.additionalTypes ?? [])],
+        subtypes: [
+            ...(def.subtypes ?? []),
+            ...(except?.additionalSubtypes ?? []),
+        ],
+        power: except?.basePower ?? def.power,
+        toughness: except?.baseToughness ?? def.toughness,
+        staticAbilities: [
+            ...(def.staticAbilities ?? []),
+            ...(except?.additionalStaticAbilities ?? []),
+        ],
+    };
 }
 
 /** Layer 6 (CR 613.1f) — re-seat the permanent's layer-6 BASE on the new face.

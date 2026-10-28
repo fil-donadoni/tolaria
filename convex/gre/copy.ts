@@ -12,7 +12,11 @@
 // reverted when it leaves the battlefield.
 
 import { FACE_DOWN_CARD_ID, getDefinition, tryGetDefinition } from "../cards";
-import type { CopyEffectOptions, TriggeredAbility } from "../cards/types";
+import type {
+    CopyEffectOptions,
+    CopyExcept,
+    TriggeredAbility,
+} from "../cards/types";
 import {
     abilityLossTimestamp,
     grantOutrankedByAbilityLoss,
@@ -23,7 +27,10 @@ import {
     installFullText,
     withdrawFullText,
 } from "./fullText";
-import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
+import {
+    copiableValuesOf,
+    rebuildCopiableValuesAndReplayOverlays,
+} from "./identitySwap";
 import { backFaceDefinitionIdOf } from "./transform";
 import type {
     CardInstanceState,
@@ -37,8 +44,8 @@ import type { LayerStateView } from "./layers";
  *  than `CardInstanceState` on purpose: the copiable values are the presented
  *  definition's, so all `applyCopy` ever reads off the source object is which
  *  definition it presents, whether it is face down (CR 707.2 — face-down
- *  status is itself a copiable value) and the "except it's N/N" stamp a
- *  previous copy effect left on it (CR 707.3, issue #2076).
+ *  status is itself a copiable value) and the "except" clause a previous copy
+ *  effect left on it (`CopyExcept`, CR 707.3).
  *
  *  Stated as a type rather than left implicit because a LAST-KNOWN-INFORMATION
  *  source is not an instance at all: a permanent that has left the battlefield
@@ -175,7 +182,9 @@ export function rematerialiseTimedCopies(
     }
     const underlying = ledger?.underlying ?? null;
     const writesColour = (l: TimedCopyLayer) =>
-        l.opts.colorOverride !== undefined || l.opts.copyColor === false;
+        l.opts.colorOverride !== undefined ||
+        l.opts.copyColor === false ||
+        l.sourceCopyExcept?.colorOverride !== undefined;
     const colourIsTheCopys =
         [...expired, ...survivors].some(writesColour) ||
         (underlying !== null && writesColour(underlying));
@@ -235,7 +244,6 @@ function applyCopyEffect(
     // on the recipient is layer 3 and is re-applied over the new identity by
     // the next sync (`gre/fullText.ts`).
     withdrawFullText(state, recipient);
-    const copyColor = opts.copyColor ?? true;
     // CR 613.7 — the colours of THIS copy effect replace the ones a PREVIOUS
     // copy effect stamped (issue #3236). Read BEFORE `copyOptions` is
     // overwritten below: `copyOptions` is what says the override on the
@@ -243,24 +251,24 @@ function applyCopyEffect(
     // (Kavu Chameleon), a noncopy effect with its own later timestamp that
     // survives untouched.
     const priorCopyOwnsColour =
-        recipient.copyOptions !== undefined &&
-        (recipient.copyOptions.colorOverride !== undefined ||
-            recipient.copyOptions.copyColor === false);
+        recipient.copyExcept?.colorOverride !== undefined ||
+        (recipient.copyOptions !== undefined &&
+            (recipient.copyOptions.colorOverride !== undefined ||
+                recipient.copyOptions.copyColor === false));
     // CR 707.2 — "text-changing effects … are not copied": a source under a
     // full-text effect contributes its layer-1 identity, not the text it shows.
     const sourceDefId = copiableDefId(source);
     const def = getDefinition(sourceDefId);
 
     // CR 707.3 — "the copy's copiable values become the copied information.
-    // Objects that copy the object will use the new copiable values." An
-    // "except it's N/N" clause (CR 707.2, Eternalize's 4/4) is a COPIABLE
-    // value, so copying an object that already carries one inherits it: `def`
-    // above is the COPIED CARD's definition and holds the printed body only.
-    // THIS copy effect's own clause wins when it names one (a copy effect
-    // states its own exceptions outright); otherwise the source's stamp
-    // carries through, and with neither the printed body applies. Recomputed
-    // on every application, so a Vesuvan-style re-copy of an unexceptional
-    // object drops a stale exception (issue #2076).
+    // Objects that copy the object will use the new copiable values." Every
+    // member of an "except" clause (CR 707.9b — Eternalize's "4/4 black Zombie
+    // with no mana cost") is a COPIABLE value, so copying an object that
+    // already carries one inherits it: `def` above is the COPIED CARD's
+    // definition and holds the printed values only. `copyExceptOf` merges the
+    // source's stamp with THIS copy effect's own clause, member by member.
+    // Recomputed on every application, so a Vesuvan-style re-copy of an
+    // unexceptional object drops a stale exception.
     // CR 707.2 counts face-down status among the copiable values ("as modified
     // by other copy effects, BY ITS FACE-DOWN STATUS"), and its own example
     // makes a Clone of a face-down Grinning Demon a colorless 2/2 — the
@@ -268,14 +276,12 @@ function applyCopyEffect(
     // present face up. So a face-down source contributes no exception, even
     // though the stamp stays on the instance to apply again when it is turned
     // face up (the copy effect never stopped applying).
-    const inherited = source.faceDown ? undefined : source.copyExcept;
-    const basePower = opts.basePower ?? inherited?.basePower;
-    const baseToughness = opts.baseToughness ?? inherited?.baseToughness;
-    if (basePower !== undefined || baseToughness !== undefined) {
-        recipient.copyExcept = {
-            ...(basePower !== undefined ? { basePower } : {}),
-            ...(baseToughness !== undefined ? { baseToughness } : {}),
-        };
+    const except = copyExceptOf(
+        source.faceDown ? undefined : source.copyExcept,
+        opts
+    );
+    if (except) {
+        recipient.copyExcept = except;
     } else {
         delete recipient.copyExcept;
     }
@@ -298,39 +304,21 @@ function applyCopyEffect(
     // CR 707.2 / 613.1a — the copy effect replaces the recipient's COPIABLE
     // VALUES only. The recipient is the same object (CR 400.7 needs a zone
     // change), so its own live layers 2–7 are replayed on top (issue #1705).
-    rebuildCopiableValuesAndReplayOverlays(state, recipient, {
-        types: [...def.types, ...(opts.additionalTypes ?? [])],
-        subtypes: [...(def.subtypes ?? []), ...(opts.additionalSubtypes ?? [])],
-        // CR 707.2 "except its base power and toughness are 4/4" (Eternalize,
-        // CR 702.129a). The exception replaces a COPIABLE value, so it is the
-        // base the layer system starts from — 7b-7e overlays (anthems,
-        // +1/+1 counters) still stack on top, replayed by the rebuild below.
-        power: basePower ?? def.power,
-        toughness: baseToughness ?? def.toughness,
-        // CR 707.2 "except it has haste" (Fable of the Mirror-Breaker's back
-        // face, issue #2399) — appended to the COPIABLE keyword set, the same
-        // shape `additionalSubtypes` uses above, so the keyword survives a
-        // copy-of-the-copy instead of being a layer-6 grant on this instance
-        // alone. Recomputed on every application, so a Vesuvan-style re-copy
-        // without the option drops it.
-        staticAbilities: [
-            ...(def.staticAbilities ?? []),
-            ...(opts.additionalStaticAbilities ?? []),
-        ],
-    });
+    // The clause's base P/T is the base the layer system starts from (7b-7e
+    // anthems and counters still stack on top); its keywords join the
+    // COPIABLE keyword set, never a layer-6 grant on this instance alone.
+    rebuildCopiableValuesAndReplayOverlays(
+        state,
+        recipient,
+        copiableValuesOf(def, except)
+    );
 
     // CR 707.2 "except it's black" (Eternalize) / "except it's white" (Embalm)
-    // — an explicit colour SET on the copy, written to the same layer-5
-    // `colorOverride` `getEffectiveColors` treats as outranking every other
-    // derivation. Checked BEFORE the `copyColor: false` branch: that one means
-    // "keep your OWN colours" (Vesuvan), a different clause, and an explicit
-    // colour naming wins when a caller sets both.
-    if (opts.colorOverride) {
-        recipient.colorOverride = [...opts.colorOverride];
-    } else if (!copyColor) {
-        // CR 707.9d "except it doesn't copy that creature's color": keep the
-        // recipient's own colors via a layer-5 override.
-        recipient.colorOverride = [...(opts.ownColors ?? [])];
+    // / CR 707.9d "except it doesn't copy that creature's color" (Vesuvan) —
+    // the colour the clause SET, written to the same layer-5 `colorOverride`
+    // `getEffectiveColors` treats as outranking every other derivation.
+    if (except?.colorOverride) {
+        recipient.colorOverride = [...except.colorOverride];
     } else if (priorCopyOwnsColour) {
         delete recipient.colorOverride;
     }
@@ -341,9 +329,8 @@ function applyCopyEffect(
     // `{}` override makes `getInstanceManaCost` — the single authority those
     // readers share — return an empty cost, hence mana value 0 (CR 202.3) and
     // no cost-derived colour (CR 202.2; the `colorOverride` above is what
-    // actually names the token's colour). Recomputed from `opts` on every
-    // application, same idempotency shape as `additionalSubtypes`.
-    if (opts.noManaCost) {
+    // actually names the token's colour).
+    if (except?.noManaCost) {
         recipient.manaCostOverride = {};
     } else {
         delete recipient.manaCostOverride;
@@ -391,6 +378,57 @@ function applyCopyEffect(
         recipient.grantedTriggeredAbilities =
             merged.length > 0 ? merged : undefined;
     }
+}
+
+/** CR 707.9b / 707.3 — the resolved "except" clause a copy effect leaves on
+ *  the copy: the copied object's own stamp (`inherited`, already its copiable
+ *  values) with THIS effect's clause applied on top, member by member.
+ *
+ *  - A VALUE the clause sets (base P/T, colour) replaces the inherited one
+ *    when named — the new effect states it outright — and is inherited when
+ *    not. `copyColor: false` sets the colour to the copier's own (CR 707.3's
+ *    Vesuvan example: a Clone of the Doppelganger is blue).
+ *  - An ADDITION ("in addition to its other types", "except it has haste",
+ *    "no mana cost") joins the inherited one: the copy first acquires the
+ *    source's copiable values, which already include it. De-duplicated, so
+ *    re-applying a copy over its own stamp (a timed copy's expiry) is
+ *    idempotent.
+ *
+ *  `undefined` when nothing is left — the copied card's printed values. */
+function copyExceptOf(
+    inherited: CopyExcept | undefined,
+    opts: CopyOptions
+): CopyExcept | undefined {
+    const added = <T>(a: T[] | undefined, b: T[] | undefined) => {
+        const all = [...new Set([...(a ?? []), ...(b ?? [])])];
+        return all.length > 0 ? all : undefined;
+    };
+    const merged: CopyExcept = {
+        basePower: opts.basePower ?? inherited?.basePower,
+        baseToughness: opts.baseToughness ?? inherited?.baseToughness,
+        colorOverride:
+            opts.colorOverride ??
+            (opts.copyColor === false
+                ? (opts.ownColors ?? [])
+                : inherited?.colorOverride),
+        additionalTypes: added(
+            inherited?.additionalTypes,
+            opts.additionalTypes
+        ),
+        additionalSubtypes: added(
+            inherited?.additionalSubtypes,
+            opts.additionalSubtypes
+        ),
+        additionalStaticAbilities: added(
+            inherited?.additionalStaticAbilities,
+            opts.additionalStaticAbilities
+        ),
+        noManaCost: opts.noManaCost || inherited?.noManaCost || undefined,
+    };
+    // JSON-pure, no `undefined` members, fresh arrays: the stamp is persisted
+    // and never aliases a module-level `CardDefinition` array.
+    const except = JSON.parse(JSON.stringify(merged)) as CopyExcept;
+    return Object.keys(except).length > 0 ? except : undefined;
 }
 
 /** Reverts a copy when it leaves the battlefield (CR 707.2 — the copy effect
@@ -551,10 +589,10 @@ export type LookBackStateView = LayerStateView & {
  *  KNOWN GAP, deliberate: a triggered ability installed by a copy effect's own
  *  "except it has …" clause (`CopyEffectOptions.additionalTriggeredAbilityIds`
  *  — Phantasmal Image) is a per-instance GRANT that `revertCopy` strips, and
- *  `LastKnownCopiable` records only the presented definition and the P/T
- *  exception, so the look-back cannot restore it. Widening that store to carry
- *  the remaining "except" clauses is issue #2963. Unreachable today: the one
- *  shipped user grants a becomes-targeted trigger, not a leave-trigger. */
+ *  `LastKnownCopiable` records only the presented definition and the resolved
+ *  `CopyExcept` stamp, which deliberately leaves that grant out, so the
+ *  look-back cannot restore it. Unreachable today: the one shipped user grants
+ *  a becomes-targeted trigger, not a leave-trigger. */
 export function lookBackSelf(
     state: LookBackStateView,
     card: CardInstanceState
@@ -633,16 +671,18 @@ function lookBackLayer1(
     }
 
     // CR 613.1a — layer 1 of the departed appearance. `copyExcept` is the
-    // CR 707.2 "except its base power and toughness are N/N" clause, and it
-    // replaces a COPIABLE value, so it is the base the replay starts from —
-    // the same precedence `applyCopy` gives it.
-    rebuildCopiableValuesAndReplayOverlays(state, view, {
-        types: [...def.types],
-        subtypes: [...(def.subtypes ?? [])],
-        power: entry.copyExcept?.basePower ?? def.power,
-        toughness: entry.copyExcept?.baseToughness ?? def.toughness,
-        staticAbilities: [...(def.staticAbilities ?? [])],
-    });
+    // CR 707.2 "except" clause, a set of COPIABLE values, so it is the base
+    // the replay starts from — the same reading `applyCopy` gives it — and its
+    // colour and "no mana cost" are restored beside it.
+    rebuildCopiableValuesAndReplayOverlays(
+        state,
+        view,
+        copiableValuesOf(def, entry.copyExcept)
+    );
+    if (entry.copyExcept?.colorOverride) {
+        view.colorOverride = [...entry.copyExcept.colorOverride];
+    }
+    if (entry.copyExcept?.noManaCost) view.manaCostOverride = {};
     return view;
 }
 
