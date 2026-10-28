@@ -182,7 +182,7 @@ describe("may-pay auto-decline (CR 118.3, issue #2242)", () => {
         const state = makeState({
             players: [
                 makePlayer("p1", {
-                    hand: [makeInstance(GRIZZLY_BEARS_ID, "p1")],
+                    hand: [makeInstance(GRIZZLY_BEARS_ID)],
                 }),
                 makePlayer("p2"),
             ],
