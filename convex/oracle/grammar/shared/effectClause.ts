@@ -178,6 +178,17 @@ export type AmountIR =
           readonly minus: number;
       }
     /**
+     * CR 107.1b — "3 minus the number of cards in their hand": a printed
+     * constant less a counted set, bound by "where X is …" (The Rack). The
+     * mirror of `counted-difference`, equally SIGNED; the consuming Op clamps
+     * it, so a hand of four deals no damage rather than a negative amount.
+     */
+    | {
+          readonly kind: "printed-less-counted";
+          readonly from: number;
+          readonly set: CountedSetIR;
+      }
+    /**
      * CR 202.3 + CR 208.1 + CR 608.2h — "its mana value" / "its power" /
      * "its toughness" / "that card's mana value" / "that permanent's mana
      * value": one characteristic of the object the sentence BEFORE acted on.
@@ -4944,14 +4955,18 @@ const RETURN_UP_TO_X_BOUNDED =
     /^Return up to X target (cards) from your graveyard to your hand, where X is the number of (.+) target opponent controls as you cast this spell$/;
 /**
  * CR 107.3 — "<effect>, where X is <count>": the head sentence prints X and the
- * tail defines it. The tail is one of two counts: "the number of <plural
- * descriptor>" and "the number of cards in your/their hand minus N".
+ * tail defines it: "the number of <plural descriptor>", "the number of cards
+ * in your/their hand minus N", its mirror "N minus the number of cards in
+ * their hand", or "the exiled card's mana value".
  */
 const WHERE_X_IS =
-    /^(.+), where X is (the number of .+|the exiled card(?:'|’)s mana value)$/;
+    /^(.+), where X is (the number of .+|\S+ minus the number of .+|the exiled card(?:'|’)s mana value)$/;
 const EXILED_CARD_MANA_VALUE = /^the exiled card(?:'|’)s mana value$/;
 const CARDS_IN_HAND_MINUS =
     /^the number of cards in (your|their) hand minus (\S+)$/;
+/** CR 107.1b — only "their" is printed (The Rack, Storm World). */
+const PRINTED_MINUS_CARDS_IN_HAND =
+    /^(\S+) minus the number of cards in their hand$/;
 /**
  * CR 107.1 — "<player> gains/loses N life for each <set>". The multiplier is a
  * printed number: "X life for each …" is a product of two variables this
@@ -6982,9 +6997,9 @@ function libraryHalf(span: string, ctx: unknown) {
 /**
  * CR 107.3 — the count a "where X is …" tail defines, as an amount.
  *
- * Only the two forms a fixture pins: a plural descriptor ("the number of
- * Zombies you control") and the controller's hand less a printed constant. A
- * descriptor clause the count cannot express is the LOWERING's refusal.
+ * Only the forms a fixture pins: a plural descriptor ("the number of Zombies
+ * you control"), a hand less a printed constant or its mirror, and the exiled
+ * card's mana value. A clause the count cannot express is the LOWERING's.
  */
 function whereXAmount(tail: string, ctx: unknown): RuleResult<AmountIR> {
     // CR 202.3 — the card the activation cost exiled; the site binds it.
@@ -7009,6 +7024,22 @@ function whereXAmount(tail: string, ctx: unknown): RuleResult<AmountIR> {
                         : ({ kind: "that-player" } as const),
             },
             minus,
+        });
+    }
+    // CR 107.1b — the mirror: a printed constant less "their" hand, where
+    // "their" is the player the head named (CR 402.3).
+    const printedLess = tail.match(PRINTED_MINUS_CARDS_IN_HAND);
+    if (printedLess !== null) {
+        const from = readNumberWord(printedLess[1]!);
+        if (from === null)
+            return fail(`"${printedLess[1]}" is not a number`, tail);
+        return ok({
+            kind: "printed-less-counted" as const,
+            from,
+            set: {
+                kind: "cards-in-hand" as const,
+                player: { kind: "that-player" } as const,
+            },
         });
     }
     const set = numberOfSetRule.run(tail, ctx);

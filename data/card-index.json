@@ -66294,6 +66294,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Storm World",
+        "scryfallId": "cdf0afa6-7003-454d-9b8a-e3328aaf29ed",
+        "oracleId": "868f4ab2-a846-4ad0-8720-95fd234dd36b",
+        "firstSet": "leg",
+        "firstPrintId": "cdf0afa6-7003-454d-9b8a-e3328aaf29ed",
+        "firstPrintSet": "leg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Storm, Shaker of Skies",
         "scryfallId": "9eadf356-105e-4a17-ab06-075ca662e963",
         "oracleId": "5d936655-8e46-4e30-8f9c-4fa1a4d34a17",

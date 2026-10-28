@@ -89,6 +89,62 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             entersWith: { asEnters: [{ kind: "opponent" }] },
         },
     },
+    // CR 107.1b + CR 402.3 — "…deals X damage to that player, where X is 3
+    // minus the number of cards in their hand": a printed constant less the
+    // chosen player's hand — Black Vise's subtraction mirrored. Exhibits a
+    // `dealDamage` whose amount is a difference and whose recipient is an
+    // `$event` player, neither of which the canned smoke scenario can stage.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "3d873e1d-4fac-42c4-bb31-77e76099e1ef",
+            name: "The Rack",
+            manaCost: "{1}",
+            typeLine: "Artifact",
+            oracleText:
+                "As this artifact enters, choose an opponent.\nAt the beginning of the chosen player's upkeep, this artifact deals X damage to that player, where X is 3 minus the number of cards in their hand.",
+            layout: "normal",
+        },
+        expected: {
+            name: "The Rack",
+            types: ["Artifact"],
+            manaCost: { X: 1 },
+            oracleText:
+                "As this artifact enters, choose an opponent.\nAt the beginning of the chosen player's upkeep, this artifact deals X damage to that player, where X is 3 minus the number of cards in their hand.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "the-rack-trigger",
+                    oracleText:
+                        "At the beginning of the chosen player's upkeep, this artifact deals X damage to that player, where X is 3 minus the number of cards in their hand.",
+                    head: {
+                        kind: "phase",
+                        phase: "UPKEEP",
+                        scope: "chosen-player",
+                    },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: {
+                                difference: {
+                                    from: 3,
+                                    minus: {
+                                        count: {
+                                            zone: "hand",
+                                            controller: {
+                                                ref: "$event.activePlayerId",
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                            to: { player: { ref: "$event.activePlayerId" } },
+                        },
+                    ],
+                },
+            ],
+            entersWith: { asEnters: [{ kind: "opponent" }] },
+        },
+    },
     // CR 603.2 + CR 701.6a — "Whenever a player casts an enchantment spell,
     // counter it": the trigger announces no target, so the counter reads the
     // `$event.spell` stack-object ref naming the spell that fired it. Exhibits
