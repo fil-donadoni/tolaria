@@ -22,11 +22,15 @@ export default function CardPreviewModeToggle({
     printedLabel = "Printed card",
     className = "mx-3 mt-2",
     showRulings = false,
+    hideComputed = false,
 }: {
     mode: CardPreviewView;
     onChange: (mode: CardPreviewView) => void;
     /** Adds the third `Rulings` entry (issue #4816). */
     showRulings?: boolean;
+    /** Drops the computed entry: a Manual Game card has no live text to show
+     *  (ADR 0080), so its toggle reads `Printed card | Rulings` (issue #4817). */
+    hideComputed?: boolean;
     computedLabel?: string;
     printedLabel?: string;
     className?: string;
@@ -35,9 +39,12 @@ export default function CardPreviewModeToggle({
         <div
             className={`flex justify-center gap-1 rounded-sm bg-surface-elevated/60 p-0.5 ${className}`}
         >
-            {(showRulings
-                ? (["computed", "printed", "rulings"] as const)
-                : (["computed", "printed"] as const)
+            {(
+                [
+                    ...(hideComputed ? [] : (["computed"] as const)),
+                    "printed",
+                    ...(showRulings ? (["rulings"] as const) : []),
+                ] as const
             ).map((m) => (
                 <button
                     key={m}

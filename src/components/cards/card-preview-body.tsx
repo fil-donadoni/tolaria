@@ -74,16 +74,20 @@ export default function CardPreviewBody({
     // so the entry exists iff `printedImageId` is non-null — never on the
     // definition id: the face-down anonymous face carries null, and a token
     // has no printed card to rule on (CR 111.1).
-    const rulingsPrintId =
-        !isManualGame && !content.isToken
-            ? (content.printedImageId?.id ?? null)
-            : null;
+    // A Manual Game card keeps it too (issue #4817): its printed identity is
+    // real even though its live text is not.
+    const rulingsPrintId = !content.isToken
+        ? (content.printedImageId?.id ?? null)
+        : null;
     // A mount reused for content with no print falls back to the computed face.
-    const mode: CardPreviewView = isManualGame
-        ? "printed"
-        : toggledMode === "rulings" && !rulingsPrintId
-          ? "computed"
-          : toggledMode;
+    const mode: CardPreviewView =
+        isManualGame && toggledMode !== "rulings"
+            ? "printed"
+            : toggledMode === "rulings" && !rulingsPrintId
+              ? isManualGame
+                  ? "printed"
+                  : "computed"
+              : toggledMode;
     if (originalBody) {
         return (
             <div className="flex w-full items-stretch">
@@ -119,6 +123,7 @@ export default function CardPreviewBody({
                     mode={mode}
                     onChange={setToggledMode}
                     showRulings
+                    hideComputed={isManualGame}
                 />
                 <CardPreviewRulings printId={rulingsPrintId} />
             </div>
@@ -128,11 +133,12 @@ export default function CardPreviewBody({
     if (mode === "printed" && content.printedImageId) {
         return (
             <div className="flex w-full flex-col">
-                {!isManualGame && (
+                {(!isManualGame || rulingsPrintId) && (
                     <CardPreviewModeToggle
                         mode={mode}
                         onChange={setToggledMode}
                         showRulings={!!rulingsPrintId}
+                        hideComputed={isManualGame}
                     />
                 )}
                 {content.backFaceHalf?.printedImageId ? (
