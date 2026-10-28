@@ -242,6 +242,9 @@ export type SlotIR =
           readonly kind: "triggered";
           readonly head: TriggerHeadIR;
           readonly condition?: TriggerConditionIR;
+          /** CR 603.2 — "This ability triggers only twice each turn.": the
+           *  most times the ability triggers in one turn, per source. */
+          readonly maxTriggersPerTurn?: number;
           readonly effects: readonly EffectSentenceIR[];
       }
     /**
