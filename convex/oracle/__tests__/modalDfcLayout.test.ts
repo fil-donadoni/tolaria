@@ -1,13 +1,12 @@
-// The compiler's MODAL DOUBLE-FACED layout gate (CR 712.3 / 712.12,
+// The compiler's MODAL DOUBLE-FACED layout (CR 712.3 / 712.11b / 712.12,
 // ADR 0122 §5).
 //
 // `layout: "modal_dfc"` is two classes, and the Scryfall string cannot tell
 // them apart. Measured against the vendored corpus, 100 cards carry it: 60
-// with a LAND back face, reached by CR 712.12's land play and modelled here,
-// and 40 with a spell or nonland permanent back face, reached by CR 712.11b's
-// second cast option and unbuilt (ADR 0122 §6). Admitting the string would
-// admit both, so the gate is a TYPE test on the back face's type line —
-// exactly the class CR 712.12 names, with no card-name list to rot.
+// with a LAND back face, reached by CR 712.12's land play, and 40 with a spell
+// or nonland permanent back face, reached by CR 712.11b's second cast option
+// (issue #7200). Both are admitted; what either face compiled to is still
+// bounded by what a `CardBackFace` can carry.
 //
 // Asserted on SYNTHESIZED rows in the shape `scripts/oracle-corpus.ts` reduces
 // the real ones to, because the corpus cache is gitignored and a test that
@@ -102,18 +101,20 @@ describe("CR 712.12 — a LAND-backed modal double-faced card is ADMITTED", () =
     });
 });
 
-describe("CR 712.11b — a NONLAND-backed modal double-faced card is refused", () => {
-    it("refuses a creature back face (the whole 40-card class), naming the rule", () => {
-        const reasons = reasonsOf(
+describe("CR 712.11b — a NONLAND-backed modal double-faced card is ADMITTED (issue #7200)", () => {
+    const QUIET_SCHOLAR: OracleFace = {
+        name: "Quiet Scholar",
+        manaCost: "{1}{W}",
+        typeLine: "Creature — Human Wizard",
+        oracleText: "Flying",
+        power: "2",
+        toughness: "1",
+    };
+
+    it("carries a creature back face's OWN mana cost, which its cast pays", () => {
+        const outcome = compileCard(
             modalCard([
-                {
-                    name: "Quiet Scholar",
-                    manaCost: "{1}{W}",
-                    typeLine: "Creature — Human Wizard",
-                    oracleText: "Flying",
-                    power: "2",
-                    toughness: "1",
-                },
+                QUIET_SCHOLAR,
                 {
                     name: "Loud Scholar",
                     manaCost: "{3}{W}",
@@ -124,10 +125,54 @@ describe("CR 712.11b — a NONLAND-backed modal double-faced card is refused", (
                 },
             ])
         );
-        expect(reasons).toContain("712.11b");
-        expect(reasons).toContain("out of scope");
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state === "unparsed") return;
+        expect(outcome.definition.manaCost).toEqual({ X: 1, W: 1 });
+        expect(outcome.definition.backFace?.kind).toBe("modal");
+        expect(outcome.definition.backFace?.manaCost).toEqual({ X: 3, W: 1 });
+        expect(outcome.definition.backFace?.power).toBe(4);
+        expect(outcome.definition.backFace?.staticAbilities).toEqual([
+            "flying",
+        ]);
     });
 
+    const instantBacked = modalCard([
+        QUIET_SCHOLAR,
+        {
+            name: "Loud Bolt",
+            manaCost: "{R}",
+            typeLine: "Instant",
+            oracleText: "Loud Bolt deals 3 damage to any target.",
+        },
+    ]);
+
+    it("carries an instant back face's effect script and target", () => {
+        const outcome = compileCard(instantBacked);
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state === "unparsed") return;
+        const back = outcome.definition.backFace;
+        expect(back?.types).toEqual(["Instant"]);
+        expect(back?.manaCost).toEqual({ R: 1 });
+        expect(back?.targetRequirement).toBeDefined();
+        expect(back?.effects?.[0]?.op).toBe("dealDamage");
+    });
+
+    it("round-trips an instant back face through goldOracleCard", () => {
+        const outcome = compileCard(instantBacked);
+        if (outcome.state === "unparsed") throw new Error("expected a card");
+        const rebuilt = goldOracleCard({
+            id: "00000000-0000-0000-0000-000000000002",
+            rarity: "rare",
+            ...outcome.definition,
+        } as CardDefinition);
+        expect(rebuilt.faces?.[1]?.manaCost).toBe("{R}");
+        const again = compileCard(rebuilt);
+        if (again.state === "unparsed") throw new Error("expected a card");
+        expect(again.definition.backFace).toEqual(outcome.definition.backFace);
+    });
+});
+
+describe("the modal layout gate", () => {
     it("still refuses the LAYOUT when a face count is wrong", () => {
         const card = modalCard([LAND_BACK, LAND_BACK]);
         expect(reasonsOf({ ...card, faces: [LAND_BACK] })).toContain(
