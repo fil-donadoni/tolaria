@@ -5,6 +5,7 @@ import { buildPreviewBody } from "~/lib/preview-body";
 import { useViewportMode } from "~/hooks/useViewportMode";
 import CardPreviewFace from "~/components/cards/card-preview-face";
 import PrintedFaceImage from "~/components/cards/printed-face-image";
+import CardPreviewRulings from "~/components/cards/card-preview-rulings";
 import CardPreviewModeToggle, {
     type CardPreviewView,
 } from "~/components/cards/card-preview-mode-toggle";
@@ -120,6 +121,12 @@ export default function InspectOverlay({
     // No `CardInstance`, no `GameContext`: an editing surface holds card
     // IDENTITIES, never permanents, so the face is the printed/oracle card.
     const body = buildPreviewBody(cardId);
+    // Rulings (issue #4817) need a print: same anti-leak gate as the preview
+    // body. Stepping ‹ › keeps `mode`; a card with no print falls back to the
+    // Oracle face rather than an empty Rulings view.
+    const rulingsPrintId = body.printedImageId?.id ?? null;
+    const viewMode: CardPreviewView =
+        mode === "rulings" && !rulingsPrintId ? "computed" : mode;
     const split =
         (layout ?? (viewportMode === "portrait" ? "stacked" : "split")) ===
         "split";
@@ -195,10 +202,11 @@ export default function InspectOverlay({
                     </div>
                     {body.printedImageSrc && (
                         <CardPreviewModeToggle
-                            mode={mode}
+                            mode={viewMode}
                             onChange={setMode}
                             computedLabel="Oracle"
                             printedLabel="Printed"
+                            showRulings={!!rulingsPrintId}
                             className="mx-0 shrink-0"
                         />
                     )}
@@ -237,7 +245,14 @@ export default function InspectOverlay({
                         split ? "flex-row" : "flex-col overflow-y-auto"
                     }`}
                 >
-                    {mode === "printed" && body.printedImageId ? (
+                    {viewMode === "rulings" && rulingsPrintId ? (
+                        <div className="min-w-0 flex-1 overflow-y-auto">
+                            <CardPreviewRulings
+                                key={rulingsPrintId}
+                                printId={rulingsPrintId}
+                            />
+                        </div>
+                    ) : mode === "printed" && body.printedImageId ? (
                         <>
                             <PrintedFaceImage
                                 imageId={body.printedImageId.id}

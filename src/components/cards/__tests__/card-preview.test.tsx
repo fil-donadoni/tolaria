@@ -496,8 +496,12 @@ describe("CardPreview — Arena click model (#332)", () => {
     // Game the preview must open directly on the printed card image, on all
     // THREE surfaces, with no toggle to switch away from it. The flag comes
     // from the real `makeManualGameContext` seam, not a per-surface prop.
-    describe("Manual Game — printed-image-only face, no toggle (issue #2346)", () => {
-        it("hover dock opens on the printed image with no toggle", () => {
+    const modes = (root: string) =>
+        [...document.querySelectorAll(`${root} [data-preview-mode]`)].map(
+            (b) => (b as HTMLElement).dataset.previewMode
+        );
+    describe("Manual Game — printed-image-only face, Printed card | Rulings toggle (issues #2346, #4817)", () => {
+        it("hover dock opens on the printed image without a Live text entry", () => {
             const { container } = renderOnManualBoard();
             const root = container.firstElementChild as HTMLElement;
 
@@ -512,15 +516,14 @@ describe("CardPreview — Arena click model (#332)", () => {
             expect(printedImg).toBeTruthy();
             expect(printedImg.src).toContain("/grid/");
             expect(printedImg.src).toContain(".webp");
-            // No Live text / Printed card toggle in a Manual Game.
-            expect(
-                document.querySelector(
-                    "[data-card-preview-dock] [data-preview-mode]"
-                )
-            ).toBeNull();
+            // No Live text entry in a Manual Game (ADR 0080).
+            expect(modes("[data-card-preview-dock]")).toEqual([
+                "printed",
+                "rulings",
+            ]);
         });
 
-        it("the anchored pin opens on the printed image with no toggle", () => {
+        it("the anchored pin opens on the printed image without a Live text entry", () => {
             const { container } = renderOnManualBoard();
             const root = container.firstElementChild as HTMLElement;
 
@@ -534,14 +537,13 @@ describe("CardPreview — Arena click model (#332)", () => {
             ) as HTMLImageElement;
             expect(printedImg).toBeTruthy();
             expect(printedImg.src).toContain("/grid/");
-            expect(
-                document.querySelector(
-                    "[data-card-preview-anchored] [data-preview-mode]"
-                )
-            ).toBeNull();
+            expect(modes("[data-card-preview-anchored]")).toEqual([
+                "printed",
+                "rulings",
+            ]);
         });
 
-        it("the mobile long-press overlay opens on the printed image with no toggle", () => {
+        it("the mobile long-press overlay opens on the printed image without a Live text entry", () => {
             const { container } = renderOnManualBoard();
             const root = container.firstElementChild as HTMLElement;
 
@@ -559,7 +561,11 @@ describe("CardPreview — Arena click model (#332)", () => {
             ) as HTMLImageElement;
             expect(printedImg).toBeTruthy();
             expect(printedImg.src).toContain("/grid/");
-            expect(overlay!.querySelector("[data-preview-mode]")).toBeNull();
+            expect(
+                [...overlay!.querySelectorAll("[data-preview-mode]")].map(
+                    (b) => (b as HTMLElement).dataset.previewMode
+                )
+            ).toEqual(["printed", "rulings"]);
         });
     });
 
