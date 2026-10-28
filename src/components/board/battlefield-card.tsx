@@ -15,6 +15,7 @@ import CounterBadges from "./counter-badges";
 import LoyaltyBadge from "./loyalty-badge";
 import NotedManaBadge from "./noted-mana-badge";
 import SummoningSicknessBadge from "./summoning-sickness-badge";
+import ExertBadge from "./exert-badge";
 import TokenBadge from "./token-badge";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 
@@ -170,6 +171,7 @@ export default function BattlefieldCard({
             <CounterBadges card={card} />
             <ClassLevelBadge card={card} />
             <SummoningSicknessBadge card={card} />
+            <ExertBadge card={card} />
             <NotedManaBadge card={card} />
             <TokenBadge card={card} />
             {ptDamageStack}

@@ -70,14 +70,20 @@ vi.mock("@convex/_generated/api", () => {
     return { api: { game } };
 });
 const PLAIN_DEF = { id: "plain", name: "T", staticEffects: [] };
+const EXERT_DEF = {
+    id: "exerter",
+    name: "E",
+    staticEffects: [{ kind: "may-exert-as-attacks" }],
+};
 import {
     mockInstanceManaCost,
     type ManaCostSource,
 } from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
     getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
-    getDefinition: () => PLAIN_DEF,
-    tryGetDefinition: () => PLAIN_DEF,
+    getDefinition: (id: string) => (id === "exerter" ? EXERT_DEF : PLAIN_DEF),
+    tryGetDefinition: (id: string) =>
+        id === "exerter" ? EXERT_DEF : PLAIN_DEF,
 }));
 vi.mock("@convex/cards/attackRestrictions", () => ({
     globalAttackProhibitionReason: () => undefined,
@@ -242,6 +248,26 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
             (declares[0].args as { attackerIds: string[] }).attackerIds
         ).toEqual(["a", "b"]);
         expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(true);
+        expect(seq.begin).not.toHaveBeenCalled();
+    });
+
+    it("with an exert-capable attacker and no planeswalker: declares but leaves the declaration unconfirmed (CR 508.1g / 701.43d)", async () => {
+        const me = player("me", [
+            creature({ id: "a" }),
+            creature({ id: "x", card: { id: "exerter" } as never }),
+        ]);
+        const opp = player("opp", []);
+        const seq = makeSequence();
+        const { result } = renderCtrl(me, opp, seq);
+
+        await act(async () => {
+            await findAction(result, "attack-with-all")!.onClick();
+        });
+
+        expect(calls.filter((c) => c.ref === "declareAttackers")).toHaveLength(
+            1
+        );
+        expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(false);
         expect(seq.begin).not.toHaveBeenCalled();
     });
 

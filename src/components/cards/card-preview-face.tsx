@@ -68,6 +68,7 @@ export default function CardPreviewFace({
     isToken,
     attachedToName,
     skipNextUntap,
+    exertPending,
     combatRestrictions,
     abilityWordCounters,
     engineView,
@@ -276,6 +277,15 @@ export default function CardPreviewFace({
                         className={`border-t border-border-subtle pt-2 ${sectionSize} font-semibold text-accent-strong`}
                     >
                         Attached to: {attachedToName}
+                    </div>
+                )}
+                {exertPending && (
+                    <div
+                        className={`border-t border-border-subtle pt-2 ${sectionSize} font-semibold text-signal-pending`}
+                    >
+                        Exert chosen — it won't untap during its controller's
+                        next untap step. You can still undo this until you
+                        confirm attackers.
                     </div>
                 )}
                 {skipNextUntap && (
