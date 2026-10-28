@@ -151,10 +151,10 @@ export function modalBackFaceParentId(cardId: string): string | undefined {
  *  modal double-faced permanent is on the battlefield, it has only the
  *  characteristics of the face that's up", so the parent's cost, types,
  *  keywords, statics, triggers, P/T and effects are all absent by
- *  construction: the twin is built from the back-face record alone. A modal
- *  back face has no mana cost of its own (CR 712.8f leaves the front's cost
- *  behind with the front's other characteristics, and no printed modal back
- *  face carries one), so none is derived.
+ *  construction: the twin is built from the back-face record alone. Its mana
+ *  cost is the BACK face's own printed one (CR 712.8f leaves the front's cost
+ *  behind with the front's other characteristics): absent on a land back,
+ *  the cost CR 712.11b's cast pays on a spell back (issue #7200).
  *
  *  It carries the parent's `rarity` because rarity is a property of the
  *  PRINTING (CR 206.1), and one modal double-faced card is one printing. Art
@@ -177,6 +177,7 @@ export function modalBackTwinDefinition(
         name: back.name,
         rarity: parent.rarity,
         types: [...back.types],
+        ...(back.manaCost ? { manaCost: back.manaCost } : {}),
         ...(back.subtypes ? { subtypes: [...back.subtypes] } : {}),
         ...(back.supertypes ? { supertypes: [...back.supertypes] } : {}),
         ...(back.power !== undefined ? { power: back.power } : {}),
@@ -199,8 +200,16 @@ export function modalBackTwinDefinition(
         ...(back.activatedAbilities
             ? { activatedAbilities: back.activatedAbilities }
             : {}),
+        ...(back.triggeredAbilities
+            ? { triggeredAbilities: back.triggeredAbilities }
+            : {}),
         ...(back.entersTappedUnlessPay
             ? { entersTappedUnlessPay: back.entersTappedUnlessPay }
+            : {}),
+        // CR 712.11b — what a cast back face does and aims at (issue #7200).
+        ...(back.effects ? { effects: back.effects } : {}),
+        ...(back.targetRequirement
+            ? { targetRequirement: back.targetRequirement }
             : {}),
         ...(back.oracleText ? { oracleText: back.oracleText } : {}),
         imagePrintId: back.imagePrintId ?? parent.imagePrintId ?? parent.id,

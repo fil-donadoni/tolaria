@@ -26,7 +26,7 @@ import { INSET_SPELL_KINDS, insetSpellDefinitionId } from "../cards/insetSpell";
 import { splitSideOfDefinitionId } from "../cards/splitCard";
 import { isTwinDefinitionId, parentIdOfTwin } from "../cards/twinId";
 import { modalBackFaceParentId } from "../cards/modalDfc";
-import { stampModalBackFaceForPlay } from "./transform";
+import { stampModalBackFace } from "./transform";
 
 /** CR 715.4 / 709.4 / 712.8f — the name→card resolution EVERY builder in this
  *  module uses, with the one thing a scenario may never name: a HALF of a card
@@ -80,7 +80,7 @@ function unplaceableTwinMessage(name: string, twinId: string): string {
  *
  *  Naming a modal double-faced card's back face places the card that carries
  *  it: on the battlefield back face up, exactly as the live land play leaves
- *  it (`stampModalBackFaceForPlay`); in every other zone as its front face,
+ *  it (`stampModalBackFace`); in every other zone as its front face,
  *  since "while a double-faced card is outside the game or in a zone other
  *  than the battlefield or stack, it has only the characteristics of its front
  *  face." Any other name places what it names, front face up. */
@@ -698,7 +698,7 @@ export function buildStateFromScenario(
         // on departure (CR 712.8a). Stamped before the push, as that
         // function requires.
         if (backFaceUp) {
-            stampModalBackFaceForPlay(state, instance as CardInstanceState);
+            stampModalBackFace(state, instance as CardInstanceState);
         }
         return instance;
     }
@@ -3242,7 +3242,7 @@ function lowerCard(
 
 /** CR 712.8f (issue #4767) — the keys a BACK-FACE-UP modal permanent may treat
  *  as rebuild behaviour. Its entry names the back face (`presentedName`), and
- *  the builder re-stamps that face through `stampModalBackFaceForPlay`, which
+ *  the builder re-stamps that face through `stampModalBackFace`, which
  *  writes exactly these two markers — so they are carried, not dropped. Only
  *  when the pair is the one that stamp would write: a `transformedFrom` that
  *  is not this twin's own front face is some other transform, and stays

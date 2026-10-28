@@ -1791,6 +1791,7 @@ export function tryAutoCommitPendingCast(
             morphed: pending.morphed,
             castAsAdventure: pending.castAsAdventure,
             castAsSplitHalf: pending.castAsSplitHalf,
+            castAsModalBack: pending.castAsModalBack,
         },
         placement: { kind: "announce", keepPriority: pending.keepPriority },
     });

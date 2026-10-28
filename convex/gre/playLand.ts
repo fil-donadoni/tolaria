@@ -59,7 +59,7 @@ import { checkAscendCityBlessing } from "./cityBlessing";
 import { tryGetDefinition } from "../cards";
 import type { MayPayCost } from "../cards/types";
 import { playLandFaceDefinition, type PlayLandFace } from "./modalLandPlay";
-import { stampModalBackFaceForPlay } from "./transform";
+import { stampModalBackFace } from "./transform";
 import { applyEntersPrepared } from "./prepare";
 
 /** CR 712.12 — the entry replacement the CHOSEN FACE declares ("as this land
@@ -101,7 +101,7 @@ function landPromptCardData(
  *  before the zone move that ends in `settleEnteredLand`.
  *
  *  A no-op for `"front"`, which is every land that is not modal. For `"back"`
- *  it stamps the twin identity (`stampModalBackFaceForPlay`, `gre/transform
+ *  it stamps the twin identity (`stampModalBackFace`, `gre/transform
  *  .ts`), which is what makes every downstream reader — `shouldEnterTapped`,
  *  the entry counters, the CR 611.2 grant passes, the ETB trigger scan, the
  *  mana ability the client will offer — see the LAND rather than the instant
@@ -115,7 +115,7 @@ function stampChosenFace(
     card: CardInstanceState,
     face: PlayLandFace
 ): void {
-    if (face === "back") stampModalBackFaceForPlay(state, card);
+    if (face === "back") stampModalBackFace(state, card);
 }
 
 /**

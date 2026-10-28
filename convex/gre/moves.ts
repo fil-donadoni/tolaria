@@ -205,6 +205,7 @@ import {
 } from "./castMode";
 import { landPlayFaces, type PlayLandFace } from "./modalLandPlay";
 import { isSplitCastId, offersPrintedCast } from "./splitCast";
+import { isModalBackCastId } from "./modalBackCast";
 import { morphCastAlternativeCost, turnableFaceUpPermanents } from "./morph";
 import { hasRetrace } from "./retrace";
 import { flashbackExileEligibleCount } from "./flashback";
@@ -4546,7 +4547,9 @@ function enumerateCastMovesFromZone(
         // exemption states: CR 709.3's choice of half is not a price at all.
         if (
             lifeInsteadOfMana !== undefined &&
-            isSplitCastId(def ?? undefined, alt.id) === undefined
+            isSplitCastId(def ?? undefined, alt.id) === undefined &&
+            // CR 712.11b — nor is choosing a modal double-faced card's face.
+            !isModalBackCastId(def ?? undefined, alt.id)
         ) {
             continue;
         }
