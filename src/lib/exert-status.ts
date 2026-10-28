@@ -4,7 +4,7 @@ import type { CardInstance, Combat } from "~/types/game";
  *   - `pending`: chosen for the declaration being made (held on
  *     `combat.exertedIds`), still revocable until attackers are confirmed;
  *   - `paid`: the permanent's own one-shot "skips its next untap step" flag is
- *     armed (CR 302.6 / 502.1) — the cost is paid and locked in. The flag also
+ *     armed (CR 302.6 / 502.3) — the cost is paid and locked in. The flag also
  *     carries non-exert causes, so this is "will not untap", not "was exerted";
  *   - `null`: neither.
  *  Reads projected state only, never the card name or art. */
