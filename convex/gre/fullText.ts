@@ -57,6 +57,7 @@ import { declaresFullTextEffect, tryGetDefinition } from "../cards";
 import type { CardDefinition, FullTextEffect } from "../cards/types";
 import {
     copiableValuesOf,
+    copyExceptOf,
     rebuildCopiableValuesAndReplayOverlays,
     type CopiableValues,
 } from "./identitySwap";
@@ -91,12 +92,18 @@ export function copiableImagePrintId(
 
 /** CR 613.1a — the layer-1 values of `def` on this permanent: the printed
  *  values, plus the resolved "except" clause of a copy effect it presents
- *  (CR 707.9b), which `applyCopy` stamps on `copyExcept`. */
+ *  (CR 707.9b), which `applyCopy` stamps on `copyExcept`. The effect's own
+ *  `copyOptions` are merged back in — idempotent over a stamp that already
+ *  holds them, and what a stamp persisted before it carried every member
+ *  still needs. */
 function layer1Values(
     card: CardInstanceState,
     def: CardDefinition
 ): CopiableValues {
-    return copiableValuesOf(def, card.copyExcept);
+    return copiableValuesOf(
+        def,
+        copyExceptOf(card.copyExcept, card.copyOptions ?? {})
+    );
 }
 
 /** A retained-text row ("… and has the text '{2}: Discard a card.'"): the

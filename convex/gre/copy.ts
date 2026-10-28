@@ -12,11 +12,7 @@
 // reverted when it leaves the battlefield.
 
 import { FACE_DOWN_CARD_ID, getDefinition, tryGetDefinition } from "../cards";
-import type {
-    CopyEffectOptions,
-    CopyExcept,
-    TriggeredAbility,
-} from "../cards/types";
+import type { CopyEffectOptions, TriggeredAbility } from "../cards/types";
 import {
     abilityLossTimestamp,
     grantOutrankedByAbilityLoss,
@@ -29,6 +25,7 @@ import {
 } from "./fullText";
 import {
     copiableValuesOf,
+    copyExceptOf,
     rebuildCopiableValuesAndReplayOverlays,
 } from "./identitySwap";
 import { backFaceDefinitionIdOf } from "./transform";
@@ -118,11 +115,13 @@ export function applyTimedCopy(
     // clears the disposable placeholder anchor) but does carry the copy
     // effect's own `copyOptions` — CR 707.9's "except it's a 4/4 black Zombie"
     // is its copiable body, and reverting to the bare copied definition would
-    // hand back a body the token never had. So the test is "does it present a
-    // copy effect at all", either anchor.
+    // hand back a body the token never had — nor one whose clause it only
+    // INHERITED (CR 707.3: a token copy of an Eternalize token carries the
+    // `copyExcept` stamp and no options of its own). So the test is "does it
+    // present a copy effect at all", any anchor.
     const underlying = ledger
         ? ledger.underlying
-        : recipient.copiedFrom || recipient.copyOptions
+        : recipient.copiedFrom || recipient.copyOptions || recipient.copyExcept
           ? copyLayerOf(
                 {
                     card: { id: copiableDefId(recipient) },
@@ -378,57 +377,6 @@ function applyCopyEffect(
         recipient.grantedTriggeredAbilities =
             merged.length > 0 ? merged : undefined;
     }
-}
-
-/** CR 707.9b / 707.3 — the resolved "except" clause a copy effect leaves on
- *  the copy: the copied object's own stamp (`inherited`, already its copiable
- *  values) with THIS effect's clause applied on top, member by member.
- *
- *  - A VALUE the clause sets (base P/T, colour) replaces the inherited one
- *    when named — the new effect states it outright — and is inherited when
- *    not. `copyColor: false` sets the colour to the copier's own (CR 707.3's
- *    Vesuvan example: a Clone of the Doppelganger is blue).
- *  - An ADDITION ("in addition to its other types", "except it has haste",
- *    "no mana cost") joins the inherited one: the copy first acquires the
- *    source's copiable values, which already include it. De-duplicated, so
- *    re-applying a copy over its own stamp (a timed copy's expiry) is
- *    idempotent.
- *
- *  `undefined` when nothing is left — the copied card's printed values. */
-function copyExceptOf(
-    inherited: CopyExcept | undefined,
-    opts: CopyOptions
-): CopyExcept | undefined {
-    const added = <T>(a: T[] | undefined, b: T[] | undefined) => {
-        const all = [...new Set([...(a ?? []), ...(b ?? [])])];
-        return all.length > 0 ? all : undefined;
-    };
-    const merged: CopyExcept = {
-        basePower: opts.basePower ?? inherited?.basePower,
-        baseToughness: opts.baseToughness ?? inherited?.baseToughness,
-        colorOverride:
-            opts.colorOverride ??
-            (opts.copyColor === false
-                ? (opts.ownColors ?? [])
-                : inherited?.colorOverride),
-        additionalTypes: added(
-            inherited?.additionalTypes,
-            opts.additionalTypes
-        ),
-        additionalSubtypes: added(
-            inherited?.additionalSubtypes,
-            opts.additionalSubtypes
-        ),
-        additionalStaticAbilities: added(
-            inherited?.additionalStaticAbilities,
-            opts.additionalStaticAbilities
-        ),
-        noManaCost: opts.noManaCost || inherited?.noManaCost || undefined,
-    };
-    // JSON-pure, no `undefined` members, fresh arrays: the stamp is persisted
-    // and never aliases a module-level `CardDefinition` array.
-    const except = JSON.parse(JSON.stringify(merged)) as CopyExcept;
-    return Object.keys(except).length > 0 ? except : undefined;
 }
 
 /** Reverts a copy when it leaves the battlefield (CR 707.2 — the copy effect

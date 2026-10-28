@@ -471,6 +471,34 @@ describe('CR 707.3 — every member of the "except" clause is inherited (issue #
         expect(getEffectiveColors(clone)).toEqual(["R"]);
     });
 
+    it("a token copy with only an INHERITED clause gets it back when a timed copy over it expires", () => {
+        const state = scenario();
+        applyCopy(state, find(state, "tok"), find(state, "src"), WHOLE_CLAUSE);
+        // A token BORN as a plain copy of the Eternalize-style token
+        // (`createTokenPermanents` clears `copiedFrom`; an empty clause leaves
+        // no `copyOptions`): the inherited stamp is its only copy anchor.
+        applyCopy(state, find(state, "clone"), find(state, "tok"));
+        delete find(state, "clone").copiedFrom;
+        expect(find(state, "clone").copyOptions).toBeUndefined();
+
+        applyTimedCopy(
+            state,
+            find(state, "clone"),
+            find(state, "src"),
+            {},
+            {
+                phase: "end-of-turn",
+            }
+        );
+        expect(getEffectiveColors(find(state, "clone"))).toEqual(["G"]);
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+
+        const clone = find(state, "clone");
+        for (const m of MEMBERS) expect(m.read(clone)).toEqual(m.inherited);
+        expect(getEffectivePower(state, clone)).toBe(4);
+    });
+
     it("survives a serialize/deserialize round trip, and is re-copied from it", () => {
         const state = scenario();
         applyCopy(state, find(state, "tok"), find(state, "src"), WHOLE_CLAUSE);
