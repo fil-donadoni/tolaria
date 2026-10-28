@@ -1617,6 +1617,12 @@ while :; do
     # the driver rather than in the pass's own prompt.
     reap_orphan_claims
 
+    # 3c. weekly GC of orphaned Convex source-package blobs (issue #3186). The
+    # script is stamp-gated and exits 0 by construction; `|| true` is the belt.
+    if [ "$DRY_RUN" -eq 0 ]; then
+        bun "$SCRIPT_DIR/convex-blob-gc.ts" --auto || true
+    fi
+
     # 4. queue — nothing unclaimed left to do.
     queue_before=$(count_unclaimed 2>/dev/null) || queue_before=""
     if ! is_uint "$queue_before"; then
