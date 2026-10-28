@@ -70,6 +70,12 @@ import {
     isMorphCastId,
     MORPH_CAST_ALT_COST_ID,
 } from "./morph";
+import {
+    castAsModalBack,
+    castableModalBackTwin,
+    modalBackCastAltCostId,
+    modalBackCastOptionsFor,
+} from "./modalBackCast";
 import type { CardInstanceState } from "./state/declarations";
 import type { LayerStateView } from "./layers";
 
@@ -86,7 +92,8 @@ export type CastMode =
     | "overload"
     | "adventure"
     | "split-left"
-    | "split-right";
+    | "split-right"
+    | "modal-back";
 
 type CastModeRow = {
     /** The alt-cost id that selects this mode for `def`, or `undefined` when
@@ -225,11 +232,24 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
         subject: (def) => splitTwin(def, "right") ?? def,
         stamp: (_state, item) => castAsSplitHalf(item, "right"),
     },
+    // CR 712.11c / 712.8f (issue #7200) — "only the face that will be face up
+    // on the stack is evaluated to determine if it can be cast", and on the
+    // stack the spell "has only the characteristics of the face that's up".
+    // The front face needs no row: it is the printed cast (CR 712.11).
+    "modal-back": {
+        idOf: (def) =>
+            castableModalBackTwin(def)
+                ? modalBackCastAltCostId(def!)
+                : undefined,
+        subject: (def) => castableModalBackTwin(def) ?? def,
+        stamp: (state, item) => castAsModalBack(state, item),
+    },
 };
 
-/** CR 715.3 / 709.3 — every cast option on `card` that is a DIFFERENT SPELL
- *  rather than a different price for the printed one: the Adventure (one) and
- *  a split card's two halves.
+/** CR 715.3 / 709.3 / 712.11b — every cast option on `card` that is a
+ *  DIFFERENT SPELL rather than a different price for the printed one: the
+ *  Adventure (one), a split card's two halves and a modal double-faced card's
+ *  back face.
  *
  *  What unites them, and the reason they are one list rather than a
  *  per-mechanic local at each of the four offering surfaces: each is judged
@@ -249,7 +269,11 @@ export function independentCastOptionsFor(
     card: CardInstanceState
 ): AlternativeCost[] {
     const adventure = adventureCastOptionFor(card);
-    return [...(adventure ? [adventure] : []), ...splitCastOptionsFor(card)];
+    return [
+        ...(adventure ? [adventure] : []),
+        ...splitCastOptionsFor(card),
+        ...modalBackCastOptionsFor(card),
+    ];
 }
 
 /** The cast mode `alternativeCostId` selects for `def`, or `undefined` for a

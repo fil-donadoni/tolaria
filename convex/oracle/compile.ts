@@ -60,17 +60,14 @@ const SUPPORTED_LAYOUTS = new Set<string>(["normal"]);
 const SPLIT_LAYOUT = "split";
 
 /**
- * CR 712.3 / 712.12 (ADR 0122 §5) — the MODAL DOUBLE-FACED layout, admitted
- * with a CR-shaped gate.
+ * CR 712.3 / 712.11b / 712.12 (ADR 0122 §5) — the MODAL DOUBLE-FACED layout.
  *
  * `layout: "modal_dfc"` is two classes, and the split between them is not a
  * schema but WHICH PLAYER ACTION turns the back face up. Measured against the
  * vendored corpus, 100 cards carry it: 60 have a LAND back face, reached by
  * CR 712.12's land play, and 40 have a spell or nonland permanent back face,
- * reached by CR 712.11b's second cast option. Only the first is modelled
- * (ADR 0122 §6 admits the second in principle and leaves it unbuilt until a
- * shipped pool wants one), so the gate is a TYPE test on the back face and
- * never a card-name list that would rot.
+ * reached by CR 712.11b's second cast option. Both are modelled — the second
+ * since issue #7200 (ADR 0122 §6) — so the layout carries no class gate.
  *
  * What makes this the cheapest multi-faced layout rather than the dearest is
  * CR 712.8a: outside the battlefield and the stack a modal card has only its
@@ -83,8 +80,8 @@ export const MODAL_DFC_LAYOUT = "modal_dfc";
 
 /**
  * The fields a `CardBackFace` record can carry (`cards/types.ts`). A face that
- * compiled to ANYTHING else — an effect script, a targeting requirement, a
- * triggered ability, an entry-counter clause — is refused rather than
+ * compiled to ANYTHING else — a triggered ability, an entry-counter clause —
+ * is refused rather than
  * truncated, for the same reason {@link INSET_SPELL_FIELDS} and
  * {@link SPLIT_HALF_FIELDS} exist: a definition missing one of its abilities
  * is worse than no definition at all, and the back face is where a silent
@@ -99,6 +96,10 @@ export const MODAL_DFC_LAYOUT = "modal_dfc";
  */
 const MODAL_BACK_FACE_FIELDS = new Set<string>([
     "name",
+    // CR 712.11b (issue #7200) — what a CAST back face pays, does and aims at.
+    "manaCost",
+    "effects",
+    "targetRequirement",
     "types",
     "subtypes",
     "supertypes",
@@ -433,31 +434,10 @@ function compileModalDfcLayout(card: OracleCard): CompileOutcome {
             },
         ]);
     }
-    // CR 712.12 — the gate. "A player playing a modal double-faced card … as a
-    // land chooses one of its faces that's a land": the class this engine
-    // models is the one whose BACK face is a land, because the land play is
-    // the action that turns it up. A nonland back face is CR 712.11b's cast
-    // option (40 of the corpus's 100), unbuilt, and keeps producing the gap it
-    // produces today rather than compiling into a card nobody can turn over.
-    const backTypeLine = readTypeLine(faces[1].typeLine);
-    if (!backTypeLine.ok) {
-        return unparsed([
-            {
-                line: faces[1].typeLine,
-                fragment: backTypeLine.fragment,
-                reason: backTypeLine.reason,
-            },
-        ]);
-    }
-    if (!backTypeLine.parsed.types.includes("Land")) {
-        return unparsed([
-            {
-                line: faces[1].typeLine,
-                fragment: faces[1].typeLine,
-                reason: `modal double-faced card with a nonland back face is CR 712.11b's cast option, out of scope`,
-            },
-        ]);
-    }
+    // Both classes are admitted: a LAND back face is turned up by CR 712.12's
+    // land play, any other back face by CR 712.11b's cast (issue #7200,
+    // `gre/modalBackCast.ts`). What either face compiled to is still bounded
+    // by what a `CardBackFace` can carry, below.
     const front = compileCard(faceAsOracleCard(card, faces[0]));
     const back = compileCard(faceAsOracleCard(card, faces[1]));
     if (front.state === "unparsed" || back.state === "unparsed") {
@@ -509,6 +489,11 @@ function compileModalDfcLayout(card: OracleCard): CompileOutcome {
                 : {}),
             ...(backDef.entersTappedUnlessPay
                 ? { entersTappedUnlessPay: backDef.entersTappedUnlessPay }
+                : {}),
+            ...(backDef.manaCost ? { manaCost: backDef.manaCost } : {}),
+            ...(backDef.effects ? { effects: backDef.effects } : {}),
+            ...(backDef.targetRequirement
+                ? { targetRequirement: backDef.targetRequirement }
                 : {}),
             oracleText: faces[1].oracleText,
         },

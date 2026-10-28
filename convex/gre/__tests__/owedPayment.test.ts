@@ -59,6 +59,7 @@ const FULL_CAST: Required<PendingCast> = {
     morphed: false,
     castAsAdventure: false,
     castAsSplitHalf: "left",
+    castAsModalBack: false,
     overloaded: false,
     actingPlayerId: P1,
     additionalCost: { kind: "exile", filter: {}, pickedId: undefined },

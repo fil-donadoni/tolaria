@@ -433,6 +433,24 @@ describe("regression — Questing Phelddagrif is NOT legendary (PR #2047 fix)", 
         expect(offenders).toEqual([]);
     });
 
+    it("CR 712.11b — no NONMODAL back face declares a cast leg (issue #7200)", () => {
+        // `manaCost` / `effects` / `targetRequirement` on a back face are what
+        // CR 712.11b's back-face CAST reads, and only a modal face is cast.
+        // The same codec reason as the clause above: a nonmodal face is
+        // rebuilt from a content-derived id with no slot for them.
+        const offenders = getAllCards()
+            .filter(
+                (c) =>
+                    c.backFace !== undefined &&
+                    (c.backFace.kind ?? "nonmodal") !== "modal" &&
+                    (c.backFace.manaCost !== undefined ||
+                        c.backFace.effects !== undefined ||
+                        c.backFace.targetRequirement !== undefined)
+            )
+            .map((c) => `${c.name} (${c.id})`);
+        expect(offenders).toEqual([]);
+    });
+
     it("matches data/json/PLS.json exactly (supertypes: [])", () => {
         const raw = readFileSync(join(jsonDir, "PLS.json"), "utf8");
         const parsed = JSON.parse(raw) as { data: { cards: MtgJsonCard[] } };

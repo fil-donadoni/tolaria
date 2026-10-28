@@ -2877,6 +2877,12 @@ export type PendingCast = {
      *  the COMBINED card on the stack for a cast the caster paid one half's
      *  price for. */
     castAsSplitHalf?: SplitHalfSide;
+    /** CR 712.11b (issue #7200) — this cast announced the BACK face of a modal
+     *  double-faced card. Same kind of thing as `castAsSplitHalf` above and
+     *  carried for the same reason: without it the deferred commit would put
+     *  the FRONT face on the stack for a cast the caster paid the back face's
+     *  price for (CR 712.8f). */
+    castAsModalBack?: boolean;
     /** CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the "a sorcery
      *  couldn't have been cast right now" snapshot, taken at ANNOUNCEMENT
      *  (`announceCast`, before any cost is paid) and carried here so the

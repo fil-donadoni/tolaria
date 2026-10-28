@@ -54,6 +54,7 @@ import { markGraveyardPlayPermissionUsed } from "./rules";
 import type { SacrificeSelection } from "./sacrificeChoice";
 import { costVictimTypeFields } from "./sacrificeChoice";
 import { castAsSplitHalf } from "./splitCast";
+import { castAsModalBack } from "./modalBackCast";
 import {
     NO_SPELL_MANA_RIDERS,
     commitLandsForCost,
@@ -142,7 +143,8 @@ export type CastCommitRecord = {
 /** CR 601.2b — the cast mode the caster announced, as the markers the
  *  announcement derived from the chosen alternative cost. The kernel stamps
  *  the flag-shaped ones and applies the characteristic-changing ones
- *  (CR 702.103b bestow, 702.37c morph, 715.3b adventure, 709.3b split) on the
+ *  (CR 702.103b bestow, 702.37c morph, 715.3b adventure, 709.3b split, 712.8f
+ *  modal back face) on the
  *  built item immediately before it reaches the stack, so no viewer and no
  *  cast trigger ever observes the printed card. */
 export type CastModeMarkers = {
@@ -154,6 +156,7 @@ export type CastModeMarkers = {
     morphed?: boolean;
     castAsAdventure?: boolean;
     castAsSplitHalf?: PendingCast["castAsSplitHalf"];
+    castAsModalBack?: boolean;
 };
 
 /** Where the built item goes and what happens to priority afterwards. */
@@ -442,6 +445,9 @@ export function commitCast(
     // CR 709.3b (ADR 0121) — "while on the stack, only the characteristics of
     // the half being cast exist." Same seam, same reason.
     if (mode.castAsSplitHalf) castAsSplitHalf(stackItem, mode.castAsSplitHalf);
+    // CR 712.8f (issue #7200) — "while a modal double-faced spell is on the
+    // stack … it has only the characteristics of the face that's up."
+    if (mode.castAsModalBack) castAsModalBack(state, stackItem);
 
     if (placement.kind === "during-resolution") {
         // The resolving item is on top of the stack and is popped by

@@ -498,16 +498,15 @@ export function goldOracleCard(definition: CardDefinition): OracleCard {
 }
 
 /** CR 712.3 — the {@link OracleFace} a modal {@link CardBackFace} was lowered
- *  from, the inverse of `compileModalDfcLayout`'s copy. No mana cost: no
- *  printed modal back face carries one, and `CardBackFace` has no field for
- *  it. No power/toughness leg is skipped — a `creature // land` MDFC has its
- *  creature on the FRONT, and a land back face has neither. */
+ *  from, the inverse of `compileModalDfcLayout`'s copy. The mana cost is the
+ *  back face's own (CR 712.11b, issue #7200): empty on a land back face, the
+ *  printed cost on a cast one. */
 function modalBackFaceOf(back: CardBackFace): OracleFace {
     const head = [...(back.supertypes ?? []), ...back.types].join(" ");
     const subtypes = back.subtypes ?? [];
     return {
         name: back.name,
-        manaCost: "",
+        manaCost: printManaCost(back.manaCost),
         typeLine:
             subtypes.length > 0 ? `${head} — ${subtypes.join(" ")}` : head,
         oracleText: back.oracleText ?? "",

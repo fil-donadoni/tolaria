@@ -2,7 +2,7 @@
 // MODAL double-faced card with its BACK face up.
 //
 // The live engine plays a modal back face by stamping the parent instance
-// (`stampModalBackFaceForPlay`, `gre/transform.ts`): the presented definition
+// (`stampModalBackFace`, `gre/transform.ts`): the presented definition
 // becomes the `${parentId}#back` twin, with `transformed` / `transformedFrom`
 // recording the front face it reverts to on leaving the battlefield. A spec
 // names that permanent by the name it PRESENTS — the back face's own name,

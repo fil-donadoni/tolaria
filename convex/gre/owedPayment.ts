@@ -129,6 +129,9 @@ export const CAST_KEY_CENSUS: Record<keyof PendingCast, ParkClass> = {
     // CR 709.3b — which split half was announced. Like `castAsAdventure`
     // above it rewrites the object put on the stack; it never owes a payment.
     castAsSplitHalf: "non-park",
+    // CR 712.11b — a modal back face was announced; rewrites the stack object
+    // like `castAsSplitHalf` above and never owes a payment.
+    castAsModalBack: "non-park",
     /** CR 601.2 (issue #2473) — a board-state SNAPSHOT taken at announcement
      *  and carried to the commit; the payer decides nothing about it. */
     castOffSorceryTiming: "non-park",
