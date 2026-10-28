@@ -133,12 +133,11 @@ export const wanShiTongAllKnowing = defineCard(() => ({
 // permanent to its owner's hand. If you controlled that permanent, draw a
 // card."
 //
-// "Controlled" is a CR 608.2h last-known-information question, but the
-// permanent's controller is only observable while it is still on the
-// battlefield (`objectMatchesFilter` reads `false` once it has left, CR
-// 608.2b), so the `if` is evaluated BEFORE the bounce and each branch carries
-// the same `moveZone`; only the controlled branch draws. The draw follows the
-// bounce, as the Oracle text orders it (CR 608.2c).
+// "Controlled" is a CR 608.2h last-known-information question, but
+// `objectMatchesFilter` reads the live battlefield only, so the `if` is
+// evaluated BEFORE the bounce and each branch carries the same `moveZone`;
+// only the controlled branch draws. The draw follows the bounce, as the
+// Oracle text orders it (CR 608.2c).
 //
 // hand-tail: If you controlled that permanent, draw a card (#7229)
 export const boomerangBasics = defineCard(() => ({
@@ -150,7 +149,7 @@ export const boomerangBasics = defineCard(() => ({
     manaCost: { U: 1 },
     types: ["Sorcery"],
     subtypes: ["Lesson"],
-    // CR 115.1c — "target nonland permanent" (any controller's).
+    // CR 115.1a — "target nonland permanent" (any controller's).
     targetRequirement: {
         type: [...PERMANENT_TYPES],
         count: 1,
