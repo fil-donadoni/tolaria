@@ -477,6 +477,14 @@ cards that already play.
 - **Amendment VIII's list clause has nothing left to read.** With no
   `closedTail`, a tail card is settled by its own `hand-tail:` marker. Animate
   Dead, Doomsday and Lim-Dûl's Vault carry one.
+- **Bot-play stands at one card.** The same pass re-measured the sweep: 307
+  of 310 cards `played`. Meddling Mage is now played, after the search learned
+  to answer an as-enters name choice. Phyrexian Dreadnought is covered by a
+  `must` Test Position, and Misdirection is harness-bound. Teferi's Response
+  is the one `bot-play` red left. It is a valuation gap, not a reach gap: the
+  Bot holds a counter rather than save a land, and Counterspell and Mana Leak
+  share the class. The owner accepted the promotion with it open, and issue
+  #7337 tracks it under the cube's Bot Gaps.
 - **The Target leaves the ranking.** A completed Target keeps its row and is
   still measured, but it has no `priority`, so it no longer ranks Grammar
   Gaps (§ Format Tiers). `vintage-cube` takes priority 1. Priority 2 is left
