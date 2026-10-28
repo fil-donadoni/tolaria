@@ -99,18 +99,13 @@ export const gravitySphere = defineCard(() => ({
 // player or that permanent's controller may pay {R}{R}. If the player does,
 // they may copy this spell and may choose a new target for that copy."
 //
-// Two resolveSteps so the irreversible damage (step 0) is checkpointed before
-// the may-pay gate (step 1) suspends for player input (CR 608.2 stepped
-// resolution). The "may copy" / "may choose a new target" clauses compose the
-// `copyResolvingSpell` (CR 707.12 "copy this spell") + `requestCopyRetarget`
-// (CR 707.10c new targets) primitives — the copy is a fresh resolution that
-// can itself chain again if its damaged player pays {R}{R}.
-//
-// "that player or that permanent's controller" (CR 119.3): for a player target
-// the chooser is the player dealt damage; for a permanent target it's the
-// permanent's controller. The copy is OPTIONAL and uses the stack, so it does
-// not auto-resolve — paying {R}{R} is a genuine tactical choice (per the
-// auto-resolve rule, a real branch keeps its prompt).
+// "that player or that permanent's controller" is ONE player-valued ref: the
+// damage Op's `bind` snapshots the recipient BEFORE the damage (CR 608.2h),
+// and a player recipient snapshots as itself, so `$that1.controller` is the
+// damaged player or the permanent's controller alike. The pay and the copy
+// are the two decisions the Oracle prints (Chain of Vapor's shape, CR 118.12 /
+// CR 707.10): `copyResolvingSpell` offers the payer a new target for the copy
+// (CR 707.10c), and the copy re-runs this script, so the chain can recur.
 export const chainLightning = defineCard(() => ({
     id: "b5883762-ca0a-4932-8d2a-41a45796a5f8",
     rarity: "common",
@@ -120,52 +115,36 @@ export const chainLightning = defineCard(() => ({
     manaCost: { R: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "any", count: 1 },
-    // NOT DSL-migratable (ADR 0045): "may copy this spell and may choose a
-    // new target for that copy" (CR 707.12) — spell-copying / retargeting
-    // (`copyResolvingSpell` / `requestCopyRetarget`) has no Op, and the
-    // step-0 last-known-information chooser capture (`noteChoice`) is a bare
-    // imperative primitive too. Blocked on: spell-copy/retarget Ops + a
-    // `noteChoice` Op.
-    resolveSteps: [
-        // Step 0 — capture the chooser by last-known information (CR 608.2h),
-        // THEN deal the damage (CR 119.3 "any target"). The chooser must be
-        // read BEFORE the damage: 3 damage can destroy the targeted permanent
-        // inline (CR 704.5g), after which `getController` would have no live
-        // permanent to read. Persisted for step 1 via `noteChoice`; the damage
-        // stays in step 0 so the suspend/replay of the step-1 may-pay never
-        // re-applies it.
-        (ctx: SpellContext) => {
-            const target = ctx.targets[0];
-            if (!target) return;
-            // CR 119.3 — "that player or that permanent's controller".
-            const chooser =
-                target.type === "player"
-                    ? target.id
-                    : ctx.getController(target);
-            ctx.noteChoice("chain-lightning-chooser", [chooser]);
-            ctx.dealDamage(target, 3);
+    effects: [
+        { op: "dealDamage", amount: 3, to: { target: 0 }, bind: "$that1" },
+        {
+            op: "mayPay",
+            player: { ref: "$that1.controller" },
+            cost: { R: 2 },
+            prompt: "That player or that permanent's controller may pay {R}{R}?",
+            bind: "$paid2",
         },
-        // Step 1 — offer the damaged player / permanent's controller the
-        // {R}{R} may-pay; on pay, copy this spell and let them retarget.
-        (ctx: SpellContext) => {
-            const target = ctx.targets[0];
-            if (!target) return;
-            // Last-known chooser captured in step 0 (the permanent may have died
-            // to the damage, so it can no longer be read off the battlefield).
-            const chooser = ctx.recallChoice("chain-lightning-chooser")?.[0];
-            if (!chooser) return;
-            const paid = ctx.requestMayPay({
-                playerId: chooser,
-                choiceId: "chain-lightning-pay",
-                cost: { R: 2 },
-                prompt: "Pay {R}{R} to copy Chain Lightning (you may choose a new target)?",
-            });
-            if (paid === undefined) return; // suspended on the may-pay choice
-            if (!paid) return; // declined — nothing further happens
-            // CR 707.12 — the chooser copies THIS spell. The copy is controlled
-            // by the chooser (the player who paid), who may choose a new target.
-            const copyId = ctx.copyResolvingSpell({ controllerId: chooser });
-            if (copyId) ctx.requestCopyRetarget(copyId);
+        {
+            op: "if",
+            predicate: { binding: "$paid2" },
+            then: [
+                {
+                    op: "mayPay",
+                    player: { ref: "$that1.controller" },
+                    prompt: "They may copy this spell and may choose a new target for that copy?",
+                    bind: "$copy3",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$copy3" },
+                    then: [
+                        {
+                            op: "copyResolvingSpell",
+                            player: { ref: "$that1.controller" },
+                        },
+                    ],
+                },
+            ],
         },
     ],
 }));

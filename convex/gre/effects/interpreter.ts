@@ -2499,7 +2499,8 @@ function revealToAllPlayers(
  *  non-permanent target (a graveyard card's "controller" and "owner" are the
  *  same player, CR 108.3/110.2 — nobody else can control a card that isn't a
  *  permanent); `getManaValue` (SNAP_MANA_VALUE) already dispatches on
- *  `target.type`. */
+ *  `target.type`. A `dealDamage` recipient can be a PLAYER: it snapshots as
+ *  itself, its id in the controller and owner slots. */
 function bindSnapshot(
     ctx: SpellContext,
     name: string,
@@ -2515,10 +2516,13 @@ function bindSnapshot(
     // when the object IS present, nothing here changes.
     if (isPermanent && ctx.getOwnerId(target.id) === undefined) return;
     const chars = ctx.getCharacteristics(target);
+    // A PLAYER (a `dealDamage` recipient) is its own controller and owner, so
+    // "that player or that permanent's controller" is one `.controller` read.
+    const holder = target.type === "player" ? target.id : target.playerId;
     ctx.noteChoice(name, [
         String(isPermanent ? ctx.getPower(target) : 0),
         String(isPermanent ? ctx.getToughness(target) : 0),
-        isPermanent ? ctx.getController(target) : (target.playerId ?? ""),
+        isPermanent ? ctx.getController(target) : (holder ?? ""),
         // SNAP_ID (issue #807) — lets a forEach body act on the snapshotted
         // member via `{ ref: "$each" }`; readers re-check battlefield
         // presence before acting (CR 608.2b).
@@ -2534,9 +2538,7 @@ function bindSnapshot(
         // `getController`, so it's read here, BEFORE the zone change, and
         // falls back to "" only defensively (the target is still on the
         // battlefield at bind time by construction).
-        (isPermanent
-            ? ctx.getOwnerId(target.id)
-            : (target.playerId ?? undefined)) ?? "",
+        (isPermanent ? ctx.getOwnerId(target.id) : holder) ?? "",
         // SNAP_IS_PERMANENT_CARD (issue #1311) — CR 205/110.1, read BEFORE
         // the object moves (mirrors SNAP_MANA_VALUE's own pre-move capture;
         // `isPermanentCard`'s graveyard-card/hand-card branches require the
@@ -3054,6 +3056,33 @@ function dealDamageSourcedFrom(
     }
 }
 
+/** CR 120.1 — the object or player a `dealDamage` Op's `to` names, or
+ *  undefined when it names nothing at resolution (CR 608.2b).
+ *  `attackTargetOf` (CR 506.2 / 508.1b) is the player or planeswalker the
+ *  named attacking creature is attacking, never targeted (CR 115.10). The
+ *  creature's id is read WITHOUT a battlefield check: one that has left the
+ *  battlefield still deals the damage to what it was attacking, as it last
+ *  existed (CR 608.2h — the Myr Battlesphere ruling). Nothing to deal to when
+ *  it was removed from combat while it stayed, or its planeswalker was (CR
+ *  506.4). */
+function damageRecipientOf(
+    ctx: SpellContext,
+    to: OpOf<"dealDamage">["to"]
+): TargetSelection | undefined {
+    if ("attackTargetOf" in to) {
+        const attackerId = attackerIdOf(ctx, to.attackTargetOf);
+        if (attackerId === undefined) return undefined;
+        return ctx.getAttackTarget(attackerId) ?? undefined;
+    }
+    if ("player" in to) {
+        const playerId = resolvePlayerRef(ctx, to.player);
+        return playerId === undefined
+            ? undefined
+            : { type: "player", id: playerId };
+    }
+    return resolveObjectRef(ctx, to);
+}
+
 /** The instance id a `{ ref: "$binding" }` object selector snapshotted, or
  *  undefined for any other selector shape (an announced slot, an `$event`
  *  ref, a property path) or an uncaptured binding. The id alone — no zone
@@ -3159,70 +3188,24 @@ export const OP_EXECUTORS: {
     dealDamage(ctx, op) {
         const amount = resolveValue(ctx, op.amount);
         if (amount === undefined || amount <= 0) return; // 0 damage is a no-op
-        if ("attackTargetOf" in op.to) {
-            // CR 506.2 / 508.1b (issue #3244) — the player or planeswalker the
-            // named attacking creature is attacking, never targeted (CR
-            // 115.10). The creature's id is read WITHOUT a battlefield check:
-            // one that has left the battlefield still deals the damage to what
-            // it was attacking, as it last existed (CR 608.2h — the Myr
-            // Battlesphere ruling). Nothing to deal to when it was removed
-            // from combat while it stayed, or its planeswalker was (CR 506.4).
-            const attackerId = attackerIdOf(ctx, op.to.attackTargetOf);
-            if (attackerId === undefined) return;
-            const recipient = ctx.getAttackTarget(attackerId);
-            if (!recipient) return;
-            if (op.source) {
-                dealDamageSourcedFrom(
-                    ctx,
-                    { ...op, source: op.source },
-                    recipient,
-                    amount
-                );
-                return;
-            }
-            ctx.dealDamage(
-                recipient,
-                amount,
-                op.unpreventable,
-                op.unredirectable
-            );
-            return;
-        }
-        if ("player" in op.to) {
-            const playerId = resolvePlayerRef(ctx, op.to.player);
-            if (playerId === undefined) return;
-            if (op.source) {
-                dealDamageSourcedFrom(
-                    ctx,
-                    { ...op, source: op.source },
-                    { type: "player", id: playerId },
-                    amount
-                );
-                return;
-            }
-            ctx.dealDamage(
-                { type: "player", id: playerId },
-                amount,
-                op.unpreventable,
-                op.unredirectable
-            );
-            return;
-        }
-        const target = resolveObjectRef(ctx, op.to);
-        if (!target) return;
-        // CR 120.1 — `source` applies to a permanent recipient exactly as it
-        // does to a player one (issue #1565): the recipient shape says nothing
-        // about who the SOURCE of the damage is.
+        const recipient = damageRecipientOf(ctx, op.to);
+        if (!recipient) return;
+        // CR 608.2h — the snapshot is taken BEFORE the damage: the damage
+        // itself can change the recipient (wither/infect -1/-1 counters, CR
+        // 702.80a), and the clause names it as the spell resolved.
+        if (op.bind) bindSnapshot(ctx, op.bind, recipient);
+        // CR 120.1 — `source` applies to every recipient shape alike: the
+        // recipient says nothing about who the SOURCE of the damage is.
         if (op.source) {
             dealDamageSourcedFrom(
                 ctx,
                 { ...op, source: op.source },
-                target,
+                recipient,
                 amount
             );
             return;
         }
-        ctx.dealDamage(target, amount, op.unpreventable, op.unredirectable);
+        ctx.dealDamage(recipient, amount, op.unpreventable, op.unredirectable);
     },
     // CR 120.3 — deal `amount` damage to every creature / player in the
     // declared set in ONE `dealDamageToEach` call (the primitive fixes the

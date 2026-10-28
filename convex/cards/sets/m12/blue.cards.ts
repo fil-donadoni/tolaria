@@ -85,8 +85,8 @@ export const phantasmalImage = defineCard(() => ({
     // this mechanism exists to prevent — so the scalar override is the only
     // lever that actually moves this card off its printed 0/0 body.
     // Magnitude: a representative 2/2 body at this card's own mana value
-    // (the committed `latentCreatureDiscount` 0.6973 ×
-    // `creatureValueRaw(2, 2, 2, [])` 168 ≈ 117 — a refit moves the body
+    // (the committed `latentCreatureDiscount` 0.7177 ×
+    // `creatureValueRaw(2, 2, 2, [])` 168 ≈ 121 — a refit moves the body
     // this tracks, which `creatureAiValueCalibration.bot.test.ts` reports)
     // — the same
     // "unknown copied body" representative stat `createTokenCopy`'s
@@ -96,7 +96,7 @@ export const phantasmalImage = defineCard(() => ({
     // for "becomes a copy of a good but unpredictable creature", tempered by
     // the sacrifice-on-becoming-a-target drawback and the (rarer) whiff when
     // no legal copy target exists.
-    aiValue: 117,
+    aiValue: 121,
     // The granted trigger's template lives here (kept off `triggeredAbilities`
     // — the `StaticTriggeredGrant`/`grantedTriggeredAbilities` convention —
     // so the un-copied base card doesn't fire it), referenced by

@@ -32,6 +32,7 @@ const DECLARATIONS = [
     "counter.bindSource:snapshot",
     "createToken.bind:snapshot",
     "createTokenCopy.bind:snapshot",
+    "dealDamage.bind:snapshot",
     "destroy.bind:snapshot",
     "digMatchingToHand.bind:snapshot",
     "discardAtRandom.bind:snapshot",

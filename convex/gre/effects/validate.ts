@@ -4111,6 +4111,8 @@ const OP_SCHEMAS: OpSchemaTable = {
             unpreventable: isBoolean,
             unredirectable: isBoolean,
             source: isObjectSelector,
+            // CR 608.2h — snapshot of the recipient, taken before the damage.
+            bind: bindingDeclaration("snapshot"),
         },
     },
     // CR 120.3 — simultaneous no-target mass damage. At least one half
