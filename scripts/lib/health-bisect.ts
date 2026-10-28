@@ -197,14 +197,14 @@ function escapeRegExp(text: string): string {
 /**
  * The `-t` pattern that selects exactly the named `tests`: vitest matches it
  * against the full name, its suites and the test's own joined by spaces, so
- * each name is anchored at the end, and a sharded entry's `shard N/M` matches
+ * each name is anchored at both ends (a space or the start before it), and a sharded entry's `shard N/M` matches
  * any shard — the entry is found by its label wherever the index puts it.
  */
 export function testNamePattern(tests: readonly FailingTest[]): string {
     return tests
         .map(
             (t) =>
-                `(?:${escapeRegExp((t.name ?? "").split(" > ").join(" ")).replace(SHARD_ORDINAL, "shard \\d+/\\d+")}$)`
+                `(?:(?:^| )${escapeRegExp((t.name ?? "").split(" > ").join(" ")).replace(SHARD_ORDINAL, "shard \\d+/\\d+")}$)`
         )
         .join("|");
 }
@@ -212,11 +212,15 @@ export function testNamePattern(tests: readonly FailingTest[]): string {
 /**
  * The vitest commands that re-run `tests`: the default config's projects and
  * the blade's specs (`test:blade`'s tier) apart, whole files and named tests
- * apart (a `-t` would filter the whole files too). A named test runs by name
- * (`testNamePattern`) over its file — or, sharded, over its whole family,
- * never the one shard file the RED saw it in.
+ * apart (a `-t` would filter the whole files too). A test runs over its
+ * file — or, sharded, over its whole family, never the one shard file the
+ * RED saw it in — and a named one by name (`testNamePattern`). `exactFiles`
+ * (the fresh run, at the RED's own sha) runs a whole file by its own path.
  */
-export function vitestCommands(tests: readonly FailingTest[]): VitestCommand[] {
+export function vitestCommands(
+    tests: readonly FailingTest[],
+    opts: { exactFiles?: boolean } = {}
+): VitestCommand[] {
     const out: VitestCommand[] = [];
     for (const blade of [false, true]) {
         const config = blade
@@ -232,7 +236,11 @@ export function vitestCommands(tests: readonly FailingTest[]): VitestCommand[] {
                     "vitest",
                     "run",
                     ...config,
-                    ...new Set(files.map((t) => t.file)),
+                    ...new Set(
+                        files.map((t) =>
+                            opts.exactFiles ? t.file : testFileFilter(t)
+                        )
+                    ),
                 ],
                 env,
                 tests: files,
@@ -257,8 +265,9 @@ export function vitestCommands(tests: readonly FailingTest[]): VitestCommand[] {
 /**
  * The tests of `cmd` its run failed. An exit 0 fails none. A failed run
  * fails the tests its FAIL lines name (a named test by its key, a whole file
- * by any line in it); a failed run naming none of them — a crash, a load
- * error — fails them all: no line to clear one.
+ * — a sharded family's — by any line in it); a failed run with no FAIL line
+ * at all — a crash, a load error — fails them all: no line to clear one.
+ * A FAIL line of another test the filter caught fails none of them.
  */
 export function failedTests(
     cmd: Pick<VitestCommand, "tests">,
@@ -271,10 +280,10 @@ export function failedTests(
     );
     const hit = cmd.tests.filter((t) =>
         t.name === undefined
-            ? lines.some((l) => l.file === t.file)
+            ? lines.some((l) => testFileFilter(l) === testFileFilter(t))
             : keys.has(testKey(t))
     );
-    return hit.length > 0 ? hit : [...cmd.tests];
+    return lines.length > 0 ? hit : [...cmd.tests];
 }
 
 /** The GREEN that closes a RED its fresh run did not reproduce. */
@@ -513,9 +522,12 @@ export interface CulpritReport {
  * Every culprit of the RED's failing `tests` over `commits` (as
  * `bisectFirstRed`'s; issue #7339): the first commit any of them is red at,
  * the tests red there, then the same again for the rest over the commits
- * after it — a RED of two failures two PRs caused names both. The tip is
- * never probed: every test still unexplained is red there. A probe that
- * could not run leaves the rest unexplained.
+ * after it — a RED of two failures two PRs caused names both. A search
+ * that lands on the tip probes it too: a name that selects nothing (a
+ * suite's hook, a describe the probe's environment prints otherwise) is
+ * green at every commit, and the tip is no culprit for a test that does not
+ * fail there by name. A probe that could not run leaves the rest
+ * unexplained.
  */
 export function bisectCulprits(
     commits: readonly string[],
@@ -546,13 +558,44 @@ export function bisectCulprits(
                 },
                 probes,
             };
-        const red = redAt.get(r.culprit);
-        const explained = red
-            ? pending.filter((t) => red.has(testKey(t)))
-            : pending;
-        found.push({ culprit: r.culprit, tests: explained });
+        let red = redAt.get(r.culprit);
+        if (red === undefined) {
+            const out = probe(r.culprit, pending);
+            probes.push({
+                sha: r.culprit,
+                outcome:
+                    out === "infra"
+                        ? "infra"
+                        : out.length > 0
+                          ? "red"
+                          : "green",
+            });
+            if (out === "infra")
+                return {
+                    found,
+                    unexplained: {
+                        tests: rest,
+                        reason: `the probe at ${r.culprit.slice(0, 8)} could not run`,
+                    },
+                    probes,
+                };
+            red = new Set(out.map(testKey));
+        }
+        const at = red;
+        const explained = pending.filter((t) => at.has(testKey(t)));
+        if (explained.length > 0)
+            found.push({ culprit: r.culprit, tests: explained });
         rest = pending.filter((t) => !explained.includes(t));
         from = commits.indexOf(r.culprit, from) + 1;
+        if (rest.length > 0 && from === commits.length)
+            return {
+                found,
+                unexplained: {
+                    tests: rest,
+                    reason: `no probe reproduced it by name, the RED tip \`${r.culprit.slice(0, 12)}\` included`,
+                },
+                probes,
+            };
     }
     return { found, unexplained: null, probes };
 }

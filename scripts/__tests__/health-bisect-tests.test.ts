@@ -142,7 +142,32 @@ describe("a blade probe selects the entry by label, never one shard file", () =>
         ]);
         expect(cmds.map((c) => c.args)).toEqual([
             ["vitest", "run", "scripts/__tests__/a.test.ts"],
-            ["vitest", "run", "scripts/__tests__/b.test.ts", "-t", "(?:s t$)"],
+            [
+                "vitest",
+                "run",
+                "scripts/__tests__/b.test.ts",
+                "-t",
+                "(?:(?:^| )s t$)",
+            ],
+        ]);
+    });
+    it("a whole shard file runs as its family in a probe, as itself in the fresh run", () => {
+        expect(vitestCommands([{ file: shardFile(2) }])[0].args).toEqual([
+            "vitest",
+            "run",
+            "--config",
+            "vitest.blade.config.ts",
+            `${DIR}/blade.shard-`,
+        ]);
+        expect(
+            vitestCommands([{ file: shardFile(2) }], { exactFiles: true })[0]
+                .args
+        ).toEqual([
+            "vitest",
+            "run",
+            "--config",
+            "vitest.blade.config.ts",
+            shardFile(2),
         ]);
     });
     it("a failed run naming none of its tests fails them all; an exit 0 none", () => {
@@ -164,6 +189,17 @@ describe("a blade probe selects the entry by label, never one shard file", () =>
                 }
             )
         ).toEqual([entry]);
+        // Another test the name filter caught failed: not a crash.
+        expect(
+            failedTests(cmd, {
+                status: 1,
+                output: colouredFail(
+                    shardFile(1),
+                    suite(1),
+                    "never casts Bolt"
+                ),
+            })
+        ).toEqual([]);
     });
 });
 
@@ -259,6 +295,25 @@ describe("the bisect names the commit that broke an entry, not the one that move
             probeOf(history)
         );
         expect(report.found.map((f) => f.culprit)).toEqual(["c2"]);
+    });
+    it("a name that selects nothing blames no commit, the tip included", () => {
+        // A suite's hook fails: its FAIL line names the suite, which no
+        // test's full name ends with.
+        const history: Record<string, Registry> = {
+            c1: filler(6),
+            c2: filler(6),
+            c3: filler(6),
+        };
+        const suiteOnly = { file: shardFile(0), name: suite(0) };
+        const report = bisectCulprits(
+            ["c1", "c2", "c3"],
+            [suiteOnly],
+            probeOf(history)
+        );
+        expect(report.found).toEqual([]);
+        expect(report.unexplained?.tests).toEqual([suiteOnly]);
+        expect(report.unexplained?.reason).toMatch(/no probe reproduced it/);
+        expect(report.probes.at(-1)).toEqual({ sha: "c3", outcome: "green" });
     });
 });
 
@@ -369,7 +424,7 @@ describe("two failures two commits caused: both culprits named (issue #7339)", (
             subjectOf: (sha) => subjects[sha],
         });
         expect(lines).toEqual([
-            "- **culprit:** PR #7296 · `c2c2c2c2` — bisected from GREEN `c0c0c0c0` over 2 commit(s), 1 probe(s)",
+            "- **culprit:** PR #7296 · `c2c2c2c2` — bisected from GREEN `c0c0c0c0` over 2 commit(s), 2 probe(s)",
         ]);
     });
 });

@@ -185,11 +185,14 @@ function hasTestFile(wt: string, t: FailingTest): boolean {
 function probeTests(
     ctx: Ctx,
     wt: string,
-    tests: readonly FailingTest[]
+    tests: readonly FailingTest[],
+    opts: { exactFiles?: boolean } = {}
 ): FailingTest[] {
-    const present = tests.filter((t) => hasTestFile(wt, t));
+    const present = tests.filter((t) =>
+        opts.exactFiles ? existsSync(join(wt, t.file)) : hasTestFile(wt, t)
+    );
     const red: FailingTest[] = [];
-    for (const c of vitestCommands(present))
+    for (const c of vitestCommands(present, opts))
         red.push(...failedTests(c, run(ctx, wt, "bunx", c.args, c.env)));
     return red;
 }
@@ -212,7 +215,8 @@ function freshRun(ctx: Ctx, plan: Plan): Fresh {
                 ? probeTests(
                       ctx,
                       wt,
-                      plan.files.map((file) => ({ file }))
+                      plan.files.map((file) => ({ file })),
+                      { exactFiles: true }
                   ).length > 0
                     ? "red"
                     : "green"
