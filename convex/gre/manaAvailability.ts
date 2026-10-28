@@ -23,24 +23,23 @@
 //
 // WHAT IT DELIBERATELY DOES NOT MODEL. Each of these needs the CARD being cast
 // and the board's cost modifiers, which `coloredCostLeftover` has in hand and a
-// leaf heuristic scoring an ISMCTS node does not. They do NOT all fail the same
-// way, and saying otherwise would be the kind of blanket soundness claim that
-// hides the ones that bite:
+// leaf heuristic scoring an ISMCTS node does not always. They do NOT all fail
+// the same way, and saying otherwise would be the kind of blanket soundness
+// claim that hides the ones that bite:
 //
 //   * UNDER-approximating (the reader says "can't pay" where the gate would say
 //     it can — safe for a term that pays a bonus): the cast-scoped resources
 //     (`convoke` / `delve` / `improvise`, CR 601.2g), the CR 609.4b "spend as
 //     though it were mana of any colour" substitutions, restricted mana whose
-//     restriction permits the spell (CR 106.6), and a CR 601.2f cost REDUCTION.
-//   * OVER-approximating (the reader says "can pay" where the gate would not —
-//     the direction that credits an option the seat does not hold): a CR 601.2f
-//     cost INCREASE (Thalia, Sphere of Resistance), since `getInstanceManaCost`
-//     is the PRINTED cost and the gate prices the post-modifier one; and
-//     `cantSpendManaToCast` (CR 601.2f, Hogaak), which zeroes every mana source
-//     at the gate and nothing here. Both are inherited unchanged from the
-//     `manaValue` proxy this reader replaces — it read the same printed cost
-//     and knew nothing of either — so neither is a regression, and neither is
-//     fixed here. tracked-by: #3727
+//     restriction permits the spell (CR 106.6), and — when no `cast` is given —
+//     a CR 601.2f cost REDUCTION.
+//
+// The OVER-approximating pair (a CR 601.2f cost INCREASE — Thalia, Sphere of
+// Resistance — and `cantSpendManaToCast`, Hogaak) is closed for a caller that
+// passes `cast` (`CastProbe`): the cost is then priced through the gate's own
+// `getCostModifiers` + `applyCostModifiers` pair and a `cantSpendManaToCast`
+// card sees no mana source at all, exactly as `buildManaSourceUnits` zeroes
+// them. A caller that omits `cast` still reads the PRINTED cost.
 //
 // PURE. No async, no state mutation.
 
@@ -65,6 +64,8 @@ import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { manaConverterColors } from "./manaConverters";
 import { tapManaBonusUnits } from "./tapManaBonus";
 import { coverColoredAndHybridPips } from "./payWith";
+import { applyCostModifiers, getCostModifiers } from "./state";
+import { tryGetDefinition } from "../cards";
 
 /** One entry per INDIVIDUAL mana a set of sources could produce, each entry the
  *  set of colours that mana could be. The currency every question below is
@@ -586,6 +587,33 @@ export function manaUnitsFor(
     return opts.ignoreTapState ? census.base : census.now;
 }
 
+/** The cast a probe is FOR: lets the reader price the post-modifier cost the
+ *  gate prices (CR 601.2f) instead of the printed one. `caster` is the
+ *  ANNOUNCING player (CR 601.2a) — the seat whose units are being asked. */
+export type CastProbe = {
+    state: GameState;
+    caster: PlayerState;
+    card: CardInstanceState;
+};
+
+/** The probe for `player` casting `card`, or undefined when the caller holds
+ *  no `GameState` (the printed-cost fallback). */
+export function castProbeFor(
+    state: GameState | undefined,
+    player: PlayerState,
+    card: CardInstanceState
+): CastProbe | undefined {
+    return state ? { state, caster: player, card } : undefined;
+}
+
+/** CR 601.2f — "You can't spend mana to cast this spell" (Hogaak): the gate
+ *  (`buildManaSourceUnits`, `rules.ts`) drops every mana source for it. */
+function cantSpendManaOn(cast: CastProbe | undefined): boolean {
+    if (!cast) return false;
+    const id = (cast.card.card as { id?: string }).id ?? "";
+    return tryGetDefinition(id)?.cantSpendManaToCast ?? false;
+}
+
 /** The normalized cost this module prices, with Phyrexian pips folded (CR
  *  107.4f / 202.3f).
  *
@@ -601,7 +629,8 @@ export function manaUnitsFor(
  *  the real cast path. */
 function pricedCost(
     cost: ManaCost,
-    life: number
+    life: number,
+    cast?: CastProbe
 ): {
     normalized: Record<string, number>;
     hybrid: ReadonlyArray<readonly [Color, Color]>;
@@ -620,6 +649,20 @@ function pricedCost(
             }
         }
     }
+    // CR 601.2f — increases, then reductions, through the pair the gate and
+    // the real payment path share; never a second copy of the arithmetic.
+    if (cast) {
+        applyCostModifiers(
+            normalized,
+            getCostModifiers(
+                cast.state,
+                cast.card,
+                "spell",
+                undefined,
+                cast.caster.id
+            )
+        );
+    }
     return { normalized, hybrid: normalizedHybridPips(normalized) };
 }
 
@@ -633,11 +676,15 @@ function pricedCost(
 export function canPayCost(
     units: ManaUnits,
     cost: ManaCost | undefined,
-    opts: { life?: number } = {}
+    opts: { life?: number; cast?: CastProbe } = {}
 ): boolean {
     if (!cost) return true;
-    const { normalized, hybrid } = pricedCost(cost, opts.life ?? 0);
-    const leftover = coverColoredAndHybridPips(units, normalized, hybrid);
+    const { normalized, hybrid } = pricedCost(cost, opts.life ?? 0, opts.cast);
+    const leftover = coverColoredAndHybridPips(
+        cantSpendManaOn(opts.cast) ? [] : units,
+        normalized,
+        hybrid
+    );
     return leftover !== null && leftover >= (normalized.X ?? 0);
 }
 
@@ -665,10 +712,11 @@ export function canPayCost(
 export function coversCostColors(
     units: ManaUnits,
     cost: ManaCost | undefined,
-    opts: { life?: number } = {}
+    opts: { life?: number; cast?: CastProbe } = {}
 ): boolean {
     if (!cost) return true;
-    const { normalized, hybrid } = pricedCost(cost, opts.life ?? 0);
+    const { normalized, hybrid } = pricedCost(cost, opts.life ?? 0, opts.cast);
+    if (cantSpendManaOn(opts.cast)) units = [];
     for (const c of MANA_COLORS) {
         if ((normalized[c] ?? 0) === 0) continue;
         if (!units.some((u) => u.has(c))) return false;
