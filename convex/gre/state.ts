@@ -2494,7 +2494,7 @@ export function isStacklessLandEntryPay(c: PendingChoice): boolean {
  *  existing `PendingChoiceKind` shape (`payLife`, `mode`, `aura-host`,
  *  `name-card`, …), so a `kind ===` test would swallow the stack-coupled
  *  `requestChoice` that shares it. */
-function isStacklessEntryPark(c: PendingChoice): boolean {
+export function isStacklessEntryPark(c: PendingChoice): boolean {
     return c.stackItemId === "" && c.asEntersCardId !== undefined;
 }
 

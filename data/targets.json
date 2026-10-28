@@ -7,45 +7,13 @@
             "id": "premodern-metagame",
             "kind": "deck-list",
             "source": "data/premodern-metagame-decks.json",
-            "priority": 1,
-            "completion": "closed-tail",
-            "closedTail": [
-                "Animate Dead",
-                "Black Vise",
-                "Chain of Vapor",
-                "Decree of Justice",
-                "Decree of Silence",
-                "Doomsday",
-                "Elephant Grass",
-                "Flash of Insight",
-                "Frantic Search",
-                "Gaea's Blessing",
-                "Gempalm Incinerator",
-                "Goblin Lackey",
-                "Haunting Echoes",
-                "Hurkyl's Recall",
-                "Intuition",
-                "Lion's Eye Diamond",
-                "Mana Short",
-                "Oath of Druids",
-                "Parallax Wave",
-                "Presence of the Master",
-                "Price of Progress",
-                "Raven Familiar",
-                "Shallow Grave",
-                "Solitary Confinement",
-                "Standstill",
-                "Sterling Grove",
-                "The Rack",
-                "Vision Charm",
-                "Wild Growth"
-            ]
+            "completion": "playable"
         },
         {
             "id": "vintage-cube",
             "kind": "name-list",
             "source": "data/worklists/vintage-cube.txt",
-            "priority": 2
+            "priority": 1
         },
         {
             "id": "tier1-goblin",

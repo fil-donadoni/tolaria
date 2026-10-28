@@ -145,10 +145,10 @@ describe("backlog-triage — targetBand", () => {
         expect(bands(["a", "b", "c", "d"])).toEqual({});
     });
 
-    it("reads data/targets.json: the metagame, the cube and the premodern pool rank 1, 2, 3", () => {
-        expect(targetBand("premodern-metagame")).toBe("P1");
-        expect(targetBand("vintage-cube")).toBe("P2");
-        expect(targetBand("format-premodern")).toBe("P3");
+    it("reads data/targets.json: the completed metagame lends no band; the cube and the premodern pool rank 1, 2 (ADR 0143 Amendment VII)", () => {
+        expect(targetBand("premodern-metagame")).toBeNull();
+        expect(targetBand("vintage-cube")).toBe("P1");
+        expect(targetBand("format-premodern")).toBe("P2");
     });
 
     it("no id prefix lends a band — tier1-*, set-* and the other formats carry no priority", () => {
@@ -1478,7 +1478,7 @@ describe("backlog-triage — runTriage", () => {
         );
         // #11 carries only labels: `bug` + `area:mechanics` → P2, and it is
         // NOT residue (#8 is the one residue row).
-        expect(report).toMatch(/^P2 +1 +1 +/m);
+        expect(report).toMatch(/^P2 +2 +2 +/m);
         expect(report).not.toContain("#11 labelled only");
         // #10's `## Band` line is the band, read through the driver.
         expect(report).toMatch(/^P3 +1 +1 +/m);

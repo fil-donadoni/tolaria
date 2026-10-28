@@ -51,6 +51,7 @@ import {
     getPendingChoiceMax,
     getPendingChoiceMin,
     getPlayer,
+    isStacklessEntryPark,
     mayPayDiscardChoiceRequired,
     mayPayHandAutoSelection,
     mayPayHandLegCount,
@@ -79,6 +80,8 @@ import {
 } from "../moves";
 import { exileCastPermission } from "../castCost";
 import { getLegalActions } from "../rules";
+import { isLegalNamedCard } from "../pendingChoiceSubmit";
+import { isFaceDownExile } from "../faceDown";
 import { eligibleZonePickCards } from "../zonePickEligibility";
 import {
     targetKey,
@@ -1275,7 +1278,9 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
 };
 
 /** Issue #4896 — the ONE answer the search gives a choice it does not branch
- *  on, or `null` when it has none and must stop there as before.
+ *  on, or `null` when it has none and must stop there as before. An as-enters
+ *  `name-card` head is answered by `nameCardAnswer`; the rest of
+ *  this note is the mandatory discard.
  *
  *  A MANDATORY `discard-hand` (CR 701.9b — by default the discarding player
  *  chooses) is no in-tree node, deliberately (see `handPickCandidates`:
@@ -1297,6 +1302,13 @@ export function forcedChoiceAnswer(
     state: GameState,
     choice: PendingChoice
 ): Move | null {
+    // Only the as-enters name (CR 614.1c): a mid-resolution `nameCard` (Cabal
+    // Therapy) still stops, scored by its script valuation — a public-zone
+    // name rarely hits the hidden hand, so resolving it read as a dud.
+    if (choice.kind === "name-card")
+        return isStacklessEntryPark(choice)
+            ? nameCardAnswer(state, choice)
+            : null;
     if (choice.kind !== "discard-hand" || choice.asEntersKind) return null;
     const min = getPendingChoiceMin(choice.count);
     if (min <= 0) return null;
@@ -1323,6 +1335,48 @@ export function forcedChoiceAnswer(
         choiceId: choice.choiceId,
         cardInstanceIds: shed.map((p) => p.card.id),
     };
+}
+
+/** Issue #6676 — the one name the search gives a `name-card` window (CR 201.4a,
+ *  an as-enters name CR 614.1c), or `null` when no card in sight is a legal
+ *  answer. Without it the walk stopped at the window and scored the leaf with
+ *  the spell spent and the permanent still staged — a Meddling Mage read as
+ *  two lands tapped for nothing, so the Bot never cast one.
+ *
+ *  Not a decision node: WHICH name is worth naming is a valuation question
+ *  (issue #2467). The candidates are the PUBLIC objects — the staged entries,
+ *  the stack, every battlefield, graveyard and face-up exile (a face-down
+ *  exiled card keeps its real id in raw state, CR 406.3) — so the answer reads
+ *  no information the chooser lacks. The chooser's own hand is left out on
+ *  purpose: naming a card it holds would make a Meddling Mage lock its own
+ *  controller in the playout. Sorted, so every world and every seed name the
+ *  same card; legality through `isLegalNamedCard`, the predicate
+ *  `applyNameCardSubmit` enforces. The live Brain answers the same window
+ *  with its own default (`nameCardDefaultFor`, `src/lib/ai/bot-view.ts`). */
+function nameCardAnswer(state: GameState, choice: PendingChoice): Move | null {
+    const seen: { card: Record<string, unknown> }[] = [
+        ...(state.stagedEntries ?? []).map((entry) => entry.card),
+        ...state.stack,
+        ...state.players.flatMap((p) => [
+            ...p.battlefield,
+            ...p.graveyard,
+            ...p.exile.filter((card) => !isFaceDownExile(card)),
+        ]),
+    ];
+    const names = [
+        ...new Set(
+            seen.flatMap(({ card }) => {
+                const name = tryGetDefinition(
+                    (card as { id?: string }).id ?? ""
+                )?.name;
+                return name === undefined ? [] : [name];
+            })
+        ),
+    ].sort();
+    const cardName = names.find((name) =>
+        isLegalNamedCard(state, choice, name)
+    );
+    return cardName === undefined ? null : { kind: "name-card", cardName };
 }
 
 /** The answers a SETTLE weighs at `choice` (issue #4896): the in-tree

@@ -17,8 +17,6 @@ import {
     parseLockfile,
     type CardRow,
 } from "../lib/oracle-lockfile";
-import { enforcedCardIds, floorlessCardIds } from "../lib/gap-kinds";
-import { poolOracleIds } from "../oracle-compile";
 import {
     claimId,
     coverageState,
@@ -77,41 +75,17 @@ describe("data/targets.json — the registered Target Lists", () => {
                 .filter((t) => t.priority !== undefined)
                 .sort((a, b) => a.priority! - b.priority!)
                 .map((t) => t.id)
-        ).toEqual(["premodern-metagame", "vintage-cube", "format-premodern"]);
+        ).toEqual(["vintage-cube", "format-premodern"]);
     });
 
-    it("flags premodern-metagame as the one `closed-tail` Target, and no Target `ready` (issue #6085)", () => {
+    it("flags premodern-metagame as the one `playable` Target, and no Target `closed-tail` or `ready` (ADR 0143 Amendment VII)", () => {
         const ids = (mode: string): string[] =>
             registry.targets
                 .filter((t) => t.completion === mode)
                 .map((t) => t.id);
-        expect(ids("closed-tail")).toEqual(["premodern-metagame"]);
+        expect(ids("playable")).toEqual(["premodern-metagame"]);
+        expect(ids("closed-tail")).toEqual([]);
         expect(ids("ready")).toEqual([]);
-    });
-
-    it("lists in `closedTail` only cards hand-written today, and the Target stays floorless outside it (issues #6085, #7095)", () => {
-        const metagame = registry.targets.find(
-            (t) => t.id === "premodern-metagame"
-        )!;
-        const resolved = resolveTarget(metagame, ctx);
-        const handWritten = poolOracleIds();
-        const notWritten = [...resolved.closedTail!]
-            .filter((id) => !handWritten.has(id))
-            .map((id) => ctx.byOracleId.get(id)!.name);
-        expect(notWritten).toEqual([]);
-        expect(resolved.closedTail!.size).toBe(metagame.closedTail!.length);
-        const floorless = floorlessCardIds(registry, ctx);
-        const enforced = enforcedCardIds(registry, ctx);
-        for (const card of resolved.cards) {
-            const inTail = resolved.closedTail!.has(card.oracleId);
-            // A tail card owes no claim (issue #7095): the list settles it.
-            expect(floorless.has(card.oracleId), card.name).toBe(!inTail);
-            if (inTail)
-                expect(enforced.has(card.oracleId), card.name).toBe(false);
-        }
-        const doomsday = ctx.byName.get("Doomsday")!.oracleId;
-        expect(resolved.closedTail!.has(doomsday)).toBe(true);
-        expect(floorless.has(doomsday)).toBe(false);
     });
 
     it("resolves every registered Target to 100% oracle ids of the pinned corpus", () => {

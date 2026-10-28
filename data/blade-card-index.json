@@ -429,6 +429,13 @@
             "needsSetup": false
         }
     ],
+    "Meddling Mage": [
+        {
+            "label": "as-enters name: casts Meddling Mage on an empty board",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Mind Rot": [
         {
             "label": "opponent's choice: casts Mind Rot into a two-card hand",

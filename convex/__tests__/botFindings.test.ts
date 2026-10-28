@@ -628,7 +628,7 @@ describe("botFindings — derived status and class ranking (ADR 0141 § 3, issue
         expect(findings[0]!.status).toBe("harness-bound");
     });
 
-    it("ranks by PRIORITY order, not by key or cardCount — premodern-metagame (priority 1) beats format-premodern (priority 3) despite a higher key and a higher cardCount", async () => {
+    it("ranks by PRIORITY order, not by key or cardCount — vintage-cube (priority 1) beats format-premodern (priority 3) despite a higher key and a higher cardCount", async () => {
         const { ctx } = makeMutationCtx("u-admin", [
             ADMIN,
             {
@@ -638,7 +638,7 @@ describe("botFindings — derived status and class ranking (ADR 0141 § 3, issue
                 key: "aaa-format-only",
                 cardCount: 9,
                 targetCounts: [
-                    { target: "premodern-metagame", count: 0 },
+                    { target: "vintage-cube", count: 0 },
                     { target: "format-premodern", count: 9 },
                 ],
                 active: true,
@@ -650,7 +650,7 @@ describe("botFindings — derived status and class ranking (ADR 0141 § 3, issue
                 key: "zzz-premodern-only",
                 cardCount: 1,
                 targetCounts: [
-                    { target: "premodern-metagame", count: 1 },
+                    { target: "vintage-cube", count: 1 },
                     { target: "format-premodern", count: 0 },
                 ],
                 active: true,
@@ -659,7 +659,7 @@ describe("botFindings — derived status and class ranking (ADR 0141 § 3, issue
         const classes = await runMutation<unknown, Row[]>(listClasses, ctx, {});
         // Sorting by key ASCENDING or by cardCount DESCENDING would both put
         // "aaa-format-only" first — it wins neither way here. Only comparing
-        // premodern-metagame's count before format-premodern's (priority 1
+        // vintage-cube's count before format-premodern's (priority 1
         // before priority 3) puts "zzz-premodern-only" first, despite its
         // higher key and its lower cardCount.
         expect(classes.map((c) => c.key)).toEqual([
