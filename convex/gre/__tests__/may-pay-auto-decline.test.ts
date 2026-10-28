@@ -1,4 +1,4 @@
-// May-pay auto-decline (CR 117.3a / 118.3, CR 117.1d / 605.3a — issue #2242).
+// May-pay auto-decline (CR 118.3, CR 117.1d / 605.3a — issue #2242).
 //
 // A `mayPay` whose non-mana leg (energy / life / permanent / hand) is short
 // cannot become payable while the prompt is open: mana abilities only add
@@ -55,7 +55,7 @@ function run(id: string, state: GameState) {
     return resolveTopOfStack(state);
 }
 
-describe("may-pay auto-decline (CR 117.3a, issue #2242)", () => {
+describe("may-pay auto-decline (CR 118.3, issue #2242)", () => {
     it("energy short: no prompt, not-paid branch applies, counters untouched", () => {
         const id = register("test-autodecline-energy", { energy: 3 });
         const state = makeState({
