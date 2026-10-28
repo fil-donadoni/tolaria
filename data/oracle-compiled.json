@@ -4,7 +4,7 @@
         "grammarVersion": "v0",
         "compilerHash": "sha256:9cce4c22131695326702235240f0b7881ded2192b5b6550d4a3ff113ab0923f9",
         "registryHash": "sha256:ab99c62ad0f5c97359861052c19e1396e5307ebd44aca479ed8e42c9859e62b6",
-        "botHash": "sha256:b663d93f6f88bd033016417146f5ec38075c5defaacb9efe352f0f589ee4d5ec",
+        "botHash": "sha256:84c232e9cd91b6b3c7fcf691744cf5af325cfe5c040aa4a4f2032d2bac4cdaf8",
         "poolHash": "sha256:c8a2c19268aedbe285e56224cdc6ae1d04cd074b6ecaa294747feab1f879d8bb",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
