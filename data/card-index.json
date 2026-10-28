@@ -2592,6 +2592,16 @@
         "source": "compiled"
     },
     {
+        "name": "Apex Devastator",
+        "scryfallId": "8fa281e1-5c48-4bba-b8e9-88c6f5f53abb",
+        "oracleId": "b4d6747c-3516-4e71-be30-af007c6b1dc4",
+        "firstSet": "cmr",
+        "firstPrintId": "8fa281e1-5c48-4bba-b8e9-88c6f5f53abb",
+        "firstPrintSet": "cmr",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Apex Hawks",
         "scryfallId": "b9f038f0-6f50-4f89-855c-6bbd68d84436",
         "oracleId": "c025d558-aae8-4146-923b-a98035025a42",
@@ -40307,6 +40317,16 @@
         "firstPrintId": "322491d2-d082-4d38-8d81-8588c011e725",
         "firstPrintSet": "cmr",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Maelstrom Wanderer",
+        "scryfallId": "9129baf5-ffa9-4ffb-bcab-19d6a42dbfcc",
+        "oracleId": "ad9b7fbc-61c8-43ee-a65c-99206fd1e4df",
+        "firstSet": "pc2",
+        "firstPrintId": "9129baf5-ffa9-4ffb-bcab-19d6a42dbfcc",
+        "firstPrintSet": "pc2",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
