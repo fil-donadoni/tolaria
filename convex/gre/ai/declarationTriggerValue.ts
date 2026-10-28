@@ -22,7 +22,7 @@ import { contextFreeGrounding } from "./grounding";
 import { valueEffectScript } from "./opValuers";
 
 /** The script a triggered stack item will run: its announced mode's for a
- *  modal trigger (CR 700.2c), else its real `effects[]`, else the `aiEffects`
+ *  modal trigger (CR 700.2b), else its real `effects[]`, else the `aiEffects`
  *  shadow. `undefined` when none is readable. */
 function triggerScript(item: StackItem): readonly EffectOp[] | undefined {
     if (!item.triggeredAbilityId) return undefined;
