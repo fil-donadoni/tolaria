@@ -3565,6 +3565,235 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #2937, the mirror half of the pair above — the SAME board, one block declaration apart. The 1/1 Raiders is lethal to a 3/1 Elf (CR 510.1c / 704.5g), so a spare land is a cheap price for keeping the body: with indestructible the Elf survives the exchange and the Raiders still dies. Combat damage is headed at the Elf, so the position is NOT quiet and the grant keeps the full flat worth `main` gives it — this half is what makes the correction a narrowing rather than a blanket demotion of every defensive grant.",
     },
+    // Issue #5927 — a THIS-TURN evasion grant ("{U}, {T}: target creature
+    // gains flying until end of turn") priced as lasting material. The four
+    // entries below share one board: Disciple of Kangee + Grizzly Bears, two
+    // Islands and two Plains, one opposing blocker. BEGINNING_OF_COMBAT for
+    // the pair rather than the main phase the issue names: at sorcery timing
+    // the `hold-trick` rule already held the activation before the fix, and
+    // the reported blunder reproduced at the beginning of combat (5/5 seeds,
+    // `material-tiebreak`) and at the opponent's end step.
+    {
+        label: "transient grant: does NOT give its own creature flying into a reach blocker",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the opposing blocker is a Giant Spider (reach) rather than a ground Hill Giant",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Disciple of Kangee",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Giant Spider", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 2 },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 5,
+            libraryCount: 20,
+            life: { opp: 2 },
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // The targeted matcher is subsumed by the untargeted one; it is
+            // here so the right-hand half's accepted move deep-equals a move
+            // this anchor rules out (`registrySource.ts`, the pair check).
+            forbidden: [
+                { kind: "activate-ability", card: "Disciple of Kangee" },
+                {
+                    kind: "activate-ability",
+                    card: "Disciple of Kangee",
+                    target: "Grizzly Bears",
+                },
+            ],
+        },
+        note: "Issue #5927, the anchor of the transient-grant pair. A 2/4 reach Giant Spider blocks a flyer as well as a ground 2/2 (CR 702.17b), so the opponent sitting on 2 life changes nothing: with or without flying the Bears has no profitable attack, and paying {U} and the Disciple's tap for the grant buys nothing. Before the fix `creatureValueRaw` credited the until-end-of-turn flying as +20 of lasting material at every leaf of the turn and the root activated on every seed (`material-tiebreak`); the leaf now takes that credit back (`temporaryCombatKeywords`, the keyword twin of ADR 0020 §2) and the `standing-spend-hold` rule's transient-spend shape holds the activation when its settled position is no better than passing. The right-hand half below is the same board with the Spider replaced by a ground Hill Giant.",
+    },
+    {
+        label: "transient grant: gives its own creature flying for the evasive lethal swing",
+        pairOf: {
+            anchor: "transient grant: does NOT give its own creature flying into a reach blocker",
+            discriminant: {
+                kind: "card",
+                detail: "the opposing blocker is a Giant Spider (reach) rather than a ground Hill Giant",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Disciple of Kangee",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 2 },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 5,
+            libraryCount: 20,
+            life: { opp: 2 },
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Disciple of Kangee",
+                    target: "Grizzly Bears",
+                },
+            ],
+        },
+        note: "Issue #5927, the right-hand half: a ground 3/3 cannot block a flyer (CR 702.9b), so the Bears with flying is two unblockable damage into 2 life — the one window the grant converts in. Wins on `mechanism: mean-reward` on all 5 seeds, before and after the fix: the discriminating half says the take-back and the hold bought DISCRIMINATION (flying into reach held, flying into a ground blocker for lethal taken), not a blanket refusal of every this-turn grant.",
+    },
+    {
+        label: "transient grant: does NOT give its own creature flying at the opponent's end step",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Disciple of Kangee",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 2 },
+            ],
+            phase: "END_STEP",
+            turn: 6,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "me",
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Disciple of Kangee" },
+            ],
+        },
+        note: "Issue #5927, the window with the fewest holds: no attack was declared, nothing is on the stack, and a grant made now ends at this very turn's cleanup (CR 514.2) having changed nothing — it is a mana and a tapped body for nothing, and the bot activated here on 3 of 5 seeds once the leaf credit was gone (`material-tiebreak` and `announcement-variant` reading rollout noise). The transient-spend shape of `standing-spend-hold` is what makes this `pass` on every seed.",
+    },
+    {
+        label: "transient grant: never gives the opponent's creature flying when its own tapped source is the only other target",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Disciple of Kangee",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 2 },
+            ],
+            phase: "END_STEP",
+            turn: 6,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "me",
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Disciple of Kangee" },
+            ],
+        },
+        note: "Issue #5927, the opponent-target case: the only legal targets are the opposing Hill Giant and the Disciple itself, which taps as the cost. The `announcement-variant` rule can redirect a beneficial grant only to an own-side SIBLING, and the self-target sibling is a pointless self pump (`hold-trick`), so before the fix the misdirected variant could reach the material tie-break on noise. Both variants are transient spends whose settled position is no better than passing, so the hold refuses both; `pass` on every seed.",
+    },
+    {
+        label: "transient grant: never gives an opposing creature that can't attack flying",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Disciple of Kangee",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Manacles of Decay",
+                    owner: "me",
+                    zone: "battlefield",
+                    attachedTo: "Grizzly Bears",
+                },
+                { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 2 },
+            ],
+            phase: "END_STEP",
+            turn: 6,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "me",
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Disciple of Kangee" },
+            ],
+        },
+        note: "Issue #5927, the review's corner: the opposing Bears sits under the bot's own Manacles of Decay (\"enchanted creature can't attack\"). The restriction discount prices the attack share off the creature's keywords, so with the transient flying credit taken back in full AND the attack share still counting it, a flying grant on the Pacified Bears read as −15 for the opponent — a +15 gain the settled-position probe would have licensed. The share now reads the LASTING keywords only (`lastingStaticAbilities`), the grant moves nothing, and the transient-spend hold refuses it; `pass` on every seed.",
+    },
     {
         label: "activation timing: does not crack Sylvan Safekeeper with no threat",
         classification: {

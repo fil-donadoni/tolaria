@@ -5610,13 +5610,28 @@ export function selectRootMove(
     // rarer than the stack case, and the empty-stack gate does not cover it; if
     // a blade position ever shows it costing the bot a real play, the narrowing
     // goes here.
+    //
+    // The SECOND spend shape: an activation whose whole payoff
+    // EXPIRES THIS TURN (`isTransientSpendActivation` — "target creature
+    // gains flying until end of turn", CR 514.2). The leaf prices such a grant
+    // at nothing outside the combat it changes (`evaluateCreature` takes the
+    // flat keyword credit back, the P/T twin of ADR 0020 §2), so its settled
+    // position reads the cost — a mana, a tapped body — and no payoff; but the
+    // root pick is settled on the SUBTREE-accumulated `meanMargin`, and the
+    // `pass` subtree walks the same creatures into the same blocks one ply
+    // later, so the tie-break read rollout noise and the bot paid {U} and a
+    // 2/2 to give its own creature flying with no attack to make, or the
+    // opponent's creature flying for nothing. Same question as the standing
+    // spend — does firing leave the immediate position better than holding —
+    // asked of the same probe. A grant that PAYS (an evasive lethal swing, a
+    // first strike that wins an exchange) out-rewards `pass` by more than
+    // `OUTCOME_EPS` or beats it on the settled position, and is never held.
     if (
         rootState &&
         rootState.stack.length === 0 &&
         !!botId &&
         ruleOn("standing-spend-hold") &&
-        isStandingSpendActivation(rootState, botId, best.move) &&
-        !isInPendingCombatExchange(rootState, best.move.cardInstanceId) &&
+        isHoldableSpend(rootState, botId, best.move) &&
         !firingBeatsHolding(rootState, botId, best.move, weights)
     ) {
         const hold = pool.find(
@@ -6346,6 +6361,72 @@ function isStandingSpendActivation(
         !isTransientOnlyAbility(ability) &&
         spendsStandingPermanent(state, source, ability)
     );
+}
+
+/** The two spend shapes the `standing-spend-hold` rule holds when firing
+ *  leaves the position no better: a standing spend (the source or another
+ *  permanent given up, `isStandingSpendActivation`) whose permanent is not in
+ *  a live exchange, or a transient spend (`isTransientSpendActivation`). */
+function isHoldableSpend(state: GameState, pid: string, move: Move): boolean {
+    if (isStandingSpendActivation(state, pid, move)) {
+        return !isInPendingCombatExchange(state, move.cardInstanceId);
+    }
+    return isTransientSpendActivation(state, pid, move);
+}
+
+/** Whether `move` is an activation `pid` controls whose WHOLE payoff expires
+ *  this turn (`isTransientOnlyAbility`, CR 514.2) — a this-turn keyword grant,
+ *  a pump, a colour change — paid for with a cost the untap step gives back
+ *  (issue #5927). The complement of `isStandingSpendActivation`'s
+ *  `!isTransientOnlyAbility` clause, and the opposite direction of the FIRE
+ *  rule's refusal: firing one at the end step buys nothing, and so does firing
+ *  one with nothing to convert in the windows before it.
+ *
+ *  Fails open wherever the probe cannot price the exchange: a mana ability
+ *  (payment plumbing, CR 605.3a), and a source or a targeted permanent
+ *  standing in a live combat (`isInLiveCombat`) — a first strike on a blocked
+ *  attacker is decided by the damage step, and an evasion or protection grant
+ *  on a declared attacker whose blocks are not yet declared restricts those
+ *  blocks (an evasion ability, CR 509.1b; protection, CR 702.16f), and both
+ *  are played out by the rollouts. Read off Op semantics and the combat
+ *  state, never a card name (ADR 0102). */
+function isTransientSpendActivation(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (move.kind !== "activate-ability") return false;
+    const player = state.players.find((p) => p.id === pid);
+    if (!player) return false;
+    const source = player.battlefield.find((c) => c.id === move.cardInstanceId);
+    if (!source) return false;
+    const ability = effectiveAbilityOf(source, move.abilityId);
+    if (!ability || !ability.useStack) return false;
+    if (!isTransientOnlyAbility(ability)) return false;
+    if (isInLiveCombat(state, source.id)) return false;
+    return move.targets.every(
+        (t) => t.type !== "permanent" || !isInLiveCombat(state, t.id)
+    );
+}
+
+/** Whether the permanent `id` has a combat still ahead of it this turn that a
+ *  this-turn grant can change: a declared attacker before blockers are
+ *  declared (any creature across the table may still block it, and an evasion
+ *  keyword decides which — CR 509.1b), or a creature standing in a pending
+ *  exchange once they are (`isInPendingCombatExchange`). Same phase guard as
+ *  that predicate: `state.combat` outlives the damage steps, so a stale
+ *  declaration must not read as a live one. */
+function isInLiveCombat(state: GameState, id: string): boolean {
+    if (isInPendingCombatExchange(state, id)) return true;
+    if (
+        state.phase !== "DECLARE_ATTACKERS" &&
+        state.phase !== "DECLARE_BLOCKERS"
+    ) {
+        return false;
+    }
+    const combat = state.combat;
+    if (!combat || !combat.confirmed || combat.blockersConfirmed) return false;
+    return combat.attackerIds.includes(id);
 }
 
 /** Whether `move` converts a sacrifice engine `pid` controls whose payoff does
