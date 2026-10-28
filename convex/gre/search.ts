@@ -50,7 +50,6 @@ import {
 } from "./ai/repetition";
 import { searchCombatDamageAssignments } from "./ai/damageSplit";
 import { pruneDominatedBlocks } from "./ai/blockDominance";
-import { isCostUnlockingLandTypeChange } from "./ai/futileShield";
 import type {
     CardInstanceState,
     GameState,
@@ -6002,9 +6001,6 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
         const ability = effectiveAbilityOf(source, move.abilityId);
         if (!ability) return false;
         if (!isDeferrableStackAbility(ability)) return false;
-        // CR 305.7 — a retype that makes a held cost payable is spent on
-        // that cast this turn: nothing later reaches the same board.
-        if (isCostUnlockingLandTypeChange(state, move)) return false;
         // Shape 2 has TWO independent justifications, one per side of the
         // trade (issue #2939): a payoff that expires this turn, or a cost that
         // gives up a permanent still doing its job. See
