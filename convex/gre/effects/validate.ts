@@ -5575,14 +5575,14 @@ const OP_SCHEMAS: OpSchemaTable = {
     // CR 701.17 — mill: move the top `count` cards of a player's
     // library into their graveyard (deterministic; no choice). `player` names
     // whose library is milled; `count` is how many cards.
-    // issue #1095 — optional `bind` snapshots the FIRST card that genuinely
-    // reached the graveyard (Loafing Giant's "if a land card was milled this
-    // way"), mirroring `discardAtRandom`'s bind shape exactly.
-    // issue #2600 — optional `bindAll` binds that same set WHOLE as a PICKS
-    // binding (every id that reached the graveyard, in mill order), the source
-    // a public-zone `choice.candidates` reads to express "from among them".
-    // issue #7204 — optional `repeatWhile` mills `count` again while the
-    // pass's milled cards meet the condition (Grindstone's shared colour).
+    // Optional `bind` snapshots the FIRST card that genuinely reached the
+    // graveyard (Loafing Giant's "if a land card was milled this way"),
+    // mirroring `discardAtRandom`'s bind shape exactly. Optional `bindAll`
+    // binds that same set WHOLE as a PICKS binding (every id that reached the
+    // graveyard, in mill order), the source a public-zone `choice.candidates`
+    // reads to express "from among them". Optional `repeatWhile` mills `count`
+    // again while the pass's milled cards meet the condition (Grindstone's
+    // shared colour).
     mill: {
         required: {
             player: isPlayerRef,
