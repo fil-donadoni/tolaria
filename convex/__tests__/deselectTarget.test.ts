@@ -5,8 +5,17 @@
 // the expected-input assertion and `saveGameState` are all real.
 
 import { describe, it, expect } from "vitest";
-import { deselectTarget, selectTarget } from "../game";
-import { makePlayer, makeState } from "../cards/__tests__/setup.helper";
+import { announceCast, deselectTarget, selectTarget } from "../game";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../cards/__tests__/setup.helper";
+import { standardBearer } from "../cards/sets/apc/white.cards";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
+import { mountain } from "../cards/sets/lea/colorless.cards";
+import { withTemporaryDefinitionAsync } from "../cards";
+import type { CardDefinition } from "../cards/types";
 import type { GameState, PendingTarget } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -155,5 +164,98 @@ describe("deselectTarget (CR 601.2c, issue #2302)", () => {
         await expect(
             runDeselect(stub.ctx, { targetType: "player", targetId: "p2" })
         ).rejects.toThrow();
+    });
+});
+
+describe("deselectTarget keeps the forced-choice rule intact (CR 601.2c, Flagbearer)", () => {
+    // "Up to three target creatures" (min 1): the first slot binds a Flagbearer.
+    // Dropping that pick while a later one stands would let `confirmTargets`
+    // announce a group that never obeyed the requirement.
+    const UP_TO_THREE: CardDefinition = {
+        id: "5d2c8a10-7e3b-4c61-a0f4-91b2e6d37a02",
+        name: "Test Up To Three",
+        rarity: "rare",
+        oracleText:
+            "Test Up To Three deals 1 damage to up to three target creatures.",
+        manaCost: {},
+        types: ["Instant"],
+        targetRequirement: { type: "Creature", count: { min: 1, max: 3 } },
+        effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
+    };
+
+    it("refuses to remove the satisfier while a later pick stands, allows removing the later one", async () => {
+        await withTemporaryDefinitionAsync(UP_TO_THREE, async () => {
+            const opp = (cardId: string, id: string) =>
+                makeInstance(cardId, {
+                    id,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "battlefield",
+                });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        hand: [
+                            makeInstance(UP_TO_THREE.id, {
+                                id: "spell-1",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "hand",
+                            }),
+                        ],
+                        battlefield: [
+                            makeInstance(mountain().id, {
+                                id: "mountain-1",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "battlefield",
+                            }),
+                        ],
+                    }),
+                    makePlayer("p2", {
+                        battlefield: [
+                            opp(standardBearer().id, "bearer"),
+                            opp(grizzlyBears().id, "bears"),
+                        ],
+                    }),
+                ],
+                phase: "PRECOMBAT_MAIN",
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+            });
+            const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
+            await runMutation<Record<string, unknown>, void>(
+                announceCast as unknown as Handler<
+                    Record<string, unknown>,
+                    void
+                >,
+                stub.ctx,
+                { gameId: GAME_ID, playerId: "p1", cardInstanceId: "spell-1" }
+            );
+            await runSelect(stub.ctx, {
+                targetType: "permanent",
+                targetId: "bearer",
+            });
+            await runSelect(stub.ctx, {
+                targetType: "permanent",
+                targetId: "bears",
+            });
+
+            await expect(
+                runDeselect(stub.ctx, {
+                    targetType: "permanent",
+                    targetId: "bearer",
+                })
+            ).rejects.toThrow(/Cannot remove this target/);
+            expect(stub.state().pendingTarget!.selected).toHaveLength(2);
+
+            await runDeselect(stub.ctx, {
+                targetType: "permanent",
+                targetId: "bears",
+            });
+            expect(stub.state().pendingTarget!.selected).toEqual([
+                { type: "permanent", id: "bearer" },
+            ]);
+        });
     });
 });

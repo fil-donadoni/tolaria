@@ -10392,7 +10392,28 @@ export function applyOneTargetDeselection(
         (s) => s.type === input.targetType && s.id === input.targetId
     );
     if (idx === -1) throw new Error("That target is not currently selected");
-    pt.selected.splice(idx, 1);
+    // CR 601.2c — `confirmTargets` trusts that every accepted pick obeyed the
+    // forced-choice narrowing (Flagbearer) as it was made. A removal can break
+    // that (dropping the satisfier leaves a later pick standing where only a
+    // satisfier was legal), so replay the survivors through the SAME per-pick
+    // rule `applyOneTargetSelection` enforces and refuse a removal that fails.
+    const original = pt.selected;
+    const remaining = original.filter((_, i) => i !== idx);
+    pt.selected = [];
+    try {
+        for (const pick of remaining) {
+            const required = computeRequiredTargetChoiceIds(state, pt);
+            if (required && !required.includes(pick.id)) {
+                throw new Error(
+                    "Cannot remove this target: the remaining picks must include a permanent an effect requires you to target"
+                );
+            }
+            pt.selected.push(pick);
+        }
+    } catch (e) {
+        pt.selected = original;
+        throw e;
+    }
     if (pt.divideAmounts) {
         delete pt.divideAmounts[`${input.targetType}:${input.targetId}`];
     }
