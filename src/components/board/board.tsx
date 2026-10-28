@@ -72,6 +72,7 @@ import SacrificeBanner from "./sacrifice-banner";
 import AttackManaTaxBanner from "./attack-mana-tax-banner";
 import { isSacrificeComplete } from "~/lib/sacrifice-selection";
 import PendingChoicePrompt from "./pending-choice-prompt";
+import { useLingeringRandomReveal } from "~/hooks/useLingeringRandomReveal";
 import PileDivisionPicker from "./pile-division/pile-division-picker";
 import { resolvePileDivisionCards } from "~/lib/pile-division";
 import HandCardPick from "./hand-card-pick";
@@ -301,6 +302,12 @@ export default function Board({
     // minimize collapses whichever surface the active choice uses. Resets when
     // the choice resolves; never persisted to GameState.
     const minimizedChoice = useMinimizedChoiceState(state?.pendingChoices?.[0]);
+    // Issue #5516 — a viewer's coin-flip reveal plays to its end even after the
+    // Bot's ack removed the pending choice; same prompt slot, so no remount.
+    const lingeringReveal = useLingeringRandomReveal(
+        state?.pendingChoices?.[0],
+        viewerId
+    );
 
     // Zone-change arrivals (flight + glow): diff consecutive snapshots by
     // stable instance id — see useRecentArrivals. Runs above the !state early
@@ -392,6 +399,7 @@ export default function Board({
         state.cannotActivateAbilitiesThisTurn;
     const pendingTarget = state.pendingTarget;
     const pendingChoices = state.pendingChoices;
+    const promptChoice = pendingChoices?.[0] ?? lingeringReveal;
     const mulligan = state.mulligan;
     const gameOver = state.gameOver;
     const stackItems = state.stack ?? [];
@@ -724,21 +732,16 @@ export default function Board({
                                                         }
                                                     />
                                                 )}
-                                            {pendingChoices &&
-                                                pendingChoices.length > 0 &&
+                                            {promptChoice &&
                                                 (minimizedChoice.isMinimized &&
-                                                pendingChoices[0].playerId ===
+                                                promptChoice.playerId ===
                                                     viewerId ? (
                                                     <MinimizedChoiceIndicator
-                                                        choice={
-                                                            pendingChoices[0]
-                                                        }
+                                                        choice={promptChoice}
                                                     />
                                                 ) : (
                                                     <PendingChoicePrompt
-                                                        choice={
-                                                            pendingChoices[0]
-                                                        }
+                                                        choice={promptChoice}
                                                         playerId={viewerId}
                                                         gameId={gameId}
                                                     />
