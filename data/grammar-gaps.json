@@ -356,6 +356,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › moveZone",
+            "issue": 7390
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › pump",
             "issue": 4261
         },
