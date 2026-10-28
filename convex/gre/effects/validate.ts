@@ -8078,6 +8078,15 @@ function checkCaptureSource(
             );
             return;
         }
+        // An `iterated` binding is a set of per-iteration rows only
+        // `boundCount` can read in place: carried verbatim it would arrive
+        // under a name no iteration ever wrote, and read nothing.
+        if (family === "iterated") {
+            errors.push(
+                `${at}: capture "${name}" ref "${ref}" names an iterated binding (a forEach body's snapshot, readable after the sweep only through boundCount) — it cannot be captured`
+            );
+            return;
+        }
         if (verbatim) return;
         if (family !== "snapshot" && family !== "player") {
             errors.push(

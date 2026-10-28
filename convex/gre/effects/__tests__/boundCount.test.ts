@@ -296,6 +296,27 @@ describe("validateEffectScript — the iterated binding family", () => {
         expect(errors.join("\n")).toMatch(/re-declares an existing binding/);
     });
 
+    it("refuses carrying an iterated binding into a reflexive trigger", () => {
+        const errors = probe([
+            exileEveryCreature,
+            {
+                op: "reflexiveTrigger",
+                oracleText: "When you do, gain 1 life per creature.",
+                capture: { $gone: { ref: "$gone" } },
+                effects: [
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: { boundCount: { of: { ref: "$gone" } } },
+                    },
+                ],
+            },
+        ]);
+        expect(errors.join("\n")).toMatch(
+            /capture "\$gone" ref "\$gone" names an iterated binding/
+        );
+    });
+
     it("refuses a computed ceiling paired with a non-zero min", () => {
         const errors = probe([
             exileEveryCreature,
@@ -312,6 +333,8 @@ describe("validateEffectScript — the iterated binding family", () => {
                 bind: "$found",
             },
         ]);
-        expect(errors.join("\n")).toMatch(/count/);
+        expect(errors.join("\n")).toMatch(
+            /Op "choice" field "count" has invalid value/
+        );
     });
 });

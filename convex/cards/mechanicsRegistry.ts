@@ -3802,6 +3802,18 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     },
 ];
 
+// `boundCount` (`{ boundCount: { of, controller? } }`, issue #3289) IS a new
+// value-grammar member, with `setSize`'s non-Op, non-ADR-0045-reopening
+// status: HOW MANY iterations of an earlier `forEach` captured a body snapshot
+// binding, optionally only those whose last-known controller is a player
+// (CR 608.2h). A body binding is iteration-scoped and never leaks past the
+// construct, so "for each creature exiled this way, its controller searches"
+// had no reader once the sweep was over — and CR 701.23h collapses those
+// per-creature searches into one per player. The validator declares a body's
+// snapshot bindings after the construct in their own `iterated` family, which
+// only this member reads. `choice.count`'s range `max` widened alongside it: a
+// computed CEILING, `min: 0` only, raising nothing at or below zero.
+
 /** Demand-driven Op backlog. Every row is a `planned` reservation: an Op real
  *  cards are known to need but which has no interpreter binding yet — today
  *  `/new-op` Branch B's IOU, its note naming the open Grammar Gap (ADR 0137);
@@ -4028,19 +4040,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  cross-player minimum count Balance's "the rest" needed, written with
  *  members that already existed — `difference` of the chooser's own `count`
  *  and the `smallestAcrossPlayers` one (issue #783). It earns no
- *  EFFECT_OP_REGISTRY row. A range's `max` widened the same way (issue
- *  #3289): a computed CEILING, `min: 0` only, resolved as the choice is
- *  raised and raising nothing at or below zero.
- *  `boundCount` (issue #3289, `{ boundCount: { of, controller? } }`) IS a new
- *  value-grammar member, with the same non-Op, non-ADR-0045-reopening status
- *  as `setSize`: HOW MANY iterations of an earlier `forEach` captured a body
- *  snapshot binding, optionally only those whose last-known controller is a
- *  player (CR 608.2h). Reason to exist: a body binding is iteration-scoped and
- *  never leaks past the construct, so "for each creature exiled this way, its
- *  controller searches …" had no reader once the sweep was over, and CR
- *  701.23h collapses those per-creature searches into one per player (Winds
- *  of Abandon). The validator declares a body's snapshot bindings after the
- *  construct in their own `iterated` family, which only this member reads. */
+ *  EFFECT_OP_REGISTRY row. */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED
