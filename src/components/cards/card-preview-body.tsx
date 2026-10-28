@@ -2,8 +2,9 @@ import { useState } from "react";
 import CardPreviewFace from "./card-preview-face";
 import PrintedFaceImage from "./printed-face-image";
 import CardPreviewModeToggle, {
-    type CardPreviewMode,
+    type CardPreviewView,
 } from "./card-preview-mode-toggle";
+import CardPreviewRulings from "./card-preview-rulings";
 import type { PreviewBodyContent } from "~/lib/preview-body";
 import { getPreviewPreferenceDefault } from "~/lib/preview-preference-store";
 
@@ -56,7 +57,7 @@ export default function CardPreviewBody({
     // `useState` initializer reads it exactly once, at mount. A preview
     // already open when the Settings value changes elsewhere keeps whatever
     // the viewer toggled it to (see `SettingsPreviewSection`'s docblock).
-    const [toggledMode, setToggledMode] = useState<CardPreviewMode>(
+    const [toggledMode, setToggledMode] = useState<CardPreviewView>(
         getPreviewPreferenceDefault
     );
     // Manual Game (issue #2346): every computed field is genuinely empty for
@@ -70,6 +71,14 @@ export default function CardPreviewBody({
     // resolve (a real bug that must stay visible).
     const isManualGame = !!content.isManualGame;
     const mode = isManualGame ? "printed" : toggledMode;
+    // Rulings (issue #4816) are keyed on the print the preview already holds,
+    // so the entry exists iff `printedImageId` is non-null — never on the
+    // definition id: the face-down anonymous face carries null, and a token
+    // has no printed card to rule on (CR 111.1).
+    const rulingsPrintId =
+        !isManualGame && !content.isToken
+            ? (content.printedImageId?.id ?? null)
+            : null;
     if (originalBody) {
         return (
             <div className="flex w-full items-stretch">
@@ -98,6 +107,19 @@ export default function CardPreviewBody({
     // `printedImageId` rather than `printedImageSrc`: the renderer builds its
     // own responsive srcset from the id (issue #3553), and the two are null
     // together by construction.
+    if (mode === "rulings" && rulingsPrintId) {
+        return (
+            <div className="flex w-full flex-col">
+                <CardPreviewModeToggle
+                    mode={mode}
+                    onChange={setToggledMode}
+                    showRulings
+                />
+                <CardPreviewRulings printId={rulingsPrintId} />
+            </div>
+        );
+    }
+
     if (mode === "printed" && content.printedImageId) {
         return (
             <div className="flex w-full flex-col">
@@ -105,6 +127,7 @@ export default function CardPreviewBody({
                     <CardPreviewModeToggle
                         mode={mode}
                         onChange={setToggledMode}
+                        showRulings={!!rulingsPrintId}
                     />
                 )}
                 {content.backFaceHalf?.printedImageId ? (
@@ -151,7 +174,11 @@ export default function CardPreviewBody({
     return (
         <>
             {content.printedImageSrc && !isManualGame && (
-                <CardPreviewModeToggle mode={mode} onChange={setToggledMode} />
+                <CardPreviewModeToggle
+                    mode={mode}
+                    onChange={setToggledMode}
+                    showRulings={!!rulingsPrintId}
+                />
             )}
             {showCopyBadge && (
                 <div className="px-3 pt-2">
