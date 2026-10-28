@@ -2237,14 +2237,15 @@ function seedDeclaredStack(
         }
         const def = getCardByName(entry.name);
         // CR 712.8f (issue #4767) — a modal back face is a spell on the stack
-        // only if it was CAST as that face, and the engine has no such cast
-        // path (every shipped back face is a land, played by CR 712.12). A
-        // stack item built from the twin would carry no `transformedFrom` and
-        // no cost — an object no live game produces — so it is refused until
-        // that path exists, and routed through the same stamp when it does.
+        // only if it was CAST as that face (CR 712.11b, `castAsModalBack`,
+        // issue #7200). A stack item built from the twin would carry no
+        // `transformedFrom` — an object no live game produces — so it stays
+        // refused until a catalogue card with a castable back face ships and
+        // can pin this branch routing through that stamp: every shipped back
+        // face today is a land, played (CR 712.12) and never cast.
         if (modalBackFaceParentId(def.id)) {
             throw new Error(
-                `buildStateFromScenario: stack index ${index} names the modal back face "${entry.name}" — the engine has no cast path for a back face, so a spec cannot put one on the stack.`
+                `buildStateFromScenario: stack index ${index} names the modal back face "${entry.name}" — a spec cannot put a back face on the stack yet.`
             );
         }
         // A FRESH instance, deliberately: the card is on the stack, in no
