@@ -138,7 +138,15 @@ export async function sweepBlobs(
         };
     const keys = await deps.readKeys();
     if (keys.kind === "skip") return { kind: "skipped", reason: keys.reason };
-    const c = classifyBlobs(deps.listBlobs(), keys.keys, deps.now());
+    const blobs = deps.listBlobs();
+    // Fail closed: no source package at all while blobs exist means a wrong or
+    // unreadable database, never a deployment with nothing live.
+    if (keys.keys.size === 0 && blobs.length > 0)
+        return {
+            kind: "skipped",
+            reason: "no source-package keys found while blobs exist on disk",
+        };
+    const c = classifyBlobs(blobs, keys.keys, deps.now());
     let removed = 0;
     let reclaimedBytes = 0;
     if (confirm)

@@ -131,6 +131,13 @@ describe("sweepBlobs", () => {
         expect(r).toMatchObject({ kind: "skipped" });
         expect(d.listBlobs).not.toHaveBeenCalled();
     });
+    it("fails closed when no source-package key is found but blobs exist", async () => {
+        const d = deps({
+            readKeys: async () => ({ kind: "keys", keys: new Set() }),
+        });
+        expect(await sweepBlobs(d, true)).toMatchObject({ kind: "skipped" });
+        expect(d.removed).toEqual([]);
+    });
     it("skips when the database stays locked", async () => {
         const d = deps({
             readKeys: async () => ({ kind: "skip", reason: "locked" }),

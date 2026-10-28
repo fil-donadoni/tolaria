@@ -38,12 +38,16 @@ const stampPath = join(root, ".claude", "telemetry", "convex-blob-gc.stamp");
 
 function deploymentName(): string | null {
     if (process.env.CONVEX_DEPLOYMENT) return process.env.CONVEX_DEPLOYMENT;
-    const env = join(root, ".env.local");
-    if (!existsSync(env)) return null;
-    const m = /^\s*CONVEX_DEPLOYMENT\s*=\s*["']?([^"'\s#]+)/m.exec(
-        readFileSync(env, "utf8")
-    );
-    return m?.[1] ?? null;
+    try {
+        const env = join(root, ".env.local");
+        if (!existsSync(env)) return null;
+        const m = /^\s*CONVEX_DEPLOYMENT\s*=\s*["']?([^"'\s#]+)/m.exec(
+            readFileSync(env, "utf8")
+        );
+        return m?.[1] ?? null;
+    } catch {
+        return null; // unreadable env file: sweepBlobs skips, stating why
+    }
 }
 
 /** Read-only, busy timeout: the backend is running while this reads. */
@@ -91,7 +95,7 @@ if (process.argv.includes("--auto")) {
         sweep: () => sweepBlobs(deps, true),
         stamp: () => writeSweepStamp(stampPath, Date.now()),
         log: (line) => console.error(line),
-    });
+    }).catch(() => {});
     process.exit(0);
 }
 
