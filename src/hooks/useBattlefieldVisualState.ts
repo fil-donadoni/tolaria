@@ -700,10 +700,7 @@ export function useBattlefieldVisualState(
 
         const isTargetSelected =
             isSelectingTarget &&
-            !!pendingTarget &&
-            pendingTarget.selected.some(
-                (t) => t.type === "permanent" && t.id === card.id
-            );
+            isPickedTarget(pendingTarget, "permanent", card.id);
 
         const isValidChoice =
             isSelectingChoice &&
