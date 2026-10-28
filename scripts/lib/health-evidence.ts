@@ -91,14 +91,47 @@ export interface FailLine {
     /** The vitest project, when the line names one. */
     project?: string;
     file: string;
+    /** The full test name after the file (`describe > it`), when the line
+     *  has one — a file-level failure has none. */
+    test?: string;
+}
+
+/** What a bisect probe re-runs: one failing test, or a whole file when the
+ *  RED named no test in it. */
+export interface ProbeTarget {
+    file: string;
+    test?: string;
 }
 
 /** The FAIL lines of a vitest run's output, in order, colours stripped. */
 export function failLines(output: string): FailLine[] {
     const out: FailLine[] = [];
-    for (const m of stripAnsi(output).matchAll(VITEST_FAIL_LINE)) {
+    const plain = stripAnsi(output);
+    for (const m of plain.matchAll(VITEST_FAIL_LINE)) {
         const project = (m[1] ?? m[2])?.trim();
-        out.push(project ? { project, file: m[3] } : { file: m[3] });
+        const after = /^[^\S\n]*>[^\S\n]*([^\n]*)/.exec(
+            plain.slice(m.index + m[0].length)
+        );
+        const test = after?.[1].trim();
+        out.push({
+            ...(project ? { project } : {}),
+            file: m[3],
+            ...(test ? { test } : {}),
+        });
+    }
+    return out;
+}
+
+/** The failing tests of a run's output, unique, in order: each FAIL line's
+ *  file and full test name (a line with no name is its file). */
+export function failingTests(output: string): ProbeTarget[] {
+    const seen = new Set<string>();
+    const out: ProbeTarget[] = [];
+    for (const l of failLines(output)) {
+        const key = `${l.file}\0${l.test ?? ""}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(l.test ? { file: l.file, test: l.test } : { file: l.file });
     }
     return out;
 }
@@ -304,6 +337,18 @@ export function evidenceFiles(body: string): string[] {
     const line = body.split("\n").find((l) => l.startsWith("- **files:** "));
     if (line === undefined) return [];
     return [...line.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+}
+
+/** What a bisect probe re-runs for a published body: every failing test its
+ *  excerpt names, plus each `files` entry the excerpt (capped) names no test
+ *  of — that file runs whole. */
+export function evidenceTargets(body: string): ProbeTarget[] {
+    const tests = failingTests(body).filter((t) => t.test);
+    const named = new Set(tests.map((t) => t.file));
+    const rest = evidenceFiles(body)
+        .filter((f) => !named.has(f))
+        .map((file) => ({ file }));
+    return [...tests, ...rest];
 }
 
 /** `body` with one more bullet in its header (the bisect's culprit line),

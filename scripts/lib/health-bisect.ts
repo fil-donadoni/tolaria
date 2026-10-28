@@ -23,6 +23,7 @@
  *
  * Node builtins plus `lib/health-verdict-store.ts`.
  */
+import type { ProbeTarget } from "./health-evidence";
 import {
     HOSTED_MACHINE_PREFIX,
     type Verdict,
@@ -144,22 +145,101 @@ export interface VitestCommand {
 /** The blade's specs run under their own config (`vitest.blade.config.ts`). */
 const BLADE_SPEC = /^convex\/gre\/ai\/blade\/__tests__\/.+\.spec\.ts$/;
 
-/** The vitest commands that re-run `files`: the default config's projects
- *  in one, the blade's specs (`test:blade`'s tier) in another. */
-export function vitestCommands(files: readonly string[]): VitestCommand[] {
-    const blade = files.filter((f) => BLADE_SPEC.test(f));
-    const rest = files.filter((f) => !BLADE_SPEC.test(f));
+/** The describe a blade shard wraps its entries in (`bladeShardRunner.helper`):
+ *  `blade suite — must tier — shard 1/4 > <label>`. */
+const BLADE_SHARD_PREFIX = /^blade suite — .*? shard \d+\/\d+ > /;
+
+/** The part of a test name that survives a commit: a blade entry's label
+ *  without its shard describe, else the name as printed. */
+function stableName(t: ProbeTarget): string | undefined {
+    if (t.test === undefined) return undefined;
+    return BLADE_SPEC.test(t.file)
+        ? t.test.replace(BLADE_SHARD_PREFIX, "")
+        : t.test;
+}
+
+/** Whether two targets are the same failing test. A blade entry moves between
+ *  shard files whenever the tier list changes (index modulo shard count), so
+ *  it is the label alone; any other test is its file and name. */
+export function sameTarget(a: ProbeTarget, b: ProbeTarget): boolean {
+    const [x, y] = [stableName(a), stableName(b)];
+    if (x === undefined || y === undefined) return a.file === b.file;
+    if (BLADE_SPEC.test(a.file) && BLADE_SPEC.test(b.file)) return x === y;
+    return a.file === b.file && x === y;
+}
+
+/** A `-t` pattern matching exactly the named tests: vitest joins a test's
+ *  describes with a space, so `a > b > c` is `a b c`, end-anchored. */
+function namePattern(names: readonly string[]): string {
+    const alt = names.map((n) =>
+        n
+            .split(" > ")
+            .join(" ")
+            .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    );
+    return `(?:^| )(?:${alt.join("|")})$`;
+}
+
+/** The vitest commands that re-run `targets`: the default config's projects,
+ *  the blade's specs (`test:blade`'s tier) under their own. A target with a
+ *  test name selects that test (`-t`), never its file's whole content; a
+ *  blade entry pins no shard file, since the shard it falls in changes with
+ *  the tier list. `--passWithNoTests`: a test the commit does not have yet is
+ *  green, like a missing file. */
+export function vitestCommands(
+    targets: readonly ProbeTarget[]
+): VitestCommand[] {
     const out: VitestCommand[] = [];
-    if (rest.length > 0)
-        out.push({ args: ["vitest", "run", ...rest], env: {} });
-    if (blade.length > 0)
+    const wholeFiles = [
+        ...new Set(
+            targets
+                .filter((t) => t.test === undefined && !BLADE_SPEC.test(t.file))
+                .map((t) => t.file)
+        ),
+    ];
+    if (wholeFiles.length > 0)
+        out.push({ args: ["vitest", "run", ...wholeFiles], env: {} });
+    const byFile = new Map<string, string[]>();
+    for (const t of targets)
+        if (t.test !== undefined && !BLADE_SPEC.test(t.file))
+            byFile.set(t.file, [...(byFile.get(t.file) ?? []), t.test]);
+    for (const [file, names] of byFile)
         out.push({
             args: [
                 "vitest",
                 "run",
-                "--config",
-                "vitest.blade.config.ts",
-                ...blade,
+                "--passWithNoTests",
+                file,
+                "-t",
+                namePattern(names),
+            ],
+            env: {},
+        });
+    const blade = { config: ["--config", "vitest.blade.config.ts"] };
+    const bladeFiles = [
+        ...new Set(
+            targets
+                .filter((t) => t.test === undefined && BLADE_SPEC.test(t.file))
+                .map((t) => t.file)
+        ),
+    ];
+    if (bladeFiles.length > 0)
+        out.push({
+            args: ["vitest", "run", ...blade.config, ...bladeFiles],
+            env: { BLADE_TIER: "must" },
+        });
+    const bladeNames = targets
+        .filter((t) => t.test !== undefined && BLADE_SPEC.test(t.file))
+        .map((t) => stableName(t) as string);
+    if (bladeNames.length > 0)
+        out.push({
+            args: [
+                "vitest",
+                "run",
+                ...blade.config,
+                "--passWithNoTests",
+                "-t",
+                namePattern(bladeNames),
             ],
             env: { BLADE_TIER: "must" },
         });
@@ -380,6 +460,65 @@ export function bisectFirstRed(
     return { culprit: commits[lo], probes };
 }
 
+/** One culprit of a failing set, and the tests it explains. */
+export interface Culprit {
+    result: BisectResult;
+    tests: ProbeTarget[];
+    /** The commit's subject, to read its PR. */
+    subject?: string;
+}
+
+/**
+ * The culprit of EACH failing test, not of the set (issue #7339): two
+ * failures from two commits are two culprits. `probe` runs `targets` at a
+ * commit (green when it has none yet); `failingAt` names which of `targets`
+ * fail at a commit. The set is bisected, the first red commit's own failures
+ * are its, and the tests still green there are bisected again over the
+ * commits after it. A round that names no culprit ends the search with the
+ * rest unexplained — the last entry then carries `culprit: null`.
+ */
+export function bisectCulprits(
+    commits: readonly string[],
+    targets: readonly ProbeTarget[],
+    probe: (sha: string, targets: readonly ProbeTarget[]) => ProbeOutcome,
+    failingAt: (sha: string, targets: readonly ProbeTarget[]) => ProbeTarget[],
+    subjectOf: (sha: string) => string | undefined = () => undefined
+): Culprit[] {
+    const out: Culprit[] = [];
+    let remaining = [...targets];
+    let range = commits;
+    while (remaining.length > 0) {
+        const result = bisectFirstRed(range, (sha) => probe(sha, remaining));
+        if (result.culprit === null) {
+            out.push({ result, tests: remaining });
+            break;
+        }
+        const at = result.culprit;
+        const red = failingAt(at, remaining);
+        const explained = remaining.filter((t) =>
+            red.some((r) => sameTarget(r, t))
+        );
+        // Nothing parsed at the culprit: it is the first red of the set, so
+        // it takes the whole set rather than loop on tests it cannot place.
+        const mine = explained.length > 0 ? explained : remaining;
+        out.push({ result, tests: mine, subject: subjectOf(at) });
+        remaining = remaining.filter((t) => !mine.includes(t));
+        range = range.slice(range.indexOf(at) + 1);
+        if (range.length === 0 && remaining.length > 0) {
+            out.push({
+                result: {
+                    culprit: null,
+                    probes: [],
+                    reason: "no commit left after the culprit",
+                },
+                tests: remaining,
+            });
+            break;
+        }
+    }
+    return out;
+}
+
 /** The PR a squash-merged commit's subject names (`… (#1234)`), or null. */
 export function prOfSubject(subject: string): number | null {
     const m = /\(#(\d+)\)\s*$/.exec(subject);
@@ -392,13 +531,22 @@ export function culpritLine(input: {
     good: string | null;
     commits: number;
     subject?: string;
+    /** How many failing tests this culprit explains, of how many in all;
+     *  said only when it is not all of them (issue #7339). */
+    explains?: { tests: number; of: number };
 }): string {
     const { result } = input;
+    const part =
+        input.explains && input.explains.tests < input.explains.of
+            ? ` · explains ${input.explains.tests} of ${input.explains.of} failing test(s)`
+            : input.explains && result.culprit === null
+              ? ` for ${input.explains.tests} failing test(s)`
+              : "";
     if (result.culprit === null)
-        return `- **culprit:** not named — ${result.reason ?? "no bisect"}`;
+        return `- **culprit:** not named${part} — ${result.reason ?? "no bisect"}`;
     const pr = input.subject ? prOfSubject(input.subject) : null;
     const who = pr !== null ? `PR #${pr}` : "a direct commit";
-    return `- **culprit:** ${who} · \`${result.culprit.slice(0, 12)}\` — bisected from GREEN \`${(input.good ?? "?").slice(0, 12)}\` over ${input.commits} commit(s), ${result.probes.length} probe(s)`;
+    return `- **culprit:** ${who} · \`${result.culprit.slice(0, 12)}\` — bisected from GREEN \`${(input.good ?? "?").slice(0, 12)}\` over ${input.commits} commit(s), ${result.probes.length} probe(s)${part}`;
 }
 
 /** `bun run test`'s chain, in order (`lib/health-retry.ts`). */

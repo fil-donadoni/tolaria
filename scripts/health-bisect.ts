@@ -26,7 +26,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { BASE_BRANCH } from "./lib/branches";
 import {
-    bisectFirstRed,
+    bisectCulprits,
     culpritLine,
     flakyIssueBody,
     flakyIssueTitle,
@@ -44,7 +44,13 @@ import {
     type FreshRun,
     type ProbeOutcome,
 } from "./lib/health-bisect";
-import { evidenceFiles, withEvidenceLine } from "./lib/health-evidence";
+import {
+    evidenceFiles,
+    evidenceTargets,
+    failingTests,
+    withEvidenceLine,
+    type ProbeTarget,
+} from "./lib/health-evidence";
 import {
     healthGateEnv,
     healthStepArgs,
@@ -63,6 +69,10 @@ import {
 } from "./lib/health-verdict-store";
 import { clearDeferredRed, readDeferredRed } from "./lib/health-verdict-job";
 import { primaryCheckout } from "./lib/primary-checkout";
+
+/** A blade spec: it exists at every commit that has the suite, and is run by
+ *  entry label, so a shard file's own presence says nothing. */
+const BLADE_FILE = /^convex\/gre\/ai\/blade\/__tests__\/.+\.spec\.ts$/;
 
 type Plan = Exclude<FreshRun, { kind: "none" }>;
 
@@ -139,6 +149,17 @@ function run(
     args: string[],
     env: Record<string, string>
 ): number | null {
+    return runOut(ctx, cwd, cmd, args, env).status;
+}
+
+/** `run`, with the command's output beside its exit code. */
+function runOut(
+    ctx: Ctx,
+    cwd: string,
+    cmd: string,
+    args: string[],
+    env: Record<string, string>
+): { status: number | null; output: string } {
     appendFileSync(ctx.log, `$ ${cmd} ${args.join(" ")}\n`);
     const r = spawnSync(cmd, args, {
         cwd,
@@ -150,21 +171,47 @@ function run(
         ctx.log,
         `${r.stdout ?? ""}${r.stderr ?? ""}\nexit ${r.status}\n`
     );
-    return r.status;
+    return {
+        status: r.status,
+        output: `${r.stdout ?? ""}${r.stderr ?? ""}`,
+    };
 }
 
-/** The failing files at one commit: `green` when every one passes, or when
- *  the commit does not have any of them yet. */
+/** The failing tests at one commit: `green` when every one passes, or when
+ *  the commit does not have any of them yet. A test is selected by name, so
+ *  a blade entry is found in whichever shard file this commit puts it. */
 function probeTests(
     ctx: Ctx,
     wt: string,
-    files: readonly string[]
+    targets: readonly ProbeTarget[]
 ): ProbeOutcome {
-    const present = files.filter((f) => existsSync(join(wt, f)));
+    const present = targets.filter(
+        (t) => BLADE_FILE.test(t.file) || existsSync(join(wt, t.file))
+    );
     if (present.length === 0) return "green";
     for (const c of vitestCommands(present))
         if (run(ctx, wt, "bunx", c.args, c.env) !== 0) return "red";
     return "green";
+}
+
+/** Which of `targets` fail at one commit, read from the FAIL lines of a run
+ *  of them all. A run that failed with no FAIL line to place blames every
+ *  target. */
+function failingAt(
+    ctx: Ctx,
+    wt: string,
+    targets: readonly ProbeTarget[]
+): ProbeTarget[] {
+    const red: ProbeTarget[] = [];
+    let unplaced = false;
+    for (const c of vitestCommands(targets)) {
+        const { status, output } = runOut(ctx, wt, "bunx", c.args, c.env);
+        if (status === 0) continue;
+        const fails = failingTests(output);
+        if (fails.length === 0) unplaced = true;
+        red.push(...fails);
+    }
+    return unplaced ? [...targets] : red;
 }
 
 /** The fresh run's outcome; `elsewhere` names the gate the RED's run never
@@ -182,7 +229,11 @@ function freshRun(ctx: Ctx, plan: Plan): Fresh {
     const outcome = inWorktree(ctx, ctx.sha, (wt) => {
         const first =
             plan.kind === "tests"
-                ? probeTests(ctx, wt, plan.files)
+                ? probeTests(
+                      ctx,
+                      wt,
+                      plan.files.map((file) => ({ file }))
+                  )
                 : run(ctx, wt, "bun", healthStepArgs(plan.step), {}) === 0
                   ? "green"
                   : "red";
@@ -318,8 +369,13 @@ function fileFlake(ctx: Ctx, plan: Plan, evidence: string | undefined): void {
     }
 }
 
-/** The bisect over the base's first-parent commits after the last GREEN. */
-function bisect(ctx: Ctx, files: readonly string[], goodArg?: string): string {
+/** The bisect over the base's first-parent commits after the last GREEN:
+ *  one evidence line per culprit (issue #7339). */
+function bisect(
+    ctx: Ctx,
+    targets: readonly ProbeTarget[],
+    goodArg?: string
+): string[] {
     const store = verdictStore(ctx.root);
     let good = goodArg ?? null;
     if (good === null) {
@@ -340,7 +396,9 @@ function bisect(ctx: Ctx, files: readonly string[], goodArg?: string): string {
         });
     }
     if (good === null)
-        return `- **culprit:** not named — no GREEN in the ${HISTORY_DEPTH} commits before \`${ctx.sha.slice(0, 12)}\``;
+        return [
+            `- **culprit:** not named — no GREEN in the ${HISTORY_DEPTH} commits before \`${ctx.sha.slice(0, 12)}\``,
+        ];
     const commits = git(ctx.root, [
         "rev-list",
         "--first-parent",
@@ -351,23 +409,37 @@ function bisect(ctx: Ctx, files: readonly string[], goodArg?: string): string {
         .filter(Boolean);
     note(
         ctx,
-        `bisecting ${commits.length} commit(s) from GREEN ${good.slice(0, 8)} on ${files.length} file(s)`
+        `bisecting ${commits.length} commit(s) from GREEN ${good.slice(0, 8)} on ${targets.length} failing test(s)`
     );
-    const result = bisectFirstRed(commits, (sha) => {
-        const outcome = inWorktree(ctx, sha, (wt) =>
-            probeTests(ctx, wt, files)
-        );
-        note(ctx, `probe ${sha.slice(0, 8)}: ${outcome}`);
-        return outcome;
-    });
-    const subject = result.culprit
-        ? git(ctx.root, ["log", "-1", "--format=%s", result.culprit])
-        : undefined;
-    return culpritLine({ result, good, commits: commits.length, subject });
+    const culprits = bisectCulprits(
+        commits,
+        targets,
+        (sha, ts) => {
+            const outcome = inWorktree(ctx, sha, (wt) =>
+                probeTests(ctx, wt, ts)
+            );
+            note(ctx, `probe ${sha.slice(0, 8)}: ${outcome}`);
+            return outcome;
+        },
+        (sha, ts) => {
+            const red = inWorktree(ctx, sha, (wt) => failingAt(ctx, wt, ts));
+            return red === "infra" ? [...ts] : red;
+        },
+        (sha) => git(ctx.root, ["log", "-1", "--format=%s", sha])
+    );
+    return culprits.map((c) =>
+        culpritLine({
+            result: c.result,
+            good,
+            commits: commits.length,
+            subject: c.subject,
+            explains: { tests: c.tests.length, of: targets.length },
+        })
+    );
 }
 
 /** Adds `line` to the RED's published evidence. Never fatal. */
-function publishCulprit(ctx: Ctx, line: string): void {
+function publishCulprit(ctx: Ctx, lines: readonly string[] | string): void {
     if (ctx.dryRun) return;
     try {
         const ev = evidenceStore(ctx.root);
@@ -376,10 +448,8 @@ function publishCulprit(ctx: Ctx, line: string): void {
             note(ctx, "no published evidence to carry the culprit");
             return;
         }
-        note(
-            ctx,
-            `evidence updated — ${ev.publish(ctx.sha, withEvidenceLine(body, line))}`
-        );
+        const next = [lines].flat().reduce(withEvidenceLine, body);
+        note(ctx, `evidence updated — ${ev.publish(ctx.sha, next)}`);
     } catch (e) {
         note(
             ctx,
@@ -495,22 +565,31 @@ function ladder(ctx: Ctx): number {
         );
     // Reproduced: the RED is written before the bisect, which can take long.
     settle(1);
-    let line: string;
+    let lines: string[];
     if (elsewhere !== undefined) {
         note(
             ctx,
             `the failing part passed, ${elsewhere} failed — the RED stands`
         );
-        line = `${LADDER_MARK}not bisected — the fresh run passed the failing part, but \`${elsewhere}\` (never reached by the RED's run) failed`;
+        lines = [
+            `${LADDER_MARK}not bisected — the fresh run passed the failing part, but \`${elsewhere}\` (never reached by the RED's run) failed`,
+        ];
     } else {
         note(ctx, "reproduced — the RED stands");
-        line =
+        lines =
             plan.kind === "tests"
-                ? bisect(ctx, plan.files)
-                : `${LADDER_MARK}not bisected — a failed \`${plan.step}\` names no test file`;
+                ? bisect(
+                      ctx,
+                      (evidence ? evidenceTargets(evidence) : []).length > 0
+                          ? evidenceTargets(evidence ?? "")
+                          : plan.files.map((file) => ({ file }))
+                  )
+                : [
+                      `${LADDER_MARK}not bisected — a failed \`${plan.step}\` names no test file`,
+                  ];
     }
-    note(ctx, line);
-    publishCulprit(ctx, line);
+    for (const line of lines) note(ctx, line);
+    publishCulprit(ctx, lines);
     return 1;
 }
 
@@ -579,18 +658,19 @@ function main(): number {
     };
     sweepStaleWorktrees(root);
     if (cmd === "ladder") return ladder(ctx);
-    const files =
-        arg("--files")?.split(",").filter(Boolean) ??
-        evidenceFiles(readEvidence(root, sha) ?? "");
-    if (files.length === 0) {
+    const given = arg("--files")?.split(",").filter(Boolean);
+    const targets = given
+        ? given.map((file) => ({ file }))
+        : evidenceTargets(readEvidence(root, sha) ?? "");
+    if (targets.length === 0) {
         console.error(
             "health-bisect: no failing files (--files, or the RED's evidence)"
         );
         return 2;
     }
-    const line = bisect(ctx, files, arg("--good"));
-    note(ctx, line);
-    publishCulprit(ctx, line);
+    const lines = bisect(ctx, targets, arg("--good"));
+    for (const line of lines) note(ctx, line);
+    publishCulprit(ctx, lines);
     return 0;
 }
 

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
     baseStepName,
+    bisectCulprits,
     bisectFirstRed,
     bisectWorktreePid,
     LADDER_MARK,
@@ -20,6 +21,7 @@ import {
     notReproduced,
     prOfSubject,
     runnerClass,
+    sameTarget,
     settleFreshPass,
     settleHeldRed,
     vitestCommands,
@@ -30,6 +32,9 @@ import {
     buildEvidence,
     evidenceFiles,
     evidenceSummary,
+    evidenceTargets,
+    failingTests,
+    type ProbeTarget,
     withEvidenceLine,
 } from "../lib/health-evidence";
 import { HEALTH_SCRIPTS, splitHealthGates } from "../lib/health-step";
@@ -112,12 +117,55 @@ describe("freshRunPlan — what a RED re-runs", () => {
     });
 });
 
-describe("vitestCommands — the blade's specs under their own config", () => {
-    it("splits the blade's specs from the default projects", () => {
+const BLADE_0 = "convex/gre/ai/blade/__tests__/blade.shard-0.spec.ts";
+const BLADE_1 = "convex/gre/ai/blade/__tests__/blade.shard-1.spec.ts";
+const LABEL =
+    "land-type change: Reef Shaman makes a Mountain for the Lightning Bolt in hand";
+const bladeLine = (file: string, shard: number) =>
+    ` FAIL  ${file} > blade suite — must tier — shard ${shard}/4 > ${LABEL}`;
+
+describe("failingTests — the file and the full test name of a FAIL line (issue #7339)", () => {
+    it("reads a blade shard line", () => {
+        expect(failingTests(bladeLine(BLADE_1, 2))).toEqual([
+            {
+                file: BLADE_1,
+                test: `blade suite — must tier — shard 2/4 > ${LABEL}`,
+            },
+        ]);
+    });
+    it("reads a project-tagged line, and a line with no name", () => {
+        expect(
+            failingTests(
+                [
+                    " FAIL  |node-tooling| scripts/__tests__/x.test.ts > a > b c",
+                    " FAIL  scripts/__tests__/y.test.ts",
+                ].join("\n")
+            )
+        ).toEqual([
+            { file: "scripts/__tests__/x.test.ts", test: "a > b c" },
+            { file: "scripts/__tests__/y.test.ts" },
+        ]);
+    });
+    it("evidenceTargets: named tests, and a file whose excerpt was cut", () => {
+        const body = [
+            "- **files:** `a.test.ts`, `b.test.ts`",
+            "",
+            "### Failures",
+            " FAIL  a.test.ts > one",
+        ].join("\n");
+        expect(evidenceTargets(body)).toEqual([
+            { file: "a.test.ts", test: "one" },
+            { file: "b.test.ts" },
+        ]);
+    });
+});
+
+describe("vitestCommands — by test, the blade's specs under their own config", () => {
+    it("runs a whole file when the RED named no test in it", () => {
         expect(
             vitestCommands([
-                "scripts/__tests__/x.test.ts",
-                "convex/gre/ai/blade/__tests__/must.spec.ts",
+                { file: "scripts/__tests__/x.test.ts" },
+                { file: BLADE_0 },
             ])
         ).toEqual([
             { args: ["vitest", "run", "scripts/__tests__/x.test.ts"], env: {} },
@@ -127,11 +175,172 @@ describe("vitestCommands — the blade's specs under their own config", () => {
                     "run",
                     "--config",
                     "vitest.blade.config.ts",
-                    "convex/gre/ai/blade/__tests__/must.spec.ts",
+                    BLADE_0,
                 ],
                 env: { BLADE_TIER: "must" },
             },
         ]);
+    });
+    it("selects a blade entry by label and pins no shard file", () => {
+        const [cmd, ...more] = vitestCommands([
+            {
+                file: BLADE_0,
+                test: `blade suite — must tier — shard 1/4 > ${LABEL}`,
+            },
+        ]);
+        expect(more).toEqual([]);
+        expect(cmd.env).toEqual({ BLADE_TIER: "must" });
+        expect(cmd.args.some((a) => a.endsWith(".spec.ts"))).toBe(false);
+        expect(cmd.args).toContain("--passWithNoTests");
+        const pattern = cmd.args[cmd.args.indexOf("-t") + 1];
+        const re = new RegExp(pattern);
+        expect(re.test(`blade suite — must tier — shard 2/4 ${LABEL}`)).toBe(
+            true
+        );
+        expect(re.test(`blade suite — must tier — shard 2/4 x ${LABEL}y`)).toBe(
+            false
+        );
+    });
+    it("selects a plain test by file and name", () => {
+        const [cmd] = vitestCommands([
+            { file: "a.test.ts", test: "suite > it (x)" },
+        ]);
+        expect(cmd.args.slice(0, 4)).toEqual([
+            "vitest",
+            "run",
+            "--passWithNoTests",
+            "a.test.ts",
+        ]);
+        expect(new RegExp(cmd.args[5]).test("suite it (x)")).toBe(true);
+    });
+});
+
+/** A fake history: where the failing entry sits at each commit, and whether
+ *  its code is broken. A command "runs" the entry when its file filter (if
+ *  any) and its `-t` pattern select it. */
+function fakeRun(
+    layout: { shard: number; broken: boolean } | null,
+    cmd: { args: string[] }
+): "red" | "green" {
+    if (layout === null) return "green";
+    const file = cmd.args.find((a) => a.endsWith(".spec.ts"));
+    if (file !== undefined && !file.endsWith(`shard-${layout.shard}.spec.ts`))
+        return "green";
+    const t = cmd.args.indexOf("-t");
+    const name = `blade suite — must tier — shard ${layout.shard + 1}/4 ${LABEL}`;
+    if (t !== -1 && !new RegExp(cmd.args[t + 1]).test(name)) return "green";
+    return layout.broken ? "red" : "green";
+}
+
+describe("bisectCulprits — the commit that broke it, not the one that moved it (issue #7339)", () => {
+    // c1 green in shard 0; c2 moves the entry to shard 1 (still green);
+    // c3 breaks it; c4 moves it back to shard 0 (still red).
+    const history: Record<string, { shard: number; broken: boolean } | null> = {
+        c1: { shard: 0, broken: false },
+        c2: { shard: 1, broken: false },
+        c3: { shard: 1, broken: true },
+        c4: { shard: 0, broken: true },
+    };
+    const target: ProbeTarget = {
+        file: BLADE_0,
+        test: `blade suite — must tier — shard 1/4 > ${LABEL}`,
+    };
+    const probeBy =
+        (targets: (t: ProbeTarget) => ProbeTarget[]) =>
+        (sha: string, ts: readonly ProbeTarget[]): ProbeOutcome =>
+            ts
+                .flatMap(targets)
+                .every((t) =>
+                    vitestCommands([t]).every(
+                        (c) => fakeRun(history[sha], c) === "green"
+                    )
+                )
+                ? "green"
+                : "red";
+    const failingAt = (sha: string, ts: readonly ProbeTarget[]) =>
+        ts.filter((t) =>
+            vitestCommands([t]).some((c) => fakeRun(history[sha], c) === "red")
+        );
+    it("names the breaking commit", () => {
+        const [c] = bisectCulprits(
+            ["c1", "c2", "c3", "c4"],
+            [target],
+            probeBy((t) => [t]),
+            failingAt
+        );
+        expect(c.result.culprit).toBe("c3");
+    });
+    it("pinning the RED's shard file blames the move (the old probe)", () => {
+        const pinned = (sha: string): ProbeOutcome =>
+            fakeRun(history[sha], {
+                args: ["vitest", "run", "--config", "x", BLADE_0],
+            });
+        expect(bisectFirstRed(["c1", "c2", "c3", "c4"], pinned).culprit).toBe(
+            "c4"
+        );
+    });
+});
+
+describe("bisectCulprits — two failures, two commits (issue #7339)", () => {
+    const A: ProbeTarget = { file: "a.test.ts", test: "a" };
+    const B: ProbeTarget = { file: "b.test.ts", test: "b" };
+    // a breaks at c2, b at c4.
+    const red = (sha: string, t: ProbeTarget) =>
+        (t === A && ["c2", "c3", "c4", "c5"].includes(sha)) ||
+        (t === B && ["c4", "c5"].includes(sha));
+    const probe = (sha: string, ts: readonly ProbeTarget[]): ProbeOutcome =>
+        ts.some((t) => red(sha, t)) ? "red" : "green";
+    const failingAt = (sha: string, ts: readonly ProbeTarget[]) =>
+        ts.filter((t) => red(sha, t));
+    it("reports both culprits, each with its tests", () => {
+        const cs = bisectCulprits(
+            ["c1", "c2", "c3", "c4", "c5"],
+            [A, B],
+            probe,
+            failingAt
+        );
+        expect(cs.map((c) => c.result.culprit)).toEqual(["c2", "c4"]);
+        expect(cs.map((c) => c.tests)).toEqual([[A], [B]]);
+    });
+    it("says what a culprit leaves unexplained", () => {
+        const [first] = bisectCulprits(
+            ["c1", "c2", "c3", "c4", "c5"],
+            [A, B],
+            probe,
+            failingAt
+        );
+        expect(
+            culpritLine({
+                result: first.result,
+                good: "g",
+                commits: 5,
+                explains: { tests: 1, of: 2 },
+            })
+        ).toContain("explains 1 of 2 failing test(s)");
+    });
+    it("one culprit for a set it explains whole", () => {
+        const cs = bisectCulprits(["c1", "c2", "c3"], [A], probe, failingAt);
+        expect(cs).toHaveLength(1);
+    });
+    it("sameTarget: a blade entry is its label, whatever the shard", () => {
+        expect(
+            sameTarget(
+                {
+                    file: BLADE_0,
+                    test: `blade suite — must tier — shard 1/4 > ${LABEL}`,
+                },
+                {
+                    file: BLADE_1,
+                    test: `blade suite — must tier — shard 2/4 > ${LABEL}`,
+                }
+            )
+        ).toBe(true);
+        expect(
+            sameTarget(
+                { file: "a.test.ts", test: "x" },
+                { file: "b.test.ts", test: "x" }
+            )
+        ).toBe(false);
     });
 });
 
