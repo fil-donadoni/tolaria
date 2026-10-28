@@ -17,7 +17,7 @@
  *     that passes on `lane` is environment-dependent: the RED stands, its
  *     evidence names both machines.
  *  3. **Reproduced** → bisect the base's first-parent commits after the last
- *     GREEN: the failing TESTS at each probe, by name (issue #7339 — a blade
+ *     GREEN: the failing TESTS at each probe, by name (a blade
  *     entry by its label over every shard file, since its shard moves with
  *     the registry's index); a commit that does not have a file or an entry
  *     yet is green for it (a test the culprit added is green before it). The
