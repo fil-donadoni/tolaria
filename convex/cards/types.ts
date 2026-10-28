@@ -3079,10 +3079,10 @@ export type CardImageFace = "front" | "back";
  *  def-derived reader (layers, combat, activated-ability discovery) sees the
  *  new face automatically once the instance's `card.card.id` is swapped.
  *  Transform is always PUBLIC information (CR 712.6) — no per-viewer
- *  hiding, unlike `faceDown`. Scoped to what CR 712 needs for a permanent
- *  ALREADY on the battlefield to transform in place; a full two-sided-card
- *  CASTING model (choosing a face to cast, a distinct mana cost per face,
- *  CR 711) is out of scope. */
+ *  hiding, unlike `faceDown`. A NONMODAL face is reached only by transform
+ *  on the battlefield; a MODAL face is also CAST (CR 712.11b, issue #7200 —
+ *  `gre/modalBackCast.ts`), which is what its `manaCost` / `effects` /
+ *  `targetRequirement` below carry. */
 export interface CardBackFace {
     /** CR 712.1 — WHICH KIND of double-faced card this face belongs to, and
      *  therefore which DOOR turns it up. Absent means `"nonmodal"`, which is
@@ -3102,6 +3102,20 @@ export interface CardBackFace {
     kind?: CardBackFaceKind;
     /** Display name of the back face. */
     name: string;
+    /** CR 712.11b / 712.8f — the back face's OWN mana cost, paid when the
+     *  face is cast and read for its mana value while it is up on the stack or
+     *  the battlefield. MODAL faces only: a nonmodal back face's mana value
+     *  is calculated from its front face's mana cost (CR 712.8e), and its
+     *  token codec would drop one. Absent on a land back face, which is
+     *  played, never cast. */
+    manaCost?: ManaCost;
+    /** CR 712.11b — the Effect Script (ADR 0045) a modal INSTANT or SORCERY
+     *  back face runs when it resolves. MODAL faces only, for the same codec
+     *  reason as `manaCost`. */
+    effects?: EffectOp[];
+    /** CR 601.2c — the target a modal back face's spell announces when it is
+     *  cast. MODAL faces only. */
+    targetRequirement?: TargetRequirement;
     /** Card types the back face presents (CR 712.2). */
     types: CardType[];
     /** Optional creature subtypes of the back face. */
@@ -21092,11 +21106,9 @@ export interface CardDefinition {
      *  turns up to its OWN characteristics): transform swaps between two
      *  DISTINCT, always-PUBLIC (CR 712.6) printed characteristic sets, so
      *  there is no per-viewer hiding at the projection boundary (unlike
-     *  `faceDown`). Scoped to what CR 712 needs for a permanent ALREADY on
-     *  the battlefield to transform in place (ADR 0067) — a full two-sided
-     *  CASTING model (choosing a face to cast, a distinct mana cost per
-     *  face, CR 711) is out of scope; only `TokenSpec.backFace`
-     *  (double-faced tokens, e.g. the Incubator) is wired end-to-end today. */
+     *  `faceDown`). A nonmodal face transforms in place (ADR 0067); a
+     *  `kind: "modal"` face is also played (CR 712.12) or CAST (CR 712.11b,
+     *  issue #7200) as the chosen face. */
     backFace?: CardBackFace;
     /** CR 715.2 / 722.2 — the INSET SPELL printed in the smaller frame inside
      *  this card's text box: an Adventure (CR 715) or a prepare spell

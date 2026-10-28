@@ -45,6 +45,8 @@ import type { CardDefinition } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
 import { WARP_PROBE_ID } from "./fixtures/warpProbe.fixture";
+import { modalBackCastAltCostId } from "../modalBackCast";
+import { MODAL_CREATURE_BACK_PROBE_ID } from "./fixtures/modalBackProbe.fixture";
 
 const FOREST = getCardByName("Forest").id;
 const PLAINS = getCardByName("Plains").id;
@@ -73,6 +75,10 @@ function modeMarkersOf(card: CardInstanceState) {
         // CR 709.3b — the split half's mark is likewise the retained PARENT
         // id (`splitHalfOf`), never a boolean beside it.
         splitHalf: card.splitHalfOf !== undefined,
+        // CR 712.8f — a modal back face's mark is the transform marker the
+        // land play writes too (`stampModalBackFace`); the face itself is the
+        // card id below.
+        modalBack: card.transformed === true,
         cardId: (card.card as { id?: string }).id,
         types: [...(card.types ?? [])].sort(),
         subtypes: [...(card.subtypes ?? [])].sort(),
@@ -319,6 +325,26 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
             expect(m.toughness).toBeUndefined();
         },
     },
+    // CR 712.11b / 712.8f (issue #7200) — the BACK face of a modal
+    // double-faced card. A permanent back face: the greedy sandbox resolves it
+    // onto the battlefield, where it STAYS back face up, so the two executors
+    // are compared for equality like every other permanent mode. The front is
+    // a {W} 1/1 and three Forests buy only the {2}{G} 4/4, so the move found
+    // is the back face's or nothing.
+    "modal-back": {
+        cardId: MODAL_CREATURE_BACK_PROBE_ID,
+        land: FOREST,
+        landCount: 3,
+        enumerated: true,
+        assertStamped: (m) => {
+            expect(m.modalBack).toBe(true);
+            expect(m.cardId).toBe(`${MODAL_CREATURE_BACK_PROBE_ID}#back`);
+            expect(m.types).toEqual(["Creature"]);
+            expect(m.subtypes).toEqual(["Beast"]);
+            expect(m.power).toBe(4);
+            expect(m.toughness).toBe(4);
+        },
+    },
 };
 
 /** The definition a fixture names, by whichever of the two handles it carries. */
@@ -396,6 +422,9 @@ function altCostIdFor(def: CardDefinition, mode: CastMode): string {
             return splitCastAltCostId(def, "left");
         case "split-right":
             return splitCastAltCostId(def, "right");
+        // CR 712.11b — synthesized per card, like the split half's.
+        case "modal-back":
+            return modalBackCastAltCostId(def);
     }
 }
 

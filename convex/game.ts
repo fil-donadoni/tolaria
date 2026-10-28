@@ -485,6 +485,7 @@ import {
 } from "./gre/adventure";
 import { castSubjectDefinition, castSubjectView } from "./gre/castMode";
 import { isSplitCastId, offersPrintedCast } from "./gre/splitCast";
+import { isModalBackCastId } from "./gre/modalBackCast";
 import {
     applyPlayLandFromAnyZone,
     resolvePlayLandSourceZone,
@@ -5362,6 +5363,9 @@ export function finalizeTargetSelection(
     // Like the Adventure above this is not a marker for a later trigger: the
     // object put on the stack becomes that half (`castAsSplitHalf` below).
     const splitCastSide = isSplitCastId(cardDef, chosenAltCost?.id);
+    // CR 712.11b (issue #7200) — the BACK face of a modal double-faced card
+    // was announced; the stack item becomes that face (`castAsModalBack`).
+    const isModalBackCast = isModalBackCastId(cardDef, chosenAltCost?.id);
     // CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the ANNOUNCEMENT-time
     // timing snapshot, taken in `announceCast` and ridden here on
     // `pendingTarget` (target selection is a separate mutation, so the board
@@ -5742,6 +5746,8 @@ export function finalizeTargetSelection(
             ...(isAdventureCast ? { castAsAdventure: true } : {}),
             // CR 709.3b — the same, for a parked SPLIT-half cast.
             ...(splitCastSide ? { castAsSplitHalf: splitCastSide } : {}),
+            // CR 712.11b — the same, for a parked modal back-face cast.
+            ...(isModalBackCast ? { castAsModalBack: true } : {}),
             // CR 601.2 (issue #2473) — carry the announcement-time timing
             // snapshot one more hop, to the deferred commit.
             ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
@@ -5831,6 +5837,7 @@ export function finalizeTargetSelection(
                 bestowed: isBestowCost,
                 castAsAdventure: isAdventureCast,
                 castAsSplitHalf: splitCastSide,
+                castAsModalBack: isModalBackCast,
             },
             placement: { kind: "announce", keepPriority },
         });
@@ -5890,6 +5897,8 @@ export function finalizeTargetSelection(
             // CR 709.3b — the same, for a targeted split half whose mana is
             // not covered yet (Deliver's {2}{U} tapped one land at a time).
             ...(splitCastSide ? { castAsSplitHalf: splitCastSide } : {}),
+            // CR 712.11b — the same, for a parked modal back-face cast.
+            ...(isModalBackCast ? { castAsModalBack: true } : {}),
             // CR 601.2 (issue #2473) — the announcement-time timing snapshot
             // rides through the payment park exactly like `dashed` above; it
             // must NOT be re-derived once `tapForPayment` has run (CR 605.4a).
@@ -6444,6 +6453,23 @@ export const announceCast = mutation({
         // Read off the ID rather than the resolved cost, because it is the id
         // that the client, the Bot's `Move` and this mutation all carry.
         const splitCastSide = isSplitCastId(cardDef, args.alternativeCostId);
+        // CR 712.11b (issue #7200) — the BACK face of a modal double-faced
+        // card was announced; same channel, same reason as the split half.
+        const isModalBackCast = isModalBackCastId(
+            cardDef,
+            args.alternativeCostId
+        );
+        // CR 712.11b — offered from the HAND only (`modalBackCastOptionsFor`).
+        // A cast from another zone is licensed by a permission or by an
+        // ability of the FRONT face, and CR 712.11c evaluates only the back
+        // face — which per-zone licences may carry the choice is unbuilt
+        // (issue #7398), so this fails closed rather than letting a front
+        // face's own flashback cast its back.
+        if (isModalBackCast && castFromZone !== "hand") {
+            throw new Error(
+                "A modal double-faced card's back face can only be cast from hand (issue #7398)"
+            );
+        }
         // CR 709.3 — "a player chooses which half of a split card they are
         // casting BEFORE putting it onto the stack", so a split card has NO
         // printed cast: there is no object with its combined characteristics
@@ -7485,6 +7511,8 @@ export const announceCast = mutation({
                     ...(splitCastSide
                         ? { castAsSplitHalf: splitCastSide }
                         : {}),
+                    // CR 712.11b — the same, for a modal back face.
+                    ...(isModalBackCast ? { castAsModalBack: true } : {}),
                     // CR 601.2 (issue #2473) — the announcement-time timing
                     // snapshot rides to the deferred commit.
                     ...(castOffSorceryTiming
@@ -7541,6 +7569,7 @@ export const announceCast = mutation({
                     morphed: isMorphCost,
                     castAsAdventure: isAdventureCast,
                     castAsSplitHalf: splitCastSide,
+                    castAsModalBack: isModalBackCast,
                 },
                 placement: {
                     kind: "announce",

@@ -118,6 +118,7 @@ import { isFaceDownExile, turnFaceDown, turnFaceUp } from "./faceDown";
 import { revertAdventureIdentity, wasCastAsAdventure } from "./adventure";
 import { commitCast } from "./castCommit";
 import { revertSplitIdentity } from "./splitCast";
+import { revertModalBackCastIdentity } from "./modalBackCast";
 import {
     isModalDoubleFaced,
     modalFrontFaceIsPermanentCard,
@@ -3577,6 +3578,10 @@ export function resetStackTransientState(item: StackItem): void {
     // stack, the characteristics of a split card are those of its two halves
     // combined." A no-op on every item not cast as a split half.
     revertSplitIdentity(item);
+    // CR 712.8a (issue #7200) — the same rule for a modal BACK face: outside
+    // the battlefield and the stack it "has only the characteristics of its
+    // front face". A no-op on every item not cast as a back face.
+    revertModalBackCastIdentity(item);
     delete item.abilityId;
     delete item.grantedSourceCardId;
     // Issue #2943 — same group-(2) membership as the line above: the origin is
@@ -3671,6 +3676,10 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     // stack, the characteristics of a split card are those of its two halves
     // combined." A no-op on every item not cast as a split half.
     revertSplitIdentity(item);
+    // CR 712.8a (issue #7200) — the same rule for a modal BACK face: outside
+    // the battlefield and the stack it "has only the characteristics of its
+    // front face". A no-op on every item not cast as a back face.
+    revertModalBackCastIdentity(item);
     const { destination, tagCounters } = graveyardDestinationFor(
         state,
         item.id,

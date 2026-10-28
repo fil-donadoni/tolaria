@@ -209,9 +209,11 @@ export function stampBackFaceForEntry(
     return true;
 }
 
-/** CR 712.12 / 712.8f — stamps the MODAL back-face identity onto a card that
- *  is about to enter the battlefield as that face, because its controller
- *  chose it as the land they are playing (ADR 0122 §2).
+/** CR 712.12 / 712.11b / 712.8f — stamps the MODAL back-face identity onto a
+ *  card that is about to enter the battlefield as that face, because its
+ *  controller chose it as the land they are playing (ADR 0122 §2), or onto
+ *  the stack item of a spell CAST as that face (issue #7200,
+ *  `gre/modalBackCast.ts`).
  *
  *  The sibling of {@link stampBackFaceForEntry} above and deliberately a
  *  separate function, because the two reach DIFFERENT definitions by different
@@ -230,13 +232,14 @@ export function stampBackFaceForEntry(
  *  is … in a zone other than the battlefield or stack, it has only the
  *  characteristics of its front face").
  *
- *  `card` must NOT yet be on the battlefield: every caller
+ *  `card` must NOT yet be on the battlefield: the land play
  *  (`gre/playLand.ts`) stamps between the CR 712.12 face choice and the zone
- *  move, inside one synchronous transition, so nothing ever observes a card in
- *  hand wearing its back face. Returns false, leaving `card` untouched, when
+ *  move, and the cast stamps the freshly-built stack item, each inside one
+ *  synchronous transition, so nothing ever observes a card in hand wearing its
+ *  back face. Returns false, leaving `card` untouched, when
  *  the twin does not resolve — the caller then plays the front face, which is
  *  the only other thing it could legally be. */
-export function stampModalBackFaceForPlay(
+export function stampModalBackFace(
     state: LayerStateView,
     card: CardInstanceState
 ): boolean {
