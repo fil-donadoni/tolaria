@@ -90,6 +90,10 @@ export interface LoweredStatic {
         readonly id: string;
         readonly text: string;
         readonly ability: QuotedAbilityIR;
+        /** The name the granted ability's prompts use for its source, where
+         *  that is not the granting card: a set-wide grant's source is each
+         *  recipient ("this artifact"), never the card that grants. */
+        readonly selfName?: string;
     }[];
     /** CR 702.16n — "This effect doesn't remove this Aura." */
     readonly exemptFromProtectionDetach?: true;
@@ -355,6 +359,29 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        case "triggered-grant": {
+            const id = nextId("granted");
+            return {
+                ok: true,
+                lowered: {
+                    quotedAbilities: [
+                        {
+                            id,
+                            text: clause.text,
+                            ability: clause.ability,
+                            selfName: `this ${(clause.filter.types?.[0] ?? "permanent").toLowerCase()}`,
+                        },
+                    ],
+                    effects: [
+                        {
+                            kind: "triggered-grant",
+                            filter: clause.filter,
+                            abilityId: id,
+                        },
+                    ],
+                },
+            };
+        }
         case "full-text-effect":
             return {
                 ok: true,

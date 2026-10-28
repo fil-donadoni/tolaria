@@ -321,10 +321,7 @@ export type CompiledStaticEffect =
     | ({
           readonly kind: "triggered-grant";
           readonly abilityId: string;
-      } & (
-          | { readonly appliesTo: "host"; readonly filter?: never }
-          | CompiledKickedSelfScope
-      ))
+      } & CompiledStaticScope)
     /**
      * CR 508.1c — "Enchanted creature can't attack." / CR 509.1b — "…can't
      * block." Unconditional, so the rebuilt predicate is a constant `false`.

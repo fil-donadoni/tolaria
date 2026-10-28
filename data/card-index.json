@@ -2248,6 +2248,16 @@
         "source": "compiled"
     },
     {
+        "name": "Angelic Protector",
+        "scryfallId": "44faefbe-d5e7-48f3-ba88-833da0b19707",
+        "oracleId": "cff434e1-e567-4a80-8dc5-593d70b0f348",
+        "firstSet": "tmp",
+        "firstPrintId": "44faefbe-d5e7-48f3-ba88-833da0b19707",
+        "firstPrintSet": "tmp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Angelic Purge",
         "scryfallId": "d38bae3e-95f3-413a-bb4d-6a0814112a7a",
         "oracleId": "b262a057-9ace-48b4-b418-1bb751ccb300",
@@ -10674,6 +10684,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cephalid Aristocrat",
+        "scryfallId": "bd9ca63d-7e77-48f3-abdc-2d2f9cb3a0d9",
+        "oracleId": "7a0514d0-db8f-402d-abf1-cddda87405cf",
+        "firstSet": "tor",
+        "firstPrintId": "bd9ca63d-7e77-48f3-abdc-2d2f9cb3a0d9",
+        "firstPrintSet": "tor",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Cephalid Coliseum",
         "scryfallId": "d5d74112-7244-4c3f-a5eb-b6be671aefe8",
         "oracleId": "c733873e-77db-471f-8061-139db24f7e7c",
@@ -18010,6 +18030,16 @@
         "firstSet": "pls",
         "firstPrintId": "85206cc1-5484-40c6-b11d-b8d6fad4fc5c",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Dormant Sliver",
+        "scryfallId": "b549e959-aa43-4ccc-8c45-ea357c25fb8c",
+        "oracleId": "2bc3d5b2-076f-4e01-87be-28d7eb70a2db",
+        "firstSet": "plc",
+        "firstPrintId": "b549e959-aa43-4ccc-8c45-ea357c25fb8c",
+        "firstPrintSet": "plc",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Dosan's Oldest Chant",
@@ -26012,6 +26042,16 @@
         "source": "compiled"
     },
     {
+        "name": "Fungus Sliver",
+        "scryfallId": "c4c0486a-288d-443a-bb07-62dc1dddaed7",
+        "oracleId": "885c47cb-64fb-4c83-a9ca-4f2eecb7d3e5",
+        "firstSet": "tsp",
+        "firstPrintId": "c4c0486a-288d-443a-bb07-62dc1dddaed7",
+        "firstPrintSet": "tsp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Fungusaur",
         "scryfallId": "5ad89f0d-b09b-40a0-84d6-3ee60dec7e23",
         "oracleId": "3e771f5b-2de3-4a1b-8281-ab1f7491e5a1",
@@ -30810,6 +30850,16 @@
         "firstSet": "mir",
         "firstPrintId": "b6673d49-c3f6-41f6-84c6-1957fff71509",
         "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Harmonic Sliver",
+        "scryfallId": "f7904997-a857-44f0-91d8-b78651bb4e83",
+        "oracleId": "1c06c093-18ab-49e6-a82d-38e826d25016",
+        "firstSet": "tsp",
+        "firstPrintId": "f7904997-a857-44f0-91d8-b78651bb4e83",
+        "firstPrintSet": "tsp",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -36232,6 +36282,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Kataki, War's Wage",
+        "scryfallId": "a5c99ac4-6551-4cc2-9a70-6e66b259b2a2",
+        "oracleId": "27ffa6e9-c161-4f53-8b41-7fae5f199f41",
+        "firstSet": "sok",
+        "firstPrintId": "a5c99ac4-6551-4cc2-9a70-6e66b259b2a2",
+        "firstPrintSet": "sok",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Kathari Remnant",
         "scryfallId": "e27c56c6-fd72-4917-96d1-d7f9f8236fa2",
         "oracleId": "bbf07946-33d0-48fe-85af-022e9b0b834c",
@@ -40504,6 +40564,16 @@
         "firstSet": "tsp",
         "firstPrintId": "6060cada-52bf-4ef2-8a26-8ba04dded458",
         "firstPrintSet": "tsp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Magus of the Tabernacle",
+        "scryfallId": "dd520f8c-93fb-4cf3-8dd5-d05abbd86c74",
+        "oracleId": "8ab4d31e-7187-4ba1-97cb-1a0a11ab28bf",
+        "firstSet": "plc",
+        "firstPrintId": "dd520f8c-93fb-4cf3-8dd5-d05abbd86c74",
+        "firstPrintSet": "plc",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -48808,6 +48878,16 @@
         "source": "compiled"
     },
     {
+        "name": "Pendrell Mists",
+        "scryfallId": "b902b972-3a93-4e4e-aa77-02ada81e6b95",
+        "oracleId": "b18b8415-a0b1-459d-8c6b-896381184935",
+        "firstSet": "wth",
+        "firstPrintId": "b902b972-3a93-4e4e-aa77-02ada81e6b95",
+        "firstPrintSet": "wth",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Pendulum of Patterns",
         "scryfallId": "d19751aa-823e-4a0f-a004-dee333b34327",
         "oracleId": "992075d5-f413-4896-b75e-7bb2d589c50e",
@@ -50044,6 +50124,16 @@
         "firstSet": "lea",
         "firstPrintId": "b3724e40-0622-4aee-9334-6c9fff88bcd5",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Plague Sliver",
+        "scryfallId": "703d491e-b25f-44fa-8b76-b955a4e75ba5",
+        "oracleId": "ee10dc06-26e1-4f50-a0a6-6d039e71b75f",
+        "firstSet": "tsp",
+        "firstPrintId": "703d491e-b25f-44fa-8b76-b955a4e75ba5",
+        "firstPrintSet": "tsp",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Plague Spitter",
@@ -58941,6 +59031,16 @@
         "firstPrintId": "9213d580-7953-455f-abbe-99d3db2705cf",
         "firstPrintSet": "mrd",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Segmented Wurm",
+        "scryfallId": "18be7cfa-bf75-407d-b79f-2fec4b1aacf5",
+        "oracleId": "eb1baf72-4ef6-4967-8a22-2022c633f3d3",
+        "firstSet": "tmp",
+        "firstPrintId": "18be7cfa-bf75-407d-b79f-2fec4b1aacf5",
+        "firstPrintSet": "tmp",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -68628,6 +68728,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Task Force",
+        "scryfallId": "17a58c5b-28c2-4261-992c-2ecadb721880",
+        "oracleId": "b80415cd-5887-4146-852e-73119fcd3ec6",
+        "firstSet": "mmq",
+        "firstPrintId": "17a58c5b-28c2-4261-992c-2ecadb721880",
+        "firstPrintSet": "mmq",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Tasseled Dromedary",
         "scryfallId": "9cef3bf2-55cf-4f42-9ec0-fa921ef22311",
         "oracleId": "3121eecd-5f8a-408f-8b2d-75e13aa8a1ea",
@@ -68941,6 +69051,16 @@
         "firstPrintId": "90140bc0-4a9c-4422-b07c-3400c7ccde56",
         "firstPrintSet": "afr",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Tempered Sliver",
+        "scryfallId": "69026075-adfa-48b0-b30e-04b0a76904c3",
+        "oracleId": "536c36d9-5ef4-441c-a6c8-5806644d805c",
+        "firstSet": "mh1",
+        "firstPrintId": "69026075-adfa-48b0-b30e-04b0a76904c3",
+        "firstPrintSet": "mh1",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -69395,6 +69515,16 @@
         "firstPrintId": "a5424859-628a-4c19-acd0-0c63c21c8338",
         "firstPrintSet": "one",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Tethered Skirge",
+        "scryfallId": "0ab1d02c-5d9d-4436-af3b-fb7190c1c028",
+        "oracleId": "42bbef66-967b-4922-8b2e-e57d1b8244bb",
+        "firstSet": "ulg",
+        "firstPrintId": "0ab1d02c-5d9d-4436-af3b-fb7190c1c028",
+        "firstPrintSet": "ulg",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -70037,6 +70167,16 @@
         "firstPrintId": "eadffd6b-d707-4fc5-a600-44eb9124b195",
         "firstPrintSet": "mh1",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Thorncaster Sliver",
+        "scryfallId": "3655d837-945f-4ff5-8952-cff5f7b2d18f",
+        "oracleId": "70623348-7eda-4c68-89cd-2356b0896b79",
+        "firstSet": "m14",
+        "firstPrintId": "3655d837-945f-4ff5-8952-cff5f7b2d18f",
+        "firstPrintSet": "m14",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
