@@ -108,11 +108,11 @@ let worktrees = 0;
 
 /** `fn` in a throwaway worktree at `sha`, bootstrapped; `infra` when the
  *  worktree or its bootstrap could not be made. */
-function inWorktree(
+function inWorktree<T>(
     ctx: Ctx,
     sha: string,
-    fn: (wt: string) => ProbeOutcome
-): ProbeOutcome {
+    fn: (wt: string) => T
+): T | "infra" {
     const wt = join(
         ctx.root,
         "..",
