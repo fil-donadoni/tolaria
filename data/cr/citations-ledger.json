@@ -3827,6 +3827,7 @@
         {"id":"111.1","line":"// castDuringResolution (CR 608.2f) and createTokenCopy (CR 707.2 + CR 111.1)","sites":1,"status":"baseline"},
         {"id":"111.1","line":"// control that entered this turn\" (CR 111.1 / 400.7).","sites":1,"status":"baseline"},
         {"id":"111.1","line":"// glance. CR 111.1 (a token represents a permanent not represented by a card)","sites":1,"status":"baseline"},
+        {"id":"111.1","line":"// has no printed card to rule on (CR 111.1).","sites":1,"status":"confirmed","ruleHash":"e6535d9013ecffa3"},
         {"id":"111.1","line":"// instead\" (CR 111.1, Elspeth, Storm Slayer / Doubling Season);","sites":1,"status":"confirmed","ruleHash":"e6535d9013ecffa3"},
         {"id":"111.1","line":"// printing (CR 709.2 / 111.1).","sites":1,"status":"baseline"},
         {"id":"111.1","line":"// still CREATED (CR 111.1). The count is the POST-replacement one (issue","sites":1,"status":"confirmed","ruleHash":"e6535d9013ecffa3"},
