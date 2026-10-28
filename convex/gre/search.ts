@@ -50,7 +50,6 @@ import {
 } from "./ai/repetition";
 import { searchCombatDamageAssignments } from "./ai/damageSplit";
 import { pruneDominatedBlocks } from "./ai/blockDominance";
-import { declarationTriggerNetValue } from "./ai/declarationTriggerValue";
 import type {
     CardInstanceState,
     GameState,
@@ -769,64 +768,6 @@ function passInSearch(
     checkStateBasedActions(state);
 }
 
-/** The declaration half of the sandbox's `declare-attackers`: combat record,
- *  attackers marked and tapped, and the declaration's trigger batch placed on
- *  the stack (CR 508.1, 508.2) — nothing resolved. Split from the priority
- *  reset and drain that follow so `declarationTriggerNetValue` can read what
- *  the declaration itself put on the stack before any of it resolves. */
-export function placeSandboxAttackDeclaration(
-    state: GameState,
-    playerId: string,
-    move: Extract<Move, { kind: "declare-attackers" }>
-): void {
-    // CR 508.1g / 701.43d — carry the move's optional exert choices
-    // into the sandbox declaration; `emitAttackersDeclaredEvents` below
-    // pays them and batches their linked "when you do" triggers with
-    // the attack triggers, so the search sees both the payoff and the
-    // missed untap the server would produce.
-    const declaredExertIds = (move.exertIds ?? []).filter((id) =>
-        move.attackerIds.includes(id)
-    );
-    // CR 508.1b — the announced planeswalker targets, or every
-    // attacker would reach the player's life in the sandbox.
-    const attackTargets = declaredAttackTargets(state, playerId, move);
-    const combat = (state.combat = {
-        attackerIds: [...move.attackerIds],
-        ...(attackTargets ? { attackTargets } : {}),
-        ...(declaredExertIds.length > 0
-            ? { exertedIds: declaredExertIds }
-            : {}),
-        confirmed: true,
-        blockerAssignments: {},
-        blockersConfirmed: false,
-    });
-    for (const id of combat.attackerIds) {
-        const atk = findPermanent(state, id);
-        if (!atk) continue;
-        markAttacking(state, atk);
-        // CR 506.3 — the shared declaration record, so the SEARCH's
-        // model of a declaration matches the server's exactly and the
-        // bot can see "no creatures attacked this turn" effects
-        // (issue #1944).
-        recordAttackerDeclared(state, atk);
-        if (!atk.staticAbilities.includes("vigilance")) {
-            // CR 708.9 / ADR 0013 — face-down attacker turns up on tap.
-            tapPermanent(state, atk);
-        }
-    }
-    // CR 508.1m (issue #3222) — the attack triggers, the exact mirror
-    // of `emitBlockersConfirmedEvents` in the branch below and of what
-    // the `confirmAttackers` path does on the server. Without it every
-    // ATTACKERS_DECLARED ability — battle cry's pump, exalted's,
-    // annihilator's sacrifice, a token-making attack trigger — was
-    // invisible to the search: the bot weighed a swing at the printed
-    // P/T and never saw what attacking with the creature actually buys.
-    // The emission owns its own priority/passCount reset when it places
-    // something on the stack; the unconditional reset below is the
-    // no-trigger case and agrees with it.
-    emitAttackersDeclaredEvents(state);
-}
-
 /** Apply `move` for `playerId` in place, reusing the real GRE resolution and
  *  priority machinery. Unlike the greedy sandbox (`applyMoveForSearch`), spells
  *  go on the stack WITHOUT auto-resolving and combat is left for the phase
@@ -1274,7 +1215,52 @@ export function applyMoveInSearch(
         }
 
         case "declare-attackers": {
-            placeSandboxAttackDeclaration(state, playerId, move);
+            // CR 508.1g / 701.43d — carry the move's optional exert choices
+            // into the sandbox declaration; `emitAttackersDeclaredEvents` below
+            // pays them and batches their linked "when you do" triggers with
+            // the attack triggers, so the search sees both the payoff and the
+            // missed untap the server would produce.
+            const declaredExertIds = (move.exertIds ?? []).filter((id) =>
+                move.attackerIds.includes(id)
+            );
+            // CR 508.1b — the announced planeswalker targets, or every
+            // attacker would reach the player's life in the sandbox.
+            const attackTargets = declaredAttackTargets(state, playerId, move);
+            const combat = (state.combat = {
+                attackerIds: [...move.attackerIds],
+                ...(attackTargets ? { attackTargets } : {}),
+                ...(declaredExertIds.length > 0
+                    ? { exertedIds: declaredExertIds }
+                    : {}),
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            });
+            for (const id of combat.attackerIds) {
+                const atk = findPermanent(state, id);
+                if (!atk) continue;
+                markAttacking(state, atk);
+                // CR 506.3 — the shared declaration record, so the SEARCH's
+                // model of a declaration matches the server's exactly and the
+                // bot can see "no creatures attacked this turn" effects
+                // (issue #1944).
+                recordAttackerDeclared(state, atk);
+                if (!atk.staticAbilities.includes("vigilance")) {
+                    // CR 708.9 / ADR 0013 — face-down attacker turns up on tap.
+                    tapPermanent(state, atk);
+                }
+            }
+            // CR 508.1m (issue #3222) — the attack triggers, the exact mirror
+            // of `emitBlockersConfirmedEvents` in the branch below and of what
+            // the `confirmAttackers` path does on the server. Without it every
+            // ATTACKERS_DECLARED ability — battle cry's pump, exalted's,
+            // annihilator's sacrifice, a token-making attack trigger — was
+            // invisible to the search: the bot weighed a swing at the printed
+            // P/T and never saw what attacking with the creature actually buys.
+            // The emission owns its own priority/passCount reset when it places
+            // something on the stack; the unconditional reset below is the
+            // no-trigger case and agrees with it.
+            emitAttackersDeclaredEvents(state);
             // CR 508 — active player gets priority after attackers are declared.
             state.priorityPlayerId = state.activePlayerId;
             state.passCount = 0;
@@ -3826,9 +3812,8 @@ export function buildTrace(
  *  material (`totalMargin`). Outcome dominates; material — which never saturates
  *  — breaks the tie a free chump attack would otherwise win on noise. */
 /** A declared attack that gains NOTHING: every attacker is fully absorbed (no
- *  blocker dies), no damage reaches the defender's life, poison counters or
- *  attacked planeswalkers, and the triggers the declaration put on the stack
- *  net the attacker no value. From a player's view
+ *  blocker dies) and no damage reaches the defender's life, poison counters or
+ *  attacked planeswalkers. From a player's view
  *  there is no reason to make such an attack even with no risk of losing the
  *  attacker — a creature that attacks without vigilance taps out of defence, so a
  *  neutral attack is already a tempo loss (the only upside, bluffing a trick for
@@ -3845,24 +3830,14 @@ export function isWastefulAttack(state: GameState, move: Move): boolean {
     const probe = cloneGameState(state);
     applyMoveInSearch(probe, attackerId, move);
     const outcome = predictCombatOutcome(probe, attackerId, defender.id);
-    if (
-        outcome.deadBlockerIds.length !== 0 ||
-        outcome.faceDamage !== 0 ||
-        outcome.facePoison !== 0 ||
+    return (
+        outcome.deadBlockerIds.length === 0 &&
+        outcome.faceDamage === 0 &&
+        outcome.facePoison === 0 &&
         // CR 510.1b — loyalty removed from an attacked planeswalker is a gain
         // of its own, never counted as damage to the player.
-        Object.values(outcome.walkerDamage).some((d) => d !== 0)
-    ) {
-        return false;
-    }
-    // The declaration's own payoff: the triggers it put on the stack (attack
-    // triggers, "becomes tapped" payoffs, CR 508.2) produce value whether or
-    // not the attacker connects. Only a net gain for the attacker rescues the
-    // attack; a hostile or unreadable batch reads as nothing.
-    const declared = cloneGameState(state);
-    const before = new Set(declared.stack.map((s) => s.id));
-    placeSandboxAttackDeclaration(declared, attackerId, move);
-    return declarationTriggerNetValue(declared, attackerId, before) <= 0;
+        Object.values(outcome.walkerDamage).every((d) => d === 0)
+    );
 }
 
 /** Whether `move` is the EMPTY block declaration — the defender declining to
