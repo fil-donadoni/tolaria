@@ -18,17 +18,21 @@ import { heuristicChoicePrior } from "../ai/choicePriors";
 
 const UNADMITTED = { kind: "not-a-move-kind" } as unknown as Move;
 
-describe("applyMoveInSearch — the two Brain-answered Move kinds (issue #4441)", () => {
-    it("refuses a name-card Move loudly instead of applying nothing", () => {
+describe("applyMoveInSearch — a name-card Move goes through the submit authority (issue #6676)", () => {
+    it("refuses one with no head to answer, never a silent no-op", () => {
+        // Applied in-tree since issue #6676; the positive path is pinned end
+        // to end in `ai/__tests__/name-card-forced-answer.bot.test.ts`.
         const state = makeState();
         expect(() =>
             applyMoveInSearch(state, "p1", {
                 kind: "name-card",
                 cardName: "Plains",
             })
-        ).toThrow(/"name-card" is answered by the Brain, never in-tree/);
+        ).toThrow(/No pending choice/);
     });
+});
 
+describe("applyMoveInSearch — the Brain-answered Move kind (issue #4441)", () => {
     it("refuses a mulligan-bottom Move loudly instead of applying nothing", () => {
         const state = makeState();
         expect(() =>

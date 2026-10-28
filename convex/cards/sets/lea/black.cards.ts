@@ -46,6 +46,7 @@ import { makeLace } from "./white.cards";
 //    the event (CR 603.10) and calls `sacrifice` on the host. If the host has
 //    already left the battlefield by then (e.g. lethal damage), sacrifice is a
 //    silent no-op (CR 608.2b).
+// hand-tail: When this Aura enters, if it's on the battlefield, it loses "enchant creature card in a graveyard" and gains "enchant creature put onto the battlefield with this Aura." (#10)
 export const animateDead = defineCard(() => ({
     id: "8fd7861d-925f-4b4c-a4ab-60be6f43d50b",
     rarity: "uncommon",

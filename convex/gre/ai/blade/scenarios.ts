@@ -522,6 +522,38 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: 'CR 712.12 land-play reachability. `MoveMatcher` has no field for the chosen FACE, so the predicate shape (as for adventure / overload): a `{ kind: "play-land", card: "Sink into Stupor" }` matcher would pass on a front-face play that cannot legally exist, which is the one outcome this entry has to be able to fail on.',
     },
     {
+        // AS-ENTERS NAME CHOICE reachability (CR 614.1c / 201.4a, issue #6676).
+        // The bot's main phase, an empty board, Meddling Mage and the two
+        // lands that cast it. A 2/2 for two on an empty board is the Grizzly
+        // Bears decision; the Mage's lock costs its controller nothing here.
+        //
+        // What it guards is the WALK, not a preference: the Mage's
+        // as-enters `name-card` window had no answer in the tree, so every
+        // playout stopped there and scored the spell spent with the creature
+        // still staged — the Bot passed on every seed. `forcedChoiceAnswer`
+        // now names a card and `applyMoveInSearch` submits it.
+        label: "as-enters name: casts Meddling Mage on an empty board",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Meddling Mage", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Meddling Mage" }],
+        },
+        note: "CR 614.1c as-enters name-choice reachability. Before issue #6676 the bot passed on all five probed seeds (the playout stopped at the unanswered `name-card` window); Grizzly Bears in the same position was cast on all five. A `moves` matcher, so `mustCoveredCards` credits Meddling Mage's never-chosen sweep verdict.",
+    },
+    {
         // POSITIVE CONTROL (#1427). Deliberately the least ambiguous decision
         // in Magic: it is the bot's main phase, it has one land in hand, an
         // empty board, and nothing else it can do. Playing the land is

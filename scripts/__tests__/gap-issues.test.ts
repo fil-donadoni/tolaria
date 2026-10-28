@@ -893,11 +893,11 @@ describe("BAND_UMBRELLAS is keyed by Target, not by band letter (issue #4211)", 
         });
     }
 
-    it("every family holds one umbrella per Target that lends a band today, plus P0 — and nothing else", () => {
+    it("every family holds one umbrella per Target that lends a band today, plus P0, plus the completed metagame's (open children keep it) — and nothing else", () => {
         expect(RANKED.length).toBeGreaterThan(0);
         for (const family of FAMILIES)
             expect(Object.keys(BAND_UMBRELLAS[family]).sort()).toEqual(
-                ["P0", ...RANKED].sort()
+                ["P0", "premodern-metagame", ...RANKED].sort()
             );
     });
 

@@ -47,6 +47,7 @@ import { defineCard, type SpellContext } from "../../types";
 // across the two zones is reachable. The library prompt's min/max are clamped
 // so the two picks always total five, or as many as exist (CR 701.23d — a
 // search for a QUANTITY of cards must find that many).
+// hand-tail: Search your library and graveyard for five cards and exile the rest (#2381)
 export const doomsday = defineCard(() => ({
     id: "5b3c6d87-9383-450b-bba5-33435b6b0d08",
     name: "Doomsday",
