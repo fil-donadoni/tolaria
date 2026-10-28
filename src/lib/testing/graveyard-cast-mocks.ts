@@ -36,6 +36,7 @@ export const gameApiMock = {
             playCard: { _name: "playCard" },
             announceCast: { _name: "announceCast" },
             selectTarget: { _name: "selectTarget" },
+            deselectTarget: { _name: "deselectTarget" },
         },
     },
 };
