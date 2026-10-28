@@ -5,22 +5,37 @@
 
 import { defineCard, type GameEvent, type PermanentView } from "../../types";
 import { BAT_TOKEN } from "../../sharedTokens";
+import { createMapTokenOp } from "../../abilities/tokens/mapToken";
 
-// TODO(issue #676 stub — the Explore blocker is GONE: CR 701.44 shipped as
-// the `explore` Effect Op and the Map token as `MAP_TOKEN_SPEC`
-// (abilities/tokens/mapToken.ts) in issue #2376, which deliberately scoped
-// itself to Sentinel of the Nameless City. What is left is the CARD, not the
-// mechanic: verify the printed cost against Scryfall (the line below is an
-// unverified stub) and author "Destroy target creature, planeswalker, or
-// battle. Its controller creates two Map tokens." as `destroy` +
-// `createMapTokenOp({ controllerOf: { target: 0 } }, 2)`. Tracked stub.
-// export const getLost: CardDefinition = {
-//     id: "522aa72b-2b8c-484c-872b-f082101cee35",
-//     name: "Get Lost",
-//     rarity: "rare",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Instant"],
-// };
+// Get Lost — {1}{W} Instant. "Destroy target creature, enchantment, or
+// planeswalker. Its controller creates two Map tokens." (LCI, issue #7234,
+// Modern Scryfall oracle text, ADR 0004.) Authored DSL-first (ADR 0045) out of
+// shipped Ops: `destroy` (CR 701.8) then `createToken` of `MAP_TOKEN_SPEC`
+// (`abilities/tokens/mapToken.ts`, issue #2376), two of them.
+//
+// "Its controller" is the destroyed permanent's controller (CR 110.2), read as
+// LAST KNOWN INFORMATION (CR 608.2h): once `destroy` has moved it to the
+// graveyard it has no controller, so `{ controllerOf: { target: 0 } }` would
+// resolve to nothing. `destroy`'s `bind` snapshots it first and the token Op
+// reads `{ ref: "$c.controller" }` (Crumble, `atq/green.cards.ts`, same idiom).
+// hand-tail: Its controller creates two Map tokens (#7234)
+export const getLost = defineCard(() => ({
+    id: "522aa72b-2b8c-484c-872b-f082101cee35",
+    name: "Get Lost",
+    rarity: "rare",
+    oracleText:
+        'Destroy target creature, enchantment, or planeswalker. Its controller creates two Map tokens. (They\'re artifacts with "{1}, {T}, Sacrifice this token: Target creature you control explores. Activate only as a sorcery.")',
+    manaCost: { X: 1, W: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: ["Creature", "Enchantment", "Planeswalker"],
+        count: 1,
+    },
+    effects: [
+        { op: "destroy", target: { target: 0 }, bind: "$c" },
+        createMapTokenOp({ ref: "$c.controller" }, 2),
+    ],
+}));
 
 // Sanguine Evangelist — {2}{W} Creature — Vampire Cleric 2/1 (LCI, issue
 // #3222, parent PRD #1525). "Battle cry. When this creature enters or dies,
