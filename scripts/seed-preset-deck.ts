@@ -40,6 +40,13 @@
  * production. So a list could be live and unpickable, which is what happened
  * to Psychatog.
  *
+ * `--prod` (issue #7341) is the owner's door to the same production rows
+ * BETWEEN releases: `bun run seed:preset:prod` sweeps every list from the
+ * primary checkout with `convex run --prod`. That needs no deploy key: the
+ * project is the one `.env.local` links, and auth is the developer's Convex CLI
+ * login. Run `-- --dry-run` first. It is never chained into anything, because
+ * a production write is the owner's act.
+ *
  * **The canonical file wins on every deploy.** `seedPresetDirect` is
  * upsert-by-slug and deliberately overwriting (`convex/decks.ts` §
  * `presetSeedDecision`), and the sweep uses it unchanged: after a deploy every
