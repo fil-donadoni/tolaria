@@ -12,7 +12,8 @@ import { findPermanent } from "../../lookup";
 import { getCardByName, tryGetDefinition } from "../../../cards";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
 import { resolveTopOfStack, type GameState } from "../../state";
-import { applyMoveInSearch } from "../../search";
+import { applyMoveInSearch, searchWithTrace } from "../../search";
+import { isLand } from "../../constants";
 import { CHOICE_CANDIDATE_GENERATORS } from "../choiceCandidates";
 import {
     isCostUnlockingLandTypeChange,
@@ -953,5 +954,252 @@ describe("land-type change that unlocks a held cost (CR 305.6, CR 305.7, issue #
         expect(
             CHOICE_CANDIDATE_GENERATORS["option-pick"]!(state, choice)
         ).toHaveLength(choice.options!.length);
+    });
+});
+
+describe("isFutileThisTurnMove — defensive keyword grants (issue #6942)", () => {
+    // The issue #2938 payoff board: the bot (seat 1) holds Sylvan Safekeeper
+    // ("Sacrifice a land: target creature you control gains shroud until end
+    // of turn") beside Grizzly Bears; the opponent holds a Lightning Bolt.
+    const SAFEKEEPER: ScenarioSpec = {
+        cards: [
+            { name: "Sylvan Safekeeper", owner: "opp", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            { name: "Gray Ogre", owner: "me", zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 3,
+        landCount: 3,
+        libraryCount: 20,
+    };
+
+    const BOLT_AT_BEARS: BladeSetupStep = {
+        kind: "cast",
+        card: "Lightning Bolt",
+        by: "me",
+        target: "Grizzly Bears",
+    };
+
+    const GRANT_TO_BEARS: BladeSetupStep = {
+        kind: "activate",
+        card: "Sylvan Safekeeper",
+        target: "Grizzly Bears",
+        sacrifice: "Mountain",
+    };
+
+    function withPriority(state: GameState, seat: Seat): GameState {
+        state.priorityPlayerId = state.players[seat].id;
+        state.passCount = 0;
+        return state;
+    }
+
+    function grantsTo(state: GameState, name: string) {
+        const id = getCardByName(name).id;
+        return activationsOf(state, 1, "Sylvan Safekeeper").filter((m) =>
+            m.targets.some((t) => findPermanent(state, t.id)?.card.id === id)
+        );
+    }
+
+    it("keeps the first grant to the creature a Bolt targets (CR 702.18a)", () => {
+        const state = position(SAFEKEEPER, [BOLT_AT_BEARS]);
+        const moves = grantsTo(state, "Grizzly Bears");
+        expect(moves.length).toBeGreaterThan(0);
+        for (const move of moves) {
+            expect(isFutileThisTurnMove(state, move)).toBe(false);
+        }
+    });
+
+    it("prunes a grant to a creature nothing on the stack targets", () => {
+        const state = position(SAFEKEEPER, [BOLT_AT_BEARS]);
+        const moves = grantsTo(state, "Sylvan Safekeeper");
+        expect(moves.length).toBeGreaterThan(0);
+        for (const move of moves) {
+            expect(isFutileThisTurnMove(state, move)).toBe(true);
+        }
+    });
+
+    it("prunes a second grant once an identical one is pending above the Bolt (CR 702.18b)", () => {
+        const state = withPriority(
+            position(SAFEKEEPER, [BOLT_AT_BEARS, GRANT_TO_BEARS]),
+            1
+        );
+        expect(state.stack).toHaveLength(2);
+        const moves = grantsTo(state, "Grizzly Bears");
+        expect(moves.length).toBeGreaterThan(0);
+        for (const move of moves) {
+            expect(isFutileThisTurnMove(state, move)).toBe(true);
+        }
+    });
+
+    it("keeps a second grant when the Bolt sits above the pending one (CR 608.1)", () => {
+        const state = withPriority(
+            position({ ...SAFEKEEPER, priority: "opp" }, [
+                GRANT_TO_BEARS,
+                BOLT_AT_BEARS,
+            ]),
+            1
+        );
+        expect(state.stack).toHaveLength(2);
+        const moves = grantsTo(state, "Grizzly Bears");
+        expect(moves.length).toBeGreaterThan(0);
+        for (const move of moves) {
+            expect(isFutileThisTurnMove(state, move)).toBe(false);
+        }
+    });
+
+    it("prunes every grant once the first has resolved, Bolt still on the stack", () => {
+        const state = withPriority(
+            position(SAFEKEEPER, [
+                BOLT_AT_BEARS,
+                GRANT_TO_BEARS,
+                { kind: "pass", seat: "me" },
+            ]),
+            1
+        );
+        expect(state.stack).toHaveLength(1);
+        // CR 702.18a — the shrouded Bears is no legal target any more; what
+        // is left aims at the Safekeeper, which nothing on the stack targets.
+        expect(grantsTo(state, "Grizzly Bears")).toHaveLength(0);
+        const moves = activationsOf(state, 1, "Sylvan Safekeeper");
+        expect(moves.length).toBeGreaterThan(0);
+        for (const move of moves) {
+            expect(isFutileThisTurnMove(state, move)).toBe(true);
+        }
+    });
+
+    it("prunes every grant against a creature spell on the stack (CR 608.3)", () => {
+        const state = position(SAFEKEEPER, [
+            { kind: "cast", card: "Gray Ogre", by: "me" },
+        ]);
+        const moves = activationsOf(state, 1, "Sylvan Safekeeper");
+        expect(moves.length).toBeGreaterThan(0);
+        for (const move of moves) {
+            expect(isFutileThisTurnMove(state, move)).toBe(true);
+        }
+    });
+
+    it("keeps the sacrifice while a card reads the graveyard (threshold)", () => {
+        const state = position(
+            {
+                ...SAFEKEEPER,
+                cards: [
+                    ...SAFEKEEPER.cards,
+                    { name: "Nimble Mongoose", owner: "opp", zone: "hand" },
+                ],
+            },
+            [{ kind: "cast", card: "Gray Ogre", by: "me" }]
+        );
+        const moves = activationsOf(state, 1, "Sylvan Safekeeper");
+        expect(moves.length).toBeGreaterThan(0);
+        for (const move of moves) {
+            expect(isFutileThisTurnMove(state, move)).toBe(false);
+        }
+    });
+
+    it("prunes a second indestructible grant once the first has resolved (CR 702.12c)", () => {
+        const THORNLING: ScenarioSpec = {
+            cards: [
+                {
+                    name: "Thornling",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 3,
+            libraryCount: 20,
+            manaPool: { opp: { G: 2 } },
+        };
+        const bolt: BladeSetupStep = {
+            kind: "cast",
+            card: "Lightning Bolt",
+            by: "me",
+            target: "Thornling",
+        };
+        const first = withPriority(position(THORNLING, [bolt]), 1);
+        const ability = tryGetDefinition(
+            getCardByName("Thornling").id
+        )!.activatedAbilities!.find((a) =>
+            a.effects?.some(
+                (op) =>
+                    "op" in op &&
+                    op.op === "grantAbility" &&
+                    op.ability === "indestructible"
+            )
+        )!;
+        const grants = (state: GameState) =>
+            activationsOf(state, 1, "Thornling").filter(
+                (m) => m.abilityId === ability.id
+            );
+        expect(grants(first).length).toBeGreaterThan(0);
+        for (const move of grants(first)) {
+            expect(isFutileThisTurnMove(first, move)).toBe(false);
+        }
+        const resolved = withPriority(
+            position(THORNLING, [
+                bolt,
+                {
+                    kind: "activate",
+                    card: "Thornling",
+                    controller: "opp",
+                    ability: ability.id,
+                },
+                { kind: "pass", seat: "me" },
+            ]),
+            1
+        );
+        expect(resolved.stack).toHaveLength(1);
+        const thornling = resolved.players[1].battlefield.find(
+            (c) => c.card.id === getCardByName("Thornling").id
+        )!;
+        expect(thornling.staticAbilities).toContain("indestructible");
+        expect(grants(resolved).length).toBeGreaterThan(0);
+        for (const move of grants(resolved)) {
+            expect(isFutileThisTurnMove(resolved, move)).toBe(true);
+        }
+    });
+
+    it("sacrifices exactly one land against the Bolt, and the Bears survives (end to end)", () => {
+        const state = position(SAFEKEEPER, [BOLT_AT_BEARS]);
+        const bot = state.players[1];
+        const lands = () => bot.battlefield.filter(isLand).length;
+        const before = lands();
+        // Play the response window out through the real search: the Bot
+        // decides whenever it holds priority, the opponent passes.
+        for (let step = 0; step < 20 && state.stack.length > 0; step++) {
+            const pid = state.priorityPlayerId;
+            if (pid === bot.id) {
+                const { move } = searchWithTrace(
+                    state,
+                    pid,
+                    { iterations: 200 },
+                    step
+                );
+                applyMoveInSearch(state, pid, move!);
+            } else {
+                applyMoveInSearch(state, pid, { kind: "pass" });
+            }
+        }
+        expect(state.stack).toHaveLength(0);
+        expect(lands()).toBe(before - 1);
+        expect(
+            bot.battlefield.some(
+                (c) => c.card.id === getCardByName("Grizzly Bears").id
+            )
+        ).toBe(true);
+    });
+
+    it("is wired into the root enumeration's dominance prune", () => {
+        const state = position(SAFEKEEPER, [
+            { kind: "cast", card: "Gray Ogre", by: "me" },
+        ]);
+        const pruned = enumerateMoves(state, state.players[1].id, {
+            pruneDominatedNoOps: true,
+        });
+        expect(pruned.some((m) => m.kind === "activate-ability")).toBe(false);
     });
 });

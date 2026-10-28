@@ -492,6 +492,19 @@ function applyTargetedActivate(
             `"${step.card}" has no legal activation targeting "${target}".`
         );
     }
+    if (step.sacrifice !== undefined) {
+        const sacrificed = instanceIdsForName(state, step.sacrifice);
+        candidates = candidates.filter((m) =>
+            (m.costPicks?.sacrificeIds ?? []).some((id) => sacrificed.has(id))
+        );
+        if (candidates.length === 0) {
+            throw new BladeSetupError(
+                label,
+                step,
+                `"${step.card}" has no legal activation targeting "${target}" that sacrifices "${step.sacrifice}".`
+            );
+        }
+    }
     if (candidates.length > 1) {
         throw new BladeSetupError(
             label,
