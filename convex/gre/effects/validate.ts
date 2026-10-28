@@ -261,7 +261,8 @@ function isNonNegativeInt(value: unknown): boolean {
  *  positive int, `min <= max` — mirrors `PendingChoice.count`'s existing
  *  fixed-N / range union (`getPendingChoiceMin` / `getPendingChoiceMax`).
  *  Issue #5559 — or any non-literal `EffectValue`, a COMPUTED exact count
- *  (Balance's "the rest" above the fewest any player controls). */
+ *  (Balance's "the rest" above the fewest any player controls). A range's
+ *  `max` may be computed the same way, with `min: 0`. */
 function isChoiceCount(value: unknown): boolean {
     if (isPositiveInt(value)) return true;
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -273,6 +274,13 @@ function isChoiceCount(value: unknown): boolean {
         return false;
     }
     const { min, max } = value as { min: unknown; max: unknown };
+    // A COMPUTED ceiling (CR 701.23h — "up to one basic land card per
+    // creature of theirs exiled this way") has no static size to order `min`
+    // against, so it pairs with `min: 0` only: "up to N" is the one printed
+    // shape, and the interpreter raises nothing when it resolves to 0.
+    if (typeof max === "object" && max !== null) {
+        return min === 0 && isEffectValue(max);
+    }
     return (
         typeof min === "number" &&
         Number.isInteger(min) &&
@@ -1832,6 +1840,25 @@ function isSetSizeValue(value: unknown): boolean {
     return isBarePicksRef(s.of);
 }
 
+/** `{ boundCount: { of, controller? } }` — SHAPE of the per-iteration capture
+ *  count (CR 608.2h / 701.23h). `of` is a BARE binding ref, family-checked as
+ *  an `iterated` position by the ordered ref pass (the `keyHint ===
+ *  "boundCount"` case in `collectRefUses`); `controller`, when present, is a
+ *  PLAYER selector. */
+function isBoundCountValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "boundCount") return false;
+    const spec = (value as { boundCount: unknown }).boundCount;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of" || k === "controller")) {
+        return false;
+    }
+    if (!isBarePicksRef(s.of)) return false;
+    return s.controller === undefined || isPlayerRef(s.controller);
+}
+
 /** A member of the closed player-counter vocabulary (CR 122.1). */
 function isPlayerCounterKind(value: unknown): boolean {
     return (
@@ -1990,7 +2017,8 @@ function isEffectValue(value: unknown): boolean {
         isScaledValue(value) ||
         isDivideValue(value) ||
         isSumValue(value) ||
-        isSetSizeValue(value)
+        isSetSizeValue(value) ||
+        isBoundCountValue(value)
     );
 }
 
@@ -7000,7 +7028,11 @@ interface RefUse {
          *  field appearing here — or a `stack-object` field appearing in an
          *  ordinary `target` position — would resolve to nothing at runtime
          *  and silently skip its Op. */
-        | "stack-object";
+        | "stack-object"
+        /** `boundCount.of` (CR 701.23h): a snapshot binding declared inside
+         *  an EARLIER sibling `forEach` body, read across its iterations —
+         *  the `iterated` family, which no other position accepts. */
+        | "iterated";
     /** CR 400.7e (issue #4127) — set on the refs under `moveZone`'s `target`,
      *  the one position whose Op has a graveyard-card executor, and therefore
      *  the only one that may read a `graveyard-card` `$event` field. A flag
@@ -7283,6 +7315,21 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
         collectRefUses(obj.of, "cards", out);
         return;
     }
+    // boundCount — { boundCount: { of, controller? } } (CR 701.23h): `of` is
+    // an ITERATED position (a binding of an earlier forEach body, read across
+    // its iterations), `controller` a PLAYER position.
+    if (
+        keyHint === "boundCount" &&
+        keys.includes("of") &&
+        keys.every((k) => k === "of" || k === "controller")
+    ) {
+        const of = obj.of as { ref?: unknown } | undefined;
+        if (typeof of?.ref === "string") {
+            out.push({ ref: of.ref, kind: "iterated" });
+        }
+        collectRefUses(obj.controller, "player", out);
+        return;
+    }
     if (
         keyHint === "sum" &&
         keys.includes("of") &&
@@ -7347,7 +7394,12 @@ type BindingKind =
     | "boolean"
     | "player"
     | "list"
-    | "number";
+    | "number"
+    /** A snapshot binding declared inside a `forEach` body, as seen AFTER
+     *  that construct: one capture per iteration, readable only as a whole
+     *  through `boundCount` (CR 701.23h). Every single-object position
+     *  rejects it — after the sweep there is no one object it names. */
+    | "iterated";
 
 /** Declares, in `declared`, every UNSCOPED binding `entry`'s Op declares — each
  *  field its schema tags `bindingDeclaration(kind)`, in schema order, in the
@@ -7707,6 +7759,20 @@ function checkRefUse(
         }
         return;
     }
+    // Iterated position (`boundCount.of`, CR 701.23h): a bare binding that an
+    // EARLIER sibling `forEach` body declared as a snapshot — the only family
+    // whose every iteration's capture is still readable after the sweep.
+    if (use.kind === "iterated") {
+        const family = use.ref.includes(".")
+            ? undefined
+            : declared.get(use.ref);
+        if (family !== "iterated") {
+            errors.push(
+                `${at}: boundCount ref "${use.ref}" must name a snapshot binding declared inside an earlier forEach body (an exile/destroy/… "bind" in its effects)${family === undefined ? "" : `, not a ${family} binding`}`
+            );
+        }
+        return;
+    }
     // Bare-binding positions (no property path): picks (#805), boolean
     // (#806, an `if` predicate), and the non-reserved half of a `name`
     // position (a `nameCard` / `choice` binding, issues #1085 / #1104 —
@@ -8009,6 +8075,15 @@ function checkCaptureSource(
         if (family === undefined) {
             errors.push(
                 `${at}: capture "${name}" ref "${ref}" references undefined binding "${ref}" — no earlier Op binds it`
+            );
+            return;
+        }
+        // An `iterated` binding is a set of per-iteration rows only
+        // `boundCount` can read in place: carried verbatim it would arrive
+        // under a name no iteration ever wrote, and read nothing.
+        if (family === "iterated") {
+            errors.push(
+                `${at}: capture "${name}" ref "${ref}" names an iterated binding (a forEach body's snapshot, readable after the sweep only through boundCount) — it cannot be captured`
             );
             return;
         }
@@ -8440,6 +8515,15 @@ function checkOpListRefs(
                 bodyScope,
                 eventScope
             );
+            // CR 701.23h — the body's SNAPSHOT bindings stay invisible to
+            // every single-object reader past the construct, but the set of
+            // their per-iteration captures is readable by `boundCount` ("for
+            // each creature exiled this way"): declared here as `iterated`,
+            // which also makes the name unique against any later binding.
+            for (const [name, family] of bodyScope) {
+                if (name === "$each" || declared.has(name)) continue;
+                if (family === "snapshot") declared.set(name, "iterated");
+            }
         }
 
         // Recurse into the delayedTrigger body (ADR 0048) with a FRESH scope:

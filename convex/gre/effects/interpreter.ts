@@ -966,6 +966,20 @@ function resolveValue(
     if ("setSize" in value) {
         return resolvePicks(ctx, value.setSize.of)?.length ?? 0;
     }
+    // boundCount (CR 608.2h / 701.23h) — how many iterations of a preceding
+    // `forEach` captured the snapshot `of` names: "for each creature exiled
+    // this way" read after the sweep. With `controller`, only the captures
+    // whose LAST-KNOWN controller slot is that player — the exiled object is
+    // gone, so the snapshot taken before it moved is the only source.
+    if ("boundCount" in value) {
+        const snapshots = readIteratedSnapshots(ctx, value.boundCount.of.ref);
+        const { controller } = value.boundCount;
+        if (controller === undefined) return snapshots.length;
+        const playerId = resolvePlayerRef(ctx, controller);
+        if (playerId === undefined) return 0;
+        return snapshots.filter((row) => row[SNAP_CONTROLLER] === playerId)
+            .length;
+    }
     // sacrificed (CR 601.2f / 608.2h, issue #2375) — a characteristic of the
     // permanent SACRIFICED TO PAY this spell/ability's additional cost, read
     // as LAST KNOWN INFORMATION off the stack item's
@@ -6580,6 +6594,15 @@ export const OP_EXECUTORS: {
         // set someone else revealed. A zero-candidate revealed pick is simply
         // nothing to choose from, so it skips like every other empty choice
         // rather than raising a dead prompt at the opponent.
+        // A range's ceiling, resolved once here (CR 608.2h). A computed one
+        // at or below zero asks for no card at all — "for each creature
+        // exiled this way" with none of theirs exiled — so nothing is raised,
+        // not even the no-hit search below (CR 107.1b). A literal ceiling is
+        // always positive (validator-enforced), so it never takes this exit.
+        const ceiling = isChoiceCountRange(op.count)
+            ? resolveValue(ctx, op.count.max)
+            : undefined;
+        if (isChoiceCountRange(op.count) && (ceiling ?? 0) <= 0) return;
         const searchWithNoHit =
             op.zone === "library" &&
             op.kind === "search-library" &&
@@ -6588,7 +6611,7 @@ export const OP_EXECUTORS: {
         if (searchWithNoHit) {
             count = { min: 0, max: 0 };
         } else if (isChoiceCountRange(op.count)) {
-            const max = Math.min(op.count.max, available);
+            const max = Math.min(ceiling ?? 0, available);
             if (max <= 0) return;
             count = { min: Math.min(op.count.min, max), max };
         } else {
@@ -7729,6 +7752,29 @@ function scopeBindingName(
     iteration: number
 ): string {
     return `${name}@${pos}:${iteration}`;
+}
+
+/** Every iteration's capture of the snapshot binding `name`, declared inside
+ *  the body of an EARLIER `forEach` of this script (the `boundCount` reader).
+ *  The construct that declared it is found by its frozen member set: every
+ *  forEach position before the current one that froze a set is probed for
+ *  `name` scoped to each of its iterations. The validator makes the name
+ *  unique to one forEach body, so the probe can match only that construct;
+ *  an iteration whose member had already left never bound it and adds
+ *  nothing (CR 608.2b). Read through `recallChoice`, so a reader inside a
+ *  later `forEach` body reaches the unscoped rows through its fallback. */
+function readIteratedSnapshots(ctx: SpellContext, name: string): string[][] {
+    const rows: string[][] = [];
+    const current = ctx.getScriptCheckpoint() ?? 0;
+    for (let pos = 0; pos < current; pos++) {
+        const members = ctx.recallChoice(`#forEach:${pos}:set`);
+        if (members === undefined) continue;
+        for (let k = 0; k < members.length; k++) {
+            const row = ctx.recallChoice(scopeBindingName(name, pos, k));
+            if (row !== undefined) rows.push(row);
+        }
+    }
+    return rows;
 }
 
 /** The inverse of {@link scopeBindingName}: the AUTHORED name a (possibly
