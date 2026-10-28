@@ -440,11 +440,16 @@ export const migrateDeckPools = internalMutation({
         );
         const plan = planDeckPoolBackfill(
             await Promise.all(
-                rows.map(async (row) => ({
-                    deckId: row._id,
-                    hasDeckPool: (await loadDeckPool(ctx, row._id)) !== null,
-                    seatPool: await loadSeatPoolForDeck(ctx, row),
-                }))
+                rows.map(async (row) => {
+                    const hasDeckPool =
+                        (await loadDeckPool(ctx, row._id)) !== null;
+                    // A deck already owning one never reads its event: a
+                    // re-run costs one indexed lookup per deck.
+                    const seatPool = hasDeckPool
+                        ? null
+                        : await loadSeatPoolForDeck(ctx, row);
+                    return { deckId: row._id, hasDeckPool, seatPool };
+                })
             )
         );
         for (const { deckId, pool } of plan.backfill) {
