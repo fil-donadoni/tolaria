@@ -381,7 +381,8 @@ function namesOneFace(def: CardDefinition, name: string): boolean {
  *
  *  THE single authority on that question: {@link applyNameCardSubmit} rejects
  *  exactly what this returns `false` for, and the bot's default picker
- *  (`nameCardDefaultFor`, `src/lib/ai/bot-view.ts`) only ever offers a name
+ *  (`nameCardDefaultFor`, `src/lib/ai/bot-view.ts`) and the search's forced
+ *  answer (`nameCardAnswer`, `gre/ai/choiceCandidates.ts`) only ever offer a name
  *  this returns `true` for. Sharing the predicate is what makes the bot's
  *  rung-2 submission legal BY CONSTRUCTION rather than by luck — and that
  *  matters more here than at any other window, because `ESCALATION_POLICY`

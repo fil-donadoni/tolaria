@@ -80,6 +80,7 @@ import {
 import { exileCastPermission } from "../castCost";
 import { getLegalActions } from "../rules";
 import { isLegalNamedCard } from "../pendingChoiceSubmit";
+import { isFaceDownExile } from "../faceDown";
 import { eligibleZonePickCards } from "../zonePickEligibility";
 import {
     targetKey,
@@ -1276,7 +1277,9 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
 };
 
 /** Issue #4896 — the ONE answer the search gives a choice it does not branch
- *  on, or `null` when it has none and must stop there as before.
+ *  on, or `null` when it has none and must stop there as before. A
+ *  `name-card` head is answered by `nameCardAnswer` (issue #6676); the rest of
+ *  this note is the mandatory discard.
  *
  *  A MANDATORY `discard-hand` (CR 701.9b — by default the discarding player
  *  chooses) is no in-tree node, deliberately (see `handPickCandidates`:
@@ -1334,11 +1337,15 @@ export function forcedChoiceAnswer(
  *  two lands tapped for nothing, so the Bot never cast one.
  *
  *  Not a decision node: WHICH name is worth naming is a valuation question
- *  (issue #2467). The candidates are the names the chooser can already see —
- *  every public zone, the staged entries, the chooser's own hand — never a
- *  hidden opponent card, so the answer reads no information the chooser lacks.
- *  Sorted, so every world and every seed name the same card; legality through
- *  `isLegalNamedCard`, the predicate `applyNameCardSubmit` enforces. */
+ *  (issue #2467). The candidates are the PUBLIC objects — the staged entries,
+ *  the stack, every battlefield, graveyard and face-up exile (a face-down
+ *  exiled card keeps its real id in raw state, CR 406.3) — so the answer reads
+ *  no information the chooser lacks. The chooser's own hand is left out on
+ *  purpose: naming a card it holds would make a Meddling Mage lock its own
+ *  controller in the playout. Sorted, so every world and every seed name the
+ *  same card; legality through `isLegalNamedCard`, the predicate
+ *  `applyNameCardSubmit` enforces. The live Brain answers the same window
+ *  with its own default (`nameCardDefaultFor`, `src/lib/ai/bot-view.ts`). */
 function nameCardAnswer(state: GameState, choice: PendingChoice): Move | null {
     const seen: { card: Record<string, unknown> }[] = [
         ...(state.stagedEntries ?? []).map((entry) => entry.card),
@@ -1346,8 +1353,7 @@ function nameCardAnswer(state: GameState, choice: PendingChoice): Move | null {
         ...state.players.flatMap((p) => [
             ...p.battlefield,
             ...p.graveyard,
-            ...p.exile,
-            ...(p.id === choice.playerId ? p.hand : []),
+            ...p.exile.filter((card) => !isFaceDownExile(card)),
         ]),
     ];
     const names = [

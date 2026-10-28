@@ -94,4 +94,30 @@ describe("advanceToDecision — a name-card window is answered, not scored (issu
             cardName: "Lightning Bolt",
         });
     });
+
+    it("never names a face-down exiled card (CR 406.3)", () => {
+        const mid = midMeddlingMage([
+            { name: "Abeyance", owner: "opp", zone: "graveyard" },
+        ]);
+        const opp = mid.players.find((p) => p.id !== mid.activePlayerId)!;
+        // Exiled face down, as Hideaway does: the raw state keeps its id.
+        const hidden = opp.graveyard.pop()!;
+        opp.exile.push({ ...hidden, knownTo: [opp.id] });
+        const answer = forcedChoiceAnswer(mid, mid.pendingChoices![0]!);
+        expect(answer).toEqual({
+            kind: "name-card",
+            cardName: "Meddling Mage",
+        });
+    });
+
+    it("never names a card in the chooser's own hand — no self-lock", () => {
+        const mid = midMeddlingMage([
+            { name: "Abeyance", owner: "me", zone: "hand" },
+        ]);
+        const answer = forcedChoiceAnswer(mid, mid.pendingChoices![0]!);
+        expect(answer).toEqual({
+            kind: "name-card",
+            cardName: "Meddling Mage",
+        });
+    });
 });

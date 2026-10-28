@@ -355,7 +355,8 @@ export type Move =
     | {
           /** Name a card for a `name-card` pending choice (CR 202.3 / ADR 0016)
            *  — the bot's legal default when it is targeted by a name-a-card
-           *  effect (Petra Sphinx). Realised through the dedicated
+           *  effect (Petra Sphinx), and the search's forced answer in-tree
+           *  (`nameCardAnswer`, issue #6676). Realised through the dedicated
            *  `submitNameCard` mutation; the choice identity is read from the
            *  active pending choice, only the name string travels on the Move. */
           kind: "name-card";
