@@ -1,14 +1,14 @@
 {
     "small (4 moves)": {
         "iterationsCompleted": 98,
-        "clones": 367,
-        "enumerations": 2169,
-        "evaluations": 346,
-        "sbaSweeps": 2818,
-        "ptWalkVisits": 8073,
-        "censuses": 1035,
+        "clones": 363,
+        "enumerations": 2166,
+        "evaluations": 342,
+        "sbaSweeps": 2811,
+        "ptWalkVisits": 8057,
+        "censuses": 1028,
         "rngDraws": 0,
-        "searchDraws": 6107
+        "searchDraws": 6100
     },
     "medium (13 moves)": {
         "iterationsCompleted": 96,
