@@ -366,6 +366,11 @@
             "needsSetup": true
         },
         {
+            "label": "informed defender: DOES block when a cost increase puts the trick out of the attacker's reach",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
             "label": "informed defender: DOES block when the attacker's deck cannot hold the trick",
             "tier": "must",
             "needsSetup": true

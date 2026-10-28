@@ -27,7 +27,7 @@
 
 import type { GameState, PlayerState } from "./state";
 import { hasInstantSpeed } from "./constants";
-import { canPayCost, type ManaUnits } from "./manaAvailability";
+import { canPayCost, castProbeFor, type ManaUnits } from "./manaAvailability";
 import { censusOf, type ManaCensusMemo } from "./manaCensusMemo";
 import { getInstanceManaCost, getInstanceAiCombatHint } from "../cards/index";
 
@@ -60,6 +60,7 @@ export function hasCastableInstantHint(
         if (!getInstanceAiCombatHint(card)) return false;
         return canPayCost(units, getInstanceManaCost(card), {
             life: player.life,
+            cast: castProbeFor(state, player, card),
         });
     });
 }
@@ -84,7 +85,10 @@ export function castableHeldInteraction(
         if (!hint) continue;
         // Affordability gate — colour included (issue #3531).
         if (
-            !canPayCost(units, getInstanceManaCost(card), { life: player.life })
+            !canPayCost(units, getInstanceManaCost(card), {
+                life: player.life,
+                cast: castProbeFor(state, player, card),
+            })
         )
             continue;
         if (hint.removal) result.removal = true;

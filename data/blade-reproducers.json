@@ -1679,6 +1679,7 @@
         "turn": 5,
         "libraryCount": 20
     },
+    "informed defender: DOES block when a cost increase puts the trick out of the attacker's reach": null,
     "informed defender: DOES block when the attacker's deck cannot hold the trick": null,
     "informed defender: DOES block when the attacker's open land cannot PAY for the trick": null,
     "informed opponent: DOES attack when the deck cannot hold the trick": {
