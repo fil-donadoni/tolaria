@@ -487,9 +487,12 @@ cards that already play.
   #7337 tracks it under the cube's Bot Gaps.
 - **The Target leaves the ranking.** A completed Target keeps its row and is
   still measured, but it has no `priority`, so it no longer ranks Grammar
-  Gaps (§ Format Tiers). `vintage-cube` takes priority 1. Priority 2 is left
-  open: the owner decides later whether a `modern-metagame` Target takes it.
-  `format-premodern` stays at 3.
+  Gaps (§ Format Tiers). `vintage-cube` takes priority 1. The integer 2 is
+  left open, because the owner will decide later whether a `modern-metagame`
+  Target takes it. `format-premodern` keeps `priority: 3`. Bands follow the
+  ORDER of the ranked Targets (`rankTargetBands`), not the integer, so until a
+  Target takes 2 the cube lends `P1` and the premodern pool lends `P2`. The
+  metagame's umbrellas stay in `BAND_UMBRELLAS` and lend nothing.
 
 ### Format Tiers
 
