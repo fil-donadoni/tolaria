@@ -5,6 +5,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { PendingTarget, Player } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { getEligibleGraveyards } from "~/lib/graveyard-targets";
+import { isPickedTarget } from "~/lib/card-utils";
 import GameDialog from "~/components/ui/game-dialog";
 import GraveyardTabs from "./graveyard-tabs";
 import GraveyardCardPicker from "./graveyard-card-picker";
@@ -49,6 +50,7 @@ export default function GraveyardTargetDialog({
     activePlayerId: string;
 }) {
     const selectTarget = useMutation(api.game.selectTarget);
+    const deselectTarget = useMutation(api.game.deselectTarget);
     const cancelTarget = useMutation(api.game.cancelTarget);
     const [isPending, setIsPending] = useState(false);
     const [chosenGraveyardId, setChosenGraveyardId] = useState<string | null>(
@@ -111,6 +113,16 @@ export default function GraveyardTargetDialog({
         if (isPending || !activeGraveyard) return;
         setIsPending(true);
         try {
+            // CR 601.2c — an already-picked card un-picks (issue #2302).
+            if (isPickedTarget(pendingTarget, "graveyard-card", cardId)) {
+                await deselectTarget({
+                    gameId,
+                    playerId,
+                    targetType: "graveyard-card",
+                    targetId: cardId,
+                });
+                return;
+            }
             await selectTarget({
                 gameId,
                 playerId,

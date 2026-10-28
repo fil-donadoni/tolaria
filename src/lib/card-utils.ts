@@ -1214,6 +1214,29 @@ export function matchesPermanentFilter(
     return true;
 }
 
+/** CR 601.2c — true when `(type, id)` is already a pick of the CURRENT group of
+ *  an open target selection, so a click on it un-picks (issue #2302). Reads
+ *  `selected` only: earlier groups' picks (`priorSelected`) are locked in, and a
+ *  divide-as-you-choose selection (`divideTotal`) un-picks through its own
+ *  stepper buffer, never a click. */
+export function isPickedTarget(
+    pendingTarget:
+        | {
+              selected: ReadonlyArray<{ type: string; id: string }>;
+              divideTotal?: number;
+          }
+        | null
+        | undefined,
+    type: "permanent" | "player" | "spell" | "graveyard-card",
+    id: string
+): boolean {
+    return (
+        !!pendingTarget &&
+        pendingTarget.divideTotal === undefined &&
+        pendingTarget.selected.some((t) => t.type === type && t.id === id)
+    );
+}
+
 /** Returns true if a card on the battlefield matches the pending target requirement. */
 export function matchesTargetRequirement(
     card: CardInstance,
