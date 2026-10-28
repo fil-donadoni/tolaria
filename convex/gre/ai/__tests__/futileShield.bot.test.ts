@@ -930,4 +930,28 @@ describe("land-type change that unlocks a held cost (CR 305.6, CR 305.7, issue #
             `option-pick:${choice!.options!.find((o) => o.landTypeMode === "Forest")!.id}`,
         ]);
     });
+
+    it("keeps every mode when the retyped land is the opponent's", () => {
+        const state = position({
+            ...WITH_BEARS,
+            cards: [
+                ...WITH_BEARS.cards,
+                { name: "Mountain", owner: "opp", zone: "battlefield" },
+            ],
+        });
+        const move = activationsOf(state, 0, "Reef Shaman").find((m) => {
+            const slot = m.targets[0];
+            return (
+                slot?.type === "permanent" &&
+                findPermanent(state, slot.id)?.controllerId ===
+                    state.players[1].id
+            );
+        })!;
+        applyMoveInSearch(state, state.players[0].id, move);
+        resolveTopOfStack(state);
+        const choice = state.pendingChoices![0];
+        expect(
+            CHOICE_CANDIDATE_GENERATORS["option-pick"]!(state, choice)
+        ).toHaveLength(choice.options!.length);
+    });
 });

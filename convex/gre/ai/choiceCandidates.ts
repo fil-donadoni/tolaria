@@ -106,6 +106,7 @@ import {
     searchFindDestination,
 } from "./searchDestination";
 import { DEFAULT_EVAL_WEIGHTS } from "./evalWeights";
+import { findPermanent } from "../lookup";
 import { landTypeCanMatter } from "./futileShield";
 
 /** One opened branch of a choice node. */
@@ -782,8 +783,20 @@ const optionPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
         // leaving it in spends the choice node's visits on retypes whose value
         // equals `pass`, and the one that unlocks a cast sits a few hundredths
         // of reward above them. Never emptying: with every mode inert all stay.
+        // Only for the chooser's OWN lands: retyping an opponent's land can
+        // deny a colour, which this reading does not see.
+        const targets =
+            state.stack.find((i) => i.id === choice.stackItemId)?.targets ?? [];
+        const ownLandsOnly =
+            targets.length > 0 &&
+            targets.every(
+                (t) =>
+                    t.type === "permanent" &&
+                    findPermanent(state, t.id)?.controllerId === choice.playerId
+            );
         const matters = options.filter(
             (o) =>
+                !ownLandsOnly ||
                 o.landTypeMode === undefined ||
                 landTypeCanMatter(state, choice.playerId, o.landTypeMode)
         );

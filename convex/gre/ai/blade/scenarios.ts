@@ -16162,7 +16162,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #6915, main-phase variant of position B: a {1}{G} spell and only Islands. An Island made a Forest gains {T}: Add {G} (CR 305.6), the one way to cast the Bears, so the prune must leave the own-land target standing (pinned by `futileShield.bot.test.ts`). Diagnosis (issue #7267): the tree reaches the post-resolution cast, but the land-type choice node spent its visits across five types on a board-presence prior that favours the Islands already there, so at 200 iterations the activation averaged level with `pass`; `landTypeFillsADemandedCost` (`gre/ai/futileShield.ts`) lifts the type that pays a held cost.",
+        note: "Issue #6915, main-phase variant of position B: a {1}{G} spell and only Islands. An Island made a Forest gains {T}: Add {G} (CR 305.6), the one way to cast the Bears, so the prune must leave the own-land target standing (pinned by `futileShield.bot.test.ts`). Diagnosis (issue #7267): the tree reaches the post-resolution cast, but the land-type choice node spent its visits across five types on a board-presence prior that favours the Islands already there, so at 200 iterations the activation averaged level with `pass`; `optionPickCandidates` now drops the types that pay no held cost, and `isSorcerySpeedTrickDump` no longer holds a retype that does (`isCostUnlockingLandTypeChange`, `gre/ai/futileShield.ts`).",
     },
     {
         label: "regeneration shield: one pending Nightscape Familiar shield is enough",
