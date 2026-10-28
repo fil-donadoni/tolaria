@@ -15055,7 +15055,8 @@ export type EffectValue =
     | EffectScaledValue
     | EffectDivideValue
     | EffectSumValue
-    | EffectSetSizeValue;
+    | EffectSetSizeValue
+    | EffectBoundCountValue;
 
 /** setSize — HOW MANY objects a preceding Op bound into a picks-family set
  *  (CR 107.3 / 118.12, issue #3244): "you may tap X untapped Myr you control.
@@ -15077,6 +15078,28 @@ export type EffectValue =
  *  legal choice whose +0/+0 and 0 damage are both no-ops. */
 export type EffectSetSizeValue = {
     setSize: { of: EffectRef };
+};
+
+/** boundCount — HOW MANY times a snapshot binding declared inside a
+ *  PRECEDING `forEach` body was captured, across every iteration of that
+ *  construct: "for each creature exiled this way" read AFTER the sweep that
+ *  exiled them. Optionally only the captures whose last-known controller
+ *  (CR 608.2h — the snapshot's controller slot, read before the object moved)
+ *  is `controller`: "for each creature exiled this way, ITS CONTROLLER
+ *  searches", which CR 701.23h collapses into one search per player for as
+ *  many cards as that player had creatures exiled (Winds of Abandon).
+ *
+ *  It exists because a `forEach` body binding is iteration-scoped and never
+ *  leaks past the construct: no other reader can see the set of objects the
+ *  sweep acted on once the sweep is over, and a second sweep over the same
+ *  members skips every one that already left (CR 608.2b). The validator
+ *  admits `of` ONLY in this position, and only naming a snapshot binding of
+ *  an earlier sibling `forEach` body (the `iterated` binding family). An
+ *  iteration whose `bind` was never captured (its member had already left)
+ *  counts nothing; a sweep that captured nothing reads 0. An unresolvable
+ *  `controller` reads 0 as well — no player is the controller of anything. */
+export type EffectBoundCountValue = {
+    boundCount: { of: EffectRef; controller?: EffectPlayerRef };
 };
 
 /** lifeGainedThisTurn — the total life a PLAYER has gained so far this turn
@@ -15571,13 +15594,23 @@ export interface EffectChoiceSuperlative {
 /** A `choice` Op's `count`: an exact literal, an optional `{ min, max }`
  *  range (issue #677), or a computed exact count (any non-literal
  *  `EffectValue`, issue #5559). See the field's own note. */
-export type EffectChoiceCount = EffectValue | { min: number; max: number };
+export type EffectChoiceCount = EffectValue | EffectChoiceCountRange;
+
+/** The optional `{ min, max }` range of a `choice` Op's `count`. `max` is a
+ *  literal, or a COMPUTED ceiling (any non-literal `EffectValue`) resolved once
+ *  as the choice is raised — "search for up to N basic land cards, where N is
+ *  the number of creatures of theirs exiled this way" (CR 701.23h). A computed
+ *  ceiling at or below zero raises no choice (CR 107.1b). */
+export interface EffectChoiceCountRange {
+    min: number;
+    max: EffectValue;
+}
 
 /** True when a `choice` Op's `count` is the optional `{ min, max }` range —
  *  the one shape no `EffectValue` member shares. */
 export function isChoiceCountRange(
     count: EffectChoiceCount
-): count is { min: number; max: number } {
+): count is EffectChoiceCountRange {
     return typeof count === "object" && "min" in count && "max" in count;
 }
 
@@ -19433,7 +19466,8 @@ export type EffectOp =
            *  the number … controlled by the player who controls the
            *  fewest"). A result at or below zero raises no choice, exactly as
            *  an exact count with nothing available does (CR 107.1b: zero is
-           *  used instead of a negative result). */
+           *  used instead of a negative result). A range's `max` may be
+           *  computed the same way ({@link EffectChoiceCountRange}). */
           count: EffectChoiceCount;
           prompt: string;
           /** REQUIRED — the picks binding name (`"$picked"`). A choice whose

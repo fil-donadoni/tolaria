@@ -474,7 +474,8 @@ export function contextFreeGrounding(
         // bound yet at a pre-cast node, so there is strictly less to resolve
         // than for `counters`, which already takes this floor. `setSize`
         // (issue #3244) is the same case one read smaller: the COUNT of such a
-        // set, so it takes the same floor for the same reason.
+        // set, so it takes the same floor for the same reason — as does
+        // `boundCount`, the count of an earlier sweep's captures.
         if ("escaped" in v || "abilityResolutionCount" in v)
             return { amount: 1, scaling: false };
         return { amount: CF_ASSUMED_REF, scaling: true };

@@ -86,34 +86,34 @@ export const ephemerate = defineCard(() => ({
 // searches their library for a basic land card. Those players put those cards
 // onto the battlefield tapped, then shuffle. Overload {4}{W}{W}."
 //
-// CR 702.96 (issue #3215). The whole card is ONE `forEach { set: "targets" }`:
+// CR 702.96 (issue #3215). The exile is ONE `forEach { set: "targets" }`:
 // printed, that set is the single announced target; overloaded it is every
 // creature the caster doesn't control, computed with targeting restrictions
 // bypassed (CR 702.96b), which is how an overloaded Winds exiles a hexproof
 // creature that could never have been its target.
 //
-// The second sentence is the same text in both modes — "for each creature
-// exiled this way" is already a fan-out — so it lives INSIDE the same
-// iteration: one basic land per creature exiled, which is what makes an
-// overloaded Winds a one-sided wrath that ramps its victim N times, not once.
-// The searching player is read off the exile's `bind` SNAPSHOT
-// (`{ ref: "$exiled.controller" }`), never off the card's live zone: by then it
-// is in exile, and CR 608.2h's "last known information" is exactly what the
-// snapshot holds.
+// The exile is that ONE sweep; the second sentence reads what it did. "For
+// each creature exiled this way, its controller searches … for a basic land
+// card" is one search instruction per exiled creature, and CR 701.23h makes
+// every such instruction to one player before the shuffle a SINGLE search for
+// all those cards. So the search runs per PLAYER, not per creature: one
+// `choice` each, for up to as many basic lands as that player had creatures
+// exiled — `boundCount` of the sweep's `$exiled` snapshots whose LAST-KNOWN
+// controller is that player (CR 608.2h: by then the creature is in exile, and
+// a creature an opponent stole is its thief's to search for, not its
+// owner's). One prompt, one `LIBRARY_SEARCHED`, one `moveZone` putting every
+// found land onto the battlefield tapped, one shuffle — an overloaded Winds is
+// a one-sided wrath that ramps its victim N lands in a single search.
+//
+// A player none of whose creatures was exiled neither searches nor shuffles:
+// the `if` gates the whole tail on their count. In a two-player game every
+// creature the caster doesn't control is the one opponent's, so exactly one
+// player ever searches and CR 701.23i's simultaneous multi-player search never
+// arises.
 //
 // CR 701.23b — "a basic land card" is a stated quality in a hidden zone, so the
-// searcher isn't required to find one even though the search is mandatory:
-// `count: { min: 0, max: 1 }`, the Quirion Trailblazer shape.
-//
-// One divergence — tracked-by: #3289 — and it is a capability gap rather than
-// a reading: CR 701.23h collapses repeated searches before a shuffle into ONE
-// search, and the Oracle's "those players put those cards onto the battlefield
-// tapped, then shuffle" enters the lands together. This runs one search, one
-// entry and one shuffle PER exiled creature instead. A second `forEach` pass
-// cannot fix it (`execForEach` skips a member that has already left the
-// battlefield), and one search for N cards needs a `count` resolved at runtime,
-// which the `choice` Op does not take. Observable only through a
-// search-watching or lands-entering trigger.
+// searcher isn't required to find any even though the search is mandatory:
+// `count: { min: 0, max: … }`, the Quirion Trailblazer shape.
 //
 // The grammar has no keyword-cost line rule for CR 702.96, and the
 // "for each creature exiled this way…" tail has no rule either, so neither
@@ -139,28 +139,57 @@ export const windsOfAbandon = defineCard(() => ({
             select: { set: "targets" },
             effects: [
                 { op: "exile", target: { ref: "$each" }, bind: "$exiled" },
+            ],
+        },
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
                 {
-                    op: "choice",
-                    kind: "search-library",
-                    player: { ref: "$exiled.controller" },
-                    zone: "library",
-                    filter: { type: "Land", supertype: "Basic" },
-                    count: { min: 0, max: 1 },
-                    prompt: "Search your library for a basic land card.",
-                    bind: "$land",
-                },
-                {
-                    op: "moveZone",
-                    cards: { ref: "$land" },
-                    player: { ref: "$exiled.controller" },
-                    from: "library",
-                    to: "battlefield",
-                    tapped: true,
-                },
-                {
-                    op: "libraryLook",
-                    action: "shuffle",
-                    player: { ref: "$exiled.controller" },
+                    op: "if",
+                    predicate: {
+                        left: {
+                            boundCount: {
+                                of: { ref: "$exiled" },
+                                controller: { ref: "$each" },
+                            },
+                        },
+                        op: "gt",
+                        right: 0,
+                    },
+                    then: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: { ref: "$each" },
+                            zone: "library",
+                            filter: { type: "Land", supertype: "Basic" },
+                            count: {
+                                min: 0,
+                                max: {
+                                    boundCount: {
+                                        of: { ref: "$exiled" },
+                                        controller: { ref: "$each" },
+                                    },
+                                },
+                            },
+                            prompt: "Search your library for a basic land card for each of your creatures exiled this way.",
+                            bind: "$lands",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$lands" },
+                            player: { ref: "$each" },
+                            from: "library",
+                            to: "battlefield",
+                            tapped: true,
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: { ref: "$each" },
+                        },
+                    ],
                 },
             ],
         },

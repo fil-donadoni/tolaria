@@ -1041,6 +1041,16 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         );
         return;
     }
+    // boundCount (CR 701.23h): the captures of an earlier forEach body's
+    // binding — the same reason again, one construct further away.
+    if ("boundCount" in value) {
+        skipBecause(
+            req,
+            "runtime-amount",
+            "amount counts an earlier forEach's per-iteration captures — the canned generator never runs that sweep"
+        );
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;
