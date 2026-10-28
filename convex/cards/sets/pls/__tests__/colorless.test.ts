@@ -223,7 +223,7 @@ describe("Planeshift Lair cycle (CR 117.3a / 701.21 / 400.7, issue #1938)", () =
         });
         fireLairEtb(state, lair, "crosiss-catacombs-etb");
         // The return leg is unpayable and nothing can remedy it, so the may-pay
-        // is auto-declined (CR 118 "unless" resolves as not paid): no prompt.
+        // is auto-declined (CR 118.12a "unless" resolves as not paid): no prompt.
         expect(state.pendingChoices ?? []).toHaveLength(0);
         const p1 = state.players[0];
         expect(p1.graveyard.some((c) => c.id === "lair")).toBe(true);
