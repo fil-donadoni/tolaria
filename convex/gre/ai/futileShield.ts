@@ -83,6 +83,57 @@
  *     Combinations of several costs, and cards cast from other zones, are
  *     not modelled: a narrowing.
  *
+ * THIS-TURN COMBAT KEYWORD GRANTS (issue #5927). An until-end-of-turn
+ * `grantAbility` of a COMBAT keyword — evasion (flying, fear, landwalk, …), a
+ * damage-step amplifier (first strike, trample, deathtouch, …), vigilance, or
+ * reach — ends at this turn's cleanup (CR 514.2) and pays off only in a combat
+ * it can still change. The leaf already prices it at nothing
+ * (`evaluateCreature` takes the flat keyword credit back,
+ * `ai/defensiveGrants.ts`' `temporaryCombatKeywords`), so with no such combat
+ * the activation ties with `pass` and the pick falls to rollout noise — the
+ * bot paid {U} and tapped a 2/2 to give its own creature flying at the
+ * opponent's end step, or into a reach blocker. The grant is pruned only when
+ * no window is left before it expires; every one of these keeps the move:
+ *
+ *   * anything on the stack that is not provably harmless (the shield rule's
+ *     own reading);
+ *   * the recipient already attacking or blocking (damage ahead, CR 510.4;
+ *     blocks ahead, CR 509.1b);
+ *   * the recipient's controller's own turn with attackers still to declare,
+ *     when the keyword changes the declaration or the blocks: vigilance on a
+ *     creature able to attack (CR 702.20b, read at the declaration); an
+ *     evasion keyword while at least one untapped opposing creature can block
+ *     the recipient now and not with the keyword (`validateBlockerEligibility`
+ *     with the keyword added, CR 509.1b — a flying grant into a board of reach
+ *     and flyers changes nothing), or the keyword is menace with any blocker
+ *     at all (CR 702.111). A damage-step keyword never: it can be granted
+ *     after blocks are declared at the same price, when the exchange it
+ *     amplifies is known;
+ *   * the opponent's turn with attackers declared and blocks still open, the
+ *     recipient untapped (it may block, CR 509.1a; which keywords matter for a
+ *     block is not modelled — every one keeps the move);
+ *   * an extra phase queued (a second combat may follow).
+ *
+ * A recipient already tapped, or tapped by the activation's own `{T}` (the
+ * source granting to itself), can neither attack (CR 508.1a) nor block
+ * (CR 509.1a) before the grant expires. Only a keyword in
+ * `COMBAT_KEYWORD_WINDOW` (or a landwalk) qualifies: a defensive keyword is a
+ * shield against stack threats and keeps issue #2937's own reading; haste
+ * (payable tap abilities, CR 302.6), banding, a granted activated or
+ * triggered ability, an attack requirement or an unknown keyword keeps the
+ * move. NARROWINGS, stated: a permanent that reads the keyword ("creatures
+ * with flying get +1/+1") is not modelled; a flash blocker in the opponent's
+ * hand is not modelled; a damage-step keyword whose payoff is a non-combat
+ * damage event (lifelink on a pinger) is reached by granting it in response
+ * to that event, with it on the stack.
+ *
+ * A `setColor` until end of turn riding beside the grant (Disciple of
+ * Kangee's "and becomes blue") is futile when nothing reads colours before the
+ * bot next holds priority — the land-type reading again: Oracle text naming a
+ * colour, on any battlefield or in the mover's hand or graveyard, keeps the
+ * move (protection from a colour, a colour-gated removal, a colour hoser), the
+ * colour changes themselves read out of the text first.
+ *
  * Covers printed AND granted activations (Zombie Master's "{B}: Regenerate
  * this permanent."), via `getEffectiveActivatedAbilities`. Casting a
  * shield-only spell is not covered: a cast can trigger "whenever you cast"
@@ -121,6 +172,10 @@ import {
 } from "../manaAvailability";
 import { SOURCE_BINDING } from "../effects/interpreter";
 import { getEffectivePower } from "../layers";
+import {
+    validateAttackerEligibility,
+    validateBlockerEligibility,
+} from "../combat";
 import { misdirectedTargetCount } from "./beneficence";
 
 /** The cost legs whose payment is a pure loss (mana, tapping the source).
@@ -130,9 +185,69 @@ const LOSS_ONLY_COST_KEYS: ReadonlySet<string> = new Set(["tap", "mana"]);
 /** CR 510.4 — up to two combat damage steps. */
 const COMBAT_THREATS = 2;
 
-type ShieldKind = "regeneration" | "prevention" | "pump" | "landType";
+type ShieldKind =
+    | "regeneration"
+    | "prevention"
+    | "pump"
+    | "landType"
+    | "keyword"
+    | "color";
 
-type Shield = { kind: ShieldKind; permanentId: string; subtype?: string };
+type Shield = {
+    kind: ShieldKind;
+    permanentId: string;
+    subtype?: string;
+    keyword?: string;
+    /** The activation's own `{T}` taps the recipient (the source granting
+     *  to itself): it can neither attack nor block before the grant ends. */
+    tapsRecipient?: boolean;
+};
+
+/** The combat window a this-turn keyword grant can still convert in — the
+ *  keywords whose whole payoff is combat (issue #5927). A keyword absent here
+ *  (and not a landwalk) keeps the move. */
+type KeywordWindow = "evasion" | "damage" | "declaration" | "block";
+
+const COMBAT_KEYWORD_WINDOW: Readonly<Record<string, KeywordWindow>> = {
+    // CR 509.1b — read when blockers are declared.
+    flying: "evasion",
+    fear: "evasion",
+    intimidate: "evasion",
+    horsemanship: "evasion",
+    shadow: "evasion",
+    skulk: "evasion",
+    menace: "evasion",
+    unblockable: "evasion",
+    // CR 510 — read when combat damage is dealt.
+    trample: "damage",
+    "first strike": "damage",
+    "first-strike": "damage",
+    "double strike": "damage",
+    "double-strike": "damage",
+    deathtouch: "damage",
+    lifelink: "damage",
+    wither: "damage",
+    infect: "damage",
+    // CR 702.20b — read when attackers are declared.
+    vigilance: "declaration",
+    // CR 702.17b — read only when the recipient blocks.
+    reach: "block",
+};
+
+/** A basic-land-type walk ("mountainwalk", "islandwalk"): evasion. */
+const LANDWALK = /walk$/i;
+
+function keywordWindowOf(keyword: string): KeywordWindow | undefined {
+    return (
+        COMBAT_KEYWORD_WINDOW[keyword] ??
+        (LANDWALK.test(keyword) ? "evasion" : undefined)
+    );
+}
+
+/** A colour, or "color(s)", in Oracle text — a card that reads the colour a
+ *  this-turn colour change writes. */
+const COLOR_WORDS =
+    /\b(white|blue|black|red|green|colou?rless|multicolou?red|monocolou?red|colou?rs?)\b/i;
 
 /** The this-turn effects `move` creates when it activates an ability whose
  *  WHOLE script is shields / until-end-of-turn P/T changes paid for with a
@@ -303,7 +418,48 @@ function shieldOf(
         const permanentId = permanentNamed(op.target, sourceId, targets);
         return permanentId ? { kind: "pump", permanentId } : null;
     }
+    if (op.op === "grantAbility") {
+        // Issue #5927 — a this-turn COMBAT keyword grant. Any other payload
+        // of the Op (an activated or triggered ability, an attack
+        // requirement, a keyword with a payoff outside combat) keeps the move.
+        if (
+            op.grantedActivatedId !== undefined ||
+            op.grantedTriggeredId !== undefined ||
+            op.attackRequirement === true ||
+            typeof op.ability !== "string" ||
+            keywordWindowOf(op.ability) === undefined ||
+            !endsThisTurn(op.duration)
+        ) {
+            return null;
+        }
+        const permanentId = permanentNamed(op.target, sourceId, targets);
+        return permanentId
+            ? {
+                  kind: "keyword",
+                  permanentId,
+                  keyword: op.ability,
+                  tapsRecipient: tapCost && permanentId === sourceId,
+              }
+            : null;
+    }
+    if (op.op === "setColor") {
+        if (!endsThisTurn(op.duration)) return null;
+        const permanentId = permanentNamed(op.target, sourceId, targets);
+        return permanentId ? { kind: "color", permanentId } : null;
+    }
     return landTypeChangeOf(op, sourceId, targets);
+}
+
+/** CR 611.2a / 514.2 — a change that ends with THIS turn's cleanup; a longer
+ *  one can be consumed after the bot's next priority. */
+function endsThisTurn(
+    duration: { phase?: string; skip?: number } | undefined
+): boolean {
+    return (
+        duration !== undefined &&
+        duration.phase === "end-of-turn" &&
+        (duration.skip ?? 0) === 0
+    );
 }
 
 /** CR 305.7 — an until-end-of-turn change of a permanent's land type to one
@@ -373,6 +529,18 @@ function shieldIsFutile(
             shield.subtype!,
             moverId
         );
+    }
+    if (shield.kind === "keyword") {
+        return keywordGrantIsFutile(
+            state,
+            permanent,
+            shield.keyword!,
+            tapCost,
+            shield.tapsRecipient === true
+        );
+    }
+    if (shield.kind === "color") {
+        return colorChangeIsFutile(state, tapCost, moverId);
     }
     const threats = threatsTo(state, permanent, tapCost, shield.kind);
     // A P/T change is consumed by combat damage involving the creature (even
@@ -592,6 +760,165 @@ function demandedCosts(player: GameState["players"][number]) {
 /** An upper bound on the destruction / damage events that can reach
  *  `permanent` before its controller next holds priority — see the module
  *  header's three cases. */
+/** Is an until-end-of-turn grant of the combat keyword `keyword` to
+ *  `recipient` provably unused before it expires — see the module header
+ *  (issue #5927). `tapsRecipient`: the activation's own `{T}` taps it. */
+function keywordGrantIsFutile(
+    state: GameState,
+    recipient: CardInstanceState,
+    keyword: string,
+    tapCost: boolean,
+    tapsRecipient: boolean
+): boolean {
+    const window = keywordWindowOf(keyword);
+    if (window === undefined) return false;
+    if (!recipient.types.includes("Creature")) return false;
+    if (state.stack.some((item) => !isHarmlessStackItem(item, tapCost))) {
+        return false;
+    }
+    if (takesPartInCombat(state, recipient)) return false;
+    // CR 508.1a / 509.1a — a tapped creature neither attacks nor blocks, and
+    // it stays tapped past this turn's cleanup (CR 502.3).
+    if (recipient.isTapped || tapsRecipient) return true;
+    if ((state.extraPhases?.length ?? 0) > 0) return false;
+    const controller = state.players.find(
+        (p) => p.id === recipient.controllerId
+    );
+    const opponent = state.players.find((p) => p.id !== recipient.controllerId);
+    if (!controller || !opponent) return false;
+    const combat = state.combat;
+    if (state.activePlayerId === recipient.controllerId) {
+        // The recipient's own turn: its only combat is the attack it may
+        // still declare.
+        const attackAhead =
+            BLOCKS_AHEAD_PHASES.has(state.phase) && !combat?.confirmed;
+        if (!attackAhead) return true;
+        switch (window) {
+            case "block":
+            case "damage":
+                return true;
+            case "declaration":
+                return !validateAttackerEligibility(
+                    withKeyword(recipient, keyword),
+                    opponent.battlefield,
+                    state
+                ).eligible;
+            case "evasion":
+                return (
+                    !validateAttackerEligibility(
+                        recipient,
+                        opponent.battlefield,
+                        state
+                    ).eligible ||
+                    !evasionChangesBlocks(
+                        state,
+                        recipient,
+                        keyword,
+                        opponent.battlefield
+                    )
+                );
+        }
+    }
+    // The opponent's turn: the recipient can only block, and the bot holds
+    // priority again once attackers are declared (CR 508.2), at the same
+    // price — only a declared attack with blocks still open keeps the move.
+    const blocksOpen =
+        !!combat &&
+        combat.confirmed &&
+        !combat.blockersConfirmed &&
+        combat.attackerIds.length > 0;
+    return !blocksOpen;
+}
+
+/** `card` as the layer-6 grant would leave it (CR 613.1f) — the
+ *  `grantAbility` Op appends to `staticAbilities`. */
+function withKeyword(
+    card: CardInstanceState,
+    keyword: string
+): CardInstanceState {
+    return { ...card, staticAbilities: [...card.staticAbilities, keyword] };
+}
+
+/** CR 509.1b — does `keyword` on `attacker` take a block away from at least
+ *  one untapped opposing creature that could block it now? Menace changes
+ *  the count rather than a pair, so any blocker at all answers `true`. */
+function evasionChangesBlocks(
+    state: GameState,
+    attacker: CardInstanceState,
+    keyword: string,
+    defenderBattlefield: CardInstanceState[]
+): boolean {
+    const blockers = defenderBattlefield.filter(
+        (c) => c.types.includes("Creature") && !c.isTapped
+    );
+    if (keyword === "menace") return blockers.length > 0;
+    const granted = withKeyword(attacker, keyword);
+    return blockers.some(
+        (blocker) =>
+            validateBlockerEligibility(
+                attacker,
+                blocker,
+                defenderBattlefield,
+                state
+            ).eligible &&
+            !validateBlockerEligibility(
+                granted,
+                blocker,
+                defenderBattlefield,
+                state
+            ).eligible
+    );
+}
+
+/** Is an until-end-of-turn colour change provably unread before the bot next
+ *  holds priority — nothing on the stack, no colour reader in play or in the
+ *  mover's hand or graveyard (see the module header, issue #5927). */
+function colorChangeIsFutile(
+    state: GameState,
+    tapCost: boolean,
+    moverId: string
+): boolean {
+    if (state.stack.some((item) => !isHarmlessStackItem(item, tapCost))) {
+        return false;
+    }
+    return !anyColorReader(state, moverId);
+}
+
+function anyColorReader(state: GameState, moverId: string): boolean {
+    for (const player of state.players) {
+        const zones =
+            player.id === moverId
+                ? [player.battlefield, player.hand, player.graveyard]
+                : [player.battlefield];
+        for (const zone of zones) {
+            if (zone.some(readsColors)) return true;
+        }
+    }
+    return false;
+}
+
+/** Does the card's Oracle text, less its own colour-changing abilities, name
+ *  a colour? An unknown definition reads as a reader. */
+function readsColors(card: CardInstanceState): boolean {
+    const def = tryGetDefinition(card.card.id as string);
+    if (!def) return true;
+    if (def.oracleText === undefined) return true;
+    let text = def.oracleText;
+    for (const ability of def.activatedAbilities ?? []) {
+        if (ability.oracleText && scriptSetsColor(ability.effects)) {
+            text = text.replace(ability.oracleText, "");
+        }
+    }
+    return COLOR_WORDS.test(text);
+}
+
+function scriptSetsColor(effects: readonly EffectOp[] | undefined): boolean {
+    return (
+        effects !== undefined &&
+        effects.some((op) => "op" in op && op.op === "setColor")
+    );
+}
+
 function threatsTo(
     state: GameState,
     permanent: CardInstanceState,

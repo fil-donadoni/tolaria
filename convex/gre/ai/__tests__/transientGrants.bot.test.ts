@@ -6,14 +6,16 @@
 // grant (`ai/defensiveGrants.ts`' `temporaryCombatKeywords`) — the keyword
 // twin of the until-end-of-turn P/T exclusion (ADR 0020 §2), unconditional
 // where the defensive rows (issue #2937) keep their threat gate. (2) The
-// transient-spend shape of the `standing-spend-hold` root rule, which holds
-// such an activation when its settled position is no better than passing.
+// prune of a grant with no combat window left before it expires
+// (`ai/futileShield.ts`' `isFutileThisTurnMove`, the this-turn shield rule of
+// issue #5493 read for a combat keyword), and the misdirection prune of the
+// same grant aimed at the opponent's creature (`isMisdirectedThisTurnMove`).
 //
 // Every position is built through the REAL blade builder; the grant on the
 // board is the one a live activation produces (CR 611.2a), never a
 // hand-written `staticAbilities` literal.
 
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { buildBladeState } from "../blade/runner";
 import { getCardByName } from "../../../cards";
 import { seatPlayerId } from "../blade/matcher";
@@ -22,7 +24,11 @@ import {
     decidingPlayer,
     searchWithTrace,
 } from "../../search";
-import { enumerateMoves } from "../../moves";
+import { enumerateMoves, type Move } from "../../moves";
+import {
+    isFutileThisTurnMove,
+    isMisdirectedThisTurnMove,
+} from "../futileShield";
 import { evaluateCreature } from "../../evaluate";
 import { creatureValueRaw } from "../../creatureBody";
 import {
@@ -30,7 +36,6 @@ import {
     temporaryCombatKeywords,
     temporaryDefensiveKeywords,
 } from "../defensiveGrants";
-import { setSearchVariant } from "../searchVariant";
 import type { BladeScenario } from "../blade/types";
 import type { CardInstanceState, GameState } from "../../state";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
@@ -180,37 +185,133 @@ describe("a this-turn keyword grant is not lasting material (#5927, CR 514.2)", 
     });
 });
 
-describe("the transient-spend hold (#5927, `standing-spend-hold`)", () => {
-    afterEach(() => setSearchVariant(null));
-
-    /** The root decision of `spec` for the bot seat, seed 1, 200 iterations. */
+describe("a grant with no combat window is pruned (#5927, `isFutileThisTurnMove`)", () => {
+    /** The root decision of `spec` for the bot seat, seed 1, 200 iterations.
+     *  The trace is null when the prune left `pass` as the only candidate. */
     function decide(spec: ScenarioSpec) {
         const state = buildBladeState(scenario("decision", spec));
         const botId = seatPlayerId(state, "me");
-        const { trace } = searchWithTrace(state, botId, { iterations: 200 }, 1);
-        expect(trace).not.toBeNull();
-        return trace!;
+        return searchWithTrace(state, botId, { iterations: 200 }, 1);
     }
 
-    it("holds a flying grant into a reach blocker, and the rule is what holds it", () => {
-        const spec = boardSpec("Giant Spider");
-        const held = decide(spec);
-        expect(held.chosen).toBe("pass");
-        expect(held.mechanism).toBe("standing-spend-hold");
+    /** The Disciple's activations the bot can make, by target name. */
+    function grantsOn(state: GameState, target: string): Move[] {
+        const botId = seatPlayerId(state, "me");
+        const targetId = permanent(state, target).id;
+        return enumerateMoves(state, botId).filter(
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.cardInstanceId === permanent(state, DISCIPLE).id &&
+                m.targets.some(
+                    (t) => t.type === "permanent" && t.id === targetId
+                )
+        );
+    }
 
-        // With the rule off the same search spends the grant: the pick is the
-        // search's own tie-break reading rollout noise, which is the blunder.
-        setSearchVariant({
-            name: "no-hold",
-            disabledRootRules: ["standing-spend-hold"],
-        });
-        const spent = decide(spec);
-        expect(spent.chosen).toMatch(/^activate Disciple of Kangee/);
+    function onlyGrantOn(state: GameState, target: string): Move {
+        const grants = grantsOn(state, target);
+        expect(grants).toHaveLength(1);
+        return grants[0];
+    }
+
+    it("prunes a flying grant into a reach blocker: the block set is unchanged (CR 702.17b)", () => {
+        const spec = boardSpec("Giant Spider");
+        const state = buildBladeState(scenario("reach", spec));
+        const grant = onlyGrantOn(state, BEARS);
+        expect(isFutileThisTurnMove(state, grant)).toBe(true);
+        // Wired into the root enumeration's dominance prune.
+        const botId = seatPlayerId(state, "me");
+        expect(
+            enumerateMoves(state, botId, { pruneDominatedNoOps: true })
+        ).not.toContainEqual(grant);
+        expect(decide(spec).move).toEqual({ kind: "pass" });
     });
 
-    it("still takes the grant that converts: flying past a ground blocker for lethal", () => {
-        const won = decide(boardSpec("Hill Giant", { life: { opp: 2 } }));
-        expect(won.chosen).toBe(`activate ${DISCIPLE} → ${BEARS}`);
-        expect(won.mechanism).not.toBe("standing-spend-hold");
+    it("keeps the grant that converts: flying past a ground blocker for lethal (CR 702.9b)", () => {
+        const spec = boardSpec("Hill Giant", { life: { opp: 2 } });
+        const state = buildBladeState(scenario("ground", spec));
+        expect(isFutileThisTurnMove(state, onlyGrantOn(state, BEARS))).toBe(
+            false
+        );
+        const won = decide(spec);
+        expect(won.trace?.chosen).toBe(`activate ${DISCIPLE} → ${BEARS}`);
+    });
+
+    it("keeps the grant on the bot's own declared attacker while blocks are open (CR 509.1b)", () => {
+        const state = buildBladeState(
+            scenario(
+                "attacking",
+                boardSpec("Hill Giant", {
+                    phase: "DECLARE_ATTACKERS",
+                    combat: { attackers: [BEARS], confirmed: true },
+                })
+            )
+        );
+        expect(isFutileThisTurnMove(state, onlyGrantOn(state, BEARS))).toBe(
+            false
+        );
+    });
+
+    it("prunes the grant at the opponent's end step: no combat is left before cleanup (CR 514.2)", () => {
+        const state = buildBladeState(
+            scenario(
+                "end-step",
+                boardSpec("Hill Giant", {
+                    phase: "END_STEP",
+                    turn: 6,
+                    activePlayer: "opp",
+                    priority: "me",
+                })
+            )
+        );
+        expect(isFutileThisTurnMove(state, onlyGrantOn(state, BEARS))).toBe(
+            true
+        );
+    });
+
+    it("keeps the grant on the opponent's turn once attackers are declared: the Bears may block (CR 509.1a)", () => {
+        const state = buildBladeState(
+            scenario(
+                "blocking",
+                boardSpec("Hill Giant", {
+                    phase: "DECLARE_ATTACKERS",
+                    turn: 6,
+                    activePlayer: "opp",
+                    priority: "me",
+                    combat: { attackers: ["Hill Giant"], confirmed: true },
+                })
+            )
+        );
+        expect(isFutileThisTurnMove(state, onlyGrantOn(state, BEARS))).toBe(
+            false
+        );
+    });
+
+    it("prunes the grant on its own tapping source and misdirects the one on the opposing creature", () => {
+        const base = boardSpec("Hill Giant", {
+            phase: "END_STEP",
+            turn: 6,
+            activePlayer: "opp",
+            priority: "me",
+        });
+        const state = buildBladeState(
+            scenario("opponent-only", {
+                ...base,
+                cards: base.cards.filter((c) => c.name !== BEARS),
+            })
+        );
+        const botId = seatPlayerId(state, "me");
+        // CR 508.1a / 509.1a — the {T} in the cost leaves the source unable
+        // to attack or block before the grant expires.
+        expect(isFutileThisTurnMove(state, onlyGrantOn(state, DISCIPLE))).toBe(
+            true
+        );
+        const gift = onlyGrantOn(state, "Hill Giant");
+        expect(isMisdirectedThisTurnMove(state, gift, botId)).toBe(true);
+        expect(
+            enumerateMoves(state, botId, { pruneDominatedNoOps: true }).filter(
+                (m) => m.kind === "activate-ability"
+            )
+        ).toEqual([]);
     });
 });

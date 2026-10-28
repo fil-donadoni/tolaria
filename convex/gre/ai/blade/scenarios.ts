@@ -3624,7 +3624,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5927, the anchor of the transient-grant pair. A 2/4 reach Giant Spider blocks a flyer as well as a ground 2/2 (CR 702.17b), so the opponent sitting on 2 life changes nothing: with or without flying the Bears has no profitable attack, and paying {U} and the Disciple's tap for the grant buys nothing. Before the fix `creatureValueRaw` credited the until-end-of-turn flying as +20 of lasting material at every leaf of the turn and the root activated on every seed (`material-tiebreak`); the leaf now takes that credit back (`temporaryCombatKeywords`, the keyword twin of ADR 0020 §2) and the `standing-spend-hold` rule's transient-spend shape holds the activation when its settled position is no better than passing. The right-hand half below is the same board with the Spider replaced by a ground Hill Giant.",
+        note: "Issue #5927, the anchor of the transient-grant pair. A 2/4 reach Giant Spider blocks a flyer as well as a ground 2/2 (CR 702.17b), so the opponent sitting on 2 life changes nothing: with or without flying the Bears has no profitable attack, and paying {U} and the Disciple's tap for the grant buys nothing. Before the fix `creatureValueRaw` credited the until-end-of-turn flying as +20 of lasting material at every leaf of the turn and the root activated on every seed (`material-tiebreak`); the leaf now takes that credit back (`temporaryCombatKeywords`, the keyword twin of ADR 0020 §2) and the futile-move prune (`isFutileThisTurnMove`, `ai/futileShield.ts`) drops the activation: the Bears can attack, but flying takes no block away from the Spider (`validateBlockerEligibility` with the keyword added, CR 509.1b), so no combat window is left for the grant. The right-hand half below is the same board with the Spider replaced by a ground Hill Giant.",
     },
     {
         label: "transient grant: gives its own creature flying for the evasive lethal swing",
@@ -3673,7 +3673,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5927, the right-hand half: a ground 3/3 cannot block a flyer (CR 702.9b), so the Bears with flying is two unblockable damage into 2 life — the one window the grant converts in. Wins on `mechanism: mean-reward` on all 5 seeds, before and after the fix: the discriminating half says the take-back and the hold bought DISCRIMINATION (flying into reach held, flying into a ground blocker for lethal taken), not a blanket refusal of every this-turn grant.",
+        note: "Issue #5927, the right-hand half: a ground 3/3 cannot block a flyer (CR 702.9b), so the Bears with flying is two unblockable damage into 2 life — the one window the grant converts in. Wins on `mechanism: mean-reward` on all 5 seeds, before and after the fix: the discriminating half says the take-back and the prune bought DISCRIMINATION (flying into reach pruned, flying into a ground blocker for lethal kept and taken), not a blanket refusal of every this-turn grant.",
     },
     {
         label: "transient grant: does NOT give its own creature flying at the opponent's end step",
@@ -3713,7 +3713,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { kind: "activate-ability", card: "Disciple of Kangee" },
             ],
         },
-        note: "Issue #5927, the window with the fewest holds: no attack was declared, nothing is on the stack, and a grant made now ends at this very turn's cleanup (CR 514.2) having changed nothing — it is a mana and a tapped body for nothing, and the bot activated here on 3 of 5 seeds once the leaf credit was gone (`material-tiebreak` and `announcement-variant` reading rollout noise). The transient-spend shape of `standing-spend-hold` is what makes this `pass` on every seed.",
+        note: "Issue #5927, the window with the fewest holds: no attack was declared, nothing is on the stack, and a grant made now ends at this very turn's cleanup (CR 514.2) having changed nothing — it is a mana and a tapped body for nothing, and the bot activated here on 3 of 5 seeds once the leaf credit was gone (`material-tiebreak` and `announcement-variant` reading rollout noise). The futile-move prune is what makes this `pass` on every seed: on the opponent's turn with no attack declared the Bears can neither attack nor block before cleanup, so the grant is dropped at enumeration (`isFutileThisTurnMove`).",
     },
     {
         label: "transient grant: never gives the opponent's creature flying when its own tapped source is the only other target",
@@ -3747,7 +3747,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { kind: "activate-ability", card: "Disciple of Kangee" },
             ],
         },
-        note: "Issue #5927, the opponent-target case: the only legal targets are the opposing Hill Giant and the Disciple itself, which taps as the cost. The `announcement-variant` rule can redirect a beneficial grant only to an own-side SIBLING, and the self-target sibling is a pointless self pump (`hold-trick`), so before the fix the misdirected variant could reach the material tie-break on noise. Both variants are transient spends whose settled position is no better than passing, so the hold refuses both; `pass` on every seed.",
+        note: "Issue #5927, the opponent-target case: the only legal targets are the opposing Hill Giant and the Disciple itself, which taps as the cost. The `announcement-variant` rule can redirect a beneficial grant only to an own-side SIBLING, and the self-target sibling is a pointless self pump (`hold-trick`), so before the fix the misdirected variant could reach the material tie-break on noise. Both variants are pruned at enumeration: the self-target one is futile (the {T} in the cost leaves the source unable to attack or block before the grant expires, CR 508.1a / 509.1a) and the opponent-target one is misdirected (`isMisdirectedThisTurnMove`, a beneficial grant aimed across the table); `pass` on every seed.",
     },
     {
         label: "transient grant: never gives an opposing creature that can't attack flying",
@@ -3792,7 +3792,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { kind: "activate-ability", card: "Disciple of Kangee" },
             ],
         },
-        note: "Issue #5927, the review's corner: the opposing Bears sits under the bot's own Manacles of Decay (\"enchanted creature can't attack\"). The restriction discount prices the attack share off the creature's keywords, so with the transient flying credit taken back in full AND the attack share still counting it, a flying grant on the Pacified Bears read as −15 for the opponent — a +15 gain the settled-position probe would have licensed. The share now reads the LASTING keywords only (`lastingStaticAbilities`), the grant moves nothing, and the transient-spend hold refuses it; `pass` on every seed.",
+        note: "Issue #5927, the review's corner: the opposing Bears sits under the bot's own Manacles of Decay (\"enchanted creature can't attack\"). The restriction discount prices the attack share off the creature's keywords, so with the transient flying credit taken back in full AND the attack share still counting it, a flying grant on the Pacified Bears read as −15 for the opponent — a +15 gain the settled-position probe would have licensed. The share now reads the LASTING keywords only (`lastingStaticAbilities`), the grant moves nothing, and the misdirection prune drops the variant before the search sees it; `pass` on every seed.",
     },
     {
         label: "activation timing: does not crack Sylvan Safekeeper with no threat",
