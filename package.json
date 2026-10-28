@@ -137,6 +137,7 @@
         "seed:preset": "bun scripts/seed-preset-deck.ts",
         "seed:bot-findings": "bun scripts/seed-bot-findings.ts",
         "seed:preset:deploy": "bun scripts/seed-preset-deck.ts --all --deploy",
+        "seed:preset:prod": "bun scripts/seed-preset-deck.ts --all --prod",
         "selfplay": "SELFPLAY=1 vitest run src/lib/ai/selfplay/harness.bot.test.ts",
         "lowering-sweep": "LOWERING_SWEEP=1 vitest run src/lib/ai/selfplay/loweringSweep.bot.test.ts",
         "telemetry:context": "bun scripts/telemetry-context.ts",
