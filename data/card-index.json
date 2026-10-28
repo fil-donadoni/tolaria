@@ -37120,6 +37120,14 @@
         "source": "compiled"
     },
     {
+        "name": "Knight of the Reliquary",
+        "scryfallId": "ad8b8518-c09e-4cb7-95b2-08e4e370d89c",
+        "oracleId": "393e5331-4456-4ba3-b410-bb630bb053db",
+        "firstSet": "con",
+        "firstPrintId": "ad8b8518-c09e-4cb7-95b2-08e4e370d89c",
+        "firstPrintSet": "con"
+    },
+    {
         "name": "Knight of the Skyward Eye",
         "scryfallId": "1d56e2bf-1937-42c1-8f61-1fd93e84cef7",
         "oracleId": "633e91ea-84d4-42ca-a8eb-603db340ebe7",
