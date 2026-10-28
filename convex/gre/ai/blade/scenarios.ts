@@ -3683,6 +3683,97 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #2938, the DISCRIMINATING mirror of the no-threat control above — the same two permanents, one Bolt apart. Sacrificing a land is the textbook use of the ability here: the Bears gains shroud, the Bolt has no legal target on resolution and is countered by the game rules (CR 608.2b), and a 2/2 outlives a spare mana source. Chooses the activation on all 5 seeds. It is a REAL pair, not a tripwire: the two positions differ only in whether a threat is live, and the bot answers them differently. What makes it assertable is a RULES change, not a bot one — until #2942 the shroud grant did not counter the targeting spell, so the bot passing here was the correct play in this engine and teaching it to pay would have been teaching it a lie (the measurement is in #2938's investigation comment). Breaking the CR 608.2b protection re-check in `isTargetStillLegal` (`convex/gre/state.ts`) turns this entry red on all 5 seeds while the control above stays green — that is the proof this asserts the payoff and not the cost. The finding this retires is docs/findings/1920-safekeeper-reactive-depth.md (declined).",
     },
     {
+        label: "activation timing: does not re-crack Sylvan Safekeeper once the Bears' shroud has resolved",
+        pairOf: {
+            anchor: "activation payoff: cracks Sylvan Safekeeper against removal on the stack",
+            discriminant: {
+                kind: "stack",
+                detail: "the Bot's own shroud grant to the Bears already resolved above the Bolt",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Sylvan Safekeeper",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        // The payoff entry's line, played on: the Bolt, the Bot's answer, and
+        // the passes that resolve the answer. The Bot auto-passes after its
+        // own activation (`singleShotAutoPass`), so it next holds priority
+        // only once the grant has resolved — the Bolt still on the stack.
+        setup: [
+            {
+                kind: "cast",
+                card: "Lightning Bolt",
+                by: "me",
+                target: "Grizzly Bears",
+            },
+            {
+                kind: "activate",
+                card: "Sylvan Safekeeper",
+                target: "Grizzly Bears",
+                sacrifice: "Mountain",
+            },
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "me" },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Sylvan Safekeeper" },
+            ],
+        },
+        note: "Issue #6942, the second half of the payoff entry's line. The Bears already has shroud, so the Bolt will be removed from the stack on resolution (CR 608.2b) and the shrouded Bears is no legal target any more (CR 702.18a); the only activation left aims at the Safekeeper, which nothing on the stack targets — another land buys nothing. `isFutileThisTurnMove` (`gre/ai/futileShield.ts`) prunes it, and an identical grant still PENDING above the Bolt is pruned the same way (CR 702.18b, unit-tested in `futileShield.bot.test.ts`: the engine never hands the Bot priority there). A tripwire: `pass` on all 5 seeds before the fix too — the search did not reproduce the reported re-activation at this budget; the discriminating proof is the creature-spell entry below.",
+    },
+    {
+        label: "activation timing: does not crack Sylvan Safekeeper in response to a creature spell",
+        pairOf: {
+            anchor: "activation payoff: cracks Sylvan Safekeeper against removal on the stack",
+            discriminant: {
+                kind: "stack",
+                detail: "a creature spell on the stack instead of the Bolt",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Sylvan Safekeeper",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Gray Ogre", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "cast", card: "Gray Ogre", by: "me" }],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Sylvan Safekeeper" },
+            ],
+        },
+        note: "Issue #6942, the captured position outside a response window. A creature spell resolves into a permanent and nothing else (CR 608.3), and shroud only stops targeting (CR 702.18a): nothing on the stack targets either creature, and the Bot holds priority again before anything cast later resolves — sacrificing a land now buys nothing. The defensive-grant quiet predicate (`isQuietFor`) reads ANY opposing stack object as a threat, so the shroud kept its flat keyword worth and the Bot sacrificed a land on all 5 seeds. `isFutileThisTurnMove` (`gre/ai/futileShield.ts`) now prunes defensive keyword grants paid with a sacrifice nothing reads. Proof-of-failure: with the keyword branch of `shieldOf` disabled the Bot activates on 5 of 5 seeds.",
+    },
+    {
         label: "activation timing: does not animate Mishra's Factory after its own combat",
         classification: {
             kind: "conditional",
