@@ -14856,6 +14856,14 @@
         "source": "compiled"
     },
     {
+        "name": "Dark Depths",
+        "scryfallId": "92409c3a-fb1a-4205-9fe1-0f5affc7b21d",
+        "oracleId": "c9b82110-7dfd-4617-9399-9510be449043",
+        "firstSet": "csp",
+        "firstPrintId": "92409c3a-fb1a-4205-9fe1-0f5affc7b21d",
+        "firstPrintSet": "csp"
+    },
+    {
         "name": "Dark Favor",
         "scryfallId": "a258a235-086e-429b-9ac1-3178f902658b",
         "oracleId": "c1f4a440-638a-4e3e-8a3e-af4a4a73ec91",

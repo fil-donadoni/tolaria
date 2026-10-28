@@ -7,6 +7,7 @@ import {
     type DelayedTriggerDef,
     type SpellContext,
 } from "../../types";
+import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 
 // "Draw a card at the beginning of the next turn's upkeep" cantrip rider
 // (CR 603.7d delayed triggered ability). The activating ability calls
@@ -87,4 +88,68 @@ export const mishrasBauble = defineCard(() => ({
         },
     ],
     delayedTriggers: [nextUpkeepDrawTrigger()],
+}));
+
+// Dark Depths — Legendary Snow Land. "Dark Depths enters with ten ice counters
+// on it.\n{3}: Remove an ice counter from Dark Depths.\nWhen Dark Depths has no
+// ice counters on it, sacrifice it. If you do, create Marit Lage, a legendary
+// 20/20 black Avatar creature token with flying and indestructible."
+// CR 122.6 + CR 614.1c: the counters are an enters-with replacement
+// (`entersWith`), so a land that enters with none (Blood Moon) never gets them.
+// CR 603.8: the last line is a state trigger, re-checked at resolution; the
+// source is on the battlefield whenever the re-check holds, so the sacrifice
+// ("if you do") always succeeds and the token follows.
+// hand-tail: When {self} has no ice counters on it (#7230)
+export const darkDepths = defineCard(() => ({
+    id: "92409c3a-fb1a-4205-9fe1-0f5affc7b21d",
+    name: "Dark Depths",
+    rarity: "rare",
+    oracleText:
+        "Dark Depths enters with ten ice counters on it.\n{3}: Remove an ice counter from Dark Depths.\nWhen Dark Depths has no ice counters on it, sacrifice it. If you do, create Marit Lage, a legendary 20/20 black Avatar creature token with flying and indestructible.",
+    manaCost: {},
+    supertypes: ["Legendary", "Snow"],
+    types: ["Land"],
+    entersWith: { counters: [{ type: "ice", count: 10 }] },
+    activatedAbilities: [
+        {
+            id: "dark-depths-remove-ice",
+            oracleText: "{3}: Remove an ice counter from Dark Depths.",
+            cost: { mana: { X: 3 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "counters",
+                    action: "remove",
+                    counter: "ice",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
+        },
+    ],
+    triggeredAbilities: [
+        stateTrigger({
+            id: "dark-depths-marit-lage",
+            oracleText:
+                "When Dark Depths has no ice counters on it, sacrifice it. If you do, create Marit Lage, a legendary 20/20 black Avatar creature token with flying and indestructible.",
+            condition: (self) => (self.counters?.["ice"] ?? 0) === 0,
+            effects: [
+                { op: "sacrifice", target: { ref: "$source" } },
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Marit Lage",
+                        supertypes: ["Legendary"],
+                        types: ["Creature"],
+                        subtypes: ["Avatar"],
+                        power: 20,
+                        toughness: 20,
+                        colors: ["B"],
+                        staticAbilities: ["flying", "indestructible"],
+                    },
+                    controller: "controller",
+                },
+            ],
+        }),
+    ],
 }));
