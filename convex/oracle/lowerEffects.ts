@@ -70,7 +70,10 @@ import {
     type FrameIR,
     type MoveObjectIR,
 } from "./grammar/shared/verbFrames";
-import type { AmongPickSentenceIR } from "./grammar/shared/fromAmong";
+import type {
+    AmongPickIR,
+    AmongPickSentenceIR,
+} from "./grammar/shared/fromAmong";
 import { SELF_MARKER } from "./normalize";
 import type { PlayerRefIR } from "./grammar/shared/playerRef";
 import type { CountedSetIR } from "./grammar/shared/quantity";
@@ -3602,6 +3605,13 @@ function lowerSentenceBody(
             if (!player.ok) return player;
             const count = lowerAmount(sentence.count, site);
             if (!count.ok) return count;
+            if (sentence.battlefieldPick !== undefined)
+                return lowerMillPutOntoBattlefield(
+                    player.value,
+                    count.value,
+                    sentence.battlefieldPick,
+                    walk
+                );
             if (sentence.pick === undefined)
                 return lowered([
                     { op: "mill", player: player.value, count: count.value },
@@ -6367,6 +6377,55 @@ function lowerMillPick(
             player: "controller",
             from: "graveyard",
             to: "hand",
+        },
+    ]);
+}
+
+/**
+ * CR 608.2c + CR 701.17a — "Mill N cards. Then put a creature card from among
+ * them onto the battlefield.": the same bound-set scoping as `lowerMillPick`,
+ * but the pick is MANDATORY (`count: 1`, clamped to what the set holds, so a
+ * set with no match does nothing — CR 608.2d) and the card enters the
+ * battlefield. Only your own mill.
+ */
+function lowerMillPutOntoBattlefield(
+    player: EffectPlayerRef,
+    count: EffectValue,
+    pick: AmongPickIR,
+    walk: SentenceWalk
+): Lowered<EffectOp[]> {
+    if (player !== "controller")
+        return unlowerable('"from among them" picks from your own mill only');
+    // CR 110.4a — only a permanent card can be put onto the battlefield.
+    const types = [pick.filter.type].flat();
+    if (
+        pick.filter.type === undefined ||
+        !types.every((t) => ACTED_ON_PERMANENT_TYPES.has(t as string))
+    )
+        return unlowerable(
+            "only a permanent card is put onto the battlefield from among them"
+        );
+    const milled = walk.nextBind("milled");
+    const picked = walk.nextBind("pick");
+    return lowered([
+        { op: "mill", player, count, bindAll: milled },
+        {
+            op: "choice",
+            kind: "choose-graveyard-card",
+            player: "controller",
+            zone: "graveyard",
+            candidates: [{ ref: milled }],
+            filter: pick.filter,
+            count: 1,
+            prompt: `Put ${pick.card} from among the milled cards onto the battlefield.`,
+            bind: picked,
+        },
+        {
+            op: "moveZone",
+            cards: { ref: picked },
+            player: "controller",
+            from: "graveyard",
+            to: "battlefield",
         },
     ]);
 }
