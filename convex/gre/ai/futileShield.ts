@@ -746,3 +746,81 @@ function stackItemScript(item: StackItem): readonly EffectOp[] | undefined {
     }
     return cardDef?.effects ?? cardDef?.aiEffects;
 }
+
+/** Would one more land of `subtype`'s colour (CR 305.6) turn a cost `player`
+ *  holds from unpayable to payable? The target land is not needed here, so a
+ *  retype that replaces a unit is approximated by an added one. */
+function subtypeFillsADemandedCost(
+    state: GameState,
+    player: GameState["players"][number],
+    subtype: string
+): boolean {
+    const color = LAND_SUBTYPE_MANA[subtype];
+    if (!color) return false;
+    const units = manaUnitsFor(state, player);
+    const widened = [...units, new Set([color])];
+    const opts = { life: player.life };
+    return demandedCosts(player).some(
+        (cost) =>
+            !canPayCost(units, cost, opts) && canPayCost(widened, cost, opts)
+    );
+}
+
+/** Can retyping a land to `subtype` (CR 305.7) matter to `moverId` before it
+ *  next holds priority? One more land of its colour paying a cost the mover
+ *  holds and cannot pay today, or a reader of land types / a landwalker
+ *  anywhere. The choice-node counterpart of `landTypeChangeIsFutile`. An
+ *  unreadable census answers `true`. */
+export function landTypeCanMatter(
+    state: GameState,
+    moverId: string,
+    subtype: string
+): boolean {
+    const player = state.players.find((p) => p.id === moverId);
+    if (!player || !(subtype in LAND_SUBTYPE_MANA)) return true;
+    if (landwalkCanStillMatter(state) || anyLandTypeReader(state, moverId)) {
+        return true;
+    }
+    return subtypeFillsADemandedCost(state, player, subtype);
+}
+
+/** The basic land types a land-type-change script can write, through its modes. */
+function landTypesWritten(effects: readonly EffectOp[]): string[] {
+    return effects.flatMap((op) => {
+        if (!("op" in op)) return [];
+        if (op.op === "optionChoice") {
+            return op.modes.flatMap((m) => landTypesWritten(m.effects));
+        }
+        return op.op === "setSubtype" && Array.isArray(op.subtypes)
+            ? op.subtypes.filter((t) => t in LAND_SUBTYPE_MANA)
+            : [];
+    });
+}
+
+/** True when `move` activates a land-type change (CR 305.7) paid for with a
+ *  loss-only cost, one type of which pays a cost its controller holds and
+ *  cannot pay today. Its payoff is spent THIS turn on something only the
+ *  retype enables, so holding the activation for a later window forfeits it. */
+export function isCostUnlockingLandTypeChange(
+    state: GameState,
+    move: Move
+): boolean {
+    if (move.kind !== "activate-ability" || state.gameOver) return false;
+    const source = findPermanent(state, move.cardInstanceId);
+    const ability = source
+        ? getEffectiveActivatedAbilities(source).find(
+              (a) => a.ability.id === move.abilityId
+          )?.ability
+        : undefined;
+    if (!source || !ability || !costIsLossOnly(state, source, ability)) {
+        return false;
+    }
+    if (!isLandTypeChangeScript(ability.effects)) return false;
+    const player = state.players.find((p) => p.id === source.controllerId);
+    return (
+        !!player &&
+        landTypesWritten(ability.effects ?? []).some((t) =>
+            subtypeFillsADemandedCost(state, player, t)
+        )
+    );
+}

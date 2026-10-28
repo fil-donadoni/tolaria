@@ -11,8 +11,11 @@ import { enumerateMoves, type Move } from "../../moves";
 import { findPermanent } from "../../lookup";
 import { getCardByName, tryGetDefinition } from "../../../cards";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
-import type { GameState } from "../../state";
+import { resolveTopOfStack, type GameState } from "../../state";
+import { applyMoveInSearch } from "../../search";
+import { CHOICE_CANDIDATE_GENERATORS } from "../choiceCandidates";
 import {
+    isCostUnlockingLandTypeChange,
     isFutileThisTurnMove,
     isMisdirectedThisTurnMove,
 } from "../futileShield";
@@ -862,5 +865,93 @@ describe("isFutileThisTurnMove — land-type changes (CR 305.7, issue #6915)", (
         state.priorityPlayerId = state.players[0].id;
         expect(state.stack).toHaveLength(1);
         expect(keptTargetNames(state)).toHaveLength(landTargets(state).length);
+    });
+});
+
+// Issue #7267 — a land-type change (CR 305.7) that makes a held cost payable is
+// spent on that cast this turn: it is not a deferrable activation, and the
+// inert types at its mode choice are dominated by the one that pays.
+describe("land-type change that unlocks a held cost (CR 305.6, CR 305.7, issue #7267)", () => {
+    const WITH_BEARS: ScenarioSpec = {
+        cards: [
+            {
+                name: "Reef Shaman",
+                owner: "me",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+            { name: "Island", owner: "me", zone: "battlefield" },
+            { name: "Island", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "me", zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 4,
+        landCount: 0,
+        libraryCount: 20,
+    };
+
+    it("reads the Island retype as cost-unlocking while the green spell is held", () => {
+        const state = position(WITH_BEARS);
+        const moves = activationsOf(state, 0, "Reef Shaman");
+        expect(moves.length).toBeGreaterThan(0);
+        expect(
+            moves.every((m) => isCostUnlockingLandTypeChange(state, m))
+        ).toBe(true);
+    });
+
+    it("reads no retype as cost-unlocking once the spell is already payable", () => {
+        const state = position({
+            ...WITH_BEARS,
+            cards: [
+                ...WITH_BEARS.cards.filter((c) => c.name !== "Grizzly Bears"),
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            ],
+        });
+        const moves = activationsOf(state, 0, "Reef Shaman");
+        expect(moves.length).toBeGreaterThan(0);
+        expect(moves.some((m) => isCostUnlockingLandTypeChange(state, m))).toBe(
+            false
+        );
+    });
+
+    it("offers only the type that pays the held cost at the mode choice", () => {
+        const state = position(WITH_BEARS);
+        const [move] = activationsOf(state, 0, "Reef Shaman");
+        applyMoveInSearch(state, state.players[0].id, move);
+        resolveTopOfStack(state);
+        const choice = state.pendingChoices?.[0];
+        expect(choice?.kind).toBe("option-pick");
+        const kept = CHOICE_CANDIDATE_GENERATORS["option-pick"]!(
+            state,
+            choice!
+        );
+        expect(kept.map((c) => c.key)).toEqual([
+            `option-pick:${choice!.options!.find((o) => o.landTypeMode === "Forest")!.id}`,
+        ]);
+    });
+
+    it("keeps every mode when the retyped land is the opponent's", () => {
+        const state = position({
+            ...WITH_BEARS,
+            cards: [
+                ...WITH_BEARS.cards,
+                { name: "Mountain", owner: "opp", zone: "battlefield" },
+            ],
+        });
+        const move = activationsOf(state, 0, "Reef Shaman").find((m) => {
+            const slot = m.targets[0];
+            return (
+                slot?.type === "permanent" &&
+                findPermanent(state, slot.id)?.controllerId ===
+                    state.players[1].id
+            );
+        })!;
+        applyMoveInSearch(state, state.players[0].id, move);
+        resolveTopOfStack(state);
+        const choice = state.pendingChoices![0];
+        expect(
+            CHOICE_CANDIDATE_GENERATORS["option-pick"]!(state, choice)
+        ).toHaveLength(choice.options!.length);
     });
 });
