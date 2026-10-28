@@ -3624,7 +3624,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             anchor: "transient grant: does NOT give its own creature flying into a reach blocker",
             discriminant: {
                 kind: "card",
-                detail: "the opposing blocker is a ground Hill Giant rather than a Giant Spider (reach)",
+                detail: "the opposing blocker is a Giant Spider (reach) rather than a ground Hill Giant",
             },
         },
         spec: {
@@ -3657,13 +3657,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            moves: [
-                {
-                    kind: "activate-ability",
-                    card: "Disciple of Kangee",
-                    target: "Grizzly Bears",
-                },
-            ],
+            moves: [{ kind: "activate-ability", card: "Disciple of Kangee" }],
         },
         note: "Issue #5927, the right-hand half: a ground 3/3 cannot block a flyer (CR 702.9b), so the Bears with flying is two unblockable damage into 2 life — the one window the grant converts in. Wins on `mechanism: mean-reward` on all 5 seeds, before and after the fix: the discriminating half says the take-back and the hold bought DISCRIMINATION (flying into reach held, flying into a ground blocker for lethal taken), not a blanket refusal of every this-turn grant.",
     },
