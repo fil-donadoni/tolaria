@@ -116,6 +116,9 @@ export interface DescriptorIR {
      *  the type and colour clauses rather than inside them; the permanent
      *  filter turns it into `isToken: false`. */
     readonly nontoken?: true;
+    /** CR 111.1 — the noun "token": a permanent that is a token, not a card
+     *  (`isToken: true`). Positive twin of `nontoken`; the two never meet. */
+    readonly token?: true;
     readonly controller?: "you" | "opponent";
     /** CR 201.5 — "other creatures" / "creature other than this creature": the
      *  set without the SOURCE object itself. A reference, not a type filter, so
@@ -271,6 +274,8 @@ export interface DescriptorState {
     multicolored?: true;
     /** See `DescriptorIR.nontoken`. */
     nontoken?: true;
+    /** See `DescriptorIR.token`. */
+    token?: true;
     controller?: "you" | "opponent";
     /** See `DescriptorIR.excludeSource`. */
     excludeSource?: true;
@@ -772,6 +777,18 @@ function readNoun(
             into.typeAdjectives = [];
             continue;
         }
+        // CR 111.1 — "Incubator token": a token permanent. The adjectives
+        // before it are the type clauses of the permanent, exactly as before
+        // "card"; "nontoken token" contradicts itself.
+        if (lower === "token" || lower === "tokens") {
+            if (parts.length > 1) return '"token" cannot appear in an or-list';
+            if (into.nontoken === true) return '"nontoken" beside "token"';
+            into.token = true;
+            if (lower === "tokens") into.plural = true;
+            types.push(...into.typeAdjectives);
+            into.typeAdjectives = [];
+            continue;
+        }
         if (lower === "player" || lower === "players") {
             if (parts.length > 1) return '"player" cannot appear in an or-list';
             into.player = "any";
@@ -806,7 +823,11 @@ function readNoun(
     if (into.typeAdjectives.length > 0) {
         return `"${into.typeAdjectives.join(" ")}" modifies a noun that is not "card"`;
     }
-    if (into.player !== undefined || into.card === true) {
+    if (
+        into.player !== undefined ||
+        into.card === true ||
+        into.token === true
+    ) {
         if (types.length > 0) into.types = dedupe(types);
         if (subtypes.length > 0) into.subtypes.push(...subtypes);
         return null;
@@ -1067,6 +1088,7 @@ function finish(
             state.colors.length > 0 ||
             state.multicolored === true ||
             state.nontoken === true ||
+            state.token === true ||
             state.subtypes.length > 0 ||
             state.supertypes.length > 0 ||
             state.tapped !== undefined ||
@@ -1106,6 +1128,7 @@ function finish(
         out.multicolored = true;
     }
     if (state.nontoken === true) out.nontoken = true;
+    if (state.token === true) out.token = true;
     if (state.controller !== undefined) out.controller = state.controller;
     if (state.excludeSource === true) out.excludeSource = true;
     if (state.tapped !== undefined) out.tapped = state.tapped;
@@ -1284,6 +1307,7 @@ export function targetRequirementFromDescriptor(
     if (descriptor.mvFilter) requirement.mvFilter = descriptor.mvFilter;
     // CR 111.1 — "target nontoken creature": `TargetRequirement.isToken`.
     if (descriptor.nontoken === true) requirement.isToken = false;
+    if (descriptor.token === true) requirement.isToken = true;
     // CR 201.5 — "other creature" / "creature other than this creature".
     if (descriptor.excludeSource === true) requirement.excludeSource = true;
     if (descriptor.zone !== undefined) {

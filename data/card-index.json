@@ -17950,6 +17950,16 @@
         "firstPrintSet": "apc"
     },
     {
+        "name": "Dogged Hunter",
+        "scryfallId": "b50d4337-9b71-429b-b6bc-2d70299a6e76",
+        "oracleId": "cf5b3249-619f-48f5-8885-00fd41d24825",
+        "firstSet": "ody",
+        "firstPrintId": "b50d4337-9b71-429b-b6bc-2d70299a6e76",
+        "firstPrintSet": "ody",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Dominaria's Judgment",
         "scryfallId": "9703d090-b415-48e2-8158-dd8fc57ecc50",
         "oracleId": "41998d4d-ca01-4a9c-8bd6-399e4c3e25b1",
