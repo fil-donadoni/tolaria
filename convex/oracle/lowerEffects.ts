@@ -2972,19 +2972,6 @@ function lowerSentenceBody(
                 return unlowerable("retarget names an announced spell");
             return lowered([{ op: "retarget", target: target.value }]);
         }
-        // CR 400.7 + CR 112.1 — the announced spell leaves the stack for its
-        // owner's hand; `moveSpellFromStack`, never `counter` (CR 701.6a).
-        case "return-spell-to-hand": {
-            const target = spellSelector(sentence.subject, slots, site);
-            if (!target.ok) return target;
-            return lowered([
-                {
-                    op: "moveSpellFromStack",
-                    target: target.value,
-                    destination: "hand",
-                },
-            ]);
-        }
         case "counter-limit-instead":
             return unlowerable(
                 'a counter limit "instead" is a kicker gate\'s replacement (CR 702.33g)'
@@ -5519,6 +5506,28 @@ function lowerMoveFrame(
         }
         case "subject": {
             const subject = object.subject;
+            // CR 400.7 + CR 112.1 — a spell is on the stack, not the
+            // battlefield: "Return target spell to its owner's hand" is the
+            // stack departure `moveSpellFromStack` spells, and NOT a counter
+            // (CR 701.6a cancels the spell; a bounce does not).
+            if (
+                subject.kind === "target" &&
+                subject.requirement.type === "spell"
+            ) {
+                if (to.zone !== "hand")
+                    return unlowerable(
+                        `a spell is not moved to ${to.zone} by this frame (CR 400.7)`
+                    );
+                const spell = spellSelector(subject, slots, site);
+                if (!spell.ok) return spell;
+                return lowered([
+                    {
+                        op: "moveSpellFromStack",
+                        target: spell.value,
+                        destination: "hand",
+                    },
+                ]);
+            }
             // CR 701.13a — the target shape's `moveZone` re-derives a departed
             // object in a graveyard and SKIPS a battlefield one bound for
             // exile or a graveyard: the source, "that creature" or the

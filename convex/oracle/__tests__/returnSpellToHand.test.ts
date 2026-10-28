@@ -1,7 +1,7 @@
 // "Return target spell to its owner's hand." (CR 400.7, CR 112.1, issue #4532).
 //
 //  1. GOLDEN forms — real corpus cards compiled whole produce `moveSpellFromStack`
-//     over the announced spell slot, destination hand (never `counter`: CR 701.6a
+//     over the announced spell slot (the `moveZone` Verb Frame), destination hand (never `counter`: CR 701.6a
 //     cancels a spell, a bounce does not).
 //  2. REFUSALS — neighbours this rule must NOT read: a restricted spell, a
 //     spell-or-permanent union, a spell sent to a library.
