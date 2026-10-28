@@ -107,7 +107,8 @@ export interface SeedPresetArgs {
     all: boolean;
     dryRun: boolean;
     /** Which deployment the write goes to — `--deploy` picks the one the
-     *  deploy environment's key selects (issue #3499). */
+     *  deploy environment's key selects (issue #3499), `--prod` the linked
+     *  project's production under the CLI login (issue #7341). */
     target: SeedTarget;
 }
 
@@ -121,13 +122,22 @@ export function parseArgs(argv: string[]): SeedPresetArgs {
         );
     }
     if (!all && !slug) {
-        throw new Error("usage: bun run seed:preset <slug|--all> [--dry-run]");
+        throw new Error(
+            "usage: bun run seed:preset <slug|--all> [--dry-run] [--deploy|--prod]"
+        );
+    }
+    const deploy = argv.includes("--deploy");
+    const prod = argv.includes("--prod");
+    if (deploy && prod) {
+        throw new Error(
+            "pass --deploy OR --prod, not both — --deploy is the hosting build's key, --prod the owner's CLI login"
+        );
     }
     return {
         slug,
         all,
         dryRun: argv.includes("--dry-run"),
-        target: argv.includes("--deploy") ? "deployment" : "local",
+        target: deploy ? "deployment" : prod ? "production" : "local",
     };
 }
 
@@ -217,6 +227,15 @@ function main(): void {
         console.log(
             `${DIM}--deploy: writing to the deployment CONVEX_DEPLOY_KEY selects` +
                 ` (canonical file wins on every deploy)${RESET}`
+        );
+    }
+
+    // The owner's push between releases (issue #7341): say where the write
+    // goes before it happens, since a production row is visible to every user.
+    if (args.target === "production" && !args.dryRun) {
+        console.log(
+            `${DIM}--prod: writing to the PRODUCTION deployment of the project the` +
+                ` primary checkout is linked to (canonical file wins)${RESET}`
         );
     }
 

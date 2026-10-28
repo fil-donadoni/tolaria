@@ -37,9 +37,12 @@ import type { PresetPayload } from "./preset-deck-seed";
  * `local` — the developer's backend, named by the primary checkout's
  * `.env.local`. `deployment` — whatever `CONVEX_DEPLOY_KEY` selects, which is
  * how the hosting build reaches production without an env file existing there
- * at all.
+ * at all. `production` — the production deployment of the project the primary
+ * checkout is linked to, reached with the developer's own Convex CLI login
+ * (issue #7341): the owner pushes the lists between releases, with no deploy
+ * key on the machine.
  */
-export type SeedTarget = "local" | "deployment";
+export type SeedTarget = "local" | "deployment" | "production";
 
 /** The two names the Convex CLI itself reads a deploy key from
  *  (`readDeployKeyFromEnv`). Listed here rather than assumed, because the
@@ -88,6 +91,12 @@ export function resolveSeedTarget(
 ): SeedTargetPlan {
     if (target === "local") {
         return { cwd: primaryCheckout(), flags: [] };
+    }
+    // The primary checkout's `.env.local` names the DEV deployment, so the
+    // project is linked there; `--prod` moves the write to that project's
+    // production deployment under the CLI's logged-in account.
+    if (target === "production") {
+        return { cwd: primaryCheckout(), flags: ["--prod"] };
     }
     const key = DEPLOY_KEY_ENV_VARS.map((name) => env[name]).find(
         (v) => v !== undefined && v !== ""

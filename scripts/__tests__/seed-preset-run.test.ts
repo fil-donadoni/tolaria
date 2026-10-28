@@ -78,6 +78,34 @@ describe("resolveSeedTarget (issue #3499)", () => {
     });
 });
 
+describe("resolveSeedTarget production (issue #7341)", () => {
+    it("writes the linked project's production from the primary checkout, no key needed", () => {
+        const plan = resolveSeedTarget("production", {}, "/elsewhere");
+        expect(plan.error).toBeUndefined();
+        expect(plan.cwd).toBe(primaryCheckout());
+        expect(plan.flags).toEqual(["--prod"]);
+    });
+});
+
+describe("parseArgs --prod (issue #7341)", () => {
+    it("selects the production target", () => {
+        expect(parseArgs(["--all", "--prod"]).target).toBe("production");
+    });
+
+    it("refuses --prod together with --deploy", () => {
+        expect(() => parseArgs(["--all", "--prod", "--deploy"])).toThrow(
+            /--deploy OR --prod/
+        );
+    });
+
+    it("names a script that sweeps with --prod", () => {
+        const pkg = JSON.parse(
+            readFileSync(join(ROOT, "package.json"), "utf8")
+        ) as { scripts: Record<string, string> };
+        expect(pkg.scripts["seed:preset:prod"]).toMatch(/--all --prod$/);
+    });
+});
+
 describe("seedPresetArgv (issue #3499)", () => {
     it("puts the selection flags before the function and the payload last", () => {
         const argv = seedPresetArgv("psychatog", PAYLOAD, ["--prod"]);
