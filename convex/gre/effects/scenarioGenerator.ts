@@ -236,6 +236,8 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     tapped: () => true,
     // CR 605.1b — the Aura's host is tapped for mana while the source stays put.
     "tapped-for-mana": () => true,
+    // CR 603.2 — the source is the targeted permanent, still where it stands.
+    "became-target": () => true,
     // CR 702.29c — the cycled card functions from the zone it was discarded
     // to, the same departure `activatedAbilitySourceOnBattlefield` names.
     cycled: () => false,

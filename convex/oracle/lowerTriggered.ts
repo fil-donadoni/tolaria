@@ -133,6 +133,8 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             return { kind: "tapped", scope: head.scope };
         case "tapped-for-mana":
             return { kind: "tapped-for-mana", scope: head.scope };
+        case "becomes-target":
+            return { kind: "became-target" };
         case "cycled":
             return { kind: "cycled" };
         case "phase":
@@ -403,6 +405,8 @@ export function lowerTriggeredAbility(input: {
     readonly cardName: string;
     readonly head: TriggerHeadIR;
     readonly condition?: TriggerConditionIR;
+    /** CR 603.2 — "This ability triggers only twice each turn." */
+    readonly maxTriggersPerTurn?: number;
     readonly effects: readonly EffectSentenceIR[];
     /** CR 702.33e — the card's kicker costs, for a sentence that reads them. */
     readonly kickers?: readonly KickerCost[];
@@ -451,6 +455,20 @@ export function lowerTriggeredAbility(input: {
         return {
             ok: false,
             reason: '"if you haven\'t added mana with this ability this turn" needs an "at the beginning of" head',
+        };
+    // CR 603.2 — only a head whose factory counts triggerings per source can
+    // carry the cap; any other refuses rather than drop it. The graveyard scan
+    // does not count them either, so the cap would be lost there.
+    if (
+        input.maxTriggersPerTurn !== undefined &&
+        (onceEachTurn ||
+            fromGraveyard ||
+            (input.head.kind !== "phase" &&
+                input.head.kind !== "becomes-target"))
+    )
+        return {
+            ok: false,
+            reason: "a per-turn trigger limit behind this head is not read",
         };
     // The graveyard scan does not count triggerings, so the cap would be lost.
     if (onceEachTurn && fromGraveyard)
@@ -547,6 +565,9 @@ export function lowerTriggeredAbility(input: {
             head: lowerHead(input.head),
             ...(condition !== undefined ? { condition } : {}),
             ...(onceEachTurn ? { maxTriggersPerTurn: 1 } : {}),
+            ...(input.maxTriggersPerTurn !== undefined
+                ? { maxTriggersPerTurn: input.maxTriggersPerTurn }
+                : {}),
             ...(fromGraveyard ? { zone: "graveyard" as const } : {}),
             ...(resolvesIfTargetsIllegal
                 ? { resolvesIfTargetsIllegal: true as const }

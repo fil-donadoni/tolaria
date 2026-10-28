@@ -47,6 +47,7 @@ import { countDomain } from "./types";
 import { getEventFieldRow } from "./eventFields";
 import type { Phase } from "../gre/types";
 import { attackerUnblockedTrigger } from "./abilities/triggers/attackerUnblockedTrigger";
+import { becameTargetTrigger } from "./abilities/triggers/becameTargetTrigger";
 import { turnedFaceUpTrigger } from "./abilities/triggers/turnedFaceUpTrigger";
 import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
 import { attacksOrBlocksTrigger } from "./abilities/triggers/attacksOrBlocksTrigger";
@@ -309,6 +310,9 @@ export type CompiledTriggerHead =
      * (CR 605.1b) and resolves without the stack.
      */
     | { readonly kind: "tapped-for-mana"; readonly scope: "host" }
+    /** CR 603.2 — "whenever this creature becomes the target of a spell or
+     *  ability" (any spell or ability). Self only. */
+    | { readonly kind: "became-target" }
     /** CR 702.29c — "when you cycle this card". */
     | { readonly kind: "cycled" }
     /** CR 603.8 — "when this creature's power is N or greater" (state trigger). */
@@ -530,9 +534,13 @@ export function resolveCompiledTrigger(
                       ? { condition: gate }
                       : { condition: gate, interveningIf: gate };
               })();
-    if (descriptor.maxTriggersPerTurn !== undefined && head.kind !== "phase")
+    if (
+        descriptor.maxTriggersPerTurn !== undefined &&
+        head.kind !== "phase" &&
+        head.kind !== "became-target"
+    )
         throw new Error(
-            `compiled trigger ${descriptor.id}: maxTriggersPerTurn needs a phase head`
+            `compiled trigger ${descriptor.id}: maxTriggersPerTurn needs a phase or became-target head`
         );
     if (descriptor.resolvesIfTargetsIllegal && head.kind !== "entered")
         throw new Error(
@@ -716,6 +724,13 @@ export function resolveCompiledTrigger(
                     : {}),
             });
         }
+        case "became-target":
+            return becameTargetTrigger({
+                ...common,
+                ...(descriptor.maxTriggersPerTurn !== undefined
+                    ? { maxTriggersPerTurn: descriptor.maxTriggersPerTurn }
+                    : {}),
+            });
         case "cycled":
             return cycledTrigger(common);
         case "power-reached": {
