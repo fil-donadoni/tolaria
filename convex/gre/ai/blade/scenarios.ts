@@ -6167,6 +6167,112 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #3531. Discriminating pair with the first entry of this trio: same board, same decklist, only the untapped land's colour different.",
     },
     {
+        // ISSUE #3727 — the COST arm of the same board. One open Forest pays
+        // Giant Growth's PRINTED {G}; a Thalia on the table (CR 601.2f: noncreature
+        // spells cost {1} more, and the tax binds her own controller too) makes
+        // the real price {1}{G}, which one land cannot pay. The castability
+        // reader used to price the printed cost, so the defender played around
+        // a trick the attacker could not cast and donated the block.
+        label: "informed defender: DOES block when a cost increase puts the trick out of the attacker's reach",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "a CR 601.2f cost increase on the board that the open land cannot cover",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                // The tax source, on the attacker's side so it never blocks.
+                {
+                    name: "Thalia, Guardian of Thraben",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Mountain", owner: "me", zone: "hand" },
+                {
+                    name: "Ironroot Treefolk",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "declare-attackers" }],
+        bot: "opp",
+        deckKnowledge: [{ seat: "me", cards: ["Giant Growth"] }],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-blockers", card: "Ironroot Treefolk" }],
+        },
+        note: "Issue #3727. Discriminating pair with the first entry of the #2876 trio: same board and decklist, plus a cost increase on the table (Thalia stands in for Sphere of Resistance, which is not in the catalogue).",
+    },
+    {
+        // The twin: the SAME tax, but two open Forests pay {1}{G}, so the trick
+        // is live and the defender must still play around it.
+        label: "informed defender: does NOT block when the attacker can still pay the taxed trick",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "enough open lands to pay the taxed cost",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                {
+                    name: "Thalia, Guardian of Thraben",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Mountain", owner: "me", zone: "hand" },
+                {
+                    name: "Ironroot Treefolk",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "declare-attackers" }],
+        bot: "opp",
+        deckKnowledge: [{ seat: "me", cards: ["Giant Growth"] }],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "declare-blockers", card: "Ironroot Treefolk" },
+            ],
+        },
+        note: "Issue #3727. Twin of the entry above; only the second Forest differs.",
+    },
+    {
         // THE ANTI-CLAIRVOYANCE ARM of the same board (issue #2876 review
         // finding 3). Same position, same physical Giant Growth in the
         // attacker's hand — and NO deck knowledge, so nothing lawfully tells

@@ -78,6 +78,7 @@ import {
 import { getPrintedEscape } from "./escape";
 import {
     canPayCost,
+    castProbeFor,
     coversCostColors,
     type ManaUnits,
 } from "./manaAvailability";
@@ -700,7 +701,10 @@ export function hasCastableInstant(
         (c) =>
             hasInstantSpeed(c) &&
             (!extra || extra(c)) &&
-            canPayCost(units, getInstanceManaCost(c), { life: player.life })
+            canPayCost(units, getInstanceManaCost(c), {
+                life: player.life,
+                cast: castProbeFor(state, player, c),
+            })
     );
 }
 
@@ -1057,7 +1061,10 @@ function flexibilityTerm(
         if (castable >= weights.flexCardCap) break;
         if (!hasInstantSpeed(card)) continue;
         if (
-            !canPayCost(units, getInstanceManaCost(card), { life: player.life })
+            !canPayCost(units, getInstanceManaCost(card), {
+                life: player.life,
+                cast: castProbeFor(state, player, card),
+            })
         )
             continue;
         castable += 1;
@@ -1234,7 +1241,13 @@ function manaDevelopmentTerm(
     const baseUnits = base;
     for (const c of player.hand) {
         const cost = getInstanceManaCost(c);
-        if (!coversCostColors(baseUnits, cost, { life: player.life })) continue;
+        if (
+            !coversCostColors(baseUnits, cost, {
+                life: player.life,
+                cast: castProbeFor(state, player, c),
+            })
+        )
+            continue;
         raise(c);
     }
     // Issue #4898 — a card in the GRAVEYARD that is castable from there on its
@@ -1272,7 +1285,13 @@ function manaDevelopmentTerm(
             continue;
         }
         const cost = getInstanceManaCost(c);
-        if (!coversCostColors(baseUnits, cost, { life: player.life })) continue;
+        if (
+            !coversCostColors(baseUnits, cost, {
+                life: player.life,
+                cast: castProbeFor(state, player, c),
+            })
+        )
+            continue;
         raise(c);
     }
     // Every land counts — tapped or untapped — because development is about the
