@@ -4265,21 +4265,20 @@ export type PassUntilActionIntent = {
  *
  *  The pairing to keep true: this type carries whatever `CopySource`
  *  (`gre/copy.ts`) declares a copy source contributes, minus what the
- *  definition id already answers. Widen one and the other owes a field —
- *  issue #2963, which will make the remaining "except" clauses (colours,
- *  additional subtypes, no mana cost) inherit off the SOURCE INSTANCE rather
- *  than be rebuilt from the copied definition, is exactly that day. */
+ *  definition id already answers. Widen one and the other owes a field;
+ *  `copyExcept` carries the whole resolved "except" clause (`CopyExcept`), so
+ *  widening THAT type widens both at once. */
 /** One copy effect's layer-1 contribution, as recorded on
  *  `CardInstanceState.timedCopyEffects` (issue #3236): WHAT was copied, locked
  *  in when the effect began (CR 611.2c), and the effect's own "except" clause
  *  (CR 707.9). Enough to re-apply the effect through `applyCopy` and nothing
- *  more — `sourceCopyExcept` is the CR 707.3 "except it's N/N" stamp the
- *  copied object carried, already cleared for a face-down source exactly as
+ *  more — `sourceCopyExcept` is the CR 707.3 `CopyExcept` stamp the copied
+ *  object carried, already cleared for a face-down source exactly as
  *  `applyCopy` decides for a live one. */
 export type TimedCopyLayer = {
     /** The definition id the copied object presented (CR 707.2). */
     sourceDefId: string;
-    sourceCopyExcept?: { basePower?: number; baseToughness?: number };
+    sourceCopyExcept?: CopyExcept;
     /** The face-up source's `imagePrintId` when the layer was recorded, so a
      *  re-materialised layer shows the same art. Cosmetic. */
     sourceImagePrintId?: string;
