@@ -674,12 +674,14 @@ describe("resolveAutoPickTimeout — Selected Card takes priority over the heuri
         const resolution = resolveAutoPickTimeout([seat], 0, 1, heuristic);
         expect(resolution?.pickId).toBe("r0-p0-c1");
         // Third argument: `packsSeen` (ADR 0073) — the pack in front of the
-        // seat is the only history a timeout can account for. Unread by the
-        // scorer today; supplied so the Draft Signals reader lands without
-        // re-touching this call site.
-        expect(heuristic).toHaveBeenCalledWith(seat, seat.currentPack, [
+        // seat; fourth: the draft round, which fixes the passing direction
+        // the seat's persisted Draft Signal read is scored in (issue #3737).
+        expect(heuristic).toHaveBeenCalledWith(
+            seat,
             seat.currentPack,
-        ]);
+            [seat.currentPack],
+            0
+        );
     });
 });
 

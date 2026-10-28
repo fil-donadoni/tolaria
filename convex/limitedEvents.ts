@@ -66,14 +66,23 @@ import {
     applyPick,
     clearUnattendedPicks,
     markUnattendedPick,
+    passDirection,
     resolveAutoPickTimeout,
     runBotAutoPicks,
     startDraft,
     type ChooseBotPick,
+    type ObservePack,
     type SeatTimerUpdate,
     type TimerConfig,
 } from "./limited/draftEngine";
 import {
+    computeExpectedShares,
+    emptyDraftSignalRead,
+    observePack as foldObservedPack,
+    type ExpectedShares,
+} from "./limited/draftSignal";
+import {
+    buildSignalFacts,
     chooseBotPick,
     type GetCardEvalMeta,
     type GetPickRating,
@@ -661,17 +670,68 @@ const makeCardEvalMeta =
  *  for every card and all three terms contribute exactly 0, which is ADR
  *  0072's stated "set and block environments keep working with no profiles
  *  authored at all". */
-function makeBotChoosePick(
+export function makeBotChoosePick(
     getPickRating: GetPickRating,
     getCardProfile: GetCardProfile,
     getCardEvalMeta: GetCardEvalMeta
 ): ChooseBotPick {
-    return (seat, pack, packsSeen) =>
+    return (seat, pack, packsSeen, round) =>
         chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta, {
             packsSeen,
             getPickRating,
             getCardProfile,
+            // The seat's persisted Draft Signal read (issue #3737); a seat
+            // row without one (an event started before it existed) is an
+            // empty read.
+            draftSignal: {
+                read: seat.draftSignal?.read ?? emptyDraftSignalRead(),
+                direction: passDirection(round ?? 0),
+            },
         });
+}
+
+/** The `ObservePack` every live draft path injects (issue #3737): folds a pack
+ *  a seat just received into its persisted Draft Signal state with the SAME
+ *  `observePack` fold the Draft Lab runs (`src/lib/limited/draftLabSignal.ts`),
+ *  over the same card-facts seam (`buildSignalFacts`). Expected shares are
+ *  memoised per pack source for THIS mutation only: their inputs (ratings,
+ *  profiles, booster registry, frozen cube pool) are fixed for the call, and a
+ *  cube derives them from its whole pool. */
+export function makeObservePack(
+    packSlots: readonly string[],
+    cubePool: readonly string[] | undefined,
+    getPickRating: GetPickRating,
+    getCardProfile: GetCardProfile,
+    getCardEvalMeta: GetCardEvalMeta
+): ObservePack {
+    const getFacts = buildSignalFacts(
+        getCardEvalMeta,
+        getPickRating,
+        getCardProfile
+    );
+    const expectedBySource = new Map<string, ExpectedShares | null>();
+    return (state, pack, round) => {
+        const source = packSlots[round] ?? packSlots[0];
+        if (!expectedBySource.has(source)) {
+            expectedBySource.set(
+                source,
+                computeExpectedShares(
+                    source,
+                    getRuntimeBoosterConfig,
+                    cubePool,
+                    getFacts
+                )
+            );
+        }
+        return foldObservedPack(
+            state,
+            pack,
+            round,
+            passDirection(round),
+            expectedBySource.get(source) ?? null,
+            getFacts
+        );
+    };
 }
 
 /** Loads this event's Pick Rating layer (PRD #1296 Slice A, issue #1297):
@@ -683,7 +743,7 @@ function makeBotChoosePick(
  *  `makeBotChoosePick`. Uses the `by_scope` index, so this is bounded per
  *  scope (never a full-table scan) and cheap even for a multi-round Draft on
  *  a single set (one distinct scope, queried once, not once per round). */
-async function loadEventPickRating(
+export async function loadEventPickRating(
     ctx: QueryCtx | MutationCtx,
     packSlots: readonly string[]
 ): Promise<GetPickRating> {
@@ -714,7 +774,7 @@ async function loadEventPickRating(
  *  the only thing that makes the scorer's three synergy terms non-zero in a
  *  real Limited Event. Uses the `by_scope` index, so it is bounded per scope
  *  and cheap even for a multi-round Draft on a single set. */
-async function loadEventCardProfile(
+export async function loadEventCardProfile(
     ctx: QueryCtx | MutationCtx,
     packSlots: readonly string[]
 ): Promise<GetCardProfile> {
@@ -797,7 +857,7 @@ function eventSheetCardIds(packSlots: readonly string[]): string[] {
     return [...ids];
 }
 
-async function loadEventCardResolvers(
+export async function loadEventCardResolvers(
     ctx: QueryCtx | MutationCtx,
     packSlots: readonly string[]
 ): Promise<EventCardResolvers> {
@@ -1933,6 +1993,13 @@ async function dropSeatInDraft(
         getCardProfile,
         cardResolvers.getCardEvalMeta
     );
+    const observePack = makeObservePack(
+        event.packSlots,
+        cubePool,
+        getPickRating,
+        getCardProfile,
+        cardResolvers.getCardEvalMeta
+    );
     const afterPicks = runBotAutoPicks(
         hydratedSeats,
         event.draftRound ?? 0,
@@ -1944,7 +2011,8 @@ async function dropSeatInDraft(
         botChoosePick,
         false,
         timerConfig,
-        cubePool
+        cubePool,
+        observePack
     );
     await saveSeats(ctx, event._id, afterPicks.seats, {
         draftRound: afterPicks.draftRound,
@@ -2155,6 +2223,13 @@ export const startLimitedEvent = mutation({
             const cubePool = event.packSlots.some(isCubeSource)
                 ? buildCubePool()
                 : undefined;
+            const observePack = makeObservePack(
+                event.packSlots,
+                cubePool,
+                getPickRating,
+                getCardProfile,
+                cardResolvers.getCardEvalMeta
+            );
             const dealt = startDraft(
                 seats,
                 event.packSlots,
@@ -2163,7 +2238,8 @@ export const startLimitedEvent = mutation({
                 cardResolvers.resolveCardMeta,
                 timerConfig,
                 cubePool,
-                botChoosePick
+                botChoosePick,
+                observePack
             );
             const afterBots = runBotAutoPicks(
                 dealt.seats,
@@ -2176,7 +2252,8 @@ export const startLimitedEvent = mutation({
                 botChoosePick,
                 false,
                 timerConfig,
-                cubePool
+                cubePool,
+                observePack
             );
             // The frozen pool goes in its own row, not on the event
             // (`convex/limitedCubePoolStore.ts`) — every later reader of the
@@ -2443,6 +2520,13 @@ export const submitPick = mutation({
             getCardProfile,
             cardResolvers.getCardEvalMeta
         );
+        const observePack = makeObservePack(
+            event.packSlots,
+            cubePool,
+            getPickRating,
+            getCardProfile,
+            cardResolvers.getCardEvalMeta
+        );
         const result = applyPick(
             hydratedSeats,
             event.draftRound ?? 0,
@@ -2455,7 +2539,8 @@ export const submitPick = mutation({
             cardResolvers.resolveCardMeta,
             timerConfig,
             cubePool,
-            botChoosePick
+            botChoosePick,
+            observePack
         );
         // A hand-made Pick is the gesture that proves the seat is back at the
         // table (ADR 0095) — clears every Unattended Pick mark this seat was
@@ -2480,7 +2565,8 @@ export const submitPick = mutation({
             botChoosePick,
             result.completed,
             timerConfig,
-            cubePool
+            cubePool,
+            observePack
         );
 
         await saveSeats(ctx, args.eventId, afterBots.seats, {
@@ -2763,11 +2849,19 @@ export const autoPickSeatTimeout = internalMutation({
             getCardProfile,
             cardResolvers.getCardEvalMeta
         );
+        const observePack = makeObservePack(
+            event.packSlots,
+            cubePool,
+            getPickRating,
+            getCardProfile,
+            cardResolvers.getCardEvalMeta
+        );
         const resolution = resolveAutoPickTimeout(
             hydratedSeats,
             args.seatIndex,
             args.expectedSeq,
-            botChoosePick
+            botChoosePick,
+            event.draftRound ?? 0
         );
         if (resolution === null) return null; // stale schedule — no-op
 
@@ -2790,7 +2884,8 @@ export const autoPickSeatTimeout = internalMutation({
             cardResolvers.resolveCardMeta,
             timerConfig,
             cubePool,
-            botChoosePick
+            botChoosePick,
+            observePack
         );
         // An Auto-Pick resolved from anything but a Selected Card is an
         // Unattended Pick (ADR 0095) — mark the Pool index it just produced.
@@ -2812,7 +2907,8 @@ export const autoPickSeatTimeout = internalMutation({
             botChoosePick,
             result.completed,
             timerConfig,
-            cubePool
+            cubePool,
+            observePack
         );
 
         await saveSeats(ctx, args.eventId, afterBots.seats, {

@@ -15,7 +15,10 @@ import {
 // added to one site and silently missed at another. That module is types +
 // `convex/values` only (its `CardPins` import is type-only), so importing it
 // here adds no runtime weight to the schema.
-import { poolArrangementEntryValidator } from "./limited/eventTypes";
+import {
+    poolArrangementEntryValidator,
+    seatSignalStateValidator,
+} from "./limited/eventTypes";
 import { difficultyValidator } from "./limited/botDifficulty";
 // The persisted Column Layout of a deck row (ADR 0075 §4, issue #1626). Same
 // arrangement, same reason: declared once in the leaf module
@@ -1039,6 +1042,9 @@ export default defineSchema({
             )
         ),
         poolArrangement: v.optional(v.array(poolArrangementEntryValidator)),
+        // The seat's Draft Signal state (issue #3737): accumulators, numbers
+        // only. Bot-internal — never projected to a client.
+        draftSignal: v.optional(seatSignalStateValidator),
     })
         // Every seat of one event, in seat order — the hydration read.
         // Doubles as the point lookup for a single seat (`eq` on both
