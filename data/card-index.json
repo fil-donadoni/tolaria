@@ -20450,6 +20450,14 @@
         "source": "compiled"
     },
     {
+        "name": "Elvish Reclaimer",
+        "scryfallId": "39c431d7-d94b-46c4-bb89-f3db56214ab4",
+        "oracleId": "94f01534-7bb3-4b1e-8f77-e84156408686",
+        "firstSet": "m20",
+        "firstPrintId": "39c431d7-d94b-46c4-bb89-f3db56214ab4",
+        "firstPrintSet": "m20"
+    },
+    {
         "name": "Elvish Regrower",
         "scryfallId": "2694e3cd-26ed-4a10-ae55-fb84d7800253",
         "oracleId": "adac526d-1a85-431a-a302-0a4b8f4a0c44",
