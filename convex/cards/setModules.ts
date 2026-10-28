@@ -67,6 +67,7 @@ import * as usg from "./sets/usg/index.cards";
 import * as uds from "./sets/uds/index.cards";
 import * as plc from "./sets/plc/index.cards";
 import * as fin from "./sets/fin/index.cards";
+import * as fra from "./sets/fra/index.cards";
 import * as mrd from "./sets/mrd/index.cards";
 import * as som from "./sets/som/index.cards";
 import * as m14 from "./sets/m14/index.cards";
@@ -217,6 +218,7 @@ const setModules: { code: string; exports: SetModuleExports }[] = [
     { code: "uds", exports: uds },
     { code: "plc", exports: plc },
     { code: "fin", exports: fin },
+    { code: "fra", exports: fra },
     { code: "mrd", exports: mrd },
     { code: "som", exports: som },
     { code: "m14", exports: m14 },
