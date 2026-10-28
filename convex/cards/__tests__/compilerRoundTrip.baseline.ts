@@ -1112,7 +1112,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "The Fallen",
     "The Hive",
     "The One Ring",
-    "The Rack",
     "The Tabernacle at Pendrell Vale",
     "Thelon's Chant",
     "Thelon's Curse",

@@ -401,6 +401,63 @@ const GOLDENS: readonly {
             ],
         },
     },
+    // a damage whose X is a printed constant minus that player's hand (CR 107.1b)
+    {
+        card: {
+            name: "Storm World",
+            manaCost: "{R}",
+            typeLine: "World Enchantment",
+            oracleText:
+                "At the beginning of each player's upkeep, this enchantment deals X damage to that player, where X is 4 minus the number of cards in their hand.",
+            oracleId: "868f4ab2-a846-4ad0-8720-95fd234dd36b",
+            layout: "normal",
+        },
+        expected: {
+            name: "Storm World",
+            types: ["Enchantment"],
+            supertypes: ["World"],
+            manaCost: {
+                R: 1,
+            },
+            oracleText:
+                "At the beginning of each player's upkeep, this enchantment deals X damage to that player, where X is 4 minus the number of cards in their hand.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "storm-world-trigger",
+                    oracleText:
+                        "At the beginning of each player's upkeep, this enchantment deals X damage to that player, where X is 4 minus the number of cards in their hand.",
+                    head: {
+                        kind: "phase",
+                        phase: "UPKEEP",
+                        scope: "each",
+                    },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: {
+                                difference: {
+                                    from: 4,
+                                    minus: {
+                                        count: {
+                                            zone: "hand",
+                                            controller: {
+                                                ref: "$event.activePlayerId",
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                            to: {
+                                player: {
+                                    ref: "$event.activePlayerId",
+                                },
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // a draw and a life loss sharing one X defined by a plural count (CR 107.3)
     {
         card: {
@@ -611,6 +668,25 @@ describe("triggered long tail — refusals (fail-closed)", () => {
         expect(
             unparsed(
                 "At the beginning of your upkeep, you gain X life, where X is the number of cards in your graveyard minus 4."
+            )
+        ).toBe(true);
+    });
+
+    it("refuses a printed constant minus any count but that player's hand (CR 107.1b)", () => {
+        // Only "their hand" is printed: "your hand" and other counts stay out.
+        expect(
+            unparsed(
+                "At the beginning of each player's upkeep, this enchantment deals X damage to that player, where X is 4 minus the number of cards in your hand."
+            )
+        ).toBe(true);
+        expect(
+            unparsed(
+                "At the beginning of each player's upkeep, this enchantment deals X damage to that player, where X is 4 minus the number of Zombies they control."
+            )
+        ).toBe(true);
+        expect(
+            unparsed(
+                "At the beginning of each player's upkeep, this enchantment deals X damage to that player, where X is 4 minus the number of cards in their graveyard."
             )
         ).toBe(true);
     });

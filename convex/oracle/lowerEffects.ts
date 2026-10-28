@@ -355,6 +355,7 @@ function lowerAmount(
     if (
         amount.kind === "counted" ||
         amount.kind === "counted-difference" ||
+        amount.kind === "printed-less-counted" ||
         amount.kind === "acted-on-characteristic"
     )
         return unlowerable(
@@ -560,6 +561,14 @@ function lowerLifeAmount(
         if (!spec.ok) return spec;
         return lowered({
             difference: { from: { count: spec.value }, minus: amount.minus },
+        });
+    }
+    if (amount.kind === "printed-less-counted") {
+        // CR 107.1b — the mirror subtraction; equally clamped by the Op.
+        const spec = lowerCountedSet(amount.set, walk.targets, site);
+        if (!spec.ok) return spec;
+        return lowered({
+            difference: { from: amount.from, minus: { count: spec.value } },
         });
     }
     if (amount.kind === "acted-on-characteristic")
