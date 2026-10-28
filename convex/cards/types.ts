@@ -7091,9 +7091,8 @@ export interface SpellContext {
     /** Persists a value computed in the CURRENT resolution step so a LATER step
      *  can read it back with `recallChoice` (CR 608.2h last-known information).
      *  Use when a step must reference an object BEFORE an irreversible operation
-     *  later in the same resolution destroys it — e.g. Chain Lightning captures
-     *  the targeted permanent's controller before dealing lethal damage, then
-     *  recalls it in the may-pay step once the permanent may already be gone.
+     *  later in the same resolution destroys it (an Effect Script uses an Op's
+     *  `bind` instead, which is written through this primitive).
      *  Keyed under the current step like `requestChoice` / `requestMayPay`, so
      *  the `choiceId` must be unique within the resolution. Stored in
      *  `collectedChoices` (serialized across suspend/replay, cleared on
@@ -15737,6 +15736,23 @@ export type EffectOp =
            *  Presence, Ali from Cairo, Lashknife Barrier) are untouched — they
            *  neither prevent nor redirect. */
           unredirectable?: boolean;
+          /** CR 608.2h (issue #3518) — snapshots the RECIPIENT as last-known
+           *  information through the same `bindSnapshot` path
+           *  `destroy`/`exile`/`tapUntap` use, so a later clause names the
+           *  object that was dealt the damage: "Then that player or that
+           *  permanent's controller may pay {R}{R}" (Chain Lightning) reads
+           *  `{ ref: "$b.controller" }`. Taken BEFORE the damage is dealt,
+           *  never after: the recipient as the spell resolved, since the
+           *  damage itself can change it mid-Op (wither/infect -1/-1
+           *  counters, CR 702.80a). Lethal damage is only marked here — the
+           *  SBA pass destroys it after the resolution (CR 704.5g). A PLAYER
+           *  recipient snapshots as itself — `.controller` and `.owner` are
+           *  that player, so "that player or that permanent's controller" is
+           *  ONE player-valued ref either way. Not captured when the Op
+           *  deals nothing (amount ≤ 0, an
+           *  unresolvable recipient), so a ref to it skips its Op (CR
+           *  608.2b). */
+          bind?: string;
       }
     /** CR 120.3 / 120.2 — deal `amount` damage SIMULTANEOUSLY to every
      *  creature and/or player in a declared set, with no target ("deals N

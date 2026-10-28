@@ -988,7 +988,8 @@ describe("Caverns of Despair (CR 508.1a / 509.1a — global combat caps)", () =>
 // Chain Lightning — 3 damage to any target, then the damaged player / that
 // permanent's controller may pay {R}{R} to copy this spell and retarget the
 // copy (CR 119 damage, CR 608.2 stepped resolution, CR 707.12 "copy this
-// spell"). Exercises the `copyResolvingSpell` + may-pay primitives end to end.
+// spell"). Exercises the `dealDamage` bind + `mayPay` + `copyResolvingSpell`
+// script end to end.
 // ---------------------------------------------------------------------------
 describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
     type Targets = NonNullable<StackItem["targets"]>;
@@ -1029,11 +1030,10 @@ describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
     });
 
     it("offers the may-pay to the controller even when the damage kills the permanent (CR 608.2h)", () => {
-        // 3 damage destroys a 1-toughness target inline (CR 704.5g); the
-        // chooser ("that permanent's controller") must be recovered by
-        // last-known information, not read off the now-empty battlefield —
-        // otherwise resolution throws and the mutation rolls back, freezing
-        // the game.
+        // 3 damage is lethal to a 1-toughness target (CR 704.5g). The engine
+        // skips the SBA pass while a resolution is suspended; this forces it
+        // to show the prompt (raised before the death) still names the dead
+        // permanent's controller.
         const victim = makeInstance(
             "5712e87a-2381-4f5b-a853-6973841f9bf1", // Faerie, 2/1
             {
@@ -1105,6 +1105,10 @@ describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
         // p2 (the damaged player) pays {R}{R} from their pool.
         applyMayPaySubmit(state, { playerId: "p2", accept: true });
         expect(state.players[1].manaPool.R).toBe(0); // cost was paid
+        // "If the player does, they MAY copy this spell" — a second decision,
+        // the payer's (CR 707.10).
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
 
         // Chain Lightning itself is gone; a copy controlled by p2 awaits a
         // (new) target. p2 — who paid — chooses (CR 707.10 / 707.10c).
@@ -1150,7 +1154,8 @@ describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
         ]);
         resolveTopOfStack(state);
 
-        // First link: p2 pays, retargets the copy at p1.
+        // First link: p2 pays, copies, retargets the copy at p1.
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
         applyMayPaySubmit(state, { playerId: "p2", accept: true });
         applyCopyRetarget(state, [{ type: "player", id: "p1" }]);
         resolveTopOfStack(state); // copy deals 3 to p1 → p1's may-pay suspends
@@ -1159,6 +1164,7 @@ describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
         // Second link: p1 pays and chains again, back at p2.
         const head = state.pendingChoices?.[0];
         expect(head?.playerId).toBe("p1");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
         applyMayPaySubmit(state, { playerId: "p1", accept: true });
         const pt = state.pendingTarget!;
         expect(pt.playerId).toBe("p1"); // p1 controls this copy now
