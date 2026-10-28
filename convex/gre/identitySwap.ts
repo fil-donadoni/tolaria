@@ -48,7 +48,12 @@
  * construction and replaying them would double-apply.
  */
 
-import type { CardType } from "../cards/types";
+import type {
+    CardDefinition,
+    CardType,
+    CopyEffectOptions,
+    CopyExcept,
+} from "../cards/types";
 import { recomposeLayer6ForInstance } from "./layer6";
 import { recomposeLayers2to5ForInstance } from "./layers2to5";
 import type { CardInstanceState } from "./state/declarations";
@@ -63,6 +68,81 @@ export interface CopiableValues {
     power: number | undefined;
     toughness: number | undefined;
     staticAbilities: string[];
+}
+
+/** CR 613.1a / 707.9b — the layer-1 values of `def` presented through a copy
+ *  effect's resolved "except" clause (`CopyExcept`): the clause's base P/T
+ *  replaces the printed one, its types, subtypes and keywords are appended.
+ *  The ONE reading of the stamp every layer-1 rebuild shares (`applyCopy`,
+ *  the look-back, a full-text effect's underlying values). */
+export function copiableValuesOf(
+    def: CardDefinition,
+    except: CopyExcept | undefined
+): CopiableValues {
+    return {
+        types: [...def.types, ...(except?.additionalTypes ?? [])],
+        subtypes: [
+            ...(def.subtypes ?? []),
+            ...(except?.additionalSubtypes ?? []),
+        ],
+        power: except?.basePower ?? def.power,
+        toughness: except?.baseToughness ?? def.toughness,
+        staticAbilities: [
+            ...(def.staticAbilities ?? []),
+            ...(except?.additionalStaticAbilities ?? []),
+        ],
+    };
+}
+
+/** CR 707.9b / 707.3 — the resolved "except" clause a copy effect leaves on
+ *  the copy: the copied object's own stamp (`inherited`, already its copiable
+ *  values) with THIS effect's clause applied on top, member by member.
+ *
+ *  - A VALUE the clause sets (base P/T, colour) replaces the inherited one
+ *    when named — the new effect states it outright — and is inherited when
+ *    not. `copyColor: false` sets the colour to the copier's own (CR 707.3's
+ *    Vesuvan example: a Clone of the Doppelganger is blue).
+ *  - An ADDITION ("in addition to its other types", "except it has haste",
+ *    "no mana cost") joins the inherited one: the copy first acquires the
+ *    source's copiable values, which already include it. De-duplicated, so
+ *    re-applying a copy over its own stamp (a timed copy's expiry) is
+ *    idempotent.
+ *
+ *  `undefined` when nothing is left — the copied card's printed values. */
+export function copyExceptOf(
+    inherited: CopyExcept | undefined,
+    opts: CopyEffectOptions
+): CopyExcept | undefined {
+    const added = <T>(a: T[] | undefined, b: T[] | undefined) => {
+        const all = [...new Set([...(a ?? []), ...(b ?? [])])];
+        return all.length > 0 ? all : undefined;
+    };
+    const merged: CopyExcept = {
+        basePower: opts.basePower ?? inherited?.basePower,
+        baseToughness: opts.baseToughness ?? inherited?.baseToughness,
+        colorOverride:
+            opts.colorOverride ??
+            (opts.copyColor === false
+                ? (opts.ownColors ?? [])
+                : inherited?.colorOverride),
+        additionalTypes: added(
+            inherited?.additionalTypes,
+            opts.additionalTypes
+        ),
+        additionalSubtypes: added(
+            inherited?.additionalSubtypes,
+            opts.additionalSubtypes
+        ),
+        additionalStaticAbilities: added(
+            inherited?.additionalStaticAbilities,
+            opts.additionalStaticAbilities
+        ),
+        noManaCost: opts.noManaCost || inherited?.noManaCost || undefined,
+    };
+    // JSON-pure, no `undefined` members, fresh arrays: the stamp is persisted
+    // and never aliases a module-level `CardDefinition` array.
+    const except = JSON.parse(JSON.stringify(merged)) as CopyExcept;
+    return Object.keys(except).length > 0 ? except : undefined;
 }
 
 /** Layer 6 (CR 613.1f) — re-seat the permanent's layer-6 BASE on the new face.

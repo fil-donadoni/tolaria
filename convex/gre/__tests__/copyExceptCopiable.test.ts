@@ -13,15 +13,19 @@
 // `copyExcept` carries.
 
 import { describe, expect, it } from "vitest";
-import { applyCopy, revertCopy } from "../copy";
+import { applyCopy, applyTimedCopy, lookBackSelf, revertCopy } from "../copy";
 import { turnFaceDown, turnFaceUp } from "../faceDown";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { isCreature, manaValue } from "../constants";
+import { finalizeCleanup } from "../phases";
 import {
     makeInstance,
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import { getCardByName } from "../../cards";
+import { getCardByName, getInstanceManaCost } from "../../cards";
+import { getEffectiveColors } from "../../cards/effectiveColors";
+import type { CopyEffectOptions, CopyExcept } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
 import { compactState, expandState } from "../serialize";
 import type { CardInstanceState, GameState } from "../state";
@@ -238,5 +242,309 @@ describe('CR 707.2 "except it\'s N/N" is a COPIABLE value (issue #2076)', () => 
         turnFaceUp(state, find(state, "tok"));
         applyCopy(state, find(state, "clone"), find(state, "tok"));
         expect(getEffectivePower(state, find(state, "clone"))).toBe(1);
+    });
+});
+
+// CR 707.9b — "the final set of values for that characteristic becomes part of
+// the copiable values of the copy" — holds for EVERY member of the clause, not
+// only the P/T pair above (issue #2963). Each member is observed through the
+// reader the rest of the engine uses, never through the stamp alone.
+type Member = {
+    name: string;
+    clause: CopyEffectOptions;
+    /** A clause naming the same member differently, for the "own wins" case;
+     *  absent where the member has no second value (`noManaCost`). */
+    own?: CopyEffectOptions;
+    read: (card: CardInstanceState) => unknown;
+    printed: unknown; // Grizzly Bears, the copied card
+    inherited: unknown;
+    withOwn?: unknown;
+};
+
+const sorted = (xs: readonly string[] | undefined) => [...(xs ?? [])].sort();
+
+const MEMBERS: Member[] = [
+    {
+        name: "colour (Eternalize's black)",
+        clause: { colorOverride: ["B"] },
+        own: { colorOverride: ["W"] },
+        read: (c) => getEffectiveColors(c),
+        printed: ["G"],
+        inherited: ["B"],
+        // A colour SET replaces the inherited one outright.
+        withOwn: ["W"],
+    },
+    {
+        name: "added types (Copy Artifact's enchantment)",
+        clause: { additionalTypes: ["Enchantment"] },
+        own: { additionalTypes: ["Artifact"] },
+        read: (c) => sorted(c.types),
+        printed: ["Creature"],
+        inherited: ["Creature", "Enchantment"],
+        // "In addition to its other types" — the other types already include
+        // the inherited one, so the new addition joins it.
+        withOwn: ["Artifact", "Creature", "Enchantment"],
+    },
+    {
+        name: "added subtypes (Eternalize's Zombie)",
+        clause: { additionalSubtypes: ["Zombie"] },
+        own: { additionalSubtypes: ["Illusion"] },
+        read: (c) => sorted(c.subtypes),
+        printed: ["Bear"],
+        inherited: ["Bear", "Zombie"],
+        withOwn: ["Bear", "Illusion", "Zombie"],
+    },
+    {
+        name: "added keywords (Fable's haste)",
+        clause: { additionalStaticAbilities: ["haste"] },
+        own: { additionalStaticAbilities: ["flying"] },
+        read: (c) => sorted(c.staticAbilities),
+        printed: [],
+        inherited: ["haste"],
+        withOwn: ["flying", "haste"],
+    },
+    {
+        name: "no mana cost (Eternalize)",
+        clause: { noManaCost: true },
+        read: (c) => manaValue(getInstanceManaCost(c)),
+        printed: 2,
+        inherited: 0,
+    },
+];
+
+/** Eternalize's whole clause (CR 702.129a): "except it's a 4/4 black Zombie
+ *  with no mana cost", plus Fable's haste and Copy Artifact's enchantment. */
+const WHOLE_CLAUSE: CopyEffectOptions = {
+    basePower: 4,
+    baseToughness: 4,
+    colorOverride: ["B"],
+    additionalTypes: ["Enchantment"],
+    additionalSubtypes: ["Zombie"],
+    additionalStaticAbilities: ["haste"],
+    noManaCost: true,
+};
+const WHOLE_STAMP: CopyExcept = { ...WHOLE_CLAUSE };
+
+describe('CR 707.3 — every member of the "except" clause is inherited (issue #2963)', () => {
+    describe.each(MEMBERS)("$name", (m) => {
+        it("a copy OF the copy inherits it", () => {
+            const state = scenario();
+            applyCopy(state, find(state, "tok"), find(state, "src"), m.clause);
+            expect(m.read(find(state, "tok"))).toEqual(m.inherited);
+
+            // A plain Clone: no clause of its own.
+            applyCopy(state, find(state, "clone"), find(state, "tok"));
+            expect(m.read(find(state, "clone"))).toEqual(m.inherited);
+        });
+
+        it("a re-copy naming no clause drops it (Vesuvan idempotency)", () => {
+            const state = scenario();
+            applyCopy(state, find(state, "tok"), find(state, "src"), m.clause);
+            applyCopy(state, find(state, "clone"), find(state, "tok"));
+            // Re-copy an object that carries no exception.
+            applyCopy(state, find(state, "clone"), find(state, "src"));
+            expect(m.read(find(state, "clone"))).toEqual(m.printed);
+            expect(find(state, "clone").copyExcept).toBeUndefined();
+        });
+
+        it.runIf(m.own !== undefined)(
+            "a copy effect naming its OWN clause still applies it over the inherited one",
+            () => {
+                const state = scenario();
+                applyCopy(
+                    state,
+                    find(state, "tok"),
+                    find(state, "src"),
+                    m.clause
+                );
+                applyCopy(
+                    state,
+                    find(state, "clone"),
+                    find(state, "tok"),
+                    m.own
+                );
+                expect(m.read(find(state, "clone"))).toEqual(m.withOwn);
+            }
+        );
+    });
+
+    it("a three-deep chain carries the whole clause", () => {
+        const state = scenario();
+        state.players[0].battlefield.push(
+            makeInstance(OGRE, { id: "third", controllerId: "p1" })
+        );
+        applyCopy(state, find(state, "tok"), find(state, "src"), WHOLE_CLAUSE);
+        applyCopy(state, find(state, "clone"), find(state, "tok"));
+        applyCopy(state, find(state, "third"), find(state, "clone"));
+
+        const third = find(state, "third");
+        expect(third.copyExcept).toEqual(WHOLE_STAMP);
+        for (const m of MEMBERS) expect(m.read(third)).toEqual(m.inherited);
+        expect(getEffectivePower(state, third)).toBe(4);
+    });
+
+    it("a new P/T clause leaves the other inherited members alone", () => {
+        const state = scenario();
+        applyCopy(state, find(state, "tok"), find(state, "src"), WHOLE_CLAUSE);
+        applyCopy(state, find(state, "clone"), find(state, "tok"), {
+            basePower: 7,
+            baseToughness: 7,
+        });
+
+        const clone = find(state, "clone");
+        expect(getEffectivePower(state, clone)).toBe(7);
+        for (const m of MEMBERS) expect(m.read(clone)).toEqual(m.inherited);
+    });
+
+    it("CR 707.3's own example: a Clone of a Vesuvan-copied Bear is blue", () => {
+        const state = scenario();
+        // Vesuvan Doppelganger: "except it doesn't copy that creature's
+        // color" — it keeps its own blue.
+        applyCopy(state, find(state, "tok"), find(state, "src"), {
+            copyColor: false,
+            ownColors: ["U"],
+        });
+        applyCopy(state, find(state, "clone"), find(state, "tok"));
+
+        expect(getEffectiveColors(find(state, "clone"))).toEqual(["U"]);
+    });
+
+    it("a noncreature made a creature with a P/T clause stays a creature when copied", () => {
+        const state = scenario();
+        const ring = makeInstance(getCardByName("Sol Ring").id, {
+            id: "ring",
+            controllerId: "p1",
+        });
+        state.players[0].battlefield.push(ring);
+        applyCopy(state, find(state, "tok"), find(state, "ring"), {
+            additionalTypes: ["Creature"],
+            basePower: 3,
+            baseToughness: 3,
+        });
+        applyCopy(state, find(state, "clone"), find(state, "tok"));
+
+        // Inheriting only the P/T half would make a non-creature with a body.
+        const clone = find(state, "clone");
+        expect(isCreature(clone)).toBe(true);
+        expect(getEffectivePower(state, clone)).toBe(3);
+    });
+
+    it("revertCopy clears the whole stamp", () => {
+        const state = scenario();
+        applyCopy(state, find(state, "tok"), find(state, "src"), WHOLE_CLAUSE);
+        revertCopy(state, find(state, "tok"));
+        expect(find(state, "tok").copyExcept).toBeUndefined();
+
+        // The object is Hill Giant again; a copier acquires nothing else.
+        applyCopy(state, find(state, "clone"), find(state, "tok"));
+        const clone = find(state, "clone");
+        expect(clone.copyExcept).toBeUndefined();
+        expect(getEffectiveColors(clone)).toEqual(["R"]);
+        expect(sorted(clone.types)).toEqual(["Creature"]);
+        expect(sorted(clone.subtypes)).toEqual(["Giant"]);
+        expect(clone.staticAbilities ?? []).toEqual([]);
+        expect(manaValue(getInstanceManaCost(clone))).toBe(4);
+    });
+
+    it("an expiring timed copy of an inherited colour hands the printed colour back (CR 514.2)", () => {
+        const state = scenario();
+        applyCopy(state, find(state, "tok"), find(state, "src"), {
+            colorOverride: ["B"],
+        });
+        // The timed copy names no colour: the black is the SOURCE's stamp.
+        applyTimedCopy(
+            state,
+            find(state, "clone"),
+            find(state, "tok"),
+            {},
+            {
+                phase: "end-of-turn",
+            }
+        );
+        expect(getEffectiveColors(find(state, "clone"))).toEqual(["B"]);
+
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+
+        const clone = find(state, "clone");
+        expect(clone.copiedFrom).toBeUndefined();
+        expect(getEffectiveColors(clone)).toEqual(["R"]);
+    });
+
+    it("a token copy with only an INHERITED clause gets it back when a timed copy over it expires", () => {
+        const state = scenario();
+        applyCopy(state, find(state, "tok"), find(state, "src"), WHOLE_CLAUSE);
+        // A token BORN as a plain copy of the Eternalize-style token
+        // (`createTokenPermanents` clears `copiedFrom`; an empty clause leaves
+        // no `copyOptions`): the inherited stamp is its only copy anchor.
+        applyCopy(state, find(state, "clone"), find(state, "tok"));
+        delete find(state, "clone").copiedFrom;
+        expect(find(state, "clone").copyOptions).toBeUndefined();
+
+        applyTimedCopy(
+            state,
+            find(state, "clone"),
+            find(state, "src"),
+            {},
+            {
+                phase: "end-of-turn",
+            }
+        );
+        expect(getEffectiveColors(find(state, "clone"))).toEqual(["G"]);
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+
+        const clone = find(state, "clone");
+        for (const m of MEMBERS) expect(m.read(clone)).toEqual(m.inherited);
+        expect(getEffectivePower(state, clone)).toBe(4);
+    });
+
+    it("survives a serialize/deserialize round trip, and is re-copied from it", () => {
+        const state = scenario();
+        applyCopy(state, find(state, "tok"), find(state, "src"), WHOLE_CLAUSE);
+
+        const round = expandState(compactState(state));
+        const at = (id: string) =>
+            round.players[0].battlefield.find((c) => c.id === id)!;
+        expect(at("tok").copyExcept).toEqual(WHOLE_STAMP);
+        applyCopy(round, at("clone"), at("tok"));
+        for (const m of MEMBERS)
+            expect(m.read(at("clone"))).toEqual(m.inherited);
+    });
+
+    it("wire format: a copy made FROM the projected instance inherits every member", () => {
+        const state = scenario();
+        applyCopy(state, find(state, "tok"), find(state, "src"), WHOLE_CLAUSE);
+        applyCopy(state, find(state, "clone"), find(state, "tok"));
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = (id: string) =>
+            projected.players[0].battlefield.find((c) => c.id === id)!;
+        expect(slim("tok").copyExcept).toEqual(WHOLE_STAMP);
+        expect(slim("clone").copyExcept).toEqual(WHOLE_STAMP);
+
+        // The client-side Brain re-runs the copy path over projected state
+        // (ADR 0074): copying the PROJECTED instance is what goes red if the
+        // stamp fails to cross.
+        const recipient = { ...slim("src") } as unknown as CardInstanceState;
+        applyCopy(
+            state,
+            recipient,
+            slim("clone") as unknown as CardInstanceState
+        );
+        for (const m of MEMBERS) expect(m.read(recipient)).toEqual(m.inherited);
+    });
+
+    it("the look-back of a departed copy restores the whole clause (CR 603.10a)", () => {
+        const state = scenario();
+        // The departure funnel's record of a copy that left as an Eternalize-
+        // style Bear; `clone` is the card in its new zone, reverted to Hill
+        // Giant.
+        state.lastKnownCopiable = {
+            clone: { defId: BEARS, copyExcept: WHOLE_STAMP, turn: state.turn },
+        };
+        const view = lookBackSelf(state, find(state, "clone"));
+
+        for (const m of MEMBERS) expect(m.read(view)).toEqual(m.inherited);
     });
 });

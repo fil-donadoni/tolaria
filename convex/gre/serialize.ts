@@ -60,6 +60,7 @@ import type {
     CardDefinition,
     CardSupertype,
     CardType,
+    CopyExcept,
     TextChange,
 } from "../cards/types";
 import {
@@ -1699,7 +1700,7 @@ export function expandState(data: Record<string, unknown>): GameState {
               {
                   d: unknown;
                   t: number;
-                  e?: { basePower?: number; baseToughness?: number };
+                  e?: CopyExcept;
                   p?: string;
                   x?: unknown;
               }
