@@ -3612,27 +3612,19 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            // The targeted matcher is subsumed by the untargeted one; it is
-            // here so the right-hand half's accepted move deep-equals a move
-            // this anchor rules out (`registrySource.ts`, the pair check).
             forbidden: [
                 { kind: "activate-ability", card: "Disciple of Kangee" },
-                {
-                    kind: "activate-ability",
-                    card: "Disciple of Kangee",
-                    target: "Grizzly Bears",
-                },
             ],
         },
-        note: "Issue #5927, the anchor of the transient-grant pair. A 2/4 reach Giant Spider blocks a flyer as well as a ground 2/2 (CR 702.17b), so the opponent sitting on 2 life changes nothing: with or without flying the Bears has no profitable attack, and paying {U} and the Disciple's tap for the grant buys nothing. Before the fix `creatureValueRaw` credited the until-end-of-turn flying as +20 of lasting material at every leaf of the turn and the root activated on every seed (`material-tiebreak`); the leaf now takes that credit back (`temporaryCombatKeywords`, the keyword twin of ADR 0020 §2) and the futile-move prune (`isFutileThisTurnMove`, `ai/futileShield.ts`) drops the activation: the Bears can attack, but flying takes no block away from the Spider (`validateBlockerEligibility` with the keyword added, CR 509.1b), so no combat window is left for the grant. The right-hand half below is the same board with the Spider replaced by a ground Hill Giant.",
+        note: "Issue #5927, the left half of the transient-grant discriminating pair — two conditional entries rather than a registry `pairOf`: the forbidden activation is pruned at enumeration, so this position yields no fitted verdict (`registrySource.ts`, unconstraining), the same declaration as issue #6915's land-type entries. A 2/4 reach Giant Spider blocks a flyer as well as a ground 2/2 (CR 702.17b), so the opponent sitting on 2 life changes nothing: with or without flying the Bears has no profitable attack, and paying {U} and the Disciple's tap for the grant buys nothing. Before the fix `creatureValueRaw` credited the until-end-of-turn flying as +20 of lasting material at every leaf of the turn and the root activated on every seed (`material-tiebreak`); the leaf now takes that credit back (`temporaryCombatKeywords`, the keyword twin of ADR 0020 §2) and the futile-move prune (`isFutileThisTurnMove`, `ai/futileShield.ts`) drops the activation: the Bears can attack, but flying takes no block away from the Spider (`validateBlockerEligibility` with the keyword added, CR 509.1b), so no combat window is left for the grant. The right half below is the same board with the Spider replaced by a ground Hill Giant.",
     },
     {
         label: "transient grant: gives its own creature flying for the evasive lethal swing",
-        pairOf: {
-            anchor: "transient grant: does NOT give its own creature flying into a reach blocker",
+        classification: {
+            kind: "conditional",
             discriminant: {
                 kind: "card",
-                detail: "the opposing blocker is a Giant Spider (reach) rather than a ground Hill Giant",
+                detail: "the opposing blocker is a ground Hill Giant rather than a Giant Spider (reach)",
             },
         },
         spec: {
@@ -3673,7 +3665,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5927, the right-hand half: a ground 3/3 cannot block a flyer (CR 702.9b), so the Bears with flying is two unblockable damage into 2 life — the one window the grant converts in. Wins on `mechanism: mean-reward` on all 5 seeds, before and after the fix: the discriminating half says the take-back and the prune bought DISCRIMINATION (flying into reach pruned, flying into a ground blocker for lethal kept and taken), not a blanket refusal of every this-turn grant.",
+        note: "Issue #5927, the right half: a ground 3/3 cannot block a flyer (CR 702.9b), so the Bears with flying is two unblockable damage into 2 life — the one window the grant converts in. Wins on `mechanism: mean-reward` on all 5 seeds, before and after the fix: the discriminating half says the take-back and the prune bought DISCRIMINATION (flying into reach pruned, flying into a ground blocker for lethal kept and taken), not a blanket refusal of every this-turn grant.",
     },
     {
         label: "transient grant: does NOT give its own creature flying at the opponent's end step",
