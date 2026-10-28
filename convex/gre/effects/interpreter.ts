@@ -1438,32 +1438,16 @@ function asFilterArray<T>(value: T | T[] | undefined): T[] | undefined {
     return Array.isArray(value) ? value : [value];
 }
 
-/** CR 105.2 (issue #3806) — the colour set an `EffectCardFilter.color` names,
- *  for the literal AND the dynamic shape alike. `undefined` means the field
- *  was absent (NO constraint); an array — possibly EMPTY — means the field was
- *  present and these are its colours.
- *
- *  The dynamic `{ sacrificed: { read: "colors" } }` form reads the cost-
- *  sacrificed permanent's last-known colours off the stack item (CR 608.2h),
- *  the same snapshot `resolveValue`'s numeric `sacrificed` member reads. It
- *  collapses BOTH unresolvable edges — no snapshot at all, and a COLOURLESS
- *  victim (CR 105.2c) — to the EMPTY set, which every consumer treats as
- *  "matches nothing". That is the fail-CLOSED convention `manaValueAtMost`'s
- *  unresolvable dynamic ceiling uses; the fail-OPEN alternative (returning
- *  `undefined`, i.e. no constraint) would make Mind Extraction discard the
- *  target player's ENTIRE hand when it should discard nothing.
- *
- *  The `{ manaSpent: { read: "colors" } }` form (issue #5410) reads the
- *  colours of the mana noted on the activation's payment
- *  (`getNotedManaSpent`), under the same empty-set-on-nothing contract. */
 /** CR 701.17 (issue #7204) — mill `count`, then mill `count` again for as
  *  long as `repeatWhile` holds over the cards the LAST pass genuinely milled
  *  (Grindstone: "If two cards that share a color were milled this way, repeat
  *  this process"). Returns every pass's milled ids in mill order — all the
  *  cards "milled this way", which `mill.bind` / `bindAll` read. Terminates:
  *  each pass takes cards off the library, and a pass that milled fewer than
- *  two (CR 701.17b short library, or a CR 614 redirect to exile — not a mill)
- *  cannot share a colour. */
+ *  two cannot share a colour. KNOWN DIVERGENCE (CR 701.17c): a card a CR 614
+ *  replacement redirected to exile WAS milled, but `millCards` returns
+ *  graveyard-reaching ids only, so it never counts toward the repeat — the
+ *  `bindAll` gap of docs/findings/3243-milled-card-redirected-out-of-the-graveyard.md. */
 function millPasses(
     ctx: SpellContext,
     playerId: string,
@@ -1474,8 +1458,25 @@ function millPasses(
     for (;;) {
         const pass = ctx.millCards(playerId, count);
         milled.push(...pass);
-        if (repeatWhile !== "sharedColor") return milled;
-        if (!someTwoShareColor(ctx, playerId, pass)) return milled;
+        if (!millRepeatHolds(ctx, playerId, pass, repeatWhile)) return milled;
+    }
+}
+
+function millRepeatHolds(
+    ctx: SpellContext,
+    playerId: string,
+    pass: readonly string[],
+    repeatWhile: MillRepeatCondition | undefined
+): boolean {
+    switch (repeatWhile) {
+        case undefined:
+            return false;
+        case "sharedColor":
+            return someTwoShareColor(ctx, playerId, pass);
+        default: {
+            const unhandled: never = repeatWhile;
+            return unhandled;
+        }
     }
 }
 
@@ -1498,6 +1499,24 @@ function someTwoShareColor(
     );
 }
 
+/** CR 105.2 (issue #3806) — the colour set an `EffectCardFilter.color` names,
+ *  for the literal AND the dynamic shape alike. `undefined` means the field
+ *  was absent (NO constraint); an array — possibly EMPTY — means the field was
+ *  present and these are its colours.
+ *
+ *  The dynamic `{ sacrificed: { read: "colors" } }` form reads the cost-
+ *  sacrificed permanent's last-known colours off the stack item (CR 608.2h),
+ *  the same snapshot `resolveValue`'s numeric `sacrificed` member reads. It
+ *  collapses BOTH unresolvable edges — no snapshot at all, and a COLOURLESS
+ *  victim (CR 105.2c) — to the EMPTY set, which every consumer treats as
+ *  "matches nothing". That is the fail-CLOSED convention `manaValueAtMost`'s
+ *  unresolvable dynamic ceiling uses; the fail-OPEN alternative (returning
+ *  `undefined`, i.e. no constraint) would make Mind Extraction discard the
+ *  target player's ENTIRE hand when it should discard nothing.
+ *
+ *  The `{ manaSpent: { read: "colors" } }` form (issue #5410) reads the
+ *  colours of the mana noted on the activation's payment
+ *  (`getNotedManaSpent`), under the same empty-set-on-nothing contract. */
 function resolveFilterColors(
     ctx: SpellContext,
     value: EffectCardFilter["color"]

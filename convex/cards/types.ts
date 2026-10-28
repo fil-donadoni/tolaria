@@ -17667,8 +17667,9 @@ export type EffectOp =
      *  not even with another colourless one; read in the graveyard, CR
      *  701.17c). It always terminates: every pass takes cards off the
      *  library, and a pass that milled fewer than two cards (CR 701.17b — a
-     *  short library, or a CR 614 redirect to exile, which is not a mill)
-     *  cannot satisfy it. `bind` / `bindAll` cover every pass — all the
+     *  short library) cannot satisfy it. Known divergence (CR 701.17c): a
+     *  card a CR 614 replacement redirected to exile was still milled, but
+     *  is not counted (the `bindAll` gap, docs/findings/3243-…). `bind` / `bindAll` cover every pass — all the
      *  cards "milled this way". Deliberately NOT a generic "repeat N times"
      *  (that is `count`) nor a card-predicate list: the one axis Oracle
      *  prints so far is the shared colour, and a second card names the
