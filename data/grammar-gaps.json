@@ -30,12 +30,12 @@
         {
             "key": "(op) › cascade",
             "op": "cascade",
-            "issue": 4532
+            "issue": 7353
         },
         {
             "key": "(op) › castDuringResolution",
             "op": "castDuringResolution",
-            "issue": 4532
+            "issue": 7354
         },
         {
             "key": "(op) › coinFlip",
@@ -75,12 +75,12 @@
         {
             "key": "(op) › grantCastFromGraveyard",
             "op": "grantCastFromGraveyard",
-            "issue": 4532
+            "issue": 7355
         },
         {
             "key": "(op) › grantCastTiming",
             "op": "grantCastTiming",
-            "issue": 4532
+            "issue": 7356
         },
         {
             "key": "(op) › hideaway",
@@ -776,6 +776,21 @@
         },
         {
             "kind": "grammar",
+            "key": "(card) › layout \"meld\" is not in grammar v0 (multi-faced cards)",
+            "issue": 3341
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › layout \"transform\" is not in grammar v0 (multi-faced cards)",
+            "issue": 7217
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › modal double-faced card with a nonland back face is CR 712.11b's cast option, out of scope",
+            "issue": 7200
+        },
+        {
+            "kind": "grammar",
             "key": "(no slot) › Forestwalk",
             "issue": 4540
         },
@@ -783,6 +798,16 @@
             "kind": "grammar",
             "key": "(no slot) › Islandwalk",
             "issue": 4540
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › +N",
+            "issue": 7213
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › -N",
+            "issue": 7213
         },
         {
             "kind": "grammar",
@@ -801,8 +826,18 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › activation cost › Exile this card from your graveyard",
+            "issue": 7219
+        },
+        {
+            "kind": "grammar",
             "key": "activated › activation cost › Exile this card from your hand",
             "issue": 5326
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › N",
+            "issue": 7213
         },
         {
             "kind": "grammar",
@@ -823,6 +858,11 @@
             "kind": "grammar",
             "key": "activated › activation cost › Return an Elf you control to its owner's hand",
             "issue": 5330
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › Sacrifice another creature",
+            "issue": 7219
         },
         {
             "kind": "grammar",
@@ -873,6 +913,11 @@
             "kind": "grammar",
             "key": "activated › effect clause › Exile the bottom card of target player's graveyard",
             "issue": 5263
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Monstrosity N",
+            "issue": 3217
         },
         {
             "kind": "grammar",
@@ -1076,6 +1121,11 @@
         },
         {
             "kind": "grammar",
+            "key": "keyword-line › keyword ability › Crew N",
+            "issue": 7214
+        },
+        {
+            "kind": "grammar",
             "key": "keyword-line › keyword ability › Cumulative upkeep {…}",
             "issue": 5187
         },
@@ -1091,8 +1141,23 @@
         },
         {
             "kind": "grammar",
+            "key": "keyword-line › keyword ability › Equip {…}",
+            "issue": 7214
+        },
+        {
+            "kind": "grammar",
             "key": "keyword-line › keyword ability › Flashback—{…}",
             "issue": 6401
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Foretell {…}",
+            "issue": 2096
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Impending N—{…}",
+            "issue": 1970
         },
         {
             "kind": "grammar",
@@ -1101,8 +1166,43 @@
         },
         {
             "kind": "grammar",
+            "key": "keyword-line › keyword ability › Miracle {…}",
+            "issue": 1267
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Mobilize N",
+            "issue": 2611
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Ninjutsu {…}",
+            "issue": 7214
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Offspring {…}",
+            "issue": 7214
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Plot {…}",
+            "issue": 3219
+        },
+        {
+            "kind": "grammar",
             "key": "keyword-line › keyword ability › Protection from green",
             "issue": 4312
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Saddle N",
+            "issue": 2088
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › ward {…}",
+            "issue": 7214
         },
         {
             "kind": "grammar",
@@ -1216,6 +1316,16 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › Choose one",
+            "issue": 7224
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Choose three",
+            "issue": 7224
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Choose two target creatures controlled by the same player",
             "issue": 4594
         },
@@ -1263,6 +1373,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › Each player puts a creature card from their graveyard onto the battlefield",
             "issue": 4568
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Empower Jace N",
+            "issue": 7198
         },
         {
             "kind": "grammar",
@@ -1476,6 +1591,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › You may discard a card",
+            "issue": 7222
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › You may discard an Island card and another card rather than pay this spell's mana cost",
             "issue": 4559
         },
@@ -1498,6 +1618,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › You may have that player shuffle",
             "issue": 5369
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You may play an additional land this turn",
+            "issue": 7220
         },
         {
             "kind": "grammar",
@@ -1658,6 +1783,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › target filter › object descriptor › creature with mana value X or less",
             "issue": 5208
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › creature you don't control",
+            "issue": 7221
         },
         {
             "kind": "grammar",
@@ -1846,6 +1976,16 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Equipped creature gets +N/+N and has flying",
+            "issue": 7215
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Equipped creature gets +N/+N and has haste",
+            "issue": 7215
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › If damage would be dealt to this creature, prevent that damage. Remove a +N/+N counter from this creature",
             "issue": 4549
         },
@@ -1916,6 +2056,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Spells you cast from anywhere other than your hand cost {…} less to cast",
+            "issue": 7220
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Sutured Ghoul's power is equal to the total power of the exiled cards and its toughness is equal to their total toughness",
             "issue": 5367
         },
@@ -1976,6 +2121,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › This creature gets +N/+N for each creature card in your graveyard",
+            "issue": 7223
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › This land enters with three mining counters on it",
             "issue": 4542
         },
@@ -1988,6 +2138,11 @@
             "kind": "grammar",
             "key": "static › static clause › Threshold — This creature gets +N/+N as long as there are seven or more cards in your graveyard",
             "issue": 4551
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Ward—Pay N life",
+            "issue": 7214
         },
         {
             "kind": "grammar",
@@ -2011,6 +2166,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › You may look at the top card of your library any time",
+            "issue": 7220
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › You may play an additional land on each of your turns",
             "issue": 4570
         },
@@ -2018,6 +2178,16 @@
             "kind": "grammar",
             "key": "static › static clause › You may play lands and cast spells from the top of your library",
             "issue": 5695
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › You may play lands from your graveyard",
+            "issue": 7220
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Your opponents can't cast spells during your turn",
+            "issue": 7220
         },
         {
             "kind": "grammar",
@@ -2071,6 +2241,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › condition › you're the monarch",
+            "issue": 7218
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Add X mana of any one color",
             "issue": 7125
         },
@@ -2078,6 +2253,11 @@
             "kind": "grammar",
             "key": "triggered › effect clause › Add one mana of any color",
             "issue": 4593
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Attach it to target creature you control",
+            "issue": 7215
         },
         {
             "kind": "grammar",
@@ -2113,6 +2293,11 @@
             "kind": "grammar",
             "key": "triggered › effect clause › Each player returns to the battlefield all cards they own exiled with it",
             "issue": 5200
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Empower Jace N",
+            "issue": 7198
         },
         {
             "kind": "grammar",
@@ -2206,6 +2391,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › You become the monarch",
+            "issue": 7218
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › You draw X cards and lose X life",
             "issue": 6395
         },
@@ -2258,6 +2448,11 @@
             "kind": "grammar",
             "key": "triggered › effect clause › enchanted creature",
             "issue": 4583
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › him",
+            "issue": 7221
         },
         {
             "kind": "grammar",
@@ -2361,6 +2556,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › At the beginning of your first main phase",
+            "issue": 7216
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › When a creature with mana value N or greater enters",
             "issue": 5204
         },
@@ -2371,6 +2571,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › When this artifact enters or leaves the battlefield",
+            "issue": 7216
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › When this creature is turned face up",
             "issue": 5227
         },
@@ -2378,6 +2583,21 @@
             "kind": "grammar",
             "key": "triggered › trigger head › When this creature's power is N or greater",
             "issue": 5206
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When you cast this spell",
+            "issue": 7216
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When {self} enter",
+            "issue": 7216
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a creature you control with power N or greater enters",
+            "issue": 7216
         },
         {
             "kind": "grammar",
@@ -2393,6 +2613,11 @@
             "kind": "grammar",
             "key": "triggered › trigger head › Whenever a player taps a land for mana",
             "issue": 4582
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever an opponent searches their library",
+            "issue": 7216
         },
         {
             "kind": "grammar",
@@ -2440,6 +2665,26 @@
             "issue": 4544
         },
         {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this permanent enters or attacks",
+            "issue": 1970
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you cast a noncreature spell",
+            "issue": 7216
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you sacrifice a land",
+            "issue": 7216
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Abhorrent Oculus",
+            "issue": 2072
+        },
+        {
             "kind": "hand-tail",
             "key": "Addle",
             "issue": 4596
@@ -2458,6 +2703,11 @@
             "kind": "hand-tail",
             "key": "Allied Strategies",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Alpha Deathclaw",
+            "issue": 3217
         },
         {
             "kind": "hand-tail",
@@ -2486,6 +2736,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Avatar of Burgeoning Echoes",
+            "issue": 7225
+        },
+        {
+            "kind": "hand-tail",
             "key": "Backlash",
             "issue": 4596
         },
@@ -2496,8 +2751,23 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Batroc the Leaper",
+            "issue": 7226
+        },
+        {
+            "kind": "hand-tail",
             "key": "Bend or Break",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Bilbo, Thief in the Night",
+            "issue": 7227
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Black Widow, Super Spy",
+            "issue": 7228
         },
         {
             "kind": "hand-tail",
@@ -2513,6 +2783,11 @@
             "kind": "hand-tail",
             "key": "Bog Down",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Boomerang Basics",
+            "issue": 7229
         },
         {
             "kind": "hand-tail",
@@ -2536,6 +2811,16 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Caustic Bronco",
+            "issue": 2088
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Chain of Smog",
+            "issue": 3657
+        },
+        {
+            "kind": "hand-tail",
             "key": "Cloud Cover",
             "issue": 4595
         },
@@ -2556,6 +2841,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Collective Brutality",
+            "issue": 2267
+        },
+        {
+            "kind": "hand-tail",
             "key": "Collective Restraint",
             "issue": 4596
         },
@@ -2563,6 +2853,16 @@
             "kind": "hand-tail",
             "key": "Confound",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Council's Judgment",
+            "issue": 2071
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Crabomination",
+            "issue": 3218
         },
         {
             "kind": "hand-tail",
@@ -2586,6 +2886,16 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Cut Down",
+            "issue": 1352
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dark Depths",
+            "issue": 7230
+        },
+        {
+            "kind": "hand-tail",
             "key": "Dead Ringers",
             "issue": 4326
         },
@@ -2601,6 +2911,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Delayed Blast Fireball",
+            "issue": 2097
+        },
+        {
+            "kind": "hand-tail",
             "key": "Desperate Research",
             "issue": 4596
         },
@@ -2608,6 +2923,11 @@
             "kind": "hand-tail",
             "key": "Destructive Flow",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Detective's Phoenix",
+            "issue": 2074
         },
         {
             "kind": "hand-tail",
@@ -2686,8 +3006,23 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Elvish Reclaimer",
+            "issue": 7231
+        },
+        {
+            "kind": "hand-tail",
             "key": "Emblazoned Golem",
             "issue": 4577
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Emeritus of Abundance // Regrowth",
+            "issue": 3689
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Emeritus of Ideation // Ancestral Recall",
+            "issue": 3689
         },
         {
             "kind": "hand-tail",
@@ -2698,6 +3033,11 @@
             "kind": "hand-tail",
             "key": "Ertai's Trickery",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Escape to the Wilds",
+            "issue": 7232
         },
         {
             "kind": "hand-tail",
@@ -2756,6 +3096,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Gandalf, Goblins' Bane // Flameshape",
+            "issue": 7233
+        },
+        {
+            "kind": "hand-tail",
             "key": "Gerrard Capashen",
             "issue": 4331
         },
@@ -2763,6 +3108,11 @@
             "kind": "hand-tail",
             "key": "Gerrard's Verdict",
             "issue": 4332
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Get Lost",
+            "issue": 7234
         },
         {
             "kind": "hand-tail",
@@ -2776,8 +3126,18 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Goblin Welder",
+            "issue": 7235
+        },
+        {
+            "kind": "hand-tail",
             "key": "Goham Djinn",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Grindstone",
+            "issue": 7236
         },
         {
             "kind": "hand-tail",
@@ -2856,6 +3216,16 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Iron Man Armor",
+            "issue": 7237
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Jace, Wielder of Mysteries",
+            "issue": 3231
+        },
+        {
+            "kind": "hand-tail",
             "key": "Jade Leech",
             "issue": 4596
         },
@@ -2868,6 +3238,11 @@
             "kind": "hand-tail",
             "key": "Juntu Stakes",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Kaito, Bane of Nightmares",
+            "issue": 3237
         },
         {
             "kind": "hand-tail",
@@ -2898,6 +3273,21 @@
             "kind": "hand-tail",
             "key": "Kavu Scout",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Keen-Eyed Curator",
+            "issue": 3245
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Knight of the Reliquary",
+            "issue": 7238
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Kolaghan's Command",
+            "issue": 2266
         },
         {
             "kind": "hand-tail",
@@ -2961,6 +3351,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Manamorphose",
+            "issue": 1368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Manipulate Fate",
             "issue": 4596
         },
@@ -2968,6 +3363,11 @@
             "kind": "hand-tail",
             "key": "Marauding Knight",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Metamorphosis Fanatic",
+            "issue": 7239
         },
         {
             "kind": "hand-tail",
@@ -2996,8 +3396,18 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Mole Man, Moloid Master",
+            "issue": 7240
+        },
+        {
+            "kind": "hand-tail",
             "key": "Molimo, Maro-Sorcerer",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Mystic Forge",
+            "issue": 7241
         },
         {
             "kind": "hand-tail",
@@ -3008,6 +3418,11 @@
             "kind": "hand-tail",
             "key": "Nemata, Grove Guardian",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Night Nurse, Healer of Heroes",
+            "issue": 7242
         },
         {
             "kind": "hand-tail",
@@ -3023,6 +3438,11 @@
             "kind": "hand-tail",
             "key": "Obsidian Acolyte",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Okoye, Mighty and Adored",
+            "issue": 7243
         },
         {
             "kind": "hand-tail",
@@ -3051,6 +3471,16 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Painter's Servant",
+            "issue": 7244
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Paradoxical Outcome",
+            "issue": 7245
+        },
+        {
+            "kind": "hand-tail",
             "key": "Phantasmal Terrain",
             "issue": 4596
         },
@@ -3076,6 +3506,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Pillage the Bog",
+            "issue": 3219
+        },
+        {
+            "kind": "hand-tail",
             "key": "Plague Spores",
             "issue": 4596
         },
@@ -3088,6 +3523,11 @@
             "kind": "hand-tail",
             "key": "Pledge of Loyalty",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Prismatic Ending",
+            "issue": 7246
         },
         {
             "kind": "hand-tail",
@@ -3216,6 +3656,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Sanctum Lurker",
+            "issue": 7247
+        },
+        {
+            "kind": "hand-tail",
             "key": "Sapphire Leech",
             "issue": 4596
         },
@@ -3251,13 +3696,43 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Screaming Nemesis",
+            "issue": 3239
+        },
+        {
+            "kind": "hand-tail",
             "key": "Searing Rays",
             "issue": 4596
         },
         {
             "kind": "hand-tail",
+            "key": "Seasoned Cryomancer",
+            "issue": 7248
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Seasoned Pyromancer",
+            "issue": 1363
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Sedgemoor Witch",
+            "issue": 2087
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Serra Paragon",
+            "issue": 1239
+        },
+        {
+            "kind": "hand-tail",
             "key": "Shoreline Raider",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Shorikai, Genesis Engine",
+            "issue": 1863
         },
         {
             "kind": "hand-tail",
@@ -3278,6 +3753,11 @@
             "kind": "hand-tail",
             "key": "Sinister Strength",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Six",
+            "issue": 2377
         },
         {
             "kind": "hand-tail",
@@ -3303,6 +3783,16 @@
             "kind": "hand-tail",
             "key": "Soul Burn",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Soul-Scar Mage",
+            "issue": 7249
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Sphinx of False Conclusions",
+            "issue": 7250
         },
         {
             "kind": "hand-tail",
@@ -3376,6 +3866,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Superior Spider-Man",
+            "issue": 7251
+        },
+        {
+            "kind": "hand-tail",
             "key": "Suppress",
             "issue": 4342
         },
@@ -3386,8 +3881,28 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Swift Reconfiguration",
+            "issue": 7252
+        },
+        {
+            "kind": "hand-tail",
             "key": "Tahngarth, Talruum Hero",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Talon Gates of Madara",
+            "issue": 7253
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Tamiyo's Safekeeping",
+            "issue": 7254
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Tamiyo, Collector of Tales",
+            "issue": 2607
         },
         {
             "kind": "hand-tail",
@@ -3408,6 +3923,31 @@
             "kind": "hand-tail",
             "key": "Temporal Spring",
             "issue": 4323
+        },
+        {
+            "kind": "hand-tail",
+            "key": "The Fantasticar",
+            "issue": 7255
+        },
+        {
+            "kind": "hand-tail",
+            "key": "The Wandering Emperor",
+            "issue": 2606
+        },
+        {
+            "kind": "hand-tail",
+            "key": "The Wondrous Wasp",
+            "issue": 7256
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Thespian's Stage",
+            "issue": 7257
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Thieving Skydiver",
+            "issue": 3248
         },
         {
             "kind": "hand-tail",
@@ -3463,6 +4003,11 @@
             "kind": "hand-tail",
             "key": "Urborg Shambler",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ursine Monstrosity",
+            "issue": 3247
         },
         {
             "kind": "hand-tail",
@@ -3533,6 +4078,11 @@
             "kind": "hand-tail",
             "key": "Winnow",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Witherbloom Apprentice",
+            "issue": 2087
         },
         {
             "kind": "hand-tail",
@@ -4073,556 +4623,6 @@
             "kind": "scenario",
             "key": "validate-effect-script › effects[0]: ref \"$source\" references undefined binding \"$source\" — no earlier Op binds it (bare object refs are the forEach \"$each\" of a permanents set)",
             "issue": 4025
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › effect clause › Empower Jace N",
-            "issue": 7198
-        },
-        {
-            "kind": "grammar",
-            "key": "spell › effect clause › Empower Jace N",
-            "issue": 7198
-        },
-        {
-            "kind": "grammar",
-            "key": "(card) › modal double-faced card with a nonland back face is CR 712.11b's cast option, out of scope",
-            "issue": 7200
-        },
-        {
-            "kind": "grammar",
-            "key": "activated › activation cost › +N",
-            "issue": 7213
-        },
-        {
-            "kind": "grammar",
-            "key": "activated › activation cost › -N",
-            "issue": 7213
-        },
-        {
-            "kind": "grammar",
-            "key": "activated › activation cost › N",
-            "issue": 7213
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › Equip {…}",
-            "issue": 7214
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › Crew N",
-            "issue": 7214
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › ward {…}",
-            "issue": 7214
-        },
-        {
-            "kind": "grammar",
-            "key": "static › static clause › Ward—Pay N life",
-            "issue": 7214
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › Ninjutsu {…}",
-            "issue": 7214
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › Offspring {…}",
-            "issue": 7214
-        },
-        {
-            "kind": "grammar",
-            "key": "static › static clause › Equipped creature gets +N/+N and has haste",
-            "issue": 7215
-        },
-        {
-            "kind": "grammar",
-            "key": "static › static clause › Equipped creature gets +N/+N and has flying",
-            "issue": 7215
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › effect clause › Attach it to target creature you control",
-            "issue": 7215
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › Whenever you cast a noncreature spell",
-            "issue": 7216
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › When you cast this spell",
-            "issue": 7216
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › At the beginning of your first main phase",
-            "issue": 7216
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › When this artifact enters or leaves the battlefield",
-            "issue": 7216
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › When {self} enter",
-            "issue": 7216
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › Whenever a creature you control with power N or greater enters",
-            "issue": 7216
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › Whenever you sacrifice a land",
-            "issue": 7216
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › Whenever an opponent searches their library",
-            "issue": 7216
-        },
-        {
-            "kind": "grammar",
-            "key": "(card) › layout \"transform\" is not in grammar v0 (multi-faced cards)",
-            "issue": 7217
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › effect clause › You become the monarch",
-            "issue": 7218
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › condition › you're the monarch",
-            "issue": 7218
-        },
-        {
-            "kind": "grammar",
-            "key": "activated › activation cost › Exile this card from your graveyard",
-            "issue": 7219
-        },
-        {
-            "kind": "grammar",
-            "key": "activated › activation cost › Sacrifice another creature",
-            "issue": 7219
-        },
-        {
-            "kind": "grammar",
-            "key": "static › static clause › You may look at the top card of your library any time",
-            "issue": 7220
-        },
-        {
-            "kind": "grammar",
-            "key": "static › static clause › You may play lands from your graveyard",
-            "issue": 7220
-        },
-        {
-            "kind": "grammar",
-            "key": "spell › effect clause › You may play an additional land this turn",
-            "issue": 7220
-        },
-        {
-            "kind": "grammar",
-            "key": "static › static clause › Your opponents can't cast spells during your turn",
-            "issue": 7220
-        },
-        {
-            "kind": "grammar",
-            "key": "static › static clause › Spells you cast from anywhere other than your hand cost {…} less to cast",
-            "issue": 7220
-        },
-        {
-            "kind": "grammar",
-            "key": "spell › effect clause › target filter › object descriptor › creature you don't control",
-            "issue": 7221
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › effect clause › him",
-            "issue": 7221
-        },
-        {
-            "kind": "grammar",
-            "key": "spell › effect clause › You may discard a card",
-            "issue": 7222
-        },
-        {
-            "kind": "grammar",
-            "key": "static › static clause › This creature gets +N/+N for each creature card in your graveyard",
-            "issue": 7223
-        },
-        {
-            "kind": "grammar",
-            "key": "spell › effect clause › Choose three",
-            "issue": 7224
-        },
-        {
-            "kind": "grammar",
-            "key": "spell › effect clause › Choose one",
-            "issue": 7224
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › Plot {…}",
-            "issue": 3219
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › Impending N—{…}",
-            "issue": 1970
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › Whenever this permanent enters or attacks",
-            "issue": 1970
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › Foretell {…}",
-            "issue": 2096
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › Saddle N",
-            "issue": 2088
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › Miracle {…}",
-            "issue": 1267
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › Mobilize N",
-            "issue": 2611
-        },
-        {
-            "kind": "grammar",
-            "key": "activated › effect clause › Monstrosity N",
-            "issue": 3217
-        },
-        {
-            "kind": "grammar",
-            "key": "(card) › layout \"meld\" is not in grammar v0 (multi-faced cards)",
-            "issue": 3341
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Abhorrent Oculus",
-            "issue": 2072
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Alpha Deathclaw",
-            "issue": 3217
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Avatar of Burgeoning Echoes",
-            "issue": 7225
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Batroc the Leaper",
-            "issue": 7226
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Bilbo, Thief in the Night",
-            "issue": 7227
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Black Widow, Super Spy",
-            "issue": 7228
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Boomerang Basics",
-            "issue": 7229
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Caustic Bronco",
-            "issue": 2088
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Chain of Smog",
-            "issue": 3657
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Collective Brutality",
-            "issue": 2267
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Council's Judgment",
-            "issue": 2071
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Crabomination",
-            "issue": 3218
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Cut Down",
-            "issue": 1352
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Dark Depths",
-            "issue": 7230
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Delayed Blast Fireball",
-            "issue": 2097
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Detective's Phoenix",
-            "issue": 2074
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Elvish Reclaimer",
-            "issue": 7231
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Emeritus of Abundance // Regrowth",
-            "issue": 3689
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Emeritus of Ideation // Ancestral Recall",
-            "issue": 3689
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Escape to the Wilds",
-            "issue": 7232
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Gandalf, Goblins' Bane // Flameshape",
-            "issue": 7233
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Get Lost",
-            "issue": 7234
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Goblin Welder",
-            "issue": 7235
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Grindstone",
-            "issue": 7236
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Iron Man Armor",
-            "issue": 7237
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Jace, Wielder of Mysteries",
-            "issue": 3231
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Kaito, Bane of Nightmares",
-            "issue": 3237
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Keen-Eyed Curator",
-            "issue": 3245
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Knight of the Reliquary",
-            "issue": 7238
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Kolaghan's Command",
-            "issue": 2266
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Manamorphose",
-            "issue": 1368
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Metamorphosis Fanatic",
-            "issue": 7239
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Mole Man, Moloid Master",
-            "issue": 7240
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Mystic Forge",
-            "issue": 7241
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Night Nurse, Healer of Heroes",
-            "issue": 7242
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Okoye, Mighty and Adored",
-            "issue": 7243
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Painter's Servant",
-            "issue": 7244
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Paradoxical Outcome",
-            "issue": 7245
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Pillage the Bog",
-            "issue": 3219
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Prismatic Ending",
-            "issue": 7246
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Sanctum Lurker",
-            "issue": 7247
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Screaming Nemesis",
-            "issue": 3239
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Seasoned Cryomancer",
-            "issue": 7248
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Seasoned Pyromancer",
-            "issue": 1363
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Sedgemoor Witch",
-            "issue": 2087
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Serra Paragon",
-            "issue": 1239
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Shorikai, Genesis Engine",
-            "issue": 1863
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Six",
-            "issue": 2377
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Soul-Scar Mage",
-            "issue": 7249
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Sphinx of False Conclusions",
-            "issue": 7250
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Superior Spider-Man",
-            "issue": 7251
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Swift Reconfiguration",
-            "issue": 7252
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Talon Gates of Madara",
-            "issue": 7253
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Tamiyo's Safekeeping",
-            "issue": 7254
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Tamiyo, Collector of Tales",
-            "issue": 2607
-        },
-        {
-            "kind": "hand-tail",
-            "key": "The Fantasticar",
-            "issue": 7255
-        },
-        {
-            "kind": "hand-tail",
-            "key": "The Wandering Emperor",
-            "issue": 2606
-        },
-        {
-            "kind": "hand-tail",
-            "key": "The Wondrous Wasp",
-            "issue": 7256
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Thespian's Stage",
-            "issue": 7257
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Thieving Skydiver",
-            "issue": 3248
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Ursine Monstrosity",
-            "issue": 3247
-        },
-        {
-            "kind": "hand-tail",
-            "key": "Witherbloom Apprentice",
-            "issue": 2087
         }
     ],
     "clustersNote": "Cluster Signatures (ADR 0146, issue #4677): one row per Gap Cluster, `{ issue, kind, match, standalone?, reason? }`, authored by `/cluster-gaps`, never by `gaps:sync`. `match` lists segment globs over the ` › `-separated gap key (`*` within one segment) or, for `hand-tail`, `{ set, colour }` set files; `standalone: true` + `reason` marks a deliberate single (one exact key). A NEW gap matching an open cluster that is not `in-progress` and has no open PR is claimed by it (lowest issue wins) and listed in the cluster body's managed `## Adopted gaps` block. Parsed fail-closed by `parseClusterRows` (`scripts/lib/targets.ts`).",
