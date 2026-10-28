@@ -160,3 +160,45 @@ describe("Rulings entry (issue #4816)", () => {
         ).toBeTruthy();
     });
 });
+
+describe("Manual Game Rulings entry (issue #4817)", () => {
+    const MANUAL = { ...CONTENT, isManualGame: true };
+
+    it("shows `Printed card | Rulings` and never `Live text`", () => {
+        const { container, queryByText, getByText } = render(
+            <CardPreviewBody {...MANUAL} size="sm" />
+        );
+        expect(getByText("Printed card")).toBeTruthy();
+        expect(getByText("Rulings")).toBeTruthy();
+        expect(queryByText("Live text")).toBeNull();
+        expect(
+            container.querySelector('[data-preview-mode="computed"]')
+        ).toBeNull();
+    });
+
+    it("fetches nothing until Rulings is picked, and still never offers Live text there", async () => {
+        const f = vi.fn(async () => ({
+            ok: true,
+            status: 200,
+            json: async () => BODY,
+        }));
+        vi.stubGlobal("fetch", f);
+        const { container, findByText, queryByText } = render(
+            <CardPreviewBody {...MANUAL} size="sm" />
+        );
+        expect(f).not.toHaveBeenCalled();
+        pick(container);
+        await findByText("Wizards");
+        expect(f).toHaveBeenCalledTimes(1);
+        expect(queryByText("Live text")).toBeNull();
+    });
+
+    it("offers no Rulings entry without a print", () => {
+        const { container } = render(
+            <CardPreviewBody {...MANUAL} printedImageId={null} size="sm" />
+        );
+        expect(
+            container.querySelector('[data-preview-mode="rulings"]')
+        ).toBeNull();
+    });
+});
