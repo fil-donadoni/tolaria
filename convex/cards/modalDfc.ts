@@ -154,7 +154,7 @@ export function modalBackFaceParentId(cardId: string): string | undefined {
  *  construction: the twin is built from the back-face record alone. Its mana
  *  cost is the BACK face's own printed one (CR 712.8f leaves the front's cost
  *  behind with the front's other characteristics): absent on a land back,
- *  the cost CR 712.11b's cast pays on a spell back (issue #7200).
+ *  the cost CR 712.11b's cast pays on a spell back.
  *
  *  It carries the parent's `rarity` because rarity is a property of the
  *  PRINTING (CR 206.1), and one modal double-faced card is one printing. Art

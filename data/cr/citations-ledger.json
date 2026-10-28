@@ -51982,7 +51982,7 @@
         {"id":"712.11b","line":"* by the player's own choice at CR 712.11b (cast) or CR 712.12 (the land","sites":1,"status":"baseline"},
         {"id":"712.11b","line":"* on the battlefield; a MODAL face is also CAST (CR 712.11b, issue #7200 —","sites":1,"status":"confirmed","ruleHash":"504ec07a57aa2d09"},
         {"id":"712.11b","line":"* reached by CR 712.11b's second cast option. Both are modelled — the second","sites":1,"status":"confirmed","ruleHash":"504ec07a57aa2d09"},
-        {"id":"712.11b","line":"* the cost CR 712.11b's cast pays on a spell back (issue #7200).","sites":1,"status":"confirmed","ruleHash":"504ec07a57aa2d09"},
+        {"id":"712.11b","line":"* the cost CR 712.11b's cast pays on a spell back.","sites":1,"status":"confirmed","ruleHash":"504ec07a57aa2d09"},
         {"id":"712.11b","line":"* to read before walking through it (CR 712.11b / 712.12).","sites":1,"status":"baseline"},
         {"id":"712.11b","line":"/** CR 712.11b (issue #7200) — this cast announced the BACK face of a modal","sites":1,"status":"confirmed","ruleHash":"504ec07a57aa2d09"},
         {"id":"712.11b","line":"/** CR 712.11b / 712.8f — the back face's OWN mana cost, paid when the","sites":1,"status":"confirmed","ruleHash":"504ec07a57aa2d09"},
