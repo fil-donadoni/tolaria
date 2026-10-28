@@ -29,8 +29,8 @@
 //     countered, fizzled, was bounced) reverts at the stack-departure
 //     chokepoints in `state.ts`, beside the Adventure and split reverts.
 //
-// A LAND back face offers no cast at all: CR 305.9 — a land can't be cast; it
-// is played (CR 712.12, `gre/modalLandPlay.ts`).
+// A LAND back face offers no cast at all: CR 305.1 — a land is played, and
+// "it is never a spell" (CR 712.12, `gre/modalLandPlay.ts`).
 
 import { tryGetDefinition } from "../cards";
 import {
@@ -57,7 +57,7 @@ export function modalBackCastAltCostId(def: CardDefinition): string {
 
 /** CR 712.11b — the registered back-face twin of `def` when that face can be
  *  CAST, else `undefined`: not a modal card, a twin that failed to hydrate, or
- *  a LAND back face (CR 305.9 — played, never cast). */
+ *  a LAND back face (CR 305.1 — played, never a spell). */
 export function castableModalBackTwin(
     def: CardDefinition | undefined
 ): CardDefinition | undefined {

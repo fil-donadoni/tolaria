@@ -164,7 +164,7 @@ describe("CR 712.11b — the back face is a cast option BESIDE the front", () =>
         expect(options[0].mana).toEqual({ X: 2, G: 1 });
     });
 
-    it("offers NO cast of a land back face (CR 305.9 — it is played, CR 712.12)", () => {
+    it("offers NO cast of a land back face (CR 305.1 — it is played, CR 712.12)", () => {
         const state = position(WITCH_ENCHANTER);
         expect(tryGetDefinition(WITCH_ENCHANTER)?.backFace?.types).toContain(
             "Land"

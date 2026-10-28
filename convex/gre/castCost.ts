@@ -196,7 +196,8 @@ export function libraryTopCastPayment(
  *
  *  Identity for every announcement but two: a SPLIT half or a modal BACK face
  *  (CR 712.11b, issue #7200 — the same channel, the same reasoning) cast from
- *  outside the hand. That announcement rides the CR 601.2b alternative-cost channel (it is
+ *  outside the hand. That announcement rides the CR 601.2b alternative-cost
+ *  channel (it is
  *  how "which half" is said at all, `gre/splitCast.ts`) but it is NOT an
  *  alternative cost in the CR 118.9 sense — the half's printed cost is a price
  *  only when the permission licensing the cast says the spell pays its mana

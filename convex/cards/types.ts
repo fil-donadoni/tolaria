@@ -3104,9 +3104,10 @@ export interface CardBackFace {
     name: string;
     /** CR 712.11b / 712.8f — the back face's OWN mana cost, paid when the
      *  face is cast and read for its mana value while it is up on the stack or
-     *  the battlefield. MODAL faces only: a nonmodal back face has no mana
-     *  cost (CR 712.8e reads the front's), and its token codec would drop
-     *  one. Absent on a land back face, which is played, never cast. */
+     *  the battlefield. MODAL faces only: a nonmodal back face's mana value
+     *  is calculated from its front face's mana cost (CR 712.8e), and its
+     *  token codec would drop one. Absent on a land back face, which is
+     *  played, never cast. */
     manaCost?: ManaCost;
     /** CR 712.11b — the Effect Script (ADR 0045) a modal INSTANT or SORCERY
      *  back face runs when it resolves. MODAL faces only, for the same codec
