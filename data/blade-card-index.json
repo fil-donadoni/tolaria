@@ -557,7 +557,7 @@
     "Reef Shaman": [
         {
             "label": "land-type change: Reef Shaman makes a Forest to cast the green spell in hand",
-            "tier": "stretch",
+            "tier": "must",
             "needsSetup": false
         },
         {
