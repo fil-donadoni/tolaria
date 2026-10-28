@@ -123,4 +123,20 @@ describe("isWastefulAttack — the declaration's trigger value (issue #3788)", (
         // test, and it makes a Treasure on tapping.
         expect(isWastefulAttack(state, swing("dwarf"))).toBe(false);
     });
+
+    it("does NOT fire when two distinct triggers wait on an ordering choice (CR 603.3b)", () => {
+        // Magda's tap payoff beside an attack trigger on the same controller:
+        // the batch is held in `pendingTriggerBatch`, not on the stack.
+        const both: CardDefinition = {
+            ...TAMIYO,
+            subtypes: [...(TAMIYO.subtypes ?? []), "Dwarf"],
+        };
+        withTemporaryDefinition(both, () => {
+            const state = attackState(
+                [mk(MAGDA.id, "magda", "p1"), mk(TAMIYO.id, "tamiyo", "p1")],
+                [mk(SPIDER, "spider", "p2")]
+            );
+            expect(isWastefulAttack(state, swing("tamiyo"))).toBe(false);
+        });
+    });
 });

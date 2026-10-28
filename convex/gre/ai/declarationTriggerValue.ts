@@ -16,7 +16,7 @@
 // is worth nothing — fail open to neutral, never to positive.
 
 import type { EffectOp } from "../../cards/types";
-import type { GameState } from "../state";
+import type { GameState, StackItem } from "../state";
 import { findTriggeredAbility } from "../copy";
 import { contextFreeGrounding } from "./grounding";
 import { valueEffectScript } from "./opValuers";
@@ -24,12 +24,8 @@ import { valueEffectScript } from "./opValuers";
 /** The script a triggered stack item will run: its announced mode's for a
  *  modal trigger (CR 700.2c), else its real `effects[]`, else the `aiEffects`
  *  shadow. `undefined` when none is readable. */
-function triggerScript(
-    state: GameState,
-    itemId: string
-): readonly EffectOp[] | undefined {
-    const item = state.stack.find((s) => s.id === itemId);
-    if (!item?.triggeredAbilityId) return undefined;
+function triggerScript(item: StackItem): readonly EffectOp[] | undefined {
+    if (!item.triggeredAbilityId) return undefined;
     const ability = findTriggeredAbility(item, item.triggeredAbilityId);
     if (!ability) return undefined;
     if (ability.modes && ability.modes.length > 0) {
@@ -41,17 +37,19 @@ function triggerScript(
 }
 
 /** Net worth to `attackerId` of the triggers on `state.stack` whose ids are not
- *  in `before` — the batch a declaration just placed. Positive only when the
- *  attacker's side nets a gain; 0 for an empty batch. */
+ *  in `before` — the batch a declaration just placed — plus the batch held off
+ *  the stack while a CR 603.3b ordering choice is open (two distinct triggers
+ *  of one controller, e.g. an attack trigger beside a tap payoff). Positive
+ *  only when the attacker's side nets a gain; 0 for an empty batch. */
 export function declarationTriggerNetValue(
     state: GameState,
     attackerId: string,
     before: ReadonlySet<string>
 ): number {
     let net = 0;
-    for (const item of state.stack) {
+    for (const item of [...state.stack, ...(state.pendingTriggerBatch ?? [])]) {
         if (before.has(item.id) || !item.triggeredAbilityId) continue;
-        const script = triggerScript(state, item.id);
+        const script = triggerScript(item);
         if (!script) continue;
         const points = valueEffectScript(script, contextFreeGrounding()).points;
         net += item.castById === attackerId ? points : -points;
