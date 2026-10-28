@@ -3616,14 +3616,6 @@ export type PendingChoice = {
          *  the search, so no sign (a debuff wants the opponent's tribe, a lord
          *  wants its own) is baked in here. */
         subtype?: string;
-        /** Set ONLY when this option's mode retypes a land to ONE literal
-         *  basic land type (CR 305.7) — derived structurally by the
-         *  `optionChoice` interpreter Op from the mode's own `setSubtype`
-         *  body. Not `subtype`: that field makes the client render a combobox
-         *  and the census prior, neither of which a five-option modal wants.
-         *  Its reader is the dominated-mode prune in `optionPickCandidates`
-         *  (`gre/ai/choiceCandidates.ts`). */
-        landTypeMode?: string;
     }[];
     /** For `kind: "order-top"` only — the second zone the un-kept looked-at
      *  cards are sent to (`library-bottom` scry / `graveyard` surveil / `none`

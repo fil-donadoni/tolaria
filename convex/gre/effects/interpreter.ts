@@ -66,7 +66,7 @@
 // `convex/cards/mechanicsRegistry.ts`; the interpreter-coverage guard test
 // keeps `OP_EXECUTORS` and that census in exact 1:1 correspondence.
 
-import { COLORED_MANA_COLORS, LAND_SUBTYPE_MANA } from "../manaColors";
+import { COLORED_MANA_COLORS } from "../manaColors";
 import type {
     Color,
     ControlChangeCondition,
@@ -427,23 +427,6 @@ function modeProtectionColor(mode: EffectMode): Color | undefined {
         }
     }
     return undefined;
-}
-
-/** The ONE basic land type `mode` retypes a land to (CR 305.7), or
- *  `undefined`: derived from the mode's own body, never a flag an author sets.
- *  A body of anything but a single literal-subtype `setSubtype` is not a land
- *  retype this seam can read. */
-function modeLandType(mode: EffectMode): string | undefined {
-    if (mode.effects.length !== 1) return undefined;
-    const effect = mode.effects[0]!;
-    if (effect.op !== "setSubtype" || effect.family === "creature") {
-        return undefined;
-    }
-    if (!Array.isArray(effect.subtypes) || effect.subtypes.length !== 1) {
-        return undefined;
-    }
-    const subtype = effect.subtypes[0]!;
-    return subtype in LAND_SUBTYPE_MANA ? subtype : undefined;
 }
 
 /** The fixed `choiceId` a `coinFlip` Op (issue #851) hands to
@@ -6944,7 +6927,6 @@ export const OP_EXECUTORS: {
                           label: mode.label,
                           color: mode.color,
                           protectionColor: modeProtectionColor(mode),
-                          landTypeMode: modeLandType(mode),
                       })),
                       prompt: op.prompt,
                   });

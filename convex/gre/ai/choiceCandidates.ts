@@ -106,8 +106,6 @@ import {
     searchFindDestination,
 } from "./searchDestination";
 import { DEFAULT_EVAL_WEIGHTS } from "./evalWeights";
-import { findPermanent } from "../lookup";
-import { landTypeCanMatter } from "./futileShield";
 
 /** One opened branch of a choice node. */
 export type ChoiceCandidate = {
@@ -714,7 +712,7 @@ const randomRevealAckCandidates: ChoiceCandidateGenerator = (
  *  additionally caps its own combination ENUMERATION at
  *  {@link OPTION_PICK_COMBO_CAP} so the multi-pick branch can never blow up
  *  the pre-scoring pass on a wide option list. */
-const optionPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
+const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
     const options = choice.options ?? [];
     if (options.length === 0) return [];
     const min = Math.max(0, getPendingChoiceMin(choice.count));
@@ -777,33 +775,7 @@ const optionPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
                 : {}),
         };
     };
-    if (pick === 1) {
-        // CR 305.7 — a land-type mode that can matter to no one (no held cost
-        // it pays, no landwalker, no type reader) is dominated by one that can:
-        // leaving it in spends the choice node's visits on retypes whose value
-        // equals `pass`, and the one that unlocks a cast sits a few hundredths
-        // of reward above them. Never emptying: with every mode inert all stay.
-        // Only for the chooser's OWN lands: retyping an opponent's land can
-        // deny a colour, which this reading does not see.
-        const targets =
-            state.stack.find((i) => i.id === choice.stackItemId)?.targets ?? [];
-        const ownLandsOnly =
-            targets.length > 0 &&
-            targets.every(
-                (t) =>
-                    t.type === "permanent" &&
-                    findPermanent(state, t.id)?.controllerId === choice.playerId
-            );
-        const matters = options.filter(
-            (o) =>
-                !ownLandsOnly ||
-                o.landTypeMode === undefined ||
-                landTypeCanMatter(state, choice.playerId, o.landTypeMode)
-        );
-        return (matters.length > 0 ? matters : options).map((option) =>
-            toCandidate([option.id])
-        );
-    }
+    if (pick === 1) return options.map((option) => toCandidate([option.id]));
     const out: ReturnType<typeof toCandidate>[] = [];
     const walk = (start: number, acc: string[]): void => {
         if (out.length >= OPTION_PICK_COMBO_CAP) return;
