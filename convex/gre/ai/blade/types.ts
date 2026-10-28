@@ -234,18 +234,17 @@ export type BladeSetupStep =
      *  name, when the ability does not function from the hand, and — as on the
      *  battlefield — when the activation stops at a payment decision instead
      *  of the stack, which for a hand ability means its mana had to be TAPPED:
-     *  pre-float it in the spec's `manaPool`. `target` is rejected here.
-     *
-     *  `sacrifice` (issue #6942) narrows a targeted activation by the card
-     *  NAME its sacrifice cost gives up (CR 701.21a — "Sacrifice a land" over a
-     *  board of Forests and Mountains is two distinct legal activations). Only
-     *  read alongside `target`. */
+     *  pre-float it in the spec's `manaPool`. `target` is rejected here. */
     | {
           kind: "activate";
           card: string;
           ability?: string;
           controller?: BladeSeat;
           target?: BladeSeat | string;
+          /** Narrows a targeted activation by the card NAME its sacrifice
+           *  cost gives up (CR 701.21a — "Sacrifice a land" over Forests and
+           *  Mountains is two distinct legal activations). Read only
+           *  alongside `target`. */
           sacrifice?: string;
           zone?: "battlefield" | "hand";
       }

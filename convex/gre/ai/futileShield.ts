@@ -84,7 +84,7 @@
  *     Combinations of several costs, and cards cast from other zones, are
  *     not modelled: a narrowing.
  *
- * DEFENSIVE KEYWORD GRANTS (issue #6942). An until-end-of-turn grant of
+ * DEFENSIVE KEYWORD GRANTS. An until-end-of-turn grant of
  * shroud, hexproof, indestructible or protection (`isDefensiveKeyword`) is
  * the same this-turn shape: it answers a threat or buys nothing, and the bot
  * used to sacrifice its lands to Sylvan Safekeeper in response to a creature
@@ -104,7 +104,7 @@
  *     count above. Protection on a permanent something is attached to keeps
  *     the move — the Aura or Equipment falls off (CR 702.16c, 702.16d).
  *
- * A SACRIFICE cost (issue #6942), on a keyword grant only, is a pure loss
+ * A SACRIFICE cost, on a keyword grant only, is a pure loss
  * too unless something reads what it puts into a graveyard, or the mover
  * controls a permanent it does not own: it qualifies only while no card on any
  * battlefield, nor in the mover's hand or graveyard, names a graveyard,
