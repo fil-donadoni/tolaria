@@ -79,6 +79,7 @@ import {
 } from "../moves";
 import { exileCastPermission } from "../castCost";
 import { getLegalActions } from "../rules";
+import { isLegalNamedCard } from "../pendingChoiceSubmit";
 import { eligibleZonePickCards } from "../zonePickEligibility";
 import {
     targetKey,
@@ -1297,6 +1298,7 @@ export function forcedChoiceAnswer(
     state: GameState,
     choice: PendingChoice
 ): Move | null {
+    if (choice.kind === "name-card") return nameCardAnswer(state, choice);
     if (choice.kind !== "discard-hand" || choice.asEntersKind) return null;
     const min = getPendingChoiceMin(choice.count);
     if (min <= 0) return null;
@@ -1323,6 +1325,45 @@ export function forcedChoiceAnswer(
         choiceId: choice.choiceId,
         cardInstanceIds: shed.map((p) => p.card.id),
     };
+}
+
+/** Issue #6676 — the one name the search gives a `name-card` window (CR 201.3,
+ *  an as-enters name CR 614.1c), or `null` when no card in sight is a legal
+ *  answer. Without it the walk stopped at the window and scored the leaf with
+ *  the spell spent and the permanent still staged — a Meddling Mage read as
+ *  two lands tapped for nothing, so the Bot never cast one.
+ *
+ *  Not a decision node: WHICH name is worth naming is a valuation question
+ *  (issue #2467). The candidates are the names the chooser can already see —
+ *  every public zone, the staged entries, the chooser's own hand — never a
+ *  hidden opponent card, so the answer reads no information the chooser lacks.
+ *  Sorted, so every world and every seed name the same card; legality through
+ *  `isLegalNamedCard`, the predicate `applyNameCardSubmit` enforces. */
+function nameCardAnswer(state: GameState, choice: PendingChoice): Move | null {
+    const seen: { card: Record<string, unknown> }[] = [
+        ...(state.stagedEntries ?? []).map((entry) => entry.card),
+        ...state.stack,
+        ...state.players.flatMap((p) => [
+            ...p.battlefield,
+            ...p.graveyard,
+            ...p.exile,
+            ...(p.id === choice.playerId ? p.hand : []),
+        ]),
+    ];
+    const names = [
+        ...new Set(
+            seen.flatMap(({ card }) => {
+                const name = tryGetDefinition(
+                    (card as { id?: string }).id ?? ""
+                )?.name;
+                return name === undefined ? [] : [name];
+            })
+        ),
+    ].sort();
+    const cardName = names.find((name) =>
+        isLegalNamedCard(state, choice, name)
+    );
+    return cardName === undefined ? null : { kind: "name-card", cardName };
 }
 
 /** The answers a SETTLE weighs at `choice` (issue #4896): the in-tree

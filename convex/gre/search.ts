@@ -226,6 +226,7 @@ import {
 import {
     applyLandEntrySubmit,
     applyMayPaySubmit,
+    applyNameCardSubmit,
     applyNumberChoiceSubmit,
     applyPendingChoiceSubmit,
     applyRandomRevealAck,
@@ -1297,18 +1298,29 @@ export function applyMoveInSearch(
             return;
         }
 
+        case "name-card": {
+            // CR 201.3 / 614.1c (issue #6676) — never a search DECISION (no
+            // candidate generator: which name is worth naming is a valuation
+            // question, issue #2467), but no longer a dead end either: the
+            // walk answers the window with `forcedChoiceAnswer`'s one legal
+            // name, so a Meddling Mage–shaped as-enters name choice lands the
+            // permanent instead of scoring the leaf with the spell spent and
+            // the creature nowhere. Applied through the SAME validated
+            // resolver the `submitNameCard` mutation drives.
+            applyNameCardSubmit(state, { playerId, cardName: move.cardName });
+            drainAutoPasses(state);
+            checkStateBasedActions(state);
+            return;
+        }
+
         case "mulligan-bottom":
-        case "name-card":
-            // Issue #4441 — neither kind is a search decision, and nothing
-            // under `convex/gre` constructs either Move. `mulligan-bottom`:
-            // `decidingPlayer` returns null while `mulligan.bottoming`, so the
-            // search never runs on that window. `name-card`: no engine Move
-            // constructor exists. The Brain answers both outside the tree —
-            // `mulligan-bottom` in its pre-game mulligan branch, `name-card`
-            // with the view's `nameCardDefault` (`src/lib/ai/brain.ts`). So
-            // one reaching this switch is a wiring
-            // bug upstream, and applying nothing would leave the choice at the
-            // queue head and spin the playout on it — refuse it loudly instead.
+            // Issue #4441 — not a search decision, and nothing under
+            // `convex/gre` constructs the Move: `decidingPlayer` returns null
+            // while `mulligan.bottoming`, so the search never runs on that
+            // window, and the Brain answers it in its pre-game mulligan
+            // branch. One reaching this switch is a wiring bug upstream, and
+            // applying nothing would leave the choice at the queue head and
+            // spin the playout on it — refuse it loudly instead.
             throw new Error(
                 `applyMoveInSearch: "${move.kind}" is answered by the Brain, never in-tree (issue #4441)`
             );
