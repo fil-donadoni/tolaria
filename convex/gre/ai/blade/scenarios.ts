@@ -8406,6 +8406,95 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #3788: `isWastefulAttack` counts the trigger batch the declaration places (`declarationTriggerNetValue`), so the attack is no longer swapped for holding back.",
     },
     {
+        // Issue #3788, the class beside the tap pair: the payoff is an ATTACK
+        // trigger, not a "becomes tapped" one. A 0/1 flier deals no damage and
+        // the reach blocker kills nothing — held back.
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an attack trigger (investigate) on the attacker",
+            },
+        },
+        label: "attack-trigger pair: does NOT attack with a 0-power flier into a reach blocker, no attack trigger",
+        spec: {
+            cards: [
+                {
+                    name: "Birds of Paradise",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Giant Spider",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "declare-attackers", card: "Birds of Paradise" },
+            ],
+        },
+        note: "Issue #3788, anchor of the attack-trigger pair. Its right-hand half swaps the attacker for Tamiyo, Inquisitive Student (0/3 flier, investigates on attack).",
+    },
+    {
+        // Issue #3788. Same position as the anchor, the attacker swapped for
+        // one whose attack trigger makes a Clue (CR 508.1m): no damage, no dead
+        // blocker, yet the declaration itself pays.
+        pairOf: {
+            anchor: "attack-trigger pair: does NOT attack with a 0-power flier into a reach blocker, no attack trigger",
+            discriminant: {
+                kind: "card",
+                detail: "the attacker has an attack trigger (Tamiyo, Inquisitive Student)",
+            },
+        },
+        label: "attack-trigger pair: attacks with a 0-power flier into a reach blocker, it investigates on attack",
+        spec: {
+            cards: [
+                {
+                    name: "Tamiyo, Inquisitive Student",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Giant Spider",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "declare-attackers",
+                    card: "Tamiyo, Inquisitive Student",
+                },
+            ],
+        },
+        note: "Issue #3788: the class is every declaration trigger, not the tap event — `declarationTriggerNetValue` prices the batch through the Effect Script valuation.",
+    },
+    {
         // Lifted from the AI-diagnosis harness, episode #10 (issue #2436).
         //
         // The defender holds Scryb Sprites (1/1 flying) and Birds of Paradise
