@@ -357,6 +357,8 @@ const { getAiDecisions, clearAiDecisions } =
     await import("~/lib/ai/trace-store");
 // Resets the Brain's per-game Worker respawn budget between the issue #3040
 // cases below, which deliberately spend it.
+import { revealDurationMs } from "~/lib/random-reveal-pacing";
+
 const { disposeBrain, MAX_BRAIN_WORKER_FAILURES } =
     await import("~/lib/ai/brain-client");
 
@@ -1158,6 +1160,34 @@ describe("useVsAiDriver (issue #110)", () => {
         expect(calls).toHaveLength(1);
         expect(calls[0].ref).toBe("confirmDamage");
         expect(calls[0].args).toEqual({ gameId: GAME, playerId: BOT });
+    });
+
+    // Issue #5516 — the Bot as flipper of a coin-flip Random Reveal (CR 705.2,
+    // ADR 0023) waits the reveal's full pacing-table duration before acking,
+    // so the viewer's coin animation is never cut short by the ~200 ms think
+    // path.
+    it("holds the random-reveal ack for the shared pacing-table duration", async () => {
+        currentState = botState({
+            pendingChoices: [
+                {
+                    kind: "random-reveal",
+                    randomKind: "coin",
+                    playerId: BOT,
+                    choiceId: "c1",
+                    stackItemId: "s1",
+                    count: { min: 0, max: 0 },
+                    result: 1,
+                },
+            ],
+        });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+
+        await vi.advanceTimersByTimeAsync(revealDurationMs() - 100);
+        expect(calls).toHaveLength(0);
+
+        await vi.advanceTimersByTimeAsync(100);
+        expect(calls).toHaveLength(1);
+        expect(calls[0].ref).toBe("submitRandomRevealAck");
     });
 
     // Issue #1778 review finding 3 — the double-drive guard
