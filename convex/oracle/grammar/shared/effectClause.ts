@@ -108,7 +108,9 @@ import { createTokenRule, type CreateTokenIR } from "./tokenSpec";
 import {
     printsAmongPick,
     printsTypePick,
+    readAmongBattlefieldSentence,
     readAmongPickSentence,
+    type AmongPickIR,
     type AmongPickSentenceIR,
 } from "./fromAmong";
 import { readImpulsePlaySentence, type ImpulsePlayIR } from "./impulsePlay";
@@ -1504,6 +1506,12 @@ export type EffectSentenceIR =
            * `assembleSentences` because "them" means nothing alone.
            */
           readonly pick?: AmongPickSentenceIR;
+          /**
+           * CR 608.2c — "Put a creature card from among them onto the
+           * battlefield.": the MANDATORY counterpart of `pick`, folded on the
+           * same way. Never set together with `pick`.
+           */
+          readonly battlefieldPick?: AmongPickIR;
       }
     | {
           /**
@@ -2507,6 +2515,9 @@ export type SentenceIR =
      * antecedent by `assembleSentences`; alone it points at nothing.
      */
     | { readonly role: "among-pick"; readonly pick: AmongPickSentenceIR }
+    /** CR 608.2c — "Put a creature card from among them onto the
+     *  battlefield" (`fromAmong.ts`): folded onto a mill, like `among-pick`. */
+    | { readonly role: "among-battlefield"; readonly pick: AmongPickIR }
     /**
      * CR 601.2 + CR 305.1 — "You may play that card this turn.": the tail of a
      * one-card exile of a library's top (`impulsePlay.ts`). Folded onto its
@@ -3672,7 +3683,8 @@ export function assembleSentences(
             if (
                 previous === undefined ||
                 previous.kind !== "mill" ||
-                previous.pick !== undefined
+                previous.pick !== undefined ||
+                previous.battlefieldPick !== undefined
             )
                 return {
                     ok: false,
@@ -3685,6 +3697,26 @@ export function assembleSentences(
                     reason: '"from among them" follows a mill of a single card',
                 };
             effects[effects.length - 1] = { ...previous, pick: sentence.pick };
+            continue;
+        }
+        if (sentence.role === "among-battlefield") {
+            // CR 608.2c — "them" after a mill is the cards it milled.
+            const previous = effects[effects.length - 1];
+            if (
+                previous === undefined ||
+                previous.kind !== "mill" ||
+                previous.pick !== undefined ||
+                previous.battlefieldPick !== undefined ||
+                (previous.count.kind === "fixed" && previous.count.value === 1)
+            )
+                return {
+                    ok: false,
+                    reason: '"from among them" onto the battlefield follows no mill of several cards',
+                };
+            effects[effects.length - 1] = {
+                ...previous,
+                battlefieldPick: sentence.pick,
+            };
             continue;
         }
         if (sentence.role === "type-pick")
@@ -6788,6 +6820,14 @@ function handPickSentence(span: string, ctx: unknown) {
 
 function libraryHalf(span: string, ctx: unknown) {
     if (printsTypePick(span)) return ok({ role: "type-pick" as const });
+    const onto = readAmongBattlefieldSentence(span, ctx);
+    if (onto !== null) {
+        if (!onto.ok) return onto;
+        return ok({
+            role: "among-battlefield" as const,
+            pick: onto.value,
+        } satisfies SentenceIR);
+    }
     const pick = readAmongPickSentence(span, ctx);
     if (pick !== null) {
         if (!pick.ok) return pick;
