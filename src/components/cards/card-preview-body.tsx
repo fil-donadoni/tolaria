@@ -70,7 +70,6 @@ export default function CardPreviewBody({
     // which would also hide a GRE card whose definition genuinely failed to
     // resolve (a real bug that must stay visible).
     const isManualGame = !!content.isManualGame;
-    const mode = isManualGame ? "printed" : toggledMode;
     // Rulings (issue #4816) are keyed on the print the preview already holds,
     // so the entry exists iff `printedImageId` is non-null — never on the
     // definition id: the face-down anonymous face carries null, and a token
@@ -79,6 +78,12 @@ export default function CardPreviewBody({
         !isManualGame && !content.isToken
             ? (content.printedImageId?.id ?? null)
             : null;
+    // A mount reused for content with no print falls back to the computed face.
+    const mode: CardPreviewView = isManualGame
+        ? "printed"
+        : toggledMode === "rulings" && !rulingsPrintId
+          ? "computed"
+          : toggledMode;
     if (originalBody) {
         return (
             <div className="flex w-full items-stretch">
