@@ -872,6 +872,16 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
             const op: EffectOp = { op: "mill", player: "controller", count: 2 };
             expect(valueOp(op, cf).points).toBe(-12); // -(2 × 6)
         });
+
+        it("prices a repeatWhile mill at its expected two passes (issue #7204)", () => {
+            const op: EffectOp = {
+                op: "mill",
+                player: "opponent",
+                count: 2,
+                repeatWhile: "sharedColor",
+            };
+            expect(valueOp(op, cf).points).toBe(24); // 2 × 2 passes × 6
+        });
     });
 
     describe("lookDistribute (CR 401.4) — card selection", () => {

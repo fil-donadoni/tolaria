@@ -993,12 +993,14 @@ function isStepSideOp(op: EffectOp, script: readonly EffectOp[]): boolean {
                 isStepPlayerRef(op.player) && isStepGroundableAmount(op.count)
             );
         case "mill":
-            // A bound mill feeds a later Op this reading does not price.
+            // A bound mill feeds a later Op this reading does not price; a
+            // repeating one (issue #7204) mills an unknown multiple of `count`.
             return (
                 isStepPlayerRef(op.player) &&
                 isStepGroundableAmount(op.count) &&
                 op.bind === undefined &&
-                op.bindAll === undefined
+                op.bindAll === undefined &&
+                op.repeatWhile === undefined
             );
         case "gainLife":
         case "loseLife":
@@ -2655,13 +2657,21 @@ const exileTopOfLibrary: Valuer<"exileTopOfLibrary"> = (op, ctx) => {
     };
 };
 
+// issue #7204 — expected passes of a `repeatWhile: "sharedColor"` mill
+// (Grindstone). The library is hidden, so the valuer prices the geometric
+// mean of an even repeat chance: 1 / (1 − ½) = 2 passes. A two-colour deck
+// sits near it; a mono-colour deck runs far longer, which this undercounts —
+// the safe direction for a card whose ceiling is "mill the whole library".
+const MILL_REPEAT_EXPECTED_PASSES = 2;
+
 const mill: Valuer<"mill"> = (op, ctx) => {
     const { amount, scaling } = ctx.value(op.count);
+    const passes = op.repeatWhile ? MILL_REPEAT_EXPECTED_PASSES : 1;
     // Harmful-by-default assumption: milling targets the OPPONENT (a
     // library-resource denial) unless the ref clearly resolves to the caster.
     const self = ctx.isSelf(op.player, "opponent");
     return {
-        points: amount * MILL_PER_CARD_VALUE * (self ? -1 : 1),
+        points: amount * passes * MILL_PER_CARD_VALUE * (self ? -1 : 1),
         tags: tagScaling(scaling, "cardAdvantage"),
     };
 };

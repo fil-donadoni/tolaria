@@ -102,6 +102,7 @@ import type {
     GainControlDuration,
     ManaCost,
     MayPayCost,
+    MillRepeatCondition,
     MovableZone,
     PermanentFilter,
     SpellContext,
@@ -1435,6 +1436,67 @@ function battlefieldIdsFor(
 function asFilterArray<T>(value: T | T[] | undefined): T[] | undefined {
     if (value === undefined) return undefined;
     return Array.isArray(value) ? value : [value];
+}
+
+/** CR 701.17 (issue #7204) — mill `count`, then mill `count` again for as
+ *  long as `repeatWhile` holds over the cards the LAST pass genuinely milled
+ *  (Grindstone: "If two cards that share a color were milled this way, repeat
+ *  this process"). Returns every pass's milled ids in mill order — all the
+ *  cards "milled this way", which `mill.bind` / `bindAll` read. Terminates:
+ *  each pass takes cards off the library, and a pass that milled fewer than
+ *  two cannot share a colour. KNOWN DIVERGENCE (CR 701.17c): a card a CR 614
+ *  replacement redirected to exile WAS milled, but `millCards` returns
+ *  graveyard-reaching ids only, so it never counts toward the repeat — the
+ *  `bindAll` gap of docs/findings/3243-milled-card-redirected-out-of-the-graveyard.md. */
+function millPasses(
+    ctx: SpellContext,
+    playerId: string,
+    count: number,
+    repeatWhile: MillRepeatCondition | undefined
+): string[] {
+    const milled: string[] = [];
+    for (;;) {
+        const pass = ctx.millCards(playerId, count);
+        milled.push(...pass);
+        if (!millRepeatHolds(ctx, playerId, pass, repeatWhile)) return milled;
+    }
+}
+
+function millRepeatHolds(
+    ctx: SpellContext,
+    playerId: string,
+    pass: readonly string[],
+    repeatWhile: MillRepeatCondition | undefined
+): boolean {
+    switch (repeatWhile) {
+        case undefined:
+            return false;
+        case "sharedColor":
+            return someTwoShareColor(ctx, playerId, pass);
+        default: {
+            const unhandled: never = repeatWhile;
+            return unhandled;
+        }
+    }
+}
+
+/** CR 105.2 — true iff some two of `ids` (cards in `playerId`'s graveyard,
+ *  read there per CR 701.17c) have a colour in common. A colourless card
+ *  shares nothing, not even with another colourless card. */
+function someTwoShareColor(
+    ctx: SpellContext,
+    playerId: string,
+    ids: readonly string[]
+): boolean {
+    if (ids.length < 2) return false;
+    const wanted = new Set(ids);
+    const colorSets = ctx
+        .getGraveyardCards(playerId)
+        .filter((c) => wanted.has(c.id))
+        .map((c) => c.colors);
+    return colorSets.some((a, i) =>
+        colorSets.slice(i + 1).some((b) => a.some((c) => b.includes(c)))
+    );
 }
 
 /** CR 105.2 (issue #3806) — the colour set an `EffectCardFilter.color` names,
@@ -4816,7 +4878,7 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return; // CR 608.2b — player gone, skip
         const count = resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
-        const milledIds = ctx.millCards(playerId, count);
+        const milledIds = millPasses(ctx, playerId, count, op.repeatWhile);
         // issue #1095 — snapshot the FIRST genuinely-milled card (CR 608.2h)
         // so "if a land card was milled this way" (Loafing Giant) can read its
         // last-known types off the binding. Mirrors `discardAtRandom`'s bind
