@@ -27130,6 +27130,16 @@
         "source": "compiled"
     },
     {
+        "name": "Giant Adephage",
+        "scryfallId": "8bae725f-e582-4377-a855-51af035cdac3",
+        "oracleId": "8e1d261d-b8d3-4fb1-922d-47789854b5b3",
+        "firstSet": "gtc",
+        "firstPrintId": "8bae725f-e582-4377-a855-51af035cdac3",
+        "firstPrintSet": "gtc",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Giant Cockroach",
         "scryfallId": "0521bf0c-9f43-402e-8065-d2fc02e20194",
         "oracleId": "c8b49b28-d364-4cf0-a2a5-56f6f7dc1b22",
@@ -43182,6 +43192,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Mirror-Sigil Sergeant",
+        "scryfallId": "e94b3eec-7420-45fa-8750-7f01028836d3",
+        "oracleId": "c021c808-dc58-4386-8758-68b858badbd5",
+        "firstSet": "con",
+        "firstPrintId": "e94b3eec-7420-45fa-8750-7f01028836d3",
+        "firstPrintSet": "con",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Mirrorwood Treefolk",
         "scryfallId": "ba9a1c94-2b7f-4df7-8517-a122616d9ae4",
         "oracleId": "fec51ab9-484f-46a8-b2b0-772a61d89e41",
@@ -44731,6 +44751,16 @@
         "firstPrintId": "af0515cc-bf2d-4674-b339-4f4eefbc943d",
         "firstPrintSet": "dst",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Myr Propagator",
+        "scryfallId": "837e4b25-d70b-48d8-aaad-9622ad93e154",
+        "oracleId": "d071e2fc-3be8-4168-afa9-ba34edad18b9",
+        "firstSet": "som",
+        "firstPrintId": "837e4b25-d70b-48d8-aaad-9622ad93e154",
+        "firstPrintSet": "som",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -62172,14 +62202,6 @@
         "source": "compiled"
     },
     {
-        "name": "Skycoach Conductor",
-        "scryfallId": "f9092a09-78a8-421c-868b-115175f4c252",
-        "oracleId": "788d3cfa-7706-4728-9c48-cf7bc963d002",
-        "firstSet": "sos",
-        "firstPrintId": "f9092a09-78a8-421c-868b-115175f4c252",
-        "firstPrintSet": "sos"
-    },
-    {
         "name": "Skycoach Conductor // All Aboard",
         "scryfallId": "4ecbca71-9a1d-44c5-b709-d6f565941d5e",
         "oracleId": "788d3cfa-7706-4728-9c48-cf7bc963d002",
@@ -64102,6 +64124,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spawnwrithe",
+        "scryfallId": "dc8724b3-c956-476b-9885-95542eee5742",
+        "oracleId": "afc59d95-d85c-4ab8-b6c5-c78b608b53b7",
+        "firstSet": "shm",
+        "firstPrintId": "dc8724b3-c956-476b-9885-95542eee5742",
+        "firstPrintSet": "shm",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Spearbreaker Behemoth",
         "scryfallId": "132367ee-22e9-48e2-82e0-62ad9aaa62f3",
         "oracleId": "025f8db8-11d1-4c59-8e1f-004c9c843fd8",
@@ -65205,6 +65237,16 @@
         "firstPrintId": "6967363f-1e05-4484-8790-47f7be68455c",
         "firstPrintSet": "tsp",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Sprouting Phytohydra",
+        "scryfallId": "6a478eaa-2658-49db-965f-db25fc1d720e",
+        "oracleId": "66847507-f8bb-4266-bd6e-a91c0baf0000",
+        "firstSet": "dis",
+        "firstPrintId": "6a478eaa-2658-49db-965f-db25fc1d720e",
+        "firstPrintSet": "dis",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -69904,6 +69946,16 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "The Stasis Coffin",
+        "scryfallId": "45537ac3-fc61-4253-a782-7f3e436b2aa6",
+        "oracleId": "a46bfaf5-e631-4603-850a-f0074395b2f5",
+        "firstSet": "bro",
+        "firstPrintId": "45537ac3-fc61-4253-a782-7f3e436b2aa6",
+        "firstPrintSet": "bro",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "The Surgical Bay",
         "scryfallId": "1b49ec35-2c4f-4144-85fe-226f7cb67266",
         "oracleId": "db9c155f-b342-41bb-9e1a-50358fb9f40e",
@@ -72562,6 +72614,16 @@
         "source": "compiled"
     },
     {
+        "name": "Troubling Tribbles",
+        "scryfallId": "0af3e535-83e6-422b-85c5-39d830cb072c",
+        "oracleId": "fc76eddd-8f2a-45e3-95d2-3074d971effb",
+        "firstSet": "trk",
+        "firstPrintId": "0af3e535-83e6-422b-85c5-39d830cb072c",
+        "firstPrintSet": "trk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "True Believer",
         "scryfallId": "4289bdcb-6eea-458f-a4eb-89e26264673a",
         "oracleId": "5a0cd4dd-2212-4408-819e-0cb7c150418b",
@@ -74538,14 +74600,6 @@
         "firstPrintSet": "rtr",
         "rarity": "common",
         "source": "compiled"
-    },
-    {
-        "name": "Vastlands Scavenger",
-        "scryfallId": "91db5c3d-45ab-440f-8568-a2837aee1fca",
-        "oracleId": "3a97bc8d-bd81-468e-9277-eba4fac11ee0",
-        "firstSet": "sos",
-        "firstPrintId": "91db5c3d-45ab-440f-8568-a2837aee1fca",
-        "firstPrintSet": "sos"
     },
     {
         "name": "Vastlands Scavenger // Bind to Life",
