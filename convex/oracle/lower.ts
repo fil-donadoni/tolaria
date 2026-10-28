@@ -332,9 +332,12 @@ function lowerQuotedAbility(
         const lowered = lowerTriggeredAbility({
             id: quoted.id,
             oracleText: quoted.text,
-            cardName: card.name,
+            cardName: quoted.selfName ?? card.name,
             head: ir.head,
             ...(ir.condition !== undefined ? { condition: ir.condition } : {}),
+            ...(ir.maxTriggersPerTurn !== undefined
+                ? { maxTriggersPerTurn: ir.maxTriggersPerTurn }
+                : {}),
             effects: ir.effects,
         });
         return lowered.ok
@@ -484,6 +487,9 @@ function lowerLine(
                 head: ir.head,
                 ...(ir.condition !== undefined
                     ? { condition: ir.condition }
+                    : {}),
+                ...(ir.maxTriggersPerTurn !== undefined
+                    ? { maxTriggersPerTurn: ir.maxTriggersPerTurn }
                     : {}),
                 effects: ir.effects,
                 ...(acc.kickers !== undefined ? { kickers: acc.kickers } : {}),
