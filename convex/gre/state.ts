@@ -17395,6 +17395,24 @@ export function buildSpellContext(
             // is the acting player's decision; resources still come from the
             // controlled player (whose pool pays the cost).
             const routed = routeActingPlayer(req.playerId);
+            // Arena UX — a decline forced by a shortfall no mana ability can
+            // remedy is answered inline, exactly as a submitted Skip: the same
+            // `["no"]` answer under the same key, no Pending Choice.
+            if (
+                req.cost &&
+                mayPayDeclineForced(
+                    state,
+                    routed.playerId,
+                    req.cost,
+                    req.manaRestriction
+                )
+            ) {
+                item.collectedChoices = {
+                    ...(item.collectedChoices ?? {}),
+                    [key]: ["no"],
+                };
+                return false;
+            }
             const entry: PendingChoice = {
                 stackItemId: item.id,
                 step,
@@ -24179,6 +24197,29 @@ export function canPayMayPayCost(
         return false;
     }
     return true;
+}
+
+/** True when a `may-pay` can only be declined AND that cannot change while
+ *  its prompt is open. The chooser may activate mana abilities in that window
+ *  (CR 117.1d / 605.3a): they can only add mana, shrink the battlefield and
+ *  hand, so a short life / permanent / hand / energy leg stays short, while an
+ *  uncovered mana leg (or a graveyard leg, which a sacrifice cost can fill)
+ *  stays live and keeps the prompt. */
+export function mayPayDeclineForced(
+    state: GameState,
+    playerId: string,
+    cost: MayPayCost,
+    manaRestriction?: ManaRestriction
+): boolean {
+    const norm = normalizeMayPayCost(cost);
+    const fixed: CostLegs = {
+        ...(norm.life !== undefined ? { life: norm.life } : {}),
+        ...(norm.permanent ? { permanent: norm.permanent } : {}),
+        ...(norm.hand ? { hand: norm.hand } : {}),
+        ...(norm.energy !== undefined ? { energy: norm.energy } : {}),
+    };
+    if (Object.keys(fixed).length === 0) return false;
+    return !canPayMayPayCost(state, playerId, fixed, manaRestriction);
 }
 
 /** Pays the whole `may-pay` cost's legs from `playerId`'s resources (CR 117.3a /

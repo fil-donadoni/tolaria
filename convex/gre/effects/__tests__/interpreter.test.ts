@@ -16708,7 +16708,7 @@ describe("Effect Script Op: mayPay energy leg (CR 122.1, issue #1194)", () => {
         expect(state.players[0].life).toBe(20); // consequence skipped
     });
 
-    it("rejects the accept when the player lacks enough energy (all-or-nothing, CR 117.3a)", () => {
+    it("auto-declines without a prompt when the player lacks enough energy (issue #2242)", () => {
         const id = registerScript("test-op-maypay-energy-unaffordable", [
             {
                 op: "mayPay",
@@ -16726,9 +16726,7 @@ describe("Effect Script Op: mayPay energy leg (CR 122.1, issue #1194)", () => {
         });
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
-        expect(() =>
-            applyMayPaySubmit(state, { playerId: "p1", accept: true })
-        ).toThrow("Cannot pay the cost");
+        expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.players[0].energyCounters).toBe(2); // unspent
     });
 });
