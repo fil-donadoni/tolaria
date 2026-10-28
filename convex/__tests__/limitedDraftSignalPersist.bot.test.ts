@@ -223,6 +223,17 @@ describe("a seat's Draft Signal state across mutations (issue #3737)", () => {
             const persisted = storedSeat(tables, seatIndex).draftSignal;
             expect(persisted).toBeDefined();
             expect(persisted).toEqual(reference[seatIndex].draftSignal);
+            // It lives on the seat's `limitedSeats` row, never inline on the
+            // event row every list query bills.
+            const row = tables.limitedSeats.find(
+                (r) => r.seatIndex === seatIndex
+            );
+            expect(row?.draftSignal).toEqual(persisted);
+            expect(
+                (tables.limitedEvents[0].seats as Record<string, unknown>[])[
+                    seatIndex
+                ].draftSignal
+            ).toBeUndefined();
         }
         // Not vacuous: packs came back picked-over, so some axis moved.
         const moved = [0, 1, 2, 3].some((i) => {
