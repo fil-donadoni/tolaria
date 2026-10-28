@@ -64302,6 +64302,14 @@
         "source": "compiled"
     },
     {
+        "name": "Sphinx of False Conclusions",
+        "scryfallId": "08ffbd51-2bd3-4262-8809-09576ce2b6f5",
+        "oracleId": "9f004382-c57b-4fde-af97-0c85516c3cf4",
+        "firstSet": "fra",
+        "firstPrintId": "08ffbd51-2bd3-4262-8809-09576ce2b6f5",
+        "firstPrintSet": "fra"
+    },
+    {
         "name": "Sphinx of Forgotten Lore",
         "scryfallId": "af6e46b8-62ed-4bca-ba38-a821f225b59f",
         "oracleId": "ddb7e868-8f1d-4d57-9ee2-ebadb17b398a",
