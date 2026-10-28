@@ -20,6 +20,9 @@
 // release step pushes CODE, and a Card Definition is code while the Preset Deck
 // referencing it is a ROW. So the Psychatog list was live-and-unpickable.
 //
+// The `"production"` target is the owner's third door: the
+// primary checkout's linked project, `--prod`, the developer's CLI login.
+//
 // The `"deployment"` target is the deploy-time half: it runs in the build's own
 // checkout, reads no env file, and lets `CONVEX_DEPLOY_KEY` — already in the
 // build environment, since `convex deploy` just used it — select the
@@ -37,9 +40,12 @@ import type { PresetPayload } from "./preset-deck-seed";
  * `local` — the developer's backend, named by the primary checkout's
  * `.env.local`. `deployment` — whatever `CONVEX_DEPLOY_KEY` selects, which is
  * how the hosting build reaches production without an env file existing there
- * at all.
+ * at all. `production` — the production deployment of the project the primary
+ * checkout is linked to, reached with the developer's own Convex CLI login
+ * (issue #7341): the owner pushes the lists between releases, with no deploy
+ * key on the machine.
  */
-export type SeedTarget = "local" | "deployment";
+export type SeedTarget = "local" | "deployment" | "production";
 
 /** The two names the Convex CLI itself reads a deploy key from
  *  (`readDeployKeyFromEnv`). Listed here rather than assumed, because the
@@ -88,6 +94,25 @@ export function resolveSeedTarget(
 ): SeedTargetPlan {
     if (target === "local") {
         return { cwd: primaryCheckout(), flags: [] };
+    }
+    // The primary checkout's `.env.local` names the DEV deployment, so the
+    // project is linked there; `--prod` moves the write to that project's
+    // production deployment under the CLI's logged-in account.
+    if (target === "production") {
+        // A deploy key in the shell replaces the CLI login, and a
+        // deployment-scoped (or preview) key ignores `--prod`: the write would
+        // land wherever that key points while the banner says PRODUCTION.
+        const stray = DEPLOY_KEY_ENV_VARS.find(
+            (name) => env[name] !== undefined && env[name] !== ""
+        );
+        if (stray) {
+            return {
+                error:
+                    `${stray} is set — unset it: --prod writes through your Convex ` +
+                    `CLI login, and a deploy key in the environment overrides it`,
+            };
+        }
+        return { cwd: primaryCheckout(), flags: ["--prod"] };
     }
     const key = DEPLOY_KEY_ENV_VARS.map((name) => env[name]).find(
         (v) => v !== undefined && v !== ""
