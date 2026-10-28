@@ -10,12 +10,12 @@
         {
             "key": "(op) › addSubtype",
             "op": "addSubtype",
-            "issue": 4533
+            "issue": 7369
         },
         {
             "key": "(op) › becomeCopy",
             "op": "becomeCopy",
-            "issue": 4533
+            "issue": 7370
         },
         {
             "key": "(op) › becomeMonarch",
@@ -85,12 +85,12 @@
         {
             "key": "(op) › loseAllAbilities",
             "op": "loseAllAbilities",
-            "issue": 4533
+            "issue": 7371
         },
         {
             "key": "(op) › loseAllAbilitiesWhileSourceRemains",
             "op": "loseAllAbilitiesWhileSourceRemains",
-            "issue": 4533
+            "issue": 7372
         },
         {
             "key": "(op) › randomExileToHand",
