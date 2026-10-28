@@ -871,7 +871,9 @@ describe("Minion of Leshrac (protection, sac-or-5, {T} destroy, CR 702.16 / 603.
             "minion-of-leshrac-upkeep",
             BLACK_UPKEEP("p1")
         );
-        answerMayPay(state, false);
+        // No other creature to sacrifice → the may-pay is auto-declined
+        // (issue #2242): no prompt, the not-paid branch applies at once.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.players[0].life).toBe(15);
         const live = state.players[0].battlefield.find(
             (c) => c.id === "minion"
@@ -954,7 +956,9 @@ describe("Infernal Denizen (sac-two-Swamps-or-steal, {T} gain control, CR 603.6a
             "infernal-denizen-upkeep",
             BLACK_UPKEEP("p1")
         );
-        answerMayPay(state, false); // can't sacrifice two Swamps → decline
+        // Can't sacrifice two Swamps → the may-pay is auto-declined
+        // (issue #2242), no prompt.
+        expect(state.pendingChoices![0].kind).not.toBe("may-pay");
         // The opponent (p2) now picks one of p1's creatures to steal.
         const head = state.pendingChoices![0];
         applyPendingChoiceSubmit(state, {
@@ -997,7 +1001,7 @@ describe("Infernal Denizen (sac-two-Swamps-or-steal, {T} gain control, CR 603.6a
             "infernal-denizen-upkeep",
             BLACK_UPKEEP("p1")
         );
-        answerMayPay(state, false);
+        expect(state.pendingChoices![0].kind).not.toBe("may-pay"); // auto-declined (issue #2242)
         const head = state.pendingChoices![0];
         applyPendingChoiceSubmit(state, {
             playerId: head.playerId,

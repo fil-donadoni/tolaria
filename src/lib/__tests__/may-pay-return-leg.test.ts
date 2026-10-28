@@ -213,10 +213,22 @@ describe("may-pay return leg — real Lair card, zero legal candidates (issue #1
                 makePlayer("p2"),
             ],
         });
+        // The server no longer surfaces this prompt (issue #2242: the cost is
+        // unpayable and cannot be remedied → auto-declined), so the client
+        // mirror is checked against the Lair's own cost literal directly.
         fireLairEtb(state, lair);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
 
         const projected = projectPublicState(state, 1, "p1");
-        const choice = projected.pendingChoices![0] as PendingChoice;
+        const choice = {
+            cost: {
+                permanent: {
+                    action: "return",
+                    filter: { types: "Land", excludeSubtypes: "Lair" },
+                    count: 1,
+                },
+            },
+        } as PendingChoice;
         const battlefield = projected.players[0].battlefield;
 
         const count = mayPaySacrificeCount(choice.cost, battlefield);
