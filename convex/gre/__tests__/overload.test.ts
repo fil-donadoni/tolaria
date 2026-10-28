@@ -46,6 +46,7 @@ import {
     isOverloadAlternativeCost,
 } from "../overload";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
+import { seededShuffle } from "../rng";
 import { emitSpellCastEvent } from "../state";
 import { compactState, expandState } from "../serialize";
 import { validateEffectScript } from "../effects/validate";
@@ -61,6 +62,7 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { getCardByName, registerTokenDefinition } from "../../cards";
 import { spellCastTrigger } from "../../cards/abilities/triggers/spellCastTrigger";
+import { librarySearchedTrigger } from "../../cards/abilities/triggers/librarySearchedTrigger";
 
 const DAMN = getCardByName("Damn");
 const WINDS = getCardByName("Winds of Abandon");
@@ -139,6 +141,27 @@ registerTokenDefinition({
             select: { set: "targets" },
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
+    ],
+});
+
+/** "Whenever an opponent searches their library, you gain 1 life." — a
+ *  LIBRARY_SEARCHED watcher, so a test can count searches by the triggers
+ *  they put on the stack. */
+const SEARCH_WATCHER_ID = "test:overload-search-watcher";
+registerTokenDefinition({
+    id: SEARCH_WATCHER_ID,
+    rarity: "rare",
+    name: "Overload Search Watcher",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        librarySearchedTrigger({
+            id: "overload-search-watcher",
+            oracleText:
+                "Whenever an opponent searches their library, you gain 1 life.",
+            scope: "opponents",
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+        }),
     ],
 });
 
@@ -429,23 +452,133 @@ describe("Winds of Abandon — one script, two modes (CR 702.96a/b)", () => {
         expect(state.players[1].library).toHaveLength(1);
     });
 
-    it("overloaded: exiles every creature the caster does NOT control and searches once PER creature", () => {
+    it("overloaded: exiles every creature the caster does NOT control; its controller searches ONCE for that many (CR 701.23h)", () => {
         const state = windsBoard(3);
+        state.players[0].battlefield.push(
+            makeInstance(SEARCH_WATCHER_ID, {
+                id: "watcher",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
         windsOnStack(state, { overloaded: true });
         resolveTopOfStack(state);
-        answerSearches(state, ["lib0", "lib1", "lib2"]);
         // "creature you don't control" is an INTRINSIC filter and survives the
         // rewrite — the caster's own creature is untouched (CR 702.96a changes
         // "target", not the restriction on what may be chosen).
-        expect(boardIds(state, 0)).toEqual(["mine"]);
+        expect(boardIds(state, 0)).toEqual(["mine", "watcher"]);
         expect(state.players[1].exile.map((c) => c.id).sort()).toEqual([
             "theirs0",
             "theirs1",
             "theirs2",
         ]);
-        // Three creatures exiled → three basic lands, the "for each creature
-        // exiled this way" fan-out.
+        // Three searches before one shuffle are ONE search for three cards:
+        // a single prompt, to p2 alone (none of the caster's creatures was
+        // exiled, so the caster neither searches nor shuffles).
+        expect(state.pendingChoices).toHaveLength(1);
+        const search = state.pendingChoices![0];
+        expect(search.playerId).toBe("p2");
+        expect(search.count).toEqual({ min: 0, max: 3 });
+        applyPendingChoiceSubmit(state, {
+            playerId: search.playerId,
+            stackItemId: search.stackItemId,
+            step: search.step,
+            choiceId: search.choiceId,
+            cardInstanceIds: ["lib0", "lib1", "lib2"],
+        });
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // "Those players put those cards onto the battlefield tapped" — all
+        // three land from the one search.
         expect(boardIds(state, 1)).toEqual(["lib0", "lib1", "lib2"]);
+        expect(
+            state.players[1].battlefield.every((c) => c.isTapped === true)
+        ).toBe(true);
+        // One search → one LIBRARY_SEARCHED (CR 701.23h: "The player searches
+        // that library only once"): p1's "whenever an opponent searches their
+        // library" watcher triggers once, not three times.
+        expect(
+            state.stack.filter((i) => i.triggerSourceId === "watcher")
+        ).toHaveLength(1);
+    });
+
+    it("overloaded: the library is shuffled ONCE, and only the searcher's", () => {
+        const state = windsBoard(3);
+        // Two cards the search leaves behind, so a shuffle consumes the PRNG
+        // and the caster's untouched library would visibly reorder.
+        state.players[1].library.push(
+            makeInstance(BEAR, {
+                id: "rest0",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            }),
+            makeInstance(BEAR, {
+                id: "rest1",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            })
+        );
+        state.players[0].library = ["c0", "c1", "c2", "c3", "c4"].map((id) =>
+            makeInstance(BEAR, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        windsOnStack(state, { overloaded: true });
+        const rngBefore = state.rngCounter ?? 0;
+        resolveTopOfStack(state);
+        const search = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: search.playerId,
+            stackItemId: search.stackItemId,
+            step: search.step,
+            choiceId: search.choiceId,
+            cardInstanceIds: ["lib0", "lib1", "lib2"],
+        });
+        // The PRNG moved by exactly one shuffle of the two-card remainder —
+        // three per-creature shuffles (or a caster shuffle) would draw more.
+        const probe = structuredClone(state);
+        probe.rngCounter = rngBefore;
+        seededShuffle(probe, [...state.players[1].library]);
+        expect(state.rngCounter).toBe(probe.rngCounter);
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "c0",
+            "c1",
+            "c2",
+            "c3",
+            "c4",
+        ]);
+    });
+
+    it("overloaded: a STOLEN creature is searched for by its controller, read off the exile snapshot (CR 608.2h)", () => {
+        // p1 owns `stolen`, p2 controls it: "creature you don't control"
+        // includes it, it goes to p1's exile, and its controller — p2 — is
+        // the one who searches for it.
+        const state = windsBoard(1);
+        state.players[1].battlefield.push(
+            makeInstance(BEAR, {
+                id: "stolen",
+                controllerId: "p2",
+                ownerId: "p1",
+            })
+        );
+        state.players[1].library.push(
+            makeInstance(PLAINS, {
+                id: "lib1",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            })
+        );
+        windsOnStack(state, { overloaded: true });
+        resolveTopOfStack(state);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual(["stolen"]);
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.pendingChoices![0].playerId).toBe("p2");
+        expect(state.pendingChoices![0].count).toEqual({ min: 0, max: 2 });
     });
 });
 
