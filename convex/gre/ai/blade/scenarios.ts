@@ -16109,13 +16109,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        budget: { iterations: 200 },
+        budget: { iterations: 2000 },
         seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
         tier: "must",
         expect: {
             moves: [{ kind: "activate-ability", card: "Reef Shaman" }],
         },
-        note: "Issue #6915, position B — the discriminating twin of position A: Lightning Bolt in hand and no red source. A land of the Bot's own made a Mountain gains {T}: Add {R} (CR 305.6), so the prune must leave the own-land targets standing; the opponent's tapped lands stay pruned.",
+        note: "Issue #6915, position B — the discriminating twin of position A: Lightning Bolt in hand and no red source. A land of the Bot's own made a Mountain gains {T}: Add {R} (CR 305.6), so the prune must leave the own-land targets standing; the opponent's tapped lands stay pruned. Budget 2000, not 200 (issue #7322): the payoff sits behind activate → land-type choice → resolve → cast, and at 200 iterations the activation ties `pass` on the material tie-break (10 of 10 seeds pass under the pre-#7296 weights); it holds on 10 of 10 seeds from 1600.",
     },
     {
         label: "land-type change: Reef Shaman makes a Forest to cast the green spell in hand",
