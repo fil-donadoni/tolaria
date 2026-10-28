@@ -1,7 +1,12 @@
 import { v } from "convex/values";
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
-import { internalMutation, mutation, query } from "./_generated/server";
+import {
+    internalMutation,
+    type MutationCtx,
+    mutation,
+    query,
+} from "./_generated/server";
 import { getCurrentUserId } from "./auth";
 import { fillDefinitionIds, loadPrintRows } from "./cardPrintRows";
 import { withDefinitionId } from "./cards/catalogue";
@@ -10,13 +15,18 @@ import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
 import { loadBanlistOverridesByFormat } from "./decks";
 import { type FormatId, isFormatId, validateDeck } from "./formats";
 import { openPlayPhaseIfReady } from "./limitedEvents";
+import { planDeckPoolBackfill } from "./limited/deckPool";
 import {
     assertLimitedSeatOwnership,
-    findSeatPool,
     resolveLimitedDeckLegality,
 } from "./limited/poolResolution";
 import { limitedOriginKey } from "./limited/limitedOrigin";
-import { hydrateSeat } from "./limitedSeatStore";
+import {
+    deleteDeckPool,
+    loadDeckPool,
+    loadSeatPoolForDeck,
+    saveDeckPool,
+} from "./limitedDeckPoolStore";
 
 const deckCardValidator = v.object({
     cardId: v.string(),
@@ -51,14 +61,11 @@ async function assertOwnsDeck(
 }
 
 /**
- * Every user deck, with a `limited`-format row's advisory legality
- * pre-resolved server-side (issue #1111). A `limited` deck's Pool lives on
- * its Limited Event Seat, not in the deck row itself — the client has no way
- * to derive `ResolvePool` on its own, so without this a bare client-side
- * `validateDeck` call (`toUserLobbyDeck`) would always read
- * `pool-unresolved` and block selection everywhere except the pool-scoped
- * builder. One event fetch per DISTINCT `limitedEventId` among the caller's
- * own rows (a user very rarely has more than one Limited deck in flight).
+ * Every user deck, with its legality derived server-side at read time (ADR
+ * 0036 — nothing stores a verdict). A `limited` row validates against its own
+ * Deck Pool (ADR 0106), read from the `limitedDeckPools` companion by deck id:
+ * never through `limitedEventId` → seat, so a deck whose event is gone is
+ * still judged, and the subscribed read set never joins an event or a seat.
  */
 export const listMine = query({
     args: {},
@@ -70,61 +77,19 @@ export const listMine = query({
             .order("desc")
             .collect();
 
-        // Legality for every non-limited deck is derived HERE, not in the
-        // browser (issue #4854): the lobby renders without the card catalogue,
-        // and `validateDeck` needs the definitions to resolve a card's set and
-        // rarity. Same derivation `decks.list` runs for presets — recomputed
-        // on every read (ADR 0036), reactive to a DB banlist sync.
+        // Legality is derived HERE, not in the browser (issue #4854): the
+        // lobby renders without the card catalogue, and `validateDeck` needs
+        // the definitions to resolve a card's set and rarity. Same derivation
+        // `decks.list` runs for presets — recomputed on every read (ADR
+        // 0036), reactive to a DB banlist sync.
         const banlists = await loadBanlistOverridesByFormat(ctx);
-        const eventCache = new Map<string, Doc<"limitedEvents"> | null>();
         return await Promise.all(
             rows.map(async (row) => {
-                if (
-                    row.format !== "limited" ||
-                    !row.limitedEventId ||
-                    !row.limitedSeatId
-                ) {
-                    // The CHOSEN printing's Set and Rarity are the table's
-                    // (issue #5106): Old School judges Set, Alpha 40 Rarity.
-                    const resolve = makeResolveCardFromRows(
-                        await loadPrintRows(
-                            ctx,
-                            [...row.cards, ...(row.sideboard ?? [])].map(
-                                (c) => c.cardId
-                            )
-                        )
-                    );
-                    const { isLegal, reasons } = validateDeck(
-                        row,
-                        row.format,
-                        resolve,
-                        banlists[row.format]
-                    );
-                    return { ...row, isLegal, reasons };
-                }
-                let event = eventCache.get(row.limitedEventId);
-                if (event === undefined) {
-                    event =
-                        (await ctx.db.get(
-                            row.limitedEventId as Id<"limitedEvents">
-                        )) ?? null;
-                    eventCache.set(row.limitedEventId, event);
-                }
-                // Only the deck's own seat is loaded — this runs per deck row
-                // in a query the lobby keeps subscribed, so pulling the whole
-                // event's Pools here would undo the `limitedSeats` split
-                // (`convex/limitedSeatStore.ts`).
-                const seatIndex = Number(row.limitedSeatId);
-                const seatPool = event
-                    ? findSeatPool(
-                          await hydrateSeat(ctx, event, seatIndex),
-                          seatIndex
-                      )
-                    : null;
-                // A `limited` entry's `cardId` is the opened PRINT (ADR 0140
-                // §5, issue #5473): the deck side of Pool membership resolves
-                // through the table rows, exactly as game start does
-                // (`createGame`'s `makeResolveCardFromRows`).
+                // The CHOSEN printing's Set and Rarity are the table's (issue
+                // #5106): Old School judges Set, Alpha 40 Rarity. A `limited`
+                // entry's `cardId` is the opened PRINT (ADR 0140 §5): the
+                // deck side of Pool membership resolves through the same rows,
+                // exactly as game start does.
                 const resolve = makeResolveCardFromRows(
                     await loadPrintRows(
                         ctx,
@@ -133,16 +98,37 @@ export const listMine = query({
                         )
                     )
                 );
-                const { isLegal, reasons } = resolveLimitedDeckLegality(
-                    row,
-                    seatPool,
-                    resolve
-                );
+                const { isLegal, reasons } =
+                    row.format === "limited"
+                        ? resolveLimitedDeckLegality(
+                              row,
+                              await loadDeckPool(ctx, row._id),
+                              resolve
+                          )
+                        : validateDeck(
+                              row,
+                              row.format,
+                              resolve,
+                              banlists[row.format]
+                          );
                 return { ...row, isLegal, reasons };
             })
         );
     },
 });
+
+/** Copies the deck's Seat Pool into its Deck Pool (ADR 0106 §1) — run by every
+ *  save of a `limited` deck, a no-op write when the Pool is unchanged. A deck
+ *  whose event no longer resolves keeps the Deck Pool it already has. */
+async function refreshDeckPool(
+    ctx: MutationCtx,
+    deckId: Id<"userDecks">,
+    deck: Pick<Doc<"userDecks">, "format" | "limitedEventId" | "limitedSeatId">
+): Promise<void> {
+    if (deck.format !== "limited") return;
+    const seatPool = await loadSeatPoolForDeck(ctx, deck);
+    if (seatPool) await saveDeckPool(ctx, deckId, seatPool);
+}
 
 export const get = query({
     args: { id: v.id("userDecks") },
@@ -227,6 +213,7 @@ export const create = mutation({
             limitedOrigin,
             layout: args.layout,
         });
+        await refreshDeckPool(ctx, deckId, args);
 
         // Limited Event play phase (PRD #1628, ADR 0076, issue #1644): this
         // insert may have been the LAST seat's deck, which is exactly the
@@ -273,7 +260,7 @@ export const update = mutation({
     },
     handler: async (ctx, args) => {
         const userId = await getCurrentUserId(ctx);
-        await assertOwnsDeck(ctx, args.id, userId);
+        const deck = await assertOwnsDeck(ctx, args.id, userId);
         const patch: Record<string, unknown> = {};
         if (args.patch.name !== undefined) {
             patch.name = args.patch.name.trim() || "Untitled deck";
@@ -293,6 +280,7 @@ export const update = mutation({
         if (args.patch.layout !== undefined) patch.layout = args.patch.layout;
         if (Object.keys(patch).length === 0) return null;
         await ctx.db.patch(args.id, patch);
+        await refreshDeckPool(ctx, args.id, deck);
         return null;
     },
 });
@@ -303,6 +291,7 @@ export const remove = mutation({
         const userId = await getCurrentUserId(ctx);
         await assertOwnsDeck(ctx, args.id, userId);
         await ctx.db.delete(args.id);
+        await deleteDeckPool(ctx, args.id);
         return null;
     },
 });
@@ -427,5 +416,44 @@ export const migrateLimitedOrigins = internalMutation({
             migrated++;
         }
         return { migrated, unclassified, unchanged };
+    },
+});
+
+/**
+ * One-shot migration (ADR 0106 §8): give every `limited` deck saved before
+ * the Deck Pool existed its Deck Pool, copied once from its Seat while the
+ * event and seat still resolve. A deck whose Pool cannot be recovered is
+ * REPORTED by id, never deleted here. Idempotent — a deck already owning a
+ * Deck Pool is left untouched. Run once via the Convex dashboard / `mcp run`
+ * after this slice deploys, same as `migrateLegacyFormats` above.
+ */
+export const migrateDeckPools = internalMutation({
+    args: {},
+    returns: v.object({
+        backfilled: v.number(),
+        present: v.number(),
+        unrecoverable: v.array(v.string()),
+    }),
+    handler: async (ctx) => {
+        const rows = (await ctx.db.query("userDecks").collect()).filter(
+            (row) => row.format === "limited"
+        );
+        const plan = planDeckPoolBackfill(
+            await Promise.all(
+                rows.map(async (row) => ({
+                    deckId: row._id,
+                    hasDeckPool: (await loadDeckPool(ctx, row._id)) !== null,
+                    seatPool: await loadSeatPoolForDeck(ctx, row),
+                }))
+            )
+        );
+        for (const { deckId, pool } of plan.backfill) {
+            await saveDeckPool(ctx, deckId as Id<"userDecks">, pool);
+        }
+        return {
+            backfilled: plan.backfill.length,
+            present: plan.present.length,
+            unrecoverable: plan.unrecoverable,
+        };
     },
 });

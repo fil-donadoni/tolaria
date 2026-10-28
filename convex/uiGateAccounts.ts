@@ -49,6 +49,7 @@ import {
     type QueryCtx,
 } from "./_generated/server";
 import { seatBelongsToUser } from "./gameLifecycle";
+import { deleteDeckPool } from "./limitedDeckPoolStore";
 import { deleteSeats } from "./limitedSeatStore";
 import {
     isLaneAccountEmail,
@@ -271,6 +272,7 @@ async function deleteIndexedAccountRows(
         .collect()) {
         await ctx.db.delete(deck._id);
         bump("userDecks");
+        if (await deleteDeckPool(ctx, deck._id)) bump("limitedDeckPools");
     }
 
     for (const event of await ctx.db

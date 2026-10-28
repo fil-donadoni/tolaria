@@ -237,9 +237,11 @@ export default defineSchema({
         // was generated (Sealed) or drafted at this Seat. Opaque string
         // handles (like `players[].id`), NOT `v.id()`: the event/seat tables
         // land in a later slice (issue #1110), so this is forward-compatible
-        // storage, not yet a foreign key. `convex/formats.ts`'s
-        // `checkPoolMembership` is the only reader (via an injected
-        // `ResolvePool`); absent on every non-limited deck.
+        // storage, not yet a foreign key. PROVENANCE only (ADR 0106 §5): the
+        // in-event surfaces use them to find a Seat's deck, the save path to
+        // copy the Seat's Pool into `limitedDeckPools`, but they gate no
+        // legality and may dangle harmlessly. Absent on every non-limited
+        // deck.
         limitedEventId: v.optional(v.string()),
         limitedSeatId: v.optional(v.string()),
         // Limited Origin (ADR 0106 §6, issue #5393): the canonical key of what
@@ -274,6 +276,24 @@ export default defineSchema({
         // answer that without a full table scan). Bounded query: at most
         // `seatCount` (<=8) rows ever match one eventId.
         .index("by_limitedEvent", ["limitedEventId"]),
+    // Deck Pool (ADR 0106): a `limited` deck's own copy of its Seat's Pool,
+    // and the ONLY Pool its legality reads — so the deck outlives its event.
+    // Written by every save of the deck, skipped when identical
+    // (`convex/limitedDeckPoolStore.ts`, its sole reader and writer). A
+    // companion row, never inlined on `userDecks`: the lobby keeps
+    // `listMine` subscribed and a read is billed by the whole document.
+    // Stored expanded (`cardId`/`cardName` as the producer resolved them),
+    // so a catalogue change cannot re-key a saved deck's Pool.
+    limitedDeckPools: defineTable({
+        deckId: v.id("userDecks"),
+        pool: v.array(
+            v.object({
+                scryfallId: v.string(),
+                cardId: v.string(),
+                cardName: v.string(),
+            })
+        ),
+    }).index("by_deck", ["deckId"]),
     // Preset Decks (PRD #466, ADR 0033). The built-in decklists, moved out of
     // the in-code `PRESET_DECKS` constant into the DB so a trusted Admin can
     // curate them live from the deck editor. Mirrors `userDecks` minus
