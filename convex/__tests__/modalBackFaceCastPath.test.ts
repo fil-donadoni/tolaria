@@ -29,7 +29,10 @@ import {
 import { modalBackFaceDefinitionId } from "../cards/modalDfc";
 import { modalBackCastAltCostId } from "../gre/modalBackCast";
 import { independentCastOptionsFor } from "../gre/castMode";
-import { resolveTopOfStack } from "../gre/state";
+import { resolveTopOfStack, type StackItem } from "../gre/state";
+import { permanentManaValue } from "../gre/permanentView";
+import { getCardByName } from "../cards";
+import { modalBackCastOptionsFor } from "../gre/modalBackCast";
 import { projectPublicState } from "../gameProjections";
 import { tryGetDefinition } from "../cards";
 import type { CardInstanceState, GameState } from "../gre/state";
@@ -210,6 +213,9 @@ describe("announceCast of a modal BACK face (CR 712.11b, issue #7200)", () => {
         expect(permanent.power).toBe(4);
         expect(permanent.toughness).toBe(4);
         expect(permanent.staticAbilities).toContain("trample");
+        // CR 712.8f — its mana value is the BACK face's own {2}{G}, never the
+        // front's {W} (CR 712.8e is the nonmodal rule).
+        expect(permanentManaValue(permanent)).toBe(3);
         const projected = projectPublicState(onStack, 1, "p1");
         const seen = projected.players[0].battlefield.find(
             (c) => c.id === "mdfc"
@@ -270,5 +276,105 @@ describe("announceCast of a modal BACK face (CR 712.11b, issue #7200)", () => {
         expect(inGraveyard.transformedFrom).toBeUndefined();
         expect(inGraveyard.types).toEqual(["Creature"]);
         expect(inGraveyard.power).toBe(2);
+    });
+});
+
+describe("CR 712.8a — a back-face spell countered OFF the stack is its front face (issue #7200)", () => {
+    /** The creature back face announced, paid and on the stack, then
+     *  `counterName` from p2 aimed at it and resolved. */
+    async function counteredBy(counterName: string): Promise<GameState> {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(position(MODAL_CREATURE_BACK_PROBE_ID)),
+        ]);
+        await runAnnounceCast(harness.ctx, {
+            cardInstanceId: "mdfc",
+            alternativeCostId: modalBackCastAltCostId(modalCreatureBackProbe),
+        });
+        await runTapForPayment(harness.ctx, ["forest0", "forest1", "forest2"]);
+        const state = harness.state();
+        expect(cardIdOf(state.stack[0])).toBe(CREATURE_BACK_ID);
+        const counter = makeInstance(getCardByName(counterName).id, {
+            id: "counter",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        state.stack.push({
+            ...counter,
+            castById: "p2",
+            targets: [{ type: "spell", id: "mdfc" }],
+        } as StackItem);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    const expectFrontFace = (card: CardInstanceState | undefined) => {
+        expect(card).toBeDefined();
+        expect(cardIdOf(card!)).toBe(MODAL_CREATURE_BACK_PROBE_ID);
+        expect(card!.transformed).toBeUndefined();
+        expect(card!.transformedFrom).toBeUndefined();
+        expect(card!.types).toEqual(["Creature"]);
+        expect(card!.subtypes).toEqual(["Human"]);
+        expect(card!.power).toBe(1);
+        expect(card!.toughness).toBe(1);
+        expect(card!.baseTypes).toBeUndefined();
+    };
+
+    it("Remand — countered to HAND as the front face, and castable as either face again", async () => {
+        const state = await counteredBy("Remand");
+        const inHand = state.players[0].hand.find((c) => c.id === "mdfc");
+        expectFrontFace(inHand);
+        expect(modalBackCastOptionsFor(inHand!)).toHaveLength(1);
+    });
+
+    it("Memory Lapse — countered to the LIBRARY as the front face", async () => {
+        const state = await counteredBy("Memory Lapse");
+        const onTop = state.players[0].library[0];
+        expect(onTop?.id).toBe("mdfc");
+        expectFrontFace(onTop);
+    });
+});
+
+describe("CR 712.11b — the back face is cast from HAND only, for now (issue #7398)", () => {
+    /** The creature-back probe in p1's GRAVEYARD with a granted graveyard
+     *  cast (`castableFromGraveyardBy`, a Yawgmoth's-Will-shaped licence). */
+    function graveyardPosition(): GameState {
+        const state = position(MODAL_CREATURE_BACK_PROBE_ID);
+        const card = state.players[0].hand.pop()!;
+        state.players[0].graveyard.push({
+            ...card,
+            zone: "graveyard",
+            castableFromGraveyardBy: "p1",
+        });
+        return state;
+    }
+
+    it("offers no back-face option outside the hand", () => {
+        const state = graveyardPosition();
+        expect(
+            independentCastOptionsFor(state.players[0].graveyard[0])
+        ).toEqual([]);
+    });
+
+    it("announceCast refuses a back face from the graveyard, and still casts the front", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(graveyardPosition()),
+        ]);
+        await expect(
+            runAnnounceCast(harness.ctx, {
+                cardInstanceId: "mdfc",
+                alternativeCostId: modalBackCastAltCostId(
+                    modalCreatureBackProbe
+                ),
+            })
+        ).rejects.toThrow(/only be cast from hand/);
+        expect(harness.state().stack).toHaveLength(0);
+        // The discriminating half: the licence itself works — the FRONT face
+        // is castable from there.
+        await runAnnounceCast(harness.ctx, { cardInstanceId: "mdfc" });
+        await runTapForPayment(harness.ctx, ["plains0"]);
+        expect(cardIdOf(harness.state().stack[0])).toBe(
+            MODAL_CREATURE_BACK_PROBE_ID
+        );
     });
 });

@@ -6376,9 +6376,7 @@ export const announceCast = mutation({
         if (
             chosenAltCost &&
             libraryTopPayment &&
-            isSplitCastId(cardDef, args.alternativeCostId) === undefined &&
-            // CR 712.11b — choosing a modal face is not a price either.
-            !isModalBackCastId(cardDef, args.alternativeCostId)
+            isSplitCastId(cardDef, args.alternativeCostId) === undefined
         ) {
             throw new Error(
                 "Can't apply an alternative cost to a spell cast from the top of your library"
@@ -6461,6 +6459,17 @@ export const announceCast = mutation({
             cardDef,
             args.alternativeCostId
         );
+        // CR 712.11b — offered from the HAND only (`modalBackCastOptionsFor`).
+        // A cast from another zone is licensed by a permission or by an
+        // ability of the FRONT face, and CR 712.11c evaluates only the back
+        // face — which per-zone licences may carry the choice is unbuilt
+        // (issue #7398), so this fails closed rather than letting a front
+        // face's own flashback cast its back.
+        if (isModalBackCast && castFromZone !== "hand") {
+            throw new Error(
+                "A modal double-faced card's back face can only be cast from hand (issue #7398)"
+            );
+        }
         // CR 709.3 — "a player chooses which half of a split card they are
         // casting BEFORE putting it onto the stack", so a split card has NO
         // printed cast: there is no object with its combined characteristics

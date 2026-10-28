@@ -44,7 +44,6 @@ import { isExileCostEligible } from "../cards/exileCostEligibility";
 import { hasRetrace } from "./retrace";
 import { castSubjectView } from "./castMode";
 import { isSplitCastId } from "./splitCast";
-import { isModalBackCastId } from "./modalBackCast";
 import { hasRebound } from "./rebound";
 import {
     canCastFromGraveyardByPermission,
@@ -194,10 +193,8 @@ export function libraryTopCastPayment(
 /** CR 709.3 (issue #3344) — the alternative cost a cast ACTUALLY pays once the
  *  zone it comes from is known.
  *
- *  Identity for every announcement but two: a SPLIT half or a modal BACK face
- *  (CR 712.11b, issue #7200 — the same channel, the same reasoning) cast from
- *  outside the hand. That announcement rides the CR 601.2b alternative-cost
- *  channel (it is
+ *  Identity for every announcement but one: a SPLIT half cast from outside the
+ *  hand. That announcement rides the CR 601.2b alternative-cost channel (it is
  *  how "which half" is said at all, `gre/splitCast.ts`) but it is NOT an
  *  alternative cost in the CR 118.9 sense — the half's printed cost is a price
  *  only when the permission licensing the cast says the spell pays its mana
@@ -219,12 +216,7 @@ export function castAlternativeCostForZone(
 ): AlternativeCost | undefined {
     if (!resolved || zone === "hand") return resolved;
     const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-    if (
-        !isSplitCastId(def ?? undefined, alternativeCostId) &&
-        !isModalBackCastId(def ?? undefined, alternativeCostId)
-    ) {
-        return resolved;
-    }
+    if (!isSplitCastId(def ?? undefined, alternativeCostId)) return resolved;
     const mana = castRawManaCost(state, card, zone, alternativeCostId);
     // The `mana` key is DROPPED, never zeroed, when the zone's cost has no
     // mana portion (CR 702.34a — Lava Dart's flashback is a sacrifice and

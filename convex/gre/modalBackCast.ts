@@ -100,10 +100,19 @@ export function modalBackCastAlternativeCost(
 
 /** The back-face cast option on `card` (zero or one) — the instance-level
  *  entry point `independentCastOptionsFor` (`castMode.ts`) reads, mirroring
- *  `splitCastOptionsFor`. */
+ *  `splitCastOptionsFor`.
+ *
+ *  HAND only. A cast from any other zone is licensed by a permission
+ *  (Yawgmoth's Will, Bolas's Citadel, an impulse exile) or by an ability of
+ *  the FRONT face (flashback, escape), and CR 712.11c evaluates only the face
+ *  being cast — so whether each licence reaches the back face is a per-zone
+ *  question this module does not answer yet (issue #7398). Withholding the
+ *  option keeps every offering surface and the Bot from reaching a cast
+ *  `announceCast` refuses. */
 export function modalBackCastOptionsFor(
     card: CardInstanceState
 ): AlternativeCost[] {
+    if (card.zone !== "hand") return [];
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return [];
     const alt = modalBackCastAlternativeCost(
