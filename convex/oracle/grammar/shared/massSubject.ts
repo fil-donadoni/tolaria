@@ -160,7 +160,6 @@ function sweepSelector(
                 "plural",
                 "colors",
                 "excludeSource",
-                "token",
                 ...(allowKeywordExclusion ? ["excludeAbility"] : []),
             ].includes(field)
         )
@@ -239,9 +238,6 @@ function sweepSelector(
             excludedSubtypes.length === 1
                 ? excludedSubtypes[0]!
                 : [...excludedSubtypes];
-    // CR 111.1 — "Incubator tokens": the filter's own `isToken` (the engine
-    // reads the instance's flag), the positive twin of "nontoken".
-    if (descriptor.token === true) filter.isToken = true;
     // CR 702.9a — "without flying": the exclusion the sweep filter names 1:1.
     if (descriptor.excludeAbility !== undefined)
         filter.excludeAbility = descriptor.excludeAbility;

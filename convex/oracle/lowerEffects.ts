@@ -5270,28 +5270,6 @@ function lowerFrameChain(
                 });
                 break;
             }
-            // CR 701.27a — a sweep flips each permanent it selects.
-            case "transform": {
-                if (frame.subject.kind === "mass") {
-                    const sweep = sweepOps(
-                        frame.subject,
-                        site,
-                        walk.targets,
-                        (target) => ({ op: "transform", target })
-                    );
-                    if (!sweep.ok) return sweep;
-                    ops.push(...sweep.value);
-                    break;
-                }
-                const target = objectSelector(
-                    frame.subject,
-                    walk.targets,
-                    site
-                );
-                if (!target.ok) return target;
-                ops.push({ op: "transform", target: target.value });
-                break;
-            }
             case "bringFromOutsideGame":
                 ops.push({
                     op: "bringFromOutsideGame",

@@ -309,16 +309,6 @@ export type FrameIR =
           readonly source: SubjectIR;
       }
     | {
-          /**
-           * CR 701.27a + CR 712.8a — "transform <object>": each named
-           * permanent flips to its other face in place (no zone change). The
-           * object is the source, an announced target, or a sweep ("all
-           * Incubator tokens you control"); a pronoun is another reader's.
-           */
-          readonly frame: "transform";
-          readonly subject: SubjectIR;
-      }
-    | {
           readonly frame: "bringFromOutsideGame";
           /** What the card may be (`OUTSIDE_GAME_FILTERS`), as the Op's filter. */
           readonly filter: EffectCardFilter;
@@ -421,7 +411,6 @@ export const VERB_FRAMES: readonly {
         name: "copyToken",
         opens: /^create a token that's a copy of /i,
     },
-    { name: "transform", opens: /^transform /i },
     {
         name: "bringFromOutsideGame",
         opens: /^you may reveal an? [^,]+? card you own from outside the game /i,
@@ -1457,22 +1446,6 @@ function readMember(
             frames: [{ frame: "copyToken", source: subject.value }],
             referent,
         };
-    }
-    if (opensFrame("transform", lower)) {
-        // CR 701.27a — only a permanent (or a sweep of them) transforms.
-        const objectSpan = lower.slice("transform ".length);
-        const subject = objectSpan.startsWith("all ")
-            ? massSubjectRule.run(objectSpan, ctx)
-            : subjectRule.run(objectSpan, ctx);
-        if (!subject.ok) return { refused: subject.reason, failure: subject };
-        const value: SubjectIR = objectSpan.startsWith("all ")
-            ? ({ kind: "mass" as const, ...subject.value } as SubjectIR)
-            : (subject.value as SubjectIR);
-        if (value.kind === "pronoun")
-            return {
-                refused: `"${objectSpan}" — a pronoun names an earlier frame's object, which the transform frame does not read`,
-            };
-        return { frames: [{ frame: "transform", subject: value }], referent };
     }
     const fromOutside = lower.match(BRING_FROM_OUTSIDE_GAME);
     if (fromOutside !== null) {
