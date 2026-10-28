@@ -38159,6 +38159,7 @@
         {"id":"614.1c","line":"// Fylgja — {W} Aura. Enters with four healing counters (CR 122.1, 614.1c","sites":1,"status":"baseline"},
         {"id":"614.1c","line":"// Jihad). That clause is a CR 614.1c replacement effect, so the choice","sites":1,"status":"baseline"},
         {"id":"614.1c","line":"// Mana ability riders and entry counters (CR 605.1a / 121.1 / 122.1 / 614.1c,","sites":1,"status":"confirmed","ruleHash":"e0973850575b6f0c"},
+        {"id":"614.1c","line":"// Only the as-enters name (CR 614.1c): a mid-resolution `nameCard` (Cabal","sites":1,"status":"confirmed","ruleHash":"e0973850575b6f0c"},
         {"id":"614.1c","line":"// Ravenous, half 1 (CR 702.156a / 614.1c).","sites":1,"status":"baseline"},
         {"id":"614.1c","line":"// SAME `modes`/`chosenModeId` idiom for a CR 614.1c as-enters choice, and this","sites":1,"status":"baseline"},
         {"id":"614.1c","line":"// TRIGGER either: CR 614.1c/614.12 makes \"if this creature was kicked, it","sites":1,"status":"baseline"},
