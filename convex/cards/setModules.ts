@@ -133,6 +133,7 @@ import * as woe from "./sets/woe/index.cards";
 import * as eoe from "./sets/eoe/index.cards";
 import * as tla from "./sets/tla/index.cards";
 import * as tmt from "./sets/tmt/index.cards";
+import * as msh from "./sets/msh/index.cards";
 import * as tor from "./sets/tor/index.cards";
 import * as nec from "./sets/nec/index.cards";
 import * as c21 from "./sets/c21/index.cards";
@@ -283,6 +284,7 @@ const setModules: { code: string; exports: SetModuleExports }[] = [
     { code: "eoe", exports: eoe },
     { code: "tla", exports: tla },
     { code: "tmt", exports: tmt },
+    { code: "msh", exports: msh },
     { code: "tor", exports: tor },
     { code: "nec", exports: nec },
     { code: "c21", exports: c21 },
