@@ -41,6 +41,11 @@ vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
     ).useBasicLandPreferenceRowsStub,
 }));
 
+// The search index is a generated asset fetched by its own module (issue
+// #4861); stubbed as never loaded so no test reaches the network (issue #3422).
+vi.mock("~/lib/searchIndex", () => ({
+    useSearchIndex: () => ({ rows: undefined, error: null }),
+}));
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => vi.fn(),
     useSearch: () => ({}),
