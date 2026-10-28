@@ -3,26 +3,57 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-// Mystic Confluence — {3}{U}{U} Instant. "Choose three. You may choose the
-// same mode more than once. • Counter target spell unless its controller
-// pays {3}. • Return target creature to its owner's hand. • Draw a card."
-// (CR 700.2 modal.) Blocked: the only modal constructs the engine has —
-// Effect Script `optionChoice` and the legacy `CardDefinition.modes`
-// mechanism — both pick EXACTLY ONE mode (CR 700.2b "choose one"). This
-// card needs "choose three, repeats allowed" — the same cardinality shape as
-// Fiery Confluence (c15/red.cards.ts), and a strictly more general one than the
-// "choose two DISTINCT modes" gap of Kolaghan's Command. All three, plus
-// Flame of Anor's conditional count, are one construct — the modal
-// cardinality grammar, which per ADR 0089 belongs on the announce-time mode
-// list and NOT on the resolve-time `optionChoice` Op.
-// Stop-and-issue per gre-development.md; tracked stub.
-// tracked-by: #2266 (cards) via PRD #2261 (modal cardinality grammar)
-// export const mysticConfluence: CardDefinition = {
-//     id: "62e5d409-c0b6-4123-802d-eb32f223bd1a",
-//     name: "Mystic Confluence",
-//     rarity: "rare",
-//     manaCost: { X: 3, U: 2 },
-//     types: ["Instant"],
-// };
+import { defineCard } from "../../types";
 
-export {};
+// Mystic Confluence — {3}{U}{U} Instant. "Choose three. You may choose the
+// same mode more than once." Same cardinality shape as Fiery Confluence
+// (`c15/red.cards.ts`): three picks with repeats (`modeSelection`, ADR 0094;
+// CR 700.2d), resolved in printed order (CR 608.2c). The counter mode is the
+// Mana Leak shape (`sth/blue.cards.ts`); chosen twice on one spell, its
+// controller is asked to pay {3} once per copy.
+// compiler-gap: "Choose three. You may choose the same mode more than once." (#7224)
+export const mysticConfluence = defineCard(() => ({
+    id: "81bbffc2-6f58-4baa-8f95-168eab106b15",
+    name: "Mystic Confluence",
+    rarity: "rare",
+    oracleText:
+        "Choose three. You may choose the same mode more than once.\n• Counter target spell unless its controller pays {3}.\n• Return target creature to its owner's hand.\n• Draw a card.",
+    manaCost: { X: 3, U: 2 },
+    types: ["Instant"],
+    modeSelection: { min: 3, max: 3, repeats: true },
+    modes: [
+        {
+            id: "counter",
+            label: "Counter target spell unless its controller pays {3}",
+            oracleText: "Counter target spell unless its controller pays {3}.",
+            targetRequirement: { type: "spell", count: 1 },
+            effects: [
+                {
+                    op: "mayPay",
+                    player: { controllerOf: { target: 0 } },
+                    cost: { X: 3 },
+                    prompt: "Pay {3} to prevent your spell from being countered?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [{ op: "counter", target: { target: 0 } }],
+                },
+            ],
+        },
+        {
+            id: "bounce",
+            label: "Return target creature to its owner's hand",
+            oracleText: "Return target creature to its owner's hand.",
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
+        },
+        {
+            id: "draw",
+            label: "Draw a card",
+            oracleText: "Draw a card.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
+}));

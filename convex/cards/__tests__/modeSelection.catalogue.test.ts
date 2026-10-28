@@ -10,11 +10,10 @@
 //      has no checkpoint and would replay earlier instances on a resume. The
 //      engine throws at resolution as a backstop — this sweep
 //      catches it at definition time.
-//   3. its bounds are sane (1 <= min <= max, for the base and for `when`), and
-//      — until the Bot enumerates multi-mode moves (issue #2265) and the picker
-//      can send them (issue #2264) — no minimum exceeds one: both still send a
-//      single mode, which `announceCast` would reject, so the card would be
-//      uncastable and freeze the Bot. Lift that half with issue #2265.
+//   3. its bounds are sane (1 <= min <= max, for the base and for `when`). A
+//      minimum above one is legal: the picker sends several modes (issue
+//      #2264) and the Bot enumerates every announceable combination (issue
+//      #2265, `announceableModeCombinations`).
 
 import { describe, expect, it } from "vitest";
 import type { CardDefinition, ModeSelection } from "../types";
@@ -34,16 +33,13 @@ function boundsOffences(where: string, selection: ModeSelection): string[] {
             ? [["when", selection.when.min, selection.when.max] as const]
             : []),
     ] as const;
-    return ranges.flatMap(([label, min, max]) => [
-        ...(min < 1 || min > max
+    return ranges.flatMap(([label, min, max]) =>
+        min < 1 || min > max
             ? [
                   `${where}: ${label} bounds ${min}..${max} are not 1 <= min <= max`,
               ]
-            : []),
-        ...(min > 1
-            ? [`${where}: ${label} min ${min} > 1 before issue #2265`]
-            : []),
-    ]);
+            : []
+    );
 }
 
 function modeListOffences(
@@ -118,10 +114,7 @@ describe("ModeSelection catalogue guard (ADR 0094)", () => {
                 ...hullBreach(),
                 modeSelection: { min: 3, max: 2 },
             })
-        ).toEqual([
-            "Hull Breach: base bounds 3..2 are not 1 <= min <= max",
-            "Hull Breach: base min 3 > 1 before issue #2265",
-        ]);
+        ).toEqual(["Hull Breach: base bounds 3..2 are not 1 <= min <= max"]);
         // The same list at exactly one mode is the modal-permanent shape.
         expect(cardOffences({ ...offender, modeSelection: undefined })).toEqual(
             []
