@@ -16183,7 +16183,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         bot: "me",
         budget: { iterations: 200 },
         seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-        tier: "stretch",
+        tier: "must",
         expect: {
             moves: [
                 {
@@ -16193,7 +16193,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #6915, main-phase variant of position B: a {1}{G} spell and only Islands. An Island made a Forest gains {T}: Add {G} (CR 305.6), the one way to cast the Bears, so the prune must leave the own-land target standing (pinned by `futileShield.bot.test.ts`). `stretch`, not `must`: the search does not yet find the activate → resolve → cast line even at 4000 iterations, though it casts the Bears once the Island is already a Forest — a look-ahead gap independent of the prune (issue #7267).",
+        note: "Issue #6915, main-phase variant of position B: a {1}{G} spell and only Islands. An Island made a Forest gains {T}: Add {G} (CR 305.6), the one way to cast the Bears, so the prune must leave the own-land target standing (pinned by `futileShield.bot.test.ts`). Diagnosis (issue #7267): the tree reaches the post-resolution cast, but the land-type choice node spent its visits across five types on a board-presence prior that favours the Islands already there, so at 200 iterations the activation averaged level with `pass`; `optionPickCandidates` now drops the types that pay no held cost, and `isSorcerySpeedTrickDump` no longer holds a retype that does (`isCostUnlockingLandTypeChange`, `gre/ai/futileShield.ts`).",
     },
     {
         label: "regeneration shield: one pending Nightscape Familiar shield is enough",

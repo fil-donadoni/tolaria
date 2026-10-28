@@ -6968,6 +6968,9 @@ export interface SpellContext {
              *  `PendingChoice.options[].protectionColor`'s doc (`gre/state.ts`,
              *  issue #2306 review finding 1). */
             protectionColor?: Color;
+            /** Set ONLY for a single-land-type retype mode — see
+             *  `PendingChoice.options[].landTypeMode`. */
+            landTypeMode?: string;
         }[];
         prompt: string;
         /** Acting Player (ADR 0037): set when the prompted `playerId` is acting
