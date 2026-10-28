@@ -6,7 +6,7 @@ import { exertStatus } from "~/lib/exert-status";
 /** CR 701.43a — persistent "this permanent will not untap" marker.
  *
  *  Two states, one icon: a REVOCABLE exert chosen for the declaration being
- *  made (`combat.exertedIds`, dashed amber ring) and a locked-in cost (the
+ *  made (`combat.exertedIds`, dashed amber border) and a locked-in cost (the
  *  permanent's own `skipNextUntap` flag, solid red ring — which also carries
  *  non-exert causes). Reads projected state, never the card name or art.
  *
@@ -23,10 +23,10 @@ export default function ExertBadge({ card }: { card: CardInstance }) {
     return (
         <div
             data-exert={status}
-            className={`absolute bottom-1 left-1/2 -translate-x-1/2 z-20 pointer-events-none rounded-full bg-black/70 p-1 ring-1 ${
+            className={`absolute bottom-1 left-1/2 -translate-x-1/2 z-20 pointer-events-none rounded-full bg-black/70 p-1 ${
                 pending
-                    ? "ring-signal-pending ring-dashed"
-                    : "ring-danger-strong"
+                    ? "border border-dashed border-signal-pending"
+                    : "ring-1 ring-danger-strong"
             } drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]`}
             title={
                 pending
