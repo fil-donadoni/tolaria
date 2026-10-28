@@ -8304,6 +8304,108 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "The leaf half of the same episode — `predictCombatOutcome` must report the free absorbing block rather than 3 face damage — is a deterministic assertion on the predictor and lives in `evaluate.bot.test.ts`.",
     },
     {
+        // Issue #3788. Two 0-power walls absorb every attacker for free: no
+        // blocker dies, no damage reaches the face, and nothing the declaration
+        // puts on the stack pays — the wasteful attack, held back.
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Dwarf-tap payoff (Magda) on the attacker's side",
+            },
+        },
+        label: "tap-payoff pair: does NOT attack with a Dwarf into walls that absorb it, no payoff on board",
+        spec: {
+            cards: [
+                {
+                    name: "Dwarven Lieutenant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Wall of Stone",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Wall of Wood",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "declare-attackers", card: "Dwarven Lieutenant" },
+            ],
+        },
+        note: "Issue #3788, anchor of the tap-payoff pair. Its right-hand half adds Magda, Brazen Outlaw: the same absorbed swing now makes Treasures.",
+    },
+    {
+        // Issue #3788. Same board as the anchor plus Magda: attackers become
+        // tapped (CR 508.1f), Magda's trigger makes a Treasure per Dwarf, and
+        // the swing is worth making although the walls absorb all of it.
+        pairOf: {
+            anchor: "tap-payoff pair: does NOT attack with a Dwarf into walls that absorb it, no payoff on board",
+            discriminant: {
+                kind: "card",
+                detail: "Magda, Brazen Outlaw added to the attacker's side",
+            },
+        },
+        label: "tap-payoff pair: attacks with a Dwarf into walls that absorb it, Magda on board",
+        spec: {
+            cards: [
+                {
+                    name: "Dwarven Lieutenant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Magda, Brazen Outlaw",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Wall of Stone",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Wall of Wood",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-attackers", card: "Dwarven Lieutenant" }],
+        },
+        note: "Issue #3788: `isWastefulAttack` counts the trigger batch the declaration places (`declarationTriggerNetValue`), so the attack is no longer swapped for holding back.",
+    },
+    {
         // Lifted from the AI-diagnosis harness, episode #10 (issue #2436).
         //
         // The defender holds Scryb Sprites (1/1 flying) and Birds of Paradise
