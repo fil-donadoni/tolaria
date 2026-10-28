@@ -17,7 +17,6 @@ import { isGraveyardChoiceActive } from "~/lib/graveyard-choice";
 import {
     buildTriggerStateView,
     getGraveyardStackAbilities,
-    isPickedTarget,
     mayPayRequiredGraveyardReturns,
 } from "~/lib/card-utils";
 import CardsPile from "./cards-pile";
@@ -50,7 +49,6 @@ export default function PlayerGraveyard({
         continuousEffects,
     } = useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
-    const deselectTarget = useMutation(api.game.deselectTarget);
     const bufferCtx = usePendingChoiceBuffer();
     const { isMinimized, minimize } = useMinimizedChoice();
     // The graveyard tile carries NO built-in context menu on the GRE board —
@@ -124,21 +122,13 @@ export default function PlayerGraveyard({
           }
         : isGraveyardTarget
           ? (card: { id: string }) =>
-                // CR 601.2c — an already-picked card un-picks (issue #2302).
-                void (isPickedTarget(pendingTarget, "graveyard-card", card.id)
-                    ? deselectTarget({
-                          gameId,
-                          playerId,
-                          targetType: "graveyard-card",
-                          targetId: card.id,
-                      })
-                    : selectTarget({
-                          gameId,
-                          playerId,
-                          targetType: "graveyard-card",
-                          targetId: card.id,
-                          targetPlayerId: player.id,
-                      }))
+                void selectTarget({
+                    gameId,
+                    playerId,
+                    targetType: "graveyard-card",
+                    targetId: card.id,
+                    targetPlayerId: player.id,
+                })
           : undefined;
 
     const pile = (
