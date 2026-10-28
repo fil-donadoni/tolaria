@@ -132,12 +132,10 @@ export interface Pool {
 }
 
 /**
- * Resolves a Limited deck (via its `limitedEventId`/`limitedSeatId`) to its
- * authoritative Pool, or `null` when it can't be resolved — no event/seat
- * reference on the deck, an unknown id, or a seat whose Pool hasn't been
- * generated yet. Injected exactly like `ResolveCard`/`BanlistOverride` (ADR
- * 0036) so this module stays pure; the real seat-table lookup (issue #1110)
- * lives above it, in the caller. `null` is a HARD failure for `limitedValidate`
+ * Resolves a Limited deck to its authoritative Pool — for a saved deck, its
+ * own Deck Pool (ADR 0106) — or `null` when it can't be resolved. Injected
+ * exactly like `ResolveCard`/`BanlistOverride` (ADR 0036) so this module stays
+ * pure; the storage read lives above it, in the caller. `null` is a HARD failure for `limitedValidate`
  * — "no resolvable Pool" is illegal, never a silent pass (issue #1109 AC).
  */
 export type ResolvePool = (deck: ValidatableDeck) => Pool | null;
@@ -1252,7 +1250,7 @@ function limitedValidate(
             {
                 code: "pool-unresolved",
                 message:
-                    "Deck has no resolvable Limited Pool — it must reference a valid Limited Event Seat.",
+                    "Deck has no resolvable Limited Pool — a saved Limited deck validates against its own Deck Pool.",
             },
         ];
     }
