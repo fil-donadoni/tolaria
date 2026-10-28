@@ -55,12 +55,6 @@
     },
     {
         "class": "card",
-        "cardId": "b5883762-ca0a-4932-8d2a-41a45796a5f8",
-        "name": "Chain Lightning",
-        "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
-    },
-    {
-        "class": "card",
         "cardId": "c1862c47-71cc-45a3-8805-a5ddc62e55ea",
         "name": "Channel",
         "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
