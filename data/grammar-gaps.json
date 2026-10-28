@@ -48,11 +48,6 @@
             "issue": 4537
         },
         {
-            "key": "(op) › createTokenCopy",
-            "op": "createTokenCopy",
-            "issue": 4533
-        },
-        {
             "key": "(op) › emblem",
             "op": "emblem",
             "issue": 4536
@@ -116,11 +111,6 @@
             "key": "(op) › setLevel",
             "op": "setLevel",
             "issue": 4534
-        },
-        {
-            "key": "(op) › setProtectionFromEverything",
-            "op": "setProtectionFromEverything",
-            "issue": 4533
         },
         {
             "key": "(op) › skipDrawStepThisTurn",

@@ -7912,6 +7912,50 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             additionalCosts: { discard: { count: "X" } },
         },
     },
+    // CR 707.2 + CR 111.1 — "Create a token that's a copy of this creature.":
+    // the controller creates a token copy of the source. Exhibits
+    // `createTokenCopy` acting on `$source`, which the canned smoke scenario
+    // cannot drive (the source is the permanent the ability is printed on).
+    {
+        rule: "verb frame",
+        card: {
+            oracleId: "d071e2fc-3be8-4168-afa9-ba34edad18b9",
+            name: "Myr Propagator",
+            manaCost: "{3}",
+            typeLine: "Artifact Creature — Myr",
+            oracleText:
+                "{3}, {T}: Create a token that's a copy of this creature.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Myr Propagator",
+            types: ["Artifact", "Creature"],
+            subtypes: ["Myr"],
+            manaCost: { X: 3 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "{3}, {T}: Create a token that's a copy of this creature.",
+            activatedAbilities: [
+                {
+                    id: "myr-propagator-ability",
+                    oracleText:
+                        "{3}, {T}: Create a token that's a copy of this creature.",
+                    cost: { mana: { X: 3 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "createTokenCopy",
+                            source: { ref: "$source" },
+                            controller: "controller",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 205.1a + CR 613.1d — "it becomes a 4/4 Ape creature." behind
     // "if this permanent is an enchantment": the source's card types and subtype
     // line are replaced for good. Exhibits `setCardTypes` / `setSubtype` /
