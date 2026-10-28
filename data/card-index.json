@@ -68636,6 +68636,14 @@
         "source": "compiled"
     },
     {
+        "name": "Tamiyo's Safekeeping",
+        "scryfallId": "fd4b7ee2-de65-4288-872d-486065a4f226",
+        "oracleId": "bb2b324c-970a-4920-884e-c92ba49669f0",
+        "firstSet": "neo",
+        "firstPrintId": "fd4b7ee2-de65-4288-872d-486065a4f226",
+        "firstPrintSet": "neo"
+    },
+    {
         "name": "Tangle",
         "scryfallId": "6b37e39c-8aa4-4938-a492-7dac5de98dfb",
         "oracleId": "f627e125-15af-4e53-b34e-82b60e4ec87b",
