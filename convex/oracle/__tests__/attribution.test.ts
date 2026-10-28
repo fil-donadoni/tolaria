@@ -146,20 +146,21 @@ describe("attribution — one real card per slot names the sub-grammar that fail
         });
     });
 
-    it("activated: a target descriptor inside the effect clause (Dogged Hunter)", () => {
+    it("activated: a target descriptor inside the effect clause (Master of Arms)", () => {
         expect(
             attributionOf({
-                name: "Dogged Hunter",
+                name: "Master of Arms",
                 manaCost: "{2}{W}",
-                typeLine: "Creature — Human Nomad",
-                oracleText: "{T}: Destroy target creature token.",
-                power: "1",
-                toughness: "1",
+                typeLine: "Creature — Human Soldier",
+                oracleText:
+                    "First strike\n{1}{W}: Tap target creature blocking this creature.",
+                power: "2",
+                toughness: "2",
             })
         ).toEqual({
             slot: "activated",
             path: [EFFECT_CLAUSE, TARGET_FILTER, DESCRIPTOR],
-            span: "creature token",
+            span: "creature blocking this creature",
         });
     });
 
