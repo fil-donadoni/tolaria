@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../../cards";
-import { BOT_REACH_BUDGET, playBotReachSeats } from "../botReach";
+import { playBotReachSeats } from "../botReach";
 
 describe("Bot-play sweep (ADR 0105 § 7.2) — untap spells and land destroyers", () => {
     // Issue #4288: "untap target permanent" has nothing to do on a board of
@@ -13,19 +13,7 @@ describe("Bot-play sweep (ADR 0105 § 7.2) — untap spells and land destroyers"
     // `never-chosen`. The position gives the holder a tapped body to untap
     // (CR 701.26b), and the Bot then casts it.
     it("played — an untap spell aimed at a tapped permanent of its own", () => {
-        // 200 iterations, not the sweep's 48: on issue #4761's promotion
-        // refit the second-built seat stopped casting it at 48 × [0xb07,
-        // 0x5eed] while it still casts at 48 × seeds 1..6 and at 200 × the
-        // same two — the seat-asymmetric search noise of
-        // docs/findings/3830-bot-reach-seat-asymmetric-search-noise.md, not a
-        // valuation change (the aggregate verdict stays `played`). Follow-up:
-        // issue #4804.
-        expect(
-            playBotReachSeats(getCardByName("Burst of Energy"), {
-                ...BOT_REACH_BUDGET,
-                iterations: 200,
-            })
-        ).toEqual([
+        expect(playBotReachSeats(getCardByName("Burst of Energy"))).toEqual([
             { holderId: "p1", verdict: { outcome: "played" } },
             { holderId: "p2", verdict: { outcome: "played" } },
         ]);

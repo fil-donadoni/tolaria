@@ -11884,13 +11884,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // A REACHABILITY claim at four times the sweep's budget, so a
         // PREDICATE, kept out of the weight fit like the entries above.
         budget: { iterations: 200 },
-        // Re-seeded 0xb07 → 5 on issue #4761's promotion refit: a noise pin
-        // (16/20 seeds cast on the refit vector, 17/20 on the one before),
-        // not a valuation change — follow-up issue #4804. Re-seeded 5 → 6 on
-        // issue #4880's refit (15/20 seeds cast; 4, 5, 8, 17 and 19 `pass`):
-        // the same noise pin, listed in the robustness baseline under issue
-        // #4917, which owns the discard stall behind it.
-        seeds: [6, 0x5eed, 1, 2, 3],
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
         tier: "must",
         expect: {
             predicate: (move, state) =>
