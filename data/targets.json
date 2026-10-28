@@ -7,7 +7,6 @@
             "id": "premodern-metagame",
             "kind": "deck-list",
             "source": "data/premodern-metagame-decks.json",
-            "priority": 2,
             "completion": "playable"
         },
         {
