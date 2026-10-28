@@ -54,6 +54,7 @@
  */
 
 import { isRegisteredEffectOp } from "../cards/mechanicsRegistry";
+import { expandCascade } from "../cards/abilities/cascade";
 import { registerTokenDefinition } from "../cards/registry";
 import { resolveCompiledTrigger } from "../cards/compiledTriggers";
 import type { CompiledTriggerHead } from "../cards/compiledTriggers";
@@ -74,6 +75,7 @@ import {
     validateEffectScript,
 } from "../gre/effects/validate";
 import type {
+    CardDefinition,
     EffectOp,
     TargetRequirement,
     TriggeredAbility,
@@ -376,11 +378,31 @@ export interface GateResult {
     readonly reasons: readonly QuarantineReason[];
 }
 
+/**
+ * Ops a keyword EXPANDER injects for a compiled keyword (ADR 0054). The gates
+ * below judge only what the compiler authored, but the census (`opsUsed`, read
+ * by `check:gaps`) asks which Ops the compiled card runs, and a bare
+ * `cascade` keyword runs the `cascade` Op via `expandCascade`. Only expanders
+ * whose body is a single registered Op are censused here, so no new gate input
+ * reaches the smoke generator.
+ */
+function expanderOps(definition: CompiledDefinition): string[] {
+    const bare = definition as unknown as CardDefinition;
+    const expanded = expandCascade(bare);
+    if (expanded === bare) return [];
+    const injected = (expanded.triggeredAbilities ?? []).filter(
+        (t) => !(bare.triggeredAbilities ?? []).includes(t)
+    );
+    return collectOps(injected as unknown as CompiledDefinition);
+}
+
 export function runGates(input: GateInput): GateResult {
     const { definition, plannedMechanics, ungrantableKeywords, oracleId } =
         input;
     const reasons: QuarantineReason[] = [];
-    const opsUsed = collectOps(definition);
+    const opsUsed = [
+        ...new Set([...collectOps(definition), ...expanderOps(definition)]),
+    ].sort();
     // Issue #2698 — the gates read the compiler's OWN scripts, with its
     // triggered abilities REBUILT.
     //
