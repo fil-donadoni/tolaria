@@ -377,7 +377,8 @@ describe("Satya — delayed sacrifice-or-pay {E} equal to the token's mana value
 
         fireDelayedTriggers(state, "next-end-step");
         resolveTopOfStack(state);
-        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        // Energy short of the token's mana value → auto-declined (issue #2242).
+        expect(state.pendingChoices ?? []).toHaveLength(0);
 
         expect(state.players[0].energyCounters).toBe(2); // unspent
         expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(

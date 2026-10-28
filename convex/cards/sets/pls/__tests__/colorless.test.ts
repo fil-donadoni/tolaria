@@ -213,7 +213,7 @@ describe("Planeshift Lair cycle (CR 117.3a / 701.21 / 400.7, issue #1938)", () =
         expect(head.candidateIds).toEqual(["legal-land"]);
     });
 
-    it("with no legal non-Lair land, the Lair is sacrificed and the choice is still surfaced", () => {
+    it("with no legal non-Lair land, the Lair is sacrificed with no prompt (issue #2242)", () => {
         const lair = lairInstance(crosissCatacombs, "lair");
         const state = makeState({
             players: [
@@ -222,16 +222,9 @@ describe("Planeshift Lair cycle (CR 117.3a / 701.21 / 400.7, issue #1938)", () =
             ],
         });
         fireLairEtb(state, lair, "crosiss-catacombs-etb");
-        const head = state.pendingChoices![0];
-        // The offer is still surfaced (CR 118 "unless" — a forced outcome is
-        // still information the player must see) even though there is no
-        // legal candidate to accept. With zero candidates the return leg's
-        // picker never lights up (`mayPaySacrificeChoiceRequired` is false),
-        // so `candidateIds` stays unset rather than an empty array.
-        expect(head.kind).toBe("may-pay");
-        expect(head.candidateIds).toBeUndefined();
-        expect(canPayMayPayCost(state, "p1", head.cost!)).toBe(false);
-        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        // The return leg is unpayable and nothing can remedy it, so the may-pay
+        // is auto-declined (CR 118 "unless" resolves as not paid): no prompt.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
         const p1 = state.players[0];
         expect(p1.graveyard.some((c) => c.id === "lair")).toBe(true);
     });

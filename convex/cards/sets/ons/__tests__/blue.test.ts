@@ -247,10 +247,9 @@ describe("Chain of Vapor (CR 400.7 / 608.2 / 701.21 / 707.12)", () => {
                 (c) => (c.card as { id: string }).id === grizzlyBears.id
             )
         ).toBe(true);
-        // The copy now offers ITS controller-of-target (p1) a may-sacrifice —
-        // the chain can continue. p1 declines to end it.
-        expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
-        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        // The copy offers p1 a may-sacrifice, but p1 controls no land, so it is
+        // auto-declined (issue #2242) and the chain ends with no prompt.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
 
         expect(state.stack).toHaveLength(0);
         // Only the original real card is in a graveyard; the copy ceased to

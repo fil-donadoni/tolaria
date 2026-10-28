@@ -712,9 +712,8 @@ describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
         const { state, kraken } = setup({ lands: 1 });
         kraken.counters = { age: 1 }; // needs 2 lands
         fireCumulativeUpkeep(state, kraken, "cumulative-upkeep");
-        const head = state.pendingChoices![0];
-        expect(canPayMayPayCost(state, "p1", head.cost!)).toBe(false);
-        answerMayPay(state, false);
+        // Unpayable (1 land < 2) → auto-declined (issue #2242): no prompt.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(
             state.players[0].battlefield.find((c) => c.id === "kraken")
         ).toBeUndefined();
