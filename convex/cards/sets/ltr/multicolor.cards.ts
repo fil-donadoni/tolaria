@@ -5,21 +5,53 @@
 
 import { defineCard } from "../../types";
 
-// TODO(stub — the "choose one. If you control a Wizard as you cast this
-// spell, you may choose two instead" clause is a conditional modal count
-// (a RANGE 1..2 when the condition holds, per the "may"): neither the
-// announce-time `modes: SpellMode[]` mechanism (CR 700.2c) nor the
-// resolve-time `optionChoice` Op supports a mode COUNT at all, conditional
-// or otherwise. A bespoke structural gap, not a named keyword/Op —
-// stop-and-issue per gre-development.md rather than an invented mechanism.
-// tracked-by: #2266 (cards) via PRD #2261 (modal cardinality grammar)
-// export const flameOfAnor: CardDefinition = {
-//     id: "04779a7e-b453-48b9-b392-6d6fd0b8d283",
-//     name: "Flame of Anor",
-//     rarity: "rare",
-//     manaCost: { X: 1, U: 1, R: 1 },
-//     types: ["Instant"],
-// };
+// Flame of Anor — {1}{U}{R} Instant. "Choose one. If you control a Wizard as
+// you cast this spell, you may choose two instead." A conditional count
+// (`modeSelection.when`, ADR 0094): the Wizard is read from the board at
+// announcement, and the "may" makes it a RANGE 1..2, never a forced two.
+// Distinct modes (CR 700.2d), resolved in printed order (CR 608.2c).
+// compiler-gap: "Choose one. If you control a Wizard as you cast this spell, you may choose two instead." (#7224)
+export const flameOfAnor = defineCard(() => ({
+    id: "04779a7e-b453-48b9-b392-6d6fd0b8d283",
+    name: "Flame of Anor",
+    rarity: "rare",
+    oracleText:
+        "Choose one. If you control a Wizard as you cast this spell, you may choose two instead.\n• Target player draws two cards.\n• Destroy target artifact.\n• Flame of Anor deals 5 damage to target creature.",
+    manaCost: { X: 1, U: 1, R: 1 },
+    types: ["Instant"],
+    modeSelection: {
+        min: 1,
+        max: 1,
+        when: {
+            condition: { controls: { subtypes: ["Wizard"] } },
+            min: 1,
+            max: 2,
+        },
+    },
+    modes: [
+        {
+            id: "draw",
+            label: "Target player draws two cards",
+            oracleText: "Target player draws two cards.",
+            targetRequirement: { type: "player", count: 1 },
+            effects: [{ op: "draw", player: { target: 0 }, count: 2 }],
+        },
+        {
+            id: "artifact",
+            label: "Destroy target artifact",
+            oracleText: "Destroy target artifact.",
+            targetRequirement: { type: "Artifact", count: 1 },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+        {
+            id: "damage",
+            label: "5 damage to target creature",
+            oracleText: "Flame of Anor deals 5 damage to target creature.",
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
+        },
+    ],
+}));
 
 // Arwen, Mortal Queen — {1}{G}{W} Legendary Creature — Elf Noble, 2/2 (LTR,
 // issue #1318, closing tolaria#917's Arwen stub). Real Scryfall oracle text:
