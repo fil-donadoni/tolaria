@@ -7912,6 +7912,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Boomerang Basics",
+        "scryfallId": "17ab958a-abc6-472e-ad6a-97c731d89c74",
+        "oracleId": "acd881eb-f3b4-4174-9fc2-e3c7c213886b",
+        "firstSet": "tla",
+        "firstPrintId": "17ab958a-abc6-472e-ad6a-97c731d89c74",
+        "firstPrintSet": "tla"
+    },
+    {
         "name": "Boon of Emrakul",
         "scryfallId": "24bb97c6-d2ff-459f-986e-73e30534d865",
         "oracleId": "20d30d4d-cf38-41fe-a2ce-8327f7c87c01",
