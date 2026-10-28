@@ -670,7 +670,7 @@ const makeCardEvalMeta =
  *  for every card and all three terms contribute exactly 0, which is ADR
  *  0072's stated "set and block environments keep working with no profiles
  *  authored at all". */
-function makeBotChoosePick(
+export function makeBotChoosePick(
     getPickRating: GetPickRating,
     getCardProfile: GetCardProfile,
     getCardEvalMeta: GetCardEvalMeta
@@ -697,7 +697,7 @@ function makeBotChoosePick(
  *  memoised per pack source for THIS mutation only: their inputs (ratings,
  *  profiles, booster registry, frozen cube pool) are fixed for the call, and a
  *  cube derives them from its whole pool. */
-function makeObservePack(
+export function makeObservePack(
     packSlots: readonly string[],
     cubePool: readonly string[] | undefined,
     getPickRating: GetPickRating,
@@ -743,7 +743,7 @@ function makeObservePack(
  *  `makeBotChoosePick`. Uses the `by_scope` index, so this is bounded per
  *  scope (never a full-table scan) and cheap even for a multi-round Draft on
  *  a single set (one distinct scope, queried once, not once per round). */
-async function loadEventPickRating(
+export async function loadEventPickRating(
     ctx: QueryCtx | MutationCtx,
     packSlots: readonly string[]
 ): Promise<GetPickRating> {
@@ -774,7 +774,7 @@ async function loadEventPickRating(
  *  the only thing that makes the scorer's three synergy terms non-zero in a
  *  real Limited Event. Uses the `by_scope` index, so it is bounded per scope
  *  and cheap even for a multi-round Draft on a single set. */
-async function loadEventCardProfile(
+export async function loadEventCardProfile(
     ctx: QueryCtx | MutationCtx,
     packSlots: readonly string[]
 ): Promise<GetCardProfile> {
@@ -857,7 +857,7 @@ function eventSheetCardIds(packSlots: readonly string[]): string[] {
     return [...ids];
 }
 
-async function loadEventCardResolvers(
+export async function loadEventCardResolvers(
     ctx: QueryCtx | MutationCtx,
     packSlots: readonly string[]
 ): Promise<EventCardResolvers> {
