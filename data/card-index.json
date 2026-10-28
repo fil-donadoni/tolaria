@@ -26880,6 +26880,14 @@
         "source": "compiled"
     },
     {
+        "name": "Get Lost",
+        "scryfallId": "522aa72b-2b8c-484c-872b-f082101cee35",
+        "oracleId": "522dd417-364b-44ab-8ca9-fb55db5f26a6",
+        "firstSet": "lci",
+        "firstPrintId": "522aa72b-2b8c-484c-872b-f082101cee35",
+        "firstPrintSet": "lci"
+    },
+    {
         "name": "Get the Point",
         "scryfallId": "821c4ab5-eb75-445a-bbec-e50af54dba7a",
         "oracleId": "57c704bc-8dff-4b90-b4e1-38d12e41b3d1",
