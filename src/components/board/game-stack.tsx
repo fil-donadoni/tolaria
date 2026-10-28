@@ -3,7 +3,11 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { StackItem } from "~/types/game";
-import { matchesSpellPendingTarget, wantsSpellTarget } from "~/lib/card-utils";
+import {
+    isPickedTarget,
+    matchesSpellPendingTarget,
+    wantsSpellTarget,
+} from "~/lib/card-utils";
 import { isBarredByRequiredTargetChoice } from "~/lib/targeting";
 import { isStackChoiceCandidate } from "~/lib/pending-choice-labels";
 import { PendingChoiceBufferContext } from "~/hooks/usePendingChoiceBuffer";
@@ -173,6 +177,7 @@ export default function GameStack({
         recentArrivals,
     } = useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
+    const deselectTarget = useMutation(api.game.deselectTarget);
     // CR 609.7a (issue #5601) — a "source of your choice" may be a spell on
     // the stack: the open choice's candidates are clicked here, into the same
     // buffer the battlefield's permanents feed. Read optionally — the board
@@ -453,6 +458,17 @@ export default function GameStack({
                                             item.id
                                         );
 
+                                    // CR 601.2c — a spell already picked in the
+                                    // current group stays clickable: the click
+                                    // un-picks it (issue #2302).
+                                    const isTargetPicked =
+                                        canTargetSpell &&
+                                        isPickedTarget(
+                                            pendingTarget,
+                                            "spell",
+                                            item.id
+                                        );
+
                                     const isSourceCandidate =
                                         isStackChoiceCandidate(
                                             activeChoice,
@@ -472,17 +488,28 @@ export default function GameStack({
                                             isTop={i === 0}
                                             isTargetable={
                                                 !!isTargetable ||
+                                                isTargetPicked ||
                                                 isSourceCandidate
                                             }
                                             isSelected={
-                                                isSourceCandidate &&
-                                                !!bufferCtx?.buffer.includes(
-                                                    item.id
-                                                )
+                                                isTargetPicked ||
+                                                (isSourceCandidate &&
+                                                    !!bufferCtx?.buffer.includes(
+                                                        item.id
+                                                    ))
                                             }
                                             onSelect={() => {
                                                 if (isSourceCandidate) {
                                                     bufferCtx?.toggle(item.id);
+                                                    return;
+                                                }
+                                                if (isTargetPicked) {
+                                                    deselectTarget({
+                                                        gameId,
+                                                        playerId,
+                                                        targetType: "spell",
+                                                        targetId: item.id,
+                                                    });
                                                     return;
                                                 }
                                                 if (!isTargetable) return;

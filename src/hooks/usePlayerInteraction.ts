@@ -2,6 +2,7 @@ import type { Player } from "~/types/game";
 import {
     matchesPlayerTargetFilters,
     wantsPlayerTarget,
+    isPickedTarget,
 } from "~/lib/card-utils";
 import {
     isBarredByRequiredTargetChoice,
@@ -112,10 +113,11 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
     const hasPriority = player.id === priorityPlayerId;
 
     const selectTargetMut = useMutation(api.game.selectTarget);
+    const deselectTargetMut = useMutation(api.game.deselectTarget);
     const bufferCtx = usePendingChoiceBuffer();
     const divide = useDivideBuffer();
 
-    const isTargetable =
+    const isLegalTarget =
         !!pendingTarget &&
         pendingTarget.playerId === playerId &&
         // Accepts scalar "player"/"any" AND the array form (Lava Spike's
@@ -153,6 +155,15 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         // engine narrowed to, so no nameplate is a legal click.
         !isBarredByRequiredTargetChoice(pendingTarget, player.id);
 
+    // CR 601.2c — a player already picked in the CURRENT group stays clickable:
+    // the click un-picks it (issue #2302). Never a legal target again until
+    // then (distinct targets), hence tracked apart from `isLegalTarget`.
+    const isTargetPicked =
+        !!pendingTarget &&
+        pendingTarget.playerId === playerId &&
+        isPickedTarget(pendingTarget, "player", player.id);
+    const isTargetable = isLegalTarget || isTargetPicked;
+
     // Mid-resolution "any target of an opponent's choice" (CR 115.4 / 608.2,
     // Cuombajj Witches). The chooser (viewer == choice.playerId) may pick a
     // player as the damage target — routed through the same client buffer as
@@ -170,7 +181,8 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         damageTargetChoice.playerId === playerId &&
         (damageTargetChoice.candidatePlayerIds?.includes(player.id) ?? false);
     const isPlayerPicked =
-        isDamageTargetPickable && bufferCtx.buffer.includes(player.id);
+        (isDamageTargetPickable && bufferCtx.buffer.includes(player.id)) ||
+        isTargetPicked;
 
     // CR 601.2d — divide-as-you-choose "any target" (Fire Covenant / Meteor
     // Shower): this player is a divide target when it is a legal player target
@@ -183,7 +195,16 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
 
     function handleClick() {
         // A divide target is dialed via its nameplate stepper, never clicked.
-        if (isTargetable && pendingTarget?.divideTotal === undefined) {
+        if (isTargetPicked) {
+            deselectTargetMut({
+                gameId,
+                playerId,
+                targetType: "player",
+                targetId: player.id,
+            });
+            return;
+        }
+        if (isLegalTarget && pendingTarget?.divideTotal === undefined) {
             selectTargetMut({
                 gameId,
                 playerId,

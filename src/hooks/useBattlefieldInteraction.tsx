@@ -35,6 +35,7 @@ import {
     hasManaAbility,
     pendingCastHasImprovise,
     displayCardId,
+    isPickedTarget,
 } from "~/lib/card-utils";
 import { libraryCount } from "~/lib/library-knowledge";
 import {
@@ -190,6 +191,7 @@ export function useBattlefieldInteraction(player: Player) {
     const selectBlocker = useMutation(api.game.selectBlocker);
     const assignBlockerTarget = useMutation(api.game.assignBlockerTarget);
     const selectTarget = useMutation(api.game.selectTarget);
+    const deselectTarget = useMutation(api.game.deselectTarget);
     const selectAdditionalCost = useMutation(api.game.selectAdditionalCost);
     const selectActivationCost = useMutation(api.game.selectActivationCost);
     const selectSacrifice = useMutation(api.game.selectSacrifice);
@@ -590,6 +592,23 @@ export function useBattlefieldInteraction(player: Player) {
                     gameId,
                     playerId,
                     cardInstanceId: card.id,
+                })
+            );
+            return;
+        }
+
+        // CR 601.2c — clicking an already-picked target un-picks it (issue
+        // #2302); the selection stays open and is never finalized by this.
+        if (
+            isSelectingTarget &&
+            isPickedTarget(pendingTarget, "permanent", card.id)
+        ) {
+            guardMutation(
+                deselectTarget({
+                    gameId,
+                    playerId,
+                    targetType: "permanent",
+                    targetId: card.id,
                 })
             );
             return;
