@@ -119,12 +119,12 @@ export function assertLimitedSeatOwnership(
 }
 
 /**
- * Resolves a `limited` deck's authoritative Pool from its already-fetched
- * event row + stored `limitedSeatId` — the `ResolvePool` (ADR 0036) the
- * game-start gate (`convex/game.ts`) and the deck legality panel both need.
- * `event: null` (unresolvable `limitedEventId`) or a seat with no Pool yet
- * both resolve to `null` — a hard legality failure (`limitedValidate`'s
- * `pool-unresolved` reason), never a silent pass.
+ * Resolves the WORKING Pool of a Seat from its already-fetched event row +
+ * stored `limitedSeatId`. Not a saved deck's legality source — that is the
+ * deck's own Deck Pool (ADR 0106, `convex/limitedDeckPoolStore.ts`); this
+ * serves only the live in-event surface where the Seat itself is the Pool
+ * being built from. `event: null` or a seat with no Pool yet resolve to
+ * `null` — a hard legality failure (`pool-unresolved`), never a silent pass.
  */
 export function resolvePoolFromEvent(
     event: { seats: readonly SeatLookup[] } | null,
@@ -139,19 +139,17 @@ export function resolvePoolFromEvent(
 }
 
 /**
- * Pure legality computation for a `limited`-format user deck, given its
- * already-resolved seat Pool (or `null`) — the "non-trivial decision"
- * `userDecks.listMine` attaches per-row so the lobby/join screens' advisory
- * `isLegal` (gating deck SELECTION, `src/lib/deckTypes.ts`) agrees with the
- * server instead of always reading "pool-unresolved" (no resolver wired) the
- * way a bare client-side `validateDeck` call would for a Limited deck.
+ * Pure legality computation for a saved `limited` deck against its Deck Pool
+ * (ADR 0106) — the ONLY Pool a saved deck validates against, so
+ * `userDecks.listMine` attaches an `isLegal` that holds after the deck's event
+ * is gone. `null` (no Deck Pool) is `pool-unresolved`, never a pass.
  */
 export function resolveLimitedDeckLegality(
     deck: ValidatableDeck,
-    seatPool: readonly LimitedPoolCard[] | null,
+    deckPool: readonly LimitedPoolCard[] | null,
     resolve: ResolveCard = resolveDeckCardMeta
 ): DeckLegality {
     const resolvePool: ResolvePool = () =>
-        seatPool ? poolFromLimitedPoolCards(seatPool, resolve) : null;
+        deckPool ? poolFromLimitedPoolCards(deckPool, resolve) : null;
     return validateDeck(deck, "limited", resolve, undefined, resolvePool);
 }

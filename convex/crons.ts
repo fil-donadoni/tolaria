@@ -47,12 +47,14 @@ const OPEN_EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
  *  `startLimitedEvent`), so deleting one is exactly what its creator's own
  *  `cancelLimitedEvent` does.
  *
- *  Deliberately does NOT sweep started/finished events: their seats' Pools are
- *  what every `userDecks` row of format `limited` resolves its legality
- *  against (`convex/limited/poolResolution.ts`), so deleting one would
- *  silently invalidate a player's saved decks. Unbounded growth there is
- *  acceptable now that an event row is slim — the card payload sits in
- *  `limitedSeats` and is only read when the event is actually opened. */
+ *  Deliberately does NOT sweep started/finished events. A saved `limited`
+ *  deck no longer needs them for legality — it validates against its own
+ *  Deck Pool (ADR 0106) — but game start still resolves the Pool through the
+ *  Seat until issue #2815, and an event holds the Rounds and Pairings its
+ *  Standings derive from, so sweeping it is a separate decision. Unbounded
+ *  growth there is acceptable now that an event row is slim — the card
+ *  payload sits in `limitedSeats` and is only read when the event is actually
+ *  opened. */
 export const sweepAbandonedLimitedEvents = internalMutation({
     handler: async (ctx) => {
         const cutoff = Date.now() - OPEN_EVENT_TTL_MS;
