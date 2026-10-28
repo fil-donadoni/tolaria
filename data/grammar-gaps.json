@@ -55,7 +55,7 @@
         {
             "key": "(op) › exileAndReturnTransformed",
             "op": "exileAndReturnTransformed",
-            "issue": 4534
+            "issue": 7374
         },
         {
             "key": "(op) › extraCombat",
@@ -110,7 +110,7 @@
         {
             "key": "(op) › setLevel",
             "op": "setLevel",
-            "issue": 4534
+            "issue": 7374
         },
         {
             "key": "(op) › skipDrawStepThisTurn",
@@ -125,7 +125,7 @@
         {
             "key": "(op) › transform",
             "op": "transform",
-            "issue": 4534
+            "issue": 7374
         },
         {
             "key": "(op) › unattach",
