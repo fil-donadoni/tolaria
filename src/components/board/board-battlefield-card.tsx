@@ -28,6 +28,7 @@ import NotedManaBadge from "./noted-mana-badge";
 import ManualNoteBadge from "./manual-note-badge";
 import PreparedBadge from "./prepared-badge";
 import SummoningSicknessBadge from "./summoning-sickness-badge";
+import ExertBadge from "./exert-badge";
 import TokenBadge from "./token-badge";
 import AttachedCardsCluster from "./attached-cards-cluster";
 import ExileCastButton from "./exile-cast-button";
@@ -448,6 +449,7 @@ export default function BoardBattlefieldCard({
                     <CounterBadges card={card} />
                     <ClassLevelBadge card={card} />
                     {!phased && <SummoningSicknessBadge card={card} />}
+                    {!phased && <ExertBadge card={card} />}
                     {!phased && <PreparedBadge card={card} />}
                     <NotedManaBadge card={card} />
                     <TokenBadge card={card} />

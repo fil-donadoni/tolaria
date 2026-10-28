@@ -500,6 +500,26 @@ describe("buildPreviewBody — skipNextUntap status", () => {
         const body = buildPreviewBody(GRIZZLY_BEARS.id, bear());
         expect(body.skipNextUntap).toBe(false);
     });
+
+    // CR 701.43a / 508.1g — an exert chosen for the declaration in progress
+    // lives on the combat state, not yet on the permanent.
+    it("flags a pending exert from the combat state, not the paid flag", () => {
+        const ctx = {
+            allPlayers: [],
+            playerId: "p1",
+            combat: {
+                attackerIds: ["bear-1"],
+                confirmed: false,
+                exertedIds: ["bear-1"],
+            },
+        } as never;
+        const body = buildPreviewBody(GRIZZLY_BEARS.id, bear(), ctx);
+        expect(body.exertPending).toBe(true);
+        expect(body.skipNextUntap).toBe(false);
+        expect(buildPreviewBody(GRIZZLY_BEARS.id, bear()).exertPending).toBe(
+            false
+        );
+    });
 });
 
 // CR 509.1b / ADR 0053 (issue #5661) — a pile division's unchosen pile can't

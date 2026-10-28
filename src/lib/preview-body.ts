@@ -39,7 +39,8 @@ import {
     type AbilityWordCounter,
 } from "~/lib/ability-word-counters";
 import type { FaceDownFace } from "~/lib/face-down";
-import type { CardInstance, Player } from "~/types/game";
+import type { CardInstance, Combat, Player } from "~/types/game";
+import { exertStatus } from "~/lib/exert-status";
 import type {
     CardBackFace,
     EmblemInstance,
@@ -239,6 +240,10 @@ export type PreviewBodyContent = {
      *  restriction regardless of whether the permanent's own printed text
      *  happens to be visible. */
     skipNextUntap?: boolean;
+    /** CR 701.43a / 508.1g — true while an exert is CHOSEN for the declaration
+     *  being made (revocable, on `combat.exertedIds`) and not yet paid. The
+     *  paid state is {@link skipNextUntap}'s line, extended not duplicated. */
+    exertPending?: boolean;
     /** CR 508.1c / 509.1b (issue #5661) — the turn-scoped combat restrictions
      *  in effect on this permanent ("Can't block this turn." for a pile
      *  division's unchosen pile, ADR 0053), from {@link combatRestrictionLines}.
@@ -466,6 +471,9 @@ type PreviewGameCtx = {
      *  `GameContext` — which has no such field — satisfy this structural
      *  subset without changing `useGameContext.ts`. */
     isManualGame?: boolean;
+    /** Structurally forwarded from `GameContext.combat` — lets the preview
+     *  state a PENDING exert (chosen for the declaration in progress). */
+    combat?: Combat;
 };
 
 // Builds one preview face from a definition id.
@@ -653,6 +661,7 @@ export function buildPreviewBody(
                 ? attachmentHostName(cardInstance, gameCtx.allPlayers)
                 : null,
         skipNextUntap: !!cardInstance?.skipNextUntap,
+        exertPending: exertStatus(cardInstance, gameCtx?.combat) === "pending",
         combatRestrictions: combatRestrictionLines(cardInstance),
         isToken: cardInstance?.isToken === true,
         abilityWordCounters,
