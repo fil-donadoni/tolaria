@@ -17,12 +17,16 @@
  *     that passes on `lane` is environment-dependent: the RED stands, its
  *     evidence names both machines.
  *  3. **Reproduced** → bisect the base's first-parent commits after the last
- *     GREEN: the failing files at each probe, a probe at a commit that does
- *     not have a file yet skips it (a test the culprit added is green before
- *     it). The first red commit is the culprit; its PR rides in the evidence.
+ *     GREEN: the failing TESTS at each probe, by name (a blade
+ *     entry by its label over every shard file, since its shard moves with
+ *     the registry's index); a commit that does not have a file or an entry
+ *     yet is green for it (a test the culprit added is green before it). The
+ *     first red commit is the culprit, then the same for the tests still
+ *     red-unexplained after it; each PR rides in the evidence.
  *
- * Node builtins plus `lib/health-verdict-store.ts`.
+ * Node builtins plus `lib/health-verdict-store.ts`, `lib/health-evidence.ts`.
  */
+import { evidenceTests, failLines, type FailingTest } from "./health-evidence";
 import {
     HOSTED_MACHINE_PREFIX,
     type Verdict,
@@ -135,35 +139,151 @@ export function freshRunPlan(
     };
 }
 
-/** One vitest invocation of a fresh run or a bisect probe. */
+/** The failing tests a bisect probes (issue #7339): the ones the RED's
+ *  evidence names, else `files` (the fresh run's), each as a whole file. */
+export function bisectTests(
+    evidence: string | null,
+    files: readonly string[]
+): FailingTest[] {
+    const tests = evidence ? evidenceTests(evidence) : [];
+    return tests.length > 0 ? tests : files.map((file) => ({ file }));
+}
+
+/** One vitest invocation of a fresh run or a bisect probe, and the failing
+ *  tests its outcome judges. */
 export interface VitestCommand {
     args: string[];
     env: Record<string, string>;
+    tests: FailingTest[];
 }
 
 /** The blade's specs run under their own config (`vitest.blade.config.ts`). */
 const BLADE_SPEC = /^convex\/gre\/ai\/blade\/__tests__\/.+\.spec\.ts$/;
 
-/** The vitest commands that re-run `files`: the default config's projects
- *  in one, the blade's specs (`test:blade`'s tier) in another. */
-export function vitestCommands(files: readonly string[]): VitestCommand[] {
-    const blade = files.filter((f) => BLADE_SPEC.test(f));
-    const rest = files.filter((f) => !BLADE_SPEC.test(f));
+/**
+ * A sharded spec file (`blade.shard-2.spec.ts`, `robustness.shard-0…`): its
+ * entries go to shards by their index in the tier's list (`bladeShardOf`), so
+ * one added or removed entry moves every later one to another file (issue
+ * #7339). Group 1 is the prefix every shard file of the family shares.
+ */
+const SHARD_SPEC = /^(.+\.shard-)\d+\.spec\.ts$/;
+
+/** The `shard N/M` a sharded spec's describe names. */
+const SHARD_ORDINAL = /\bshard \d+\/\d+/g;
+
+/**
+ * Where a failing test lives at any commit: its file, or — in a sharded
+ * family — every shard file of it (a vitest file filter is a substring), and
+ * its name with the shard ordinal wildcarded. Two failing tests with the same
+ * key are the same entry.
+ */
+export function testKey(t: FailingTest): string {
+    const shard = SHARD_SPEC.exec(t.file);
+    const file = shard ? shard[1] : t.file;
+    const name = (t.name ?? "").replace(SHARD_ORDINAL, "shard */*");
+    return `${file}\n${name}`;
+}
+
+/** The file filter that finds `t` at any commit: its shard family's prefix,
+ *  else its own path. */
+export function testFileFilter(t: FailingTest): string {
+    return SHARD_SPEC.exec(t.file)?.[1] ?? t.file;
+}
+
+function escapeRegExp(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * The `-t` pattern that selects exactly the named `tests`: vitest matches it
+ * against the full name, its suites and the test's own joined by spaces, so
+ * each name is anchored at both ends (a space or the start before it), and a sharded entry's `shard N/M` matches
+ * any shard — the entry is found by its label wherever the index puts it.
+ */
+export function testNamePattern(tests: readonly FailingTest[]): string {
+    return tests
+        .map(
+            (t) =>
+                `(?:(?:^| )${escapeRegExp((t.name ?? "").split(" > ").join(" ")).replace(SHARD_ORDINAL, "shard \\d+/\\d+")}$)`
+        )
+        .join("|");
+}
+
+/**
+ * The vitest commands that re-run `tests`: the default config's projects and
+ * the blade's specs (`test:blade`'s tier) apart, whole files and named tests
+ * apart (a `-t` would filter the whole files too). A test runs over its
+ * file — or, sharded, over its whole family, never the one shard file the
+ * RED saw it in — and a named one by name (`testNamePattern`). `exactFiles`
+ * (the fresh run, at the RED's own sha) runs a whole file by its own path.
+ */
+export function vitestCommands(
+    tests: readonly FailingTest[],
+    opts: { exactFiles?: boolean } = {}
+): VitestCommand[] {
     const out: VitestCommand[] = [];
-    if (rest.length > 0)
-        out.push({ args: ["vitest", "run", ...rest], env: {} });
-    if (blade.length > 0)
-        out.push({
-            args: [
-                "vitest",
-                "run",
-                "--config",
-                "vitest.blade.config.ts",
-                ...blade,
-            ],
-            env: { BLADE_TIER: "must" },
-        });
+    for (const blade of [false, true]) {
+        const config = blade
+            ? ["--config", "vitest.blade.config.ts"]
+            : ([] as string[]);
+        const env: Record<string, string> = blade ? { BLADE_TIER: "must" } : {};
+        const mine = tests.filter((t) => BLADE_SPEC.test(t.file) === blade);
+        const files = mine.filter((t) => t.name === undefined);
+        const named = mine.filter((t) => t.name !== undefined);
+        if (files.length > 0)
+            out.push({
+                args: [
+                    "vitest",
+                    "run",
+                    ...config,
+                    ...new Set(
+                        files.map((t) =>
+                            opts.exactFiles ? t.file : testFileFilter(t)
+                        )
+                    ),
+                ],
+                env,
+                tests: files,
+            });
+        if (named.length > 0)
+            out.push({
+                args: [
+                    "vitest",
+                    "run",
+                    ...config,
+                    ...new Set(named.map(testFileFilter)),
+                    "-t",
+                    testNamePattern(named),
+                ],
+                env,
+                tests: named,
+            });
+    }
     return out;
+}
+
+/**
+ * The tests of `cmd` its run failed. An exit 0 fails none. A failed run
+ * fails the tests its FAIL lines name (a named test by its key, a whole file
+ * — a sharded family's — by any line in it); a failed run with no FAIL line
+ * at all — a crash, a load error — fails them all: no line to clear one.
+ * A FAIL line of another test the filter caught fails none of them.
+ */
+export function failedTests(
+    cmd: Pick<VitestCommand, "tests">,
+    run: { status: number | null; output: string }
+): FailingTest[] {
+    if (run.status === 0) return [];
+    const lines = failLines(run.output);
+    const keys = new Set(
+        lines.filter((l) => l.name !== undefined).map((l) => testKey(l))
+    );
+    const hit = cmd.tests.filter((t) =>
+        t.name === undefined
+            ? lines.some((l) => testFileFilter(l) === testFileFilter(t))
+            : keys.has(testKey(t))
+    );
+    return lines.length > 0 ? hit : [...cmd.tests];
 }
 
 /** The GREEN that closes a RED its fresh run did not reproduce. */
@@ -378,6 +498,156 @@ export function bisectFirstRed(
         else lo = mid + 1;
     }
     return { culprit: commits[lo], probes };
+}
+
+/** What one probe of the failing tests at a commit found: the tests that
+ *  failed there, or `infra` — it could not run. */
+export type TestProbe = readonly FailingTest[] | "infra";
+
+/** The commit that broke some of the RED's failing tests. */
+export interface CulpritFinding {
+    culprit: string;
+    tests: FailingTest[];
+}
+
+export interface CulpritReport {
+    /** Oldest first: the order the culprits went in. */
+    found: CulpritFinding[];
+    /** The failing tests no culprit explains, and why. */
+    unexplained: { tests: FailingTest[]; reason: string } | null;
+    probes: BisectResult["probes"];
+}
+
+/**
+ * Every culprit of the RED's failing `tests` over `commits` (as
+ * `bisectFirstRed`'s; issue #7339): the first commit any of them is red at,
+ * the tests red there, then the same again for the rest over the commits
+ * after it — a RED of two failures two PRs caused names both. A search
+ * that lands on the tip probes it too: a name that selects nothing (a
+ * suite's hook, a describe the probe's environment prints otherwise) is
+ * green at every commit, and the tip is no culprit for a test that does not
+ * fail there by name. A probe that could not run leaves the rest
+ * unexplained.
+ */
+export function bisectCulprits(
+    commits: readonly string[],
+    tests: readonly FailingTest[],
+    probe: (sha: string, tests: readonly FailingTest[]) => TestProbe
+): CulpritReport {
+    const found: CulpritFinding[] = [];
+    const probes: BisectResult["probes"] = [];
+    let rest = [...tests];
+    let from = 0;
+    while (rest.length > 0) {
+        const pending = rest;
+        const redAt = new Map<string, Set<string>>();
+        const r = bisectFirstRed(commits.slice(from), (sha) => {
+            const out = probe(sha, pending);
+            if (out === "infra") return "infra";
+            const red = new Set(out.map(testKey));
+            redAt.set(sha, red);
+            return pending.some((t) => red.has(testKey(t))) ? "red" : "green";
+        });
+        probes.push(...r.probes);
+        if (r.culprit === null)
+            return {
+                found,
+                unexplained: {
+                    tests: rest,
+                    reason: r.reason ?? "no bisect",
+                },
+                probes,
+            };
+        let red = redAt.get(r.culprit);
+        if (red === undefined) {
+            const out = probe(r.culprit, pending);
+            probes.push({
+                sha: r.culprit,
+                outcome:
+                    out === "infra"
+                        ? "infra"
+                        : out.length > 0
+                          ? "red"
+                          : "green",
+            });
+            if (out === "infra")
+                return {
+                    found,
+                    unexplained: {
+                        tests: rest,
+                        reason: `the probe at ${r.culprit.slice(0, 8)} could not run`,
+                    },
+                    probes,
+                };
+            red = new Set(out.map(testKey));
+        }
+        const at = red;
+        const explained = pending.filter((t) => at.has(testKey(t)));
+        if (explained.length > 0)
+            found.push({ culprit: r.culprit, tests: explained });
+        rest = pending.filter((t) => !explained.includes(t));
+        from = commits.indexOf(r.culprit, from) + 1;
+        if (rest.length > 0 && from === commits.length)
+            return {
+                found,
+                unexplained: {
+                    tests: rest,
+                    reason: `no probe reproduced it by name, the RED tip \`${r.culprit.slice(0, 12)}\` included`,
+                },
+                probes,
+            };
+    }
+    return { found, unexplained: null, probes };
+}
+
+/** A failing test as an evidence line names it: its own name (a blade
+ *  entry's label), else its file. */
+function testLabel(t: FailingTest): string {
+    return t.name?.split(" > ").at(-1) ?? t.file;
+}
+
+function testList(tests: readonly FailingTest[]): string {
+    const shown = tests.slice(0, 3).map((t) => `\`${testLabel(t)}\``);
+    return tests.length > 3
+        ? `${shown.join(", ")} and ${tests.length - 3} more`
+        : shown.join(", ");
+}
+
+/**
+ * The evidence bullets that name the bisect's outcome, the oldest culprit
+ * first (the line `parseCulprit` reads). A culprit explaining every failing
+ * test is `culpritLine`'s one line, as before; otherwise each line names the
+ * tests it explains, and a last one those no culprit explains — never
+ * dropped silently.
+ */
+export function culpritLines(input: {
+    report: CulpritReport;
+    total: number;
+    good: string | null;
+    commits: number;
+    subjectOf: (sha: string) => string | undefined;
+}): string[] {
+    const { report } = input;
+    const lineOf = (culprit: string | null, reason?: string): string =>
+        culpritLine({
+            result: { culprit, probes: report.probes, reason },
+            good: input.good,
+            commits: input.commits,
+            subject: culprit ? input.subjectOf(culprit) : undefined,
+        });
+    if (report.found.length === 0)
+        return [lineOf(null, report.unexplained?.reason)];
+    if (report.found.length === 1 && report.unexplained === null)
+        return [lineOf(report.found[0].culprit)];
+    const lines = report.found.map(
+        (f) =>
+            `${lineOf(f.culprit)} · explains ${f.tests.length} of ${input.total} failing test(s): ${testList(f.tests)}`
+    );
+    if (report.unexplained !== null)
+        lines.push(
+            `${LADDER_MARK}not named for ${report.unexplained.tests.length} of ${input.total} failing test(s) (${testList(report.unexplained.tests)}) — ${report.unexplained.reason}`
+        );
+    return lines;
 }
 
 /** The PR a squash-merged commit's subject names (`… (#1234)`), or null. */
