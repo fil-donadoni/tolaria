@@ -655,6 +655,70 @@ limit, kill switch) stands for a reason a repair shares.
 **Under a RED the repair** rebases onto the RED tip only to resolve a
 conflict, and is verified against the PR's own failing files, not the base's.
 
+## Measurement — 72 hours unattended, 2026-10-26 09:12 → 10-29 09:12 UTC (issue #5653)
+
+Phase 3's proof, read after the preconditions of issue #5653's triage held
+(the 2026-10-25 backlog drained, issue #6766 and issue #6921 landed, the
+queue-depth admission of PR #7002 live): it measures the pipeline as of ADR
+0159/0160. The owner asked for 72 hours rather than 24; the last 24 stand
+beside them. Sources, re-derivable: `bun run weekly-report --days 3` and
+`--days 1` (windows ending 2026-10-29 09:12 UTC), the `afk-pass-record`
+artifact of every `afk-pass` run since 2026-10-23 (host, PR, outcome, cost;
+a merged PR is credited to the machine of its first pass),
+`gh pr list --state merged`, the `repair-cap` comments and the RED ladder's
+stop issues of the window.
+
+| Figure                      | 72 h                                                                                            | last 24 h                                  | Target                                                 |     |
+| --------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------ | --- |
+| PRs merged, all sources     | 159 — 2.21/h                                                                                    | 35 — 1.46/h                                | ≥ today's (Aug 1 → Oct 14: 1,523 in 74 days, ≈ 0.86/h) | ✅  |
+| … first pass on the MacBook | 79 — 1.10/h; 96 passes, 30.2 runner-h                                                           | 16 — 0.67/h; 17 passes                     | —                                                      |     |
+| … first pass on the Huawei  | 32 — 0.44/h; 68 passes, 43.9 runner-h                                                           | 5 — 0.21/h; 13 passes                      | —                                                      |     |
+| … not by a pass             | 48 — RED-ladder reverts 9, interactive sessions and hand repairs 39                             | 14 — reverts 3, sessions 9, hand repairs 2 | —                                                      |     |
+| Failed landings             | 46 of 205 attempts — 22 %                                                                       | 11 of 46 — 24 %                            | 5–10 %                                                 | ❌  |
+| Owner interventions         | 5 — 1.7/day                                                                                     | 2, + 1 carried in                          | ≤ 1/day                                                | ❌  |
+| RED episodes                | 9; 7 closed without the owner (78 %); to green median 3.4 h, p90 10.2 h                         | 3; 67 %; 4.1 h / 10.2 h                    | ≥ 80 %, p90 < 6 h                                      | ❌  |
+| Base RED                    | 32.9 of 72 h (46 %)                                                                             | 15.2 of 24 h                               | —                                                      |     |
+| Time to notice              | the RED is a commit status and a failed-run email when health ends                              | ladder stop issue 26 min after its RED     | ≤ 5 min                                                | ✅  |
+| Cost                        | 164 passes, $288 API-equivalent; per issue median $1.33, p90 $4.59; no pass hit the usage limit | 30 passes, $41.40                          | $100/month plan                                        | ✅  |
+
+**Failed landings by cause (72 h):** the PR's own defect 16, rebase conflict
+7, environment or flaky 1, and 22 red lanes the report files as `other` —
+the queue's "`check:lane (advisory)` is red on this PR" comment carries no
+cause the classifier reads. Refusals of a RED base: 0, as Amendment III
+intended.
+
+**Owner interventions (72 h):** two RED ladder stops closed by hand (issue
+#7322 by PR #7326; issue #7409, whose revert PR #7407 blamed the base's own
+`derive:sync` commit, by the owner's ruling in PR #7413 and the blame fix of
+issue #7417); two PRs at the repair cap (PR #7073, PR #7338); one RED repair
+merged by hand (PR #7145). Not counted: seven PRs touching `.github/`, which
+the queue never lands by design (PR #7003, PR #7071, PR #7091, PR #7102,
+PR #7103, PR #7147, PR #7154) — the workflow's own changes, owner-merged.
+
+**Where the hours went.** The base was RED for 46 % of the window, during
+which the dispatcher starts repairs only; neither machine's passes hit the
+subscription's limit. The Huawei ran more runner-hours than the MacBook
+(43.9 vs 30.2) for 40 % of the
+MacBook's merged PRs: 15 of its 68 passes ended
+`no-hand-off` (the MacBook: 4 of 96). The binding limit is the RED, then the
+Huawei's yield; not the runners nor the subscription.
+
+**Reading.** PR/h holds, 2.6 times the baseline over 72 hours. The
+interventions (1.7/day), the failed-landing share (22 %) and the RED time to
+green (p90 10.2 h) do not.
+
+**Decision (owner, 2026-10-29).** The new pipeline stays and the old one is
+retired, the missed targets notwithstanding: "still breaking in, every day a
+few things to fix, but it has had long stretches of autonomy without
+excessive cost". The misses are the pipeline's own defects (issue #7445,
+issue #7446, issue #7447, issue #7448, the `other` landing cause above), each
+fixed forward as an issue, not a reason to keep `loop:afk`. The same day, on
+the MacBook: `loop:afk --stop` and `--disarm`, the `com.tolaria.land-runner`
+launchd agent booted out and disabled (still running since the Mergify
+cut-over of issue #5643, holding PRs on a stale RED). The Huawei's driver is
+stopped by the owner there. Deletion of the retired code follows as Phase 4
+(issue #5654, issue #5656, issue #5657).
+
 ## What would change the answer
 
 A per-minute Actions fee that reaches public repositories; Anthropic
