@@ -97,6 +97,7 @@ import {
     priorFor,
     type ChoiceCandidateHint,
 } from "./choicePriors";
+import { pruneTapDominatedAnswers } from "./dominance";
 import {
     graveyardRecursionAccessFor,
     libraryTargetWorth,
@@ -2789,9 +2790,16 @@ export function choiceCandidates(
         return lastCandidatesResult;
     }
     const generate = CHOICE_CANDIDATE_GENERATORS[choice.kind];
+    // Issue #6935 — answers proved worse on tap status alone are dropped
+    // before the prior pass: the rollout horizon washes that difference out,
+    // so the search cannot rank them itself (`pruneTapDominatedAnswers`).
     const result = generate
         ? topKByPrior(
-              generate(state, choice).map((c) => ({
+              pruneTapDominatedAnswers(
+                  state,
+                  choice,
+                  generate(state, choice)
+              ).map((c) => ({
                   ...c,
                   prior: priorFor(state, choice, c),
               })),

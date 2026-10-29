@@ -133,7 +133,7 @@ import {
 import { checkStateBasedActions } from "../sba";
 import { cloneGameState } from "../clone";
 import { sacrificeSourceSnapshot } from "../sacrificeChoice";
-import { isCreature, PERMANENT_TYPES } from "../constants";
+import { isCreature, isLand, PERMANENT_TYPES } from "../constants";
 // Issue #4444 — the search's ONE coarse mana payment, shared with both search
 // appliers. A leaf module, so it keeps this one off `moves.ts`' runtime import
 // graph. It pays every leg a mana tap carries (sacrifice, counters, exert), and
@@ -636,6 +636,7 @@ let choiceProbeMemo: Map<string, boolean> | null = null;
  *  `searchWithTrace`; re-entrant calls simply reopen an empty scope. */
 export function beginDominanceDecision(): void {
     choiceProbeMemo = new Map();
+    tapDominanceMemo = new Map();
 }
 
 /** Close the decision scope opened by {@link beginDominanceDecision} and drop
@@ -643,6 +644,7 @@ export function beginDominanceDecision(): void {
  *  verdicts into the next, unrelated position. */
 export function endDominanceDecision(): void {
     choiceProbeMemo = null;
+    tapDominanceMemo = null;
 }
 
 /** The memo key: what makes two choice answers "the same decision" across
@@ -687,31 +689,44 @@ function probeNoOpChoiceAnswer(
     probing = true;
     stats.probes++;
     try {
-        const probe = cloneGameState(state);
-        if (!applyProbeChoice(probe, choice.playerId, move)) return false;
-        let steps = 0;
-        while (probe.stack.length >= state.stack.length) {
-            if (steps++ >= MAX_SETTLE_STEPS) return false;
-            if ((probe.pendingChoices?.length ?? 0) > 0) return false;
-            if (
-                probe.pendingCast ||
-                probe.pendingTarget ||
-                probe.pendingActivation ||
-                probe.gameOver
-            ) {
-                return false;
-            }
-            resolveTopOfStack(probe);
-            checkStateBasedActions(probe);
-        }
-        if ((probe.pendingChoices?.length ?? 0) > 0) return false;
-        if (probe.stack.length !== state.stack.length - 1) return false;
-        return isNoOpChoiceDelta(state, probe);
+        const probe = settleProbedChoiceAnswer(state, choice, move);
+        return probe !== null && isNoOpChoiceDelta(state, probe);
     } catch {
         return false;
     } finally {
         probing = false;
     }
+}
+
+/** `move` answered on a clone and the resolution that raised `choice` run to
+ *  completion — or `null` when it does not settle cleanly (a further choice,
+ *  a pending cast / target / activation, a game end, a new stack item, the
+ *  step cap). Callers own the `probing` latch, the stats and the catch. */
+function settleProbedChoiceAnswer(
+    state: GameState,
+    choice: PendingChoice,
+    move: Move
+): GameState | null {
+    const probe = cloneGameState(state);
+    if (!applyProbeChoice(probe, choice.playerId, move)) return null;
+    let steps = 0;
+    while (probe.stack.length >= state.stack.length) {
+        if (steps++ >= MAX_SETTLE_STEPS) return null;
+        if ((probe.pendingChoices?.length ?? 0) > 0) return null;
+        if (
+            probe.pendingCast ||
+            probe.pendingTarget ||
+            probe.pendingActivation ||
+            probe.gameOver
+        ) {
+            return null;
+        }
+        resolveTopOfStack(probe);
+        checkStateBasedActions(probe);
+    }
+    if ((probe.pendingChoices?.length ?? 0) > 0) return null;
+    if (probe.stack.length !== state.stack.length - 1) return null;
+    return probe;
 }
 
 /** Exact-equality test for a settled choice answer: everything except the two
@@ -727,6 +742,243 @@ function isNoOpChoiceDelta(baseline: GameState, probe: GameState): boolean {
         delete side.pendingChoices;
     }
     return deepEqual(a, b);
+}
+
+// ---------------------------------------------------------------------------
+// Tap-status dominance between choice answers (issue #6935)
+// ---------------------------------------------------------------------------
+//
+// "Untap up to two lands" (Cloud of Faeries, Frantic Search, Time Spiral's
+// all-controllers pool) answered with nothing, or with the OPPONENT's lands.
+// The rollout scores at the start of the bot's next turn — AFTER its untap
+// step (CR 502.3) — so every answer's leaf has the same lands untapped and
+// the whole difference is washed out: the answers tie inside `outcomeEps`, a
+// signed prior does not move the visit split enough to matter (measured), and
+// the material tie-break picks by rollout noise.
+//
+// The answers are not a judgement call, though: they are ordered by PROOF.
+// Settled on clones, two answers whose positions are identical except for
+// the tapped/untapped status of some permanents (CR 110.5) are comparable
+// permanent by permanent — the chooser's own permanent untapped is at least
+// as good for them as tapped (untapped can still be left unused; a tapped
+// one cannot be tapped for a cost, CR 701.26a), an opponent's permanent
+// tapped is at least as good as untapped. An answer no better on any
+// permanent and worse on one is DOMINATED and dropped from the node.
+//
+// Sign-agnostic generators stay sign-agnostic: nothing here reads WHAT the
+// resolution does. A trade-off answer (a per-pick payment, a counter, damage)
+// differs from its siblings in more than tap status, is never comparable, and
+// is never pruned; and an answer that does not settle cleanly prunes nothing.
+//
+// Fail-closed narrowing, CR 110.5a ("status … may affect a permanent's
+// characteristics"). A permanent whose tap status flips is admitted only
+// when it is a LAND and NOTHING else in the settled state names its id — a
+// "for as long as this remains tapped" duration, an attachment, an effect
+// source, a lower stack item targeting it all would. Lands only, because the
+// ordering assumes a tapped permanent is either re-tappable at will (a land's
+// mana ability) or read by nothing: Howling Mine ("if this artifact is
+// untapped") is a permanent where the chooser's own TAPPED copy can be
+// strictly better, and its definition-borne condition is invisible to a state
+// diff. A tapped-matters static on a land read from the definition alone is
+// the accepted gap (storage lands are safe: their `{T}` cost re-taps).
+//
+// Memoized per decision like `isNoOpChoiceAnswer`, keyed on the choice
+// identity plus the pool's own tap vector — the state that actually decides
+// the verdict — so an in-tree node reached on a different line with different
+// lands tapped is proved again rather than read from the wrong world.
+
+/** Per decision: the DOMINATED answer keys per node identity. Dominated,
+ *  never survivors — a candidate a later world adds that the cached verdict
+ *  never probed is kept, not dropped (PR review finding 1). */
+let tapDominanceMemo: Map<string, ReadonlySet<string>> | null = null;
+
+type SettledAnswer = {
+    /** `isTapped` per battlefield permanent, by instance id. */
+    tapped: Map<string, boolean>;
+    /** Controller per battlefield permanent, by instance id. */
+    controller: Map<string, string>;
+    /** The battlefield permanents that are lands. */
+    land: Set<string>;
+    /** The normalized settled state with every `isTapped` stripped. The
+     *  stack is kept: after the settle it is the same lower items on every
+     *  answer, and a reference from one of them must reach the id gate. */
+    rest: GameState;
+    /** `rest`, serialized once for the id-reference gate. */
+    restJson: string;
+};
+
+function settledAnswerReading(
+    state: GameState,
+    choice: PendingChoice,
+    move: Move
+): SettledAnswer | null {
+    const probe = settleProbedChoiceAnswer(state, choice, move);
+    if (!probe) return null;
+    const rest = normalize(probe, "", {}, "probe");
+    if (!rest) return null;
+    delete (rest as { pendingChoices?: unknown }).pendingChoices;
+    const tapped = new Map<string, boolean>();
+    const controller = new Map<string, string>();
+    const land = new Set<string>();
+    for (const player of rest.players) {
+        for (const card of player.battlefield) {
+            tapped.set(card.id, card.isTapped === true);
+            controller.set(card.id, card.controllerId);
+            if (isLand(card)) land.add(card.id);
+            delete (card as { isTapped?: boolean }).isTapped;
+        }
+    }
+    return {
+        tapped,
+        controller,
+        land,
+        rest,
+        restJson: JSON.stringify(rest),
+    };
+}
+
+/** -1: `a` is dominated by `b`; 1: `b` by `a`; "equal": the same settled
+ *  position; 0: incomparable. */
+function compareTapStatus(
+    a: SettledAnswer,
+    b: SettledAnswer,
+    chooserId: string
+): -1 | 0 | 1 | "equal" {
+    if (a.restJson !== b.restJson && !deepEqual(a.rest, b.rest)) return 0;
+    let aBetter = false;
+    let bBetter = false;
+    for (const [id, aTapped] of a.tapped) {
+        const bTapped = b.tapped.get(id);
+        if (bTapped === undefined) return 0;
+        if (aTapped === bTapped) continue;
+        if (!a.land.has(id)) return 0;
+        // The id-reference gate: one occurrence is the card's own `id`.
+        if (a.restJson.split(`"${id}"`).length - 1 !== 1) return 0;
+        const mine = a.controller.get(id) === chooserId;
+        // Better for the chooser: own permanent untapped, other side tapped.
+        if (mine !== aTapped) aBetter = true;
+        else bBetter = true;
+    }
+    if (aBetter && !bBetter) return 1;
+    if (bBetter && !aBetter) return -1;
+    return aBetter ? 0 : "equal";
+}
+
+/** Drop the answers to the live head `choice` that are tap-status DOMINATED
+ *  by a sibling (see the section header). Only `choose-permanents` answers
+ *  are compared; any other kind, fewer than two candidates, or any doubt
+ *  returns `candidates` unchanged. Of two answers that settle to the SAME
+ *  position, one is kept. Never empties the set: domination is a strict
+ *  partial order and equality is dedupe, so a maximal answer always survives. */
+export function pruneTapDominatedAnswers<T extends { key: string; move: Move }>(
+    state: GameState,
+    choice: PendingChoice,
+    candidates: T[]
+): T[] {
+    if (choice.kind !== "choose-permanents") return candidates;
+    if (candidates.length < 2 || probing || state.gameOver) return candidates;
+    if (candidates.some((c) => c.move.kind !== "resolution-choice")) {
+        return candidates;
+    }
+    if (state.pendingCast || state.pendingTarget || state.pendingActivation) {
+        return candidates;
+    }
+    const memo = tapDominanceMemo;
+    const key = memo
+        ? tapDominanceIdentity(state, choice, candidates)
+        : undefined;
+    const cached = key !== undefined ? memo?.get(key) : undefined;
+    const dominated = cached ?? probeTapDominance(state, choice, candidates);
+    if (memo && key !== undefined && cached === undefined) {
+        memo.set(key, dominated);
+    }
+    const kept = candidates.filter((c) => !dominated.has(c.key));
+    return kept.length > 0 ? kept : candidates;
+}
+
+/** The dominated candidate keys — everything {@link pruneTapDominatedAnswers}
+ *  memoizes. */
+function probeTapDominance<T extends { key: string; move: Move }>(
+    state: GameState,
+    choice: PendingChoice,
+    candidates: T[]
+): ReadonlySet<string> {
+    probing = true;
+    try {
+        const readings = candidates.map((c) => {
+            stats.probes++;
+            try {
+                return settledAnswerReading(state, choice, c.move);
+            } catch {
+                return null;
+            }
+        });
+        const dominated = new Set<number>();
+        for (let i = 0; i < readings.length; i++) {
+            const a = readings[i];
+            if (!a) continue;
+            for (let j = i + 1; j < readings.length; j++) {
+                const b = readings[j];
+                if (!b) continue;
+                const verdict = compareTapStatus(a, b, choice.playerId);
+                if (verdict === -1) dominated.add(i);
+                if (verdict === 1) dominated.add(j);
+                // One position, two spellings — "untap my Island" and "untap
+                // my Island and their untapped Mountain". Keep the answer
+                // naming fewer permanents (the earlier one on a tie), so the
+                // bot never submits a pick that only names the other side.
+                if (verdict === "equal") {
+                    dominated.add(
+                        pickCount(candidates[j].move) <
+                            pickCount(candidates[i].move)
+                            ? i
+                            : j
+                    );
+                }
+            }
+        }
+        return new Set(
+            candidates.filter((_, i) => dominated.has(i)).map((c) => c.key)
+        );
+    } finally {
+        probing = false;
+    }
+}
+
+function pickCount(move: Move): number {
+    return move.kind === "resolution-choice"
+        ? (move.cardInstanceIds?.length ?? 0)
+        : 0;
+}
+
+/** Memo key: the choice's identity (as `choiceAnswerIdentity`, minus the
+ *  answer), the tap status of every permanent on the battlefield — the pool
+ *  and the rest of the board alike, since either can flip — and the candidate
+ *  keys themselves, so a world whose generator emitted a different set (an
+ *  animated land's P/T in its pick identity, a different filter result) is
+ *  proved again rather than read against a dominator it does not have (PR
+ *  review finding 1). `undefined` disables caching for the call. */
+function tapDominanceIdentity(
+    state: GameState,
+    choice: PendingChoice,
+    candidates: readonly { key: string }[]
+): string | undefined {
+    const item = state.stack.find((s) => s.id === choice.stackItemId);
+    const defId = (item?.card as { id?: string } | undefined)?.id;
+    if (!defId) return undefined;
+    const board = state.players
+        .flatMap((p) => p.battlefield)
+        .map((c) => `${c.id}${c.isTapped ? "t" : "u"}`)
+        .sort()
+        .join(",");
+    return [
+        defId,
+        choice.step,
+        choice.choiceId,
+        choice.playerId,
+        board,
+        candidates.map((c) => c.key).join(" || "),
+    ].join("|");
 }
 
 // ---------------------------------------------------------------------------
