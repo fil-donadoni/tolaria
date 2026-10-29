@@ -26,14 +26,14 @@
 //   - stdin is not a TTY         — no human to grill, so a spawned session
 //                                  would block on its first question. This
 //                                  closes an OBSERVED hole: the session that
-//                                  found issue #3187 ran `release` from
+//                                  found a RED ran `release` from
 //                                  inside another Claude session. Waived by
 //                                  `--headless` (issue #5589): the session
 //                                  is `claude -p` on `/health-fix <sha>
 //                                  --headless`, where ambiguity is `stuck`
 //                                  instead of a question.
 //
-// Headless is the unattended loop's repair (`loop-drain.sh` step 2b): it
+// Headless is the unattended repair (`health-fix.yml`): a driver
 // asks `--plan <sha> --attempts N` first (`loopFixDecision`), and every
 // attempt is recorded on the verdict's pivot (`lib/health-fix-attempts.ts`)
 // — `attempting` before the spawn, the parsed verdict after — so the other
@@ -50,8 +50,8 @@
 // Exit code: 0 when there is nothing to fix or the fixer landed its repair;
 // 1 on any refusal and on any `stuck` verdict.
 //
-// `release`'s loop around this (issue #3201) and the skill itself (issue
-// #3200) import what is defined here.
+// `release`'s loop around this and the skill itself import what is
+// defined here.
 //
 // `ladder` (issue #5646) is the RED ladder's last rungs as a job
 // (`health-fix.yml`): it reads the standing RED's facts off the pivot, asks
@@ -312,8 +312,8 @@ export function claudeArgs(
 }
 
 /** `--claude-args="<flags>"`: passed to `claude` (headless only), split on
- *  whitespace — the same word-splitting `loop-drain.sh` gives its own
- *  unquoted `$CLAUDE_ARGS`. */
+ *  whitespace — the same word-splitting a shell gives an unquoted
+ *  `$CLAUDE_ARGS`. */
 export function extraClaudeArgs(argv: readonly string[]): string[] {
     const a = argv.find((x) => x.startsWith("--claude-args="));
     return a
@@ -643,7 +643,7 @@ function runFixer(input: {
                     ? { [LADDER_ATTEMPT_ENV]: String(input.rung.attempt) }
                     : {}),
                 // `claude -p` must not end its turn waiting on background
-                // work, as the loop's own passes (`loop-drain.sh`).
+                // work, as an `afk-pass` job's own pass.
                 ...(headless
                     ? { CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "0" }
                     : {}),

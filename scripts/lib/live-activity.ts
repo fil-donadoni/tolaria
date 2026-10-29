@@ -45,8 +45,8 @@ import { join } from "node:path";
 import { costOf } from "./telemetry-db";
 
 /** The Now view's own window — 24 hours, restated from
- *  `TIMELINE_WINDOW_HOURS` so this module does not depend on
- *  `lib/loop-status.ts` (issue #3131 retires most of that file). */
+ *  `TIMELINE_WINDOW_HOURS` so this module depends on no status
+ *  view (issue #3131). */
 export const ACTIVITY_WINDOW_HOURS = 24;
 
 /** A session that wrote to its transcript this recently is "live". */
@@ -164,7 +164,7 @@ export interface SessionSummary {
     gitBranch: string | null;
     /**
      * The harness entrypoint the session's lines are stamped with —
-     * `"sdk-cli"` for a headless `claude -p` (what `loop-drain.sh` launches),
+     * `"sdk-cli"` for a headless `claude -p` (what an `afk-pass` job launches),
      * `"cli"` for an interactive terminal (issue #3144). Read exactly like
      * `cwd`/`gitBranch` beside it: last value seen wins. It is the FALLBACK
      * signal for who started a session; `lib/session-origin.ts` combines it

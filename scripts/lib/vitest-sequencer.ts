@@ -5,7 +5,7 @@
  * WHY. Vitest's `BaseSequencer` orders projects by NAME, and one invocation
  * feeds every project's files into a single worker pool in that order. So the
  * longest project could start last: measured 2026-09-24, `node-tooling` ran
- * after `node-engine` and `bot-node` after `bot-dom` — `loop-drain` (59 s)
+ * after `node-engine` and `bot-node` after `bot-dom` — its longest file (59 s)
  * started at +55 s and ended exactly at the 114 s node wall, `bot-node`
  * started at +36 s. Longest-processing-time-first is the textbook fix for a
  * makespan bounded by its tail.

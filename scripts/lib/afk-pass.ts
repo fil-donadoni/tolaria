@@ -87,8 +87,8 @@ export function passClaudeArgs(
 /**
  * The session's extra `claude` arguments — its permission mode — from the
  * repository variable `AFK_PASS_CLAUDE_ARGS`. The permission mode is the
- * OWNER's call, never a baked-in default (the loop's own rule,
- * `scripts/loop-drain.sh`): unset, the job refuses before any session starts,
+ * OWNER's call, never a baked-in default (the loop's own rule):
+ * unset, the job refuses before any session starts,
  * rather than run one that blocks on its first permission prompt.
  */
 export function passPermissionArgs(raw: string | undefined): string[] {

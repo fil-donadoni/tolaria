@@ -10,7 +10,6 @@ import {
     isOwnerAlive,
     interpretPsResult,
     defaultProcessProbe,
-    releaseRecord,
     DEFAULT_MIN_AGE_HOURS,
     UNPROVEN_CLAIM_HOURS,
     CLAIM_VERDICT_STATES,
@@ -23,15 +22,14 @@ import {
     type ClaimedIssue,
     type ClaimOwner,
     type ProcessProbe,
-    fetchUnclaimedIssues,
     localWorkSince,
     parseClaimTimes,
     porcelainPath,
     type ShRunner,
-} from "../loop-doctor";
+} from "../lib/claim-verdict";
 
 /**
- * `loop:doctor` releases claims. The sessions share one GitHub account, so a
+ * `afk-dispatch` releases claims on this verdict. The sessions share one GitHub account, so a
  * wrong release unclaims somebody's live work with no signal that it happened —
  * every "live" and "suspect" path is asserted individually, not just the happy
  * orphan case.
@@ -48,7 +46,7 @@ const base: ClaimFacts = {
     unpushedCommits: null,
 };
 
-describe("loop-doctor — classifyClaim", () => {
+describe("claim-verdict — classifyClaim", () => {
     it("calls an old claim with no branch and no PR an orphan", () => {
         const v = classifyClaim(base);
         expect(v.state).toBe("orphan");
@@ -173,14 +171,12 @@ describe("loop-doctor — classifyClaim", () => {
 });
 
 /**
- * `buildClaimFacts` (#2519) is the extraction `loop:status` reuses — it used
- * to be inlined inside loop-doctor's `import.meta.main` block, unreachable
- * from anywhere else. Testing it here pins the exact matching rules
- * (branch-suffix boundary, `refs/heads/` stripping, PR-branch-set lookup) so
- * a future edit to loop-doctor's CLI does not silently drift from what
- * loop-status.ts assumes it does.
+ * `buildClaimFacts` (#2519) is the extraction the claim readers share.
+ * Testing it here pins the exact matching rules (branch-suffix boundary,
+ * `refs/heads/` stripping, PR-branch-set lookup) so no reader drifts from
+ * what the verdict assumes.
  */
-describe("loop-doctor — recoverable: a dead owner that left commits (#3698)", () => {
+describe("claim-verdict — recoverable: a dead owner that left commits (#3698)", () => {
     const dead = {
         ...base,
         hasLocalBranch: true,
@@ -253,7 +249,7 @@ describe("loop-doctor — recoverable: a dead owner that left commits (#3698)", 
     });
 });
 
-describe("loop-doctor — stranded: a dead owner that left PUSHED work (issue #4763)", () => {
+describe("claim-verdict — stranded: a dead owner that left PUSHED work (issue #4763)", () => {
     // Observed 2026-09-27: two passes opened their PRs, ended their turns
     // "waiting" on a background job and died with them (`claude -p`). Both
     // claims read `live` on `open PR` alone, and the cap refused the next
@@ -318,7 +314,7 @@ describe("loop-doctor — stranded: a dead owner that left PUSHED work (issue #4
     });
 });
 
-describe("loop-doctor — countUnpushedCommits (#3698)", () => {
+describe("claim-verdict — countUnpushedCommits (#3698)", () => {
     const runner = (out: string) => () => out;
 
     it("counts the commits the claim's local branch carries beyond the base", () => {
@@ -381,10 +377,10 @@ describe("loop-doctor — countUnpushedCommits (#3698)", () => {
     });
 });
 
-describe("loop-doctor — buildClaimFacts", () => {
+describe("claim-verdict — buildClaimFacts", () => {
     const issue: ClaimedIssue = {
         number: 2519,
-        title: "loop:status",
+        title: "claim status",
         updatedAt: "2026-08-17T00:00:00Z",
     };
 
@@ -470,7 +466,7 @@ describe("loop-doctor — buildClaimFacts", () => {
  * concurrent pass, and a liveness reading we are unsure about must not be
  * what authorises a release. Every case below is written from that direction.
  */
-describe("loop-doctor — owner liveness (#2627)", () => {
+describe("claim-verdict — owner liveness (#2627)", () => {
     it("AC1 — no branch, no PR and a provably dead owner is an orphan", () => {
         const v = classifyClaim({ ...base, ownerAlive: false });
         expect(v.state).toBe("orphan");
@@ -616,7 +612,7 @@ describe("loop-doctor — owner liveness (#2627)", () => {
  * cannot be resolved to a pid after the fact. The pid is therefore RECORDED at
  * claim time by `claim-ledger.sh`, and this is the reader.
  */
-describe("loop-doctor — parseClaimOwners", () => {
+describe("claim-verdict — parseClaimOwners", () => {
     const row = (o: Record<string, unknown>) => JSON.stringify(o);
 
     it("reads the owner recorded on a claim row", () => {
@@ -744,7 +740,7 @@ describe("loop-doctor — parseClaimOwners", () => {
     });
 });
 
-describe("loop-doctor — isOwnerAlive", () => {
+describe("claim-verdict — isOwnerAlive", () => {
     const owner: ClaimOwner = {
         session: "s",
         pid: 4242,
@@ -786,44 +782,7 @@ describe("loop-doctor — isOwnerAlive", () => {
     });
 });
 
-describe("loop-doctor — release record (#2627 AC5)", () => {
-    it("records what was reclaimed, why, and which session had held it", () => {
-        const verdict = classifyClaim({ ...base, ownerAlive: false });
-        const line = JSON.parse(
-            releaseRecord(
-                2627,
-                verdict,
-                {
-                    session: "sess-dead",
-                    pid: 7,
-                    startedAt: "t",
-                },
-                1_787_590_847_000
-            )
-        );
-        expect(line).toEqual({
-            ts: 1_787_590_847,
-            // Stamped with the OWNING session, not the tool's name, so the
-            // dead session's own SessionEnd sweep folds this claim out too.
-            session: "sess-dead",
-            issue: 2627,
-            event: "released",
-            by: "loop:doctor",
-            verdict: "orphan",
-            reason: verdict.reason,
-        });
-    });
-
-    it("falls back to naming itself when the claim had no recorded owner", () => {
-        const line = JSON.parse(
-            releaseRecord(1, classifyClaim(base), undefined, 0)
-        );
-        expect(line.session).toBe("loop:doctor");
-        expect(line.by).toBe("loop:doctor");
-    });
-});
-
-describe("loop-doctor — buildClaimFacts threads owner liveness", () => {
+describe("claim-verdict — buildClaimFacts threads owner liveness", () => {
     const issue: ClaimedIssue = {
         number: 2627,
         title: "reap",
@@ -844,7 +803,7 @@ describe("loop-doctor — buildClaimFacts threads owner liveness", () => {
     });
 
     it("defaults to UNKNOWN so every pre-existing caller keeps its verdicts", () => {
-        // `lib/loop-status.ts` (the verdict engine, #2624) calls this with
+        // A four-argument caller (the verdict engine, #2624) calls this with
         // four arguments and must be unaffected: the process check is I/O and
         // belongs at the fact-gathering boundary, not inside a pure
         // classifier that the dashboard also renders from.
@@ -860,7 +819,7 @@ describe("loop-doctor — buildClaimFacts threads owner liveness", () => {
  * process" authorises a release, "the probe failed" must not, and both are
  * non-zero exits of the same command.
  */
-describe("loop-doctor — defaultProcessProbe / interpretPsResult", () => {
+describe("claim-verdict — defaultProcessProbe / interpretPsResult", () => {
     it("maps ps's four outcomes, keeping 'probe failed' distinct from 'process gone'", () => {
         expect(
             interpretPsResult({
@@ -984,7 +943,7 @@ describe("worktreeQuietMinutes — the resumed-session veto's input (issue #5174
     });
 });
 
-describe("loop-doctor — a PR handed to the land-runner (issue #5469)", () => {
+describe("claim-verdict — a PR handed to the land-runner (issue #5469)", () => {
     const handedOff: ClaimFacts = {
         ...base,
         hasOpenPr: true,
@@ -1022,26 +981,6 @@ describe("loop-doctor — a PR handed to the land-runner (issue #5469)", () => {
             classifyClaim({ ...handedOff, landQueue: null, ownerAlive: null })
                 .state
         ).toBe("live");
-    });
-});
-
-describe("fetchUnclaimedIssues — advisory, never fatal (issue #5551)", () => {
-    const answer = (out: string) => () => out;
-    it("reads the open ready-for-agent issues nobody claims", () => {
-        const rows = JSON.stringify([
-            { number: 1, labels: [{ name: "ready-for-agent" }] },
-            { number: 2, labels: [{ name: "in-progress" }] },
-        ]);
-        expect([...fetchUnclaimedIssues(answer(rows))]).toEqual([1]);
-    });
-    it("reads a non-array answer — a count, an error body, garbage — as none", () => {
-        for (const out of [
-            "0",
-            '{"message":"API rate limit exceeded"}',
-            "not json",
-            "",
-        ])
-            expect(fetchUnclaimedIssues(answer(out)).size).toBe(0);
     });
 });
 
@@ -1420,7 +1359,7 @@ describe("one caller path for the claim verdict (issue #6223)", () => {
     it("the dispatcher judges claims through `classifyClaims`, never a private rule", () => {
         const script = src("afk-dispatch.ts");
         expect(script).toMatch(/classifyClaims\(/);
-        expect(script).toMatch(/from "\.\/loop-doctor"/);
+        expect(script).toMatch(/from "\.\/lib\/claim-verdict"/);
         // The picker and the dispatcher's decisions consume a verdict state;
         // none of the evidence a liveness rule is made of appears there.
         for (const rel of [
@@ -1431,12 +1370,5 @@ describe("one caller path for the claim verdict (issue #6223)", () => {
             expect(src(rel)).not.toMatch(
                 /\b(liveRun|branchPushed|hasRemoteBranch|hasLocalBranch|ownerAlive)\b/
             );
-    });
-
-    it("`loop:doctor` hands its classifier the dispatcher's run evidence", () => {
-        expect(src("loop-doctor.ts")).toMatch(
-            /passRuns: fetchPassRuns\(runner\)/
-        );
-        expect(src("loop-doctor.ts")).toMatch(/^\s+passRuns,$/m);
     });
 });

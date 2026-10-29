@@ -23,7 +23,7 @@
 // exists to avoid.
 
 import { releaseEditArgs } from "./claim-labels";
-import type { ClaimVerdictState } from "../loop-doctor";
+import type { ClaimVerdictState } from "./claim-verdict";
 import {
     capCensus,
     capRefusal,
@@ -84,7 +84,7 @@ export function claimDecision(input: ClaimInput): ClaimDecision {
             refusal: "claimed",
             message:
                 `issue #${input.issue} is already claimed by a live session — pick the next issue instead ` +
-                `(\`/next-ticket\` §2; a claim with no branch and no PR is released by \`loop:doctor\`, not by hand).`,
+                `(\`/next-ticket\` §2; a claim with no branch and no PR is released by \`afk-dispatch\`, not by hand).`,
         };
     }
     return capRefusal(
@@ -217,7 +217,7 @@ export function claimOwnership(input: {
 /**
  * The two fields the STALE rule needs off `gh issue list`.
  *
- * Deliberately NOT `loop-doctor.ts`'s exported `ClaimedIssue`, and named apart
+ * Deliberately NOT `lib/claim-verdict.ts`'s exported `ClaimedIssue`, and named apart
  * from it (issue #4384 review): that one carries `title` because the
  * classifier prints it, this one is the narrowest shape `isStaleClaim` reads.
  * Two same-named, differently-shaped exported types in files that now import
@@ -285,7 +285,7 @@ export function liveClaimSet(
  * released here and since stranded elsewhere (re-labelled by another pass,
  * PR opened, owner dead) in neither `recoverable` nor `stranded`, so it
  * collided and a `--resume` pass could not take it over — while
- * `loop:doctor` listed it STRANDED. Both sets are now classified: a
+ * the claim report listed it STRANDED. Both sets are now classified: a
  * `released` row clears the journal owner (`parseClaimOwners`), so such a
  * claim is `stranded` only on a positive death reading (`land-failed`, an
  * ended `afk-pass` run) and the other machine's live work stays `live`.
@@ -297,7 +297,7 @@ export function claimSets<I extends StaleRuleIssue>(input: {
     nowIso: string;
     staleClaimHours: number;
     isStale: Parameters<typeof liveClaimSet>[5];
-    /** `loop-doctor`'s `claimVerdicts`, bound — the ONE liveness classifier. */
+    /** `lib/claim-verdict.ts`'s `claimVerdicts`, bound — the ONE liveness classifier. */
     classify: (issues: I[]) => Map<number, ClaimVerdictState>;
 }): CapCensus & { collide: number[] } {
     const set = (released: number[]) =>
@@ -412,7 +412,7 @@ export interface ClaimRow {
 /**
  * The row `queue:claim` appends to `.claude/telemetry/claims.jsonl`: every
  * field `claim-ledger.sh` writes, with the same meaning — `claim-sweep.sh`
- * releases by `session`, `loop:doctor` reads `owner` for liveness, the
+ * releases by `session`, the claim verdict reads `owner` for liveness, the
  * dashboard joins on `plan` — plus `via`, which names the writer. The hook is a
  * PreToolUse observer of Bash TOOL calls and a `gh` invocation inside a bun
  * script is invisible to it. Every reader keeps working; `via` is the one
@@ -490,7 +490,7 @@ export function parsePpidComm(
 // left the `@me` assignee `queue:claim` added and wrote no journal row, so the
 // planner deferred the issue as "assigned — someone is working it" on every
 // pass, forever. The release is ONE act, like the claim: label, assignee and
-// row together. `land`, `claim-sweep.sh` and `loop:doctor --release` already
+// row together. `land`, `claim-sweep.sh` and `afk-dispatch` already
 // remove both; this is the verb the abort path names.
 
 /** The `gh` edit that undoes `queue:claim`'s lives in `claim-labels.ts`
@@ -502,7 +502,7 @@ export interface ReleaseRow {
     session: string;
     issue: number;
     /** `released`, the spelling every reader already folds (`releasedClaims`,
-     *  `claim-sweep.sh`, `loop:doctor`'s `releaseRecord`). */
+     *  `claim-sweep.sh`, the retired doctor's release record). */
     event: "released";
     /** `land-runner` = released at merge (issue #5469). */
     by: "queue:release" | "land-runner";

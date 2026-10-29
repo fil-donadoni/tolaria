@@ -210,7 +210,7 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
     // .claude/skills/
     {
         test: "scripts/__tests__/skill-invocation.test.ts",
-        admits: /^\.claude\/skills\/|^scripts\/loop-drain\.sh$/,
+        admits: /^\.claude\/skills\/|^scripts\/lib\/afk-pass\.ts$/,
     },
     // every test file and the vitest project partition
     {
@@ -304,10 +304,6 @@ export const CENSUS_WALK_EXEMPT: Readonly<Record<string, string>> = {
         "`readdirSync` inside an inline source-string fixture; it censuses no repo corpus",
     "scripts/__tests__/ladder-verdict.test.ts":
         "`git ls-files` named in a comment only; it censuses no repo corpus",
-    "scripts/__tests__/loop-drain-lanes.test.ts":
-        "scratch telemetry dirs; it censuses no repo corpus",
-    "scripts/__tests__/loop-handoff.test.ts":
-        "a scratch telemetry dir; it censuses no repo corpus",
     "scripts/__tests__/machine-admission-spawn.test.ts":
         "a scratch log dir; it censuses no repo corpus",
     "scripts/__tests__/receipt.test.ts":

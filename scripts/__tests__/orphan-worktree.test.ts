@@ -10,7 +10,7 @@ import {
 import { isAdoptableWorktree } from "../lib/issue-worktree";
 import { orphanPlanParts, resumeItems } from "../lib/queue-plan";
 import type { PlanConfig, QueueIssue } from "../lib/queue-plan";
-import type { ClaimOwner } from "../loop-doctor";
+import type { ClaimOwner } from "../lib/claim-verdict";
 
 /**
  * Orphaned issue worktrees (issue #5531): an unclaimed issue whose worktree

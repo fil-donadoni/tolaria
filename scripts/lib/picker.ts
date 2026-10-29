@@ -12,7 +12,7 @@
 //     an agent, so "who wrote it" is an admission fact, not a nicety.
 //     Unknown provenance is untrusted (fail closed).
 //   * CLAIM FATE — a claim label proves nothing by itself. Its verdict is
-//     `loop-doctor.ts`'s `classifyClaim`, the ONE authority (issue #6223),
+//     `lib/claim-verdict.ts`'s `classifyClaim`, the ONE authority (issue #6223),
 //     over runs, journal owner, branches and PRs; here it only maps to what
 //     the dispatcher does: hold, RESUME (a dead pass's work) or RELEASE (an
 //     orphan). A claim the caller supplied no verdict for is held (fail
@@ -21,7 +21,7 @@
 // PURE — no clock, no network, no git. The dispatcher gathers provenance and
 // run facts (I/O) and hands them in.
 
-import type { ClaimVerdictState } from "../loop-doctor";
+import type { ClaimVerdictState } from "./claim-verdict";
 import {
     inFlightSet,
     planBatch,

@@ -58,14 +58,7 @@ const PERF_GLOB = "**/*.perf.test.ts";
  * tighter on a faster machine, it is a measurement — move it to a sibling
  * `*.perf.test.ts`.
  */
-const ALLOWLIST = new Map([
-    [
-        "scripts/__tests__/loop-drain-retry.test.ts",
-        "the stop-file must abort a 30s error backoff; elapsed < 10s is the only " +
-            "observable that separates 'aborted' from 'slept the whole backoff', and " +
-            "the 3x margin is not a speed claim",
-    ],
-]);
+const ALLOWLIST = new Map<string, string>([]);
 
 /**
  * Perf tests allowed to read NO clock, with the reason: the one other way a
@@ -248,28 +241,32 @@ describe("perf-test boundary — no gated test asserts on elapsed wall-clock tim
         ).toEqual([]);
     });
 
-    it("every allowlisted file exists, is gated, and still needs the entry", () => {
-        for (const [file, reason] of ALLOWLIST) {
-            expect(
-                reason.length,
-                `allowlist entry needs a reason: ${file}`
-            ).toBeGreaterThan(0);
-            const abs = path.join(REPO_ROOT, file);
-            expect(
-                fs.existsSync(abs),
-                `allowlisted file no longer exists: ${file}`
-            ).toBe(true);
-            expect(
-                /\.perf\.test\.ts$/.test(file),
-                `allowlisted file is already a perf test — drop the entry: ${file}`
-            ).toBe(false);
-            // A stale entry silently exempts a file that no longer times itself.
-            expect(
-                elapsedAssertions(fs.readFileSync(abs, "utf-8")).length,
-                `allowlisted file no longer asserts on elapsed time — drop the entry: ${file}`
-            ).toBeGreaterThan(0);
+    // Empty since its one entry retired with the loop driver (issue #7486).
+    it.skipIf(ALLOWLIST.size === 0)(
+        "every allowlisted file exists, is gated, and still needs the entry",
+        () => {
+            for (const [file, reason] of ALLOWLIST) {
+                expect(
+                    reason.length,
+                    `allowlist entry needs a reason: ${file}`
+                ).toBeGreaterThan(0);
+                const abs = path.join(REPO_ROOT, file);
+                expect(
+                    fs.existsSync(abs),
+                    `allowlisted file no longer exists: ${file}`
+                ).toBe(true);
+                expect(
+                    /\.perf\.test\.ts$/.test(file),
+                    `allowlisted file is already a perf test — drop the entry: ${file}`
+                ).toBe(false);
+                // A stale entry silently exempts a file that no longer times itself.
+                expect(
+                    elapsedAssertions(fs.readFileSync(abs, "utf-8")).length,
+                    `allowlisted file no longer asserts on elapsed time — drop the entry: ${file}`
+                ).toBeGreaterThan(0);
+            }
         }
-    });
+    );
 
     it("flags a real clock delta, ignores a bare clock read, exempts fake timers", () => {
         // Built at runtime, never as literals: this file is itself walked by

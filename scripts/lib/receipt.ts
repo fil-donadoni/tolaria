@@ -41,8 +41,8 @@
 // the `receipt-guard.sh` SubagentStop hook that minted the `missing` markers.
 // Nothing writes a receipt any more.
 //
-// This module survives because it is the READ path `loop:status` and the
-// dashboard's batch section still run on (`scripts/loop-status.ts` →
+// This module survives because it is the READ path the
+// dashboard's batch section still runs on (→
 // `readReceiptsFromDir` / `newestBatchDir` / `RECEIPTS_ROOT`, rendered by
 // `dashboard/components/now/BatchSection.tsx`): receipts already on disk stay
 // readable, and the surface degrades to "No batch has recorded receipts yet"
@@ -163,7 +163,7 @@ export interface WorkReceipt extends ReceiptCommon, RoundedReceipt {
      * enforces this (issue #2688); `parseReceipt` itself never does, on
      * purpose, because it is also what every EXISTING receipt on disk is read
      * through (`readReceipts`/`readReceiptsFromDir`, which backed the
-     * merge-train's `queue:train` and today back `loop:status`), and hundreds
+     * merge-train's `queue:train` and later a status view, both retired), and hundreds
      * of those predate this field.
      * So: optional on parse always — a non-Bot PR carries no opinion on blade
      * entries, and a Bot-touching receipt written before this schema existed
@@ -576,8 +576,8 @@ export function parseReceipt(value: unknown): Receipt {
     // NOTE: the #2688 "Bot-touching work receipt must declare `blade`" rule
     // is deliberately NOT enforced here. `parseReceipt` is also how every
     // receipt already on disk gets read back (`readReceipts` /
-    // `readReceiptsFromDir`, which the merge-train's `queue:train` ran on and
-    // `loop:status` runs on today), and this field postdates hundreds of
+    // `readReceiptsFromDir`, which the merge-train's `queue:train` and
+    // a status view ran on), and this field postdates hundreds of
     // those. Enforcing it at parse time
     // would retroactively flip every pre-existing Bot-touching receipt to
     // "unreadable" and quarantine its issue out of any batch that reads it —
@@ -954,10 +954,10 @@ function nowSeconds(): number {
 
 /**
  * The newest batch directory directly under `receiptsRoot`, by mtime — "the
- * current batch's receipts" that `loop:status` (#2519) surfaces. Nothing
+ * current batch's receipts" the dashboard surfaces (#2519). Nothing
  * indexes batches by recency elsewhere; the closest precedent
  * (the retired `loop-scorecard.ts`) read every batch dir for a window, which
- * is the wrong shape here (a scorecard aggregates history, `loop:status` wants
+ * is the wrong shape here (a scorecard aggregates history, this wants
  * only what is happening right now).
  *
  * Tolerant like every other reader in this module: an unreadable or

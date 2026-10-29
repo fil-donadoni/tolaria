@@ -2,7 +2,7 @@
  * Which tests a diff can reach through the import graph (ADR 0154 §2, issue
  * #5464) — the scoping `check:lane` runs for the `engine` and `skin` lanes in
  * place of whole vitest projects, and for the `full` lane's bot half
- * (`botTests` / `botRelatedTests`, issue #6149).
+ * (`botTests` / `botRelatedTests`).
  *
  * A test is RELATED to a diff when the diff contains the test itself or any
  * module in the test's transitive local import closure. That is the question
@@ -31,9 +31,9 @@
  *   - a name node naming a SPAWNABLE file (`.sh`, `.ts`, `.tsx`, `.mjs`) is
  *     an edge to every file of that basename, and a shell file's own text is
  *     scanned for the file names it runs (issue #5555): `test → harness →
- *     "loop-drain.sh" → bun "$SCRIPT_DIR/loop-doctor.ts" → its imports` is
- *     one transitive chain. Before it a name node was a dead end, and a red
- *     the loop doctor caused escaped `land` (issue #5551).
+ *     "x.sh" → bun "$SCRIPT_DIR/y.ts" → its imports` is one transitive
+ *     chain. Before it a name node was a dead end, and a red a shell-spawned
+ *     script caused escaped `land`.
  *
  * WHAT THE WALK STILL CANNOT SEE, stated so nobody reads a skip as a proof:
  * a census that walks a DIRECTORY (`readdirSync(".claude/skills")`) or matches
@@ -163,14 +163,14 @@ function spawnableByBasename(root: string): Map<string, string[]> {
 }
 
 /** A file name with an extension the repo reads or spawns, as a bare shell
- *  word or the tail of one (`"$SCRIPT_DIR/loop-doctor.ts"`, `lib/x.ts`). */
+ *  word or the tail of one (`"$SCRIPT_DIR/y.ts"`, `lib/x.ts`). */
 const SHELL_FILE_WORD =
     /(?<![\w.-])([\w-][\w.-]*\.(?:tsx?|mjs|json|sh|md|txt|ya?ml|csv|css))(?![\w.-])/g;
 
 /**
  * The file names a SHELL file runs or reads: every word ending in a known
  * extension, quoted or bare, its directory dropped, `#` comments stripped (a
- * comment citing `loop-doctor.ts` is prose, not a call). A test file's name is
+ * comment citing `y.ts` is prose, not a call). A test file's name is
  * never an input, as in `fileNameLiterals`. Over-approximate by design: an
  * echoed name costs a test run, a missed one costs a red base.
  */

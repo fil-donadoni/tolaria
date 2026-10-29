@@ -2,7 +2,7 @@
 // claim is gone but whose local `feat|fix/issue-N` worktree still holds
 // commits that exist nowhere else.
 //
-// The loop resumes a dead pass's work only through its CLAIM (`loop:doctor`'s
+// The loop resumes a dead pass's work only through its CLAIM (the claim verdict's
 // `recoverable` / `stranded`). Once the label is dropped, the worktree and its
 // commits are invisible to that path: the issue is `ready-for-agent`, the
 // planner offers it as a fresh pick, and the committed work is either
@@ -22,7 +22,7 @@ import {
     type ClaimOwner,
     type ProcessProbe,
     type ShRunner,
-} from "../loop-doctor";
+} from "./claim-verdict";
 import { parseWorktreeList } from "../worktree-gc";
 import { issueOfBranch } from "./issue-worktree";
 
@@ -237,7 +237,7 @@ export function orphanWorktrees(
     return out.sort((a, b) => a.issue - b.issue);
 }
 
-/** `loop:doctor` / `loop:status` lines for the held ones — empty when none. */
+/** Report lines for the held ones — empty when none. */
 export function renderHeldOrphanLines(found: OrphanWorktree[]): string[] {
     const heldRows = found.filter((o) => o.verdict.state === "held");
     if (heldRows.length === 0) return [];

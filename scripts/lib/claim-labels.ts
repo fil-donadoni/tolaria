@@ -3,13 +3,13 @@
  * place, so every release path removes the same set (issue #5562).
  *
  * - `in-progress` — `queue:claim` adds it; it IS the claim for every reader
- *   (`queue:plan`, orphan detection, `loop-drain.sh`).
+ *   (`queue:plan`, orphan detection, `afk-dispatch`).
  * - `pr-open` — `land:ready` adds it BESIDE `in-progress` when the PR is
  *   handed to the land-runner: the board's view of the journal's `pr-open`
  *   row. Never instead of `in-progress`, which would hand the issue back to
  *   `queue:plan` as unclaimed.
  *
- * No imports: `telemetry-serve`, `housekeeping` and `loop-doctor` read it
+ * No imports: `telemetry-serve`, `housekeeping` and `lib/claim-verdict` read it
  * without dragging the planner in.
  */
 

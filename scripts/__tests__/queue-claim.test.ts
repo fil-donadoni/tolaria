@@ -31,7 +31,7 @@ import {
     type ClaimVerdictState,
     type ProcessProbe,
     type ShRunner,
-} from "../loop-doctor";
+} from "../lib/claim-verdict";
 
 /**
  * `queue:claim` — the claim as ONE locked act (issue #4375, PRD #4373).
@@ -289,8 +289,8 @@ describe("queue:claim — the journal row is the hook's row (issue #4375, #2518,
 });
 
 describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)", () => {
-    // The 2026-09-22 shape: two `loop-drain` passes died mid-issue leaving
-    // three claims standing, `ps` showed zero owning processes, `loop:doctor`
+    // The 2026-09-22 shape: two loop passes died mid-issue leaving
+    // three claims standing, `ps` showed zero owning processes, the claim report
     // printed `2 RECOVERABLE` — and the next claim was still refused at
     // `3/3 live claims` with no session running at all. The classifier had the
     // evidence; the cap never asked for it.
@@ -352,7 +352,7 @@ describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)
     });
 
     it("counts `suspect` and `orphan` too — only a PROVED recoverable gives up its slot", () => {
-        // `orphan` is `loop:doctor --release`'s to drop, and `suspect` is what
+        // `orphan` is `afk-dispatch`'s to drop, and `suspect` is what
         // a healthy pass looks like before its first push. Neither is evidence
         // that no process is burning CPU.
         expect(
@@ -372,7 +372,7 @@ describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)
         });
     });
 
-    it("the refusal breaks the count into live / recoverable and names `bun run loop:doctor`", () => {
+    it("the refusal breaks the count into live / recoverable and names the plan's `resume`", () => {
         const d = claimDecision({
             issue: 40,
             live: [10, 20, 30],
@@ -386,7 +386,7 @@ describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)
             expect(d.message).toMatch(
                 /5 claimed, 3 live, 2 recoverable \(not counted\): #50, #60/
             );
-            expect(d.message).toMatch(/bun run loop:doctor/);
+            expect(d.message).toMatch(/the plan's `resume` names them/);
             expect(d.message).toMatch(/resume or salvage those branches/);
             expect(d.message).toMatch(/--no-cap/);
         }
@@ -758,8 +758,8 @@ describe("queue:claim — a FAILED read may only make the cap stricter (issue #4
     ];
 
     it("a throwing `gh`/`git` yields NO verdicts — every claim then counts as live", () => {
-        // The trap this pins: `sh`, the runner `loop:doctor`'s own CLI
-        // defaults to, renders a non-zero exit as `""`. `JSON.parse("" ||
+        // The trap this pins: `sh`, the default runner of
+        // `lib/claim-verdict.ts`, renders a non-zero exit as `""`. `JSON.parse("" ||
         // "[]")` is an empty PR set and `"".split("\n")` an empty remote
         // list — indistinguishable from "no open PRs, no pushed branches".
         // With that default the `catch` inside `claimVerdicts` can never
@@ -816,26 +816,25 @@ describe("queue:claim — a FAILED read may only make the cap stricter (issue #4
 });
 
 describe("queue:claim — ONE liveness definition, imported (issue #4384)", () => {
-    // The discipline `loop-drain.test.ts:1998` already enforces for staleness:
-    // a second spelling of "is this claim alive" in the queue verbs is how the
+    // A second spelling of "is this claim alive" in the queue verbs is how the
     // two ends drift, and the behavioural tests above would pass just as
     // happily against a private re-derivation.
     const read = (rel: string) =>
         readFileSync(join(__dirname, "..", rel), "utf8");
 
     for (const verb of ["queue-claim.ts", "queue-plan.ts"]) {
-        it(`${verb} imports the classifier from loop-doctor and re-implements nothing`, () => {
+        it(`${verb} imports the classifier from claim-verdict and re-implements nothing`, () => {
             const source = read(verb);
             // `claimVerdicts`, or its full-row form `claimClassifications`
             // (queue:plan needs the stranded claims' PR numbers, issue #4763).
             expect(source).toMatch(/claimVerdicts|claimClassifications/);
-            expect(source).toMatch(/from "\.\/loop-doctor"/);
+            expect(source).toMatch(/from "\.\/lib\/claim-verdict"/);
             // queue:claim's census runs in its pure half (`claimSets`).
             expect(
                 verb === "queue-claim.ts" ? read("lib/queue-claim.ts") : source
             ).toMatch(/capCensus\(/);
             // No private opinion on liveness: the facts and the thresholds
-            // belong to `loop-doctor.ts` alone.
+            // belong to `lib/claim-verdict.ts` alone.
             expect(source).not.toMatch(/ownerAlive|unpushedCommits/);
             expect(source).not.toMatch(/classifyClaim\s*\(/);
         });
@@ -843,7 +842,7 @@ describe("queue:claim — ONE liveness definition, imported (issue #4384)", () =
 
     it("the admission path writes NO release — a recoverable claim keeps its label", () => {
         // Releasing it would orphan the dead pass's commits, and that call is
-        // `loop:doctor --release`'s alone (issue #3698). The cap only stops
+        // `afk-dispatch`'s alone (issue #3698). The cap only stops
         // counting it.
         expect(read("queue-claim.ts")).not.toMatch(/--remove-label/);
         expect(read("queue-plan.ts")).not.toMatch(/--remove-label/);
@@ -1134,9 +1133,9 @@ describe("queue:claim — the cap counts THIS machine's claims (issue #5302)", (
 });
 
 describe("queue:claim — a claim released HERE and stranded since is resumable (issue #6354)", () => {
-    // Observed 2026-10-22: #5206's last local row was `loop:doctor`'s
+    // Observed 2026-10-22: #5206's last local row was the doctor's
     // `released` (orphan); a later pass re-labelled it, opened PR #6337,
-    // died, and the PR went `land-failed`. `loop:doctor` listed it STRANDED,
+    // died, and the PR went `land-failed`. the claim report listed it STRANDED,
     // `queue:claim 5206` refused it: only the reconciled set was classified.
     // End to end over the real journal fold and the real classifier.
     const journal = [

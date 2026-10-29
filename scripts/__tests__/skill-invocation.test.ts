@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import { claudeArgs } from "../health-fix";
+import { passPrompt } from "../lib/afk-pass";
 import {
     parseSkillFrontmatter,
     trackedSkills,
@@ -111,12 +112,10 @@ describe("skill invocation follows who reaches the skill (issue #5101)", () => {
     });
 
     it("the driver's pass prompts name a user-invocable skill", () => {
-        const drain = fs.readFileSync(
-            path.join(REPO_ROOT, "scripts", "loop-drain.sh"),
-            "utf8"
-        );
         const prompts = [
-            /^PASS_PROMPT="\/([\w-]+)/m.exec(drain)?.[1],
+            /^\/([\w-]+)/.exec(
+                passPrompt({ issue: 1, model: "sonnet", resume: false })
+            )?.[1],
             /^\/([\w-]+)/.exec(claudeArgs("abc")[0])?.[1],
         ];
         expect(prompts.every(Boolean), "a pass prompt names a skill").toBe(

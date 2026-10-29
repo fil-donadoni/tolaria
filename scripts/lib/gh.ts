@@ -51,7 +51,7 @@ export function netEnv(
 // ── Why a read is retried on a 5xx (issue #5540) ─────────────────────────────
 //
 // One `HTTP 504: 504 Gateway Timeout (https://api.github.com/graphql)` on the
-// `ready-for-agent` read stopped a whole `loop:afk` run at its pre-flight —
+// `ready-for-agent` read stopped a whole AFK run at its pre-flight —
 // fatal by design (issue #3088), so the fix belongs here, below it. A READ
 // that met a gateway error is replayed after a short backoff; anything else
 // throws on the first attempt. A WRITE is never replayed: a 504 on a write

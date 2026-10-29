@@ -124,12 +124,6 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "cites `.claude/rules/gre-development.md` in a header comment and in an assertion MESSAGE as the prose it mechanises; it scans convex/ card tests and reads no document",
     "scripts/__tests__/live-activity.test.ts":
         "the `~/.claude/projects` path is Claude Code's own transcript directory outside this repo; it reads no repo document",
-    "scripts/__tests__/loop-drain.test.ts":
-        "names the retired `.claude/hooks/receipt-guard.sh` in a header comment as the hook its own sh-driving shape came from — hooks stay `full`; it reads no document",
-    "scripts/__tests__/loop-status.test.ts":
-        "the `.claude/telemetry/loop-drain/` paths are lane log fixtures (the RUNTIME per-pass log directory, gitignored) rendered by the status view; it reads no repo document",
-    "scripts/__tests__/pass-activity.test.ts":
-        "the `~/.claude/projects` path is Claude Code's own transcript directory outside this repo; it reads no repo document",
     "scripts/__tests__/receipt.test.ts":
         "the `.claude/receipts/` path is the RUNTIME review-receipt directory, gitignored and per-batch; it reads no repo document",
     "scripts/__tests__/session-origin.test.ts":
