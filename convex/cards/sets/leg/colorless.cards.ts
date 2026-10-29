@@ -72,8 +72,7 @@ export const koboldsOfKherKeep = defineCard(() => ({
 //   • C4 bands-with-other grant-lands: Adventurers' Guildhouse, Cathedral of
 //     Serra, Mountain Stronghold, Seafarer's Quay, Unholy Citadel; and the
 //     banding strip Tolaria.
-//   • C5 named counters: Triassic Egg (hatchling counters; no longer blocked —
-//     tracked-by: #2230), Voodoo Doll (pin counters; tracked-by: #2225),
+//   • C5 named counters: Voodoo Doll (pin counters; tracked-by: #2225),
 //     Serpent Generator (poison-counter token).
 //   • C7 upkeep pay-or-sacrifice: The Tabernacle at Pendrell Vale.
 //
@@ -825,6 +824,102 @@ export const forethoughtAmulet = defineCard(() => ({
                 event.kind !== "damage"
                     ? { kind: "consumed" }
                     : { kind: "modified", event: { ...event, amount: 2 } },
+        },
+    ],
+}));
+
+// Triassic Egg — {4} Artifact. "{3}, {T}: Put a hatchling counter on this
+// artifact.\nSacrifice this artifact: Choose one. Activate only if there are two
+// or more hatchling counters on this artifact.\n• You may put a creature card
+// from your hand onto the battlefield.\n• Return target creature card from your
+// graveyard to the battlefield." (modern Oracle, ADR 0004)
+//
+// Ability 1 is a plain counter add (CR 122.1). Ability 2 is a PRINTED modal
+// ability: the mode is chosen at announcement (CR 601.2b / 700.2) via
+// `modes`, so mode 2's target is locked then (CR 601.2c / 700.2c) while mode 1
+// has none (the hand is hidden) and its "you may" is a 0-or-1 pick at
+// resolution (CR 608.2d). "Activate only if" is `canActivate` (CR 602.5b) over
+// the source's hatchling count; the sacrifice is a cost (CR 118.1, 602.2b), so
+// the count is read before the Egg leaves. Mode 2 returns the card under its
+// owner's control, the card's owner, as it comes from your graveyard.
+// compiler-gap: "Sacrifice this artifact: Choose one. Activate only if there are two or more hatchling counters on this artifact." (#2230)
+export const triassicEgg = defineCard(() => ({
+    id: "ce3756f7-0d99-4562-b32d-66de18a58fdf",
+    rarity: "rare",
+    name: "Triassic Egg",
+    oracleText:
+        "{3}, {T}: Put a hatchling counter on this artifact.\nSacrifice this artifact: Choose one. Activate only if there are two or more hatchling counters on this artifact.\n• You may put a creature card from your hand onto the battlefield.\n• Return target creature card from your graveyard to the battlefield.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "triassic-egg-hatch",
+            oracleText: "{3}, {T}: Put a hatchling counter on this artifact.",
+            cost: { mana: { X: 3 }, tap: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "hatchling",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
+        },
+        {
+            id: "triassic-egg-sacrifice",
+            oracleText:
+                "Sacrifice this artifact: Choose one. Activate only if there are two or more hatchling counters on this artifact.",
+            cost: { sacrifice: true },
+            useStack: true,
+            canActivate: (source) => (source.counters?.["hatchling"] ?? 0) >= 2,
+            modes: [
+                {
+                    id: "put-from-hand",
+                    label: "Put a creature from your hand",
+                    oracleText:
+                        "You may put a creature card from your hand onto the battlefield.",
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "choose-hand-card",
+                            player: "controller",
+                            zone: "hand",
+                            filter: { type: "Creature" },
+                            count: { min: 0, max: 1 },
+                            prompt: "You may put a creature card from your hand onto the battlefield.",
+                            bind: "$picked",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$picked" },
+                            player: "controller",
+                            from: "hand",
+                            to: "battlefield",
+                        },
+                    ],
+                },
+                {
+                    id: "return-from-graveyard",
+                    label: "Return a creature from your graveyard",
+                    oracleText:
+                        "Return target creature card from your graveyard to the battlefield.",
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        zone: "graveyard",
+                        controller: "you",
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { target: 0 },
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ],
         },
     ],
 }));
