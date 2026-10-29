@@ -26700,6 +26700,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Gandalf, Goblins' Bane",
+        "scryfallId": "9b0d29a1-7da9-4fb3-8536-8ff8d8acae0b",
+        "oracleId": "f48f2a9b-4ba5-4984-8180-3950889bba65",
+        "firstSet": "hob",
+        "firstPrintId": "9b0d29a1-7da9-4fb3-8536-8ff8d8acae0b",
+        "firstPrintSet": "hob"
+    },
+    {
         "name": "Gang of Devils",
         "scryfallId": "0430b9fa-3bc6-4183-ad5b-d70ad401fa97",
         "oracleId": "62110234-690b-4498-8076-26ba910f9f92",
