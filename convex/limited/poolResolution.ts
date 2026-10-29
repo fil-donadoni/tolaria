@@ -10,10 +10,12 @@
 
 import { resolveDeckCardMeta } from "../cards";
 import {
+    checkPoolMembership,
     validateDeck,
     type DeckLegality,
     type Pool,
     type PoolCard,
+    type Reason,
     type ResolveCard,
     type ResolvePool,
     type ValidatableDeck,
@@ -152,4 +154,68 @@ export function resolveLimitedDeckLegality(
     const resolvePool: ResolvePool = () =>
         deckPool ? poolFromLimitedPoolCards(deckPool, resolve) : null;
     return validateDeck(deck, "limited", resolve, undefined, resolvePool);
+}
+
+type DeckCard = ValidatableDeck["cards"][number];
+
+/** Non-basic copies per canonical Card ID across Maindeck + Sideboard — the
+ *  same counting `checkPoolMembership` does, so "introduced" and "ungranted"
+ *  agree on what a card is. An unresolvable id keeps its raw id. */
+function countCopies(
+    zones: readonly (readonly DeckCard[] | undefined)[],
+    resolve: ResolveCard
+): Map<string, { cardName: string; count: number }> {
+    const counts = new Map<string, { cardName: string; count: number }>();
+    for (const card of zones.flatMap((zone) => zone ?? [])) {
+        const meta = resolve(card.cardId);
+        if (meta?.isBasic) continue; // basics are free in Limited
+        const cardId = meta?.cardId ?? card.cardId;
+        const entry = counts.get(cardId);
+        if (entry) entry.count += 1;
+        else counts.set(cardId, { cardName: card.cardName, count: 1 });
+    }
+    return counts;
+}
+
+/**
+ * The edit guard for a saved `limited` deck (issue #2816): the reasons a patch
+ * INTRODUCES cards its Deck Pool does not account for. Blocks introductions,
+ * never saves — a card whose copy count does not rise (moved between zones, or
+ * removed) is never judged, so a deck already illegal from an old editor can
+ * be saved back into legality. The membership decision is
+ * `checkPoolMembership`, run over a probe deck holding only the risen cards;
+ * its `pool-card-unplaced` reasons are dropped (the probe omits most of the
+ * deck by construction). `deckPool: null` (no Pool to judge against) refuses
+ * every introduction, fail-closed like `pool-unresolved`.
+ */
+export function findPoolIntroductions(
+    before: { cards: DeckCard[]; sideboard?: DeckCard[] },
+    after: { cards: DeckCard[]; sideboard?: DeckCard[] },
+    deckPool: readonly LimitedPoolCard[] | null,
+    resolve: ResolveCard = resolveDeckCardMeta
+): Reason[] {
+    const was = countCopies([before.cards, before.sideboard], resolve);
+    const probe: DeckCard[] = [];
+    for (const [cardId, { cardName, count }] of countCopies(
+        [after.cards, after.sideboard],
+        resolve
+    )) {
+        if (count <= (was.get(cardId)?.count ?? 0)) continue;
+        for (let i = 0; i < count; i++) probe.push({ cardId, cardName });
+    }
+    if (probe.length === 0) return [];
+    if (deckPool === null) {
+        return [
+            {
+                code: "pool-unresolved",
+                message:
+                    "This Limited deck has no resolvable Deck Pool, so cards cannot be added.",
+            },
+        ];
+    }
+    return checkPoolMembership(
+        { cards: probe },
+        poolFromLimitedPoolCards(deckPool, resolve),
+        resolve
+    ).filter((r) => r.code !== "pool-card-unplaced");
 }

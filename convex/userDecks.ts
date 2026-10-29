@@ -13,11 +13,17 @@ import { withDefinitionId } from "./cards/catalogue";
 import { makeResolveCardFromRows } from "./cards/printRows";
 import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
 import { loadBanlistOverridesByFormat } from "./decks";
-import { type FormatId, isFormatId, validateDeck } from "./formats";
+import {
+    type FormatId,
+    isFormatId,
+    type ValidatableDeck,
+    validateDeck,
+} from "./formats";
 import { openPlayPhaseIfReady } from "./limitedEvents";
 import { planDeckPoolBackfill } from "./limited/deckPool";
 import {
     assertLimitedSeatOwnership,
+    findPoolIntroductions,
     resolveLimitedDeckLegality,
 } from "./limited/poolResolution";
 import { limitedOriginKey } from "./limited/limitedOrigin";
@@ -128,6 +134,39 @@ async function refreshDeckPool(
     if (deck.format !== "limited") return;
     const seatPool = await loadSeatPoolForDeck(ctx, deck);
     if (seatPool) await saveDeckPool(ctx, deckId, seatPool);
+}
+
+/** Refuses an edit that adds a card the deck's Deck Pool does not account for
+ *  (issue #2816). Blocks introductions, not saves: removals and zone moves
+ *  pass, so a deck made illegal by an old editor can be edited back. A deck
+ *  with no Deck Pool yet is judged against its Seat Pool (the same fallback the
+ *  save path refreshes from). The message is safe to surface to the client. */
+async function assertNoPoolIntroductions(
+    ctx: MutationCtx,
+    deckId: Id<"userDecks">,
+    deck: Doc<"userDecks">,
+    after: Pick<ValidatableDeck, "cards" | "sideboard">
+): Promise<void> {
+    const pool =
+        (await loadDeckPool(ctx, deckId)) ??
+        (await loadSeatPoolForDeck(ctx, deck));
+    const resolve = makeResolveCardFromRows(
+        await loadPrintRows(
+            ctx,
+            [
+                ...deck.cards,
+                ...(deck.sideboard ?? []),
+                ...after.cards,
+                ...(after.sideboard ?? []),
+            ].map((c) => c.cardId)
+        )
+    );
+    const reasons = findPoolIntroductions(deck, after, pool, resolve);
+    if (reasons.length > 0) {
+        throw new Error(
+            `Cannot add cards outside this deck's Pool: ${reasons.map((r) => r.message).join(" ")}`
+        );
+    }
 }
 
 export const get = query({
@@ -262,6 +301,16 @@ export const update = mutation({
         const userId = await getCurrentUserId(ctx);
         const deck = await assertOwnsDeck(ctx, args.id, userId);
         const patch: Record<string, unknown> = {};
+        if (
+            deck.format === "limited" &&
+            (args.patch.cards !== undefined ||
+                args.patch.sideboard !== undefined)
+        ) {
+            await assertNoPoolIntroductions(ctx, args.id, deck, {
+                cards: args.patch.cards ?? deck.cards,
+                sideboard: args.patch.sideboard ?? deck.sideboard,
+            });
+        }
         if (args.patch.name !== undefined) {
             patch.name = args.patch.name.trim() || "Untitled deck";
         }
