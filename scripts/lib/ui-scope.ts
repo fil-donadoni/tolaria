@@ -240,13 +240,43 @@ const MODULE_PATH = /\.(?:[cm]?[jt]sx?)$/;
  *  `tsc` fails on the dangling import (`check:lane` runs it), and THOSE
  *  importers are placed by their own closures. So the surfaces it reached are
  *  selected through its importers, and a module nothing imported reached
- *  none. Only a JS/TS module qualifies: an asset or stylesheet is named by a
- *  string `tsc` never resolves, and stays fail-closed. */
+ *  none.
+ *
+ *  Fail-closed wherever that premise breaks — the path stays a doubt:
+ *   - not a JS/TS module: an asset or stylesheet is named by a string `tsc`
+ *     never resolves (an `import.meta.glob`, too, names only data artefacts
+ *     today, which this excludes);
+ *   - a declaration file (`.d.ts`): ambient, imported by no specifier;
+ *   - a SIBLING still resolves the same specifier (`foo.ts` deleted beside
+ *     `foo/index.ts` or `foo.tsx`): every importer compiles unchanged and now
+ *     runs a different module;
+ *   - a template `import()` pattern can name it: that edge is in no
+ *     importer's text. */
 export function placedThroughImporters(
     path: string,
     graph: ImportGraph
 ): boolean {
-    return MODULE_PATH.test(path) && !graph.isFile(path);
+    return (
+        MODULE_PATH.test(path) &&
+        !path.endsWith(".d.ts") &&
+        !graph.isFile(path) &&
+        !siblingResolves(path, graph) &&
+        !graph.namedByPattern(path)
+    );
+}
+
+const MODULE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+
+/** Whether another file still answers the specifier `path` was resolved
+ *  from: `stem.<ext>`, `stem/index.<ext>`, and — for `dir/index.<ext>` —
+ *  `dir.<ext>`. */
+function siblingResolves(path: string, graph: ImportGraph): boolean {
+    const stem = path.replace(MODULE_PATH, "");
+    const stems = [stem, `${stem}/index`];
+    if (stem.endsWith("/index")) stems.push(stem.slice(0, -"/index".length));
+    return stems.some((s) =>
+        MODULE_EXTENSIONS.some((ext) => graph.isFile(`${s}${ext}`))
+    );
 }
 
 export function computeUiScope({
