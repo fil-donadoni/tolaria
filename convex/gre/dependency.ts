@@ -35,7 +35,7 @@ import type {
     StaticEffect,
     StaticEffectContext,
 } from "../cards/types";
-import { BASIC_LAND_SUBTYPES } from "../cards/types";
+import { BASIC_LAND_SUBTYPES, colorGrantColors } from "../cards/types";
 import type { ContinuousEffect } from "./continuousEffects";
 
 /** The live source and `StaticEffect` behind a TEMPLATE entry. Structurally the
@@ -257,7 +257,10 @@ function writesOf(
                 values: [...(effect.add ?? []), ...(effect.remove ?? [])],
             };
         case "color-grant":
-            return { characteristic: "colors", values: effect.colors };
+            return {
+                characteristic: "colors",
+                values: colorGrantColors(effect, template!.source),
+            };
         case "keyword-grant":
             return { characteristic: "abilities", values: [effect.keyword] };
         case "keyword-remove":
