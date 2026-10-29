@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { cardSlotFloor, type CardSlotFloor } from "~/lib/images";
+import { watchDevicePixelRatio } from "~/lib/watchDevicePixelRatio";
 
 /**
  * Measures a card slot and derives the srcset hint it actually needs
@@ -30,9 +31,10 @@ import { cardSlotFloor, type CardSlotFloor } from "~/lib/images";
  * the call site's declared hint so tests and degenerate layouts keep working.
  *
  * The `ResizeObserver` keeps the floor true when the slot grows later (a panel
- * opening, an orientation change). It re-renders only when the derived floor
- * CHANGES — `CARD_SLOT_QUANTUM_PX` is what makes that rare — so a drag-resize
- * does not repaint every mounted card.
+ * opening, an orientation change), and `watchDevicePixelRatio` when the RATIO
+ * moves with no resize (issue #6940). It re-renders only when the derived
+ * floor CHANGES — `CARD_SLOT_QUANTUM_PX` is what makes that rare — so a
+ * drag-resize does not repaint every mounted card.
  */
 export default function useCardSlotFloor<T extends HTMLElement>(): {
     /** Attach to the element whose box IS the slot (the wrapper the image
@@ -72,10 +74,20 @@ export default function useCardSlotFloor<T extends HTMLElement>(): {
             );
         };
         read();
-        if (!el || typeof ResizeObserver === "undefined") return;
+        // The floor is `width × devicePixelRatio`, and only the width has a
+        // resize signal. The ratio moves with no layout change at all — the
+        // window dragged onto a 2x display, a browser zoom — and a floor
+        // computed for the old ratio under-declares until something else
+        // happens to re-measure (issue #6940). `watchDevicePixelRatio` is the
+        // media-query trick that turns the ratio into an event.
+        const unwatchDpr = watchDevicePixelRatio(read);
+        if (!el || typeof ResizeObserver === "undefined") return unwatchDpr;
         const observer = new ResizeObserver(read);
         observer.observe(el);
-        return () => observer.disconnect();
+        return () => {
+            observer.disconnect();
+            unwatchDpr();
+        };
     }, []);
 
     return { slotRef, floor: state?.floor ?? null, measured: state !== null };

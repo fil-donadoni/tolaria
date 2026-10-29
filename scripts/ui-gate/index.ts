@@ -141,6 +141,7 @@ import {
     type SquareExample,
     type SoftExample,
 } from "./floors.ts";
+import { blurredOf, describeRaster, measureRaster } from "./raster.ts";
 import {
     DIAGNOSTIC_SEPARATOR,
     DIGEST_HEADER,
@@ -1440,6 +1441,28 @@ async function main(): Promise<number> {
                                 const axe = await timed(t, "axe", () =>
                                     runAxe(p)
                                 );
+                                // The pixel half of `cardsSoft` (issue #6940):
+                                // after the probe, so the faces it samples are
+                                // the ones the probe already proved resolved.
+                                // Its blurred faces join the probe's offenders
+                                // so the failure shot outlines them.
+                                probe.raster = await timed(t, "probe", () =>
+                                    measureRaster(p)
+                                );
+                                for (const b of blurredOf(
+                                    probe.raster.samples
+                                )) {
+                                    probe.offenders.push({
+                                        floor: "cardsSoft",
+                                        sel: b.sel,
+                                        t: b.t,
+                                        x: b.x,
+                                        y: b.y,
+                                        w: b.w,
+                                        h: b.h,
+                                        why: `rasterised soft: blur ${b.blur.toFixed(2)} over its ${b.src}`,
+                                    });
+                                }
                                 measured = { probe, axe };
                             } catch (err) {
                                 const first = (err as Error).message.split(
@@ -1614,6 +1637,12 @@ async function main(): Promise<number> {
                                       .join("; ") +
                                   `]`
                                 : ` soft0`;
+                            // The pixel half of the same Floor (issue #6940):
+                            // every sampled face's Blur Index, the blurred ones
+                            // named with the three energies behind the number.
+                            const rasterEx = probe.raster
+                                ? describeRaster(probe.raster)
+                                : "";
                             const squareEx = probe.cardsSquareN
                                 ? ` square${probe.cardsSquareN}[` +
                                   (probe.cardsSquare as SquareExample[])
@@ -1627,7 +1656,7 @@ async function main(): Promise<number> {
                             const detail =
                                 `cards n${probe.cards.n} zero${probe.cards.zero} occ${probe.cards.occ} ` +
                                 `stranded${probe.cards.stranded} reach${probe.cards.reachable}` +
-                                `${squareEx}${softEx}` +
+                                `${squareEx}${softEx}${rasterEx}` +
                                 `${probe.cardsSoftPending ? ` softPending${probe.cardsSoftPending}` : ""}` +
                                 `${probe.cardsSoftUnknown ? ` softUnknown${probe.cardsSoftUnknown}` : ""} | ` +
                                 `ctrls n${probe.ctrls.n} zero${probe.ctrls.zero} occ${probe.ctrls.occ} ` +
