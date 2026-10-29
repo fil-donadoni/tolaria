@@ -79,6 +79,7 @@
         "health:revert": "bun scripts/health-revert.ts",
         "health:repair-merged": "bun scripts/health-repair-merged.ts",
         "health:batch-due": "bun scripts/health-batch-due.ts",
+        "heartbeat": "bun scripts/heartbeat.ts",
         "health:nightly": "bun scripts/health-nightly.ts",
         "health:status": "bun scripts/health-main.ts --status",
         "issue:inherit-band": "bun scripts/issue-inherit-band.ts",
