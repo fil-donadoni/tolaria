@@ -100,6 +100,14 @@ describe("becomeCopy frame", () => {
         ).toBe("unparsed");
     });
 
+    it("refuses a copied object that is not an announced target", () => {
+        expect(
+            refused(
+                "{2}: This artifact becomes a copy of this artifact until end of turn."
+            )
+        ).toBe("unparsed");
+    });
+
     it("refuses a pronoun recipient", () => {
         expect(
             refused(
