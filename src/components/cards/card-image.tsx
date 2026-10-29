@@ -58,6 +58,10 @@ const STABLE_LAYER: React.CSSProperties = {
 // slots on two of ten cells, while the same surfaces with CONTAINED faces, the
 // same budget, max zoom and a hovered tile read sharp on all ten. With an
 // ordinary budget both modes read sharp — which is why no earlier walk saw it.
+// The eviction is NOT deterministic: a second run the same day, promoted
+// faces, same budget, max zoom, hovered, read sharp on all ten cells (Blur
+// Index ≤ 0.01), so the layer mode is held by
+// `unbounded-card-surfaces-contained-layer.test.tsx`, never by the walk.
 const CONTAINED_LAYER: React.CSSProperties = { contain: "paint" };
 
 type CardImageProps = {
