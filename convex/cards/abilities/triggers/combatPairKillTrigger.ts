@@ -23,6 +23,7 @@
 
 import type {
     BlockersConfirmedEvent,
+    Color,
     DelayedTriggerDef,
     GameEvent,
     PermanentView,
@@ -42,6 +43,14 @@ export interface CombatPairOpponent {
     types: ReadonlyArray<string>;
     subtypes: ReadonlyArray<string>;
     toughness?: number;
+    /** Live layer-5 colours (CR 202.2) captured at block confirmation; empty
+     *  for synthetic test events that omit them. */
+    colors: ReadonlyArray<Color>;
+    /** Which side of the pair the OTHER creature is on (CR 509.1h): "attacker"
+     *  when the source BLOCKS it, "blocker" when the source BECOMES BLOCKED by
+     *  it. Lets one card gate its "blocks" and "becomes blocked by" lines
+     *  differently. */
+    role: "attacker" | "blocker";
 }
 
 export interface CombatPairKillArgs {
@@ -92,6 +101,8 @@ function opponentInPair(
             types: event.blockerTypes,
             subtypes: event.blockerSubtypes,
             toughness: event.blockerToughness,
+            colors: event.blockerColors ?? [],
+            role: "blocker",
         };
     }
     if (event.blockerId === ownId) {
@@ -100,6 +111,8 @@ function opponentInPair(
             types: event.attackerTypes,
             subtypes: event.attackerSubtypes,
             toughness: event.attackerToughness,
+            colors: event.attackerColors ?? [],
+            role: "attacker",
         };
     }
     return undefined;

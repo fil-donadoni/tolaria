@@ -14,6 +14,7 @@
 // engine (CR 603.4) — if false at resolve, the trigger fizzles.
 
 import type {
+    AbilityMode,
     EffectOp,
     GameEvent,
     PermanentTappedEvent,
@@ -79,6 +80,12 @@ export interface TappedTriggerArgs {
      *  controller" (Psychic Venom) — still needs a `resolve` callback.
      *  Mutually exclusive with `resolve`. */
     effects?: EffectOp[];
+    /** CR 603.3c — announce-time mode list for a MODAL tap trigger ("Whenever
+     *  enchanted artifact becomes tapped, choose one — • … • …", Relic Bind).
+     *  Each mode carries its own `targetRequirement` and Effect Script; the
+     *  controller announces exactly one as the trigger goes on the stack.
+     *  Mutually exclusive with `resolve` / `effects`; forwarded verbatim. */
+    modes?: AbilityMode[];
     /** Resolution effect. Receives a pre-narrowed event + a derived payload
      *  exposing the tapped permanent's last-known fields plus `manaProduced`
      *  (CR 605.4) when `forMana` was true. Card authors never narrow
@@ -105,9 +112,13 @@ export interface TappedTriggerArgs {
 }
 
 export function tappedTrigger(args: TappedTriggerArgs): TriggeredAbility {
-    if (args.effects === undefined && args.resolve === undefined) {
+    if (
+        args.effects === undefined &&
+        args.resolve === undefined &&
+        args.modes === undefined
+    ) {
         throw new Error(
-            `tappedTrigger("${args.id}"): declare either effects[] or resolve — neither was given`
+            `tappedTrigger("${args.id}"): declare effects[], resolve or modes[] — none was given`
         );
     }
     const userResolve = args.resolve;
@@ -171,21 +182,25 @@ export function tappedTrigger(args: TappedTriggerArgs): TriggeredAbility {
         // through. Otherwise wrap the imperative resolve with the tapped-payload.
         ...(args.effects
             ? { effects: args.effects }
-            : {
-                  resolve: (ctx: SpellContext, event: GameEvent) => {
-                      if (event.type !== "PERMANENT_TAPPED") return;
-                      userResolve!(ctx, event, {
-                          id: event.permanentId,
-                          controllerId: event.controllerId,
-                          types: event.permanentTypes,
-                          subtypes: event.permanentSubtypes,
-                          forMana: event.forMana,
-                          manaProduced: event.manaProduced,
-                      });
-                  },
-              }),
+            : args.modes && !args.resolve
+              ? {}
+              : {
+                    resolve: (ctx: SpellContext, event: GameEvent) => {
+                        if (event.type !== "PERMANENT_TAPPED") return;
+                        userResolve!(ctx, event, {
+                            id: event.permanentId,
+                            controllerId: event.controllerId,
+                            types: event.permanentTypes,
+                            subtypes: event.permanentSubtypes,
+                            forMana: event.forMana,
+                            manaProduced: event.manaProduced,
+                        });
+                    },
+                }),
         ...(args.aiEffects ? { aiEffects: args.aiEffects } : {}),
     };
+
+    if (args.modes !== undefined) ability.modes = args.modes;
 
     if (args.interveningIf) {
         const cb = args.interveningIf;
