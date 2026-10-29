@@ -341,6 +341,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › pump+skipNextTurn",
+            "issue": 7485
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › restrictLandPlay",
             "issue": 5431
         },
@@ -4578,6 +4583,11 @@
             "kind": "scenario",
             "key": "smoke-scenario › script mixes player and permanent target slots",
             "issue": 4234
+        },
+        {
+            "kind": "scenario",
+            "key": "validate-effect-script › Elfhame Sanctuary ability \"elfhame-sanctuary-trigger\": effects[1]: then[2]: Op \"moveZone\" field \"bind\" is only valid with \"cards\" and to: \"battlefield\"",
+            "issue": 7484
         },
         {
             "kind": "scenario",
