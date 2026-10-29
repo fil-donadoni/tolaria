@@ -76,7 +76,8 @@ export const formidableSpeaker = defineCard(() => ({
                             player: "controller",
                             zone: "library",
                             filter: { type: "Creature" },
-                            count: 1,
+                            // CR 701.23b — a stated quality never compels the find.
+                            count: { min: 0, max: 1 },
                             prompt: "Search your library for a creature card.",
                             bind: "$found",
                         },
