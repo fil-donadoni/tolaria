@@ -25,6 +25,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ROBUSTNESS_BASELINE } from "../convex/gre/ai/blade/robustnessBaseline";
 import { corpusExcluded, readsLockedCorpus } from "./lib/corpus-exclusion";
+import { DERIVED_PATHS } from "./lib/derive-sync";
 import { ORIGIN_BASE } from "./lib/branches";
 import { gh } from "./lib/gh";
 import {
@@ -81,15 +82,36 @@ export interface PrCheckResult {
     note?: string;
 }
 
-/** Runs the failing tests of a repaired RED; the exit code is vitest's. The
- *  ones the repair deleted or moved are skipped, as `repairProofStep` does. */
-function vitestRun(tests: readonly string[], cwd: string): number {
-    return (
-        spawnSync("bunx", ["vitest", "run", ...tests], {
-            cwd,
-            stdio: "inherit",
-        }).status ?? 1
-    );
+/** One command of the repair proof's run; the exit code (null → 1). */
+export type ProofExec = (argv: readonly string[], cwd: string) => number;
+
+function spawnExec(argv: readonly string[], cwd: string): number {
+    const [cmd, ...args] = argv;
+    return spawnSync(cmd, args, { cwd, stdio: "inherit" }).status ?? 1;
+}
+
+/** Runs the failing tests of a repaired RED; the exit code is vitest's (or
+ *  `derive:regenerate`'s, when the tree cannot be rebuilt). The ones the
+ *  repair deleted or moved are skipped, as `repairProofStep` does.
+ *
+ *  On the derived state REBUILT, like the queue's draft (`check:lane
+ *  --regenerate-derived`, issue #6491): a PR stops carrying it (ADR 0157),
+ *  so the merge-base's bytes still index a card a revert removed and every
+ *  catalogue-freezing suite crashes on a stale Definition Index — the repair
+ *  could never prove itself (issue #7489). Restored after, whatever the
+ *  verdict: `land:ready` runs this in the PR's own worktree. */
+export function repairProofRun(
+    tests: readonly string[],
+    cwd: string,
+    exec: ProofExec = spawnExec
+): number {
+    const regen = exec(["bun", "run", "derive:regenerate"], cwd);
+    try {
+        if (regen !== 0) return regen;
+        return exec(["bunx", "vitest", "run", ...tests], cwd);
+    } finally {
+        exec(["git", "checkout", "-q", "HEAD", "--", ...DERIVED_PATHS], cwd);
+    }
 }
 
 /** The repair proof (issue #5639, `land`'s `repairProofStep`): a PR that
@@ -138,7 +160,7 @@ export function repairProofCheck(ctx: PrCheckContext): PrCheckResult {
             ? `repair proof: ${unprovable.join(", ")} read the locked verdict corpus and this check holds no reader key — not provable here; \`land\` runs them`
             : undefined;
     if (provable.length === 0) return { refusal: null, note: unprovableNote };
-    const status = (ctx.runTests ?? vitestRun)(provable, ctx.cwd);
+    const status = (ctx.runTests ?? repairProofRun)(provable, ctx.cwd);
     return status === 0
         ? { refusal: null, ...(unprovableNote ? { note: unprovableNote } : {}) }
         : {
