@@ -182,6 +182,14 @@
         "firstPrintSet": "wth"
     },
     {
+        "name": "Abomination",
+        "scryfallId": "a69e2cf8-5ecb-485a-92a2-b4e0a7959f1f",
+        "oracleId": "2c57c4e9-0a46-45d6-92db-9203fb722b60",
+        "firstSet": "leg",
+        "firstPrintId": "a69e2cf8-5ecb-485a-92a2-b4e0a7959f1f",
+        "firstPrintSet": "leg"
+    },
+    {
         "name": "Abrade",
         "scryfallId": "84319dfb-eaf7-4b98-8c4f-30f5e779591b",
         "oracleId": "f9db72dc-9a5b-48a4-a86e-7464d9a2166a",
@@ -13818,6 +13826,14 @@
         "firstPrintSet": "m12",
         "rarity": "uncommon",
         "source": "compiled"
+    },
+    {
+        "name": "Crimson Manticore",
+        "scryfallId": "96f73f9c-1c4e-4343-bfa0-cc5c4a7a562e",
+        "oracleId": "35d4e500-28c8-44c9-990f-3aa25ed5dd14",
+        "firstSet": "leg",
+        "firstPrintId": "96f73f9c-1c4e-4343-bfa0-cc5c4a7a562e",
+        "firstPrintSet": "leg"
     },
     {
         "name": "Crimson Muckwader",
@@ -34150,6 +34166,14 @@
         "source": "compiled"
     },
     {
+        "name": "Infernal Medusa",
+        "scryfallId": "26a5333f-2761-42b8-ae8b-1d360b109daf",
+        "oracleId": "2cf5ce1f-d5f6-44cd-96e5-87d990d7e770",
+        "firstSet": "leg",
+        "firstPrintId": "26a5333f-2761-42b8-ae8b-1d360b109daf",
+        "firstPrintSet": "leg"
+    },
+    {
         "name": "Infernal Plunge",
         "scryfallId": "b3f50e17-c29c-4d2c-b3e7-45d1216b81ea",
         "oracleId": "0b67dff0-5bb7-44fe-a72b-d3b1a6c0ee72",
@@ -38060,8 +38084,7 @@
         "firstSet": "leg",
         "firstPrintId": "d53b20b0-67bc-4587-817b-efbf21cb2512",
         "firstPrintSet": "leg",
-        "rarity": "uncommon",
-        "source": "compiled"
+        "rarity": "uncommon"
     },
     {
         "name": "Landbind Ritual",
@@ -52002,8 +52025,7 @@
         "firstSet": "leg",
         "firstPrintId": "2646284b-a94d-4c99-98d4-7becbb473e2b",
         "firstPrintSet": "leg",
-        "rarity": "common",
-        "source": "compiled"
+        "rarity": "common"
     },
     {
         "name": "Python",
@@ -54254,6 +54276,14 @@
         "firstPrintSet": "leg",
         "rarity": "uncommon",
         "source": "compiled"
+    },
+    {
+        "name": "Relic Bind",
+        "scryfallId": "a9b07dc4-21ad-410b-8f8a-2b034253bfee",
+        "oracleId": "35b9f327-d1f6-47d1-aefa-6f70f407b4bc",
+        "firstSet": "leg",
+        "firstPrintId": "a9b07dc4-21ad-410b-8f8a-2b034253bfee",
+        "firstPrintSet": "leg"
     },
     {
         "name": "Relic of Legends",
@@ -73978,8 +74008,7 @@
         "firstSet": "leg",
         "firstPrintId": "887f22af-8b92-422a-9cd5-f3977674bcdc",
         "firstPrintSet": "leg",
-        "rarity": "uncommon",
-        "source": "compiled"
+        "rarity": "uncommon"
     },
     {
         "name": "Unworthy Dead",
@@ -74496,6 +74525,14 @@
         "firstPrintSet": "m10",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Vampire Bats",
+        "scryfallId": "6a6a6f50-7b86-461e-80a7-e35d0e7cf52f",
+        "oracleId": "da66f1db-0fde-4112-ae8e-0e63fc686835",
+        "firstSet": "leg",
+        "firstPrintId": "6a6a6f50-7b86-461e-80a7-e35d0e7cf52f",
+        "firstPrintSet": "leg"
     },
     {
         "name": "Vampire Champion",
