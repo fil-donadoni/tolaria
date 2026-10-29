@@ -182,6 +182,8 @@ describe("design tokens — WCAG contrast (phase 3)", () => {
         "signal-pending-strong",
         "signal-target",
         "signal-target-strong",
+        "signal-actionable",
+        "signal-actionable-strong",
     ])("%s is ≥4.5:1 on every surface token", (token) => {
         for (const surface of SURFACES) {
             const r = ratio(colors[token], colors[surface]);
@@ -496,6 +498,7 @@ describe("identity v4 — inset card rings (ADR 0103 §8, issue #2724)", () => {
             ".card-ring-selected": "--color-signal-self",
             ".card-ring-attacking": "--color-signal-pending",
             ".card-ring-pending": "--color-signal-pending",
+            ".card-ring-actionable": "--color-signal-actionable",
             ".card-ring-combat-1": "--color-combat-1",
             ".card-ring-combat-2": "--color-combat-2",
             ".card-ring-combat-3": "--color-combat-3",

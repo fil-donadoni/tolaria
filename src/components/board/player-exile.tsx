@@ -1,3 +1,5 @@
+import { usePlainPriorityWindow } from "~/hooks/usePlainPriorityWindow";
+import { cardHasLegalAction, exileActionSources } from "~/lib/card-actionable";
 import {
     ContextMenu,
     ContextMenuContent,
@@ -97,9 +99,27 @@ export default function PlayerExile({
           orderLibrarySearchCards(player.exile, eligibleIds)
         : player.exile.filter((c) => !c.exiledByPermanentId);
 
+    // Issue #6917 — ring the cards the Cast / Play button below would enable
+    // (same predicate + source builder), in a plain Priority window and never
+    // while an exile pick owns the pile.
+    const priorityWindowOpen = usePlainPriorityWindow();
+    const actionableIds = isExileChoice
+        ? undefined
+        : new Set(
+              pileCards
+                  .filter((card) =>
+                      cardHasLegalAction(
+                          priorityWindowOpen,
+                          exileActionSources(card, playerId)
+                      )
+                  )
+                  .map((card) => card.id)
+          );
+
     const pile = (
         <CardsPile
             cards={pileCards}
+            actionableIds={actionableIds}
             emptyLabel="Exile"
             title={
                 isExileChoice

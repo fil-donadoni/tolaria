@@ -33,6 +33,8 @@ import AttachedCardsCluster from "./attached-cards-cluster";
 import ExileCastButton from "./exile-cast-button";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
+import { usePlainPriorityWindow } from "~/hooks/usePlainPriorityWindow";
+import { actionableRingClass, cardHasLegalAction } from "~/lib/card-actionable";
 
 /** Clockwise screen rotation a tapped permanent's presentational layer carries
  *  (#1994). Single source for BOTH consumers — the layer's own `transform` and
@@ -223,6 +225,20 @@ export default function BoardBattlefieldCard({
         onActivateAbility?.(abilityId, keepPriority);
     const ability = useAbilityCardClick(abilities, activate);
 
+    // Issue #6917 — the `actionable` ring: ONE predicate over the sources the
+    // click already uses (the ability menu, the mana tap, the morph button),
+    // in a plain Priority window. Another role's ring (`vs.ringClass`) owns the
+    // card first; two rings never stack.
+    const priorityWindowOpen = usePlainPriorityWindow();
+    const actionable =
+        !phased &&
+        cardHasLegalAction(priorityWindowOpen, {
+            activatableAbilityCount: abilities.length,
+            manaSourceActivatable: vs.manaActivatable,
+            canTurnFaceUp: card.canTurnFaceUp,
+        });
+    const ringClass = vs.ringClass || actionableRingClass(actionable);
+
     const damage = card.damageMarked ?? 0;
 
     // The battlefield builds `layerState` ONCE per render and shares it across
@@ -359,13 +375,15 @@ export default function BoardBattlefieldCard({
     // Cursor affordance mirrors the classic battlefield card: a pointer when
     // the permanent is interactive and enabled, not-allowed when interactive
     // but blocked, default otherwise (#272).
-    const cursorClass = onClick
-        ? vs.interactive
-            ? vs.enabled
-                ? "cursor-pointer"
-                : "cursor-not-allowed"
-            : "cursor-pointer"
-        : "";
+    const cursorClass = actionable
+        ? "cursor-pointer"
+        : onClick
+          ? vs.interactive
+              ? vs.enabled
+                  ? "cursor-pointer"
+                  : "cursor-not-allowed"
+              : "cursor-pointer"
+          : "";
 
     // Base card chrome: a black hairline ring + drop shadow, ALWAYS present.
     //
@@ -416,7 +434,7 @@ export default function BoardBattlefieldCard({
                 }}
             >
                 <div
-                    className={`relative w-full h-full card-corner overflow-hidden ${baseChrome} ${vs.ringClass}`}
+                    className={`relative w-full h-full card-corner overflow-hidden ${baseChrome} ${ringClass}`}
                     style={
                         vs.targetGlow
                             ? { boxShadow: `${TARGET_GLOW}, ${BASE_SHADOW}` }

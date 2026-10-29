@@ -282,6 +282,10 @@
     --color-signal-pending-strong: #fcd34d;
     --color-signal-target: #a78bfa;
     --color-signal-target-strong: #c4b5fd;
+    /* "You can act on this card now" (issue #6917) — near-white so it reads
+       against every card art and never collides with the hued state rings. */
+    --color-signal-actionable: #f5f5f4;
+    --color-signal-actionable-strong: #ffffff;
     /* Combat-group rings (was combat-colors.ts red/blue/green/yellow-500) */
     --color-combat-1: #ef4444;
     --color-combat-2: #3b82f6;
@@ -691,6 +695,10 @@
     .card-ring-pending {
         --card-ring-color: var(--color-signal-pending);
     }
+    /* The card has a legal action for the viewer right now (issue #6917). */
+    .card-ring-actionable {
+        --card-ring-color: var(--color-signal-actionable);
+    }
     /* Combat-group identity (which attacker a blocker is paired with) is a
        FOURTH axis the three roles do not cover — it carries pairing, not
        state. It predates v4 (`src/lib/combat-colors.ts`) and keeps its four
@@ -776,6 +784,9 @@
         }
         .card-ring-selected:hover {
             --card-ring-color: var(--color-signal-self-strong);
+        }
+        .card-ring-actionable:hover {
+            --card-ring-color: var(--color-signal-actionable-strong);
         }
     }
 

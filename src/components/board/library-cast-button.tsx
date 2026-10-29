@@ -1,3 +1,7 @@
+import {
+    cardHasLegalAction,
+    libraryTopActionSources,
+} from "~/lib/card-actionable";
 import type { CardInstance } from "~/types/game";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { V4_ZONE_CTA } from "~/lib/board-chrome-v4";
@@ -45,7 +49,7 @@ export default function LibraryCastButton({
     // (correct timing AND the cost — life or mana — is payable). Gate the
     // button so an illegal cast is disabled rather than dispatched and
     // rejected by `assertLegalAction`.
-    const enabled = card.legalActions?.includes("cast") ?? false;
+    const enabled = cardHasLegalAction(true, libraryTopActionSources(card));
 
     return (
         <>
