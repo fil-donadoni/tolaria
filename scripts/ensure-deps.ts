@@ -13,7 +13,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { ensureDeps } from "./lib/deps-stamp";
-import { MACHINE_SATURATED_EXIT } from "./lib/machine-admission";
+import { INFRA_EXIT } from "./lib/infra-exit";
 
 const cwd = process.cwd();
 const outcome = ensureDeps(
@@ -30,7 +30,7 @@ if (outcome === "installed")
     );
 if (outcome === "failed") {
     console.error(
-        `deps: bun install --frozen-lockfile failed — INFRA (exit ${MACHINE_SATURATED_EXIT}), nothing was gated`
+        `deps: bun install --frozen-lockfile failed — INFRA (exit ${INFRA_EXIT}), nothing was gated`
     );
-    process.exit(MACHINE_SATURATED_EXIT);
+    process.exit(INFRA_EXIT);
 }

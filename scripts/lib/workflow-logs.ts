@@ -40,7 +40,7 @@ const VITEST_FAILED =
  *
  *  - `refused` — `land` refused before queuing (`land: refusing — …`: RED
  *    base without `--red-ok`, run from the base branch, …);
- *  - `infra`  — the machine stayed saturated (issue #4966) or the run was
+ *  - `infra`  — the dependency install failed (exit 77) or the run was
  *    killed by a signal: no verdict on the PR;
  *  - `rebase` — the rebase onto the base stopped (`Could not apply`,
  *    `CONFLICT`) before any lane ran;

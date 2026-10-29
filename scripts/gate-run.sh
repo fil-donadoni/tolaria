@@ -55,7 +55,7 @@
 # process group first. And every call REAPS the runs nobody can read any more:
 # a run whose cwd is gone (the worktree was removed) and a run older than
 # REAP_SECS that nobody re-attached to for IDLE_SECS. `--list` reaps, then
-# prints the live runs — `bun run gate:who` shows it.
+# prints the live runs.
 #
 # Usage:
 #   sh scripts/gate-run.sh [--replace] <bun-script> [args...]   # e.g. check:lane

@@ -16,7 +16,7 @@
  *
  * Plain appended lines, no TTY tricks, so the output stays greppable.
  *
- * Node builtins plus `lib/health-verdict.ts` and `lib/machine-admission.ts`
+ * Node builtins plus `lib/health-verdict.ts`
  * (which `health-verdict.ts` already loads) — `health-main.ts` carries the
  * same constraint.
  */
@@ -24,7 +24,6 @@ import { spawn } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { DERIVED_LATE_MARK } from "./derive-sync";
 import { isBrowserStep } from "./health-verdict";
-import { readMachineSample, type MachineSample } from "./machine-admission";
 
 export interface HealthStep {
     /** 1-based position in the run, and the run's step count. */
@@ -51,9 +50,6 @@ export interface StepRunOptions {
     out?: (line: string) => void;
     /** Interval between liveness lines while the step runs. */
     livenessMs?: number;
-    /** Read before the spawn, on each liveness line and at the close (issue
-     *  #5939); the machine by default. */
-    sample?: () => MachineSample;
 }
 
 export interface StepResult {
@@ -66,18 +62,6 @@ export interface StepResult {
     /** The child's stdout then stderr, as the log received them — what a
      *  browser step's verdict is read from (`walkRunVerdict`, issue #4962). */
     output: string;
-    /**
-     * THIS run's machine: one reading before the spawn, one per liveness
-     * line, one at the close — what `runSaturated` reads to excuse a
-     * timeout-only failure as `machine-timeout` (issue #5939). The two edges
-     * alone read calm while a 20-minute `test` step's middle did not.
-     *
-     * A beat reads the whole machine, so it also counts the step's own
-     * workers, and other holders' load while the step queues on the heavy
-     * mutex. That may excuse a first timeout-only failure the tree caused;
-     * `repeatedMachineTimeout` bounds the excuse to once per step.
-     */
-    samples?: MachineSample[];
 }
 
 const PREFIX = "health-main:";
@@ -92,8 +76,7 @@ export const DEFAULT_LIVENESS_MS = 60_000;
  * `check:all`. It is LAST, after every offline verdict, and it is a RELEASE
  * step: `bun run release` (`--release`) runs it, batch health never does
  * (issue #5378). It runs OUTSIDE the heavy-mutex hold (issue #4962), in its
- * own worktree when the offline half already stands, and takes the
- * machine-wide browser lane (`ui-admission.ts`). The verdict is still ONE
+ * own worktree when the offline half already stands. The verdict is still ONE
  * record per tip: offline green + browser green = GREEN. A browser step the
  * environment cut short is `infra` (`lib/health-verdict.ts`); one the tree
  * failed is RED.
@@ -451,18 +434,6 @@ export function runHealthStep(
 
     out(`${tag} — start\n`);
 
-    const sample = opts.sample ?? (() => readMachineSample());
-    const samples: MachineSample[] = [];
-    const readMachine = (): void => {
-        // A probe that fails costs the reading, never the step.
-        try {
-            samples.push(sample());
-        } catch {
-            /* no sample this time */
-        }
-    };
-    readMachine();
-
     return new Promise((resolvePromise) => {
         const child = spawn(step.cmd, step.args, {
             cwd: opts.cwd,
@@ -488,7 +459,6 @@ export function runHealthStep(
             out(
                 `${tag} — still running, ${fmtElapsed(Date.now() - t0)} elapsed\n`
             );
-            readMachine();
         }, livenessMs);
 
         let settled = false;
@@ -499,7 +469,6 @@ export function runHealthStep(
             if (settled) return;
             settled = true;
             clearInterval(liveness);
-            readMachine();
             fromOut.flush();
             fromErr.flush();
             // Byte-identical to the spawnSync capture this replaced: header,
@@ -522,7 +491,6 @@ export function runHealthStep(
                 signal,
                 elapsedMs,
                 output: `${stdout}${stderr}`,
-                samples,
             });
         };
         // `close`, not `exit`: it fires after both pipes have drained, so the

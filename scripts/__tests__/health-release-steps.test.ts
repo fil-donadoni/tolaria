@@ -20,19 +20,14 @@ import { fakeGh, type FakeGh } from "./fake-gh";
  *
  * A scratch primary checkout whose `origin` is a local bare repo (the verdict
  * store is a fake `gh`, `fake-gh.ts`); its `package.json` stands in every
- * gate. `check:all` and `check:game-download` each record what `gate:who`
- * says while they run — the download after taking the lane the way the real
- * one does — and `check:ui` only records that it was invoked at all. The
- * machine mutex lives in a private lock root.
+ * gate. `check:all` and `check:game-download` each record that they ran, and
+ * `check:ui` records that it was invoked at all.
  */
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const HEALTH_MAIN = path.join(REPO_ROOT, "scripts", "health-main.ts");
-const GATE = path.join(REPO_ROOT, "scripts", "gate.ts");
-const UI_ADMISSION = path.join(REPO_ROOT, "scripts", "lib", "ui-admission.ts");
 
 let tmp: string;
 let primary: string;
-let lockRoot: string;
 let server: http.Server;
 let convexUrl: string;
 let gh: FakeGh;
@@ -62,11 +57,8 @@ const commit = (message: string): void =>
         primary
     );
 
-const WHO = `const r = require("child_process").spawnSync("bun", [${JSON.stringify(GATE)}, "who"], { encoding: "utf8" });`;
-
 beforeEach(async () => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-health-release-"));
-    lockRoot = path.join(tmp, "locks");
     const bare = path.join(tmp, "origin.git");
     primary = path.join(tmp, "primary");
     git(["init", "-q", "--bare", bare], tmp);
@@ -80,7 +72,7 @@ beforeEach(async () => {
                 // The tip's derived state is fresh unless a test says otherwise
                 // (ADR 0157, issue #6248: `judgeDerivedTip`).
                 "derive:sync": "bun fake-derive.js",
-                "check:all": "bun who-offline.js",
+                "check:all": "bun offline-ran.js",
                 "check:gaps": ok,
                 "check:targets": ok,
                 "check:test-hygiene": ok,
@@ -100,17 +92,12 @@ beforeEach(async () => {
         `if (process.env.FAKE_DERIVE_STALE) { console.error("derive:sync: this tree is derived-stale — " + process.env.FAKE_DERIVE_STALE); process.exit(1); }\nconsole.log("derive:sync: this tree is derived-fresh");\n`
     );
     fs.writeFileSync(
-        path.join(primary, "who-offline.js"),
-        `${WHO}\nrequire("fs").writeFileSync(process.env.WHO_OFFLINE, r.stdout);\n`
+        path.join(primary, "offline-ran.js"),
+        `require("fs").writeFileSync(process.env.OFFLINE_RAN, "ran\\n");\n`
     );
     fs.writeFileSync(
         path.join(primary, "fake-download.ts"),
-        `import { acquireUiLane, gateLockRoot } from ${JSON.stringify(UI_ADMISSION)};
-require("fs").appendFileSync(process.env.DOWNLOAD_RUNS, "ran\\n");
-const hold = await acquireUiLane({ root: gateLockRoot(), label: "check:game-download", announce: () => {} });
-${WHO}
-require("fs").writeFileSync(process.env.WHO_BROWSER, r.stdout);
-hold.release();
+        `require("fs").appendFileSync(process.env.DOWNLOAD_RUNS, "ran\\n");
 process.stdout.write(process.env.FAKE_DOWNLOAD_OUTPUT ?? "");
 process.exit(Number(process.env.FAKE_DOWNLOAD_EXIT ?? "0"));
 `
@@ -150,10 +137,8 @@ const childEnv = (
     const env: NodeJS.ProcessEnv = {
         ...withoutCorpusExclusion(),
         ...gh.env,
-        TOLARIA_GATE_LOCK_ROOT: lockRoot,
         VITE_CONVEX_URL: convexUrl,
-        WHO_OFFLINE: path.join(tmp, "who-offline.txt"),
-        WHO_BROWSER: path.join(tmp, "who-browser.txt"),
+        OFFLINE_RAN: path.join(tmp, "offline-ran.txt"),
         DOWNLOAD_RUNS: path.join(tmp, "download-runs.txt"),
         UI_RUNS: path.join(tmp, "ui-runs.txt"),
         FAKE_DOWNLOAD_EXIT: String(download.exit),
@@ -161,7 +146,6 @@ const childEnv = (
     };
     delete env.TOLARIA_GATE_HELD;
     delete env.TOLARIA_ALLOW_FULL_SUITE;
-    delete env.TOLARIA_GATE_ROLE;
     return env;
 };
 
@@ -210,7 +194,7 @@ const lines = (file: string) =>
 /** How many times `check:game-download` ran, and every `check:ui` argv. */
 const downloadRuns = () => lines("download-runs.txt").length;
 const uiRuns = () => lines("ui-runs.txt");
-const offlineRan = () => fs.existsSync(path.join(tmp, "who-offline.txt"));
+const offlineRan = () => fs.existsSync(path.join(tmp, "offline-ran.txt"));
 
 describe("browserStepsOwed — when --release runs only the browser steps (issue #6143)", () => {
     const tip = "a".repeat(40);
@@ -296,15 +280,12 @@ describe("batch health runs no browser step (issues #5378, #6143)", () => {
 });
 
 describe("release runs check:game-download, never a check:ui walk (issue #6143)", () => {
-    it("--release gates the tip, then runs the download off the heavy mutex with the browser lane held — GREEN", async () => {
+    it("--release gates the tip, then runs the download — GREEN", async () => {
         const r = await release({ exit: 0 });
         expect(r.code, r.out).toBe(0);
         expect(offlineRan()).toBe(true);
         expect(downloadRuns()).toBe(1);
         expect(uiRuns()).toEqual([]);
-        const who = fs.readFileSync(path.join(tmp, "who-browser.txt"), "utf8");
-        expect(who).toMatch(/heavy mutex is free/);
-        expect(who).not.toMatch(/check:ui lane is free/);
         expect(lastJson()).toMatchObject({
             status: "green",
             offline: "green",
@@ -315,7 +296,7 @@ describe("release runs check:game-download, never a check:ui walk (issue #6143)"
     it("--release on a tip batch health proved runs ONLY check:game-download", async () => {
         const first = await batch({ exit: 0 });
         expect(first.code, first.out).toBe(0);
-        fs.rmSync(path.join(tmp, "who-offline.txt"));
+        fs.rmSync(path.join(tmp, "offline-ran.txt"));
         const r = await release({ exit: 0 });
         expect(r.code, r.out).toBe(0);
         // The offline half stands: only the browser step ran.
@@ -371,7 +352,7 @@ describe("release runs check:game-download, never a check:ui walk (issue #6143)"
         const cut = await release({ exit: 2, output: "sign-in failed" });
         expect(cut.code, cut.out).toBe(1);
         expect(lastJson()).toMatchObject({ status: "infra", offline: "green" });
-        fs.rmSync(path.join(tmp, "who-offline.txt"));
+        fs.rmSync(path.join(tmp, "offline-ran.txt"));
         const r = await release({ exit: 0 });
         expect(r.code, r.out).toBe(0);
         expect(offlineRan()).toBe(false);

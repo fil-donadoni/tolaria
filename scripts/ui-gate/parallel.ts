@@ -59,9 +59,7 @@ export const HEAVY_HELD_PARALLELISM = 1;
  * The load average was the sizing input from issue #3653 to this one, and on
  * a shared machine it was almost always another session's: the heavy gates
  * keep the 1-minute average over 6 on 8 cores for most of the day, so five
- * viewports ran in series 24 runs out of 25. Admission (`ui-admission.ts`)
- * now guarantees this is the one browser run on the machine, so the contexts
- * are sized for the run that holds the lane: cores minus the lane's own
+ * viewports ran in series 24 runs out of 25. The contexts are sized for the run: cores minus the lane's own
  * reserve, capped by memory, clamped to `MIN_PARALLELISM..MAX_PARALLELISM`.
  * Total memory, not `os.freemem()`: macOS reports under 2 GiB "free" on a
  * 16 GiB machine with nothing running, because file cache and inactive pages

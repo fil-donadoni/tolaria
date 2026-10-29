@@ -20,7 +20,7 @@
  *
  * The decisions are pure (`clockDue`, `healthGateDue`); `tick` reads and acts
  * through injected effects; the last tick is written to `HEARTBEAT_STATE` so
- * `bun run machine` and `bun run runner status` show a dead heartbeat.
+ * `bun run runner status` shows a dead heartbeat.
  */
 import { homedir } from "node:os";
 import { join } from "node:path";

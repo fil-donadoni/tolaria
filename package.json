@@ -69,8 +69,6 @@
         "format": "prettier --write --cache --cache-strategy content \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
         "format:check": "prettier --check --cache --cache-strategy content \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
         "gate:run": "sh scripts/gate-run.sh",
-        "gate:who": "bun scripts/gate.ts who",
-        "machine": "bun scripts/machine.ts",
         "runner": "bun scripts/github-runner.ts",
         "maintenance": "bun scripts/maintenance.ts",
         "health": "bun scripts/health-main.ts",

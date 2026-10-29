@@ -555,7 +555,7 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
     it("allows a read-only grep whose ARGUMENT is a gate script, piped into a pager (#4377)", () => {
         for (const cmd of [
             'grep -n "tolaria.config.json" -A3 scripts/gate-run.sh | head -12',
-            'grep -n -E "^export" scripts/gate.ts scripts/lib/gate-liveness.ts | head',
+            'grep -n -E "^export" scripts/gate.ts scripts/lib/process-tree.ts | head',
             "cat scripts/gate.ts | head -20",
             "wc -l scripts/gate.ts scripts/gate-run.sh | tail -1",
             'sed -n "1,40p" scripts/gate-run.sh | head -20',

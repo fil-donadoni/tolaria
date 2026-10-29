@@ -81,16 +81,9 @@
  * tests, so only its RED reaches the store. A RED of either goes through the
  * ladder (`scripts/health-bisect.ts`): a fresh run, then the bisect.
  *
- * The MACHINE is asked before the gates start (issue #4966,
- * `lib/machine-admission.ts`): over a `machine.*` threshold the run waits,
- * bounded, then ends `infra` at `preflight:machine` — and a suite step whose
- * every failed test timed out while its own samples read saturated is `infra`
- * too (`machine-timeout`), ONCE: the same step timing out on the next run is
- * RED.
- *
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
  * `lib/health-verdict.ts`, `lib/convex-reachable.ts`,
- * `lib/deployment-skew.ts` (builtins), `lib/machine-admission.ts` (builtins and `lib/branches.ts`),
+ * `lib/deployment-skew.ts` (builtins),
  * `lib/health-robustness-audit.ts` and `lib/health-pick-agreement-audit.ts`
  * (their records, for `--status`), `lib/test-headroom.ts` (builtins), and
  * through `lib/health-verdict.ts` the
@@ -154,11 +147,9 @@ import {
     INFRA_REMEDY,
     infraCause,
     PREFLIGHT_CONVEX_STEP,
-    PREFLIGHT_MACHINE_STEP,
     PREFLIGHT_SKEW_STEP,
     readLastSleepAt,
     recordInfra,
-    repeatedMachineTimeout,
     type BrowserStepsState,
     type HealthStatus,
     type InfraCause,
@@ -176,12 +167,6 @@ import {
     type Verdict,
 } from "./lib/health-verdict-store";
 import { publishRunMarker } from "./lib/health-pivot";
-import { gateLockRoot, runningHolderLine } from "./lib/ui-admission";
-import {
-    readMachineConfig,
-    runSaturated,
-    waitForMachine,
-} from "./lib/machine-admission";
 import { browserStepsOwed, gateSkipReason } from "./lib/health-gate-skip";
 import {
     appendFileSync,
@@ -1238,31 +1223,6 @@ async function main(): Promise<void> {
             browser: "not run",
         });
 
-    // The machine, asked before ~40 minutes of gates start on it (issue
-    // #4966). Under a caller's hold the gate that took the mutex has already
-    // asked, and waited: asking again would only wait twice. With no hold
-    // (`release`, by hand) a running heavy gate's load is not waited on
-    // (issue #4988): every step below queues for the mutex behind it and
-    // asks again under its own hold, so waiting here only adds a bound that
-    // holder can outlast.
-    const thresholds = readMachineConfig();
-    if (process.env.TOLARIA_GATE_HELD !== "1") {
-        const machine = await waitForMachine({
-            thresholds,
-            tag: "health-main:",
-            announce: (line) => console.error(line),
-            heavyHolder: () => runningHolderLine(gateLockRoot()),
-        });
-        if (!machine.admitted)
-            finishInfra(
-                ctx,
-                "machine-saturated",
-                PREFLIGHT_MACHINE_STEP,
-                undefined,
-                { browser: "not run" }
-            );
-    }
-
     const steps: HealthStep[] = offline.map((name, i) => ({
         ordinal: i + 1,
         total: offline.length,
@@ -1298,18 +1258,7 @@ async function main(): Promise<void> {
                     step: step.name,
                     exitCode: r.status,
                     output: r.output,
-                    // The machine of the run whose failure this classifies —
-                    // the retry's, when there was one: its start, every
-                    // liveness beat, its end (issue #5939).
-                    machineSaturated: runSaturated(r.samples ?? [], thresholds),
                 });
-                // The machine's excuse does not repeat: the same step timing
-                // out on two runs in a row is the tree's.
-                if (
-                    failedCause === "machine-timeout" &&
-                    repeatedMachineTimeout(last, step.name)
-                )
-                    failedCause = null;
                 failedStep = step.name;
                 failedOutput = {
                     output: r.output,
