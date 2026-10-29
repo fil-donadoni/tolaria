@@ -101,7 +101,7 @@ health:fix` instead of a pick).
   branch or opened a PR) or recoverable (local branch, maybe uncommitted WIP
   in its worktree) — or a **repair** pick (`queue:plan`'s `repair[0]`, first
   of all picks: the queue labelled its PR `land-failed`). Do not start
-  over: claim it (§2: the label stands — add the assignee), then
+  over: `gh issue edit N --add-assignee @me` (the label stands), then
   `cd "$(bun run --silent wt:new N --resume)"`;
   `git status` shows the WIP. Repair → `land-failures.md`. Open PR → read it
   against the issue, go to §5. Branch, no PR → finish §3–§4, open the PR, §5.
