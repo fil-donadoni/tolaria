@@ -13,7 +13,12 @@ import { withDefinitionId } from "./cards/catalogue";
 import { makeResolveCardFromRows } from "./cards/printRows";
 import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
 import { loadBanlistOverridesByFormat } from "./decks";
-import { type FormatId, isFormatId, validateDeck } from "./formats";
+import {
+    type FormatId,
+    isFormatId,
+    type ValidatableDeck,
+    validateDeck,
+} from "./formats";
 import { openPlayPhaseIfReady } from "./limitedEvents";
 import { planDeckPoolBackfill } from "./limited/deckPool";
 import {
@@ -140,7 +145,7 @@ async function assertNoPoolIntroductions(
     ctx: MutationCtx,
     deckId: Id<"userDecks">,
     deck: Doc<"userDecks">,
-    after: Pick<Doc<"userDecks">, "cards" | "sideboard">
+    after: Pick<ValidatableDeck, "cards" | "sideboard">
 ): Promise<void> {
     const pool =
         (await loadDeckPool(ctx, deckId)) ??

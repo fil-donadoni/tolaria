@@ -12,7 +12,6 @@ import { resolveDeckCardMeta } from "../cards";
 import {
     checkPoolMembership,
     validateDeck,
-    type DeckCard,
     type DeckLegality,
     type Pool,
     type PoolCard,
@@ -156,6 +155,8 @@ export function resolveLimitedDeckLegality(
         deckPool ? poolFromLimitedPoolCards(deckPool, resolve) : null;
     return validateDeck(deck, "limited", resolve, undefined, resolvePool);
 }
+
+type DeckCard = ValidatableDeck["cards"][number];
 
 /** Non-basic copies per canonical Card ID across Maindeck + Sideboard — the
  *  same counting `checkPoolMembership` does, so "introduced" and "ungranted"
