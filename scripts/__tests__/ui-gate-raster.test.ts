@@ -222,7 +222,7 @@ describe("describeRaster — the cell line", () => {
         expect(line).toContain("blur1[");
         expect(line).toContain("Brainstorm 208px@2x dec208px grid blur0.87");
         expect(line).toContain("shot6.1/ref10/half5.5");
-        expect(line).toContain("rasterN1{208px:0.87}");
+        expect(line).toContain("rasterN1{208px@2x grid:0.87(s6.1/r10/h5.5)}");
     });
 
     it("prints blur0 and the per-sample indexes when nothing is blurred, and names a skip", () => {
@@ -231,7 +231,7 @@ describe("describeRaster — the cell line", () => {
             skipped: [{ t: "Island", w: 44, why: "too small" }],
         });
         expect(line).toContain(" blur0 ");
-        expect(line).toContain("rasterN1{96px:0.05}");
+        expect(line).toContain("rasterN1{96px@2x grid:0.05(");
         expect(line).toContain("rasterSkip1[Island 44px: too small]");
     });
 });

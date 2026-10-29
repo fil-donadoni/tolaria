@@ -123,7 +123,12 @@ export function describeRaster(r: RasterResult): string {
         : ` blur0`;
     const tail = r.samples.length
         ? ` rasterN${r.samples.length}{` +
-          r.samples.map((s) => `${s.w}px:${s.blur.toFixed(2)}`).join(",") +
+          r.samples
+              .map(
+                  (s) =>
+                      `${s.w}px@${s.dpr}x ${s.src}:${s.blur.toFixed(2)}(s${s.shot}/r${s.ref}/h${s.half})`
+              )
+              .join(",") +
           "}"
         : ` rasterN0`;
     const skip = r.skipped.length
