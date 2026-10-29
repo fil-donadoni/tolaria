@@ -163,3 +163,37 @@ export const cursedScroll = defineCard(() => ({
         },
     ],
 }));
+
+// Grindstone — {1} Artifact. "{3}, {T}: Target player mills two cards. If two
+// cards that share a color were milled this way, repeat this process." (CR
+// 701.17 mill.) Effect Script (ADR 0045): the repeat is the `mill` Op's
+// `repeatWhile: "sharedColor"` (issue #7204), tested over the cards each pass
+// genuinely milled.
+// hand-tail: If two cards that share a color were milled this way, repeat this process (#7236)
+export const grindstone = defineCard(() => ({
+    id: "f4459187-de64-456f-bb66-56dea40d5c3e",
+    rarity: "rare",
+    name: "Grindstone",
+    oracleText:
+        "{3}, {T}: Target player mills two cards. If two cards that share a color were milled this way, repeat this process.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "grindstone-mill",
+            oracleText:
+                "{3}, {T}: Target player mills two cards. If two cards that share a color were milled this way, repeat this process.",
+            cost: { tap: true, mana: { X: 3 } },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            effects: [
+                {
+                    op: "mill",
+                    player: { target: 0 },
+                    count: 2,
+                    repeatWhile: "sharedColor",
+                },
+            ],
+        },
+    ],
+}));
