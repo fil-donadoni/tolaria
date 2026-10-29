@@ -217,15 +217,14 @@ describe("Land Tax (intervening-if + basic-only up-to-three search, CR 603.4 / 2
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [tax], library: lib }),
-                makePlayer("p2"),
+                makePlayer("p2", { battlefield: lands("p2", 2) }),
             ],
         });
         resolveTrigger(state, tax, "land-tax-upkeep", upkeep);
         const head = state.pendingChoices![0];
         expect(head.candidateIds).not.toContain("dual");
         expect(head.candidateIds).toHaveLength(4);
-        expect(head.minSelections ?? head.min ?? 0).toBe(0);
-        expect(head.maxSelections ?? head.max).toBe(3);
+        expect(head.count).toEqual({ min: 0, max: 3 });
     });
 });
 
