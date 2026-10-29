@@ -29958,6 +29958,14 @@
         "source": "compiled"
     },
     {
+        "name": "Grindstone",
+        "scryfallId": "f4459187-de64-456f-bb66-56dea40d5c3e",
+        "oracleId": "97560adc-814e-450c-9ca7-f9364e910a0b",
+        "firstSet": "tmp",
+        "firstPrintId": "f4459187-de64-456f-bb66-56dea40d5c3e",
+        "firstPrintSet": "tmp"
+    },
+    {
         "name": "Grinning Demon",
         "scryfallId": "72de2f66-0b86-4c21-b4c8-c2d97e3fd095",
         "oracleId": "3db0207d-d80b-4915-b157-6a3e5b3a154e",
