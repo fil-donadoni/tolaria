@@ -1,0 +1,45 @@
+# bot-costs-refresh — the daily refresh of the bot test cost table (issue
+# #6999, ADR 0154 §13): `bun run bot:costs:refresh` re-derives
+# `data/bot-test-costs.json` from health's per-file walls and, when a row
+# changed, opens a data PR and hands it to the queue with `land:ready`. It
+# stops quietly when an earlier refresh PR is still open or nothing changed
+# (the shape of corpus-repin.yml).
+#
+# Pinned to `host:macbook`: health's gate runs on the `lane` runner, the
+# MacBook's (ADR 0160), and writes its durations to THAT machine's primary
+# checkout (`.claude/telemetry/health/durations/`, issue #5484) — the job
+# worktree resolves it through `primaryCheckout()`. Any other host would find
+# no sealed run and stop quietly with a stale table. 04:30 UTC: after the
+# night's health runs, before anyone lands. A schedule fires from the DEFAULT
+# branch only: it starts once a release carries this file there.
+name: bot-costs-refresh
+
+on:
+    schedule:
+        - cron: "30 4 * * *"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    refresh:
+        name: daily bot cost table refresh
+        runs-on: [self-hosted, maint, "host:macbook"]
+        # Seconds of reading and one `land:ready` pre-queue check.
+        timeout-minutes: 30
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: bot:costs:refresh
+              run: bun run bot:costs:refresh
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove

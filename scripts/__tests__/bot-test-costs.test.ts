@@ -4,9 +4,11 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
     admitByCost,
+    buildCostTable,
     medianWalls,
     newestRuns,
     readBotBudget,
+    sameCosts,
 } from "../lib/bot-test-costs";
 import type { FileWall } from "../lib/test-headroom";
 
@@ -74,10 +76,56 @@ describe("admitByCost — cheapest first under both budgets", () => {
         ]);
     });
 
-    it("a file with no measurement is unmeasured — named, never admitted", () => {
+    it("a file with no measurement is admitted at the presumed perFileMs while the budget has room (issue #6999)", () => {
         const a = admitByCost(["new.bot.test.ts"], {}, BUDGET);
-        expect(a.admitted).toEqual([]);
+        expect(a.admitted).toEqual(["new.bot.test.ts"]);
+        expect(a.presumed).toEqual(["new.bot.test.ts"]);
+        expect(a.admittedMs).toBe(BUDGET.perFileMs);
+        expect(a.unmeasured).toEqual([]);
+    });
+
+    it("measured files are admitted before any unmeasured one, whatever the paths", () => {
+        const a = admitByCost(
+            ["a-new.bot.test.ts", "z-old.bot.test.ts"],
+            { "z-old.bot.test.ts": 4_000 },
+            BUDGET
+        );
+        expect(a.admitted).toEqual(["z-old.bot.test.ts", "a-new.bot.test.ts"]);
+        expect(a.presumed).toEqual(["a-new.bot.test.ts"]);
+    });
+
+    it("a full budget of measured files names the unmeasured one — never drops it", () => {
+        const a = admitByCost(
+            ["new.bot.test.ts", "a.bot.test.ts", "b.bot.test.ts"],
+            { "a.bot.test.ts": 4_900, "b.bot.test.ts": 4_900 },
+            BUDGET
+        );
+        expect(a.admitted).toEqual(["a.bot.test.ts", "b.bot.test.ts"]);
+        expect(a.presumed).toEqual([]);
         expect(a.unmeasured).toEqual(["new.bot.test.ts"]);
+    });
+
+    it("unmeasured files are admitted by path until the presumed costs fill totalMs", () => {
+        const a = admitByCost(
+            ["c.bot.test.ts", "a.bot.test.ts", "b.bot.test.ts"],
+            {},
+            BUDGET
+        );
+        // 2 × 5 s = 10 s = totalMs; the third has no room.
+        expect(a.presumed).toEqual(["a.bot.test.ts", "b.bot.test.ts"]);
+        expect(a.unmeasured).toEqual(["c.bot.test.ts"]);
+    });
+});
+
+describe("the refresh's change test (issue #6999)", () => {
+    it("sameCosts compares rows, not provenance", () => {
+        const runs = [{ dir: "/d/aaa", walls: [wall("a", 10)] }];
+        const table = buildCostTable(runs);
+        expect(table.source).toEqual(["aaa"]);
+        expect(sameCosts(table.files, { a: 10 })).toBe(true);
+        expect(sameCosts(table.files, { a: 11 })).toBe(false);
+        expect(sameCosts(table.files, { a: 10, b: 1 })).toBe(false);
+        expect(sameCosts({ a: 10, b: 1 }, { a: 10, c: 1 })).toBe(false);
     });
 });
 

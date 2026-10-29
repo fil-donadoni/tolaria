@@ -2999,16 +2999,29 @@ describe("scoped lanes admit the reached bot files by measured cost (issue #6943
         );
     });
 
-    it("a reached file with no measurement is a skip line saying so", () => {
+    it("a reached file with no measurement runs at the presumed cost, and the plan says so (issue #6999)", () => {
+        const NEW = "src/lib/ai/__tests__/new.bot.test.ts";
+        const p = plan(["convex/game.ts"], source({ "bot-dom": [NEW] }, {}));
+        expect(botStep(p)!.command).toContain(NEW);
+        expect(skipOf(p, `${BOT_STEP}:unmeasured`)).toBeUndefined();
+        expect(p.botReach!.why).toMatch(
+            /presumed 5\.0 s, no row yet: .*new\.bot\.test\.ts/
+        );
+    });
+
+    it("an unmeasured file with no budget left is a skip line saying so", () => {
+        const NEW = "src/lib/ai/__tests__/new.bot.test.ts";
         const p = plan(
             ["convex/game.ts"],
-            source({ "bot-dom": ["src/lib/ai/__tests__/new.bot.test.ts"] }, {})
+            source(
+                { "bot-node": [CENSUS, RATINGS], "bot-dom": [NEW] },
+                { [CENSUS]: 4_900, [RATINGS]: 4_900 }
+            )
         );
-        expect(botStep(p)).toBeUndefined();
+        expect(botStep(p)!.command).not.toContain(NEW);
         expect(skipOf(p, `${BOT_STEP}:unmeasured`)).toMatch(
             /no row in data\/bot-test-costs\.json.*src\/lib\/ai\/__tests__\/new\.bot\.test\.ts/
         );
-        expect(skipOf(p, BOT_STEP)).toMatch(/none admitted/);
     });
 
     it("a hub reach never runs a project whole: cheapest first, the rest named past the lane budget", () => {
