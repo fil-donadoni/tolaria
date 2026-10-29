@@ -118,7 +118,7 @@ export function tappedTrigger(args: TappedTriggerArgs): TriggeredAbility {
         args.modes === undefined
     ) {
         throw new Error(
-            `tappedTrigger("${args.id}"): declare effects[], resolve or modes[] — none was given`
+            `tappedTrigger("${args.id}"): declare either effects[] or resolve (or modes[] for a modal trigger) — none was given`
         );
     }
     const userResolve = args.resolve;
