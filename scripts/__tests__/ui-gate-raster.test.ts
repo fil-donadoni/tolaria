@@ -235,3 +235,72 @@ describe("describeRaster — the cell line", () => {
         expect(line).toContain("rasterSkip1[Island 44px: too small]");
     });
 });
+
+describe("raster.js — the candidate filters that keep a sharp face from reading as blurred", () => {
+    type Filters = {
+        fadedOrFiltered: (e: Element) => boolean;
+        transformed: (
+            e: { offsetWidth: number; offsetHeight: number },
+            r: { width: number; height: number }
+        ) => boolean;
+    };
+    function filters(bodyHtml: string): { f: Filters; doc: Document } {
+        const window = new Window({ url: "http://localhost/" });
+        const context = createContext(window as unknown as object);
+        window.document.body.innerHTML = bodyHtml;
+        runInContext(RASTER_SOURCE, context);
+        return {
+            f: (window as unknown as { __tolariaRasterMath: Filters })
+                .__tolariaRasterMath,
+            doc: window.document as unknown as Document,
+        };
+    }
+
+    it("rejects a face whose ANCESTOR is translucent — the pending pick's opacity-60, the drag's opacity-30", () => {
+        const { f, doc } = filters(
+            `<div style="opacity: 0.6"><div><img id="a" src="x"></div></div>` +
+                `<div style="opacity: 1"><img id="b" src="x"></div>`
+        );
+        expect(f.fadedOrFiltered(doc.getElementById("a")!)).toBe(true);
+        expect(f.fadedOrFiltered(doc.getElementById("b")!)).toBe(false);
+    });
+
+    it("rejects a filtered face and keeps an unfiltered one", () => {
+        const { f, doc } = filters(
+            `<img id="a" src="x" style="filter: blur(2px)">` +
+                `<img id="b" src="x" style="filter: none">`
+        );
+        expect(f.fadedOrFiltered(doc.getElementById("a")!)).toBe(true);
+        expect(f.fadedOrFiltered(doc.getElementById("b")!)).toBe(false);
+    });
+
+    it("rejects a face whose screen box is not its layout box (a scaled or rotated ancestor), not a translated one", () => {
+        const { f } = filters("");
+        const layout = { offsetWidth: 100, offsetHeight: 140 };
+        expect(f.transformed(layout, { width: 105, height: 147 })).toBe(true);
+        expect(f.transformed(layout, { width: 140, height: 100 })).toBe(true);
+        expect(f.transformed(layout, { width: 100.4, height: 140.6 })).toBe(
+            false
+        );
+    });
+});
+
+describe("describeRaster — a cell with no sample says what its faces were", () => {
+    it("prints the rejection census only when nothing was sampled", () => {
+        const none = describeRaster({
+            samples: [],
+            skipped: [],
+            rejected: { occluded: 12, faded: 1 },
+            printed: 13,
+        });
+        expect(none).toContain(" rasterN0");
+        expect(none).toContain("rasterRejected{occluded:12,faded:1} of 13");
+        const some = describeRaster({
+            samples: [sample({ blur: 0.01 })],
+            skipped: [],
+            rejected: { occluded: 12 },
+            printed: 13,
+        });
+        expect(some).not.toContain("rasterRejected");
+    });
+});

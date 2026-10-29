@@ -141,7 +141,8 @@ import {
     type SquareExample,
     type SoftExample,
 } from "./floors.ts";
-import { blurredOf, describeRaster, measureRaster } from "./raster.ts";
+import { blurredOf, describeRaster } from "./raster.ts";
+import { measureRaster } from "./raster-measure.ts";
 import {
     DIAGNOSTIC_SEPARATOR,
     DIGEST_HEADER,

@@ -13,7 +13,9 @@
  * listener would miss the drag back).
  *
  * Returns the disposer. A window without `matchMedia` (happy-dom builds that
- * stub it out, a test environment) gets a no-op and never a throw.
+ * stub it out, a test environment) gets a no-op and never a throw; a
+ * `MediaQueryList` with only the legacy `addListener` pair (Safari < 14) is
+ * driven through it.
  */
 export function watchDevicePixelRatio(onChange: () => void): () => void {
     if (
@@ -22,16 +24,30 @@ export function watchDevicePixelRatio(onChange: () => void): () => void {
     )
         return () => {};
     let query: MediaQueryList | null = null;
+    let disposed = false;
+    const listen = (q: MediaQueryList, on: boolean) => {
+        if (typeof q.addEventListener === "function") {
+            if (on) q.addEventListener("change", handle);
+            else q.removeEventListener("change", handle);
+        } else if (typeof q.addListener === "function") {
+            if (on) q.addListener(handle);
+            else q.removeListener(handle);
+        }
+    };
     const handle = () => {
-        query?.removeEventListener("change", handle);
+        if (query) listen(query, false);
+        if (disposed) return;
         arm();
         onChange();
     };
     const arm = () => {
         const dpr = window.devicePixelRatio || 1;
         query = window.matchMedia(`(resolution: ${dpr}dppx)`);
-        query.addEventListener("change", handle);
+        listen(query, true);
     };
     arm();
-    return () => query?.removeEventListener("change", handle);
+    return () => {
+        disposed = true;
+        if (query) listen(query, false);
+    };
 }

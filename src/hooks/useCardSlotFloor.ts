@@ -73,14 +73,15 @@ export default function useCardSlotFloor<T extends HTMLElement>(): {
                     : { floor: next }
             );
         };
-        read();
         // The floor is `width × devicePixelRatio`, and only the width has a
         // resize signal. The ratio moves with no layout change at all — the
         // window dragged onto a 2x display, a browser zoom — and a floor
         // computed for the old ratio under-declares until something else
         // happens to re-measure (issue #6940). `watchDevicePixelRatio` is the
-        // media-query trick that turns the ratio into an event.
+        // media-query trick that turns the ratio into an event; armed BEFORE
+        // the first read so no change can fall between the two.
         const unwatchDpr = watchDevicePixelRatio(read);
+        read();
         if (!el || typeof ResizeObserver === "undefined") return unwatchDpr;
         const observer = new ResizeObserver(read);
         observer.observe(el);

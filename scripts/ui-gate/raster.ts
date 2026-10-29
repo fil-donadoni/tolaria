@@ -1,8 +1,10 @@
 /**
- * Rasterisation-level sharpness of printed card faces (issue #6940): the Node
- * half of `raster.js`. Picks the faces, screenshots each by locator (device
- * pixels, transitions finished), hands the PNG to the page for the canvas
- * comparison, and judges the Blur Indexes against one constant.
+ * Rasterisation-level sharpness of printed card faces (issue #6940): the PURE
+ * half — the threshold, the judgement and the cell-line text. No browser, no
+ * filesystem: `floors.ts` (and through it `receipt.ts`, `verify-receipt.ts`,
+ * the paths `land` re-derives a receipt with) imports this module, so it must
+ * stay importable anywhere. The Playwright side is `raster-measure.ts`; the
+ * in-page maths is `raster.js`.
  *
  * It is the half of the `cardsSoft` Floor `probe.js` cannot do: that probe
  * measures the RESOURCE the browser resolved; this measures the PIXELS the
@@ -10,19 +12,6 @@
  * (`floors.ts`) sums the two into the one Floor — a soft card face is a soft
  * card face, whichever stage lost the detail.
  */
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import type { Page } from "playwright";
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const RASTER_SOURCE = fs.readFileSync(path.join(HERE, "raster.js"), "utf8");
-
-/** Faces measured per cell: one per distinct layout width, largest first, so
- *  a surface's size classes are each seen once. Four element screenshots and
- *  compares cost well under a second — the whole measurement rides inside
- *  the cell's `probe` phase. */
-export const RASTER_SAMPLES_PER_CELL = 4;
 
 /** The Blur Index past which a face is SOFT (see `raster.js`: 0 = as sharp as
  *  its resource allows, 1 = as soft as a half-resolution raster of it).
@@ -60,7 +49,7 @@ export interface BlurExample {
     dec: string;
 }
 
-/** A face that could not be measured, and why (`k` is its mark). */
+/** A picked face that could not be measured, and why. */
 export interface RasterSkip {
     t: string;
     w: number;
@@ -70,39 +59,22 @@ export interface RasterSkip {
 export interface RasterResult {
     /** Every face that produced a Blur Index. */
     samples: BlurExample[];
-    /** Faces whose comparison could not run: the reference image did not
-     *  load (CORS, network), the screenshot failed, or the face is too small
-     *  for the half-resolution reference to differ from the full one.
-     *  REPORTED, never gated: the lane's `cardsSoft` resource check still
-     *  stands on such a face, and a third-party CDN's availability is not a
-     *  property of the tree. */
+    /** Picked faces whose comparison could not run or was declined: the
+     *  reference image did not load (CORS, network, timeout), the screenshot
+     *  failed, the source changed between pick and shot, the resource is
+     *  narrower than the face (the resource check's class), or the face is
+     *  too small for the half-resolution reference to differ from the full
+     *  one. REPORTED, never gated: the lane's `cardsSoft` resource check
+     *  still stands on such a face, and a third-party CDN's availability is
+     *  not a property of the tree. */
     skipped: RasterSkip[];
-}
-
-interface Candidate {
-    k: number;
-    sel: string;
-    t: string;
-    w: number;
-    x: number;
-    y: number;
-    h: number;
-    src: string;
-    dec: string;
-    dpr: number;
-}
-
-interface Comparison {
-    shot?: number;
-    ref?: number;
-    half?: number;
-    blur?: number | null;
-    error?: string;
-}
-
-function renditionOf(src: string): string {
-    // `https://cards.scryfall.io/<variant>/<face>/<a>/<b>/<id>.<ext>`
-    return src.split("/")[3] ?? src;
+    /** Printed faces on the page that were never picked, by reason
+     *  (`occluded`, `faded`, `transformed`, `offscreen`, `small`,
+     *  `unresolved`) — so a cell that yields no sample says what its faces
+     *  were instead of reading as a vacuous pass. */
+    rejected?: Record<string, number>;
+    /** Printed faces on the page, decorative art excluded. */
+    printed?: number;
 }
 
 /** The faces whose Blur Index exceeds {@link CARD_BLUR_MAX}: the reading the
@@ -112,7 +84,8 @@ export function blurredOf(samples: readonly BlurExample[]): BlurExample[] {
 }
 
 /** The diagnostic fragment of one cell line: every sample with its Blur
- *  Index, or the count when there is nothing to say. */
+ *  Index and the three energies, the skips, and — when nothing was sampled —
+ *  what the page's printed faces were rejected as. */
 export function describeRaster(r: RasterResult): string {
     const blurred = blurredOf(r.samples);
     const head = blurred.length
@@ -140,81 +113,13 @@ export function describeRaster(r: RasterResult): string {
           r.skipped.map((s) => `${s.t} ${s.w}px: ${s.why}`).join("; ") +
           "]"
         : "";
-    return head + tail + skip;
-}
-
-/**
- * Measures up to {@link RASTER_SAMPLES_PER_CELL} printed faces on the current
- * page. Never throws for a face that cannot be measured — it lands in
- * `skipped` with its reason — but does propagate a page that navigated away,
- * which the caller already treats as a cell to retry.
- */
-export async function measureRaster(page: Page): Promise<RasterResult> {
-    await page.addScriptTag({ content: RASTER_SOURCE });
-    const candidates = (await page.evaluate(
-        `window.__tolariaRasterCandidates(${RASTER_SAMPLES_PER_CELL})`
-    )) as Candidate[];
-    const samples: BlurExample[] = [];
-    const skipped: RasterSkip[] = [];
-    try {
-        for (const c of candidates) {
-            let png64: string;
-            try {
-                // The element's own box in DEVICE pixels; `animations:
-                // "disabled"` finishes a hover translate or a transition the
-                // walk may have started, so the frame compared is a settled
-                // one, never a mid-transition raster.
-                const buf = await page
-                    .locator(`[data-ui-gate-raster="${c.k}"]`)
-                    .screenshot({
-                        type: "png",
-                        animations: "disabled",
-                        caret: "hide",
-                        scale: "device",
-                        timeout: 5_000,
-                    });
-                png64 = buf.toString("base64");
-            } catch (err) {
-                skipped.push({
-                    t: c.t,
-                    w: c.w,
-                    why: `screenshot failed: ${(err as Error).message.split("\n")[0]}`,
-                });
-                continue;
-            }
-            const cmp = (await page.evaluate(
-                `window.__tolariaRasterCompare(${JSON.stringify({ k: c.k, png64, src: c.src })})`
-            )) as Comparison;
-            if (cmp.error) {
-                skipped.push({ t: c.t, w: c.w, why: cmp.error });
-                continue;
-            }
-            if (cmp.blur === null || cmp.blur === undefined) {
-                skipped.push({
-                    t: c.t,
-                    w: c.w,
-                    why: "too small to tell half-resolution from full",
-                });
-                continue;
-            }
-            samples.push({
-                t: c.t,
-                sel: c.sel,
-                x: c.x,
-                y: c.y,
-                h: c.h,
-                w: c.w,
-                dpr: c.dpr,
-                blur: +cmp.blur.toFixed(3),
-                shot: cmp.shot ?? 0,
-                ref: cmp.ref ?? 0,
-                half: cmp.half ?? 0,
-                src: renditionOf(c.src),
-                dec: c.dec,
-            });
-        }
-    } finally {
-        await page.evaluate("window.__tolariaRasterClear()").catch(() => {});
-    }
-    return { samples, skipped };
+    const rejectedEntries = Object.entries(r.rejected ?? {});
+    const rejected =
+        rejectedEntries.length && !r.samples.length
+            ? ` rasterRejected{` +
+              rejectedEntries.map(([why, n]) => `${why}:${n}`).join(",") +
+              `}` +
+              (r.printed !== undefined ? ` of ${r.printed}` : "")
+            : "";
+    return head + tail + skip + rejected;
 }
