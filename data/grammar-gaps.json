@@ -4381,6 +4381,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"becomeCopy\" acts on $source — covered by the card's own per-card test",
+            "issue": 7509
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"choice\" acts on $each — covered by the card's own per-card test",
             "issue": 6773
         },
