@@ -954,6 +954,7 @@ const abominationCombatKill = combatPairKill({
         opponent.colors.includes("G") || opponent.colors.includes("W"),
 });
 
+// compiler-gap: "Whenever this creature blocks or becomes blocked by a green or white creature, destroy that creature at end of combat." (#1009)
 export const abomination = defineCard(() => ({
     id: ABOMINATION_ID,
     rarity: "uncommon",
@@ -1001,6 +1002,8 @@ const infernalMedusaBlocked = combatPairKill({
         opponent.role === "blocker" && !opponent.subtypes.includes("Wall"),
 });
 
+// compiler-gap: "Whenever this creature blocks a creature, destroy that creature at end of combat." (#1009)
+// compiler-gap: "Whenever this creature becomes blocked by a non-Wall creature, destroy that creature at end of combat." (#1009)
 export const infernalMedusa = defineCard(() => ({
     id: INFERNAL_MEDUSA_ID,
     rarity: "uncommon",
@@ -1027,6 +1030,7 @@ export const infernalMedusa = defineCard(() => ({
 // activation cap.) The cap reads the engine's per-ability
 // `activationsThisTurn` tally through `canActivate`, exactly as Phyrexian
 // Battleflies does (inv/black.cards.ts).
+// compiler-gap: "{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn." (#1009)
 export const vampireBats = defineCard(() => ({
     id: "6a6a6f50-7b86-461e-80a7-e35d0e7cf52f",
     rarity: "common",

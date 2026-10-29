@@ -912,6 +912,7 @@ export const cavernsOfDespair = defineCard(() => ({
 // Crimson Manticore — {2}{R}{R} 2/2. "{R}, {T}: This creature deals 1 damage
 // to target attacking or blocking creature." (The array form of
 // `combatRoleFilter`, as D'Avenant Archer.)
+// compiler-gap: "{R}, {T}: This creature deals 1 damage to target attacking or blocking creature." (#1009)
 export const crimsonManticore = defineCard(() => ({
     id: "96f73f9c-1c4e-4343-bfa0-cc5c4a7a562e",
     rarity: "rare",

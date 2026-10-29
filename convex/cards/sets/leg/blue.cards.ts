@@ -1132,6 +1132,7 @@ export const elderSpawn = defineCard(() => ({
 // target player or planeswalker. • Target player gains 1 life." (CR 303.4 Aura,
 // CR 603.3c the mode and its target are locked as the trigger goes on the
 // stack, CR 700.2.)
+// compiler-gap: "Whenever enchanted artifact becomes tapped, choose one — • This Aura deals 1 damage to target player or planeswalker. • Target player gains 1 life." (#1009)
 export const relicBind = defineCard(() => ({
     id: "a9b07dc4-21ad-410b-8f8a-2b034253bfee",
     rarity: "uncommon",
