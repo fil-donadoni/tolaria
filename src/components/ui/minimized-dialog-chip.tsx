@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +15,9 @@ export default function MinimizedDialogChip({
     label: string;
     onRestore: () => void;
 }) {
-    return (
+    // Portalled to <body> like the dialog itself, so a transformed ancestor
+    // cannot re-anchor the `fixed` chip.
+    return createPortal(
         <div
             data-minimized-dialog-chip
             className="pointer-events-none fixed inset-x-0 top-[calc(0.75rem+env(safe-area-inset-top))] z-modal flex justify-center px-3"
@@ -34,6 +37,7 @@ export default function MinimizedDialogChip({
                 <span className="text-display truncate">{label} — open</span>
                 <Maximize2 className="h-3.5 w-3.5 shrink-0 opacity-80" />
             </button>
-        </div>
+        </div>,
+        document.body
     );
 }

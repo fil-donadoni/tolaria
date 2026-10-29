@@ -100,6 +100,13 @@ export default function GameDialog({
 }: GameDialogProps) {
     const [minimized, setMinimized] = React.useState(false);
     // A dialog that closes comes back expanded.
+    // ...and so does one whose content is swapped under a still-open host (a new
+    // title = a new prompt): a hidden required answer must not stay hidden.
+    const [trackedTitle, setTrackedTitle] = React.useState(title);
+    if (trackedTitle !== title) {
+        setTrackedTitle(title);
+        if (minimized) setMinimized(false);
+    }
     if (!open && minimized) setMinimized(false);
     const minimize = onMinimize ?? (() => setMinimized(true));
 
