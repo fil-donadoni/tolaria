@@ -46,15 +46,13 @@ function authoredMin(op: Record<string, unknown>): number {
 }
 
 describe("Library Search floors across the catalogue (CR 701.23b/d)", () => {
-    it("finds the shipped searches", () => {
-        expect(SITES.length).toBeGreaterThan(40);
-    });
-
     it("a search that states a quality is authored with a minimum of zero", () => {
         const offenders = SITES.filter(
             ({ op }) =>
                 statesCardQuality(op.filter as never) && authoredMin(op) > 0
         ).map(({ card, op }) => `${card}: min ${authoredMin(op)}`);
+        // A census that scanned nothing would pass vacuously.
+        expect(SITES.length).toBeGreaterThan(40);
         expect(offenders).toEqual([]);
     });
 });
