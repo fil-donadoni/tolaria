@@ -3,13 +3,13 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingTarget, Player, StackItem } from "~/types/game";
-import { getDefinition, tryGetDefinition } from "@convex/cards";
-import { tryGetEmblemDefinition } from "@convex/cards/emblems";
+import { getDefinition } from "@convex/cards";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { divideKindLabels, useDivideBuffer } from "~/hooks/useDivideBuffer";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 import { displayCardId } from "~/lib/card-utils";
+import { resolvePendingTargetSource } from "~/lib/pending-target-source";
 import {
     describeTargetProgress,
     formatTargetLabel,
@@ -83,46 +83,13 @@ export default function TargetSelectionBanner({
     // targets, so the source line reads "Copy" and Cancel reads "Keep
     // targets" to convey the optionality.
     const isCopyRetarget = pendingTarget.kind === "copy-retarget";
-    const cardInHand = me?.hand.find(
-        (c) => c !== null && c.id === pendingTarget.cardInstanceId
-    );
-    // A spell cast from a graveyard or exile permission (Flashback, a Cast
-    // button) is still in that zone while its targets are chosen.
-    const castSource =
-        pendingTarget.kind === "ability" || pendingTarget.kind === "trigger"
-            ? undefined
-            : (cardInHand ??
-              [...(me?.graveyard ?? []), ...(me?.exile ?? [])].find(
-                  (c) => c.id === pendingTarget.cardInstanceId
-              ));
-    // For an activated ability the source is a permanent on the battlefield,
-    // not a card in hand (CR 602.1) — `cardInstanceId` is the permanent's id.
-    // Resolve its name from the battlefield so the banner shows the ability's
-    // source rather than the generic "spell" fallback.
-    const sourcePermanent =
-        pendingTarget.kind === "ability"
-            ? me?.battlefield.find((c) => c.id === pendingTarget.cardInstanceId)
-            : undefined;
-    // A triggered ability chooses its target as it goes on the stack (CR
-    // 603.3d): `cardInstanceId` is the trigger's STACK-ITEM id. Resolve its
-    // source name from the stack — card registry first, then the emblem
-    // registry (an emblem-sourced trigger's `card.id` is an emblem KEY absent
-    // from the card registry; without this the banner read the generic
-    // "spell", the confusing label that led players to Cancel Chandra's emblem
-    // trigger into a 0-damage resolve).
-    const triggerSource =
-        pendingTarget.kind === "trigger"
-            ? stack.find((s) => s.id === pendingTarget.cardInstanceId)
-            : undefined;
-    const triggerSourceName = triggerSource
-        ? (tryGetDefinition(displayCardId(triggerSource))?.name ??
-          tryGetEmblemDefinition(triggerSource.card.id)?.name)
-        : undefined;
-    const cardName = cardInHand
-        ? getDefinition(cardInHand.card.id).name
-        : sourcePermanent
-          ? getDefinition(displayCardId(sourcePermanent)).name
-          : (triggerSourceName ?? (isCopyRetarget ? "Copy" : "spell"));
+    // Issue #6984 — the ONE source lookup, shared with the graveyard target
+    // dialog's title.
+    const {
+        name: cardName,
+        castSource,
+        sourcePermanent,
+    } = resolvePendingTargetSource(pendingTarget, me, stack);
     // ADR 0094 (issue #2264) — with several mode instances announced, name
     // the instance this target group belongs to, so a repeated mode's groups
     // are not picked blind.
