@@ -132,6 +132,14 @@ describe("graveyard cast grant — refused neighbours (ADR 0105 § 2)", () => {
             "{T}: You may cast target creature card in a graveyard this turn."
         );
     });
+    it("a land card is played, never cast (CR 305.1)", () => {
+        refused(
+            "{T}: You may cast target land card from your graveyard this turn."
+        );
+        refused(
+            "{T}: Choose target land card in your graveyard. You may cast that card this turn."
+        );
+    });
     it("the rider alone follows no grant", () => {
         refused(
             "{T}: Draw a card. If that spell would be put into your graveyard, exile it instead."

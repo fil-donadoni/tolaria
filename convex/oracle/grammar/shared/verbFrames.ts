@@ -130,6 +130,7 @@ import {
 } from "../../rule";
 import { isSelfPhrase } from "./cost";
 import {
+    isLandOnlyTarget,
     readAmount,
     subjectRule,
     type AmountIR,
@@ -1480,8 +1481,10 @@ function readMember(
             ctx
         );
         if (!card.ok) return { refused: card.reason, failure: card };
-        if (card.value.kind !== "target")
-            return { refused: `"${grant[1]!}" is not an announced card` };
+        if (card.value.kind !== "target" || isLandOnlyTarget(card.value))
+            return {
+                refused: `"${grant[1]!}" is not an announced castable card`,
+            };
         return {
             frames: [{ frame: "grantCastFromGraveyard", card: card.value }],
             referent,

@@ -4614,6 +4614,16 @@ export function capitalise(span: string): string {
 
 /** CR 603.2's optional marker, as printed at a trigger's effect clause. */
 const MAY_PREFIX = "you may ";
+/**
+ * CR 305.1 — a land is played, never cast: a graveyard cast grant whose
+ * announced card can only be a land grants nothing.
+ */
+export function isLandOnlyTarget(subject: SubjectIR): boolean {
+    if (subject.kind !== "target") return false;
+    const types = subject.requirement.type;
+    return (Array.isArray(types) ? types : [types]).every((t) => t === "Land");
+}
+
 function printsGraveyardCastGrant(probe: string): boolean {
     return (
         probe.startsWith("you may cast target ") ||
@@ -6139,9 +6149,12 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         if (chosenCard !== null) {
             const subject = subjectRule.run(chosenCard[1]!, ctx);
             if (!subject.ok) return subject;
-            if (subject.value.kind !== "target")
+            if (
+                subject.value.kind !== "target" ||
+                isLandOnlyTarget(subject.value)
+            )
                 return fail(
-                    `"${chosenCard[1]}" is not an announced card`,
+                    `"${chosenCard[1]}" is not an announced castable card`,
                     span
                 );
             return ok({
