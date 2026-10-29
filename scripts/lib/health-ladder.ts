@@ -13,9 +13,9 @@
  *      for a fresh pass that lands the culprit again WITH the fix. A culprit
  *      later commits depend on is reverted together with the ones its revert
  *      conflicts with, in one PR, up to `MAX_REVERT_SET` (issue #6766). A
- *      bisect that named several culprits (issue #7339) has every one of
- *      them reverted in that same PR (issue #7446): reverting the first alone
- *      left the rest of the RED standing with no repair in flight.
+ *      bisect that named several culprits has every one of them reverted
+ *      in that same PR: reverting the first alone left the rest of the RED
+ *      standing with no repair in flight.
  *   5. **Fix forward** — only what a revert cannot handle: the revert does
  *      not apply (a later PR depends on the culprit), or the bisect named
  *      no single culprit. The headless fixer (`health:fix --headless`), at

@@ -4,7 +4,7 @@
  * owner's decision of 2026-10-14): the culprit the bisect named is reverted
  * on a branch off the base tip, and the revert goes through the queue as the
  * standing RED's declared repair. A bisect that named several culprits
- * passes `--culprit` once per culprit: one PR reverts them all (issue #7446).
+ * passes `--culprit` once per culprit: one PR reverts them all.
  *
  *   bun scripts/health-revert.ts --sha <red> --culprit <sha> [--culprit <sha> …] [--base <sha>] [--why <text>] [--dry-run]
  *
