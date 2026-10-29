@@ -150,7 +150,12 @@ afterEach(() => {
         }
     }
     strays = [];
-    rmSync(scratch, { recursive: true, force: true });
+    rmSync(scratch, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 describe("gate.ts — tier dispatch", () => {
