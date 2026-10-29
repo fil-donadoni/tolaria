@@ -310,6 +310,7 @@ newer draft (`SUPERSEDED_JOBS`, issue #6020).
 | [`health-early`](#health)                 | push to the base branch, one run at a time (a declared repair's tip has its own group) | GitHub-hosted `ubuntu-24.04`                   | the offline gate after a merge batch — its RED only                                          |
 | [`health-fix`](#health-fix)               | dispatch (`sha`, `host`) — from `health` or itself                                     | `[self-hosted, pass, host:<machine>]`          | one rung of the RED ladder: a fixer attempt, the revert of the culprit, or the stop          |
 | [`corpus-repin`](#corpus-repin)           | Sunday 22:00 UTC, dispatch (`dry_run`)                                                 | `[self-hosted, maint]`                         | re-pins the Card Corpus, regenerates what follows, settles the merge blockers, queues the PR |
+| [`bot-costs-refresh`](#bot-costs-refresh) | daily 04:30 UTC, dispatch                                                              | `[self-hosted, maint, host:macbook]`           | re-derives the bot test cost table from health's walls; a data PR only when a row changed    |
 
 ### pr-check
 
@@ -2161,3 +2162,12 @@ a parentless commit holding that key's `<key>.json`. Read with `ls-remote` +
 that keeps two machines from moving one watermark twice; one ref per key so
 the keys never spoil each other's lease. Distinct from the verdict store (a
 commit status, keyed by sha).
+
+### bot-costs-refresh
+
+`.github/workflows/bot-costs-refresh.yml` (issue #6999, ADR 0154 §13): the
+daily refresh of `data/bot-test-costs.json`. One job, `bun run
+bot:costs:refresh`, on the MacBook's `maint` runner — health writes its
+per-file walls to the primary checkout of the machine it gates on. It stops,
+green, when a `chore/bot-costs-refresh-*` PR is open or no row changed;
+otherwise it commits the table, opens the PR and runs `land:ready`.
