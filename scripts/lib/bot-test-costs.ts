@@ -22,7 +22,7 @@
  *   3. `check-lane.ts` admits, in every scoped lane, the bot files the diff
  *      reaches whose cost is under `perFileS`, cheapest first, up to
  *      `totalS` (`admitByCost`); a file with no row follows them at a
- *      presumed cost of `perFileS` (issue #6999). The rest is NAMED in skip
+ *      presumed cost of `perFileS`. The rest is NAMED in skip
  *      lines with its cost, or as unmeasured — never dropped silently.
  *   4. `.github/workflows/bot-costs-refresh.yml` runs `bun run bot:costs
  *      --refresh` daily: a data PR only when the table changed.
