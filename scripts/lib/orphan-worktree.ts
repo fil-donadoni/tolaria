@@ -7,20 +7,16 @@
 // commits are invisible to that path: the issue is `ready-for-agent`, the
 // planner offers it as a fresh pick, and the committed work is either
 // collided with or silently ignored. This module is the census beside the
-// claim classifier, with the SAME tri-state discipline as
-// `ClaimFacts.ownerAlive`: only a POSITIVE reading moves a verdict, and an
-// unknown one holds the worktree (neither adopted nor picked fresh) instead of
+// claim classifier, with the same discipline: only a POSITIVE reading moves
+// a verdict, and an unknown one holds the worktree (neither adopted nor picked fresh) instead of
 // authorising anything.
 
 import { spawnSync } from "node:child_process";
 import { readdirSync, readlinkSync, realpathSync } from "node:fs";
 import {
     DEAD_OWNER_QUIET_MINUTES,
-    isOwnerAlive,
     shChecked,
     worktreeQuietMinutes,
-    type ClaimOwner,
-    type ProcessProbe,
     type ShRunner,
 } from "./claim-verdict";
 import { parseWorktreeList } from "../worktree-gc";
@@ -35,10 +31,6 @@ export type OrphanWorktreeFacts = {
      * unreadable — held, never adopted and never picked fresh over.
      */
     unpushedCommits: number | null;
-    /** The claim journal has a recorded owner for this issue. */
-    ownerRecorded: boolean;
-    /** `ClaimFacts.ownerAlive`: `null` = no owner recorded, or probe unavailable. */
-    ownerAlive: boolean | null;
     /** A live process has its cwd inside the worktree; `null` = unreadable. */
     processInside: boolean | null;
     /** Minutes since the worktree last changed; `null` = unreadable. */
@@ -65,11 +57,6 @@ export function classifyOrphanWorktree(f: OrphanWorktreeFacts): OrphanVerdict {
         };
     if (f.unpushedCommits === null)
         return held(f, "its unpushed commits could not be counted");
-    if (f.ownerAlive === true)
-        return held(f, "the process that last claimed it is still running");
-    // A recorded owner whose liveness could not be read is NOT "never recorded".
-    if (f.ownerRecorded && f.ownerAlive === null)
-        return held(f, "its last owner's liveness could not be read");
     if (f.processInside === null)
         return held(f, "the processes inside it could not be listed");
     if (f.processInside) return held(f, "a live process has its cwd inside it");
@@ -82,7 +69,7 @@ export function classifyOrphanWorktree(f: OrphanWorktreeFacts): OrphanVerdict {
         );
     return {
         state: "adopt",
-        reason: `no claim, owner ${f.ownerRecorded ? "provably dead" : "never recorded"}, nothing inside it, quiet ${f.quietMinutes.toFixed(0)}m, ${f.unpushedCommits} unpushed commit${f.unpushedCommits === 1 ? "" : "s"} — the next pass resumes it`,
+        reason: `no claim, nothing inside it, quiet ${f.quietMinutes.toFixed(0)}m, ${f.unpushedCommits} unpushed commit${f.unpushedCommits === 1 ? "" : "s"} — the next pass resumes it`,
     };
 }
 
@@ -189,9 +176,7 @@ export function orphanWorktrees(
     unclaimed: ReadonlySet<number>,
     deps: {
         baseRef: string;
-        owners: Map<number, ClaimOwner>;
         now?: number;
-        probe?: ProcessProbe;
         runner?: ShRunner;
         cwdProbe?: CwdProbe;
         /** `worktreeQuietMinutes` — the tests' seam. */
@@ -220,13 +205,10 @@ export function orphanWorktrees(
             runner
         );
         if (unpushedCommits === 0) continue;
-        const owner = deps.owners.get(issue);
         const verdict = classifyOrphanWorktree({
             issue,
             path: e.path,
             unpushedCommits,
-            ownerRecorded: owner !== undefined,
-            ownerAlive: isOwnerAlive(owner, deps.probe),
             processInside: (deps.cwdProbe ?? defaultCwdProbe)(e.path),
             quietMinutes: (
                 deps.quiet ?? ((n, t) => worktreeQuietMinutes(n, t, runner))

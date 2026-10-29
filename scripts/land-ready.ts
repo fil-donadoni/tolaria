@@ -10,9 +10,7 @@
  *      PR the queue refuses (one touching `.github/` or `.mergify.yml`) is
  *      merged by the owner with `bun run merge:manual <PR#>`, which refuses
  *      until the PR's advisory lane is green on its up-to-date head;
- *   2. the claim journal gets the issue's `pr-open` row: the claim stands,
- *      but it holds no `sessions.cap` slot on this machine any more;
- *   3. the issue gets the `pr-open` label beside `in-progress`, so the board
+ *   2. the issue gets the `pr-open` label beside `in-progress`, so the board
  *      shows the hand-off (every release path removes it).
  *
  * BEFORE it queues, it runs the lane's seconds-cost steps on the PR's own
@@ -49,18 +47,12 @@
  *
  * Refuses a PR that is not open or does not target the base branch — the
  * runner's `land` would refuse it anyway, an hour later, as a `land-failed`.
- * The decisions are `lib/land-runner.ts` and `lib/queue-claim.ts`; this file
+ * The decisions are `lib/land-runner.ts` and `lib/claim-labels.ts`; this file
  * is the I/O.
  */
 import { spawnSync } from "node:child_process";
-import {
-    appendFileSync,
-    mkdirSync,
-    readFileSync,
-    writeFileSync,
-} from "node:fs";
-import { hostname } from "node:os";
-import { dirname, resolve } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
     addedPaths,
     changedPaths,
@@ -79,8 +71,12 @@ import {
 } from "./lib/base-drift";
 import { readOpenPrs } from "./base-drift";
 import { staleToolingRefusal } from "./lib/stale-tooling";
-import { prOpenEditArgs, PR_OPEN_LABEL } from "./lib/claim-labels";
-import { checkClaimGate, realClaimGateDeps } from "./lib/claim-gate";
+import {
+    claimRefusal,
+    issueLabelArgs,
+    prOpenEditArgs,
+    PR_OPEN_LABEL,
+} from "./lib/claim-labels";
 import { DERIVED_PATHS, LOCKFILE_PATH } from "./lib/derive-sync";
 import { TREE_ROLE_ENV, type TreeRole } from "./lib/derived-state";
 import {
@@ -126,8 +122,6 @@ import {
 } from "./lib/pr-gate";
 import { isCheapStep, preQueueSteps } from "./lib/pre-queue-steps";
 import { primaryCheckout } from "./lib/primary-checkout";
-import { buildPrOpenRow } from "./lib/queue-claim";
-import { claimLedgerPath } from "./lib/claim-verdict";
 import {
     PR_CHECK_NAMES,
     runPrCheck,
@@ -787,13 +781,13 @@ function main(): void {
         process.exit(1);
     }
     const issue = issueOfBranch(view.headRefName);
-    // The claim is checked before any label or journal write (issue #5996).
+    // The claim is checked before any label write (issue #5996).
     if (issue !== null) {
-        const refusal = checkClaimGate(
+        const refusal = claimRefusal(
             issue,
             `land:ready ${pr}`,
             process.env,
-            realClaimGateDeps(claimLedgerPath)
+            (n) => gh(issueLabelArgs(n)).split("\n").filter(Boolean)
         );
         if (refusal !== null) {
             console.error(`✗ land:ready: ${refusal}`);
@@ -830,22 +824,6 @@ function main(): void {
 
     if (issue !== null) {
         gh(prOpenEditArgs(issue));
-        const ledger = claimLedgerPath(
-            process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout()
-        );
-        mkdirSync(dirname(ledger), { recursive: true });
-        appendFileSync(
-            ledger,
-            JSON.stringify(
-                buildPrOpenRow({
-                    now: Math.floor(Date.now() / 1000),
-                    session: process.env.CLAUDE_CODE_SESSION_ID ?? "",
-                    issue,
-                    pr,
-                    host: hostname(),
-                })
-            ) + "\n"
-        );
     }
     console.log(
         (toQueue

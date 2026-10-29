@@ -41,7 +41,6 @@ import {
     fetchOpenPrRows,
     landQueueByBranch,
     openPrMap,
-    readClaimOwners,
     shChecked,
     withClaimTimes,
     type ClaimedIssue,
@@ -239,8 +238,8 @@ function runners(slug: string): RunnerRow[] {
 /**
  * Every claim's verdict — `lib/claim-verdict.ts`'s `classifyClaims`, the ONE
  * authority (issue #6223), over the union of the evidence: the claim time,
- * the `afk-pass` runs, this machine's claim journal (the primary checkout's:
- * the job worktree shares its refs and worktrees), local and pushed branches,
+ * the `afk-pass` runs, local and pushed branches (the primary checkout's:
+ * the job worktree shares its refs and worktrees),
  * open PRs and their queue state. Every read is fail-closed: a failed one
  * throws, and the caller releases nothing.
  */
@@ -261,7 +260,6 @@ function judgeClaims(
             prs,
             landQueue: landQueueByBranch(rows),
             branches: fetchBranchNames(shChecked),
-            owners: readClaimOwners(primaryCheckout()),
             baseRef: ORIGIN_BASE,
             countRunner: shChecked,
             passRuns,
