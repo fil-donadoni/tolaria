@@ -2477,6 +2477,14 @@ export type SentenceIR =
      * waits for the sentence that prices it, and either one alone is refused.
      */
     | { readonly role: "flashback-grant"; readonly subject: SubjectIR }
+    /**
+     * CR 601.2 + CR 400.7 — "Choose target <card> in your graveyard.": the
+     * announced card the next sentence ("You may cast that card this turn.",
+     * `cast-chosen-card`) grants a cast of. The pair folds into one
+     * `grantCastFromGraveyard` frame.
+     */
+    | { readonly role: "choose-graveyard-card"; readonly subject: SubjectIR }
+    | { readonly role: "cast-chosen-card" }
     | { readonly role: "flashback-cost" }
     /**
      * CR 615.12 + CR 614.9 — "If {self} would deal damage to a creature, that
@@ -2535,6 +2543,13 @@ export type SentenceIR =
      * antecedent by `assembleSentences`; alone it points at nothing.
      */
     | { readonly role: "impulse-play"; readonly play: ImpulsePlayIR }
+    /**
+     * CR 614.1 + CR 400.7 — "If that spell would be put into your graveyard,
+     * exile it instead.": the replacement behind a graveyard cast grant.
+     * Folded onto the `grantCastFromGraveyard` frame before it by
+     * `assembleSentences`; alone "that spell" names nothing.
+     */
+    | { readonly role: "cast-exile-rider" }
     /** CR 401.4 — "Put the rest <where>.", the last of the three. */
     | { readonly role: "library-rest"; readonly rest: LibraryRestIR }
     /** CR 205.2a — the per-card-type pick of a revealed window (see
@@ -2802,6 +2817,12 @@ export function assembleSentences(
     let flashbackGrant: Extract<
         SentenceIR,
         { role: "flashback-grant" }
+    > | null = null;
+    // CR 601.2 — a chosen graveyard card waits for the sentence that lets its
+    // controller cast it.
+    let chosenGraveyardCard: Extract<
+        SentenceIR,
+        { role: "choose-graveyard-card" }
     > | null = null;
     // CR 101.4 — a per-land-type pick waits for the sentence that returns it.
     let landTypePick = false;
@@ -3291,6 +3312,42 @@ export function assembleSentences(
                 ok: false,
                 reason: "a flashback cost follows no flashback grant",
             };
+        if (chosenGraveyardCard !== null) {
+            if (sentence.role !== "cast-chosen-card")
+                return {
+                    ok: false,
+                    reason: "a chosen graveyard card is not followed by the cast it feeds",
+                };
+            effects.push({
+                frames: [
+                    {
+                        frame: "grantCastFromGraveyard",
+                        card: chosenGraveyardCard.subject,
+                    },
+                ],
+            });
+            chosenGraveyardCard = null;
+            continue;
+        }
+        if (sentence.role === "cast-chosen-card")
+            return {
+                ok: false,
+                reason: '"You may cast that card this turn" follows no chosen graveyard card',
+            };
+        if (sentence.role === "choose-graveyard-card") {
+            if (
+                window !== null ||
+                awaitingColorChoice ||
+                restrictions.length > 0 ||
+                coinFlip.length > 0
+            )
+                return {
+                    ok: false,
+                    reason: "a chosen graveyard card follows an unfinished sentence run",
+                };
+            chosenGraveyardCard = sentence;
+            continue;
+        }
         if (sentence.role === "creature-damage-lock") {
             const previous = effects[effects.length - 1];
             if (
@@ -3773,6 +3830,33 @@ export function assembleSentences(
             effects[effects.length - 1] = { ...previous, play: sentence.play };
             continue;
         }
+        if (sentence.role === "cast-exile-rider") {
+            // CR 614.1 — "that spell" is the one the grant before it lets the
+            // controller cast; after anything else it names no spell.
+            const previous = effects[effects.length - 1];
+            const last =
+                previous !== undefined && previous.kind === undefined
+                    ? previous.frames[previous.frames.length - 1]
+                    : undefined;
+            if (
+                previous === undefined ||
+                previous.kind !== undefined ||
+                last?.frame !== "grantCastFromGraveyard" ||
+                last.exilesOnResolve !== undefined
+            )
+                return {
+                    ok: false,
+                    reason: '"If that spell would be put into your graveyard, exile it instead" follows no graveyard cast grant',
+                };
+            effects[effects.length - 1] = {
+                ...previous,
+                frames: [
+                    ...previous.frames.slice(0, -1),
+                    { ...last, exilesOnResolve: true },
+                ],
+            };
+            continue;
+        }
         if (sentence.role === "library-rest")
             return {
                 ok: false,
@@ -4127,6 +4211,11 @@ export function assembleSentences(
         return {
             ok: false,
             reason: "a flashback grant is not followed by its flashback cost",
+        };
+    if (chosenGraveyardCard !== null)
+        return {
+            ok: false,
+            reason: "a chosen graveyard card is not followed by the cast it feeds",
         };
     if (payVariable !== null)
         return {
@@ -4525,6 +4614,12 @@ export function capitalise(span: string): string {
 
 /** CR 603.2's optional marker, as printed at a trigger's effect clause. */
 const MAY_PREFIX = "you may ";
+function printsGraveyardCastGrant(probe: string): boolean {
+    return (
+        probe.startsWith("you may cast target ") ||
+        probe === "you may cast that card this turn"
+    );
+}
 /** The optional spelling of "it deals", up to the damage amount. */
 const HAVE_IT_DEAL = /^have it deal (.+ damage to .+)$/;
 /** CR 701.13a — the optional move of one of the controller's hand cards. */
@@ -4586,6 +4681,12 @@ export function optionalSentenceRule(
         // says the pick may take nothing, not that a whole effect is optional.
         // A pick with no such antecedent is refused by `assembleSentences`.
         if (printsAmongPick(capitalise(probe)) || printsTypePick(probe))
+            return inner.run(capitalise(probe), ctx);
+        // CR 601.2 — a graveyard cast grant carries its own "You may": the
+        // permission IS the option, so the marker is read by the grant itself
+        // (`grantCastFromGraveyard` frame, `cast-chosen-card` role), never
+        // stripped into an optional wrapper.
+        if (printsGraveyardCastGrant(probe))
             return inner.run(capitalise(probe), ctx);
         const clause = probe.slice(MAY_PREFIX.length);
         // CR 608.2c — "you may exile a card from your hand" is the first half
@@ -5321,6 +5422,11 @@ const SHUFFLE_OWN_GRAVEYARD = "Shuffle your graveyard into your library";
 const SEARCH_TARGET_LIBRARY =
     /^Search (target player|target opponent)'s library for (a card|up to (\S+) cards|(\S+) cards)( with flashback)?(?:,| and) (exile|put) (it|them)(?: into that player's graveyard)?(, then that player shuffles)?$/;
 /** CR 608.2c — "If you control <A> and <B>, <body> instead" (either order). */
+/** CR 601.2 — the announcing half of a chosen graveyard card's cast grant. */
+const CHOOSE_GRAVEYARD_CARD = /^Choose (target .+ card in your graveyard)$/;
+/** CR 614.1 — the exile rider of a graveyard cast grant (`cast-exile-rider`). */
+const CAST_EXILE_RIDER =
+    /^If that spell would be put into your graveyard, exile it instead$/;
 const INSTEAD = /^If (you control .+?), (?:instead (.+)|(.+) instead)$/;
 
 /** The window: "Look at [or Reveal] the top four cards of your library". */
@@ -6027,6 +6133,25 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         if (FLASHBACK_COST_IS_MANA_COST.test(span))
             return ok({ role: "flashback-cost" as const });
 
+        // CR 601.2 + CR 400.7 — "Choose target <card> in your graveyard." and
+        // its "You may cast that card this turn." (the roles' doc comments).
+        const chosenCard = span.match(CHOOSE_GRAVEYARD_CARD);
+        if (chosenCard !== null) {
+            const subject = subjectRule.run(chosenCard[1]!, ctx);
+            if (!subject.ok) return subject;
+            if (subject.value.kind !== "target")
+                return fail(
+                    `"${chosenCard[1]}" is not an announced card`,
+                    span
+                );
+            return ok({
+                role: "choose-graveyard-card" as const,
+                subject: subject.value,
+            });
+        }
+        if (span === "You may cast that card this turn")
+            return ok({ role: "cast-chosen-card" as const });
+
         // CR 615.12 + CR 614.9 — the creature-conditional damage lock rider.
         const damageLock = span.match(CREATURE_DAMAGE_LOCK);
         if (damageLock !== null) {
@@ -6147,6 +6272,11 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
             effectSentence(clause, ctx)
         );
         if (coinFlip !== null) return coinFlip;
+
+        if (CAST_EXILE_RIDER.test(span))
+            return ok({
+                role: "cast-exile-rider" as const,
+            } satisfies SentenceIR);
 
         if (INSTEAD.test(span)) return insteadRule.run(span, ctx);
 

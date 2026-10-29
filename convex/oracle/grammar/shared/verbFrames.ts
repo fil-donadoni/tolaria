@@ -309,6 +309,18 @@ export type FrameIR =
           readonly source: SubjectIR;
       }
     | {
+          /**
+           * CR 601.2 + CR 400.7 — "you may cast target <card> from your
+           * graveyard this turn": an impulse window over ONE announced card in
+           * the controller's graveyard. `exilesOnResolve` is the folded
+           * "If that spell would be put into your graveyard, exile it
+           * instead." sentence (CR 614.1).
+           */
+          readonly frame: "grantCastFromGraveyard";
+          readonly card: SubjectIR;
+          readonly exilesOnResolve?: true;
+      }
+    | {
           readonly frame: "bringFromOutsideGame";
           /** What the card may be (`OUTSIDE_GAME_FILTERS`), as the Op's filter. */
           readonly filter: EffectCardFilter;
@@ -412,6 +424,10 @@ export const VERB_FRAMES: readonly {
         opens: /^create a token that's a copy of /i,
     },
     {
+        name: "grantCastFromGraveyard",
+        opens: /^you may cast target /i,
+    },
+    {
         name: "bringFromOutsideGame",
         opens: /^you may reveal an? [^,]+? card you own from outside the game /i,
     },
@@ -465,6 +481,8 @@ const NAME_LIST = /\b(and|or|and\/or|named)\b/i;
 const PROTECTION_FROM_EVERYTHING =
     "you gain protection from everything until your next turn";
 const COPY_TOKEN_OPENER = "create a token that's a copy of ";
+const CAST_FROM_GRAVEYARD_THIS_TURN =
+    /^you may cast target (.+?) from your graveyard this turn$/;
 const REVEAL = new RegExp(`^reveal ${PRONOUN}$`);
 const SHUFFLE_AND_TOP = new RegExp(`^shuffle and put ${PRONOUN} on top$`);
 /** CR 401.4 — "in any order" after a plural find on top of the library: the
@@ -1444,6 +1462,28 @@ function readMember(
             };
         return {
             frames: [{ frame: "copyToken", source: subject.value }],
+            referent,
+        };
+    }
+    if (opensFrame("grantCastFromGraveyard", lower)) {
+        // CR 601.2 + CR 400.7 — only the announced card of the controller's
+        // own graveyard, for this turn: "from a graveyard", a window-less
+        // grant (cast during resolution) and a "without paying" waiver are
+        // other effects.
+        const grant = lower.match(CAST_FROM_GRAVEYARD_THIS_TURN);
+        if (grant === null)
+            return {
+                refused: `"${member}" — only "you may cast target <card> from your graveyard this turn" is read`,
+            };
+        const card = subjectRule.run(
+            `target ${grant[1]!} from your graveyard`,
+            ctx
+        );
+        if (!card.ok) return { refused: card.reason, failure: card };
+        if (card.value.kind !== "target")
+            return { refused: `"${grant[1]!}" is not an announced card` };
+        return {
+            frames: [{ frame: "grantCastFromGraveyard", card: card.value }],
             referent,
         };
     }

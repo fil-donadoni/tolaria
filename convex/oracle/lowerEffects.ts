@@ -5270,6 +5270,25 @@ function lowerFrameChain(
                 });
                 break;
             }
+            // CR 601.2 + CR 400.7 — the announced graveyard card may be cast
+            // this turn; the folded rider exiles it as it leaves the stack.
+            case "grantCastFromGraveyard": {
+                const card = objectSelector(
+                    frame.card,
+                    walk.targets,
+                    site,
+                    "zone-change"
+                );
+                if (!card.ok) return card;
+                ops.push({
+                    op: "grantCastFromGraveyard",
+                    card: card.value,
+                    player: "controller",
+                    window: "this-turn",
+                    ...(frame.exilesOnResolve ? { exilesOnResolve: true } : {}),
+                });
+                break;
+            }
             case "bringFromOutsideGame":
                 ops.push({
                     op: "bringFromOutsideGame",
