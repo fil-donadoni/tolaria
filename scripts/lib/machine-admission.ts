@@ -2,8 +2,8 @@
  * Machine admission (issue #4966) — the one place that looks at the MACHINE.
  *
  * WHY. The gates ration CPU among themselves: the heavy mutex (`gate.ts`), the
- * `check:ui` lane (`ui-admission.ts`), the session cap on claims (retired
- * with the claim journal, ADR 0156). None of them looked at the machine they run on. A gate
+ * `check:ui` lane (`ui-admission.ts`), the session cap on claims
+ * (`queue-claim.ts`). None of them looked at the machine they run on. A gate
  * that took the mutex on a machine already at load 14 ran anyway, a browser
  * walk started beside it, and the verdicts they wrote were the machine's: the
  * full walk of tip aa785cf0 started at load 14.5 and ended, 45 minutes later
@@ -22,7 +22,7 @@
  *       they WAIT, bounded by `machine.waitMaxS`; past the bound the run is
  *       `refuse`d — recorded `infra` / `machine-saturated`, never RED, never
  *       a red lane (`MACHINE_SATURATED_EXIT`).
- *   session — `sessionAdmission`. `wt:new` (never a
+ *   session — `sessionAdmission`. `queue:claim` and `wt:new` (never a
  *       conversation's prompt, issue #5137) ask whether the machine has room for one more: the OTHER
  *       live project sessions against the effective cap, and the same memory
  *       pressure reading (sustained, and only beside other sessions — the
