@@ -17,6 +17,7 @@ import ErrorState from "~/components/ui/error-state";
 import ActionButton from "~/components/board/action-button";
 import LimitedTablePanel from "./limited-table-panel";
 import LimitedYourDeckPanel from "./limited-your-deck-panel";
+import LimitedDeckPreview from "./limited-deck-preview";
 import LimitedVsAiPanel from "./limited-vs-ai-panel";
 import LimitedChallengePanel from "./limited-challenge-panel";
 import LimitedReviewPanel from "./limited-review-panel";
@@ -256,6 +257,12 @@ export default function LimitedEventDetail({
     });
     const source = packSourceForEvent(event, packSources ?? []);
 
+    const tableBlock = (
+        <div data-slot="event-table">
+            <LimitedTablePanel event={event} showProgress={isPoolFinal} />
+        </div>
+    );
+
     return (
         <LimitedEventPageFrame>
             <SurfaceReadyMarker />
@@ -333,16 +340,34 @@ export default function LimitedEventDetail({
                     </PanelBody>
                 ) : (
                     <PanelBody className="mt-3">
-                        {/* The table: the seat ring (issue #5390). The build-progress
-                    bar is gated on `isPoolFinal` (issue #1580): a deck cannot exist before the Pool is final, so
-                    the "N/seatCount decks in" counter would otherwise misread
-                    as live progress while a Draft is still running. */}
-                        <div data-slot="event-table">
-                            <LimitedTablePanel
-                                event={event}
-                                showProgress={isPoolFinal}
-                            />
-                        </div>
+                        {/* Games phase (issue #6919): Standings beside the viewer's
+                    deck first, the round panel next, the table LAST — every
+                    seat is filled and every deck is in, so the table carries
+                    nothing actionable now. */}
+                        {showRoundPanel && (
+                            <div
+                                data-slot="games-lead"
+                                className="grid grid-cols-1 items-start gap-3 md:grid-cols-2"
+                            >
+                                <div
+                                    className={
+                                        viewerSeat && isPoolFinal
+                                            ? "min-w-0"
+                                            : "min-w-0 md:col-span-2"
+                                    }
+                                >
+                                    <LimitedStandingsTable event={event} />
+                                </div>
+                                {viewerSeat && isPoolFinal && (
+                                    <LimitedDeckPreview
+                                        eventId={eventId}
+                                        seatIndex={viewerSeat.seatIndex}
+                                    />
+                                )}
+                            </div>
+                        )}
+
+                        {!showRoundPanel && tableBlock}
 
                         {draftInProgress && (
                             <LimitedEventDraftProgress
@@ -363,7 +388,7 @@ export default function LimitedEventDetail({
                     builder shows the same cards and lets the player act on
                     them, and `useAutoOpenLimitedBuilder` has usually taken
                     them straight there already. */}
-                        {isPoolFinal && viewerSeat && (
+                        {isPoolFinal && viewerSeat && !showRoundPanel && (
                             <LimitedYourDeckPanel
                                 eventId={eventId}
                                 seatIndex={viewerSeat.seatIndex}
@@ -422,9 +447,11 @@ export default function LimitedEventDetail({
                     event states its outcome before the table backing it. */}
                         <LimitedEventWinnerBanner event={event} />
 
-                        {showStandings && (
+                        {showStandings && !showRoundPanel && (
                             <LimitedStandingsTable event={event} />
                         )}
+
+                        {showRoundPanel && tableBlock}
                     </PanelBody>
                 )}
             </div>
