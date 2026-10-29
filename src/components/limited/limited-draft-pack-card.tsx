@@ -247,12 +247,20 @@ export default function LimitedDraftPackCard({
         >
             {/* PRD #2405 / issue #2583: on an editing surface a 250ms touch hold is
                 the DRAG (gesture model A), so the hold-preview is off — the
-                card is read through the Peek Panel's Inspect CTA instead. */}
+                card is read through the Peek Panel's Inspect CTA instead.
+
+                `promoteLayer={false}` (issue #6940): a pack is a whole grid of
+                faces, and a promoted face is a GPU layer the compositor
+                EVICTS first under a starved budget — measured as blank slots
+                on this tile. Its only ancestor motion is the translate-only
+                hover lift above, which never changes the raster scale, so the
+                contained face stays sharp through it (measured too). */}
             <CardImage
                 card={{ id: printId ?? card.cardId }}
                 lazy
                 sizes="180px"
                 holdPreview={false}
+                promoteLayer={false}
             />
             {/* Issue #2663: the phone pack grid (`limited-draft-pack.tsx`) is
                 itself the clipping scroller — its tracks sit flush against
