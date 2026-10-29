@@ -3,7 +3,7 @@
  *
  * The Now view's live-session list and its claimed-issue table both name a
  * session; neither could say whether an unattended pass
- * (`scripts/loop-drain.sh` → `claude -p`) or a human at a terminal was behind
+ * (an `afk-pass` job → `claude -p`) or a human at a terminal was behind
  * it. That is the first question asked of a claim that looks stuck.
  *
  * TWO SIGNALS, IN PRECEDENCE ORDER, and the distinction between them is the
@@ -12,11 +12,10 @@
  *   1. RECORDED — `.claude/hooks/session-origin.sh` runs INSIDE the session
  *      at `SessionStart` and writes one row per session to
  *      `.claude/telemetry/sessions.jsonl`, reading `TOLARIA_LOOP_DRAIN` — the
- *      variable `loop-drain.sh` exports on every pass it launches and
- *      `loop-handoff.sh` already trusts to know a pass was driver-started.
+ *      variable `scripts/afk-pass.ts` exports on every pass it launches.
  *      Exact, because the hook shares the session's environment. Nothing can
  *      recover it afterwards: the variable dies with the process and the
- *      session UUID appears in no argv (the same dead end `loop-doctor.ts`
+ *      session UUID appears in no argv (the same dead end `lib/claim-verdict.ts`
  *      documents for the claim→pid join).
  *
  *   2. INFERRED — the transcript's own `entrypoint` field, read by
@@ -58,7 +57,7 @@ const RECORDED: ReadonlySet<string> = new Set(["afk", "interactive"]);
 
 /**
  * Transcript `entrypoint` values, mapped. `sdk-cli` is what a `claude -p`
- * stamps — the invocation `loop-drain.sh` makes — and `cli` an interactive
+ * stamps — the invocation an `afk-pass` job makes — and `cli` an interactive
  * terminal. Deliberately a CLOSED map: an unlisted value resolves to
  * `unknown`, so a new harness entrypoint appears as "not known" instead of
  * being silently filed under whichever bucket the fallback happened to be.
@@ -117,7 +116,7 @@ export function parseOriginLedger(text: string): Map<string, SessionOrigin> {
  * operator's own interactive spend.
  *
  * `run` is written by `.claude/hooks/session-origin.sh` from
- * `TOLARIA_LOOP_RUN_ID`, which `scripts/loop-drain.sh` exports on every pass
+ * `TOLARIA_LOOP_RUN_ID`, which `scripts/afk-pass.ts` exports on every pass
  * it launches — the same mechanism, and the same one-variable reach, that
  * `TOLARIA_LOOP_DRAIN` already has for `origin`. A row without it is a session
  * from before this field existed, or an interactive one: neither belongs to a

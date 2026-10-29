@@ -17,7 +17,7 @@ loop — read `headless.md` beside this file first: every **grill** below is
 
 You were spawned because the full offline gate (ADR 0116) failed on that tip
 and everything downstream is blocked: `release` refuses, `land` warns,
-`loop-drain.sh` stops. Your deliverable is a landed fix **plus a test that
+the AFK dispatcher holds. Your deliverable is a landed fix **plus a test that
 closes the class of the failure**, and a verdict file saying which.
 
 ## The four prohibitions — contract, not advice

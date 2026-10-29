@@ -12,7 +12,7 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { gh } from "./lib/gh";
 import { primaryCheckout } from "./lib/primary-checkout";
-import { claimLedgerPath } from "./loop-doctor";
+import { claimLedgerPath } from "./lib/claim-verdict";
 import { performRelease } from "./lib/queue-claim";
 
 function main(): void {

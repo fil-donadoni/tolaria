@@ -348,7 +348,7 @@ describe("launchdSupervised — only launchd's own job exits for a restart (issu
         );
     });
 
-    it("is not loop:afk's detached start, nor another launchd job", () => {
+    it("is not a detached start by hand, nor another launchd job", () => {
         expect(launchdSupervised({})).toBe(false);
         expect(
             launchdSupervised({

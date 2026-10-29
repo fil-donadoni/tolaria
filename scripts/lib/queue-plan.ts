@@ -46,8 +46,8 @@ import {
     type StateReason,
 } from "./orphans";
 // Type-only: the liveness verdict is the CLASSIFIER's, never re-spelled here
-// (issue #4384). The gathering of it is I/O and stays in `loop-doctor.ts`.
-import type { ClaimVerdictState } from "../loop-doctor";
+// (issue #4384). The gathering of it is I/O and stays in `lib/claim-verdict.ts`.
+import type { ClaimVerdictState } from "./claim-verdict";
 import type { OrphanWorktree } from "./orphan-worktree";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -183,7 +183,7 @@ export function priorityRank(p: BoardPriority | null | undefined): number {
 
 /** The minimum a band computation needs: the issue's own number and its
  *  native sub-issue parent, both already on every `QueueIssue` and on the
- *  ready-queue rows `loop-status` gathers. */
+ *  ready-queue rows the planner gathers. */
 export interface BandedIssue {
     number: number;
     parent?: { number: number; state: IssueState } | null;
@@ -382,7 +382,7 @@ export type SkipAction =
     | "close-orphan"
     /** An unclaimed issue whose local worktree holds unpushed commits and
      *  whose owner is not proven gone (issue #5531): neither adopted nor
-     *  picked fresh. `loop:doctor` / `loop:status` name the worktree. */
+     *  picked fresh. The plan names the worktree. */
     | "held-worktree";
 
 /** How much of the tree an issue may touch — the input to disjointness. */
@@ -527,7 +527,7 @@ export interface BatchPlan {
      * Dead passes' claims for the next pass to RESUME before it starts
      * anything new (issue #4763, issue #5174) — set by the wrapper from the
      * liveness classifier,
-     * never by `planBatch` (which holds no process evidence). `loop-drain`
+     * never by `planBatch` (which holds no process evidence). The dispatcher
      * takes `resume[0]` over `batch[0]`.
      */
     resume?: ResumeItem[];
@@ -535,7 +535,7 @@ export interface BatchPlan {
      * PRs the land-runner labelled `land-failed` (issue #5469) — the FIRST
      * pick, ahead of `resume` and `batch`: a red landing is work already
      * reviewed and one fix away from merging. Set by the wrapper from one
-     * `gh pr list --label land-failed`; `loop-drain` takes `repair[0]` first.
+     * `gh pr list --label land-failed`; the dispatcher takes `repair[0]` first.
      */
     repair?: RepairItem[];
 }
@@ -575,7 +575,7 @@ export interface PlanRecord {
     noPriority: boolean;
     /** The umbrella `--lineage <N>` scoped this plan to, or `null` for an
      *  unrestricted pass (issue #2327). On the RECORD and not on `BatchPlan`
-     *  deliberately: stdout's schema is what `/next-ticket` and `loop-drain`
+     *  deliberately: stdout's schema is what `/next-ticket` and `afk-dispatch`
      *  parse and it stays byte-identical, while the durable artefact is where
      *  "which candidate set produced this batch" has to be legible — without
      *  it a scoped plan is indistinguishable, after the fact, from a whole-queue
@@ -1401,7 +1401,7 @@ export interface HealthMarker {
  *     by ACTIVE SESSIONS wherever they run;
  *   * an issue whose last ledger row is `released` does NOT count — the label
  *     outliving the release is exactly the orphan window `claim-sweep.sh` and
- *     `loop:doctor` close, and holding a slot for it would wedge the queue on
+ *     `afk-dispatch` close, and holding a slot for it would wedge the queue on
  *     work nobody is doing;
  *   * a claim the planner reports as STALE is excluded by the caller before it
  *     gets here (`BatchPlan.staleClaims` — no open PR and untouched past
@@ -1425,7 +1425,7 @@ export const PR_OPEN_EVENT = "pr-open";
  * takes it, a `pr-open` row (issue #5469: handed to the land-runner) keeps
  * it, any other event (`released`) returns it.
  *
- * Pure over the file's text, and deliberately NOT `loop-doctor.ts`'s
+ * Pure over the file's text, and deliberately NOT `lib/claim-verdict.ts`'s
  * `parseClaimOwners`: that fold answers "WHO owns this claim" and therefore
  * drops every row written before owners were recorded (#2627). Here a row with
  * no owner is a perfectly good claim, and an issue the journal never mentions
@@ -1541,11 +1541,11 @@ export function machineScope(
  * The cap's census: split the reconciled claims into the ones that COUNT and
  * the ones the liveness classifier proved recoverable (issue #4384).
  *
- * A `recoverable` claim is one `loop:doctor` has positively identified as
+ * A `recoverable` claim is one the claim verdict has positively identified as
  * owned by NO running process, whose local branch still holds committed work.
  * It burns no CPU, and CPU contention is the entire thing the cap measures —
  * so it holds its LABEL (releasing it would orphan the WIP, and that call
- * stays `loop:doctor --release`'s alone) without holding a SLOT. Before this
+ * stays `afk-dispatch`'s alone) without holding a SLOT. Before this
  * split, three such corpses refused every claim for 24 hours with zero
  * sessions running.
  *
@@ -1554,7 +1554,7 @@ export function machineScope(
  * failed, `git ls-remote` could not reach the network, the journal is missing
  * — counts too. That asymmetry is the same one `ClaimFacts.ownerAlive`
  * documents at the other end: uncertainty never authorises more concurrency.
- * `orphan` counts deliberately as well — it is `loop:doctor --release`'s to
+ * `orphan` counts deliberately as well — it is `afk-dispatch`'s to
  * drop, and the 24-hour stale rule already removes the abandoned ones before
  * they reach here.
  *
@@ -1685,9 +1685,9 @@ export interface ResumeItem {
  * route by and is left out rather than guessed.
  *
  * Ordered by BAND first (`effectivePriority`, the batch's own key), then
- * oldest issue: `loop-drain` takes `resume[0]` before `batch[0]`, and a dead
+ * oldest issue: the dispatcher takes `resume` before a fresh pick, and a dead
  * P0 claim waiting behind a resumed P2 is the inversion issue #5174 is about.
- * An `orphan` is not here: nothing to resume, `loop:doctor --release` drops
+ * An `orphan` is not here: nothing to resume, `afk-dispatch` drops
  * its label and it competes in its band like any unclaimed issue.
  *
  * `--exclude-hitl` holds here too: a resumed pass ends in `land`, which
@@ -1851,7 +1851,7 @@ export function capRefusal(
             ? ""
             : `  ${claims.length + recoverable.length} claimed, ${claims.length} live, ${recoverable.length} recoverable (not counted): ` +
               `${recoverable.map((n) => `#${n}`).join(", ")} — a dead pass left committed work on branch *issue-N.\n` +
-              `  \`bun run loop:doctor\` names them; resume or salvage those branches (the label is not released by hand).\n`;
+              `  the plan's \`resume\` names them; resume or salvage those branches (the label is not released by hand).\n`;
     const strandedLine =
         stranded.length === 0
             ? ""

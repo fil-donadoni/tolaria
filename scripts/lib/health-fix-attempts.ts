@@ -12,7 +12,7 @@
  * keeps one status per context — an outcome written there erased the issues
  * the queue admits the fixer's PR by (issue #5646). `health:fix` writes `attempting` before it spawns the
  * fixer and the parsed verdict after (`parseVerdict`, fail-closed), and
- * `loop-drain.sh` asks `loopFixDecision` what to do about a standing RED.
+ * A driver asks `loopFixDecision` what to do about a standing RED.
  */
 import {
     DESCRIPTION_MAX,

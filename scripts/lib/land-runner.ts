@@ -437,7 +437,7 @@ export function runsHere(config: LandRunnerConfig, platform: string): boolean {
  * and the RED hold until a manual restart on 2026-10-18 — it touched a
  * queue-landed PR and failed five healthy PRs under RED. The `scripts`
  * tree covers the entry, every `scripts/lib` module it imports and the
- * top-level scripts it imports (`land.ts`, `loop-doctor.ts`) in one id; the
+ * top-level scripts it imports (`land.ts`) in one id; the
  * config is read once at start. A change to an unrelated script costs a
  * restart between ticks (launchd's 60 s throttle), never a landing.
  */
@@ -456,7 +456,7 @@ export const LAUNCHD_LABEL = "com.tolaria.land-runner";
 /**
  * Whether launchd runs THIS process as the runner's job — it sets
  * `XPC_SERVICE_NAME` to the job label. Only then does `RESTART_EXIT` come
- * back as a restart; `loop:afk`'s detached start (`nohup`) has no supervisor,
+ * back as a restart; a detached start by hand (`nohup`) has no supervisor,
  * and an exit there would stop the queue instead.
  */
 export function launchdSupervised(env: NodeJS.ProcessEnv): boolean {

@@ -137,8 +137,8 @@ export type UiScope =
  *  and from `MACHINE_SATURATED_EXIT`. */
 export const UI_SCOPE_UNDECIDED_EXIT = 5;
 
-/** The AFK marker: the driver (`loop-drain.sh`) and an `afk-pass` job each
- *  set one; `session-origin` reads the first (issue #3144). */
+/** The AFK marker: an `afk-pass` job sets `TOLARIA_LOOP_DRAIN` and
+ *  `GITHUB_ACTIONS`; `session-origin` reads the first (issue #3144). */
 export function isAfkSession(env: NodeJS.ProcessEnv = process.env): boolean {
     return Boolean(env.TOLARIA_LOOP_DRAIN) || env.GITHUB_ACTIONS === "true";
 }

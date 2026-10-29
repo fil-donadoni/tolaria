@@ -260,7 +260,7 @@ function runPass(
         killSignal: "SIGTERM",
         env: {
             ...process.env,
-            // The loop's environment (scripts/loop-drain.sh): the pass is
+            // The loop's environment (the variables the retired loop driver set): the pass is
             // already driven (the skill's hand-off detaches no driver), and
             // the session-origin hook books it under this run.
             TOLARIA_LOOP_DRAIN: "1",

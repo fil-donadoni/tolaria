@@ -536,7 +536,7 @@ describe("computeUiScope — doubt vs certainty (issue #6144)", () => {
         expect(walkImpact(["a", "b"], 5)).toMatchObject({ cells: 10 });
     });
 
-    it("the AFK marker is the loop-drain variable or a GitHub Actions job", () => {
+    it("the AFK marker is the loop variable or a GitHub Actions job", () => {
         expect(isAfkSession({})).toBe(false);
         expect(isAfkSession({ TOLARIA_LOOP_DRAIN: "1" })).toBe(true);
         expect(isAfkSession({ GITHUB_ACTIONS: "true" })).toBe(true);

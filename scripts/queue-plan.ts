@@ -19,7 +19,7 @@
 // It REFUSES to plan in two cases (ADR 0136 §6-7, issue #3775): while live
 // claims are at `sessions.cap`, and while the release-health `RED` marker is
 // up. Both print the way out — `--no-cap` for the first, `bun run health:fix`
-// for the second — and both exit non-zero, which is what stops `loop-drain`
+// for the second — and both exit non-zero, which is what stops a driver
 // rather than letting a pass pick for itself.
 //
 // The `--inferred` map is the fallback for issues predating the `Target files:`
@@ -85,7 +85,7 @@ import {
     claimClassifications,
     claimLedgerPath,
     readClaimOwners,
-} from "./loop-doctor";
+} from "./lib/claim-verdict";
 import { orphanWorktrees } from "./lib/orphan-worktree";
 import { FAILED_LABEL } from "./lib/land-labels";
 import { cappedRepairPrs } from "./lib/repair-cap";
@@ -518,7 +518,7 @@ class BoardReadError extends Error {}
 
 /**
  * Read the board's `Priority` column over the network, through the reader
- * shared with `loop:status` (#2519). Throws verbatim on any failure — `gh`
+ * shared with every board reader (#2519). Throws verbatim on any failure — `gh`
  * itself failing (including a rate limit), a CLI shape change, a truncated
  * list, an unranked `Priority` value — because the caller
  * (`resolveBoardPriority`) is what decides whether that is recoverable.
@@ -976,10 +976,10 @@ function main(): void {
     const released = releasedClaimsOnThisMachine();
     const reconciled = liveClaims(plan.activeClaims, released);
     // …and then asks the LIVENESS classifier which of those claims still has a
-    // process behind it (issue #4384). `loop:doctor`'s verdict, imported — the
+    // process behind it (issue #4384). `lib/claim-verdict.ts`'s verdict, imported — the
     // cap measures active sessions, and a claim it proved `recoverable` (owner
     // gone, committed work on a local branch) burns no CPU. The label stays:
-    // releasing it is `loop:doctor --release`'s call alone. An issue with no
+    // releasing it is `afk-dispatch`'s call alone. An issue with no
     // verdict counts as live — uncertainty never authorises more concurrency.
     // A `stranded` claim (issue #4763: owner gone, work pushed) gives up its
     // slot the same way, and is handed to the next pass as `resume`.
@@ -1020,7 +1020,7 @@ function main(): void {
     );
     // Refuse BEFORE the artefact is written and before anything reaches
     // stdout: no plan was handed out, so no plan record should claim one was,
-    // and `loop-drain` reads a non-zero exit as "stop", which is the point.
+    // and a driver reads a non-zero exit as "stop", which is the point.
     if (!admission.admitted) die(admission.message);
 
     // Repair picks FIRST (issue #5469): a PR the land-runner labelled

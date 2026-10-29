@@ -30,9 +30,7 @@ it and aborts again (issue #4752, issue #5564).
    read the labels back (`gh issue view N --json labels --jq '[.labels[].name]'`:
    `ready-for-human` present, `ready-for-agent` absent), and post ONE comment
    (`gh issue comment N`) saying why no agent can land it and exactly what
-   the owner must do. The AFK driver excludes an issue a pass leaves
-   untouched for the rest of its run (`loop-drain.sh`, issue #5564), but only
-   the relabel takes it out of the NEXT run's queue.
+   the owner must do. Only the relabel takes it out of the queue.
 
 **In an `afk-pass` job the release is the label** (`job.md` § Abort).
 

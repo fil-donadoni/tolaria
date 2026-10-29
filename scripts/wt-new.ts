@@ -40,7 +40,7 @@ import {
     logSessionAdmission,
     sessionRefusal,
 } from "./lib/machine-admission";
-import { claimLedgerPath } from "./loop-doctor";
+import { claimLedgerPath } from "./lib/claim-verdict";
 
 function git(args: string[], cwd: string): string {
     const r = spawnSync("git", args, { encoding: "utf8", cwd });

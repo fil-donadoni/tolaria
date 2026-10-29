@@ -13,8 +13,7 @@
 //      first run that sees a failure streak exits 1, once, for the email —
 //      and so does the first that sees a repair pick (a `land-failed` PR)
 //      waiting past `afkDispatch.repairAgeHours` under a hold (issue #5957);
-//   2. orphan claims (`classifyClaim`'s verdict, the one `loop:doctor`
-//      prints) are released;
+//   2. orphan claims (`classifyClaim`'s verdict, `lib/claim-verdict.ts`) are released;
 //   3. dead passes' pushed work is dispatched as `resume`, then fresh picks
 //      are claimed (`in-progress`, re-read just before) and dispatched to
 //      `afk-pass.yml` with their issue and model tier — as far as the merge
@@ -47,7 +46,7 @@ import {
     withClaimTimes,
     type ClaimedIssue,
     type OpenPrRow,
-} from "./loop-doctor";
+} from "./lib/claim-verdict";
 import {
     repairItems,
     type PlanConfig,
@@ -238,7 +237,7 @@ function runners(slug: string): RunnerRow[] {
 }
 
 /**
- * Every claim's verdict — `loop-doctor.ts`'s `classifyClaims`, the ONE
+ * Every claim's verdict — `lib/claim-verdict.ts`'s `classifyClaims`, the ONE
  * authority (issue #6223), over the union of the evidence: the claim time,
  * the `afk-pass` runs, this machine's claim journal (the primary checkout's:
  * the job worktree shares its refs and worktrees), local and pushed branches,

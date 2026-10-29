@@ -30,8 +30,8 @@
 //   bun run usage:window --projects ~/.claude/projects --weights w.json --pretty
 //
 // Exit code: 0 always, EXCEPT bad arguments (2). This is a reporter, not a
-// gate — `scripts/loop-drain.sh` and the AFK dispatcher (`scripts/afk-dispatch.ts`,
-// through `readUsageWindow`) are the things that decide to stop.
+// gate — the AFK dispatcher (`scripts/afk-dispatch.ts`, through
+// `readUsageWindow`) is the thing that decides to stop.
 
 import * as fs from "fs";
 import * as path from "path";

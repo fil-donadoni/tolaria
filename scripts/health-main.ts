@@ -338,7 +338,7 @@ function staleWorktrees(cwd: string): string[] {
 
 /**
  * `health:status --json` (issue #5462): the store's lineage as ONE line of
- * flat JSON, for `loop-drain.sh` to read with `sed`. Exit 0 whenever the
+ * flat JSON, for a shell driver to read with `sed`. Exit 0 whenever the
  * store answered — the verdict is in `lineage`, not in the exit code — and 2
  * when it could not be read (`error`), which the loop reports and survives.
  */

@@ -56,7 +56,7 @@
 # read as alive forever — the exact failure this fact exists to prevent.
 #
 # Best-effort by construction: if the walk finds nothing (an unusual spawn
-# chain, no `ps`), the row carries `owner: null` and `loop:doctor` reads that
+# chain, no `ps`), the row carries `owner: null` and the claim verdict reads that
 # as "unknown", which changes no verdict it would have reached before.
 
 set -u
@@ -151,8 +151,8 @@ fi
 # hook would stall every Bash call) and silent on failure: printing nothing
 # means "unknown owner", which downstream reads as "changes no verdict".
 #
-# `TOLARIA_CLAIM_OWNER_COMM` is the injection seam the tests use — the same
-# role `isAlive` plays in `lib/loop-status.ts`. A vitest-spawned hook has no
+# `TOLARIA_CLAIM_OWNER_COMM` is the injection seam the tests use. A
+# vitest-spawned hook has no
 # `claude` ancestor, so without a seam the recording path could only ever be
 # asserted against a real Claude Code process, i.e. never.
 owner_comm="${TOLARIA_CLAIM_OWNER_COMM:-claude}"
@@ -183,7 +183,7 @@ resolve_owner_pid() {
 # dead pass cannot read as alive because something else inherited its number.
 #
 # `LC_ALL=C TZ=UTC` IS LOAD-BEARING, and must stay byte-identical to the read
-# side (`defaultProcessProbe` in scripts/loop-doctor.ts). `ps -o lstart=`
+# side (`defaultProcessProbe` in scripts/lib/claim-verdict.ts). `ps -o lstart=`
 # renders a human string through the caller's locale AND timezone — measured
 # on this machine, same process, same instant:
 #

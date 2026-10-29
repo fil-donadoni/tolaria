@@ -1,34 +1,28 @@
-#!/usr/bin/env bun
 /**
- * `bun run loop:doctor` — find the claims nothing is going to release, and
- * (with `--release`) release them.
+ * The claim verdict — what one `in-progress` claim is, and whether anything
+ * is going to release it (issue #4384, issue #6223: the ONE authority).
  *
  * WHY. An issue is claimed by putting `in-progress` on it, and the claim is
- * meant to come off on every exit path: the pass's own Release step, or
- * `claim-sweep.sh` at SessionEnd. Both can miss:
+ * meant to come off on every exit path. A pass that dies mid-flight never
+ * releases it, and an orphaned claim is silent and permanent: every later
+ * pass sees `in-progress` and skips the issue as somebody else's live work.
+ * `classifyClaim` reads the evidence (branch, open PR, land queue, owning
+ * process, `afk-pass` runs) and names the claim's state; `afk-dispatch`
+ * releases the orphans, `queue:plan` hands recoverable and stranded work to
+ * the next pass as `resume`.
  *
- *   - a pass that dies mid-flight never reaches Release. Observed 2026-08-17:
- *     four headless passes ended their turn saying "waiting for the background
- *     job to finish" — in `claude -p` the end of the turn is the end of the
- *     process — after claiming #2445, #1969, #1851 and #1852.
- *   - the sweep releases exactly what the LEDGER says this session took, and
- *     until the fix alongside this file the ledger recorded only the FIRST
- *     issue of a batch claim. The other three were invisible to it.
+ * SAFE BY DEFAULT: an orphan is only a claim with NO branch and NO open PR
+ * anywhere — the sessions share one GitHub account, so "assigned to me"
+ * proves nothing about which session owns a claim, and a wrong release
+ * unclaims live work.
  *
- * An orphaned claim is silent and permanent: every later pass sees
- * `in-progress` and skips the issue as somebody else's live work, forever. Six
- * were sitting in the queue when this was written.
- *
- * SAFE BY DEFAULT: reports and releases nothing. Even under `--release` it
- * only touches issues with NO branch and NO open PR anywhere — because the
- * sessions share one GitHub account, so "assigned to me" proves nothing about
- * which session owns a claim, and a wrong release unclaims live work.
+ * Library only: its CLI retired with the loop driver (issue #7486); the
+ * gathering helpers stay here beside the verdict they feed.
  */
 import { spawnSync } from "node:child_process";
-import { appendFileSync, readFileSync, statSync } from "node:fs";
-import { ORIGIN_BASE } from "./lib/branches";
-import { CLAIM_LABEL, releaseEditArgs } from "./lib/claim-labels";
-import { FAILED_LABEL, READY_LABEL } from "./lib/land-labels";
+import { readFileSync, statSync } from "node:fs";
+import { CLAIM_LABEL } from "./claim-labels";
+import { FAILED_LABEL, READY_LABEL } from "./land-labels";
 import {
     CLAIM_RUN_SLACK_MS,
     PASS_WORKFLOW,
@@ -36,9 +30,7 @@ import {
     parseWorkflowRuns,
     passRunEvidence,
     type WorkflowRun,
-} from "./lib/afk-dispatch";
-import { orphanWorktrees } from "./lib/orphan-worktree";
-import { primaryCheckout } from "./lib/primary-checkout";
+} from "./afk-dispatch";
 
 export type ClaimFacts = {
     issue: number;
@@ -187,9 +179,7 @@ export type ClaimVerdict = { state: ClaimVerdictState; reason: string };
  * re-declaring `2`. The dashboard's claims table amber-ages a claim past this
  * threshold (`dashboard/lib/nowClaims.ts`'s `MIN_AGE_HOURS`, kept
  * as a mirrored literal with its own drift-guard test, since a plain browser
- * `.js` module cannot import a `.ts` source at runtime — see
- * `TIMELINE_WINDOW_HOURS`/`WINDOW_HOURS` in `lib/loop-status.ts` /
- * `now-timeline.js` for the same pattern).
+ * `.js` module cannot import a `.ts` source at runtime).
  */
 export const DEFAULT_MIN_AGE_HOURS = 2;
 
@@ -212,9 +202,8 @@ export const UNPROVEN_CLAIM_HOURS = 24;
 export const DEAD_OWNER_QUIET_MINUTES = 30;
 
 /**
- * THE verdict on a claim (issue #6223): `loop:doctor`, the queue verbs, the
- * AFK dispatcher (its picker and its hold-time release) and `loop:status` all
- * call this, over the union of their evidence — no caller keeps a private
+ * THE verdict on a claim (issue #6223): the queue verbs and the AFK
+ * dispatcher (its picker and its hold-time release) all call this, over the union of their evidence — no caller keeps a private
  * age, branch or run rule. Before, the dispatcher judged claims by `afk-pass`
  * runs alone and this file by the journal owner and age alone, and the two
  * disagreed claim by claim: 28 claims "orphan" here sat "live" there forever.
@@ -388,7 +377,7 @@ export function classifyClaim(
 // THE PROBLEM. A claim is a GitHub label, and nothing about a label says which
 // process took it. The claim journal (`.claude/telemetry/claims.jsonl`) keys
 // rows by Claude Code SESSION UUID; the only liveness primitive anywhere on
-// disk is the single GLOBAL driver pid (`loop-drain.pid`), and that answers
+// disk is the single GLOBAL driver pid (the retired loop driver's), and that answers
 // "is SOME pass running", not "is THIS claim's pass running". Conflating the
 // two protects every stale claim for as long as the driver keeps running —
 // precisely the bug #2627 is about.
@@ -430,8 +419,7 @@ export type ClaimOwner = {
  * such process, and `null` when the probe itself could not answer (no `ps`,
  * an unexpected exit) — the "unknown" reading that must never release.
  *
- * Injectable for the same reason `defaultIsAlive` is in `lib/loop-status.ts`:
- * tests must not need real processes to exercise the liveness branches.
+ * Injectable so tests need no real processes to exercise the liveness branches.
  */
 export type ProcessProbe = (pid: number) => string | null;
 
@@ -570,34 +558,6 @@ export function claimLedgerPath(
     return `${root}/.claude/telemetry/claims.jsonl`;
 }
 
-/**
- * The audit row a release writes back to the claim journal (#2627 AC5).
- *
- * It goes into `claims.jsonl` rather than a new file on purpose: that journal
- * is already the record of who took what, `claim-sweep.sh` already folds
- * `released` rows out of a session's outstanding set, and stamping the row
- * with the OWNING session (not `loop:doctor`) means the dead session's own
- * SessionEnd sweep — if it ever runs — sees the claim as already released.
- * `by` and `reason` are what an operator reads to answer "what reclaimed this,
- * and on what evidence".
- */
-export function releaseRecord(
-    issue: number,
-    verdict: ClaimVerdict,
-    owner: ClaimOwner | undefined,
-    now: number = Date.now()
-): string {
-    return JSON.stringify({
-        ts: Math.floor(now / 1000),
-        session: owner?.session || "loop:doctor",
-        issue,
-        event: "released",
-        by: "loop:doctor",
-        verdict: verdict.state,
-        reason: verdict.reason,
-    });
-}
-
 // bun auto-loads `.env.local`, whose GITHUB_TOKEN shadows the gh keyring and
 // 403s every call — same trap as the docs lane and the worktree GC.
 const NET_ENV: NodeJS.ProcessEnv = (() => {
@@ -618,15 +578,14 @@ function spawnRaw(
     };
 }
 
-/** A pluggable command runner — the seam `loop:status` (#2519 round 3,
- *  finding 5) injects a fixture into for testing, and swaps for
- *  `shChecked` in production to turn a failed `gh`/`git` call into a
+/** A pluggable command runner — the seam a test injects a fixture into
+ *  (#2519 round 3, finding 5), and a caller swaps for `shChecked` to turn a failed `gh`/`git` call into a
  *  thrown error instead of a silently-empty string. */
 export type ShRunner = (cmd: string, args: string[]) => string;
 
 /** Historical behaviour: a non-zero exit renders as `""`. Fine for
- *  `loop:doctor`'s own CLI, where a failed read degrading to "nothing to
- *  report" is an acceptable (if imperfect) default — NOT fine for a
+ *  an advisory read, where degrading to "nothing to report" is an
+ *  acceptable (if imperfect) default — NOT fine for a
  *  caller that must distinguish "the read failed" from "the read
  *  legitimately returned nothing", because both look identical here. */
 const sh: ShRunner = (cmd, args) => {
@@ -662,13 +621,11 @@ export type ClaimedIssue = {
 /**
  * Every issue currently claimed (`is:open is:issue label:in-progress`).
  *
- * Exported (#2519) so `loop:status` builds its "who is claimed" view from the
- * SAME query `loop:doctor` uses to find orphans, rather than a second,
- * independently-drifting definition of "claimed".
+ * Exported (#2519) so every claim reader uses the SAME query, rather than a
+ * second, independently-drifting definition of "claimed".
  *
- * `runner` defaults to the swallow-on-failure `sh` — unchanged behaviour for
- * `loop:doctor`'s own CLI below. `loop:status` passes `shChecked` explicitly
- * so a failed read THROWS instead of reading as zero claims.
+ * `runner` defaults to the swallow-on-failure `sh`; a caller that must tell
+ * a failed read from zero claims passes `shChecked`, which THROWS.
  */
 export function fetchClaimedIssues(runner: ShRunner = sh): ClaimedIssue[] {
     return JSON.parse(
@@ -683,59 +640,6 @@ export function fetchClaimedIssues(runner: ShRunner = sh): ClaimedIssue[] {
             "200",
         ]) || "[]"
     ) as ClaimedIssue[];
-}
-
-/**
- * Open `ready-for-agent` issues nobody claims — the candidates whose orphaned
- * worktree `loop:doctor` reports (issue #5531). Advisory, so it never takes
- * the claim sweep down: an answer that is not a JSON array (an error body, a
- * rate-limit message, a stub) reads as none, with a warning so a broken `gh`
- * never reads as "no orphans" (issue #5551).
- */
-export function fetchUnclaimedIssues(runner: ShRunner = sh): Set<number> {
-    let rows: unknown;
-    try {
-        rows = JSON.parse(
-            runner("gh", [
-                "issue",
-                "list",
-                "--label",
-                "ready-for-agent",
-                "--state",
-                "open",
-                "--json",
-                "number,labels",
-                "--limit",
-                "500",
-            ]) || "[]"
-        );
-    } catch {
-        console.warn(
-            "loop:doctor: the unclaimed-issue list was not JSON — orphan worktrees not reported this run"
-        );
-        return new Set();
-    }
-    if (!Array.isArray(rows)) {
-        console.warn(
-            "loop:doctor: the unclaimed-issue list was not an array — orphan worktrees not reported this run"
-        );
-        return new Set();
-    }
-    return new Set(
-        (rows as { number: number; labels?: { name: string }[] }[])
-            .filter(
-                (i) =>
-                    Number.isInteger(i?.number) &&
-                    !(i.labels ?? []).some((l) => l.name === "in-progress")
-            )
-            .map((i) => i.number)
-    );
-}
-
-/** Head branch names of every currently OPEN pull request. See
- *  `fetchClaimedIssues` for the `runner` default/override convention. */
-export function fetchOpenPrBranches(runner: ShRunner = sh): Set<string> {
-    return new Set(fetchOpenPrs(runner).keys());
 }
 
 /** Open PRs, head branch → PR number (`null` when the read carried none).
@@ -1168,16 +1072,15 @@ export function countUnpushedCommits(
 // `queue:plan` built their live set from the `in-progress` labels minus an
 // open PR minus 24 hours of silence, and that path held no process-liveness
 // evidence at all — while this file's classifier had it, and had already
-// printed the right diagnosis. Observed 2026-09-22: two `loop-drain` passes
+// printed the right diagnosis. Observed 2026-09-22: two loop passes
 // died mid-issue leaving three claims standing (#4117, #4306, #4307), `ps`
-// showed ZERO owning processes, `loop:doctor` reported `2 RECOVERABLE`, and
+// showed ZERO owning processes, the claim report read `2 RECOVERABLE`, and
 // the next claim was still refused at `3/3 live claims`. Real concurrent
 // sessions: none. The cap measures ACTIVE sessions (the PR/h knee,
 // `docs/agents/quality-gates.md` § Session admission); it was counting
 // corpses.
 //
-// So the verdict is exported rather than re-derived. The discipline is the one
-// `loop-drain.test.ts` already enforces for staleness: ONE definition, imported.
+// So the verdict is exported rather than re-derived. ONE definition, imported.
 // A second opinion in the queue verbs is how the two ends drift.
 
 export type ClaimClassification = {
@@ -1321,7 +1224,7 @@ export function readClaimOwners(
 
 /**
  * The I/O wrapper the queue verbs call: issue number → verdict state, over
- * the same scans `loop:doctor` runs.
+ * the same scans every claim reader runs.
  *
  * TOTAL BY CONTRACT, and the direction is the safe one. Every read here can
  * fail — `git ls-remote` needs the network, `gh pr list` can be rate-limited,
@@ -1407,150 +1310,4 @@ export function withClaimTimes(
         ...i,
         claimedAt: i.claimedAt ?? times[i.number] ?? null,
     }));
-}
-
-if (import.meta.main) {
-    const release = process.argv.includes("--release");
-
-    const issues = withClaimTimes(fetchClaimedIssues());
-
-    // Unclaimed issues whose worktree still holds unpushed commits (issue
-    // #5531) — invisible to the claim roster below. Reported, never released.
-    const unclaimed = fetchUnclaimedIssues();
-    for (const o of orphanWorktrees(unclaimed, {
-        baseRef: ORIGIN_BASE,
-        owners: readClaimOwners(
-            process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout()
-        ),
-    }))
-        console.log(
-            o.verdict.state === "adopt"
-                ? `  ! #${o.issue} ORPHAN WORKTREE ${o.path} — ${o.verdict.reason}`
-                : `  ? #${o.issue} HELD ORPHAN WORKTREE — ${o.verdict.reason}`
-        );
-
-    if (issues.length === 0) {
-        console.log("loop:doctor — no claimed issues. Nothing to check.");
-        process.exit(0);
-    }
-
-    const prRows = fetchOpenPrRows();
-    const prs = openPrMap(prRows);
-    const branches = fetchBranchNames();
-
-    // The claim journal is the only place a claim's owning process is named.
-    // Missing file → an empty map → every claim reads `ownerAlive: null`
-    // (unknown), i.e. the pre-#2627 behaviour.
-    // The primary checkout's journal, as the dispatcher reads it (issue
-    // #6223): from a worktree, `.` holds none and every owner read unknown.
-    const ledgerRoot = process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout();
-    const ledgerFile = claimLedgerPath(ledgerRoot);
-    const owners = readClaimOwners(ledgerRoot);
-    // The dispatcher's evidence too (issue #6223): one verdict, one input.
-    const passRuns = fetchPassRuns();
-    if (passRuns === null)
-        console.log(
-            "loop:doctor: the `afk-pass` runs were unreadable — no claim is released on run evidence this run"
-        );
-
-    const orphans: { issue: number; verdict: ClaimVerdict }[] = [];
-    const recoverable: { issue: number; verdict: ClaimVerdict }[] = [];
-    const stranded: { issue: number; pr: number | null }[] = [];
-    // The SAME call the queue verbs make (issue #4384) — this CLI is not
-    // allowed a private spelling of its own classification.
-    for (const { issue: number, title, verdict: v, pr } of classifyClaims(
-        issues,
-        {
-            prBranches: new Set(prs.keys()),
-            prs,
-            landQueue: landQueueByBranch(prRows),
-            branches,
-            owners,
-            baseRef: ORIGIN_BASE,
-            passRuns,
-        }
-    )) {
-        const issue = { number, title };
-        const mark =
-            v.state === "orphan"
-                ? "×"
-                : v.state === "recoverable"
-                  ? "!"
-                  : v.state === "stranded"
-                    ? "~"
-                    : v.state === "suspect"
-                      ? "?"
-                      : v.state === "pr-open"
-                        ? ">"
-                        : "·";
-        console.log(
-            `  ${mark} #${issue.number} ${issue.title.slice(0, 52).padEnd(52)} ${v.reason}`
-        );
-        if (v.state === "orphan")
-            orphans.push({ issue: issue.number, verdict: v });
-        if (v.state === "recoverable")
-            recoverable.push({ issue: issue.number, verdict: v });
-        if (v.state === "stranded") stranded.push({ issue: issue.number, pr });
-    }
-
-    console.log(
-        `\n${issues.length} claimed, ${orphans.length} orphaned (nothing is going to release them).`
-    );
-    // Reported LOUDLY and released by nothing (issue #3698). Releasing the
-    // label alone would send the next pass at the same issue from scratch
-    // while the dead pass's commits sit in a worktree it will then collide
-    // with; the recoverable state exists to put that work back in play instead
-    // of expiring it silently after 24 hours — `queue:plan` hands it to the
-    // next pass as `resume` (issue #5174).
-    if (recoverable.length > 0) {
-        console.log(
-            `\n${recoverable.length} RECOVERABLE — a dead pass left a local branch behind. Not released; the next pass resumes it:`
-        );
-        for (const { issue: n, verdict } of recoverable) {
-            console.log(`  ! #${n} (branch *issue-${n}) — ${verdict.reason}`);
-        }
-    }
-    // Named by PR number (issue #4763): pushed work with no process behind
-    // it. Not released and not counted against the cap; `queue:plan` hands
-    // it to the next pass as `resume`, and `loop-drain` resumes it first.
-    if (stranded.length > 0) {
-        console.log(
-            `\n${stranded.length} STRANDED — a dead pass left pushed work behind. Not released; the next pass resumes it:`
-        );
-        for (const { issue: n, pr } of stranded) {
-            console.log(
-                `  ~ #${n} ${pr === null ? "(branch pushed, no PR)" : `PR #${pr}`}`
-            );
-        }
-    }
-    if (orphans.length === 0) process.exit(0);
-    if (!release) {
-        console.log(
-            "Nothing released — re-run with --release to drop `in-progress` on the orphans."
-        );
-        process.exit(0);
-    }
-    for (const { issue: n, verdict } of orphans) {
-        const ok = spawnSync("gh", releaseEditArgs(n), {
-            stdio: "inherit",
-            env: NET_ENV,
-        }).status;
-        if (ok === 0) {
-            // Record BEFORE reporting, and never let a journal failure look
-            // like a failed release: the label really did come off.
-            try {
-                appendFileSync(
-                    ledgerFile,
-                    `${releaseRecord(n, verdict, owners.get(n))}\n`
-                );
-            } catch {
-                console.log(
-                    `  (could not append the release record to ${ledgerFile})`
-                );
-            }
-        }
-        console.log(
-            `${ok === 0 ? "released" : "FAILED"}  #${n} — ${verdict.reason}`
-        );
-    }
 }

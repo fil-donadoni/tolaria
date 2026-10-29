@@ -19,7 +19,7 @@ import {
 
 /**
  * `scripts/lib/usage-window.ts` is the pure accounting core behind
- * `bun run usage:window` and, transitively, `scripts/loop-drain.sh`'s budget
+ * `bun run usage:window` and, transitively, the AFK dispatcher's budget
  * guard (PRD: the AFK driver, ADR 0097). Every case here guards a real way an
  * unattended loop could either burn money silently or stop for no reason.
  */

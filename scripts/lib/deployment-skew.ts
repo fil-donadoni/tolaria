@@ -121,8 +121,8 @@ export function deploymentSkew(input: SkewInput): SkewDecision {
     return { kind: "ok" };
 }
 
-/** What to do about a skew — one sentence, no double quotes (`loop-drain`
- *  reads `INFRA_REMEDY` with `sed`). */
+/** What to do about a skew — one sentence, no double quotes (a shell
+ *  reader takes `INFRA_REMEDY` with `sed`). */
 export function skewRemedy(primary: string, base: string): string {
     return `put the primary checkout back on the base branch (\`git -C ${primary} switch ${base} && git -C ${primary} merge --ff-only origin/${base}\`), wait for convex dev to push, and rebase a branch that is behind origin/${base}; then re-run`;
 }

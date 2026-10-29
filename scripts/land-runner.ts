@@ -40,16 +40,15 @@
  * reads `RUNNER_SOURCE_PATHS` at the primary's HEAD and, once they moved,
  * exits `RESTART_EXIT` when launchd supervises it
  * (`KeepAlive.SuccessfulExit = false` starts it on the new code), or says so
- * once under `loop:afk`, whose next `--start` does (issue #5941).
+ * once when started by hand, whose next start does (issue #5941).
  *
  * Flags: `--once` (one tick, then exit — cron/launchd-friendly), `--dry-run`
  * (print the tick's plan, touch nothing), `--interval <s>` (between ticks;
  * default `landRunner.intervalS`), `--host-check` (exit 0 iff this machine
- * runs the runner — `loop-handoff.sh` asks it, one authority). Refuses (exit 0, so a supervisor does not
+ * runs the runner — one authority). Refuses (exit 0, so a supervisor does not
  * respawn it) on a machine whose platform is not `landRunner.platform`.
  * SIGTERM/SIGINT stop it AFTER the landing in flight — a `land` killed
- * mid-merge is a worse state than a late stop. The lock file holds the pid;
- * `loop:afk --disarm` signals it.
+ * mid-merge is a worse state than a late stop. The lock file holds the pid.
  *
  * Every decision is `lib/land-runner.ts`, tested in
  * `__tests__/land-runner.test.ts`; this file is plumbing.
@@ -108,10 +107,10 @@ import { FIXUP_PUSHED_RE, type LaneJson } from "./pr-fixup";
 import type { Deferral } from "./lib/land-runner";
 import { performRelease } from "./lib/queue-claim";
 import { readRepairIssues } from "./land";
-import { claimLedgerPath } from "./loop-doctor";
+import { claimLedgerPath } from "./lib/claim-verdict";
 
 /** Where the runner keeps its lock (= pid file), log and per-PR land logs,
- *  relative to the primary checkout. `loop-handoff.sh` reads the lock. */
+ *  relative to the primary checkout. */
 export const RUNNER_DIR_REL = join(".claude", "telemetry", "land-runner");
 
 /** A live process that IS a land-runner — a stale lock whose pid the OS has
@@ -848,7 +847,7 @@ async function main(): Promise<void> {
             }
             if (check === "warn" && !warned) {
                 log(
-                    `runner sources changed (${shortIdentity(startedFrom!)} → ${shortIdentity(now!)}) under a runner launchd does not supervise — restart it (\`loop:afk --disarm\`, then \`--start\`)`
+                    `runner sources changed (${shortIdentity(startedFrom!)} → ${shortIdentity(now!)}) under a runner launchd does not supervise — restart it (stop the pid in its lock, then \`bun run land:runner\`)`
                 );
                 warned = true;
             }

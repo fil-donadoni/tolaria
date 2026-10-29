@@ -2,8 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   The land-runner's launchd agent (MacBook ONLY) — the one merger, kept alive
-  (issue #5469). The alternative to `bun run loop:afk --start`, which starts the
-  same process detached; the runner's lock keeps one of them. Install per
+  (issue #5469). The alternative to a detached `bun run land:runner`, the
+  same process unsupervised; the runner's lock keeps one of them. Install per
   docs/guides/huawei-runner.md § Install on the MacBook. __REPO__,
   __BUN__, __NODE_BIN__ and __HOME__ are substituted at install time. Restarted only after a CRASH: SIGTERM (`--disarm`)
   makes it exit 0 after the landing in flight, which launchd leaves stopped;

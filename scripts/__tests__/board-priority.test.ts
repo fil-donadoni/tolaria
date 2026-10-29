@@ -3,10 +3,10 @@ import { fetchBoardPriority, isTruncated } from "../lib/board-priority";
 
 /**
  * `lib/board-priority.ts` (#2519) — extracted out of `queue-plan.ts` so
- * `loop:status` can read the SAME board query without a second, drifting
+ * the retired status view could read the SAME board query without a second, drifting
  * implementation. The failure policy (`onError`) is the one thing that had
  * to become a parameter: `queue:plan` needs the read to FAIL LOUD (a
- * mis-ordered batch is worse than a stopped loop); `loop:status` needs it to
+ * mis-ordered batch is worse than a stopped loop); the retired status view needs it to
  * degrade gracefully (a missing priority column is cosmetic there). Every
  * test drives `ghClient` by hand — no real `gh` call.
  *
