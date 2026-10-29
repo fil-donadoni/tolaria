@@ -66,6 +66,21 @@ function stripes(w: number, h: number, period: number): number[] {
     return data;
 }
 
+/** A w×h RGBA buffer of deterministic hashed noise: the fine detail of a
+ *  printed face, which a blur merges and a step edge does not have. */
+function texture(w: number, h: number): number[] {
+    const data = new Array<number>(w * h * 4).fill(255);
+    for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+            const v = 30 + (((x * 73 + y * 151 + x * y * 7) % 97) / 97) * 200;
+            const i = (y * w + x) * 4;
+            data[i] = v;
+            data[i + 1] = v;
+            data[i + 2] = v;
+        }
+    return data;
+}
+
 /** The same buffer box-blurred horizontally over `radius` pixels: the soft
  *  picture a lower-resolution raster of it looks like. */
 function blurred(src: number[], w: number, h: number, radius: number) {
@@ -333,10 +348,11 @@ describe("raster.js — normalised energy is contrast-free, and a uniform region
     });
 
     it("still orders a sharp picture above a blurred one", () => {
-        // Period 16: broad features with sharp edges, the shape of card art. A
-        // period-4 pattern under a 5-wide box blur averages to near-flat and
-        // says nothing about either rendering.
-        const sharp = stripes(W, H, 16);
+        // A TEXTURE, not clean stripes: the total variation of a step edge is
+        // invariant under blur (the ramp sums to the same step), so only fine
+        // detail that a blur merges — the rules text and frame hatching of a
+        // card — can read as lost. Deterministic hashed noise is that detail.
+        const sharp = texture(W, H);
         const soft = blurred(sharp, W, H, 2);
         expect(m.normalizedEnergy(soft, W, H, 0.12)!).toBeLessThan(
             m.normalizedEnergy(sharp, W, H, 0.12)! * 0.8
