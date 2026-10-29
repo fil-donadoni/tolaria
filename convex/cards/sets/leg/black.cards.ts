@@ -4,6 +4,8 @@
 // generic mana is encoded as `X: n` (e.g. {3}{G}{W} → { X: 3, G: 1, W: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 
+import { combatPairKill } from "../../abilities/triggers/combatPairKillTrigger";
+
 import { defineCard, type SpellContext } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -30,22 +32,6 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 //
 // Cards that genuinely need an unbuilt primitive are SKIPPED (not built here) (tracked-by: #2785):
 //   • Transmutation — "switch power and toughness" has no swap primitive.
-//   • Abomination — "whenever this blocks or becomes blocked by a GREEN OR
-//     WHITE creature, destroy that creature at end of combat" (current oracle;
-//     the "non-black/non-artifact" gate recorded here earlier was the printed
-//     text). The shared `combatPairKill` primitive (#486,
-//     abilities/triggers/combatPairKillTrigger.ts) covers the shape, but
-//     `CombatPairOpponent` drops the event's `attackerColors`/`blockerColors`
-//     (types.ts, BlockersConfirmedEvent) — a `colors` field forward. Owned by
-//     #2124.
-//   • Infernal Medusa — TWO oracle lines with different gates on different
-//     directions: "whenever this blocks a creature" (no filter) and "whenever
-//     this becomes blocked by a NON-WALL creature". It is not Abomination's
-//     colour-gated twin and does not ride that forward: the subtype gate
-//     already ships (Cockatrice, lea/green.cards.ts), what is missing is a DIRECTION
-//     discriminator — `opponentInPair` knows which side the source is on and
-//     discards it, so `opponentFilter` cannot tell "blocks" from "becomes
-//     blocked by". Owned by #2124.
 //   • Glyph of Doom — "at the next end of combat, destroy all creatures blocked
 //     by that Wall this turn". The deferred-end-of-combat destroy now exists
 //     (#486); it still needs per-combat "blocked by that Wall" set tracking,
@@ -61,12 +47,6 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 //     attacker; no such redirection primitive.
 //   • Underworld Dreams — "whenever an opponent draws a card" needs a card-drawn
 //     trigger that doesn't exist yet.
-//   • Vampire Bats — "{B}: +1/+0, activate no more than TWICE each turn" is NOT
-//     blocked: `CardInstanceState.activationsThisTurn` is a per-ability tally
-//     and `canActivate` reads it against any threshold (Phyrexian Battleflies,
-//     inv/black.cards.ts; Soul Kiss, ice/black.cards.ts). Deferred to its tranche only for
-//     authoring — owned by #2124. (The Bot evaluates `canActivate` closures
-//     since issue #3441, so the cap no longer hides them from the enumerator.)
 //   • Quagmire — "creatures with swampwalk can be blocked as though they didn't
 //     have swampwalk" — buildable with the `landwalk-negation` static (Great
 //     Wall / Undertow, #484), `subtypes: ["Swamp"]`. Deferred to its tranche.
@@ -950,5 +930,137 @@ export const wallOfTombstones = defineCard(() => ({
                 );
             },
         }),
+    ],
+}));
+
+// --- Combat-kill pattern with colour / direction gates (#2124) ---------------
+
+// Abomination — {3}{B}{B} 2/6. "Whenever this creature blocks or becomes
+// blocked by a green or white creature, destroy that creature at end of
+// combat." (CR 509.1h combat pairing, CR 511.1 end-of-combat step.) The gate
+// reads the OTHER creature's live layer-5 colours (CR 202.2, CR 613) captured on
+// the BLOCKERS_CONFIRMED event, never a state lookup.
+const ABOMINATION_ID = "a69e2cf8-5ecb-485a-92a2-b4e0a7959f1f";
+
+const abominationCombatKill = combatPairKill({
+    cardId: ABOMINATION_ID,
+    triggerId: "abomination-combat-kill",
+    delayedTriggerId: "abomination-destroy",
+    oracleText:
+        "Whenever this creature blocks or becomes blocked by a green or white creature, destroy that creature at end of combat.",
+    delayedOracleText: "Destroy that creature at end of combat.",
+    combatant: "self",
+    opponentFilter: (opponent) =>
+        opponent.colors.includes("G") || opponent.colors.includes("W"),
+});
+
+// compiler-gap: "Whenever this creature blocks or becomes blocked by a green or white creature, destroy that creature at end of combat." (#1009)
+export const abomination = defineCard(() => ({
+    id: ABOMINATION_ID,
+    rarity: "uncommon",
+    name: "Abomination",
+    oracleText:
+        "Whenever this creature blocks or becomes blocked by a green or white creature, destroy that creature at end of combat.",
+    manaCost: { X: 3, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Horror"],
+    power: 2,
+    toughness: 6,
+    triggeredAbilities: [abominationCombatKill.trigger],
+    delayedTriggers: [abominationCombatKill.delayed],
+}));
+
+// Infernal Medusa — {3}{B}{B} 2/4. TWO Oracle lines, so TWO triggered
+// abilities (CR 603.2), each firing on its own direction only (CR 509.1h):
+//   • "Whenever this creature blocks a creature, destroy that creature at end
+//     of combat." — the OTHER creature is the attacker; no further gate.
+//   • "Whenever this creature becomes blocked by a non-Wall creature, destroy
+//     that creature at end of combat." — the OTHER creature is a blocker, and
+//     the non-Wall gate applies to this line ONLY (a Wall it blocks still dies).
+const INFERNAL_MEDUSA_ID = "26a5333f-2761-42b8-ae8b-1d360b109daf";
+
+const infernalMedusaBlocks = combatPairKill({
+    cardId: INFERNAL_MEDUSA_ID,
+    triggerId: "infernal-medusa-blocks",
+    delayedTriggerId: "infernal-medusa-blocks-destroy",
+    oracleText:
+        "Whenever this creature blocks a creature, destroy that creature at end of combat.",
+    delayedOracleText: "Destroy that creature at end of combat.",
+    combatant: "self",
+    opponentFilter: (opponent) => opponent.role === "attacker",
+});
+
+const infernalMedusaBlocked = combatPairKill({
+    cardId: INFERNAL_MEDUSA_ID,
+    triggerId: "infernal-medusa-blocked",
+    delayedTriggerId: "infernal-medusa-blocked-destroy",
+    oracleText:
+        "Whenever this creature becomes blocked by a non-Wall creature, destroy that creature at end of combat.",
+    delayedOracleText: "Destroy that creature at end of combat.",
+    combatant: "self",
+    opponentFilter: (opponent) =>
+        opponent.role === "blocker" && !opponent.subtypes.includes("Wall"),
+});
+
+// compiler-gap: "Whenever this creature blocks a creature, destroy that creature at end of combat." (#1009)
+// compiler-gap: "Whenever this creature becomes blocked by a non-Wall creature, destroy that creature at end of combat." (#1009)
+export const infernalMedusa = defineCard(() => ({
+    id: INFERNAL_MEDUSA_ID,
+    rarity: "uncommon",
+    name: "Infernal Medusa",
+    oracleText:
+        "Whenever this creature blocks a creature, destroy that creature at end of combat.\nWhenever this creature becomes blocked by a non-Wall creature, destroy that creature at end of combat.",
+    manaCost: { X: 3, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Gorgon"],
+    power: 2,
+    toughness: 4,
+    triggeredAbilities: [
+        infernalMedusaBlocks.trigger,
+        infernalMedusaBlocked.trigger,
+    ],
+    delayedTriggers: [
+        infernalMedusaBlocks.delayed,
+        infernalMedusaBlocked.delayed,
+    ],
+}));
+
+// Vampire Bats — {B} 0/1. "Flying. {B}: This creature gets +1/+0 until end of
+// turn. Activate no more than twice each turn." (CR 702.9 flying, CR 602.5
+// activation cap.) The cap reads the engine's per-ability
+// `activationsThisTurn` tally through `canActivate`, exactly as Phyrexian
+// Battleflies does (inv/black.cards.ts).
+// compiler-gap: "{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn." (#1009)
+export const vampireBats = defineCard(() => ({
+    id: "6a6a6f50-7b86-461e-80a7-e35d0e7cf52f",
+    rarity: "common",
+    name: "Vampire Bats",
+    oracleText:
+        "Flying\n{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.",
+    manaCost: { B: 1 },
+    types: ["Creature"],
+    subtypes: ["Bat"],
+    power: 0,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "vampire-bats-pump",
+            oracleText:
+                "{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            canActivate: (source) =>
+                (source.activationsThisTurn?.["vampire-bats-pump"] ?? 0) < 2,
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
     ],
 }));

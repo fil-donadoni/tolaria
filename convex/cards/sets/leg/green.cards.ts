@@ -908,3 +908,36 @@ export const giantTurtle = defineCard(() => ({
         },
     ],
 }));
+
+// Untamed Wilds — {2}{G} Sorcery. "Search your library for a basic land card,
+// put that card onto the battlefield, then shuffle." (CR 701.23 search; CR
+// 205.4a — "basic" is a SUPERTYPE, so a dual land is never a legal pick.)
+export const untamedWilds = defineCard(() => ({
+    id: "887f22af-8b92-422a-9cd5-f3977674bcdc",
+    rarity: "uncommon",
+    name: "Untamed Wilds",
+    oracleText:
+        "Search your library for a basic land card, put that card onto the battlefield, then shuffle.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "choice",
+            kind: "search-library",
+            player: "controller",
+            zone: "library",
+            filter: { type: "Land", supertype: "Basic" },
+            count: { min: 0, max: 1 },
+            prompt: "Search your library for a basic land card.",
+            bind: "$picked",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$picked" },
+            player: "controller",
+            from: "library",
+            to: "battlefield",
+        },
+        { op: "libraryLook", action: "shuffle", player: "controller" },
+    ],
+}));

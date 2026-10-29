@@ -908,3 +908,54 @@ export const cavernsOfDespair = defineCard(() => ({
         },
     ],
 }));
+
+// Crimson Manticore — {2}{R}{R} 2/2. "{R}, {T}: This creature deals 1 damage
+// to target attacking or blocking creature." (The array form of
+// `combatRoleFilter`, as D'Avenant Archer.)
+// compiler-gap: "{R}, {T}: This creature deals 1 damage to target attacking or blocking creature." (#1009)
+export const crimsonManticore = defineCard(() => ({
+    id: "96f73f9c-1c4e-4343-bfa0-cc5c4a7a562e",
+    rarity: "rare",
+    name: "Crimson Manticore",
+    oracleText:
+        "{R}, {T}: This creature deals 1 damage to target attacking or blocking creature.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Manticore"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "crimson-manticore-ping",
+            oracleText:
+                "{R}, {T}: This creature deals 1 damage to target attacking or blocking creature.",
+            cost: { tap: true, mana: { R: 1 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: ["attacking", "blocking"],
+            },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
+        },
+    ],
+}));
+
+// Pyrotechnics — {4}{R} Sorcery. "Pyrotechnics deals 4 damage divided as you
+// choose among any number of targets." (CR 601.2d division at cast time; same
+// wording and shape as Pyrokinesis / Meteor Shower.)
+export const pyrotechnics = defineCard(() => ({
+    id: "2646284b-a94d-4c99-98d4-7becbb473e2b",
+    rarity: "common",
+    name: "Pyrotechnics",
+    oracleText:
+        "Pyrotechnics deals 4 damage divided as you choose among any number of targets.",
+    manaCost: { X: 4, R: 1 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "any",
+        count: { min: 1 },
+        divideAsChosen: { total: 4 },
+    },
+    effects: [{ op: "dealDamageDividedAsChosen", total: 4 }],
+}));
