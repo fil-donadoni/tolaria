@@ -4,6 +4,8 @@ import type { DeckCard } from "~/types/game";
 type DecklistSectionProps = {
     title: string;
     cards: DeckCard[];
+    /** Row hover enter (card id) / leave (null) — drives the preview column. */
+    onHoverCard?: (cardId: string | null) => void;
 };
 
 type Row = { cardId: string; cardName: string; count: number };
@@ -25,6 +27,7 @@ function groupRows(cards: DeckCard[]): Row[] {
 export default function DecklistSection({
     title,
     cards,
+    onHoverCard,
 }: DecklistSectionProps) {
     const rows = useMemo(() => groupRows(cards), [cards]);
     return (
@@ -41,6 +44,8 @@ export default function DecklistSection({
                     {rows.map((row) => (
                         <li
                             key={row.cardId}
+                            onMouseEnter={() => onHoverCard?.(row.cardId)}
+                            onMouseLeave={() => onHoverCard?.(null)}
                             className="flex items-center gap-2 rounded-sm bg-surface-elevated px-2 py-1 text-xs text-text"
                         >
                             <span className="w-6 shrink-0 text-right text-text-muted">
