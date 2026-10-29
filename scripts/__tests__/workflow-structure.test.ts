@@ -701,6 +701,7 @@ describe("workflow structure guard", () => {
         expect([...HOST_PINNED_JOBS.keys()]).toEqual([
             ".github/workflows/post-merge.yml#bot-replay",
             ".github/workflows/post-merge.yml#repair-watch",
+            ".github/workflows/bot-costs-refresh.yml#refresh",
         ]);
         const pinned = edit(
             SELF_HOSTED,
