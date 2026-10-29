@@ -645,6 +645,7 @@ describe("consumers — land refuses a non-repair PR on a RED in the store", () 
                             ...process.env,
                             PATH: `${bin}:${process.env.PATH}`,
                             FAKE_RED: red,
+                            REPAIR_PROVED: "",
                         },
                     }
                 );
