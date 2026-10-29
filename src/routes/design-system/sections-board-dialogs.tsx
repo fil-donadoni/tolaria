@@ -290,6 +290,7 @@ const SPECIMENS: OverlaySpecimen[] = [
             <GraveyardTargetDialog
                 pendingTarget={PENDING_TARGET}
                 me={PLAYERS[0]}
+                stack={[]}
                 allPlayers={PLAYERS}
                 gameId={GAME_ID}
                 playerId={ME}
