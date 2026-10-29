@@ -404,7 +404,7 @@ the same refusal. Those functions keep their tests; the wiring is pinned by
 | `scenario`            | a `convex/{cards/sets,gre}/**` diff has no `## Preset scenario` block (ADR 0044)                                | `safeScenarioRefusal` (`lib/scenario-block.ts`)        |
 | `retired-rows`        | retired rows of `data/oracle-compiled.json` change and no `## Retired rows` line names them (ADR 0114 §1)       | `safeRetirementRefusal` (`lib/retirement-ack.ts`)      |
 | `robustness-baseline` | the body closes the owner issue of a `ROBUSTNESS_BASELINE` row the tree still lists                             | `robustnessBaselineRefusal`                            |
-| `repair-proof`        | the PR repairs the standing RED and the verdict's failing test files still fail on it                           | `repairProofOf`, as `land`'s `repairProofStep`         |
+| `repair-proof`        | the PR repairs the standing RED and every failing test file of the verdict still fails on it (issue #7448)      | `repairProofOf`, as `land`'s `repairProofStep`         |
 
 `repair-proof` reads the health lineage through the verdict store (the commit status
 needs only the job's `GH_TOKEN`). It passes with a printed `NOTE`

@@ -68,7 +68,8 @@ export interface PrCheckContext {
     baseline?: typeof ROBUSTNESS_BASELINE;
     lineage?: () => Lineage & { error?: string };
     repairIssues?: () => number[];
-    runTests?: (tests: readonly string[], cwd: string) => number;
+    /** One exit code per test file, in order. */
+    runTests?: (tests: readonly string[], cwd: string) => readonly number[];
     /** Whether the hosted corpus exclusion is on (no reader key here). */
     corpusExcluded?: () => boolean;
     /** Whether a test file reads the locked verdict corpus. */
@@ -90,12 +91,15 @@ function spawnExec(argv: readonly string[], cwd: string): number {
     return spawnSync(cmd, args, { cwd, stdio: "inherit" }).status ?? 1;
 }
 
-/** Runs the failing tests of a repaired RED; the exit code is vitest's (or
- *  `derive:regenerate`'s, when the tree cannot be rebuilt). The ones the
- *  repair deleted or moved are skipped, as `repairProofStep` does.
+/** Runs the failing tests of a repaired RED, ONE FILE PER RUN: the exit code
+ *  of each, in order (every one `derive:regenerate`'s when the tree cannot be
+ *  rebuilt). Per file because a RED can have several culprits, each repair
+ *  turning only its own share green (issue #7448) — one vitest run over them
+ *  all would read as red whichever repair landed first. The ones the repair
+ *  deleted or moved are skipped, as `repairProofStep` does.
  *
  *  On the derived state REBUILT, like the queue's draft (`check:lane
- *  --regenerate-derived`, issue #6491): a PR stops carrying it (ADR 0157),
+ *  --regenerate-derived`): a PR stops carrying it (ADR 0157),
  *  so the merge-base's bytes still index a card a revert removed and every
  *  catalogue-freezing suite crashes on a stale Definition Index — the repair
  *  could never prove itself (issue #7489). Restored after, whatever the
@@ -104,20 +108,23 @@ export function repairProofRun(
     tests: readonly string[],
     cwd: string,
     exec: ProofExec = spawnExec
-): number {
+): number[] {
     const regen = exec(["bun", "run", "derive:regenerate"], cwd);
     try {
-        if (regen !== 0) return regen;
-        return exec(["bunx", "vitest", "run", ...tests], cwd);
+        if (regen !== 0) return tests.map(() => regen);
+        return tests.map((t) => exec(["bunx", "vitest", "run", t], cwd));
     } finally {
         exec(["git", "checkout", "-q", "HEAD", "--", ...DERIVED_PATHS], cwd);
     }
 }
 
 /** The repair proof (issue #5639, `land`'s `repairProofStep`): a PR that
- *  closes a `/health-fix` issue of the standing RED must make the verdict's
- *  failing test files pass. Not a repair, or no RED standing → passes. An
- *  unreadable verdict store passes WITH a note — the check cannot decide. */
+ *  closes a `/health-fix` issue of the standing RED must make at least one of
+ *  the verdict's failing test files pass — its share of a RED that may have
+ *  several culprits (issue #7448); the rest stay red in a note, and the RED
+ *  clears only when health sees every one green. Breaking a test that was
+ *  green is the lane's to catch. Not a repair, or no RED standing → passes.
+ *  An unreadable verdict store passes WITH a note — the check cannot decide. */
 export function repairProofCheck(ctx: PrCheckContext): PrCheckResult {
     const lineage = (ctx.lineage ?? defaultLineage(ctx.cwd))();
     if (lineage.error)
@@ -161,11 +168,17 @@ export function repairProofCheck(ctx: PrCheckContext): PrCheckResult {
             : undefined;
     if (provable.length === 0) return { refusal: null, note: unprovableNote };
     const status = (ctx.runTests ?? repairProofRun)(provable, ctx.cwd);
-    return status === 0
-        ? { refusal: null, ...(unprovableNote ? { note: unprovableNote } : {}) }
-        : {
-              refusal: `repair of RED @ ${proof.redSha.slice(0, 8)}: its failing tests still fail on this PR (${provable.join(", ")}) — a repair that leaves them red repairs nothing`,
-          };
+    const stillRed = provable.filter((_, i) => status[i] !== 0);
+    if (stillRed.length === provable.length)
+        return {
+            refusal: `repair of RED @ ${proof.redSha.slice(0, 8)}: its failing tests still fail on this PR (${provable.join(", ")}) — a repair that leaves them red repairs nothing`,
+        };
+    const shareNote =
+        stillRed.length > 0
+            ? `repair proof: green on its share (${provable.filter((t) => !stillRed.includes(t)).join(", ")}); still red: ${stillRed.join(", ")} — another culprit's, the RED stands until health sees them green`
+            : undefined;
+    const note = [shareNote, unprovableNote].filter(Boolean).join("\n");
+    return { refusal: null, ...(note ? { note } : {}) };
 }
 
 function fileReadsCorpus(file: string, cwd: string): boolean {
