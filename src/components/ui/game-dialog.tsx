@@ -7,6 +7,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import MinimizedDialogChip from "@/components/ui/minimized-dialog-chip";
 import { Panel, SunburstIcon, type PanelDensity } from "@/components/ui/panel";
 
 type GameDialogSize = "default" | "wide";
@@ -38,10 +39,12 @@ type GameDialogProps = {
     align?: GameDialogAlign;
     dismissable?: boolean;
     showCloseButton?: boolean;
-    /** Minimize affordance (issue #315). When provided, a minimize control is
-     *  shown in the top-right; clicking it invokes this callback. Used by the
-     *  blocking library-pick modal so the chooser can collapse it to the board
-     *  indicator without dismissing the underlying Pending Choice. */
+    /** Minimize affordance, built into EVERY dialog (issue #6984; no opt-out).
+     *  By default the dialog owns the toggle: minimize hides it behind a
+     *  restore chip while it stays mounted, so nothing it holds is cancelled,
+     *  answered or lost. Pass this only to let the host own the collapse (issue
+     *  #315 — the blocking choice dialogs collapse to the board's
+     *  `MinimizedChoiceIndicator`, driven by `useMinimizedChoice`). */
     onMinimize?: () => void;
     /** Panel padding passthrough (issue #1817, opus review round 2). Opt-in
      *  override — omitted (the default for the ~30 other call sites) forwards
@@ -95,200 +98,208 @@ export default function GameDialog({
     className,
     children,
 }: GameDialogProps) {
+    const [minimized, setMinimized] = React.useState(false);
+    // A dialog that closes comes back expanded.
+    if (!open && minimized) setMinimized(false);
+    const minimize = onMinimize ?? (() => setMinimized(true));
+
     const handleOpenChange = (next: boolean) => {
         if (!next && !dismissable) return;
         onOpenChange?.(next);
     };
 
     return (
-        <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent
-                showCloseButton={false}
-                onClick={(e) => {
-                    // The popup spans ~the whole play area to center the
-                    // Panel, so the dialog backdrop behind it is unreachable
-                    // and overlay clicks never dismiss (QA: pile browse
-                    // dialogs). Emulate backdrop dismissal: a click landing
-                    // on the popup CONTAINER itself (not the Panel inside)
-                    // closes the dialog, like every other dialog in the app.
-                    if (e.target === e.currentTarget && dismissable) {
-                        onOpenChange?.(false);
-                    }
-                }}
-                className={cn(
-                    "flex items-center justify-center overflow-hidden border-none bg-transparent p-0 shadow-none ring-0",
-                    sizeClasses[size],
-                    className
-                )}
-            >
-                <Panel
-                    tone="neutral"
-                    density={density}
-                    // `flex flex-col` + `max-h-[calc(100dvh-2rem)]` (issue
-                    // #2666): the cap lives HERE, on the whole visible dialog
-                    // surface (header + scrolling body + footer), not on the
-                    // inner column alone — it used to cap only the column
-                    // below (title + body), leaving Panel and DialogContent
-                    // itself unbounded, so the footer — a SIBLING of the
-                    // capped column, not inside it — was exactly what got
-                    // pushed off the bottom of a short viewport (a landscape
-                    // phone with the browser toolbar showing: the Submit
-                    // button in the bug-report dialog). Now Panel is the
-                    // bounded box, the column below is a flex item that
-                    // shrinks to whatever height is left after the
-                    // `shrink-0` footer, and the column's own scroll region
-                    // (`data-slot="game-dialog-column"`'s child, `overflow-
-                    // auto` + `min-h-0`) absorbs that shrinkage — so the
-                    // title row and the footer both stay pinned and visible,
-                    // and only the body scrolls. `dvh`, not `vh`/`80vh`: with
-                    // the browser toolbar shown `vh` is the LARGE viewport
-                    // and a percentage cap still overflows; `dvh` tracks the
-                    // viewport as it actually is, and the flat `2rem` margin
-                    // (matching `DialogContent`'s own cap, dialog.tsx) holds
-                    // at any height instead of degrading at short ones the
-                    // way a percentage does. Matches `DialogContent`'s cap
-                    // exactly on purpose (dialog.tsx) — Popup's own height is
-                    // just Panel's rendered height (its sole child), already
-                    // <= this value, so the two caps never fight; the outer
-                    // one is a backstop for every OTHER `DialogContent`
-                    // consumer, not a second constraint on this one.
-                    className="flex max-h-[calc(100dvh-2rem)] max-w-full min-w-64 flex-col overflow-hidden sm:min-w-80"
+        <>
+            <Dialog open={open && !minimized} onOpenChange={handleOpenChange}>
+                <DialogContent
+                    showCloseButton={false}
+                    // Stable for as long as the dialog is `open`, so a minimize (closed popup) keeps the popup (and so the children's
+                    // state: tab, partial selection, form input) mounted.
+                    keepMounted={open}
+                    onClick={(e) => {
+                        // The popup spans ~the whole play area to center the
+                        // Panel, so the dialog backdrop behind it is unreachable
+                        // and overlay clicks never dismiss (QA: pile browse
+                        // dialogs). Emulate backdrop dismissal: a click landing
+                        // on the popup CONTAINER itself (not the Panel inside)
+                        // closes the dialog, like every other dialog in the app.
+                        if (e.target === e.currentTarget && dismissable) {
+                            onOpenChange?.(false);
+                        }
+                    }}
+                    className={cn(
+                        "flex items-center justify-center overflow-hidden border-none bg-transparent p-0 shadow-none ring-0",
+                        sizeClasses[size],
+                        className
+                    )}
                 >
-                    {/* ONE full-width column. The icon used to be a sibling
+                    <Panel
+                        tone="neutral"
+                        density={density}
+                        // `flex flex-col` + `max-h-[calc(100dvh-2rem)]` (issue
+                        // #2666): the cap lives HERE, on the whole visible dialog
+                        // surface (header + scrolling body + footer), not on the
+                        // inner column alone — it used to cap only the column
+                        // below (title + body), leaving Panel and DialogContent
+                        // itself unbounded, so the footer — a SIBLING of the
+                        // capped column, not inside it — was exactly what got
+                        // pushed off the bottom of a short viewport (a landscape
+                        // phone with the browser toolbar showing: the Submit
+                        // button in the bug-report dialog). Now Panel is the
+                        // bounded box, the column below is a flex item that
+                        // shrinks to whatever height is left after the
+                        // `shrink-0` footer, and the column's own scroll region
+                        // (`data-slot="game-dialog-column"`'s child, `overflow-
+                        // auto` + `min-h-0`) absorbs that shrinkage — so the
+                        // title row and the footer both stay pinned and visible,
+                        // and only the body scrolls. `dvh`, not `vh`/`80vh`: with
+                        // the browser toolbar shown `vh` is the LARGE viewport
+                        // and a percentage cap still overflows; `dvh` tracks the
+                        // viewport as it actually is, and the flat `2rem` margin
+                        // (matching `DialogContent`'s own cap, dialog.tsx) holds
+                        // at any height instead of degrading at short ones the
+                        // way a percentage does. Matches `DialogContent`'s cap
+                        // exactly on purpose (dialog.tsx) — Popup's own height is
+                        // just Panel's rendered height (its sole child), already
+                        // <= this value, so the two caps never fight; the outer
+                        // one is a backstop for every OTHER `DialogContent`
+                        // consumer, not a second constraint on this one.
+                        className="flex max-h-[calc(100dvh-2rem)] max-w-full min-w-64 flex-col overflow-hidden sm:min-w-80"
+                    >
+                        {/* ONE full-width column. The icon used to be a sibling
                         COLUMN, which shrank the body to the remaining width —
                         so a centred body (Game Over's result treatment) sat
                         off-centre inside the panel by half the icon well. The
                         icon now lives in the header row (or above the title
                         when `align="center"`), and the body always spans the
                         panel. */}
-                    <div
-                        // No max-h of its own any more (issue #2666) — Panel
-                        // above owns the cap on the WHOLE box, footer
-                        // included. `min-h-0` is what lets this column shrink
-                        // past its natural content height when Panel's cap
-                        // bites: flex items default to `min-height: auto`,
-                        // which floors shrinkage at the content's own
-                        // intrinsic size and would otherwise defeat the cap
-                        // entirely. Every direct child here except the body
-                        // scroller is `shrink-0` (title row, rule, subtitle,
-                        // stats), so 100% of any deficit lands on the body
-                        // scroller below, which is the one with `overflow-
-                        // auto` — exactly the "scrolls the body, not the
-                        // page (or the title, or the footer)" contract.
-                        data-slot="game-dialog-column"
-                        className="flex min-h-0 w-full min-w-0 flex-col"
-                    >
-                        {/* Header row: icon BESIDE the title when the body is
+                        <div
+                            // No max-h of its own any more (issue #2666) — Panel
+                            // above owns the cap on the WHOLE box, footer
+                            // included. `min-h-0` is what lets this column shrink
+                            // past its natural content height when Panel's cap
+                            // bites: flex items default to `min-height: auto`,
+                            // which floors shrinkage at the content's own
+                            // intrinsic size and would otherwise defeat the cap
+                            // entirely. Every direct child here except the body
+                            // scroller is `shrink-0` (title row, rule, subtitle,
+                            // stats), so 100% of any deficit lands on the body
+                            // scroller below, which is the one with `overflow-
+                            // auto` — exactly the "scrolls the body, not the
+                            // page (or the title, or the footer)" contract.
+                            data-slot="game-dialog-column"
+                            className="flex min-h-0 w-full min-w-0 flex-col"
+                        >
+                            {/* Header row: icon BESIDE the title when the body is
                             left-aligned, ABOVE it when the body is centred —
                             an icon pinned left over a centred body is the
                             asymmetry the Match Over screen showed. */}
-                        <div
-                            className={cn(
-                                "flex shrink-0 gap-3",
-                                align === "center"
-                                    ? "flex-col items-center"
-                                    : "items-center sm:gap-4"
-                            )}
-                        >
-                            {icon && <SunburstIcon>{icon}</SunburstIcon>}
-
-                            <DialogTitle
-                                className={cn(
-                                    // `.panel-title-clear` keeps the title
-                                    // out of the top-left corner bracket at
-                                    // every density (ADR 0101 §2): the
-                                    // dialog builds its own header instead of
-                                    // using PanelHeader's full-bleed band, so
-                                    // it must pay the clearance itself. A
-                                    // centred title is already inset far past
-                                    // the bracket and the extra inline-start
-                                    // padding would shift it off centre, so
-                                    // it is paid only by the left-aligned
-                                    // header.
-                                    "heading-panel min-w-0",
-                                    align === "center"
-                                        ? "text-center"
-                                        : "panel-title-clear flex-1 text-left",
-                                    // keep the title clear of the absolute
-                                    // close/minimize controls (top-right)
-                                    (showCloseButton || onMinimize) && "pr-8"
-                                )}
-                            >
-                                {title}
-                            </DialogTitle>
-                        </div>
-
-                        {/* full-width gold underline rule */}
-                        <span className="panel-rule mt-2 block h-px w-full shrink-0" />
-
-                        {subtitle && (
-                            <p
-                                className={cn(
-                                    "mt-2 shrink-0 text-sm text-text-muted",
-                                    align === "center"
-                                        ? "text-center"
-                                        : "text-left"
-                                )}
-                            >
-                                {subtitle}
-                            </p>
-                        )}
-
-                        {stats && (
                             <div
                                 className={cn(
-                                    "mt-3 flex shrink-0 flex-wrap items-center gap-3",
-                                    align === "center" && "justify-center"
+                                    "flex shrink-0 gap-3",
+                                    align === "center"
+                                        ? "flex-col items-center"
+                                        : "items-center sm:gap-4"
                                 )}
                             >
-                                {stats}
+                                {icon && <SunburstIcon>{icon}</SunburstIcon>}
+
+                                <DialogTitle
+                                    className={cn(
+                                        // `.panel-title-clear` keeps the title
+                                        // out of the top-left corner bracket at
+                                        // every density (ADR 0101 §2): the
+                                        // dialog builds its own header instead of
+                                        // using PanelHeader's full-bleed band, so
+                                        // it must pay the clearance itself. A
+                                        // centred title is already inset far past
+                                        // the bracket and the extra inline-start
+                                        // padding would shift it off centre, so
+                                        // it is paid only by the left-aligned
+                                        // header.
+                                        "heading-panel min-w-0",
+                                        align === "center"
+                                            ? "text-center"
+                                            : "panel-title-clear flex-1 text-left",
+                                        // keep the title clear of the absolute
+                                        // close/minimize controls (top-right)
+                                        "pr-8"
+                                    )}
+                                >
+                                    {title}
+                                </DialogTitle>
                             </div>
-                        )}
 
-                        <DialogDescription className="sr-only">
-                            {subtitle ?? title}
-                        </DialogDescription>
+                            {/* full-width gold underline rule */}
+                            <span className="panel-rule mt-2 block h-px w-full shrink-0" />
 
-                        {/* p-[0.2rem]: the buttons' focus outline draws
+                            {subtitle && (
+                                <p
+                                    className={cn(
+                                        "mt-2 shrink-0 text-sm text-text-muted",
+                                        align === "center"
+                                            ? "text-center"
+                                            : "text-left"
+                                    )}
+                                >
+                                    {subtitle}
+                                </p>
+                            )}
+
+                            {stats && (
+                                <div
+                                    className={cn(
+                                        "mt-3 flex shrink-0 flex-wrap items-center gap-3",
+                                        align === "center" && "justify-center"
+                                    )}
+                                >
+                                    {stats}
+                                </div>
+                            )}
+
+                            <DialogDescription className="sr-only">
+                                {subtitle ?? title}
+                            </DialogDescription>
+
+                            {/* p-[0.2rem]: the buttons' focus outline draws
                             OUTSIDE the border box — without this breathing
                             room the overflow clips it at the container
                             edge. */}
-                        <div className="mt-3 min-h-0 overflow-auto p-[0.2rem]">
-                            {children}
+                            <div className="mt-3 min-h-0 overflow-auto p-[0.2rem]">
+                                {children}
+                            </div>
                         </div>
-                    </div>
 
-                    {footer && (
-                        <div
-                            className={cn(
-                                // `shrink-0` (issue #2666): Panel above is now
-                                // the capped flex column, and this footer is
-                                // its OTHER flex item alongside the column —
-                                // without `shrink-0` the flexbox squeeze that
-                                // enforces Panel's cap would shrink both
-                                // proportionally, which is exactly how the
-                                // Submit button used to get clipped. Pinning
-                                // this to its natural height forces the WHOLE
-                                // deficit onto the column (whose own
-                                // `min-h-0` scroll region is built to absorb
-                                // it), so the footer is always fully visible.
-                                "mt-5 flex shrink-0 flex-col items-stretch gap-2 pb-1 sm:flex-row sm:flex-wrap sm:items-center",
-                                // A centred dialog's actions stay centred from
-                                // `sm` up; the left-aligned language keeps the
-                                // right-aligned action row (ADR 0101 §2).
-                                align === "center"
-                                    ? "sm:justify-center"
-                                    : "sm:justify-end"
-                            )}
-                        >
-                            {footer}
-                        </div>
-                    )}
+                        {footer && (
+                            <div
+                                className={cn(
+                                    // `shrink-0` (issue #2666): Panel above is now
+                                    // the capped flex column, and this footer is
+                                    // its OTHER flex item alongside the column —
+                                    // without `shrink-0` the flexbox squeeze that
+                                    // enforces Panel's cap would shrink both
+                                    // proportionally, which is exactly how the
+                                    // Submit button used to get clipped. Pinning
+                                    // this to its natural height forces the WHOLE
+                                    // deficit onto the column (whose own
+                                    // `min-h-0` scroll region is built to absorb
+                                    // it), so the footer is always fully visible.
+                                    "mt-5 flex shrink-0 flex-col items-stretch gap-2 pb-1 sm:flex-row sm:flex-wrap sm:items-center",
+                                    // A centred dialog's actions stay centred from
+                                    // `sm` up; the left-aligned language keeps the
+                                    // right-aligned action row (ADR 0101 §2).
+                                    align === "center"
+                                        ? "sm:justify-center"
+                                        : "sm:justify-end"
+                                )}
+                            >
+                                {footer}
+                            </div>
+                        )}
 
-                    {onMinimize && (
                         <button
                             type="button"
-                            onClick={onMinimize}
+                            onClick={minimize}
                             aria-label="Minimize choice dialog"
                             title="Minimize"
                             className={cn(
@@ -298,23 +309,29 @@ export default function GameDialog({
                         >
                             <Minus className="h-4 w-4" />
                         </button>
-                    )}
 
-                    {showCloseButton && (
-                        <button
-                            type="button"
-                            // The seam `check:ui`'s dialog surface promises
-                            // (issue #3651): the glyph is the only text here.
-                            data-game-dialog-close
-                            onClick={() => onOpenChange?.(false)}
-                            className="absolute top-3 right-3 flex h-6 w-6 cursor-pointer items-center justify-center text-text-disabled transition-colors hover:text-text-muted"
-                        >
-                            ✕
-                        </button>
-                    )}
-                </Panel>
-            </DialogContent>
-        </Dialog>
+                        {showCloseButton && (
+                            <button
+                                type="button"
+                                // The seam `check:ui`'s dialog surface promises
+                                // (issue #3651): the glyph is the only text here.
+                                data-game-dialog-close
+                                onClick={() => onOpenChange?.(false)}
+                                className="absolute top-3 right-3 flex h-6 w-6 cursor-pointer items-center justify-center text-text-disabled transition-colors hover:text-text-muted"
+                            >
+                                ✕
+                            </button>
+                        )}
+                    </Panel>
+                </DialogContent>
+            </Dialog>
+            {open && minimized && (
+                <MinimizedDialogChip
+                    label={title}
+                    onRestore={() => setMinimized(false)}
+                />
+            )}
+        </>
     );
 }
 

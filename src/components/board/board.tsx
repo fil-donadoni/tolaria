@@ -546,6 +546,7 @@ export default function Board({
                                                             pendingTarget
                                                         }
                                                         me={me}
+                                                        stack={stackItems}
                                                         allPlayers={allPlayers}
                                                         gameId={gameId}
                                                         playerId={viewerId}

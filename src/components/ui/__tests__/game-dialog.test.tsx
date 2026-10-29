@@ -1,3 +1,4 @@
+import * as React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import GameDialog from "../game-dialog";
@@ -400,5 +401,34 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         )!;
         fireEvent.click(popup);
         expect(onOpenChange).not.toHaveBeenCalled();
+    });
+});
+
+describe("GameDialog built-in minimize (issue #6984)", () => {
+    it("minimizes WITHOUT closing, keeps child state, and restores", () => {
+        const onOpenChange = vi.fn();
+        function Counter() {
+            const [n, setN] = React.useState(0);
+            return <button onClick={() => setN(n + 1)}>count {n}</button>;
+        }
+        render(
+            <GameDialog open onOpenChange={onOpenChange} title="Pick one">
+                <Counter />
+            </GameDialog>
+        );
+        fireEvent.click(screen.getByText("count 0"));
+        fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
+        expect(onOpenChange).not.toHaveBeenCalled();
+        // kept mounted (state survives) but hidden from the page
+        expect(
+            screen
+                .getByText("count 1")
+                .closest("[data-slot=dialog-content]")
+                ?.hasAttribute("hidden")
+        ).toBe(true);
+        fireEvent.click(
+            screen.getByRole("button", { name: "Restore dialog: Pick one" })
+        );
+        expect(screen.getByText("count 1")).toBeTruthy();
     });
 });
