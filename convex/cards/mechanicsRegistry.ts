@@ -3813,11 +3813,11 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     },
 ];
 
-// `boundCount` (`{ boundCount: { of, controller? } }`, issue #3289) IS a new
+// `boundCount` (`{ boundCount: { of, controller?, owner? } }`, issue #3289) IS a new
 // value-grammar member, with `setSize`'s non-Op, non-ADR-0045-reopening
 // status: HOW MANY iterations of an earlier `forEach` captured a body snapshot
-// binding, optionally only those whose last-known controller is a player
-// (CR 608.2h). A body binding is iteration-scoped and never leaks past the
+// binding, optionally only those whose last-known controller (CR 608.2h) or owner
+// (CR 108.3) is a player. A body binding is iteration-scoped and never leaks past the
 // construct, so "for each creature exiled this way, its controller searches"
 // had no reader once the sweep was over — and CR 701.23h collapses those
 // per-creature searches into one per player. The validator declares a body's

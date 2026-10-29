@@ -1840,11 +1840,11 @@ function isSetSizeValue(value: unknown): boolean {
     return isBarePicksRef(s.of);
 }
 
-/** `{ boundCount: { of, controller? } }` — SHAPE of the per-iteration capture
+/** `{ boundCount: { of, controller?, owner? } }` — SHAPE of the per-iteration capture
  *  count (CR 608.2h / 701.23h). `of` is a BARE binding ref, family-checked as
  *  an `iterated` position by the ordered ref pass (the `keyHint ===
- *  "boundCount"` case in `collectRefUses`); `controller`, when present, is a
- *  PLAYER selector. */
+ *  "boundCount"` case in `collectRefUses`); `controller` and `owner`, when present,
+ *  are PLAYER selectors. */
 function isBoundCountValue(value: unknown): boolean {
     if (typeof value !== "object" || value === null) return false;
     const keys = Object.keys(value);
@@ -1852,11 +1852,18 @@ function isBoundCountValue(value: unknown): boolean {
     const spec = (value as { boundCount: unknown }).boundCount;
     if (typeof spec !== "object" || spec === null) return false;
     const s = spec as Record<string, unknown>;
-    if (!Object.keys(s).every((k) => k === "of" || k === "controller")) {
+    if (
+        !Object.keys(s).every(
+            (k) => k === "of" || k === "controller" || k === "owner"
+        )
+    ) {
         return false;
     }
     if (!isBarePicksRef(s.of)) return false;
-    return s.controller === undefined || isPlayerRef(s.controller);
+    return (
+        (s.controller === undefined || isPlayerRef(s.controller)) &&
+        (s.owner === undefined || isPlayerRef(s.owner))
+    );
 }
 
 /** A member of the closed player-counter vocabulary (CR 122.1). */
@@ -7349,19 +7356,20 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
         collectRefUses(obj.of, "cards", out);
         return;
     }
-    // boundCount — { boundCount: { of, controller? } } (CR 701.23h): `of` is
+    // boundCount — { boundCount: { of, controller?, owner? } } (CR 701.23h): `of` is
     // an ITERATED position (a binding of an earlier forEach body, read across
-    // its iterations), `controller` a PLAYER position.
+    // its iterations), `controller` and `owner` PLAYER positions.
     if (
         keyHint === "boundCount" &&
         keys.includes("of") &&
-        keys.every((k) => k === "of" || k === "controller")
+        keys.every((k) => k === "of" || k === "controller" || k === "owner")
     ) {
         const of = obj.of as { ref?: unknown } | undefined;
         if (typeof of?.ref === "string") {
             out.push({ ref: of.ref, kind: "iterated" });
         }
         collectRefUses(obj.controller, "player", out);
+        collectRefUses(obj.owner, "player", out);
         return;
     }
     if (

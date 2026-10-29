@@ -192,6 +192,68 @@ describe("boundCount — an earlier sweep's captures, read after it (CR 608.2h /
     });
 });
 
+const OWNER_ID = "test-108-3-owner-count";
+registerTokenDefinition({
+    id: OWNER_ID,
+    name: OWNER_ID,
+    rarity: "common",
+    manaCost: { W: 1 },
+    types: ["Sorcery"],
+    effects: [
+        exileEveryCreature,
+        {
+            op: "gainLife",
+            player: "controller",
+            amount: {
+                boundCount: { of: { ref: "$gone" }, owner: "controller" },
+            },
+        },
+    ],
+});
+
+describe("boundCount owner filter (CR 108.3)", () => {
+    it("counts only snapshots the player OWNS — a stolen permanent is not counted", () => {
+        // p1 controls "a" (its own) and "stolen" (owned by p2); p2 controls
+        // "lent" (owned by p1). p1 owns "a" and "lent" — "stolen" is excluded.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    battlefield: [body("a", "p1"), body("stolen", "p1", "p2")],
+                }),
+                makePlayer("p2", {
+                    life: 20,
+                    battlefield: [body("lent", "p2", "p1")],
+                }),
+            ],
+        });
+        castBy(state, OWNER_ID);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20 + 2);
+    });
+
+    it("validates an owner selector and refuses a malformed one", () => {
+        const probe = (owner: unknown) =>
+            validateEffectScript({
+                id: "test:108-3-validate",
+                name: "Probe",
+                types: ["Sorcery"],
+                effects: [
+                    exileEveryCreature,
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: {
+                            boundCount: { of: { ref: "$gone" }, owner },
+                        },
+                    },
+                ] as EffectOp[],
+            });
+        expect(probe("controller")).toEqual([]);
+        expect(probe(42)).not.toEqual([]);
+    });
+});
+
 describe("choice — a computed { min: 0, max } search ceiling (CR 701.23h)", () => {
     it("raises ONE search for as many cards as the ceiling resolves to", () => {
         const state = makeState({
