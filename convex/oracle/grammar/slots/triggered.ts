@@ -315,7 +315,25 @@ const limitedTriggeredBody: Rule<SlotIR> = rule(
     }
 );
 
+/**
+ * CR 207.2c / CR 207.2d — an ability word or flavor word heading a triggered
+ * ability ("Lizard Formula — When {self} enters, …") has no rules meaning; the
+ * trigger it heads is spelled out in the ability's own text. The label is
+ * dropped only when what follows OPENS a trigger ("When", "Whenever", "At"):
+ * the word is the whole span before the first em dash, so a modal bullet or a
+ * sentence that merely contains an em dash keeps every word it printed.
+ */
+const FLAVOR_WORD_HEAD = /^[A-Z][^\u2014.,]* \u2014 ((?:When|Whenever|At) .*)$/;
+
+const labelledTriggeredBody: Rule<SlotIR> = rule(
+    "triggered body behind a flavor word",
+    (span, ctx) => {
+        const match = span.match(FLAVOR_WORD_HEAD);
+        return limitedTriggeredBody.run(match === null ? span : match[1]!, ctx);
+    }
+);
+
 export const triggeredSlot: Rule<SlotIR> = terminated(
     ".",
-    limitedTriggeredBody
+    labelledTriggeredBody
 );
