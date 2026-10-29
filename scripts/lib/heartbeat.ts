@@ -54,10 +54,24 @@ const UNSETTLED = new Set([
     "requested",
 ]);
 
-/** One workflow run, as `gh run list --json createdAt,status` reads it. */
+/** A run that never ran its job: a label event the job's `if` skips (the
+ *  dispatcher's own `in-progress` claims), a pending run a newer one
+ *  displaced. It proves nothing about the clock. */
+const NOT_A_TICK = new Set(["skipped", "cancelled"]);
+
+/** One workflow run, as `gh run list --json createdAt,status,conclusion`
+ *  reads it. */
 export interface RunFact {
     createdAt: string;
     status: string;
+    conclusion?: string | null;
+}
+
+/** A health verdict that settles the tip: GREEN or RED. An INFRA is
+ *  re-gated (`--retry-infra`) and an AMBER is a run in flight or dead, so
+ *  neither stops the heartbeat. Pure. */
+export function settlesTip(status: string | null | undefined): boolean {
+    return status === "green" || status === "red";
 }
 
 /** What a clock knows about its workflow. */
@@ -94,6 +108,7 @@ export function clockDue(
         return { fire: false, reason: "a run is queued or running" };
     const newest = Math.max(
         ...clock.runs
+            .filter((r) => !NOT_A_TICK.has(r.conclusion ?? ""))
             .map((r) => Date.parse(r.createdAt))
             .filter(Number.isFinite)
     );
@@ -109,7 +124,7 @@ export function clockDue(
 export interface HealthFacts extends WorkflowClock {
     /** The base tip's short sha, for the reason line. */
     tip: string;
-    /** The base tip carries a verdict in the store. */
+    /** The base tip carries a settling verdict (`settlesTip`). */
     tipHasVerdict: boolean;
     /** A health run holds the pivot (any machine). */
     pivotInFlight: boolean;

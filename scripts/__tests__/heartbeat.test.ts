@@ -6,6 +6,7 @@ import {
     HEARTBEAT_DEAD_MS,
     healthGateDue,
     heartbeatLines,
+    settlesTip,
     tick,
     type HealthFacts,
     type HeartbeatDeps,
@@ -69,6 +70,24 @@ describe("clockDue — the staleness rule (issue #7445)", () => {
         expect(d.fire).toBe(false);
     });
 
+    // The dispatcher's own `in-progress` labels create a skipped run every
+    // few minutes: counted, they would hold the clock forever (review).
+    it("skipped and cancelled runs are not ticks of the clock", () => {
+        const d = clockDue(
+            {
+                active: true,
+                runs: [
+                    done(AFK_DISPATCH_STALE_MS + 60_000),
+                    { ...done(60_000), conclusion: "skipped" },
+                    { ...done(120_000), conclusion: "cancelled" },
+                ],
+            },
+            NOW,
+            AFK_DISPATCH_STALE_MS
+        );
+        expect(d.fire).toBe(true);
+    });
+
     it("no run on record → dispatch", () => {
         expect(clockDue({ active: true, runs: [] }, NOW, 1).fire).toBe(true);
     });
@@ -106,6 +125,18 @@ describe("healthGateDue — a tip without a verdict (issue #7445)", () => {
         expect(healthGateDue({ ...stale, pivotInFlight: true }, NOW).fire).toBe(
             false
         );
+    });
+});
+
+describe("settlesTip — only GREEN or RED stops the health clock", () => {
+    it("green and red settle; infra, amber and none do not", () => {
+        expect(["green", "red"].map(settlesTip)).toEqual([true, true]);
+        expect(["infra", "amber", null, undefined].map(settlesTip)).toEqual([
+            false,
+            false,
+            false,
+            false,
+        ]);
     });
 });
 

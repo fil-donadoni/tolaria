@@ -23,6 +23,7 @@ import {
 import {
     HEARTBEAT_STATE,
     heartbeatLines,
+    settlesTip,
     tick,
     type RunFact,
     type WorkflowClock,
@@ -49,9 +50,10 @@ function clock(workflow: string): WorkflowClock {
             "--workflow",
             workflow,
             "--limit",
-            "5",
+            // Skipped label runs crowd the list (several an hour).
+            "20",
             "--json",
-            "createdAt,status",
+            "createdAt,status,conclusion",
         ])
     ) as RunFact[];
     return { active: state === "active", runs };
@@ -72,7 +74,7 @@ const state = tick({
         return {
             ...clock("health.yml"),
             tip: tip.slice(0, 8),
-            tipHasVerdict: verdictStore(root).read(tip) !== null,
+            tipHasVerdict: settlesTip(verdictStore(root).read(tip)?.status),
             pivotInFlight:
                 pivotRunInFlight(root, Date.now(), RUN_IN_FLIGHT_MAX_MS) !==
                 null,
