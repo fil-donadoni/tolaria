@@ -246,7 +246,7 @@ export default function DeckCardTile({
                 Peek Panel to read the card in, so the hold-preview is the one
                 card-reading affordance and comes back on (issue #3167).
 
-                `promoteLayer={false}` on EVERY mount (issue #6940) — it used to
+                `promoteLayer={true}` on EVERY mount (issue #6940) — it used to
                 be `!readOnly`, promoting each editable tile. A pile view
                 mounts the whole pool, and a promoted face is a GPU layer the
                 compositor evicts first under a starved budget: measured as a
@@ -257,7 +257,7 @@ export default function DeckCardTile({
                 card={{ id: printId ?? cardId }}
                 holdPreview={readOnly}
                 lazy={readOnly}
-                promoteLayer={false}
+                promoteLayer={true}
             />
             {/* A "removable" hover cue (parity with the pre-#1581 deckbuilder
                 tile), keyed off the group so it only lights the hovered card.

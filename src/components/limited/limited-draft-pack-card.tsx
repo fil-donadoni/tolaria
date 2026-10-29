@@ -249,7 +249,7 @@ export default function LimitedDraftPackCard({
                 the DRAG (gesture model A), so the hold-preview is off — the
                 card is read through the Peek Panel's Inspect CTA instead.
 
-                `promoteLayer={false}` (issue #6940): a pack is a whole grid of
+                `promoteLayer={true}` (issue #6940): a pack is a whole grid of
                 faces, and a promoted face is a GPU layer the compositor
                 EVICTS first under a starved budget — measured as blank slots
                 on this tile. Its only ancestor motion is the translate-only
@@ -260,7 +260,7 @@ export default function LimitedDraftPackCard({
                 lazy
                 sizes="180px"
                 holdPreview={false}
-                promoteLayer={false}
+                promoteLayer={true}
             />
             {/* Issue #2663: the phone pack grid (`limited-draft-pack.tsx`) is
                 itself the clipping scroller — its tracks sit flush against

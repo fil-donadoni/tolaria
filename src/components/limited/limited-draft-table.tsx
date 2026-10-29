@@ -231,7 +231,7 @@ export default function LimitedDraftTable({
         zone: "limited-booster",
         min: 1,
         max: 2.2,
-        initial: 1.2,
+        initial: 2.2,
     });
     // "Show autopick" toggle (ADR 0095, issue #2271) — see
     // `useShowAutopick`'s doc comment: default OFF, opt-in only.

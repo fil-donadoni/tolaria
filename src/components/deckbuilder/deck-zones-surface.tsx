@@ -176,13 +176,13 @@ export default function DeckZonesSurface({
         zone: mainZoomZone,
         min: 1,
         max: 2.2,
-        initial: zoomInitial,
+        initial: 2.2,
     });
     const sideZoom = useCardZoom({
         zone: sideZoomZone,
         min: 1,
         max: 2.2,
-        initial: zoomInitial,
+        initial: 2.2,
     });
 
     const {
