@@ -16,7 +16,7 @@
 // session decision (`lib/machine-admission.ts`).
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { cpus, homedir, platform, totalmem } from "node:os";
 import { join } from "node:path";
 import {
@@ -39,6 +39,7 @@ import {
 } from "./lib/machine-admission";
 import { sessionCap } from "./lib/branches";
 import { readInstalledUnits, staleUnits } from "./lib/stale-units";
+import { HEARTBEAT_STATE, heartbeatLines } from "./lib/heartbeat";
 
 /** Installed Tolaria units naming a script the checkout no longer has
  *  (issue #6019) — `bun run runner prune` removes them. */
@@ -120,6 +121,10 @@ function report(): number {
         `  a claim/worktree ${now.decision.verdict === "admit" ? "is admitted" : `is REFUSED — ${now.decision.reasons.join("; ")}`}${census?.self != null ? " (counted from this session: the others)" : ""}`
     );
     for (const line of staleUnitLines()) console.log(line);
+    const beat = existsSync(HEARTBEAT_STATE)
+        ? readFileSync(HEARTBEAT_STATE, "utf8")
+        : null;
+    for (const line of heartbeatLines(beat, Date.now())) console.log(line);
     return 0;
 }
 
