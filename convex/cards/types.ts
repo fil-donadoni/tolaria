@@ -15154,6 +15154,10 @@ export type EffectSetSizeValue = {
  *  is `controller`: "for each creature exiled this way, ITS CONTROLLER
  *  searches", which CR 701.23h collapses into one search per player for as
  *  many cards as that player had creatures exiled (Winds of Abandon).
+ *  `owner` filters the same way on the snapshot's OWNER slot (CR 108.3 —
+ *  immutable, distinct from the controller): "draw a card for each card
+ *  returned to YOUR hand this way" counts a permanent you control but do not
+ *  own for nobody-but-its-owner. Both filters given must both hold.
  *
  *  It exists because a `forEach` body binding is iteration-scoped and never
  *  leaks past the construct: no other reader can see the set of objects the
@@ -15163,9 +15167,14 @@ export type EffectSetSizeValue = {
  *  an earlier sibling `forEach` body (the `iterated` binding family). An
  *  iteration whose `bind` was never captured (its member had already left)
  *  counts nothing; a sweep that captured nothing reads 0. An unresolvable
- *  `controller` reads 0 as well — no player is the controller of anything. */
+ *  `controller` or `owner` reads 0 as well — no player is the controller (or
+ *  owner) of anything. */
 export type EffectBoundCountValue = {
-    boundCount: { of: EffectRef; controller?: EffectPlayerRef };
+    boundCount: {
+        of: EffectRef;
+        controller?: EffectPlayerRef;
+        owner?: EffectPlayerRef;
+    };
 };
 
 /** lifeGainedThisTurn — the total life a PLAYER has gained so far this turn

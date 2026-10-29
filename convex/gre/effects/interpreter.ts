@@ -988,16 +988,25 @@ function resolveValue(
     // boundCount (CR 608.2h / 701.23h) — how many iterations of a preceding
     // `forEach` captured the snapshot `of` names: "for each creature exiled
     // this way" read after the sweep. With `controller`, only the captures
-    // whose LAST-KNOWN controller slot is that player — the exiled object is
+    // whose LAST-KNOWN controller (or, with `owner`, OWNER) slot is that player — the exiled object is
     // gone, so the snapshot taken before it moved is the only source.
     if ("boundCount" in value) {
         const snapshots = readIteratedSnapshots(ctx, value.boundCount.of.ref);
-        const { controller } = value.boundCount;
-        if (controller === undefined) return snapshots.length;
-        const playerId = resolvePlayerRef(ctx, controller);
-        if (playerId === undefined) return 0;
-        return snapshots.filter((row) => row[SNAP_CONTROLLER] === playerId)
-            .length;
+        const { controller, owner } = value.boundCount;
+        let rows = snapshots;
+        if (controller !== undefined) {
+            const playerId = resolvePlayerRef(ctx, controller);
+            if (playerId === undefined) return 0;
+            rows = rows.filter((row) => row[SNAP_CONTROLLER] === playerId);
+        }
+        // CR 108.3 — the owner slot, not the controller: a stolen permanent
+        // returned to its owner's hand counts for the owner only.
+        if (owner !== undefined) {
+            const playerId = resolvePlayerRef(ctx, owner);
+            if (playerId === undefined) return 0;
+            rows = rows.filter((row) => row[SNAP_OWNER] === playerId);
+        }
+        return rows.length;
     }
     // sacrificed (CR 601.2f / 608.2h, issue #2375) — a characteristic of the
     // permanent SACRIFICED TO PAY this spell/ability's additional cost, read
