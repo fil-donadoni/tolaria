@@ -739,3 +739,101 @@ describe("LimitedEventDetail — Open Decklists warning before Join (issue #5386
         ).toBeNull();
     });
 });
+
+describe("Games phase leads with Standings + Deck preview, table last (issue #6919)", () => {
+    const withStandings = (e: LimitedEventView): LimitedEventView =>
+        ({
+            ...e,
+            standings: [0, 1].map((seatIndex) => ({
+                seatIndex,
+                points: 0,
+                matchWins: 0,
+                matchLosses: 0,
+                matchDraws: 0,
+                gameWins: 0,
+                gameLosses: 0,
+                gameWinPct: 0,
+                opponentMatchWinPct: 0,
+            })),
+        }) as LimitedEventView;
+    const positions = (container: HTMLElement) => {
+        const lead = container.querySelector('[data-slot="games-lead"]');
+        const table = container.querySelector('[data-slot="event-table"]');
+        return { lead, table };
+    };
+
+    it("orders lead block (standings + deck preview) before the table", () => {
+        userDecksMock = [
+            { ...CHALLENGE_LEGAL_DECK, limitedEventId: "event-1" },
+        ];
+        eventMock.mockReturnValue(withStandings(makePoolFinalEvent("playing")));
+        const { container } = render(
+            <LimitedEventDetail eventId={"event-1" as never} />
+        );
+        const { lead, table } = positions(container);
+        expect(lead).not.toBeNull();
+        expect(table).not.toBeNull();
+        expect(
+            lead!.compareDocumentPosition(table!) &
+                Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy();
+        expect(
+            lead!.querySelector('[data-slot="deck-preview"]')
+        ).not.toBeNull();
+        expect(lead!.textContent).toContain("Standings");
+        expect(lead!.textContent).toContain("Your deck · 1 cards");
+        // The table is the last block of the tab.
+        expect(table!.parentElement!.lastElementChild).toBe(table);
+        fireEvent.click(screen.getByText("Edit Deck"));
+        expect(navigateMock).toHaveBeenCalledWith({
+            to: "/limited/$eventId/build",
+            params: { eventId: "event-1" },
+        });
+    });
+
+    it("shows the first rejection reason of an illegal deck", () => {
+        userDecksMock = [
+            {
+                ...CHALLENGE_LEGAL_DECK,
+                isLegal: false,
+                reasons: [{ message: "Needs 40 cards" }],
+            },
+        ];
+        eventMock.mockReturnValue(withStandings(makePoolFinalEvent("playing")));
+        render(<LimitedEventDetail eventId={"event-1" as never} />);
+        expect(screen.getByText("Needs 40 cards")).toBeTruthy();
+    });
+
+    it("an unseated viewer gets Standings without a Deck preview, table last", () => {
+        const base = withStandings(makePoolFinalEvent("playing"));
+        eventMock.mockReturnValue({
+            ...base,
+            seats: base.seats.map((s) => ({
+                ...s,
+                userId: "other",
+                isViewer: false,
+            })),
+        } as LimitedEventView);
+        const { container } = render(
+            <LimitedEventDetail eventId={"event-1" as never} />
+        );
+        const { lead, table } = positions(container);
+        expect(lead!.querySelector('[data-slot="deck-preview"]')).toBeNull();
+        expect(lead!.textContent).toContain("Standings");
+        expect(
+            lead!.compareDocumentPosition(table!) &
+                Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy();
+    });
+
+    it("keeps the table first outside the Games phase", () => {
+        eventMock.mockReturnValue(makePoolFinalEvent("started"));
+        const { container } = render(
+            <LimitedEventDetail eventId={"event-1" as never} />
+        );
+        expect(container.querySelector('[data-slot="games-lead"]')).toBeNull();
+        expect(
+            container.querySelector('[data-slot="event-table"]')
+        ).not.toBeNull();
+    });
+});
