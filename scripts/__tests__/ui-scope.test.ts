@@ -59,7 +59,12 @@ const FILES: Record<string, string> = {
     // imported by a ROUTE only, never by the shell — so each forces full
     // through its own rule, and removing that rule would scope it to `lobby`.
     "src/components/ui/button.tsx": `export const Button = 1;\n`,
-    "src/routes/lobby.route.tsx": `import { Button } from "~/components/ui/button";\nimport { TOKENS } from "~/lib/design-tokens";\nimport { DeckShelf } from "~/components/deck-shelf";\nimport { Card } from "~/components/card";\nimport type { Shape } from "~/components/shape";\n`,
+    "src/routes/lobby.route.tsx": `import { Button } from "~/components/ui/button";\nimport { TOKENS } from "~/lib/design-tokens";\nimport { DeckShelf } from "~/components/deck-shelf";\nimport { Card } from "~/components/card";\nimport type { Shape } from "~/components/shape";\nimport { loadPanel } from "~/components/panel-loader";\n`,
+    // A template dynamic import (issue #7459): `panels/*.tsx` is an edge no
+    // importer spells out.
+    "src/components/panel-loader.tsx":
+        "export const loadPanel = (n: string) => import(`./panels/${n}.tsx`);\n",
+    "src/components/panels/stats.tsx": `export const Stats = 1;\n`,
     "src/routes/game.route.tsx": `import { Card } from "~/components/card";\nimport { register } from "../../convex/cards/registry";\nimport { PauseDialog } from "~/components/dialogs/pause";\nconst quiz = () => import("~/components/debug/quiz");\n`,
     // A route the router mounts and NO surface declares: whatever it renders
     // is reachable at runtime, and nothing walks it.
@@ -105,6 +110,10 @@ const FILES: Record<string, string> = {
     "data/cards.json": `{}`,
     "src/components/debug/quiz.tsx": `export default 1;\n`,
     "src/components/dead-code.tsx": `export const Dead = 1;\n`,
+    // A tooling module on disk that no surface reaches and no rule places.
+    "tooling/gen.ts": `export const gen = 1;\n`,
+    // Generated, on disk, and in no surface's closure.
+    "convex/_generated/api.d.ts": `export declare const api: unknown;\n`,
 };
 for (const [rel, body] of Object.entries(FILES)) {
     fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
@@ -412,7 +421,6 @@ describe("computeUiScope — full (fail-closed)", () => {
         for (const unplaced of [
             "src/components/dead-code.tsx",
             "tooling/gen.ts",
-            "src/components/deleted-since-base.tsx",
         ]) {
             const scope = scopeOf(unplaced);
             expect(scope, unplaced).toEqual({
@@ -422,6 +430,56 @@ describe("computeUiScope — full (fail-closed)", () => {
                 ],
             });
         }
+    });
+});
+
+describe("computeUiScope — a deleted module is placed through its importers (issue #7459)", () => {
+    // Not in the fixture tree: what a diff that deleted (or renamed away) a
+    // module leaves behind. Every importer of it must change too, or `tsc`
+    // fails on the dangling import.
+    const GONE = "src/components/deleted-since-base.tsx";
+
+    it("a deleted module beside its changed importer selects the importer's surfaces only", () => {
+        expect(scopeOf(GONE, "src/components/deck-shelf.tsx")).toEqual({
+            kind: "scoped",
+            surfaces: ["lobby"],
+        });
+    });
+
+    it("a deleted module alone selects nothing — no remaining file imports it", () => {
+        expect(scopeOf(GONE)).toEqual({ kind: "scoped", surfaces: [] });
+    });
+
+    it.each([
+        [
+            "a declaration file — ambient, imported by no specifier",
+            "src/types/gone.d.ts",
+        ],
+        [
+            "a module whose sibling still answers its specifier — importers compile unchanged",
+            "src/components/card.ts",
+        ],
+        [
+            "a module a template import() can name — no importer spells the edge",
+            "src/components/panels/gone.tsx",
+        ],
+    ])("a deleted path stays a doubt: %s", (_why, gone) => {
+        expect(scopeOf(gone)).toEqual({
+            kind: "undecided",
+            reasons: [
+                `${gone} is in no surface's closure and no rule places it`,
+            ],
+        });
+    });
+
+    it("a deleted ASSET stays a doubt — `tsc` never resolves the string naming it", () => {
+        const asset = "src/assets/gone.svg";
+        expect(scopeOf(asset)).toEqual({
+            kind: "undecided",
+            reasons: [
+                `${asset} is in no surface's closure and no rule places it`,
+            ],
+        });
     });
 });
 

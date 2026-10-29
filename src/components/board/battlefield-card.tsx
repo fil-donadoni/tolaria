@@ -8,7 +8,6 @@ import {
 import { useGameContext } from "~/hooks/useGameContext";
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { isCreature } from "~/lib/card-utils";
-import { getEffectiveColorDisplay } from "~/lib/color-override";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
 import ClassLevelBadge from "./class-level-badge";
 import CounterBadges from "./counter-badges";
@@ -145,27 +144,9 @@ export default function BattlefieldCard({
         </div>
     ) : null;
 
-    const colorDisplay = getEffectiveColorDisplay(card);
-
-    const colorOverrideOverlay = colorDisplay ? (
-        <div
-            className="absolute inset-0 pointer-events-none card-corner z-[5]"
-            style={{
-                boxShadow: `inset 0 0 0 4px ${colorDisplay.inner}`,
-                background: [
-                    `linear-gradient(180deg, ${colorDisplay.inner} 0%, transparent 22%)`,
-                    `linear-gradient(0deg, ${colorDisplay.inner} 0%, transparent 22%)`,
-                    `linear-gradient(90deg, ${colorDisplay.inner} 0%, transparent 18%)`,
-                    `linear-gradient(270deg, ${colorDisplay.inner} 0%, transparent 18%)`,
-                ].join(", "),
-            }}
-        />
-    ) : null;
-
     const inner = (
         <div className={`relative ${vs.ringClass}`} style={innerStyle}>
             <CardImage card={card} />
-            {colorOverrideOverlay}
             {darkenOverlay}
             {badgeEl}
             <CounterBadges card={card} />

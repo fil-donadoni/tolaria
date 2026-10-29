@@ -23,7 +23,7 @@ vi.mock("~/hooks/useDraggable", () => ({
     useDraggable: () => ({ offset: { x: 0, y: 0 }, dragHandlers: {} }),
 }));
 vi.mock("../drag-handle", () => ({ default: () => null }));
-vi.mock("../../cards/color-overlay-card-image", () => ({
+vi.mock("../../cards/stack-card-image", () => ({
     default: () => <div data-testid="stack-card" />,
 }));
 

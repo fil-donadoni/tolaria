@@ -16,7 +16,7 @@ vi.mock("~/hooks/use-leader-lines", () => ({
     repositionLeaderLines: () => {},
 }));
 vi.mock("../drag-handle", () => ({ default: () => null }));
-vi.mock("../../cards/color-overlay-card-image", () => ({
+vi.mock("../../cards/stack-card-image", () => ({
     default: ({ card }: { card: StackItem }) => (
         <div data-testid="stack-card" data-card-id={card.id} />
     ),
