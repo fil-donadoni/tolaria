@@ -276,6 +276,14 @@ export interface ImportGraph {
     staticImportsOf(repoPath: string): readonly string[];
     /** `entry` plus every file reachable from it. */
     closureOf(entry: string, options?: ClosureOptions): Set<string>;
+    /** Whether `repoPath` is a file in the graph's tree — false for a path a
+     *  diff deleted (`computeUiScope`, issue #7459). */
+    isFile(repoPath: string): boolean;
+    /** Whether a template `import(\`./x/${n}.ts\`)` in any file read SO FAR
+     *  could name `repoPath` — an edge no importer's text spells out, so a
+     *  deleted file it named changes no importer (issue #7459). Only files a
+     *  closure already reached have been read. */
+    namedByPattern(repoPath: string): boolean;
 }
 
 /** Where a graph reads files from: the disk under `root` by default, or any
@@ -351,6 +359,7 @@ export function createImportGraph({
     const staticEdges = new Map<string, readonly string[]>();
     const typeEdges = new Map<string, readonly string[]>();
     const fileCache = new Map<string, boolean>();
+    const patternBases = new Set<string>();
 
     const isFile = (repoPath: string): boolean => {
         let known = fileCache.get(repoPath);
@@ -390,6 +399,7 @@ export function createImportGraph({
                     .flatMap((s) => {
                         if (isPatternSpecifier(s)) {
                             const base = specifierBase(repoPath, s, aliases);
+                            if (base !== null) patternBases.add(base);
                             return base === null
                                 ? []
                                 : expandPattern(base, listDir, isFile);
@@ -448,5 +458,28 @@ export function createImportGraph({
         return seen;
     };
 
-    return { importsOf, typeImportsOf, staticImportsOf, closureOf };
+    const namedByPattern = (repoPath: string): boolean => {
+        const segments = repoPath.split("/");
+        for (const base of patternBases) {
+            const pattern = base.split("/");
+            if (
+                pattern.length === segments.length &&
+                pattern.every((segment, i) =>
+                    segmentMatcher(segment).test(segments[i])
+                )
+            ) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    return {
+        importsOf,
+        typeImportsOf,
+        staticImportsOf,
+        closureOf,
+        isFile,
+        namedByPattern,
+    };
 }

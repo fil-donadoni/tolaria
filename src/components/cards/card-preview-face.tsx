@@ -1,3 +1,4 @@
+import ColorRingOverlay from "./color-ring-overlay";
 import { useState } from "react";
 import { ART_CROP_RATIO } from "~/lib/images";
 import { formatOracleText } from "~/lib/oracle-text";
@@ -64,6 +65,7 @@ export default function CardPreviewFace({
     counterDisplays,
     notedMana,
     colorName,
+    colorRing,
     ownerName,
     isToken,
     attachedToName,
@@ -175,6 +177,7 @@ export default function CardPreviewFace({
                         staticAbilities={staticAbilities}
                     />
                 )}
+                {colorRing && <ColorRingOverlay display={colorRing} square />}
             </div>
             <div
                 className={`${textPad} ${textBase} text-text space-y-2 overflow-y-auto ${

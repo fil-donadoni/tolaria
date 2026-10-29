@@ -14,7 +14,6 @@ import {
     type LayerStateView,
 } from "@convex/gre/layers";
 import { isCreature } from "~/lib/card-utils";
-import { getEffectiveColorDisplay } from "~/lib/color-override";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
 import {
@@ -267,23 +266,6 @@ export default function BoardBattlefieldCard({
             <div className="absolute inset-0 bg-black/40 card-corner pointer-events-none z-10" />
         ) : null;
 
-    const colorDisplay = getEffectiveColorDisplay(card);
-
-    const colorOverrideOverlay = colorDisplay ? (
-        <div
-            className="absolute inset-0 pointer-events-none card-corner z-[5]"
-            style={{
-                boxShadow: `inset 0 0 0 4px ${colorDisplay.inner}`,
-                background: [
-                    `linear-gradient(180deg, ${colorDisplay.inner} 0%, transparent 22%)`,
-                    `linear-gradient(0deg, ${colorDisplay.inner} 0%, transparent 22%)`,
-                    `linear-gradient(90deg, ${colorDisplay.inner} 0%, transparent 18%)`,
-                    `linear-gradient(270deg, ${colorDisplay.inner} 0%, transparent 18%)`,
-                ].join(", "),
-            }}
-        />
-    ) : null;
-
     // Tapped state rotates the visual only — a bare rotate(90deg) on a 5:7
     // portrait box swaps its bounding box to 7:5 landscape, wider than the
     // card's own unrotated slot. Three mechanisms were tried and rejected
@@ -442,7 +424,6 @@ export default function BoardBattlefieldCard({
                     }
                 >
                     <CardImage card={card} sizes="120px" includeThumb={false} />
-                    {colorOverrideOverlay}
                     {darkenOverlay}
                     {highlightRing}
                     {phasedBadge}
