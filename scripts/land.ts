@@ -1232,10 +1232,13 @@ export const CLEAR_REPAIR_PROVED = "unset REPAIR_PROVED";
 /**
  * The repair proof (issue #5462): the test files the RED verdict names as
  * failing, run EXPLICITLY on the rebased tree after the lane — whatever the
- * import graph made the lane run. Red here refuses the landing: a "repair"
- * whose failing test still fails repairs nothing. Green sets `REPAIR_PROVED`,
- * which the landing record reads to turn the lineage AMBER. A named file the
- * repair deleted or moved is skipped; with none left the landing proceeds
+ * import graph made the lane run — one file per run, since a RED can have
+ * several culprits and each repair turns only its own share green (issue
+ * #7448). None green refuses the landing: a "repair" whose failing tests
+ * all still fail repairs nothing. ALL green sets `REPAIR_PROVED`, which the
+ * landing record reads to turn the lineage AMBER; a share green proceeds
+ * without it — the RED stands until health sees the rest green. A named file
+ * the repair deleted or moved is skipped; with none left the landing proceeds
  * unproved — the RED then stands until health confirms, as before AMBER.
  */
 export function repairProofStep(tests: readonly string[]): string {
@@ -1244,7 +1247,11 @@ export function repairProofStep(tests: readonly string[]): string {
         "{ set --; " +
         `for f in ${files}; do [ -e "$f" ] && set -- "$@" "$f"; done; ` +
         'if [ "$#" -eq 0 ]; then echo "repair proof: no failing test the RED verdict names exists here — landing unproved, the RED stands until health"; ' +
-        'else echo "repair proof: $*" && bunx vitest run "$@" && REPAIR_PROVED=1; fi; ' +
+        'else echo "repair proof: $*"; RP_GREEN=0; RP_RED=""; ' +
+        'for f in "$@"; do if bunx vitest run "$f"; then RP_GREEN=$((RP_GREEN + 1)); else RP_RED="$RP_RED $f"; fi; done; ' +
+        'if [ "$RP_GREEN" -eq 0 ]; then echo "repair proof: every failing test still fails — a repair that leaves them red repairs nothing"; false; ' +
+        'elif [ -n "$RP_RED" ]; then echo "repair proof: green on its share; still red:$RP_RED — another culprit owns them, the RED stands until health"; ' +
+        "else REPAIR_PROVED=1; fi; fi; " +
         "}"
     );
 }
