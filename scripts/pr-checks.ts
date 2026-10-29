@@ -99,7 +99,7 @@ function spawnExec(argv: readonly string[], cwd: string): number {
  *  deleted or moved are skipped, as `repairProofStep` does.
  *
  *  On the derived state REBUILT, like the queue's draft (`check:lane
- *  --regenerate-derived`, issue #6491): a PR stops carrying it (ADR 0157),
+ *  --regenerate-derived`): a PR stops carrying it (ADR 0157),
  *  so the merge-base's bytes still index a card a revert removed and every
  *  catalogue-freezing suite crashes on a stale Definition Index — the repair
  *  could never prove itself (issue #7489). Restored after, whatever the
