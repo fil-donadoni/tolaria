@@ -66,7 +66,7 @@
 
 import { tryGetDefinition } from "../cards";
 import { declaresLayer2to5StaticEffect } from "../cards/registry";
-import { staticEffectFunctionsFrom } from "../cards/types";
+import { colorGrantColors, staticEffectFunctionsFrom } from "../cards/types";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import {
     applyCreatureTypeReplacement,
@@ -439,6 +439,20 @@ function functionsInAllZones(effect: StaticEffect): boolean {
     return (effect as ZoneScopedStaticEffect).functionsInAllZones === true;
 }
 
+/** CR 109.2a / 109.2b — does this effect's description reach objects OFF the
+ *  battlefield (a card in a hand, library, graveyard or exile, or a spell)?
+ *  The target-side half of the zone gate only: an all-zone effect
+ *  (`functionsInAllZones`, bestow) reaches the stack because its source lives
+ *  there, an every-zone colour grant (`StaticColorGrant.affectsEveryZone`,
+ *  Painter's Servant) because its text says "cards" and "spells" while its
+ *  source stays on the battlefield. */
+function reachesOffBattlefield(effect: StaticEffect): boolean {
+    return (
+        functionsInAllZones(effect) ||
+        (effect.kind === "color-grant" && effect.affectsEveryZone === true)
+    );
+}
+
 /** The entries an object OUTSIDE the battlefield may be derived against: only
  *  the all-zone ones.
  *
@@ -459,7 +473,7 @@ function allZoneEntriesOf(collected: SourceEntries): SourceEntries {
     return {
         entries: collected.entries.filter((entry) => {
             const template = collected.templates.get(entry.id);
-            return template ? functionsInAllZones(template.effect) : false;
+            return template ? reachesOffBattlefield(template.effect) : false;
         }),
         templates: collected.templates,
     };
@@ -1013,10 +1027,78 @@ function resolveAction(
                 : undefined;
         case "color-grant":
             return effect.applies(target, source, STATIC_EFFECT_CTX)
-                ? { kind: "color-change", add: effect.colors }
+                ? {
+                      kind: "color-change",
+                      add: colorGrantColors(effect, source),
+                  }
                 : undefined;
         default:
             return undefined;
+    }
+}
+
+/** The entries a card in a hand, library, graveyard or exile is derived
+ *  against: only the every-zone colour grants (CR 109.2a). Narrower than
+ *  `allZoneEntriesOf` on purpose — bestow's all-zone type change is about a
+ *  SPELL (CR 702.103b) and must not reach a card that is merely in a hand. */
+function everyZoneEntriesOf(collected: SourceEntries): SourceEntries {
+    return {
+        entries: collected.entries.filter((entry) => {
+            const effect = collected.templates.get(entry.id)?.effect;
+            return (
+                effect?.kind === "color-grant" &&
+                effect.affectsEveryZone === true
+            );
+        }),
+        templates: collected.templates,
+    };
+}
+
+/** CR 109.2a / 613.1e — writes the every-zone colour grants (Painter's
+ *  Servant's "all cards that aren't on the battlefield … are the chosen
+ *  color") onto every card in a hand, library, graveyard or exile, and clears
+ *  a grant whose source stopped applying.
+ *
+ *  ONLY `grantedColors` is written: it is the one layer-2-5 output an
+ *  every-zone effect can produce (`StaticColorGrant` is the sole declarer of
+ *  `affectsEveryZone`), and writing the rest would capture layer bases on
+ *  cards no other effect reaches. Materialised, not read-time, because
+ *  `getEffectiveColors` (`cards/effectiveColors.ts`) — the one colour
+ *  authority every consumer reads, client included — has no board.
+ *
+ *  Cost: with no every-zone source in play this is one field read per hidden
+ *  card, needed so a grant left behind by a source that just left is cleared
+ *  (the grant is derived output, never a ledger). The `outsideGame` pile is
+ *  not a zone (CR 400.1) and is never reached. */
+function syncHiddenZoneColorGrants(
+    state: GameState,
+    view: LayerStateView,
+    collected: SourceEntries
+): void {
+    const everyZone = everyZoneEntriesOf(collected);
+    const anySource = everyZone.entries.length > 0;
+    for (const player of state.players) {
+        for (const zone of [
+            player.hand,
+            player.library,
+            player.graveyard,
+            player.exile,
+        ]) {
+            for (const card of zone) {
+                if (!anySource) {
+                    if (card.grantedColors !== undefined) {
+                        card.grantedColors = undefined;
+                    }
+                    continue;
+                }
+                const granted = deriveLayers2to5(
+                    view,
+                    card as unknown as PermanentView,
+                    everyZone
+                ).grantedColors;
+                card.grantedColors = granted.length > 0 ? granted : undefined;
+            }
+        }
     }
 }
 
@@ -1316,10 +1398,11 @@ export function syncLayers2to5(
      *  Same contract as `syncLayer6`'s. */
     opts?: { stoppedSourceIds?: ReadonlySet<string> }
 ): void {
-    const derived = deriveLayers2to5Board(state, opts);
+    const { derived, view, collected } = deriveBoardWithSources(state, opts);
     for (const { card, result } of derived) {
         writeDerivedCharacteristics(card, result);
     }
+    syncHiddenZoneColorGrants(state, view, collected);
     // Layer 2 LAST, and in its own pass: relocating a permanent mutates the
     // battlefield arrays the derivation walk above is iterating, and the CR
     // 613.7 answer for every permanent was computed against the board as it
@@ -1353,22 +1436,28 @@ export function syncLayers2to5(
  *  path hands this function CLONES for exactly that reason. */
 export function deriveLayers2to5Board(
     state: GameState,
-    opts?: {
-        stoppedSourceIds?: ReadonlySet<string>;
-        /** Skip objects on the stack entirely. The wire projection passes it:
-         *  it derives the battlefield from the registry (PRD #2064 S5) but
-         *  ships a stack item's own fields, so a stack derivation it is only
-         *  going to discard is a full per-item walk per projection. */
-        includeStack?: boolean;
-        /** Derive EVERY permanent, including the ones the fast path below can
-         *  prove are already at their base. The sync skips those because the
-         *  fields it would write already hold the answer; a consumer that reads
-         *  the RESULT rather than the fields has nothing to read for a skipped
-         *  permanent, so the wire path asks for all of them (PRD #2064 S5 AC 1:
-         *  no projected characteristic is read out of a field `sync*` wrote). */
-        deriveAll?: boolean;
-    }
-): {
+    opts?: BoardDerivationOptions
+): BoardDerivationRow[] {
+    return deriveBoardWithSources(state, opts).derived;
+}
+
+type BoardDerivationOptions = {
+    stoppedSourceIds?: ReadonlySet<string>;
+    /** Skip objects on the stack entirely. The wire projection passes it:
+     *  it derives the battlefield from the registry (PRD #2064 S5) but
+     *  ships a stack item's own fields, so a stack derivation it is only
+     *  going to discard is a full per-item walk per projection. */
+    includeStack?: boolean;
+    /** Derive EVERY permanent, including the ones the fast path below can
+     *  prove are already at their base. The sync skips those because the
+     *  fields it would write already hold the answer; a consumer that reads
+     *  the RESULT rather than the fields has nothing to read for a skipped
+     *  permanent, so the wire path asks for all of them (PRD #2064 S5 AC 1:
+     *  no projected characteristic is read out of a field `sync*` wrote). */
+    deriveAll?: boolean;
+};
+
+type BoardDerivationRow = {
     card: CardInstanceState;
     result: Layers2to5Derivation;
     /** Which zone the derived object was read from — the ONE thing a consumer
@@ -1376,7 +1465,19 @@ export function deriveLayers2to5Board(
      *  a stack object has none (CR 613.1b / 405). Nothing else in the
      *  derivation is zone-dependent. */
     zone: "battlefield" | "stack";
-}[] {
+};
+
+/** `deriveLayers2to5Board` plus the board view and the source scan it was
+ *  derived against, so `syncLayers2to5` can reach the hidden zones with the
+ *  SAME scan (CR 613.1 — one recompute, one board) instead of a second one. */
+function deriveBoardWithSources(
+    state: GameState,
+    opts?: BoardDerivationOptions
+): {
+    derived: BoardDerivationRow[];
+    view: LayerStateView;
+    collected: SourceEntries;
+} {
     const stopped = opts?.stoppedSourceIds;
     const view = (stopped?.size
         ? {
@@ -1472,7 +1573,7 @@ export function deriveLayers2to5Board(
             zone: "stack",
         });
     }
-    return derived;
+    return { derived, view, collected };
 }
 
 /** The layer-4 derived output as a plain FIELD PATCH — the single mapping from

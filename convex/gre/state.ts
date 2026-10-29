@@ -7812,7 +7812,13 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     const caster = state.players.find((p) => p.id === item.castById);
     if (caster) caster.qualifyingActionThisTurn = true;
     const def = tryGetDefinition(cardId);
-    const colors = def?.manaCost ? getColorsFromCost(def.manaCost) : [];
+    // CR 601.2i / 613.1e — a cast trigger sees the spell's CURRENT colours,
+    // layer 5 included (Painter's Servant's every-zone grant makes every spell
+    // the chosen colour too, CR 109.2b). The object just moved onto the stack,
+    // so its layers are re-derived first; then the ONE colour authority
+    // (`getEffectiveColors`) is read rather than the printed cost.
+    syncLayers2to5(state);
+    const colors = getEffectiveColors(item as unknown as PermanentView);
     const priorSpellCount = state.spellsCastThisTurn ?? 0;
     state.spellsCastThisTurn = priorSpellCount + 1;
     // Per-player spell-cast tally (issue #1343) — the caster's own prior
