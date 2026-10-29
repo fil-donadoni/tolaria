@@ -373,8 +373,11 @@ export function makeLatentBoardLens(
             // spell a held answer can wait for. With every opponent hand
             // empty the answer has nothing to answer until they draw it.
             const opponents = state.players.filter((p) => p.id !== casterId);
+            // An opponent's object already on the stack is a spell the
+            // answer can meet now, whatever is left in their hand.
             const share =
                 opponents.some((p) => p.hand.length > 0) ||
+                state.stack.some((item) => item.controllerId !== casterId) ||
                 (answersAbilities && opponents.some(standsAbilityOnBoard))
                     ? 1
                     : 0;
