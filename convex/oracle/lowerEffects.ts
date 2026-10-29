@@ -2172,12 +2172,21 @@ function lowerSentenceBody(
         // indefinitely (no `duration`): the same four Ops Oko's "becomes a
         // green Elk creature with base power and toughness 3/3" is written in.
         case "become-creature": {
-            if (sentence.subject.kind !== "self")
+            if (
+                sentence.subject.kind !== "self" &&
+                sentence.losesAllAbilities !== true
+            )
                 return unlowerable(
                     "a type-line replacement is lowered on the source only"
                 );
-            const target = { ref: "$source" as const };
+            const selector = objectSelector(sentence.subject, slots, site);
+            if (!selector.ok) return selector;
+            const target = selector.value;
             return lowered([
+                // CR 613.1f layer 6 — Oko's strip, written first as printed.
+                ...(sentence.losesAllAbilities === true
+                    ? [{ op: "loseAllAbilities" as const, target }]
+                    : []),
                 { op: "setCardTypes", target, types: ["Creature"] },
                 { op: "setSubtype", target, subtypes: [sentence.subtype] },
                 ...(sentence.colors.length > 0
