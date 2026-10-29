@@ -29,11 +29,12 @@ const SEEDS = [11, 23, 37, 41, 59, 71, 83, 97];
 /** Round 0 passes `+1` (`draftEngine.ts#passDirection`): seat 0 feeds seat 1. */
 const CUT_SEAT = 0;
 const OBSERVED_SEAT = 1;
-/** Measured at the read slice's weights (issue #3736): R holds, U does NOT —
- *  a blind seat loses MORE U power than a reading one (98.0 vs 160.5 over
- *  these seeds). Filed as a finding for the owner; weights are not tuned here
- *  (issue #3738 out of scope). */
-const CUT_COLOURS: readonly SignalColour[] = ["R"];
+/** At the current weights the opinion holds for G only — drop read vs blind
+ *  over these seeds: W 119.5/138.5, U 79.0/110.5, B 167.5/173.0,
+ *  R 102.5/138.0 all fail (R flipped once the cube's red widened). Owner's
+ *  ruling 2026-10-29: accept and restate to G; weights are not tuned here,
+ *  the gap is issue #7418. */
+const CUT_COLOURS: readonly SignalColour[] = ["G"];
 
 const getPickRating = buildDraftLabPickRating(PACK_SLOTS);
 
