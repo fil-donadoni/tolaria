@@ -3567,6 +3567,7 @@
         {"id":"110.5a","line":"// Fail-closed narrowing, CR 110.5a (\"status … may affect a permanent's","sites":1,"status":"confirmed","ruleHash":"fa0a90cd79303843"},
         {"id":"110.5a","line":"// `tapped` (CR 110.5a) is meaningful on either object-selecting","sites":1,"status":"baseline"},
         {"id":"110.5a","line":"// exile redirect), both `tapped: true` (CR 110.5a) and both `controller:","sites":1,"status":"baseline"},
+        {"id":"110.5a","line":"// fail-closed side of CR 110.5a. The plain Island still orders.","sites":1,"status":"confirmed","ruleHash":"fa0a90cd79303843"},
         {"id":"110.5a","line":"// permanent enter tapped (CR 110.5a). Skipped when the","sites":1,"status":"baseline"},
         {"id":"110.5a","line":"expect(back.isTapped).toBe(true); // CR 110.5a — returns tapped","sites":1,"status":"baseline"},
         {"id":"110.5a","line":"it(\"enters tapped with tapped: true (CR 110.5a)\", () => {","sites":1,"status":"baseline"},
