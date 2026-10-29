@@ -2,12 +2,7 @@
 // Mirrors the board targeting-choice test's mutation-capture pattern.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import type {
-    CardInstance,
-    PendingTarget,
-    Player,
-    StackItem,
-} from "~/types/game";
+import type { CardInstance, PendingTarget, Player } from "~/types/game";
 
 type MutArgs = Record<string, unknown>;
 type MutFn = (args?: MutArgs) => Promise<void>;
@@ -95,14 +90,12 @@ function pending(over: Partial<PendingTarget>): PendingTarget {
 function renderDialog(
     pt: PendingTarget,
     players: Player[],
-    me: Player | undefined,
-    stack: StackItem[] = []
+    me: Player | undefined
 ) {
     return render(
         <GraveyardTargetDialog
             pendingTarget={pt}
             me={me}
-            stack={stack}
             allPlayers={players}
             gameId={"g1" as never}
             playerId="me"
@@ -275,44 +268,5 @@ describe("GraveyardTargetDialog routing (#314)", () => {
         // A second click while pending is a no-op.
         fireEvent.click(secondBtn);
         expect(selectTarget).toHaveBeenCalledTimes(1);
-    });
-});
-
-describe("GraveyardTargetDialog title + minimize (issue #6984)", () => {
-    it('titles a trigger\'s target choice with its stack source, not "spell"', () => {
-        const me = player("me", "Me", [gyCard("m1", "me")]);
-        const trigger = {
-            id: "trig1",
-            card: { id: "portal" },
-        } as unknown as StackItem;
-        renderDialog(
-            pending({
-                kind: "trigger",
-                cardInstanceId: "trig1",
-                controller: "you",
-            }),
-            [me],
-            me,
-            [trigger]
-        );
-        expect(screen.getAllByText("Card portal").length).toBeGreaterThan(0);
-        expect(screen.queryByText("spell")).toBeNull();
-    });
-
-    it("minimize does not cancel the target; restore keeps the chosen tab", () => {
-        const me = player("me", "Me", [gyCard("m1", "me")]);
-        const opp = player("opp", "Opp", [gyCard("o1", "opp")]);
-        renderDialog(pending({ controller: "any" }), [me, opp], me);
-
-        fireEvent.click(screen.getByText("Opponent's graveyard"));
-        expect(screen.getByTestId("card-img-o1")).toBeTruthy();
-        fireEvent.click(screen.getByRole("button", { name: /minimize/i }));
-        expect(cancelTarget).not.toHaveBeenCalled();
-        fireEvent.click(
-            screen.getByRole("button", { name: /restore dialog/i })
-        );
-        expect(cancelTarget).not.toHaveBeenCalled();
-        expect(screen.getByTestId("card-img-o1")).toBeTruthy();
-        expect(screen.queryByTestId("card-img-m1")).toBeNull();
     });
 });

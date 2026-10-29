@@ -2,8 +2,8 @@ import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import type { PendingTarget, Player, StackItem } from "~/types/game";
-import { resolvePendingTargetSource } from "~/lib/pending-target-source";
+import type { PendingTarget, Player } from "~/types/game";
+import { getDefinition } from "@convex/cards";
 import { getEligibleGraveyards } from "~/lib/graveyard-targets";
 import GameDialog from "~/components/ui/game-dialog";
 import GraveyardTabs from "./graveyard-tabs";
@@ -33,7 +33,6 @@ import {
 export default function GraveyardTargetDialog({
     pendingTarget,
     me,
-    stack,
     allPlayers,
     gameId,
     playerId,
@@ -41,8 +40,6 @@ export default function GraveyardTargetDialog({
 }: {
     pendingTarget: PendingTarget;
     me: Player | undefined;
-    /** Source lookup for a `trigger` Pending Target (its id is a stack item). */
-    stack: StackItem[];
     allPlayers: Player[];
     gameId: Id<"games">;
     playerId: string;
@@ -69,13 +66,12 @@ export default function GraveyardTargetDialog({
         [pendingTarget, allPlayers, playerId, activePlayerId]
     );
 
-    // Issue #6984 — the same resolver as the target-selection banner, so the
-    // title names an ability / trigger / emblem source, not just a hand card.
-    const { name: cardName } = resolvePendingTargetSource(
-        pendingTarget,
-        me,
-        stack
+    const cardInHand = me?.hand.find(
+        (c) => c !== null && c.id === pendingTarget.cardInstanceId
     );
+    const cardName = cardInHand
+        ? getDefinition(cardInHand.card.id).name
+        : "spell";
 
     // Issue: dialog subtitle previously hardcoded singular "a card" even for
     // a 2-target spell like Restock, though the underlying selection count
