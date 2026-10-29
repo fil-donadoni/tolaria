@@ -21,6 +21,8 @@ import CardPreview from "./card-preview";
 import CardImageLoader from "./card-image-loader";
 import TokenPlaceholder from "./token-placeholder";
 import CardBack from "./card-back";
+import ColorRingOverlay from "./color-ring-overlay";
+import { getEffectiveColorDisplay } from "~/lib/color-override";
 import useCardSlotFloor from "~/hooks/useCardSlotFloor";
 import { useTokenPrints } from "~/hooks/useTokenPrints";
 import { resolveArtPrintId } from "~/lib/tokenArt";
@@ -152,6 +154,14 @@ function CardImageImpl({
         : null;
     const def = tryGetDefinition(defId);
     const name = def?.name ?? defId;
+    // CR 613.1e — a layer-5 colour (`colorOverride` / `grantedColors`) rings
+    // the card wherever it is drawn, not only on the battlefield: an
+    // every-zone grant (Painter's Servant) colours hand, graveyard and exile
+    // cards too. A face-down face shows nothing of the hidden card.
+    const colorRing =
+        cardInstance && !faceDownFace
+            ? getEffectiveColorDisplay(cardInstance)
+            : null;
     // Tokens (CR 111, 707.1) prefer a printed token's Scryfall id for art
     // when the card defines one (e.g. The Hive → 10E Wasp print). Tokens
     // without a printed image render the in-app TokenPlaceholder.
@@ -239,6 +249,7 @@ function CardImageImpl({
                     />
                 )}
                 {imageId && !loaded && <CardImageLoader />}
+                {colorRing && <ColorRingOverlay display={colorRing} />}
             </div>
         </CardPreview>
     );
@@ -250,7 +261,8 @@ function CardImageImpl({
 // comparator stays a single string compare (never a deep object compare). The
 // signature covers granted/lost keywords (landwalk AND every other keyword via
 // `staticAbilities`), effective P/T inputs (base P/T, counters, temp mods),
-// types/subtypes, granted activated/triggered abilities, and `colorOverride`.
+// types/subtypes, granted activated/triggered abilities, and the layer-5
+// colours (`colorOverride`, `grantedColors`) the colour ring paints.
 // Any of those changing re-renders so the preview reflects the live instance;
 // fields the preview ignores (tap/combat/summoning flags) are excluded so
 // unrelated state churn doesn't repaint. See `card-image-signature.ts`.

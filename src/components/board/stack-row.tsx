@@ -25,7 +25,7 @@ import { V4_EYEBROW_FAINT } from "~/lib/board-chrome-v4";
 import { stackTargetNames } from "~/lib/stack-target-line";
 import ArrivalGlow from "./arrival-glow";
 import StackYieldToggle from "./stack-yield-toggle";
-import ColorOverlayCardImage from "../cards/color-overlay-card-image";
+import StackCardImage from "../cards/stack-card-image";
 import TokenPlaceholder from "../cards/token-placeholder";
 
 type AbilityKind = "activated" | "triggered" | "delayed";
@@ -269,7 +269,7 @@ export default function StackRow({
                             }
                             className="block"
                         >
-                            <ColorOverlayCardImage
+                            <StackCardImage
                                 card={item}
                                 showCopyBadge={item.isCopy}
                                 sizes="96px"

@@ -31,7 +31,10 @@ import {
     resolveArtPrintId,
     type TokenPrintIndex,
 } from "~/lib/tokenArt";
-import { getEffectiveColorDisplay } from "~/lib/color-override";
+import {
+    getEffectiveColorDisplay,
+    type ColorOverrideDisplay,
+} from "~/lib/color-override";
 import { getCounterDisplays, type CounterDisplay } from "~/lib/counters";
 import { attachmentHostName } from "~/lib/attachment";
 import {
@@ -224,6 +227,10 @@ export type PreviewBodyContent = {
     counterDisplays: CounterDisplay[];
     notedMana?: { mana: Record<string, number>; castableCardId?: string };
     colorName: string | null;
+    /** CR 613.1e — the layer-5 colour ring painted over the preview art, the
+     *  same swatch `CardImage` rings the card with in its zone. Absent on a
+     *  face with no live instance (the ORIGINAL face of a copy). */
+    colorRing?: ColorOverrideDisplay | null;
     ownerName: string | null;
     /** Host this permanent is attached to (CR 303.4 Aura / CR 301.5 Equipment)
      *  — a card name, or a player name for an "enchant player" Aura. The
@@ -655,6 +662,7 @@ export function buildPreviewBody(
         counterDisplays,
         notedMana: cardInstance?.notedMana,
         colorName: colorDisplay?.name ?? null,
+        colorRing: colorDisplay,
         ownerName,
         attachedToName:
             cardInstance && gameCtx
