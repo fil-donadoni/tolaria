@@ -302,6 +302,45 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 500.7 — "Take an extra turn after this one" / "Target player
+           * takes an extra turn after this one": `player` is the one who
+           * takes the turn. A count ("two extra turns") and a rider on the
+           * extra turn ("At the beginning of that turn's end step, you lose
+           * the game") are different instructions and are not read.
+           */
+          readonly frame: "extraTurn";
+          readonly player: PlayerRefIR;
+      }
+    | {
+          /**
+           * CR 500.8 — "After this phase, there is an additional combat
+           * phase": one more combat phase (five steps, CR 506.1) behind the
+           * combat phase in progress. A main-phase anchor ("After this main
+           * phase …") and a count ("two additional combat phases") are other
+           * instructions and are not read.
+           */
+          readonly frame: "extraCombat";
+      }
+    | {
+          /**
+           * CR 614.10 — "You skip your next turn": the controller skips
+           * their next turn. Only the controller is read; "target player
+           * skips their next turn" earns the wider subject when a card
+           * prints it standalone.
+           */
+          readonly frame: "skipNextTurn";
+      }
+    | {
+          /**
+           * CR 504.1 + CR 614.10 — "you skip your draw step this turn": the
+           * controller's draw step of the turn in progress does not happen.
+           * The one-shot sentence, not the static "Skip your draw step."
+           * (every one of their draw steps — a different effect).
+           */
+          readonly frame: "skipDrawStepThisTurn";
+      }
+    | {
+          /**
            * CR 707.2 + CR 111.1 — "create a token that's a copy of <object>":
            * the controller creates a token whose copiable values are the
            * named object's. The object is the source only ("this creature").
@@ -421,6 +460,21 @@ export const VERB_FRAMES: readonly {
         opens: /^you gain protection from everything\b/i,
     },
     {
+        name: "extraTurn",
+        opens: /^(?:take|(?:you take|target player takes)) an extra turn\b/i,
+    },
+    {
+        name: "extraCombat",
+        // Whole spellings only: a bare "there is an additional …" must not
+        // open a member, or the comma split would cut the sentence in two.
+        opens: /^(?:after this phase, there is an additional combat phase)\b/i,
+    },
+    { name: "skipNextTurn", opens: /^you skip your next turn$/i },
+    {
+        name: "skipDrawStepThisTurn",
+        opens: /^you skip your draw step this turn$/i,
+    },
+    {
         name: "copyToken",
         opens: /^create a token that's a copy of /i,
     },
@@ -484,6 +538,12 @@ const PROTECTION_FROM_EVERYTHING =
 const COPY_TOKEN_OPENER = "create a token that's a copy of ";
 const CAST_FROM_GRAVEYARD_THIS_TURN =
     /^you may cast target (.+?) from your graveyard this turn$/;
+/** CR 500.7 — the one extra-turn spelling per subject; nothing trails "this one". */
+const EXTRA_TURN =
+    /^(?:(take)|(you take|target player takes)) an extra turn after this one$/;
+/** CR 500.8 — the combat-anchored spellings, each ending at the phase noun. */
+const EXTRA_COMBAT =
+    /^(?:after this phase, there is an additional combat phase)$/;
 const REVEAL = new RegExp(`^reveal ${PRONOUN}$`);
 const SHUFFLE_AND_TOP = new RegExp(`^shuffle and put ${PRONOUN} on top$`);
 /** CR 401.4 — "in any order" after a plural find on top of the library: the
@@ -1449,6 +1509,35 @@ function readMember(
             referent,
         };
     }
+    if (opensFrame("extraTurn", lower)) {
+        // CR 500.7 — "after this one" ends the instruction: a count or a
+        // rider on the turn is a different effect.
+        const taken = lower.match(EXTRA_TURN);
+        if (taken === null)
+            return {
+                refused: `"${member}" — only "take an extra turn after this one" is read`,
+            };
+        const player = playerRefRule.run(
+            taken[2] === undefined ? "you" : taken[2].replace(/ takes?$/, ""),
+            ctx
+        );
+        if (!player.ok) return { refused: player.reason, failure: player };
+        return {
+            frames: [{ frame: "extraTurn", player: player.value }],
+            referent,
+        };
+    }
+    if (opensFrame("extraCombat", lower)) {
+        if (!EXTRA_COMBAT.test(lower))
+            return {
+                refused: `"${member}" — only "After this phase, there is an additional combat phase" is read`,
+            };
+        return { frames: [{ frame: "extraCombat" }], referent };
+    }
+    if (opensFrame("skipNextTurn", lower))
+        return { frames: [{ frame: "skipNextTurn" }], referent };
+    if (opensFrame("skipDrawStepThisTurn", lower))
+        return { frames: [{ frame: "skipDrawStepThisTurn" }], referent };
     if (opensFrame("copyToken", lower)) {
         const objectSpan = lower.slice(COPY_TOKEN_OPENER.length);
         const subject = subjectRule.run(objectSpan, ctx);

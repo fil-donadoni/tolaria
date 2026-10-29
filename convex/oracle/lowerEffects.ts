@@ -5259,6 +5259,25 @@ function lowerFrameChain(
                     player: "controller",
                 });
                 break;
+            // CR 500.7 — the Op fronts the LIFO extra-turn queue.
+            case "extraTurn": {
+                const player = playerRef(frame.player, walk.targets, site);
+                if (!player.ok) return player;
+                ops.push({ op: "extraTurn", player: player.value });
+                break;
+            }
+            // CR 500.8 — one more combat phase behind the one in progress.
+            case "extraCombat":
+                ops.push({ op: "extraCombat" });
+                break;
+            // CR 614.10 — the controller's next turn does not happen.
+            case "skipNextTurn":
+                ops.push({ op: "skipNextTurn", player: "controller" });
+                break;
+            // CR 504.1 — the controller's draw step of this turn is skipped.
+            case "skipDrawStepThisTurn":
+                ops.push({ op: "skipDrawStepThisTurn", player: "controller" });
+                break;
             // CR 707.2 + CR 111.1 — the controller creates the token.
             case "copyToken": {
                 const source = objectSelector(frame.source, walk.targets, site);
