@@ -130,13 +130,11 @@ describe("healthGateDue — a tip without a verdict (issue #7445)", () => {
 
 describe("settlesTip — only GREEN or RED stops the health clock", () => {
     it("green and red settle; infra, amber and none do not", () => {
-        expect(["green", "red"].map(settlesTip)).toEqual([true, true]);
-        expect(["infra", "amber", null, undefined].map(settlesTip)).toEqual([
-            false,
-            false,
-            false,
-            false,
-        ]);
+        expect(settlesTip("green")).toBe(true);
+        expect(settlesTip("red")).toBe(true);
+        expect(settlesTip("infra")).toBe(false);
+        expect(settlesTip("amber")).toBe(false);
+        expect(settlesTip(undefined)).toBe(false);
     });
 });
 
