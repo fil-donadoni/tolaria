@@ -349,6 +349,12 @@
           "castFromExileCostIncrease": {
             "generic": 2
           },
+          "castableFromExileCondition": {
+            "kind": "control",
+            "filter": {
+              "subtype": "Wizard"
+            }
+          },
           "exiledBySourceId": "src-12",
           "castableFromGraveyardBy": "p1",
           "castableFromGraveyardUntilTurn": 23,
@@ -754,6 +760,12 @@
       "castFromExileManaSubstitution": "any-color",
       "castFromExileCostIncrease": {
         "generic": 2
+      },
+      "castableFromExileCondition": {
+        "kind": "control",
+        "filter": {
+          "subtype": "Wizard"
+        }
       },
       "exiledBySourceId": "src-12",
       "castableFromGraveyardBy": "p1",
