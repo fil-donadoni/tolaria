@@ -1061,8 +1061,9 @@ function ladderRun(argv: readonly string[]): number {
                 join(import.meta.dir, "health-revert.ts"),
                 "--sha",
                 red,
-                "--culprit",
-                rung.culprit.sha,
+                // Every culprit the bisect named: one PR reverts them all
+                // (issue #7446).
+                ...rung.culprits.flatMap((c) => ["--culprit", c.sha]),
                 // The tip the facts were read on: a commit landed since was
                 // never checked for a declared repair (issue #6766).
                 "--base",

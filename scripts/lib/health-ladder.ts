@@ -12,7 +12,10 @@
  *      queued as a repair; the culprit's issue reopens with the evidence
  *      for a fresh pass that lands the culprit again WITH the fix. A culprit
  *      later commits depend on is reverted together with the ones its revert
- *      conflicts with, in one PR, up to `MAX_REVERT_SET` (issue #6766).
+ *      conflicts with, in one PR, up to `MAX_REVERT_SET` (issue #6766). A
+ *      bisect that named several culprits (issue #7339) has every one of
+ *      them reverted in that same PR (issue #7446): reverting the first alone
+ *      left the rest of the RED standing with no repair in flight.
  *   5. **Fix forward** — only what a revert cannot handle: the revert does
  *      not apply (a later PR depends on the culprit), or the bisect named
  *      no single culprit. The headless fixer (`health:fix --headless`), at
@@ -54,8 +57,11 @@ export const ATTEMPT_STALE_MS = FIX_ATTEMPT_TIMEOUT_MS + 30 * 60 * 1000;
 export const MAX_REVERT_TRIES = 3;
 /** The prefix of a revert record's note for such a failure: retried. */
 export const TRANSIENT_NOTE = "transient: ";
-/** The commits one revert PR may carry — the culprit and the later commits
- *  its revert conflicts with (issue #6766): past it the ladder stops. */
+/** The commits one revert PR may carry for a single culprit — the culprit
+ *  and the later commits its revert conflicts with (issue #6766): past it
+ *  the ladder stops. The bisected culprits themselves are never counted
+ *  against it (issue #7446): only the dependents the set adds, at most
+ *  `MAX_REVERT_SET - 1`, are guesses it bounds. */
 export const MAX_REVERT_SET = 3;
 /** The prefix of a revert record's note when the set the revert needs is
  *  past `MAX_REVERT_SET`; the rest of the note names every commit in it. */
@@ -97,14 +103,18 @@ const CULPRIT_LINE = new RegExp(
     `^${LADDER_MARK.replace(/[*]/g, "\\*")}(?:PR #(\\d+)|a direct commit) · \`([0-9a-f]{7,40})\``
 );
 
-/** The culprit an evidence body names (`culpritLine`'s named form), or
- *  null — no ladder ran, or it named none. */
-export function parseCulprit(evidence: string | null): Culprit | null {
+/** Every culprit an evidence body names (`culpritLines`' named forms),
+ *  oldest first, each once — none when no ladder ran or it named none. A
+ *  RED two PRs caused names both (issue #7339), and both are reverted
+ *  (issue #7446). */
+export function parseCulprits(evidence: string | null): Culprit[] {
+    const culprits: Culprit[] = [];
     for (const line of (evidence ?? "").split("\n")) {
         const m = CULPRIT_LINE.exec(line);
-        if (m) return { sha: m[2], pr: m[1] ? Number(m[1]) : null };
+        if (m && !culprits.some((c) => c.sha === m[2]))
+            culprits.push({ sha: m[2], pr: m[1] ? Number(m[1]) : null });
     }
-    return null;
+    return culprits;
 }
 
 /** One RED of the episode: every RED on the base's first-parent history
@@ -112,7 +122,8 @@ export function parseCulprit(evidence: string | null): Culprit | null {
 export interface EpisodeRed {
     sha: string;
     attempt: FixAttempt | null;
-    culprit: Culprit | null;
+    /** Every culprit its bisect named, oldest first; none when unnamed. */
+    culprits: Culprit[];
 }
 
 /** The revert PR's live state, read from GitHub. */
@@ -137,7 +148,7 @@ export interface LineageCommit {
     sha: string;
     /** The PR its squash subject names, or null for a direct commit. */
     pr: number | null;
-    /** The full commit message: a revert of the culprit names it there. */
+    /** The full commit message: a revert of a culprit names it there. */
     message: string;
 }
 
@@ -149,7 +160,9 @@ export type Rung =
     /** The ladder already stopped on this RED: held, quietly (one email). */
     | { kind: "hold"; why: string }
     | { kind: "fix"; attempt: number; why: string }
-    | { kind: "revert"; culprit: Culprit; attempt: number; why: string }
+    /** Every culprit the RED's bisect named and the tip still contains,
+     *  oldest first: one PR reverts them all (issue #7446). */
+    | { kind: "revert"; culprits: Culprit[]; attempt: number; why: string }
     | { kind: "stop"; why: string };
 
 export interface LadderFacts {
@@ -194,11 +207,29 @@ function olderThan(a: FixAttempt, ms: number, now: number): boolean {
 const stale = (a: FixAttempt, now: number) =>
     olderThan(a, ATTEMPT_STALE_MS, now);
 
-/** The culprit to revert: the standing RED's, else the newest one of the
- *  episode a bisect named. */
-function episodeCulprit(episode: readonly EpisodeRed[]): Culprit | null {
-    for (const r of episode) if (r.culprit) return r.culprit;
-    return null;
+/** The culprits to revert: the standing RED's, else those of the newest
+ *  RED of the episode a bisect named any for — EVERY one it named (issue
+ *  #7446), never only the first. */
+function episodeCulprits(episode: readonly EpisodeRed[]): Culprit[] {
+    for (const r of episode) if (r.culprits.length > 0) return r.culprits;
+    return [];
+}
+
+/** The episode's culprits the tip still contains: a later first-parent
+ *  commit reverting one (a hand revert) leaves it out of the revert, which
+ *  would otherwise be empty and fail (issue #7446). */
+function culpritsToRevert(facts: LadderFacts): Culprit[] {
+    return episodeCulprits(facts.episode).filter(
+        (c) => !(facts.sinceRed ?? []).some((s) => revertsCulprit(s.message, c))
+    );
+}
+
+/** The culprits a text names: `PR #A`, or `PR #A and PR #B`, …. */
+export function culpritsRef(culprits: readonly Culprit[]): string {
+    const refs = culprits.map(commitRef);
+    return refs.length <= 1
+        ? (refs[0] ?? "")
+        : `${refs.slice(0, -1).join(", ")} and ${refs[refs.length - 1]}`;
 }
 
 /** The declared foreign repair that holds the ladder back: its PR is open
@@ -253,12 +284,12 @@ function revertsCulprit(message: string, culprit: Culprit): boolean {
  * Why a RED that is not the tip's own verdict does NOT stand on the tip
  * (issue #6766), or null when it does: its culprit is bisected, the tip
  * descends from it, and nothing after it is a declared repair or a revert
- * of the culprit — the tip still contains the culprit, so the RED is its
+ * of every culprit — the tip still contains a culprit, so the RED is its
  * lineage verdict and the ladder acts without a health run on it.
  */
 export function lineageHold(facts: LadderFacts): string | null {
-    const culprit = facts.episode[0]?.culprit ?? null;
-    if (!facts.laddered || culprit === null)
+    const culprits = facts.episode[0]?.culprits ?? [];
+    if (!facts.laddered || culprits.length === 0)
         return "the RED's culprit is not bisected";
     if (facts.sinceRed === null)
         return `the tip does not descend from ${short(facts.red ?? "")}`;
@@ -267,11 +298,13 @@ export function lineageHold(facts: LadderFacts): string | null {
     );
     if (repair !== undefined)
         return `${commitRef(repair)} is a declared repair of the RED`;
-    const revert = facts.sinceRed.find((c) =>
-        revertsCulprit(c.message, culprit)
+    // Every culprit reverted: health gates the tip. One still contained
+    // (issue #7446): the RED stands, and the ladder reverts the rest.
+    const reverts = culprits.map((culprit) =>
+        facts.sinceRed?.find((c) => revertsCulprit(c.message, culprit))
     );
-    if (revert !== undefined)
-        return `${commitRef(revert)} reverts the culprit ${commitRef(culprit)}`;
+    if (reverts.every((r) => r !== undefined))
+        return `${[...new Set(reverts.map((r) => commitRef(r!)))].join(", ")} ${reverts.length > 1 ? "revert the culprits" : "reverts the culprit"} ${culpritsRef(culprits)}`;
     return null;
 }
 
@@ -282,8 +315,8 @@ function revertOrStop(
     why: string,
     revertSpent: boolean
 ): Rung {
-    const culprit = episodeCulprit(facts.episode);
-    if (culprit === null)
+    const culprits = culpritsToRevert(facts);
+    if (culprits.length === 0)
         return {
             kind: "stop",
             why: `${why}, and the bisect named no culprit to revert — the failure cannot be isolated`,
@@ -293,7 +326,7 @@ function revertOrStop(
             kind: "stop",
             why: `${why}, and the revert of the culprit does not apply`,
         };
-    return { kind: "revert", culprit, attempt: 1, why };
+    return { kind: "revert", culprits, attempt: 1, why };
 }
 
 /**
@@ -363,11 +396,11 @@ export function ladderRung(facts: LadderFacts): Rung {
             revert.outcome === "stuck" &&
             revert.note?.startsWith(TRANSIENT_NOTE);
         if (transient && tries < MAX_REVERT_TRIES) {
-            const culprit = episodeCulprit(facts.episode);
-            if (culprit !== null)
+            const culprits = culpritsToRevert(facts);
+            if (culprits.length > 0)
                 return {
                     kind: "revert",
-                    culprit,
+                    culprits,
                     attempt: tries + 1,
                     why: `revert try ${tries} failed (${revert.note?.slice(TRANSIENT_NOTE.length)}) — try ${tries + 1} of ${MAX_REVERT_TRIES}`,
                 };
@@ -460,13 +493,16 @@ export function ladderRung(facts: LadderFacts): Rung {
     // reopens and the fix-forward is that issue's ordinary pass. The fixer
     // below is only for what a revert cannot handle — the revert does not
     // apply (`revertSpent`) or the bisect named no single culprit.
-    const culprit = episodeCulprit(facts.episode);
-    if (culprit !== null && !revertSpent)
+    const culprits = culpritsToRevert(facts);
+    if (culprits.length > 0 && !revertSpent)
         return {
             kind: "revert",
-            culprit,
+            culprits,
             attempt: 1,
-            why: `revert the culprit of ${short(red)} first — its issue's fresh pass lands it again with the fix`,
+            why:
+                culprits.length > 1
+                    ? `revert all ${culprits.length} culprits of ${short(red)} first, in one PR — their issues' fresh passes land them again with the fix`
+                    : `revert the culprit of ${short(red)} first — its issue's fresh pass lands it again with the fix`,
         };
 
     const used = fixes.reduce((n, a) => Math.max(n, a.attempt ?? 1), 0);
@@ -481,7 +517,7 @@ export function ladderRung(facts: LadderFacts): Rung {
         };
     return {
         kind: "stop",
-        why: `both fixer attempts on ${short(red)} were stuck${culprit === null ? ", and the bisect named no culprit to revert — the failure cannot be isolated" : ", and the revert of the culprit does not apply"}`,
+        why: `both fixer attempts on ${short(red)} were stuck${culprits.length === 0 ? ", and the bisect named no culprit to revert — the failure cannot be isolated" : ", and the revert of the culprit does not apply"}`,
     };
 }
 
@@ -511,7 +547,7 @@ export function walkEpisode(
         episode.push({
             sha,
             attempt: read.attempt(sha),
-            culprit: parseCulprit(body),
+            culprits: parseCulprits(body),
         });
     }
     return { episode, standingEvidence };
@@ -579,8 +615,14 @@ export function revertBranch(repairIssue: number): string {
     return `fix/issue-${repairIssue}`;
 }
 
-export function revertIssueTitle(culprit: Culprit, subject: string): string {
-    return `Revert ${culprit.pr !== null ? `PR #${culprit.pr}` : culprit.sha}: ${subject}`;
+/** One title per culprit set, its dedup key: every culprit, then the
+ *  oldest one's subject (issue #7446). */
+export function revertIssueTitle(
+    culprits: readonly Culprit[],
+    subject: string
+): string {
+    const refs = culprits.map((c) => (c.pr !== null ? `PR #${c.pr}` : c.sha));
+    return `Revert ${refs.join(" + ")}: ${subject}`;
 }
 
 /** The sentence naming the later commits reverted with the culprit (issue
@@ -595,20 +637,25 @@ function dependentsLine(dependents: readonly Culprit[] | undefined): string[] {
 
 export function revertIssueBody(input: {
     red: string;
-    culprit: Culprit;
+    /** Every culprit the bisect named, oldest first (issue #7446). */
+    culprits: readonly Culprit[];
     why: string;
     evidence: string | null;
-    /** Later commits reverted together with the culprit (issue #6766). */
+    /** Later commits reverted together with the culprits (issue #6766). */
     dependents?: readonly Culprit[];
 }): string {
-    const who =
-        input.culprit.pr !== null
-            ? `PR #${input.culprit.pr} (\`${input.culprit.sha}\`)`
-            : `the direct commit \`${input.culprit.sha}\``;
+    const whoOf = (c: Culprit) =>
+        c.pr !== null
+            ? `PR #${c.pr} (\`${c.sha}\`)`
+            : `the direct commit \`${c.sha}\``;
+    const what =
+        input.culprits.length === 1
+            ? `Revert ${whoOf(input.culprits[0])}, the culprit the bisect named`
+            : `Revert every culprit the bisect named, in one PR — ${input.culprits.map(whoOf).join(", ")} —`;
     return [
         "## What to build",
         "",
-        `Revert ${who}, the culprit the bisect named for the RED at \`${input.red}\`: ${input.why}. The RED ladder's first rung once a culprit is named (ADR 0158 § 3, amending ADR 0156 rungs 4–5).`,
+        `${what} for the RED at \`${input.red}\`: ${input.why}. The RED ladder's first rung once a culprit is named (ADR 0158 § 3, amending ADR 0156 rungs 4–5).`,
         ...dependentsLine(input.dependents),
         "",
         "## Acceptance criteria",
@@ -629,20 +676,19 @@ export function revertIssueBody(input: {
 export function revertPrBody(input: {
     issue: number;
     red: string;
-    culprit: Culprit;
-    /** The reverted commit's full sha: what `land` checks the tree against. */
-    revertedSha: string;
+    /** Every culprit the bisect named, oldest first, with the full sha
+     *  `land` checks the tree against (issue #7446). */
+    culprits: readonly RevertedCommit[];
     /** Every issue the reverted commits closed, reopened for a fresh pass. */
     culpritIssues: readonly number[];
-    /** Later commits reverted together with the culprit (issue #6766). */
+    /** Later commits reverted together with the culprits (issue #6766). */
     dependents?: readonly RevertedCommit[];
 }): string {
-    const who =
-        input.culprit.pr !== null
-            ? `PR #${input.culprit.pr}`
-            : `\`${input.culprit.sha}\``;
+    const who = culpritsRef(input.culprits);
     return [
-        `Reverts ${who}, the commit the RED ladder's bisect named for the RED at \`${input.red.slice(0, 12)}\` (ADR 0158 § 3, amending ADR 0156 rungs 4–5).`,
+        input.culprits.length === 1
+            ? `Reverts ${who}, the commit the RED ladder's bisect named for the RED at \`${input.red.slice(0, 12)}\` (ADR 0158 § 3, amending ADR 0156 rungs 4–5).`
+            : `Reverts ${who}, every commit the RED ladder's bisect named for the RED at \`${input.red.slice(0, 12)}\` — one PR repairs the whole RED (issue #7446; ADR 0158 § 3, amending ADR 0156 rungs 4–5).`,
         ...dependentsLine(input.dependents),
         "",
         `Closes #${input.issue}`,
@@ -657,7 +703,7 @@ export function revertPrBody(input: {
         // parent of the oldest one touching it (issue #6766).
         ...[
             ...(input.dependents ?? []).map((d) => d.full),
-            input.revertedSha,
+            ...[...input.culprits].reverse().map((c) => c.full),
         ].map(revertRestoresLine),
         "",
         "## Preset scenario",
@@ -676,12 +722,12 @@ export function revertPrBody(input: {
 export function revertAcknowledgements(
     losses: readonly ReadyRegression[],
     input: {
-        culprit: Culprit;
+        culprits: readonly Culprit[];
         culpritIssues: readonly number[];
         dependents?: readonly Culprit[];
     }
 ): RegressionAcknowledgement[] {
-    const who = [input.culprit, ...(input.dependents ?? [])]
+    const who = [...input.culprits, ...(input.dependents ?? [])]
         .map(commitRef)
         .join(" + ");
     const tracker = input.culpritIssues[0];
@@ -707,12 +753,12 @@ export function revertAcknowledgements(
  * dependent that closed it.
  */
 export function issuesToReopen(
-    culprit: Culprit,
+    culprits: readonly Culprit[],
     dependents: readonly Culprit[],
     closedBy: (pr: number | null) => readonly number[]
 ): { n: number; dependent?: Culprit }[] {
     return [
-        ...closedBy(culprit.pr).map((n) => ({ n })),
+        ...culprits.flatMap((c) => closedBy(c.pr).map((n) => ({ n }))),
         ...dependents.flatMap((d) =>
             closedBy(d.pr).map((n) => ({
                 n,
@@ -725,18 +771,20 @@ export function issuesToReopen(
 /** The comment the culprit's reopened issue gets. */
 export function reopenComment(input: {
     red: string;
-    culprit: Culprit;
+    /** Every culprit the revert PR reverts (issue #7446). */
+    culprits: readonly Culprit[];
     revertPr: number;
     evidence: string | null;
     /** The reverted commit that closed THIS issue, when it is a dependent
      *  reverted with the culprit rather than the culprit (issue #6766). */
     dependent?: Culprit;
 }): string {
-    const culprit = commitRef(input.culprit);
+    const culprit = culpritsRef(input.culprits);
+    const several = input.culprits.length > 1;
     const what =
         input.dependent !== undefined
-            ? `${commitRef(input.dependent)} depends on ${culprit}, which turned the base RED at \`${input.red.slice(0, 12)}\`; PR #${input.revertPr} reverts both. A fresh pass lands this issue again once the culprit's own issue has re-landed it, against the evidence below (ADR 0158 § 3).`
-            : `${culprit} turned the base RED at \`${input.red.slice(0, 12)}\`, and PR #${input.revertPr} reverts it. A fresh pass lands this issue again WITH the fix, against the evidence below (ADR 0158 § 3).`;
+            ? `${commitRef(input.dependent)} depends on ${culprit}, which turned the base RED at \`${input.red.slice(0, 12)}\`; PR #${input.revertPr} reverts ${several ? "them all" : "both"}. A fresh pass lands this issue again once the culprit's own issue has re-landed it, against the evidence below (ADR 0158 § 3).`
+            : `${culprit} turned the base RED at \`${input.red.slice(0, 12)}\`, and PR #${input.revertPr} reverts ${several ? "them" : "it"}. A fresh pass lands this issue again WITH the fix, against the evidence below (ADR 0158 § 3).`;
     return [
         `Reopened by the RED ladder: ${what}`,
         "",

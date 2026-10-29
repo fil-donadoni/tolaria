@@ -2474,8 +2474,7 @@ describe("land.ts — a RED-ladder revert lands without a walk only when it rest
         revertPrBody({
             issue: 6070,
             red: "a".repeat(40),
-            culprit: { sha: sha.slice(0, 12), pr: 6050 },
-            revertedSha: sha,
+            culprits: [{ sha: sha.slice(0, 12), pr: 6050, full: sha }],
             culpritIssues: [],
         });
     const invalid = (body: string) =>

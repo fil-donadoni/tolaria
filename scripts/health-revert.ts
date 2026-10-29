@@ -3,9 +3,10 @@
  * The RED ladder's revert rung (issue #5646, ADR 0156 Amendment I rung 5,
  * owner's decision of 2026-10-14): the culprit the bisect named is reverted
  * on a branch off the base tip, and the revert goes through the queue as the
- * standing RED's declared repair.
+ * standing RED's declared repair. A bisect that named several culprits
+ * passes `--culprit` once per culprit: one PR reverts them all (issue #7446).
  *
- *   bun scripts/health-revert.ts --sha <red> --culprit <sha> [--base <sha>] [--why <text>] [--dry-run]
+ *   bun scripts/health-revert.ts --sha <red> --culprit <sha> [--culprit <sha> …] [--base <sha>] [--why <text>] [--dry-run]
  *
  * In order: the attempt is recorded on the pivot (`health-fix-attempt`,
  * rung `revert`) before anything else, so a second ladder run waits — and
@@ -44,7 +45,6 @@ import { join } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { CLAIM_LABEL, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { isBaseMaintenanceSubject } from "./lib/derive-sync";
-import { prOfSubject } from "./lib/health-bisect";
 import { fixAttemptStore, type FixAttempt } from "./lib/health-fix-attempts";
 import {
     CAP_NOTE,
@@ -58,7 +58,6 @@ import {
     revertIssueTitle,
     revertAcknowledgements,
     revertPrBody,
-    type Culprit,
 } from "./lib/health-ladder";
 import { recordPivotRepairIssue } from "./lib/health-pivot";
 import { planRevertSet } from "./lib/health-revert-set";
@@ -78,6 +77,13 @@ const LOCKFILE = "data/oracle-compiled.json";
 function arg(name: string): string | undefined {
     const i = process.argv.indexOf(name);
     return i === -1 ? undefined : process.argv[i + 1];
+}
+
+/** Every value a repeated flag carries, in order. */
+function args(name: string): string[] {
+    return process.argv.flatMap((a, i) =>
+        a === name && i + 1 < process.argv.length ? [process.argv[i + 1]] : []
+    );
 }
 
 function run(
@@ -123,25 +129,27 @@ export function prNumberOfUrl(url: string): number | null {
 
 function main(): number {
     const red = arg("--sha");
-    const culpritArg = arg("--culprit");
+    const culpritArgs = args("--culprit");
     const why = arg("--why") ?? "the RED ladder's last resort";
     const dryRun = process.argv.includes("--dry-run");
-    if (red === undefined || !SHA.test(red) || culpritArg === undefined) {
+    if (red === undefined || !SHA.test(red) || culpritArgs.length === 0) {
         console.error(
-            "usage: health-revert.ts --sha <red full sha> --culprit <sha> [--base <sha>] [--attempt <n>] [--why <text>] [--dry-run]"
+            "usage: health-revert.ts --sha <red full sha> --culprit <sha> [--culprit <sha> …] [--base <sha>] [--attempt <n>] [--why <text>] [--dry-run]"
         );
         return 2;
     }
     const attemptNo = Number(arg("--attempt") ?? "1");
     const root = primaryCheckout(process.cwd());
     const say = (line: string) => console.log(`health-revert: ${line}`);
-    const refusal = maintenanceRefusal(
-        culpritArg,
-        run("git", ["log", "-1", "--format=%s", culpritArg], root)
-    );
-    if (refusal !== null) {
-        console.error(`health-revert: ${refusal}`);
-        return 2;
+    for (const culpritArg of culpritArgs) {
+        const refusal = maintenanceRefusal(
+            culpritArg,
+            run("git", ["log", "-1", "--format=%s", culpritArg], root)
+        );
+        if (refusal !== null) {
+            console.error(`health-revert: ${refusal}`);
+            return 2;
+        }
     }
     const attempts = fixAttemptStore(root);
     const record = (
@@ -162,7 +170,7 @@ function main(): number {
     // Before anything is made: a second ladder run must see the rung taken.
     // Unrecorded, nothing is made — and the ladder must not re-dispatch.
     try {
-        record("attempting", { note: `revert ${culpritArg}` });
+        record("attempting", { note: `revert ${culpritArgs.join(" ")}` });
     } catch (e) {
         console.error(
             `health-revert: the revert could not be recorded — ${(e as Error).message}`
@@ -178,16 +186,9 @@ function main(): number {
             ["fetch", "--no-tags", "--quiet", "origin", BASE_BRANCH],
             root
         );
-        const full = must(
-            "git",
-            ["rev-parse", "--verify", `${culpritArg}^{commit}`],
-            root
+        const fulls = culpritArgs.map((c) =>
+            must("git", ["rev-parse", "--verify", `${c}^{commit}`], root)
         );
-        const subject = must("git", ["log", "-1", "--format=%s", full], root);
-        const culprit: Culprit = {
-            sha: full.slice(0, 12),
-            pr: prOfSubject(subject),
-        };
         // Detached: the branch is named after the repair issue, filed only
         // once the revert applies; it is pushed from HEAD, never checked out
         // here, so no local branch can be held by a killed run's worktree.
@@ -204,23 +205,29 @@ function main(): number {
             parseLockfile(readFileSync(join(wt, LOCKFILE), "utf8")).cards;
         const baseCards = cardsAt();
         const base = must("git", ["rev-parse", "HEAD"], wt);
-        const plan = planRevertSet({ wt, culprit: full, base });
+        const plan = planRevertSet({ wt, culprits: fulls, base });
+        const named = fulls.map((f) => f.slice(0, 12)).join(", ");
         if (plan.kind === "cap") {
             const names = plan.set.map(commitRef).join(", ");
             say(
-                `the revert of ${culprit.sha} needs ${plan.set.length} commits reverted together: ${names}`
+                `the revert of ${named} needs ${plan.set.length} commits reverted together: ${names}`
             );
             record("stuck", { note: `${CAP_NOTE}${names}` });
             return 3;
         }
         if (plan.kind === "conflict") {
-            const note = `the revert of ${culprit.sha} does not apply on ${BASE_BRANCH} — a later commit depends on it`;
+            const note = `the revert of ${named} does not apply on ${BASE_BRANCH} — a later commit depends on it`;
             say(`${note} (${plan.paths.join(", ") || "no path named"})`);
             record("stuck", { note });
             return 3;
         }
-        // Newest first, the culprit last: the later commits reverted with it.
-        const dependents = plan.set.slice(0, -1);
+        // Oldest first, as the bisect named them; newest first, the later
+        // commits reverted with them (issue #7446).
+        const culprits = [...plan.set]
+            .reverse()
+            .filter((c) => fulls.includes(c.full));
+        const dependents = plan.set.filter((c) => !fulls.includes(c.full));
+        const subject = culprits[0].subject;
         for (const c of plan.set)
             say(`reverted ${commitRef(c)} \`${c.sha}\` (${c.subject})`);
         // The cards the culprit graduated leave `ready` with the revert:
@@ -240,7 +247,7 @@ function main(): number {
             evidence = null;
         }
         // A retry after a failed try reuses what that try made.
-        const title = revertIssueTitle(culprit, subject);
+        const title = revertIssueTitle(culprits, subject);
         const issue =
             openIssueTitled(root, title) ??
             issueOfUrl(
@@ -254,7 +261,7 @@ function main(): number {
                         "--body",
                         revertIssueBody({
                             red,
-                            culprit,
+                            culprits,
                             why,
                             evidence,
                             dependents,
@@ -296,7 +303,7 @@ function main(): number {
                       .split("\n")
                       .filter(Boolean)
                       .map(Number);
-        const reopening = issuesToReopen(culprit, dependents, closedBy);
+        const reopening = issuesToReopen(culprits, dependents, closedBy);
         const culpritIssues = reopening.map((r) => r.n);
 
         if (losses.length > 0) {
@@ -306,7 +313,7 @@ function main(): number {
                 ledgerTextWith(
                     readFileSync(ledger, "utf8"),
                     revertAcknowledgements(losses, {
-                        culprit,
+                        culprits,
                         culpritIssues,
                         dependents,
                     })
@@ -359,8 +366,7 @@ function main(): number {
                           revertPrBody({
                               issue,
                               red,
-                              culprit,
-                              revertedSha: full,
+                              culprits,
                               culpritIssues,
                               dependents,
                           }),
@@ -375,7 +381,10 @@ function main(): number {
             ["pr", "edit", String(pr), "--add-label", READY_LABEL],
             root
         );
-        record("attempting", { pr, note: `revert ${culprit.sha}` });
+        record("attempting", {
+            pr,
+            note: `revert ${culprits.map((c) => c.sha).join(" ")}`,
+        });
         say(`PR #${pr} queued as the repair of ${red.slice(0, 8)}`);
 
         for (const { n, dependent } of reopening)
@@ -392,7 +401,7 @@ function main(): number {
                       ],
                 {
                     red,
-                    culprit,
+                    culprits,
                     revertPr: pr,
                     evidence,
                     dependent,

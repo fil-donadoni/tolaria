@@ -1,7 +1,10 @@
 /**
  * The revert set of a culprit later commits depend on (issue #6766): the
  * culprit together with the later first-parent commits its revert conflicts
- * with, reverted newest first in one worktree, so one PR carries them.
+ * with, reverted newest first in one worktree, so one PR carries them. A
+ * RED the bisect named several culprits for has them ALL in one set (issue
+ * #7446): every culprit is reverted, the dependents of each joining as
+ * their conflicts name them.
  *
  * The set grows from the conflicts themselves: a revert step that does not
  * apply names its conflicting paths, and the OLDEST later commit (newer than
@@ -24,7 +27,7 @@ export interface RevertCommit extends RevertedCommit {
 }
 
 export type RevertPlan =
-    /** Every revert applied: `set` newest first, the culprit last. */
+    /** Every revert applied: `set` newest first, the oldest culprit last. */
     | { kind: "applies"; set: RevertCommit[] }
     /** A conflict no later commit explains: `set` is what was tried. */
     | { kind: "conflict"; set: RevertCommit[]; paths: string[] }
@@ -103,29 +106,40 @@ function tryRevert(
 export function planRevertSet(input: {
     /** The detached worktree the reverts are made in. */
     wt: string;
-    /** The culprit's full sha. */
-    culprit: string;
+    /** Every culprit's full sha, in any order (issue #7446). */
+    culprits: readonly string[];
     /** The commit the reverts go on top of (the base tip). */
     base: string;
     cap?: number;
 }): RevertPlan {
     const { wt, base } = input;
     const cap = input.cap ?? MAX_REVERT_SET;
-    // Later first-parent commits, newest first: the only ones a dependent
-    // can be.
-    const later = lines(
-        must(["rev-list", "--first-parent", `${input.culprit}..${base}`], wt)
-    );
+    // First-parent commits from the oldest culprit up to the base, newest
+    // first: the later culprits and the only commits a dependent can be.
+    const range = input.culprits
+        .map((c) =>
+            lines(must(["rev-list", "--first-parent", base, `^${c}^`], wt))
+        )
+        .reduce((a, b) => (b.length > a.length ? b : a), []);
+    const culprits = new Set(input.culprits);
+    const missing = [...culprits].filter((c) => !range.includes(c));
+    if (missing.length > 0)
+        throw new Error(
+            `not on ${base.slice(0, 12)}'s first-parent history: ${missing.join(", ")}`
+        );
+    const oldest = range[range.length - 1];
+    const later = range.slice(0, -1);
     const touched = new Map<string, string[]>();
     const pathsAt = (full: string) => {
         let p = touched.get(full);
         if (p === undefined) touched.set(full, (p = pathsOf(full, wt)));
         return p;
     };
-    const culprit = commitOf(input.culprit, wt);
+    const culprit = commitOf(oldest, wt);
     const dependents = new Set<string>();
+    const inSet = (s: string) => dependents.has(s) || culprits.has(s);
     const setOf = () => [
-        ...later.filter((s) => dependents.has(s)).map((s) => commitOf(s, wt)),
+        ...later.filter(inSet).map((s) => commitOf(s, wt)),
         culprit,
     ];
     for (;;) {
@@ -139,9 +153,7 @@ export function planRevertSet(input: {
                 : later.indexOf(failed.at.full)
         );
         const joining = newer.filter(
-            (s) =>
-                !dependents.has(s) &&
-                pathsAt(s).some((p) => failed.paths.includes(p))
+            (s) => !inSet(s) && pathsAt(s).some((p) => failed.paths.includes(p))
         );
         if (joining.length === 0)
             return { kind: "conflict", set, paths: failed.paths };
@@ -149,6 +161,8 @@ export function planRevertSet(input: {
         // a hot path (a lockfile, an index) must not pull in every later
         // commit that ever touched it.
         dependents.add(joining[joining.length - 1]);
+        // The cap bounds the dependents — guesses — never the bisected
+        // culprits (issue #7446).
         if (dependents.size + 1 > cap) return { kind: "cap", set: setOf() };
     }
 }

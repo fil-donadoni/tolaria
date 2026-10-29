@@ -27,7 +27,7 @@ import {
     ownRepairPrs,
     ladderRung,
     MAX_FIX_ATTEMPTS,
-    parseCulprit,
+    parseCulprits,
     reopenComment,
     revertAcknowledgements,
     revertBranch,
@@ -71,7 +71,7 @@ function facts(over: Partial<LadderFacts> = {}): LadderFacts {
         laddered: true,
         sinceRed: null,
         repairPrs: [],
-        episode: [{ sha: RED, attempt: null, culprit: CULPRIT }],
+        episode: [{ sha: RED, attempt: null, culprits: [CULPRIT] }],
         revertPr: null,
         foreignRepairs: [],
         escalated: null,
@@ -85,7 +85,7 @@ function noCulprit(over: Partial<LadderFacts> = {}): LadderFacts {
     const f = facts(over);
     return {
         ...f,
-        episode: f.episode.map((r) => ({ ...r, culprit: null })),
+        episode: f.episode.map((r) => ({ ...r, culprits: [] })),
     };
 }
 
@@ -94,7 +94,7 @@ function withAttempt(a: Partial<FixAttempt>, sha = RED): EpisodeRed[] {
         {
             sha,
             attempt: { sha, outcome: "stuck", at: RECENT, ...a },
-            culprit: CULPRIT,
+            culprits: [CULPRIT],
         },
     ];
 }
@@ -162,7 +162,7 @@ describe("ladderRung — a bisected RED is the lineage verdict of later tips (is
                 {
                     sha: RED,
                     attempt: null,
-                    culprit: { sha: "e7e3aa389e99", pr: 6562 },
+                    culprits: [{ sha: "e7e3aa389e99", pr: 6562 }],
                 },
             ],
             sinceRed: [
@@ -184,7 +184,7 @@ describe("ladderRung — a bisected RED is the lineage verdict of later tips (is
     it("a tip one PR past a bisected RED gets the revert rung at once, not a wait", () => {
         expect(ladderRung(replay())).toMatchObject({
             kind: "revert",
-            culprit: { sha: "e7e3aa389e99", pr: 6562 },
+            culprits: [{ sha: "e7e3aa389e99", pr: 6562 }],
             attempt: 1,
         });
     });
@@ -194,7 +194,7 @@ describe("ladderRung — a bisected RED is the lineage verdict of later tips (is
         expect(
             ladderRung(
                 replay({
-                    episode: [{ sha: RED, attempt: null, culprit: null }],
+                    episode: [{ sha: RED, attempt: null, culprits: [] }],
                 })
             )
         ).toMatchObject({ kind: "wait", why: /not bisected/ });
@@ -245,7 +245,7 @@ describe("ladderRung — a bisected RED is the lineage verdict of later tips (is
                     pr: 7014,
                     at: RECENT,
                 },
-                culprit: { sha: "e7e3aa389e99", pr: 6562 },
+                culprits: [{ sha: "e7e3aa389e99", pr: 6562 }],
             },
         ];
         expect(
@@ -271,20 +271,118 @@ describe("ladderRung — rung 4, a named culprit is reverted first (ADR 0158 § 
     it("a fresh RED with a culprit → the revert, never the fixer", () => {
         expect(ladderRung(facts())).toMatchObject({
             kind: "revert",
-            culprit: CULPRIT,
+            culprits: [CULPRIT],
             attempt: 1,
         });
     });
 
     it("a culprit named on an earlier RED of the episode is reverted too", () => {
         const episode: EpisodeRed[] = [
-            { sha: RED, attempt: null, culprit: null },
-            { sha: OLD_RED, attempt: null, culprit: CULPRIT },
+            { sha: RED, attempt: null, culprits: [] },
+            { sha: OLD_RED, attempt: null, culprits: [CULPRIT] },
         ];
         expect(ladderRung(facts({ episode }))).toMatchObject({
             kind: "revert",
-            culprit: CULPRIT,
+            culprits: [CULPRIT],
         });
+    });
+});
+
+describe("ladderRung — a bisect that named several culprits reverts them all (issue #7446)", () => {
+    // 2026-10-28: RED @ 6491254e, the bisect named PR #7401 (5 of 6 failing
+    // tests) and `4706e0d0c3a0` (1 of 6). The ladder reverted one culprit;
+    // PR #7401, most of the RED, waited for the owner's hand revert.
+    const FIRST = { sha: "ef361cafea86", pr: 7401 };
+    const SECOND = { sha: "4706e0d0c3a0", pr: 7398 };
+    const lineOf = (sha: string, pr: number, n: number) =>
+        `${culpritLine({
+            result: { culprit: sha.padEnd(40, "0"), probes: [] },
+            good: "e".repeat(40),
+            commits: 9,
+            subject: `x (#${pr})`,
+        })} · explains ${n} of 6 failing test(s): \`t\``;
+    const evidence = [
+        "# RED",
+        lineOf(FIRST.sha, 7401, 5),
+        lineOf(SECOND.sha, 7398, 1),
+    ].join("\n");
+    const twoCulprits = (over: Partial<LadderFacts> = {}) =>
+        facts({
+            episode: walkEpisode([RED], {
+                status: () => "red",
+                attempt: () => null,
+                evidence: () => evidence,
+            }).episode,
+            ...over,
+        });
+
+    it("the revert rung carries every culprit the evidence names, oldest first", () => {
+        expect(ladderRung(twoCulprits())).toMatchObject({
+            kind: "revert",
+            culprits: [FIRST, SECOND],
+            attempt: 1,
+        });
+    });
+
+    it("a transient retry still carries every culprit", () => {
+        const f = twoCulprits();
+        f.episode[0].attempt = {
+            sha: RED,
+            rung: "revert",
+            outcome: "stuck",
+            attempt: 1,
+            at: RECENT,
+            note: `${TRANSIENT_NOTE}push refused`,
+        };
+        expect(ladderRung(f)).toMatchObject({
+            kind: "revert",
+            culprits: [FIRST, SECOND],
+            attempt: 2,
+        });
+    });
+
+    it("one culprit reverted by hand since the RED: the RED stands, the other is reverted", () => {
+        const handRevert = {
+            sha: TIP,
+            pr: 7411,
+            message: `Revert "x (#7401)" (#7411)\n\nThis reverts commit ${FIRST.sha}.`,
+        };
+        expect(
+            ladderRung(twoCulprits({ tip: TIP, sinceRed: [handRevert] }))
+        ).toMatchObject({ kind: "revert", culprits: [SECOND] });
+        // Both reverted: health gates the tip — no revert of a reverted commit.
+        const second = {
+            sha: "f".repeat(40),
+            pr: 7412,
+            message: `Revert "x (#7398)" (#7412)`,
+        };
+        expect(
+            ladderRung(
+                twoCulprits({ tip: TIP, sinceRed: [second, handRevert] })
+            )
+        ).toMatchObject({ kind: "wait", why: /revert the culprits/ });
+    });
+
+    it("the revert PR and its reopen comment name every culprit", () => {
+        const body = revertPrBody({
+            issue: 6001,
+            red: RED,
+            culprits: [
+                { ...FIRST, full: FIRST.sha.padEnd(40, "0") },
+                { ...SECOND, full: SECOND.sha.padEnd(40, "0") },
+            ],
+            culpritIssues: [7390, 7395],
+        });
+        expect(body).toContain("Reverts PR #7401 and PR #7398");
+        expect(closingIssueRefs(body)).toEqual([6001]);
+        const comment = reopenComment({
+            red: RED,
+            culprits: [FIRST, SECOND],
+            revertPr: 7500,
+            evidence: null,
+        });
+        expect(comment).toContain("PR #7401 and PR #7398 turned the base RED");
+        expect(comment).toContain("PR #7500 reverts them");
     });
 });
 
@@ -345,9 +443,9 @@ describe("ladderRung — rung 5, fix forward only where a revert cannot, at most
 
     it("attempts count over the whole episode, not one sha", () => {
         const episode: EpisodeRed[] = [
-            { sha: RED, attempt: null, culprit: CULPRIT },
+            { sha: RED, attempt: null, culprits: [CULPRIT] },
             ...withAttempt({ attempt: MAX_FIX_ATTEMPTS }, OLD_RED),
-        ].map((r) => ({ ...r, culprit: null }));
+        ].map((r) => ({ ...r, culprits: [] }));
         expect(ladderRung(facts({ episode })).kind).toBe("stop");
     });
 
@@ -380,7 +478,7 @@ describe("ladderRung — rung 5, fix forward only where a revert cannot, at most
 
     it("a second RED after a partial landing follows the existing second-RED rule", () => {
         const episode: EpisodeRed[] = [
-            { sha: RED, attempt: null, culprit: null },
+            { sha: RED, attempt: null, culprits: [] },
             ...withAttempt(
                 { outcome: "landed", pr: 5800, classGuard: 6548 },
                 OLD_RED
@@ -404,7 +502,7 @@ describe("ladderRung — rung 5, fix forward only where a revert cannot, at most
             )
         ).toMatchObject({
             kind: "revert",
-            culprit: CULPRIT,
+            culprits: [CULPRIT],
         });
     });
 
@@ -437,7 +535,7 @@ describe("ladderRung — rung 5, fix forward only where a revert cannot, at most
                     note: "conflict",
                     at: RECENT,
                 },
-                culprit: CULPRIT,
+                culprits: [CULPRIT],
             },
             ...withAttempt({ attempt: MAX_FIX_ATTEMPTS }, OLD_RED),
         ];
@@ -458,7 +556,7 @@ describe("ladderRung — rung 5, fix forward only where a revert cannot, at most
                     note: "conflict",
                     at: RECENT,
                 },
-                culprit: CULPRIT,
+                culprits: [CULPRIT],
             },
             ...withAttempt({ outcome: "landed", pr: 5800 }, OLD_RED),
         ];
@@ -472,17 +570,17 @@ describe("ladderRung — the revert, whenever a repair did not hold", () => {
             ladderRung(
                 facts({ episode: withAttempt({ attempt: MAX_FIX_ATTEMPTS }) })
             )
-        ).toMatchObject({ kind: "revert", culprit: CULPRIT });
+        ).toMatchObject({ kind: "revert", culprits: [CULPRIT] });
     });
 
     it("a second RED after a landed repair → revert, no new fixer", () => {
         const episode: EpisodeRed[] = [
-            { sha: RED, attempt: null, culprit: null },
+            { sha: RED, attempt: null, culprits: [] },
             ...withAttempt({ outcome: "landed", pr: 5800 }, OLD_RED),
         ];
         expect(ladderRung(facts({ episode }))).toMatchObject({
             kind: "revert",
-            culprit: CULPRIT,
+            culprits: [CULPRIT],
             why: expect.stringContaining("second RED"),
         });
     });
@@ -504,7 +602,7 @@ describe("ladderRung — the revert, whenever a repair did not hold", () => {
                                 attempt: 2,
                                 at: RECENT,
                             },
-                            culprit: null,
+                            culprits: [],
                         },
                     ],
                 })
@@ -617,7 +715,7 @@ describe("ladderRung — rung 6, stop", () => {
 
     it("a RED that outlives its merged revert stops — never a second revert", () => {
         const episode: EpisodeRed[] = [
-            { sha: RED, attempt: null, culprit: CULPRIT },
+            { sha: RED, attempt: null, culprits: [CULPRIT] },
             ...withAttempt(
                 { rung: "revert", outcome: "attempting", pr: 5900 },
                 OLD_RED
@@ -672,14 +770,16 @@ describe("the ladder's facts and texts", () => {
             commits: 3,
             subject: "Something (#5700)",
         });
-        expect(parseCulprit(`# RED\n\n${line}\n`)).toEqual(CULPRIT);
+        expect(parseCulprits(`# RED\n\n${line}\n`)).toEqual([CULPRIT]);
         const direct = culpritLine({
             result: { culprit: "c".repeat(40), probes: [] },
             good: null,
             commits: 1,
             subject: "a direct push",
         });
-        expect(parseCulprit(direct)).toEqual({ sha: "c".repeat(12), pr: null });
+        expect(parseCulprits(direct)).toEqual([
+            { sha: "c".repeat(12), pr: null },
+        ]);
     });
 
     it("an unnamed culprit reads as none", () => {
@@ -688,8 +788,8 @@ describe("the ladder's facts and texts", () => {
             good: null,
             commits: 0,
         });
-        expect(parseCulprit(line)).toBeNull();
-        expect(parseCulprit(null)).toBeNull();
+        expect(parseCulprits(line)).toEqual([]);
+        expect(parseCulprits(null)).toEqual([]);
     });
 
     it("a fixer's outcome never erases the repair issues the queue admits its PR by", () => {
@@ -807,7 +907,7 @@ describe("the ladder's facts and texts", () => {
     it("the reopened issue's comment carries the evidence and the fix-with-it pass (ADR 0158 § 3)", () => {
         const body = reopenComment({
             red: RED,
-            culprit: CULPRIT,
+            culprits: [CULPRIT],
             revertPr: 5900,
             evidence: "FAIL searchCost pins",
         });
@@ -822,8 +922,7 @@ describe("the ladder's facts and texts", () => {
         const body = revertPrBody({
             issue: 6001,
             red: RED,
-            culprit: CULPRIT,
-            revertedSha: "c".repeat(40),
+            culprits: [{ ...CULPRIT, full: "c".repeat(40) }],
             culpritIssues: [5690],
         });
         expect(closingIssueRefs(body)).toEqual([6001]);
@@ -888,7 +987,7 @@ describe("review fixes — the bounds no rung can escape", () => {
                     episode: withAttempt({ rung: "revert", attempt: 1, note }),
                 })
             )
-        ).toMatchObject({ kind: "revert", attempt: 2, culprit: CULPRIT });
+        ).toMatchObject({ kind: "revert", attempt: 2, culprits: [CULPRIT] });
         expect(
             ladderRung(
                 facts({
@@ -978,7 +1077,7 @@ describe("walkEpisode — the REDs since the last GREEN", () => {
         );
         expect(episode.map((r) => r.sha)).toEqual(["s5", "s2"]);
         expect(standingEvidence).toBe(`# RED\n${line}`);
-        expect(episode[0].culprit).toEqual(CULPRIT);
+        expect(episode[0].culprits).toEqual([CULPRIT]);
         expect(revertRecordOf(episode)).toMatchObject({ pr: 5900 });
     });
 
@@ -1031,7 +1130,7 @@ describe("ladderRung — a repair declared outside the ladder (issue #6554)", ()
                                 attempt: 2,
                                 at: RECENT,
                             },
-                            culprit: CULPRIT,
+                            culprits: [CULPRIT],
                         },
                     ],
                 })
@@ -1110,7 +1209,10 @@ describe("revertAcknowledgements — a revert of a card-shipping PR passes check
         expect(losses).toHaveLength(2);
         const text = ledgerTextWith(
             baseLedger,
-            revertAcknowledgements(losses, { culprit, culpritIssues: [3992] })
+            revertAcknowledgements(losses, {
+                culprits: [culprit],
+                culpritIssues: [3992],
+            })
         );
         const ledger = parseRegressionLedger(text);
         expect(ledger.acknowledged.map((a) => [a.name, a.trackedBy])).toEqual([
@@ -1124,7 +1226,7 @@ describe("revertAcknowledgements — a revert of a card-shipping PR passes check
     it("a culprit that closed no issue: the drop is intended, never an untracked entry", () => {
         const losses = readyRegressions(base, reverted);
         const entries = revertAcknowledgements(losses, {
-            culprit,
+            culprits: [culprit],
             culpritIssues: [],
         });
         expect(entries.every((e) => e.intended === true)).toBe(true);
@@ -1146,7 +1248,7 @@ describe("revertAcknowledgements — a revert of a card-shipping PR passes check
     it("a revert that drops no ready card acknowledges nothing", () => {
         expect(
             revertAcknowledgements(readyRegressions(base, base), {
-                culprit,
+                culprits: [culprit],
                 culpritIssues: [3992],
             })
         ).toEqual([]);

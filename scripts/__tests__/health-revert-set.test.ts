@@ -66,7 +66,7 @@ afterEach(() => {
 function plan(culprit: string, cap?: number) {
     const base = git("rev-parse", "HEAD");
     git("checkout", "-q", "--detach", base);
-    return planRevertSet({ wt: repo, culprit, base, cap });
+    return planRevertSet({ wt: repo, culprits: [culprit], base, cap });
 }
 
 describe("planRevertSet — the culprit and the later commits it needs (issue #6766)", () => {
@@ -103,7 +103,7 @@ describe("planRevertSet — the culprit and the later commits it needs (issue #6
 
         const [dependent, culpritCommit] = p.set;
         const closes: Record<number, number[]> = { 100: [10], 102: [12] };
-        const reopening = issuesToReopen(culpritCommit, [dependent], (pr) =>
+        const reopening = issuesToReopen([culpritCommit], [dependent], (pr) =>
             pr === null ? [] : (closes[pr] ?? [])
         );
         expect(reopening).toEqual([
@@ -112,7 +112,7 @@ describe("planRevertSet — the culprit and the later commits it needs (issue #6
         ]);
         const comment = reopenComment({
             red: "a".repeat(40),
-            culprit: culpritCommit,
+            culprits: [culpritCommit],
             revertPr: 7000,
             evidence: null,
             dependent: reopening[1].dependent,
@@ -143,8 +143,7 @@ describe("planRevertSet — the culprit and the later commits it needs (issue #6
         const body = revertPrBody({
             issue: 6001,
             red: "a".repeat(40),
-            culprit: p.set[1],
-            revertedSha: p.set[1].full,
+            culprits: [p.set[1]],
             culpritIssues: [],
             dependents: [p.set[0]],
         });
@@ -169,6 +168,28 @@ describe("planRevertSet — the culprit and the later commits it needs (issue #6
         expect(p.kind).toBe("applies");
         expect(p.set.map((c) => c.pr)).toEqual([101, 100]);
         expect(read("a.txt")).toBe(lines("2", "NINE"));
+    });
+
+    it("every culprit the bisect named is reverted in one set, each with its dependents (issue #7446)", () => {
+        commit("c base", { "c.txt": "1\n" });
+        const first = commit("feat: two (#100)", { "a.txt": "1\ntwo\n3\n" });
+        commit("unrelated (#101)", { "b.txt": "y\n" });
+        const second = commit("feat: c (#102)", { "c.txt": "c\n" });
+        commit("dep: c! (#103)", { "c.txt": "c!\n" });
+        const base = git("rev-parse", "HEAD");
+        git("checkout", "-q", "--detach", base);
+        const p = planRevertSet({
+            wt: repo,
+            culprits: [second, first],
+            base,
+            cap: 2,
+        });
+        expect(p.kind).toBe("applies");
+        // Newest first, the oldest culprit last; the unrelated PR stays.
+        expect(p.set.map((c) => c.pr)).toEqual([103, 102, 100]);
+        expect(read("a.txt")).toBe("1\n2\n3\n");
+        expect(read("c.txt")).toBe("1\n");
+        expect(read("b.txt")).toBe("y\n");
     });
 
     it("a set past the cap is not made: the plan names every commit it needs", () => {
