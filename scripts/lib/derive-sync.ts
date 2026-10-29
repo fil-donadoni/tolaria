@@ -421,6 +421,21 @@ export const BOT_REPLAY_PATHS: readonly string[] = DERIVE_SYNC_PATHS;
 export const BOT_REPLAY_COMMIT_SUBJECT =
     "bot-replay — replay the Bot-play sweep on the base's tip";
 
+/**
+ * The base's own maintenance commits (issue #7417): `derive:sync` and the
+ * Bot-play replay write derived state only, never a source. A PR's diff does
+ * not own what they move (`check:derived-in-diff`), and no RED is theirs —
+ * the RED ladder blames the PR commits before one, never the commit itself.
+ */
+export const BASE_MAINTENANCE_SUBJECTS: readonly string[] = [
+    DERIVE_SYNC_COMMIT_SUBJECT,
+    BOT_REPLAY_COMMIT_SUBJECT,
+];
+
+export function isBaseMaintenanceSubject(subject: string): boolean {
+    return BASE_MAINTENANCE_SUBJECTS.includes(subject.trim());
+}
+
 export type BotReplayPlan =
     /** Header and tree agree: nothing to replay, seconds, no push. */
     | { readonly kind: "current" }
