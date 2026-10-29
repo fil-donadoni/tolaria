@@ -68,7 +68,10 @@ function openedAnswers(state: GameState): string[][] {
                   const card = board.find((x) => x.id === id)!;
                   const side =
                       card.controllerId === chooser ? "mine" : "theirs";
-                  return `${side} ${card.isTapped ? "tapped " : ""}${tryGetDefinition(card.card.id)?.name}`;
+                  const name = tryGetDefinition(
+                      (card.card as { id: string }).id
+                  )?.name;
+                  return `${side} ${card.isTapped ? "tapped " : ""}${name}`;
               })
             : []
     );
