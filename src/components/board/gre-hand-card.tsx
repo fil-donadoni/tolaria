@@ -31,6 +31,7 @@ import {
     trackGameIntent,
 } from "~/lib/pending-intent-store";
 import { LIFTED_CARD_Z } from "~/lib/board-motion";
+import { actionableRingClass, cardHasLegalAction } from "~/lib/card-actionable";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
 import SeenByOpponentBadge from "./seen-by-opponent-badge";
@@ -233,6 +234,14 @@ export default function GreHandCard({
             ? getHandManaAbilities(card, phase, stateView)
             : [];
     const handAbilities = [...stackAbilities, ...manaAbilities];
+    // Issue #6917 — the `actionable` ring and the pointer cursor come from the
+    // SAME predicate the options below are built from, in the plain Priority
+    // window only (a payment / may-pay window offers mana abilities but must
+    // not ring the hand).
+    const actionable = cardHasLegalAction(actionWindowOpen && !isHandChoice, {
+        legalActions: legal,
+        activatableAbilityCount: handAbilities.length,
+    });
 
     const {
         onPlayClick,
@@ -532,7 +541,7 @@ export default function GreHandCard({
             data-drag-armed={state.armed ? "true" : undefined}
             data-tap-staged={tapStage.staged ? "true" : undefined}
             className={
-                (optionCount > 0 ? "cursor-pointer " : "") +
+                (optionCount > 0 || actionable ? "cursor-pointer " : "") +
                 (allowHorizontalPan ? "touch-pan-x" : "touch-none")
             }
             onClick={onRootClick}
@@ -579,6 +588,8 @@ export default function GreHandCard({
                 <div
                     className={
                         "w-full h-full card-corner overflow-hidden ring-1 ring-black/40 " +
+                        actionableRingClass(actionable) +
+                        " " +
                         (state.dragging
                             ? "shadow-[0_18px_40px_rgba(0,0,0,0.6)]"
                             : "shadow-[0_6px_16px_rgba(0,0,0,0.55)]")

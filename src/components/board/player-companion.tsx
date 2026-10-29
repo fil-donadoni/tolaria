@@ -1,3 +1,5 @@
+import { usePlainPriorityWindow } from "~/hooks/usePlainPriorityWindow";
+import { actionableRingClass, cardHasLegalAction } from "~/lib/card-actionable";
 import type { Player } from "~/types/game";
 import CardImage from "../cards/card-image";
 import CompanionSummonButton from "./companion-summon-button";
@@ -16,7 +18,14 @@ import CompanionSummonButton from "./companion-summon-button";
  *  click regardless. */
 export default function PlayerCompanion({ player }: { player: Player }) {
     const companion = player.companion;
+    const priorityWindowOpen = usePlainPriorityWindow();
     if (!companion || companion.used) return null;
+
+    // Issue #6917 — the summon button's own gate is `canSummon`; the slot rings
+    // by the same predicate.
+    const actionable = cardHasLegalAction(priorityWindowOpen, {
+        canSummon: companion.canSummon,
+    });
 
     return (
         <div
@@ -28,7 +37,7 @@ export default function PlayerCompanion({ player }: { player: Player }) {
             className="relative w-(--card-w-sm) shrink-0 aspect-5/7"
         >
             <div
-                className="w-full h-full card-corner overflow-hidden ring-1 ring-border-accent/60"
+                className={`w-full h-full card-corner overflow-hidden ring-1 ring-border-accent/60 ${actionableRingClass(actionable)}`}
                 title="Companion"
             >
                 <CardImage card={companion.instance} />

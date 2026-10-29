@@ -423,6 +423,16 @@ export const SIGNAL_TOKENS: readonly ColorTokenSpec[] = [
     { name: "signal-pending-strong", hex: "#fcd34d", role: "pending, bright" },
     { name: "signal-target", hex: "#a78bfa", role: "targetable/pickable" },
     { name: "signal-target-strong", hex: "#c4b5fd", role: "target, bright" },
+    {
+        name: "signal-actionable",
+        hex: "#f5f5f4",
+        role: "card has a legal action",
+    },
+    {
+        name: "signal-actionable-strong",
+        hex: "#ffffff",
+        role: "actionable, bright",
+    },
     { name: "combat-1", hex: "#ef4444", role: "combat group ring" },
     { name: "combat-2", hex: "#3b82f6", role: "combat group ring" },
     { name: "combat-3", hex: "#22c55e", role: "combat group ring" },

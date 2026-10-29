@@ -26,6 +26,8 @@ import {
 } from "~/lib/categorized-pile";
 import { pickerRingClass } from "~/lib/picker-ring";
 import { CARD_RING_TILE_CLASS } from "~/lib/card-ring";
+import { actionableRingClass } from "~/lib/card-actionable";
+import { PileActionableContext } from "~/lib/pile-actionable-context";
 
 /** Small counter chips overlaid on a revealed pile card (fan/grid dialog) —
  *  the exile/graveyard pickers need them (Dauthi Voidwalker's void counter is
@@ -139,6 +141,11 @@ type CardsPileProps = {
      *  inert. `undefined` means unfiltered: every card stays selectable, the
      *  pre-#933 behavior. */
     eligibleIds?: ReadonlySet<string>;
+    /** Issue #6917 — ids of the cards with a legal action for the viewer (the
+     *  owning zone decides, through `cardHasLegalAction`). The collapsed stack
+     *  rings when any is present and each such tile rings inside the dialog.
+     *  Absent ⇒ none. */
+    actionableIds?: ReadonlySet<string>;
     /** Rendered inside the expanded dialog below the cards. Used by the
      *  `search-library` picker to host its confirm button: the dialog opens
      *  as a modal (`forceOpen`) and would otherwise cover the board-level
@@ -310,6 +317,7 @@ function FanLayout({
     const scrollRef = useInertialScroll<HTMLDivElement>("x");
     const ordered = topOnRight ? [...cards].reverse() : cards;
 
+    const actionableIds = useContext(PileActionableContext);
     // When the fan overflows, open scrolled to the far RIGHT — the end of the
     // fan, whose cards paint last and sit on top. For a library (topOnRight)
     // that end is the top of the deck; for any pile it's the visually on-top
@@ -365,6 +373,7 @@ function FanLayout({
                         !faceDown && !!onCardClick && !isEligible;
                     const isSelected =
                         selectedIds?.includes(cardInstance.id) ?? false;
+                    const actionable = actionableIds.has(cardInstance.id);
                     // Same hover language as a hand / battlefield card (QA): the
                     // 3D tilt + glare wraps every pile card too, so graveyard,
                     // exile and every dialog pile react identically to the
@@ -381,7 +390,7 @@ function FanLayout({
                     const inner = (
                         <CardTilt3D>
                             <div
-                                className={`relative w-full h-full ${clickable ? pickerRingClass(isSelected) : "card-corner"}`}
+                                className={`relative w-full h-full ${clickable ? pickerRingClass(isSelected) : actionableRingClass(actionable) || "card-corner"}`}
                             >
                                 {faceDown ? (
                                     <CardBack />
@@ -517,6 +526,7 @@ function GridCard({
     const clickable = !faceDown && !!onCardClick && isEligible;
     const isIneligible = !faceDown && !!onCardClick && !isEligible;
     const isSelected = selectedIds?.includes(cardInstance.id) ?? false;
+    const actionable = useContext(PileActionableContext).has(cardInstance.id);
     // Tilt + glare on hover, exactly like a board card (QA — uniform card
     // interaction across zones and dialogs). The ring is nested INSIDE the
     // tilt for the reason the fan layout's own note carries (issue #3426) —
@@ -524,7 +534,7 @@ function GridCard({
     const inner = (
         <CardTilt3D>
             <div
-                className={`relative w-full h-full ${clickable ? pickerRingClass(isSelected) : "card-corner"}`}
+                className={`relative w-full h-full ${clickable ? pickerRingClass(isSelected) : actionableRingClass(actionable) || "card-corner"}`}
             >
                 {faceDown ? (
                     <CardBack />
@@ -728,6 +738,8 @@ function GridLayout({
     );
 }
 
+const NO_ACTIONABLE: ReadonlySet<string> = new Set();
+
 export default function CardsPile({
     cards,
     isFaceDown = false,
@@ -742,6 +754,7 @@ export default function CardsPile({
     forceOpen = false,
     selectedIds,
     eligibleIds,
+    actionableIds,
     footer,
     onMinimize,
     open,
@@ -923,9 +936,11 @@ export default function CardsPile({
     });
 
     const dialogTitle = `${title || "Cards"} (${cards.length})`;
+    const pileActionable =
+        !!actionableIds && cards.some((c) => actionableIds.has(c.id));
 
     return (
-        <>
+        <PileActionableContext.Provider value={actionableIds ?? NO_ACTIONABLE}>
             {/* Controlled (chip) mode suppresses the collapsed card stack — the
                 owner renders the trigger and only the dialog mounts here.
                 `forceOpen` (a blocking picker modal) likewise hides it: the
@@ -951,7 +966,7 @@ export default function CardsPile({
                     // children the containing block they always meant to
                     // resolve against. Guarded by `cards-pile.test.tsx` §
                     // "the count badge's containing block is a full tile box".
-                    className={`cursor-pointer relative ${PILE_TILE_BOX}`}
+                    className={`cursor-pointer relative ${CARD_RING_TILE_CLASS} ${PILE_TILE_BOX}`}
                     // `hasContextMenu` — no handler at all, so the click
                     // bubbles untouched to the ancestor's `ContextMenuTrigger`
                     // (see the prop doc). Opening the browse dialog is then
@@ -967,6 +982,16 @@ export default function CardsPile({
                     ) : (
                         <>
                             {pileCards}
+                            {/* Issue #6917 — the collapsed pile rings when ANY
+                                card in it has a legal action; the cards ring
+                                individually inside the opened dialog. */}
+                            {pileActionable && (
+                                <div
+                                    data-pile-actionable
+                                    aria-hidden
+                                    className={`pointer-events-none absolute inset-0 ${actionableRingClass(true)}`}
+                                />
+                            )}
                             {/* Count badge (ADR 0103, issue #2727): "piles as
                                 card thumbs with a count badge" — the depth of
                                 a zone used to be legible only by opening it
@@ -1053,6 +1078,6 @@ export default function CardsPile({
                     </div>
                 )}
             </GameDialog>
-        </>
+        </PileActionableContext.Provider>
     );
 }

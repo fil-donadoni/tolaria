@@ -1,3 +1,8 @@
+import { usePlainPriorityWindow } from "~/hooks/usePlainPriorityWindow";
+import {
+    cardHasLegalAction,
+    graveyardActionSources,
+} from "~/lib/card-actionable";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
@@ -131,9 +136,44 @@ export default function PlayerGraveyard({
                 })
           : undefined;
 
+    // Issue #6917 — the `actionable` ring: the cards whose Flashback / play /
+    // graveyard-ability button below would be enabled, decided by the SAME
+    // predicate and source builder those buttons read, in a plain Priority
+    // window and never while a graveyard pick or target owns the pile.
+    const priorityWindowOpen = usePlainPriorityWindow();
+    const graveyardStateView = buildTriggerStateView(
+        allPlayers,
+        activePlayerId,
+        cannotActivateAbilitiesThisTurn,
+        undefined,
+        undefined,
+        continuousEffects
+    );
+    const actionableIds =
+        player.id === playerId && !isGraveyardChoice && !isGraveyardTarget
+            ? new Set(
+                  player.graveyard
+                      .filter((card) =>
+                          cardHasLegalAction(
+                              priorityWindowOpen,
+                              graveyardActionSources(
+                                  card,
+                                  getGraveyardStackAbilities(
+                                      card,
+                                      phase,
+                                      graveyardStateView
+                                  ).length
+                              )
+                          )
+                      )
+                      .map((card) => card.id)
+              )
+            : undefined;
+
     const pile = (
         <CardsPile
             cards={player.graveyard}
+            actionableIds={actionableIds}
             emptyLabel="Graveyard"
             title={
                 isGraveyardChoice
@@ -204,14 +244,7 @@ export default function PlayerGraveyard({
                           const graveyardAbilities = getGraveyardStackAbilities(
                               card,
                               phase,
-                              buildTriggerStateView(
-                                  allPlayers,
-                                  activePlayerId,
-                                  cannotActivateAbilitiesThisTurn,
-                                  undefined,
-                                  undefined,
-                                  continuousEffects
-                              )
+                              graveyardStateView
                           );
                           if (graveyardAbilities.length > 0) {
                               return (

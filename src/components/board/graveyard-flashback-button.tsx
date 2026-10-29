@@ -1,3 +1,7 @@
+import {
+    cardHasLegalAction,
+    graveyardActionSources,
+} from "~/lib/card-actionable";
 import type { CardInstance } from "~/types/game";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { V4_ZONE_CTA } from "~/lib/board-chrome-v4";
@@ -35,7 +39,7 @@ export default function GraveyardFlashbackButton({
     // right now (correct timing AND the flashback cost is affordable). Gate the
     // button so an illegal cast is disabled rather than dispatched and rejected
     // by `assertLegalAction`.
-    const enabled = card.legalActions?.includes("cast") ?? false;
+    const enabled = cardHasLegalAction(true, graveyardActionSources(card, 0));
     // CR 702.34 vs 702.138 vs 305.1-analog vs 118.9 — the projection
     // tags which graveyard-cast mechanism surfaced this affordance so the
     // label and disabled-tooltip match.

@@ -1,3 +1,8 @@
+import { usePlainPriorityWindow } from "~/hooks/usePlainPriorityWindow";
+import {
+    cardHasLegalAction,
+    libraryTopActionSources,
+} from "~/lib/card-actionable";
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -280,9 +285,28 @@ export default function PlayerLibrary({
           }
         : undefined;
 
+    // Issue #6917 — ring the playable top card (the projection tags only it),
+    // by the SAME predicate and source builder its Play / Cast button reads,
+    // in a plain Priority window and never during a library pick.
+    const priorityWindowOpen = usePlainPriorityWindow();
+    const actionableIds =
+        isMe && !isLibraryPick
+            ? new Set(
+                  libraryCards
+                      .filter((card) =>
+                          cardHasLegalAction(
+                              priorityWindowOpen,
+                              libraryTopActionSources(card)
+                          )
+                      )
+                      .map((card) => card.id)
+              )
+            : undefined;
+
     const pile = (
         <CardsPile
             cards={libraryCards}
+            actionableIds={actionableIds}
             isFaceDown={!isLibraryPick}
             faceUpIds={faceUpIds}
             collapsedFaceUpIds={collapsedFaceUpIds}

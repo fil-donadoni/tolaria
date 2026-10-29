@@ -36,6 +36,10 @@ export type CardVisualState = {
      *  faded Tailwind ring. A box-shadow glow can't live in `ringClass`, so it's
      *  a separate overlay in `board-battlefield-card`. Absent ⇒ false. */
     targetGlow?: boolean;
+    /** Issue #6917 — an untapped Mana Ability source the viewer can activate in
+     *  a plain Priority window (CR 605.3a); one source of the `actionable`
+     *  ring. Absent ⇒ false. */
+    manaActivatable?: boolean;
 };
 
 export type ActivatableAbility = {

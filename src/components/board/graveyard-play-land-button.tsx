@@ -1,3 +1,7 @@
+import {
+    cardHasLegalAction,
+    graveyardActionSources,
+} from "~/lib/card-actionable";
 import type { CardInstance } from "~/types/game";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { V4_ZONE_CTA } from "~/lib/board-chrome-v4";
@@ -27,7 +31,7 @@ export default function GraveyardPlayLandButton({
     // at sorcery timing (mirrors the hand/exile play affordance). Gate the
     // button so an illegal play is disabled rather than dispatched and
     // rejected by `assertLegalAction`.
-    const enabled = card.legalActions?.includes("play") ?? false;
+    const enabled = cardHasLegalAction(true, graveyardActionSources(card, 0));
 
     return (
         <button

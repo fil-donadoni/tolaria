@@ -1,3 +1,4 @@
+import { cardHasLegalAction, exileActionSources } from "~/lib/card-actionable";
 import type { CardInstance } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { exileCastPermission } from "@convex/gre/castCost";
@@ -35,7 +36,7 @@ export default function ExileCastButton({
     } = useHandCardCommit(card, { onCommitted });
     // The ENGINE turn (the wire `GameState.turn`), the only number a
     // client-side engine predicate may be handed — see `useGameContext`.
-    const { engineTurn } = useGameContext();
+    const { engineTurn, playerId } = useGameContext();
 
     // A land in exile is PLAYED (as a land, CR 305.2), everything else is CAST.
     // The button's action follows the card type; its enabled state follows the
@@ -75,9 +76,10 @@ export default function ExileCastButton({
     // counting instance-keyed noted mana, CR 106.6); "play" only when a land
     // drop remains at sorcery timing. Gate the button so an illegal play/cast is
     // disabled rather than dispatched and rejected by `assertLegalAction`.
-    const enabled = isLand
-        ? (card.legalActions?.includes("play") ?? false)
-        : (card.legalActions?.includes("cast") ?? false);
+    const enabled = cardHasLegalAction(
+        true,
+        exileActionSources({ ...card, types: isLand ? ["Land"] : [] }, playerId)
+    );
 
     const label = isLand ? "Play" : "Cast";
     const disabledTitle = windowOpensOnTurn
