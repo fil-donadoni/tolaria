@@ -309,8 +309,7 @@ projects run `isolate: false`), so the step's wall is the import of the first
 file per worker plus the sum — inside the 10 s budget on all three. So
 `totalS` bounds a sum of WARM marginal costs, not the step's wall; the wall
 is what the three measurements above show. A bot file the PR itself adds has
-no row until the next `bot:costs` refresh, so it is named `unmeasured` and
-runs in health — the lane does not yet gate a new bot file. Replay:
+no row until the next refresh — see the amendment below (issue #6999). Replay:
 PR #6849's two censuses are planned; PR #5868's red file runs as §12's
 `blade-index`; PR #6562's `botReachLibraryPut.bot.test.ts` (2.3 s) is named
 past the lane budget with its cost.
@@ -320,6 +319,24 @@ base reds too (a byte pin drifting under the base, §3's original concern) —
 then the fix is that file's own cost tier (a `CHEAP_GUARDS` exclusion), never
 the suite back to health; or lane wall time this step visibly lengthens on the
 Huawei — then a smaller `totalS`, measured.
+
+**Amendment (issue #6999): presumed cost and a daily refresh.** The table was
+refreshed by hand and seeded once (2026-10-26), while 41 new `*.bot.test.ts`
+files landed in 7 days (59 in 14, 121 in 30): every one was `unmeasured` and
+ran only in health — the class behind PR #6849's RED, back at ~6 files a day.
+Two changes. (a) _Presumed cost_: a reached file with no row is admitted AFTER
+every measured file that fits, at a presumed cost of `laneBotBudget.perFileS`,
+by path, while `totalS` has room; the plan's `bot:` line marks the admitted
+ones ("presumed 5.0 s, no row yet"), and one that does not fit stays named in
+the `:unmeasured` skip line. (b) _Refresh_: `bot-costs-refresh.yml` runs
+`bun run bot:costs:refresh` DAILY (04:30 UTC): `bot:costs --refresh` over the
+newest `medianOfRuns` sealed health runs, a data PR handed to the queue only
+when a row changed, quiet while an earlier `chore/bot-costs-refresh-*` PR is
+open. It runs on `host:macbook`: health's gate runs on the `lane` runner, the
+MacBook's (ADR 0160), and the reporter writes its walls to that machine's
+primary checkout (`.claude/telemetry/health/durations/`, issue #5484) — the
+job's worktree reaches them through `primaryCheckout()`. Any other host finds
+no sealed run and stops quietly.
 
 ### 14. The mixed diff is scoped; `full` is `check:pr` verbatim — amendment of issue #6989
 

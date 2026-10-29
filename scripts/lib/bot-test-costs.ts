@@ -21,8 +21,11 @@
  *      and the plan stays a pure function of the tree.
  *   3. `check-lane.ts` admits, in every scoped lane, the bot files the diff
  *      reaches whose cost is under `perFileS`, cheapest first, up to
- *      `totalS` (`admitByCost`). The rest is NAMED in skip lines with its
- *      cost, or as unmeasured — never dropped silently.
+ *      `totalS` (`admitByCost`); a file with no row follows them at a
+ *      presumed cost of `perFileS`. The rest is NAMED in skip
+ *      lines with its cost, or as unmeasured — never dropped silently.
+ *   4. `.github/workflows/bot-costs-refresh.yml` runs `bun run bot:costs
+ *      --refresh` daily: a data PR only when the table changed.
  *
  * The budgets are config (`tolaria.config.json` `laneBotBudget`, read by this
  * module ONLY), never literals.
@@ -82,6 +85,35 @@ export function readBotTestCosts(root: string): Record<string, number> {
     if (!existsSync(p)) return {};
     const parsed = JSON.parse(readFileSync(p, "utf8")) as Partial<BotTestCosts>;
     return parsed.files ?? {};
+}
+
+/** The branch prefix of the daily refresh PR (issue #6999): its presence among
+ *  the open PRs is what keeps the job quiet. */
+export const REFRESH_BRANCH_PREFIX = "chore/bot-costs-refresh-";
+
+/** The cost table `bot:costs` derives from the given sealed runs. */
+export function buildCostTable(
+    runs: readonly { dir: string; walls: readonly FileWall[] }[]
+): BotTestCosts {
+    return {
+        version: 1,
+        runs: runs.length,
+        source: runs.map((r) => r.dir.split("/").slice(-1)[0]),
+        files: medianWalls(runs.map((r) => r.walls)),
+    };
+}
+
+/** Whether two cost tables hold the same rows. `source` and `runs` are
+ *  provenance, not content: a refresh over newer runs with the same medians
+ *  is no change, so no PR (issue #6999). */
+export function sameCosts(
+    a: Readonly<Record<string, number>>,
+    b: Readonly<Record<string, number>>
+): boolean {
+    const ka = Object.keys(a);
+    return (
+        ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k])
+    );
 }
 
 const median = (xs: number[]): number => {
@@ -151,21 +183,29 @@ export function newestRuns(
 }
 
 export interface BotAdmission {
-    /** Admitted, cheapest first (ties by path). */
+    /** Admitted: the measured ones cheapest first (ties by path), then the
+     *  unmeasured ones at their presumed cost, by path. */
     admitted: string[];
+    /** The admitted files with no row in the table: admitted at a presumed
+     *  cost of `perFileMs` (a guess; `admittedMs` counts it). */
+    presumed: string[];
     /** Reached, but alone above `perFileMs`. */
     overFile: { file: string; ms: number }[];
     /** Reached, under `perFileMs`, but past `totalMs` once the cheaper ones
      *  were in. */
     overTotal: { file: string; ms: number }[];
-    /** Reached, with no row in the cost table. */
+    /** Reached, with no row in the cost table, and no room left for its
+     *  presumed cost. */
     unmeasured: string[];
     /** The admitted files' summed cost. */
     admittedMs: number;
 }
 
 /** Cheapest first under both budgets (issue #6943): a hub change reaching
- *  most of the bot suite still admits every census, because they cost least. */
+ *  most of the bot suite still admits every census, because they cost least.
+ *  A file with no row (issue #6999) is admitted AFTER every measured one that
+ *  fits, at a presumed cost of `perFileMs`, while `totalMs` has room — a new
+ *  bot file would otherwise run only in health until the table is refreshed. */
 export function admitByCost(
     reached: readonly string[],
     costs: Readonly<Record<string, number>>,
@@ -173,15 +213,17 @@ export function admitByCost(
 ): BotAdmission {
     const out: BotAdmission = {
         admitted: [],
+        presumed: [],
         overFile: [],
         overTotal: [],
         unmeasured: [],
         admittedMs: 0,
     };
     const measured: { file: string; ms: number }[] = [];
+    const unmeasured: string[] = [];
     for (const file of [...reached].sort()) {
         const ms = costs[file];
-        if (ms === undefined) out.unmeasured.push(file);
+        if (ms === undefined) unmeasured.push(file);
         else if (ms > budget.perFileMs) out.overFile.push({ file, ms });
         else measured.push({ file, ms });
     }
@@ -191,6 +233,15 @@ export function admitByCost(
         else {
             out.admitted.push(m.file);
             out.admittedMs += m.ms;
+        }
+    }
+    for (const file of unmeasured) {
+        if (out.admittedMs + budget.perFileMs > budget.totalMs)
+            out.unmeasured.push(file);
+        else {
+            out.admitted.push(file);
+            out.presumed.push(file);
+            out.admittedMs += budget.perFileMs;
         }
     }
     return out;

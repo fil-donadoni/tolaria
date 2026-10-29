@@ -1345,7 +1345,8 @@ export function forcesWholeBotLane(path: string, cls: PathClass): boolean {
  * budget decides, so the censuses — the cheapest files — always make it in.
  *
  * Nothing is dropped silently: a reached file over its budget, past the
- * lane's, or with no row in `COSTS_PATH` is NAMED in a skip line with its
+ * lane's, or with no row in `COSTS_PATH` and no room for its presumed cost
+ * (issue #6999: unmeasured files are admitted last, at `perFileS`) is NAMED in a skip line with its
  * cost (issue #6943 acceptance). `exclude` removes the files another planned
  * step already runs whole: the cheap guards' (`runsBotFiles`) and, in the
  * `cards` lane, `bot[cards]`'s partition.
@@ -1405,12 +1406,16 @@ function admittedBotTests(
     if (adm.unmeasured.length > 0)
         skip.push({
             id: `${BOT_STEP}:unmeasured`,
-            reason: `health's until measured — no row in ${COSTS_PATH} (\`bun run bot:costs\`): ${adm.unmeasured.join(", ")}`,
+            reason: `health's until measured — no row in ${COSTS_PATH} (\`bun run bot:costs\`) and no room for its presumed ${formatCost(budget.perFileMs)}: ${adm.unmeasured.join(", ")}`,
         });
     const reachLine = {
         run: adm.admitted.length,
         total,
-        why: `${why}: ${projectOf.size} reached, ${formatCost(adm.admittedMs)} admitted`,
+        why: `${why}: ${projectOf.size} reached, ${formatCost(adm.admittedMs)} admitted${
+            adm.presumed.length > 0
+                ? ` (${adm.presumed.length} at the presumed ${formatCost(budget.perFileMs)}, no row yet: ${adm.presumed.join(", ")})`
+                : ""
+        }`,
     };
     if (adm.admitted.length === 0) return { run: [], skip, reach: reachLine };
     const named = (["bot-node", "bot-dom"] as const).filter((p) =>

@@ -163,6 +163,7 @@
         "wt:gc": "bun scripts/worktree-gc.ts",
         "wt:new": "bun scripts/wt-new.ts",
         "bot:costs": "bun scripts/bot-test-costs.ts",
+        "bot:costs:refresh": "bun scripts/bot-costs-refresh.ts",
         "bot:refit": "bun scripts/bot-refit.ts",
         "verdicts:sync": "bun scripts/verdicts-sync.ts",
         "verdicts:validate": "bun scripts/verdicts-validate.ts",

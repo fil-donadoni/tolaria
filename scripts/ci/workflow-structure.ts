@@ -220,6 +220,10 @@ export const HOST_PINNED_JOBS: ReadonlyMap<string, string> = new Map([
         ".github/workflows/post-merge.yml#repair-watch",
         "the stalled-repair alert must not run on the `lane` runner's host (the MacBook, ADR 0160), or it sleeps with the lane it reports on; a late alert holds nothing (issue #7142)",
     ],
+    [
+        ".github/workflows/bot-costs-refresh.yml#refresh",
+        "the cost table is derived from health's per-file walls, which only the `lane` runner's host (the MacBook, ADR 0160) holds in its primary checkout; a late refresh holds nothing, the committed table stands (issue #6999)",
+    ],
 ]);
 
 /** The jobs that MAY run on a `lane` runner (rule `lane-role`, ADR 0160):
