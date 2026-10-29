@@ -3022,7 +3022,7 @@ describe("Lobotomy (CR 201.2 dynamic same-name filter + CR 400.7 multi-zone swee
         expect(librarySearch.kind).toBe("search-library");
         expect(librarySearch.zoneOwnerId).toBe("p2");
         expect(librarySearch.candidateIds).toEqual(["lb-lib"]);
-        expect(librarySearch.count).toEqual({ min: 1, max: 1 });
+        expect(librarySearch.count).toEqual({ min: 0, max: 1 });
         // Wire format: the searched library is exposed face-up to the caster —
         // ALL of it, not just the matching card.
         const searchProjection = projectPublicState(state, 1, "p1");

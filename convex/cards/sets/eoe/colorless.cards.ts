@@ -140,7 +140,8 @@ export const tezzeretCruelCaptain = defineCard(() => ({
                     player: "controller",
                     zone: "library",
                     filter: { type: "Artifact", manaValueAtMost: 1 },
-                    count: 1,
+                    // CR 701.23b — a stated quality never compels the find.
+                    count: { min: 0, max: 1 },
                     prompt: "Search your library for an artifact card with mana value 1 or less.",
                     bind: "$picked",
                 },

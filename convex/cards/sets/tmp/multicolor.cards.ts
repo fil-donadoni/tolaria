@@ -77,7 +77,8 @@ export const lobotomy = defineCard(() => ({
             zone: "library",
             zoneOwnerId: { target: 0 },
             filter: { name: { ref: "$chosen" } },
-            count: { min: 999, max: 999 },
+            // CR 701.23b — the quality (the chosen name) never compels the find.
+            count: { min: 0, max: 999 },
             prompt: "Search their library and exile every copy",
             bind: "$fromLibrary",
         },
