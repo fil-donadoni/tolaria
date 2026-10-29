@@ -23,6 +23,11 @@
  *  - `pending`   — a blocker whose attacker assignment is still being chosen.
  *    Same token as `attacking` on purpose (see `index.css`): the two cannot
  *    co-occur, but the source should not call a blocker an attacker.
+ *  - `actionable` — the viewer holds a plain Priority window and this card has
+ *    a legal action (cast, play, activate, summon, turn face up; issue #6917).
+ *    Painted from its OWN token, `signal-actionable`; decided by the single
+ *    predicate in `card-actionable.ts` and shown only when no other role owns
+ *    the card.
  *  - `combat-1..4` — combat-group identity: WHICH attacker a blocker is paired
  *    with (`src/lib/combat-colors.ts`). Not a state, a pairing, and the one
  *    axis the three ADR roles do not cover — kept unchanged.
@@ -47,6 +52,7 @@ export type CardRingRole =
     | "selected"
     | "attacking"
     | "pending"
+    | "actionable"
     | "combat-1"
     | "combat-2"
     | "combat-3"

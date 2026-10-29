@@ -47,6 +47,7 @@ import {
 } from "~/lib/sacrifice-selection";
 import { COMBAT_GROUP_BG } from "~/lib/combat-colors";
 import { cardRingClass, COMBAT_GROUP_ROLE } from "~/lib/card-ring";
+import { usePlainPriorityWindow } from "~/hooks/usePlainPriorityWindow";
 import type { CardVisualState } from "~/components/board/battlefield-card";
 
 /** A NON-stack (`useStack: false`) mana ability's `cost.tapOtherFilter` pick,
@@ -132,6 +133,8 @@ export function useBattlefieldVisualState(
             ? { turn: engineTurn, controlChangedThisTurn }
             : undefined;
     const bufferCtx = usePendingChoiceBuffer();
+    // Issue #6917 — the Expected Input gate of the `actionable` ring.
+    const priorityWindowOpen = usePlainPriorityWindow();
     // CR 601.2c / 601.2d — a divide-as-you-choose distribution is buffered
     // client-side until "Done", so a requirement the chooser has already
     // obeyed inside the buffer is not yet reflected in the server's published
@@ -951,6 +954,15 @@ export function useBattlefieldVisualState(
             tooltip,
             divideTarget,
             targetGlow,
+            // Issue #6917 — an untapped mana source the click would tap. A
+            // tapped one only refunds, which is not a new action to offer.
+            manaActivatable:
+                priorityWindowOpen &&
+                isMe &&
+                manaSource &&
+                !isInPayment &&
+                !card.isTapped &&
+                enabled,
         };
     }
 
