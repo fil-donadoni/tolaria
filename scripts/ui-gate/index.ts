@@ -614,7 +614,7 @@ async function startAppServer(
 async function launchBrowser(headed: boolean): Promise<Browser> {
     const { chromium } = await import("playwright");
     try {
-        return await chromium.launch({ headless: !headed, args: ["--force-gpu-mem-available-mb=24", "--force-gpu-mem-discardable-limit-mb=12"] });
+        return await chromium.launch({ headless: !headed });
     } catch (err) {
         throw new FatalError(
             `could not launch Chromium: ${(err as Error).message}\n` +

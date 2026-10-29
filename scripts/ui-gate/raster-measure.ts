@@ -134,8 +134,6 @@ export async function measureRaster(page: Page): Promise<RasterResult> {
             // one, never a mid-transition raster; the offender box keeps
             // the pre-shot coordinates, which a 2px lift does not move
             // out of its outline.
-            await page.locator(`[data-ui-gate-raster="${c.k}"]`).hover({ timeout: 3_000 }).catch(() => {});
-            await page.waitForTimeout(400);
             const buf = await page
                 .locator(`[data-ui-gate-raster="${c.k}"]`)
                 .screenshot({
