@@ -25,7 +25,7 @@
  *     red-unexplained after it; each PR rides in the evidence. A probe
  *     runs in the queue draft's role (`PROBE_BOOTSTRAP`): derived state is
  *     regenerated in the probed tree, so a PR commit reads the RED its own
- *     sources cause before the base's `derive:sync` writes it (issue #7417).
+ *     sources cause before the base's `derive:sync` writes it.
  *     A first red probe on a base-maintenance commit anyway is blamed on the
  *     one PR commit before it, or on none (`attributeMaintenance`).
  *

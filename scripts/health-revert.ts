@@ -33,7 +33,7 @@
  * and every text it writes are `lib/health-ladder.ts`'s. Exit 0: the revert
  * PR is queued (or the dry run applied); 1: a failed try; 2: usage, or a
  * base-maintenance `--culprit` (`derive:sync — …`, `bot-replay — …`: it
- * writes derived state only and its revert can never land, issue #7417),
+ * writes derived state only and its revert can never land),
  * refused before anything is recorded; 3: the revert does not apply; 4:
  * nothing recorded, nothing made.
  * docs/guides/github-pipeline.md § health-fix.

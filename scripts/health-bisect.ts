@@ -20,7 +20,7 @@
  * Runs from the primary checkout or a job's worktree of it (`health.yml`);
  * each probe is a throwaway worktree beside the primary, bootstrapped with
  * `worktree:init` — a bisect probe's then regenerated as the queue draft
- * (`derive:regenerate`, `draft` role, issue #7417). Its log: `.claude/telemetry/health/<sha12>.ladder.log`.
+ * (`derive:regenerate`, `draft` role). Its log: `.claude/telemetry/health/<sha12>.ladder.log`.
  * docs/guides/github-pipeline.md § health.
  */
 import { spawnSync } from "node:child_process";
