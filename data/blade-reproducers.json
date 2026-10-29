@@ -1603,6 +1603,11 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "held answer: counters Stone Rain with Counterspell when the opponent has no cards left": null,
+    "held answer: counters Stone Rain with Mana Leak when the opponent has no cards left": null,
+    "held answer: counters Stone Rain with Teferi's Response when the opponent has no cards left": null,
+    "held answer: keeps Counterspell when the opponent still holds cards, even with Stone Rain on its land": null,
+    "held answer: keeps Mana Leak when the opponent still holds cards, even with Stone Rain on its land": null,
     "hybrid evoke: evokes Wistfulness on two Forests to exile an opposing artifact": {
         "cards": [
             {

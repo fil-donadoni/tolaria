@@ -95,6 +95,13 @@
             "needsSetup": false
         }
     ],
+    "Counterspell": [
+        {
+            "label": "held answer: counters Stone Rain with Counterspell when the opponent has no cards left",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Craw Wurm": [
         {
             "label": "multi-block split: swings a 6/4 into two 3/3s that can only trade both for it",
@@ -429,6 +436,13 @@
             "needsSetup": false
         }
     ],
+    "Mana Leak": [
+        {
+            "label": "held answer: counters Stone Rain with Mana Leak when the opponent has no cards left",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Meddling Mage": [
         {
             "label": "as-enters name: casts Meddling Mage on an empty board",
@@ -755,6 +769,11 @@
         }
     ],
     "Teferi's Response": [
+        {
+            "label": "held answer: counters Stone Rain with Teferi's Response when the opponent has no cards left",
+            "tier": "must",
+            "needsSetup": true
+        },
         {
             "label": "reachability: counters an opponent's land-targeting activation with Teferi's Response",
             "tier": "stretch",
