@@ -4211,6 +4211,11 @@
         },
         {
             "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"start your engines!\" is not implemented in the Mechanics Registry",
+            "issue": 7502
+        },
+        {
+            "kind": "mechanic",
             "key": "planned-mechanic › keyword \"training\" is not implemented in the Mechanics Registry",
             "issue": 4018
         },
