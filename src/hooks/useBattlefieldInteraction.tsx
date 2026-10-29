@@ -13,6 +13,7 @@ import {
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { getDefinition } from "@convex/cards";
+import { isManaPaymentChoiceWindow } from "@convex/gre/state";
 import {
     isCreature,
     isPlaneswalker,
@@ -804,6 +805,25 @@ export function useBattlefieldInteraction(player: Player) {
                     inPayment: false,
                 });
             } else {
+                // CR 605.3a — a mana ability with no {T} (Wall of Roots'
+                // counter, Farrelite Priest's {1}) is not a tap toggle:
+                // `tapUntap` would tap the source for nothing or refuse. Route
+                // it through the mana-ability activation path.
+                const entry = getManaCostMenuAbility(card, abilityStateView);
+                const taplessCost = entry
+                    ? getEffectiveClientAbilities(card).find(
+                          (a) => a.id === entry.id
+                      )?.cost
+                    : undefined;
+                if (
+                    entry &&
+                    taplessCost &&
+                    !taplessCost.tap &&
+                    !taplessCost.sacrifice
+                ) {
+                    handleActivateAbility(card.id, entry.id, false);
+                    return;
+                }
                 guardMutation(
                     tapUntap({ gameId, playerId, cardInstanceId: card.id })
                 );
@@ -855,6 +875,24 @@ export function useBattlefieldInteraction(player: Player) {
     // --- Activated abilities ---
 
     function getActivatable(card: CardInstance): ActivatableAbility[] {
+        // CR 605.3a / 608.2g — while a may-pay choice asks the viewer for mana,
+        // their own mana abilities (and only those) are activatable whatever
+        // their cost, through `activateManaAbility` — the same menu entry the
+        // priority window offers. Nothing else is: the choice still freezes
+        // every non-mana ability.
+        if (
+            !pendingCast &&
+            !pendingActivation &&
+            !pendingTarget &&
+            !manaTapOtherPick &&
+            isManaPaymentChoiceWindow(pendingChoices?.[0], playerId)
+        ) {
+            if (card.controllerId !== playerId) return [];
+            const entry = getManaCostMenuAbility(card, abilityStateView);
+            return entry
+                ? [{ id: entry.id, oracleText: entry.oracleText }]
+                : [];
+        }
         // Activation is blocked entirely while any payment/target/choice is in
         // progress, regardless of whose permanent this is.
         if (

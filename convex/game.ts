@@ -13595,6 +13595,22 @@ export const tapUntap = mutation({
             }
         }
 
+        // CR 605.3a / 602.2 — a mana ability whose cost has no {T} and no
+        // sacrifice leg (Wall of Roots' placed counter, a removed counter, a
+        // tap-another-permanent cost, an empty once-per-turn cost) is not a
+        // tap toggle: this mutation would tap the source for nothing. Only
+        // `activateManaAbility` pays those legs and adds the mana.
+        if (
+            ability &&
+            !ability.cost.tap &&
+            !ability.cost.sacrifice &&
+            !hasBasicLandMana(card)
+        ) {
+            throw new Error(
+                "Use activateManaAbility for non-tap mana abilities"
+            );
+        }
+
         // CR 605.1a (issue #2021) — the tap-less "Sacrifice this: Add …"
         // activation. Handled here, ahead of the tap-shaped branches below:
         // those look the produced mana up through `getActivatedManaColor`,
