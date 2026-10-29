@@ -44,6 +44,9 @@ import {
     answersRaisedTargetLegally,
     submitsSoleTarget,
     boundedGraveyardCastIsOffered,
+    STARVED_TARGET_FANOUT_BOARD,
+    castSparesOwnPermanents,
+    castTargetsOnlyNamed,
 } from "./scenarioPredicates";
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
@@ -16565,5 +16568,68 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         tier: "must",
         expect: { moves: [{ kind: "random-reveal-ack" }] },
         note: "Issue #5516. The Bot flipper's only legal answer to a coin-flip reveal is the ack; the driver delays its submission by the shared reveal pacing table so the viewer's coin animation plays out.",
+    },
+    {
+        label: "starved target fan-out: Vindicate never aims at the Bot's own permanent (iterations 3)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: STARVED_TARGET_FANOUT_BOARD,
+            phase: "PRECOMBAT_MAIN",
+            turn: 13,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 6 },
+        },
+        bot: "me",
+        budget: { iterations: 3 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 22, 23, 32, 33, 37],
+        tier: "must",
+        expect: {
+            predicate: castSparesOwnPermanents("Vindicate", "me"),
+            describe: "a Vindicate cast names none of the Bot's own permanents",
+        },
+        note: "Issue #6985 — lethal already on board saturates every 1-ply policy value, so the starved root opens three of Vindicate's twenty target variants at random and the announcement-variant ranking used to see only those. Pre-fix: seeds 6, 22, 23, 32, 33, 37 destroyed a Bot land. Passing is allowed (act vs pass is issue #6913).",
+    },
+    {
+        label: "starved target fan-out: Vindicate aims at the opponent's Hero token (iterations 15)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: STARVED_TARGET_FANOUT_BOARD,
+            phase: "PRECOMBAT_MAIN",
+            turn: 13,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 6 },
+        },
+        bot: "me",
+        budget: { iterations: 15 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 14, 17],
+        tier: "must",
+        expect: {
+            predicate: castTargetsOnlyNamed("Vindicate", "Hero"),
+            describe: "a Vindicate cast targets the opponent's Hero token",
+        },
+        note: "Issue #6985 — the same board at the `medium` preset's measured live depth (10–18 iterations): every unopened target sibling now joins the announcement-variant ranking, so the 6/6 Hero wins on the resolved margin. Pre-fix: seeds 7, 11, 12, 14, 17 hit Ornithopter.",
+    },
+    {
+        label: "starved target fan-out: Vindicate aims at the opponent's Hero token (iterations 400)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: STARVED_TARGET_FANOUT_BOARD,
+            phase: "PRECOMBAT_MAIN",
+            turn: 13,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 6 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: castTargetsOnlyNamed("Vindicate", "Hero"),
+            describe: "a Vindicate cast targets the opponent's Hero token",
+        },
+        note: "Issue #6985 — the full-budget leg: with every sibling opened the widening adds nothing, and the pick must stay on the Hero.",
     },
 ];
