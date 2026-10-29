@@ -2443,6 +2443,12 @@ export type SentenceIR =
           readonly text: string;
           readonly effect: EffectSentenceIR;
       }
+    /** CR 608.2g — "If you don't, <effect>.": the decline of the optional
+     *  cast "You may cast that card." behind a library-top exile. */
+    | {
+          readonly role: "if-you-dont";
+          readonly effect: EffectSentenceIR;
+      }
     /**
      * CR 701.21a — "Then that permanent's controller may sacrifice a land of
      * their choice.", the first half of an `optional` sacrifice by that player; the
@@ -3212,6 +3218,28 @@ export function assembleSentences(
             return {
                 ok: false,
                 reason: '"If you do, …" follows no optional effect or "You may pay {X}"',
+            };
+        }
+        if (sentence.role === "if-you-dont") {
+            // CR 608.2g — the decline gates on the optional cast the member
+            // before it offered; after anything else there is no cast to
+            // decline.
+            const last = effects[effects.length - 1];
+            if (
+                last !== undefined &&
+                last.kind === undefined &&
+                last.play?.during === "resolution" &&
+                last.play.declined === undefined
+            ) {
+                effects[effects.length - 1] = {
+                    ...last,
+                    play: { ...last.play, declined: sentence.effect },
+                };
+                continue;
+            }
+            return {
+                ok: false,
+                reason: '"If you don\'t, …" follows no "You may cast that card."',
             };
         }
         if (sentence.role === "when-you-do") {
@@ -5020,6 +5048,7 @@ const AND_ASSIGNS_NO_COMBAT_DAMAGE =
     /^(.+) and (.+) assigns no combat damage this turn$/;
 /** CR 107.3f (issue #4529) — the payoff sentence of a variable payment. */
 const IF_YOU_DO = /^If you do, (.+)$/;
+const IF_YOU_DONT = /^If you don't, (.+)$/;
 /** CR 701.21a — "Then that permanent's controller may sacrifice a land of
  *  their choice": the optional sacrifice of one permanent of a type, by the
  *  controller of the object the sentence before acted on. */
@@ -6123,6 +6152,21 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
             return ok({
                 role: "if-you-do" as const,
                 text: span,
+                effect: inner.value.effect,
+            });
+        }
+
+        const ifYouDont = span.match(IF_YOU_DONT);
+        if (ifYouDont !== null) {
+            const inner = sentenceRule.run(capitalise(ifYouDont[1]!), ctx);
+            if (!inner.ok) return inner;
+            if (inner.value.role !== "effect")
+                return fail(
+                    '"If you don\'t" feeds a plain effect sentence',
+                    span
+                );
+            return ok({
+                role: "if-you-dont" as const,
                 effect: inner.value.effect,
             });
         }

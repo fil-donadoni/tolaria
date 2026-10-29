@@ -11,13 +11,28 @@
  */
 
 import { fail, ok, type RuleResult } from "../../rule";
+import type { EffectSentenceIR } from "./effectClause";
 
 /** The windows the `grantCastFromExile` Op can express. */
 export type ImpulseWindowIR = "this-turn" | "until-end-of-your-next-turn";
 
-export interface ImpulsePlayIR {
+export interface ImpulseWindowPlayIR {
     readonly window: ImpulseWindowIR;
+    readonly during?: undefined;
 }
+
+/**
+ * CR 608.2g — "You may cast that card." with no stated duration: the cast is
+ * offered during the resolution of the ability that exiled the card and the
+ * permission ends with it. `declined` is the "If you don't, <effect>."
+ * sentence folded behind it by `assembleSentences`.
+ */
+export interface ResolutionCastIR {
+    readonly during: "resolution";
+    readonly declined?: EffectSentenceIR;
+}
+
+export type ImpulsePlayIR = ImpulseWindowPlayIR | ResolutionCastIR;
 
 const WINDOWS: ReadonlyMap<string, ImpulseWindowIR> = new Map([
     ["this turn", "this-turn"],
@@ -30,10 +45,14 @@ const TRAILING = /^You may play (?:that card|it) (.+)$/;
 /** "<Window>, you may play that card" — the window leads the clause. */
 const LEADING = /^(Until .+?|This turn), you may play (?:that card|it)$/;
 
+/** CR 608.2g — "You may cast that card." with no duration: cast, never play. */
+const DURING_RESOLUTION = /^You may cast (?:that card|it)$/;
+
 /** CR 305.1 — "play" (not "cast"): a land among the exiled cards is playable too. */
 export function readImpulsePlaySentence(
     span: string
 ): RuleResult<ImpulsePlayIR> | null {
+    if (DURING_RESOLUTION.test(span)) return ok({ during: "resolution" });
     const trailing = span.match(TRAILING);
     const leading = trailing === null ? span.match(LEADING) : null;
     if (trailing === null && leading === null) return null;

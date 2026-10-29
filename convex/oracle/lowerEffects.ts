@@ -5224,7 +5224,40 @@ function lowerFrameChain(
                 );
                 if (!moved.ok) return moved;
                 ops.push(...moved.value);
-                if (exiledBind !== undefined && sentence.play !== undefined)
+                if (
+                    exiledBind !== undefined &&
+                    sentence.play?.during === "resolution"
+                ) {
+                    // CR 608.2g — no stated duration: the cast is offered
+                    // inside this resolution, its timing restrictions
+                    // ignored, and "If you don't" reads whether it happened.
+                    const declined = sentence.play.declined;
+                    const castBind =
+                        declined === undefined
+                            ? undefined
+                            : walk.nextBind("cast");
+                    ops.push({
+                        op: "castDuringResolution",
+                        card: { ref: exiledBind },
+                        player: "controller",
+                        source: "exile",
+                        ...(castBind === undefined
+                            ? {}
+                            : { resultBind: castBind }),
+                    });
+                    if (declined !== undefined && castBind !== undefined) {
+                        const inner = gatedSentence(declined, walk, site);
+                        if (!inner.ok) return inner;
+                        ops.push({
+                            op: "if",
+                            predicate: { not: { binding: castBind } },
+                            then: inner.value,
+                        });
+                    }
+                } else if (
+                    exiledBind !== undefined &&
+                    sentence.play !== undefined
+                )
                     ops.push({
                         op: "grantCastFromExile",
                         card: { ref: exiledBind },
