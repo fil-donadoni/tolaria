@@ -12,6 +12,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
+import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Black free tranche (#373) — every mono-black Legends card expressible with
@@ -25,9 +26,6 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 //   • Spirit Shackle, Takklemaggot, All Hallow's Eve → C5 (named counters:
 //     -0/-2, -0/-1, scream).
 //   • Wall of Shadows → C6 (can't-be-the-target-of Wall-only spells/abilities).
-//   • Pit Scorpion — was C5 (poison counters). No longer blocked: poison ships
-//     as a leg of the `addPlayerCounter` Op (Marsh Viper, drk/green.cards.ts). Owned
-//     by #2230 — see the note further down this file.
 //   • Lesser Werewolf → C5 (-0/-1 counters on a combatant).
 //
 // Cards that genuinely need an unbuilt primitive are SKIPPED (not built here) (tracked-by: #2785):
@@ -668,9 +666,6 @@ export const moldDemon = defineCard(() => ({
 // ─────────────────────────────────────────────────────────────────────────────
 // C7 deferred (tracked-by: #2785) — need a primitive not yet built; each lands when its primitive
 // ships:
-//   • Pit Scorpion — poison counters, not a pay-or-sacrifice card. No longer
-//     blocked (poison and the damage-dealt trigger both ship) — tracked-by:
-//     #2230.
 //   • Takklemaggot — an Aura that relocates itself when its host dies, or
 //     returns as a non-Aura enchantment with rewritten text; not the
 //     pay-or-sacrifice pattern, and blocked on CR 613 continuous-effect
@@ -702,7 +697,6 @@ export const moldDemon = defineCard(() => ({
 // Deferred (need a primitive owned by another cluster; documented at the end of
 // this section): Glyph of Delusion (tracked-by: #2227), All Hallow's Eve
 // (tracked-by: #2226), plus the C7-noted Takklemaggot (tracked-by: #2228).
-// Pit Scorpion is NO LONGER deferred — its blockers shipped (tracked-by: #2230).
 // ═════════════════════════════════════════════════════════════════════════════
 
 // Spirit Shackle — {B}{B} Aura. "Whenever enchanted creature becomes tapped,
@@ -781,15 +775,46 @@ export const spiritShackle = defineCard(() => ({
 //     controller (not its own), or as a NON-AURA enchantment that loses
 //     "enchant creature" and gains a new upkeep trigger. Blocked on four
 //     continuous-effect capabilities (CR 613), none of them counter-related.
-//
-// No longer deferred — their blockers shipped; both are ordinary DSL cards now
-// and are tracked-by: #2230:
-//   • Pit Scorpion — needs poison counters (`addPoisonCounters` + the ten-poison
-//     SBA) and a damage-dealt trigger, both of which ship. It never needed a
-//     named-counter primitive; it was mis-bucketed into this cluster.
-//   • Triassic Egg — the hand→battlefield primitive it waited on
-//     (`putFromHandOntoBattlefield`) ships and has consumers in several sets.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Pit Scorpion — {2}{B} Creature — Scorpion 1/1. "Whenever this creature deals
+// damage to a player, that player gets a poison counter." (modern Oracle, ADR
+// 0004). CR 120.3 damage to a player, combat or not, so `damageDealtTrigger`
+// carries a player target with NO `isCombat` constraint; "a player" is ANY
+// player, its own controller included (`relation: "any"`). CR 122.1f / 704.5c:
+// the `addPlayerCounter` Op adds the poison counter to the damaged player read
+// off the event (`$event.damagedPlayer`) and the ten-poison loss is the global
+// SBA. ONE counter per damage event whatever its amount. This is a plain
+// triggered ability, not the Poisonous keyword (CR 702.70).
+export const pitScorpion = defineCard(() => ({
+    id: "cc564f84-0d6e-4e09-a58d-a694d918cf12",
+    rarity: "common",
+    name: "Pit Scorpion",
+    oracleText:
+        "Whenever this creature deals damage to a player, that player gets a poison counter.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Scorpion"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        damageDealtTrigger({
+            id: "pit-scorpion-poison",
+            oracleText:
+                "Whenever this creature deals damage to a player, that player gets a poison counter.",
+            source: "self",
+            target: { kind: "player", player: { relation: "any" } },
+            effects: [
+                {
+                    op: "addPlayerCounter",
+                    player: { ref: "$event.damagedPlayer" },
+                    counter: "poison",
+                    amount: 1,
+                },
+            ],
+        }),
+    ],
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C8 — Cast-tax "counter unless pay" World enchantments (#385)
