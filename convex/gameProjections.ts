@@ -32,7 +32,7 @@ import { outsideGamePool } from "./gre/outsideGame";
 import { canTurnFaceUp } from "./gre/morph";
 import { isRequiredAttacker } from "./gre/combat";
 import { isFaceDownExile } from "./gre/faceDown";
-import { exileCastPermission } from "./gre/castCost";
+import { exileCastPermitted } from "./gre/castCost";
 import {
     computeLibraryTopLookedAtPlayers,
     computeLibraryTopRevealedPlayers,
@@ -780,10 +780,12 @@ function projectExileCard(
     opts?: {
         legalActionsFor?: () => CardAction[];
         exiledByPermanentId?: string;
-        /** CR 702.185a (issue #1268) — the current turn, which
-         *  `exileCastPermission` reads the grant's LOWER bound against. Passed
-         *  rather than derived: this projector takes a CARD, not the state. */
-        turn?: number;
+        /** CR 702.185a / 611.2b (issues #1268, #7295) — whether the VIEWER
+         *  holds the cast permission right now: the window (`turn` against the
+         *  grant's lower bound) AND the grant's board condition, both answered
+         *  by `exileCastPermitted`. Passed rather than derived: this projector
+         *  takes a CARD, not the state. */
+        castPermitted?: boolean;
     }
 ): SlimExileCard {
     // CR 601.3 — the viewer's own card it may cast from exile carries
@@ -803,10 +805,7 @@ function projectExileCard(
         // Cast button is gated on exactly this `legalActions` array. Reading
         // `castableFromExileBy` alone here would arm the button for a cast the
         // mutation refuses.
-        if (
-            opts?.legalActionsFor &&
-            exileCastPermission(card, viewerId, opts.turn ?? 0)
-        ) {
+        if (opts?.legalActionsFor && opts.castPermitted === true) {
             out = { ...out, legalActions: opts.legalActionsFor() };
         }
         return out;
@@ -1498,7 +1497,7 @@ export function projectPublicState(
             exile: player.exile.map((c) =>
                 withPrintedCastAvailability(
                     projectExileCard(c, viewerId, {
-                        turn: state.turn,
+                        castPermitted: exileCastPermitted(state, c, viewerId),
                         // CR 601.3 (issue #1156) — `casterId` disambiguates a
                         // CROSS-PLAYER grant (Robber of the Rich, Dauthi
                         // Voidwalker): the card lives in `player`'s exile, but
@@ -1877,7 +1876,7 @@ export function projectFullState(
                 // did not.
                 const out: SlimExileCard =
                     c.castableFromExileBy !== undefined &&
-                    exileCastPermission(c, c.castableFromExileBy, state.turn)
+                    exileCastPermitted(state, c, c.castableFromExileBy)
                         ? {
                               ...slimCard(c),
                               legalActions: getLegalActions(

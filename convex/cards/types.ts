@@ -5156,7 +5156,12 @@ export interface SpellContext {
         playerId: string,
         cardInstanceIds: readonly string[],
         from: MovableZone,
-        to: MovableZone
+        to: MovableZone,
+        /** CR 406.3 (issue #7295) — exile the cards FACE DOWN, known to this
+         *  player alone (the `exileFaceDown` stamp), inside the SAME batch so the
+         *  instruction stays one occurrence. Only meaningful for `to: "exile"`
+         *  from a library / hand / graveyard; ignored otherwise. */
+        faceDownKnowerId?: string
     ) => string[];
     /** CR 122.1 (issue #1570) — merge counters onto a card that already sits in
      *  exile (Karn, Scion of Urza's silver counter), so a later "a card with a
@@ -5487,6 +5492,16 @@ export interface SpellContext {
              *  the taxed cast identically. Omitted (the default) is the
              *  historical untaxed grant (Ice Cauldron, Robber of the Rich). */
             costIncrease?: ManaCost;
+            /** CR 611.2b (issue #7295) — a CONDITION on the permission: "you
+             *  may play them if you control a Wizard". Stamps
+             *  `CardInstanceState.castableFromExileCondition`, re-read at every
+             *  cast / play attempt by `exileCastPermitted` (`gre/castCost.ts`)
+             *  — the permission is live only while the board predicate holds,
+             *  so it is lost and regained with the permanent, never decided
+             *  once at resolution. Evaluated for the CASTER through the same
+             *  `alternativeCostConditionMet` the alternative-cost gate uses.
+             *  Omitted (the default) is the unconditional grant. */
+            condition?: AlternativeCostCondition;
         }
     ) => void;
     /** Play-from-graveyard grant for a SPECIFIC card (CR 601.3, with the
@@ -16257,6 +16272,13 @@ export type EffectOp =
            *  `withoutPayingManaCost` (no cost to increase) — the validator
            *  rejects the pair. */
           costIncrease?: ManaCost;
+          /** CR 611.2b (issue #7295) — the permission holds only WHILE the
+           *  board predicate does ("you may play them if you control a
+           *  Wizard"): re-evaluated at every cast / play attempt, not once at
+           *  resolution (see `SpellContext.grantCastFromExile`'s own
+           *  `condition` doc). Only the `control` shape is accepted by the
+           *  validator. */
+          condition?: { kind: "control"; filter: PermanentFilter };
       }
     /** CR 601.3 / 118.9 — grant `player` permission to
      *  cast a GRAVEYARD card, optionally ALSO waiving its mana cost. `card`
@@ -17751,10 +17773,11 @@ export type EffectOp =
      *  (`ice/colorless.cards.ts`) confesses in prose: "exile-top + cast-from-exile
      *  has no Op skin yet".
      *
-     *  FACE UP (CR 406.3): the Oracle texts that reach this Op say plainly
-     *  "exile the top N cards", never "face down", so the default open-zone
-     *  visibility holds and both players may examine the cards. A face-down
-     *  impulse is `hideaway`'s job, which has its own Op.
+     *  FACE UP (CR 406.3) by default: the Oracle texts that reach this Op say
+     *  plainly "exile the top N cards", so the default open-zone visibility
+     *  holds and both players may examine the cards. `faceDown: true`
+     *  (issue #7295) is the "look at the top N and exile them face down"
+     *  shape: exactly the top N, known to `player` alone.
      *
      *  `linkToSource` (CR 607 / 406.6) stamps each exiled card with the
      *  resolving source's instance id, which is what lets a LATER Op — in this
@@ -17772,6 +17795,13 @@ export type EffectOp =
           count?: EffectValue;
           linkToSource?: boolean;
           bindAll?: string;
+          /** CR 406.3 (issue #7295) — exile the cards FACE DOWN, known to
+           *  `player` alone ("Look at the top two cards of your library and
+           *  exile them face down", Flameshape). Each card goes through
+           *  `SpellContext.exileFaceDown` with `player` as the knower (they
+           *  looked), so the projection shows the real identity to them and the
+           *  face-down sentinel to everyone else. Omitted = face up. */
+          faceDown?: boolean;
       }
     /** CR 701.20a reveal + CR 400.7 zone change — reveal the top `count` card(s)
      *  of a library and send each one to a destination chosen by WHAT IT IS

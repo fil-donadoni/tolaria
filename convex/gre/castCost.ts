@@ -27,6 +27,7 @@ import type {
     PendingCast,
     PlayerState,
 } from "./state/declarations";
+import { alternativeCostConditionMet } from "./alternativeCost";
 import { getMadnessCost } from "./madness";
 import {
     countDistinctCardTypes,
@@ -462,6 +463,37 @@ export function exileCastPermission(
     return (
         card.castableFromExileFromTurn === undefined ||
         turn >= card.castableFromExileFromTurn
+    );
+}
+
+/** CR 611.2b (issue #7295) — {@link exileCastPermission} PLUS the grant's board
+ *  condition ("you may play them if you control a Wizard"). The condition is an
+ *  ongoing effect, so it is re-read on EVERY ask against the live board: the
+ *  permission is lost when the Wizard leaves and regained when one returns,
+ *  with nothing stamped or cleared in between.
+ *
+ *  This is the server-side authority — every consumer with a `GameState`
+ *  (the enumerators, `getLegalActions`, the payment path, the exile projection,
+ *  the land play) asks here. {@link exileCastPermission} stays the window-only
+ *  half for the CLIENT, which holds a projected card and no board: the
+ *  projection withholds `legalActions` while the condition fails, which is what
+ *  the Cast button gates on. A card with no condition answers exactly as
+ *  `exileCastPermission` does. */
+export function exileCastPermitted(
+    state: GameState,
+    card: Pick<
+        CardInstanceState,
+        | "castableFromExileBy"
+        | "castableFromExileFromTurn"
+        | "castableFromExileCondition"
+    >,
+    casterId: string
+): boolean {
+    if (!exileCastPermission(card, casterId, state.turn)) return false;
+    return alternativeCostConditionMet(
+        state,
+        casterId,
+        card.castableFromExileCondition
     );
 }
 
