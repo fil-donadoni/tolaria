@@ -105,6 +105,10 @@ const FILES: Record<string, string> = {
     "data/cards.json": `{}`,
     "src/components/debug/quiz.tsx": `export default 1;\n`,
     "src/components/dead-code.tsx": `export const Dead = 1;\n`,
+    // A tooling module on disk that no surface reaches and no rule places.
+    "tooling/gen.ts": `export const gen = 1;\n`,
+    // Generated, on disk, and in no surface's closure.
+    "convex/_generated/api.d.ts": `export declare const api: unknown;\n`,
 };
 for (const [rel, body] of Object.entries(FILES)) {
     fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
@@ -412,7 +416,6 @@ describe("computeUiScope — full (fail-closed)", () => {
         for (const unplaced of [
             "src/components/dead-code.tsx",
             "tooling/gen.ts",
-            "src/components/deleted-since-base.tsx",
         ]) {
             const scope = scopeOf(unplaced);
             expect(scope, unplaced).toEqual({
@@ -422,6 +425,34 @@ describe("computeUiScope — full (fail-closed)", () => {
                 ],
             });
         }
+    });
+});
+
+describe("computeUiScope — a deleted module is placed through its importers (issue #7459)", () => {
+    // Not in the fixture tree: what a diff that deleted (or renamed away) a
+    // module leaves behind. Every importer of it must change too, or `tsc`
+    // fails on the dangling import.
+    const GONE = "src/components/deleted-since-base.tsx";
+
+    it("a deleted module beside its changed importer selects the importer's surfaces only", () => {
+        expect(scopeOf(GONE, "src/components/deck-shelf.tsx")).toEqual({
+            kind: "scoped",
+            surfaces: ["lobby"],
+        });
+    });
+
+    it("a deleted module alone selects nothing — no remaining file imports it", () => {
+        expect(scopeOf(GONE)).toEqual({ kind: "scoped", surfaces: [] });
+    });
+
+    it("a deleted ASSET stays a doubt — `tsc` never resolves the string naming it", () => {
+        const asset = "src/assets/gone.svg";
+        expect(scopeOf(asset)).toEqual({
+            kind: "undecided",
+            reasons: [
+                `${asset} is in no surface's closure and no rule places it`,
+            ],
+        });
     });
 });
 

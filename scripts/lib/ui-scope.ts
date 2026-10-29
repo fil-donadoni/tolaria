@@ -230,6 +230,25 @@ export interface ComputeUiScopeInput {
     surfaceEdits?: SurfaceEdits | null;
 }
 
+/** A JS/TS module: what an `import` names, so what `tsc` resolves. */
+const MODULE_PATH = /\.(?:[cm]?[jt]sx?)$/;
+
+/** Does a DELETED path — a changed path missing from the graph's tree, so
+ *  deleted or renamed away by the diff — need no placement of its own (owner
+ *  rule, issue #7459)? A deleted module is in no closure, so it would always read as a
+ *  doubt; but every module that imported it must change in the same diff or
+ *  `tsc` fails on the dangling import (`check:lane` runs it), and THOSE
+ *  importers are placed by their own closures. So the surfaces it reached are
+ *  selected through its importers, and a module nothing imported reached
+ *  none. Only a JS/TS module qualifies: an asset or stylesheet is named by a
+ *  string `tsc` never resolves, and stays fail-closed. */
+export function placedThroughImporters(
+    path: string,
+    graph: ImportGraph
+): boolean {
+    return MODULE_PATH.test(path) && !graph.isFile(path);
+}
+
 export function computeUiScope({
     changed,
     surfaces,
@@ -364,6 +383,7 @@ export function computeUiScope({
             if (typeOnlyReachable(path)) continue;
             if (staffOnlyReachable(path)) continue;
             if (isServerOnlyPath(path)) continue;
+            if (placedThroughImporters(path, graph)) continue;
             doubts.push(
                 `${path} is in no surface's closure and no rule places it`
             );
