@@ -52,7 +52,7 @@ import type {
     ContinuousEffectSlot,
 } from "./continuousEffects";
 import type { Duration } from "./state/declarations";
-import { staticEffectFunctionsFrom } from "../cards/types";
+import { colorGrantColors, staticEffectFunctionsFrom } from "../cards/types";
 import type { LayerStateView } from "./layers";
 import {
     STATIC_EFFECT_CTX,
@@ -280,7 +280,10 @@ function inlinePayloadFor(
         // ── layer 5 (CR 613.1e) ──────────────────────────────────────────────
         case "color-grant":
             return effect.applies(target, source, STATIC_EFFECT_CTX)
-                ? { kind: "color-change", add: [...effect.colors] as Color[] }
+                ? {
+                      kind: "color-change",
+                      add: [...colorGrantColors(effect, source)] as Color[],
+                  }
                 : undefined;
         // ── layer 6 (CR 613.1f) ──────────────────────────────────────────────
         case "keyword-grant": {

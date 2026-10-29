@@ -9867,8 +9867,43 @@ export interface StaticColorGrant extends ZoneScopedStaticEffect {
         source: PermanentView,
         ctx: StaticEffectContext
     ) => boolean;
-    colors: Color[];
+    /** The colours added (CR 105.3 — "in addition to its other colors").
+     *  `"chosen-color"` reads the SOURCE's stored colour choice
+     *  (`CardInstanceState.chosenModeId`, the as-enters `{ kind: "mode" }`
+     *  answer — Voice of All's convention): Painter's Servant's "the chosen
+     *  color". A source with no valid choice grants nothing. Resolved by
+     *  {@link colorGrantColors}, never read raw. */
+    colors: Color[] | "chosen-color";
+    /** CR 109.2a / 109.2b — the effect describes CARDS and SPELLS, not only
+     *  permanents ("All cards that aren't on the battlefield, spells, and
+     *  permanents are the chosen color", Painter's Servant): `applies` is also
+     *  evaluated against every object on the stack and every card in a
+     *  hand, library, graveyard or exile, and the grant is materialised onto
+     *  those objects' `grantedColors` like a permanent's.
+     *
+     *  TARGET side only — the opposite of `functionsInAllZones`, which also
+     *  lifts the SOURCE off the battlefield. The source of this effect is
+     *  still a permanent (CR 611.3b: the effect applies while the permanent
+     *  generating it is on the battlefield). Fail-closed: absent, the grant
+     *  reaches permanents only, as before. */
+    affectsEveryZone?: true;
 }
+
+/** CR 105.3 — the colours a `color-grant` adds, with `"chosen-color"`
+ *  resolved against `source`'s stored choice (`chosenModeId`). Only the five
+ *  colours are a legal choice (CR 105.1); anything else grants nothing. */
+export function colorGrantColors(
+    effect: StaticColorGrant,
+    source: PermanentView
+): Color[] {
+    if (effect.colors !== "chosen-color") return effect.colors;
+    const chosen = (source as { chosenModeId?: string }).chosenModeId;
+    return chosen !== undefined && FIVE_COLORS.includes(chosen as Color)
+        ? [chosen as Color]
+        : [];
+}
+
+const FIVE_COLORS: readonly Color[] = ["W", "U", "B", "R", "G"];
 
 /** Cost-modification static effect (CR 601.2f). Scanned at cast-announcement
  *  time; matching `costIncrease` is added to and matching `costReduction` is

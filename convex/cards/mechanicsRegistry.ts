@@ -2766,8 +2766,19 @@ const RULES_MODIFIERS: MechanicRow[] = [
 ];
 
 /** CR 613 characteristic-changing effects declared through a dedicated
- *  `CardDefinition` field rather than a `StaticEffect` kind. */
+ *  `CardDefinition` field, or a dedicated field on an existing `StaticEffect`
+ *  kind, rather than a `StaticEffect` kind of their own. */
 const CHARACTERISTIC_EFFECTS: MechanicRow[] = [
+    {
+        id: "every-zone-color-grant",
+        name: "Every-Zone Color Grant",
+        kind: "characteristic-effect",
+        cr: "613.1e",
+        status: "implemented",
+        binding:
+            'StaticEffect kind "color-grant" with `affectsEveryZone: true` and `colors: "chosen-color"` (cards/types.ts StaticColorGrant + colorGrantColors) + gre/layers2to5.ts (reachesOffBattlefield, syncHiddenZoneColorGrants) + gre/state.ts (emitSpellCastEvent reads getEffectiveColors)',
+        note: 'Painter\'s Servant (issue #7208): "All cards that aren\'t on the battlefield, spells, and permanents are the chosen color in addition to their other colors." CR 109.2a/109.2b: a description naming "card" with a zone, or "spell", reaches cards outside the battlefield and spells on the stack, so the grant is lifted off the battlefield on the TARGET side only (its source stays a permanent, unlike bestow\'s functionsInAllZones). The grant is derived output: syncLayers2to5 writes grantedColors onto every card in a hand, library, graveyard or exile and every stack object, and clears it when the source stops applying; getEffectiveColors (cards/effectiveColors.ts) is the one reader, client included. CR 105.3 "in addition": additive, never a colour set. "the chosen color" reads the source\'s chosenModeId (the as-enters mode answer); the choose-a-color grammar is issue #4588.',
+    },
     {
         id: "full-text",
         name: "Full Text",
