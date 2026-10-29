@@ -63,11 +63,6 @@
             "issue": 4535
         },
         {
-            "key": "(op) › grantCastFromGraveyard",
-            "op": "grantCastFromGraveyard",
-            "issue": 7355
-        },
-        {
             "key": "(op) › grantCastTiming",
             "op": "grantCastTiming",
             "issue": 7356
