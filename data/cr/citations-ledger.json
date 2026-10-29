@@ -21243,6 +21243,7 @@
         {"id":"601.2c","line":"* 601.2c fills the slots in click order, and the banner sees only the","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},
         {"id":"601.2c","line":"* 601.2c), which is another item on this same stack. */","sites":1,"status":"baseline"},
         {"id":"601.2c","line":"* 601.2c, e.g. Volcanic Eruption \"Destroy X target Mountains\"). The count","sites":1,"status":"baseline"},
+        {"id":"601.2c","line":"* 601.2c: one cast move per legal permanent) while the Bot's attackers already","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},
         {"id":"601.2c","line":"* Announce a target, returning its FIRST positional index (CR 601.2c).","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},
         {"id":"601.2c","line":"* CR 115.3 / CR 601.2c (issue #3875) — a spell whose body prints the word","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},
         {"id":"601.2c","line":"* CR 405.1 / 601.2c (issue #3513) — drop a carried `stack` whose references no","sites":1,"status":"baseline"},
