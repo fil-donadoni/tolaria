@@ -9349,6 +9349,128 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: 'Issue #3545. `choose-permanents` had no candidate generator: the choice was no search node, so `brain.ts`\'s minimal-legal default submitted `min` — zero — for every "up to N", and the settle could not get past the suspended choice. Measured at authoring time: 5/5 seeds choose the three own Islands. Proof-of-failure: unregistering `choose-permanents` from `CHOICE_CANDIDATE_GENERATORS` reds this entry.',
     },
     {
+        // Issue #6935 — the enters trigger's "untap up to two lands" with the
+        // two Islands the cast tapped, and NOTHING to spend the mana on: the
+        // position the Frantic Search entry above deliberately avoids (Onulet
+        // in hand). The opponent holds two tapped Mountains (the wrong answer
+        // the all-controllers pool offers) and two untapped ones.
+        label: "choose-permanents: Cloud of Faeries untaps both of its own tapped lands, not the decline, not the opponent's",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Cloud of Faeries", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                    tapped: true,
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Cloud of Faeries", by: "me" },
+            { kind: "resolve-top" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // A `predicate`: the claim is a cardinality plus a side and a tap
+            // status, which a partial `moves` matcher cannot state.
+            predicate: (move, state) => {
+                if (move?.kind !== "resolution-choice") return false;
+                const chooser = state.pendingChoices?.[0]?.playerId;
+                const ownTapped = new Set(
+                    state.players
+                        .find((p) => p.id === chooser)
+                        ?.battlefield.filter((c) => c.isTapped)
+                        .map((c) => c.id) ?? []
+                );
+                return (
+                    move.cardInstanceIds.length === 2 &&
+                    move.cardInstanceIds.every((id) => ownTapped.has(id))
+                );
+            },
+            describe: "untaps exactly its own two tapped lands",
+        },
+        note: "Issue #6935. The rollout scores at the start of the bot's next turn, after its untap step (CR 502.3), so every answer's leaf had the same lands untapped: the answers tied inside `outcomeEps` and `material-tiebreak` picked by rollout noise — measured 1/8 seeds untapping both own Islands at authoring time (the rest: the decline, one Island, or the opponent's Mountains). A signed `choose-permanents` prior alone measured 2/8. Fixed by `pruneTapDominatedAnswers` (`dominance.ts`): answers whose settled positions differ only in tap status are ordered permanent by permanent and the dominated ones never open. Proof-of-failure: removing the prune from `choiceCandidates` reds this entry.",
+    },
+    {
+        // Issue #6935 — fewer own tapped lands than `max`: Mox Sapphire pays
+        // half the cast, so one Island is tapped. "My Island and their
+        // untapped Mountain" settles to the same position as "my Island" and
+        // must not be what the bot submits.
+        label: "choose-permanents: Cloud of Faeries with one own tapped land untaps that land and no opponent land",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Cloud of Faeries", owner: "me", zone: "hand" },
+                { name: "Mox Sapphire", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                    tapped: true,
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Cloud of Faeries", by: "me" },
+            { kind: "resolve-top" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // A `predicate`: the claim is a cardinality plus a side and a tap
+            // status, which a partial `moves` matcher cannot state.
+            predicate: (move, state) => {
+                if (move?.kind !== "resolution-choice") return false;
+                const chooser = state.pendingChoices?.[0]?.playerId;
+                const ownTapped = new Set(
+                    state.players
+                        .find((p) => p.id === chooser)
+                        ?.battlefield.filter((c) => c.isTapped)
+                        .map((c) => c.id) ?? []
+                );
+                return (
+                    move.cardInstanceIds.length === 1 &&
+                    move.cardInstanceIds.every((id) => ownTapped.has(id))
+                );
+            },
+            describe: "untaps exactly its one tapped land",
+        },
+        note: "Issue #6935 acceptance criterion: with fewer own tapped lands than `max`, untap all of its own and no opponent land. Before the fix 1/5 seeds untapped the Island alone; with the dominance prune but no equal-position dedupe, 2/5 seeds submitted the Island padded with an untapped opponent Mountain. Proof-of-failure: removing the prune from `choiceCandidates` reds this entry.",
+    },
+    {
         // Issue #3545 — the per-pick-cost shape: Magnetic Mountain's "choose any
         // number of tapped blue creatures … pay {4} for each". Mana for exactly
         // ONE payment, so the decline and the max-pick both end with nothing
