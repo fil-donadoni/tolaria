@@ -16,7 +16,7 @@ import {
     failLines,
     type FailingTest,
 } from "../lib/health-evidence";
-import { parseCulprit } from "../lib/health-ladder";
+import { parseCulprits } from "../lib/health-ladder";
 
 /**
  * The RED ladder's bisect judges the RED's failing TESTS, not their files
@@ -384,11 +384,11 @@ describe("two failures two commits caused: both culprits named (issue #7339)", (
         expect(lines[1]).toMatch(
             /^- \*\*culprit:\*\* PR #7299 · `c4c4c4c4`.* explains 1 of 2 failing test\(s\): `land-type change/
         );
-        // The revert rung reads the first: the oldest culprit.
-        expect(parseCulprit(lines.join("\n"))).toEqual({
-            sha: "c2c2c2c2",
-            pr: 7296,
-        });
+        // The revert rung reads every one, the oldest first (issue #7446).
+        expect(parseCulprits(lines.join("\n"))).toEqual([
+            { sha: "c2c2c2c2", pr: 7296 },
+            { sha: "c4c4c4c4", pr: 7299 },
+        ]);
     });
     it("names the failures it could not explain — never drops them", () => {
         const probe = probeOf(history);
