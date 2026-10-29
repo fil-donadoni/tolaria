@@ -40274,6 +40274,7 @@
         {"id":"701.17","line":"// - `CARD_DISCARDED` (CR 701.9) and `CARD_MILLED` (CR 701.17);","sites":1,"status":"confirmed","ruleHash":"c51bf3b66f0d6ded"},
         {"id":"701.17","line":"// --- mill Op: move top-of-library cards to the graveyard (CR 701.17, issue","sites":1,"status":"baseline"},
         {"id":"701.17","line":"// 701.17 mill — put the top N cards of a library into its owner's graveyard.)","sites":1,"status":"baseline"},
+        {"id":"701.17","line":"// 701.17 mill.) Effect Script (ADR 0045): the repeat is the `mill` Op's","sites":1,"status":"confirmed","ruleHash":"c51bf3b66f0d6ded"},
         {"id":"701.17","line":"// CARD_DISCARDED (CR 701.9), CARD_MILLED (CR 701.17) and CARD_PUT_INTO_GRAVEYARD","sites":1,"status":"baseline"},
         {"id":"701.17","line":"// CR 701.17 (issue #7204) — `mill.repeatWhile` names a `MillRepeatCondition`.","sites":1,"status":"confirmed","ruleHash":"c51bf3b66f0d6ded"},
         {"id":"701.17","line":"// CR 701.17 / 105.2 (issue #7204) — `mill.repeatWhile: \"sharedColor\"`","sites":1,"status":"confirmed","ruleHash":"c51bf3b66f0d6ded"},
