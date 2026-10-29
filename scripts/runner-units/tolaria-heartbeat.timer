@@ -1,0 +1,12 @@
+# Every ten minutes, tolaria-heartbeat.service (issue #7445). Installed and
+# enabled by `bun run runner install`; up at boot with nobody logged in
+# (linger), as the runners are.
+[Unit]
+Description=Tolaria heartbeat every ten minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+
+[Install]
+WantedBy=timers.target

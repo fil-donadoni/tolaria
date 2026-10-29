@@ -98,6 +98,9 @@ What `install` does, per [runner](#g-runner), only where the machine differs:
 3. installs its [user service](#g-user-service) and starts it — unless the
    runner is [paused](#g-pause), in which case it stays stopped.
 
+Once per machine it also installs the [heartbeat](#heartbeat--the-fallback-clock),
+the pipeline's clock when GitHub drops a schedule.
+
 **Idempotent**: a second run on an unchanged machine changes nothing and
 prints `nothing to do — this machine already matches` (after any standing
 notes: [linger](#g-linger) off, a runner not declared). A changed unit
@@ -180,6 +183,35 @@ Check one: `launchctl print "gui/$(id -u)/com.tolaria.gh-runner.<name>" | grep -
 
 Check one: `systemctl --user status tolaria-gh-runner@<name>.service`,
 `journalctl --user -u tolaria-gh-runner@<name>.service -n 50`.
+
+### Heartbeat — the fallback clock
+
+**GitHub's `schedule` is best-effort** (issue #7445): measured, `afk-dispatch`'s
+`*/30` fired 3–6 times a day with gaps of 3–6 h (one of 44 h), `health`'s
+two-hourly 3–5 times. The schedules stay, but the clock is the heartbeat (ADR
+0156 Amendment IV): every ten minutes `bun run heartbeat`
+(`scripts/heartbeat.ts`, decisions in `scripts/lib/heartbeat.ts`) dispatches
+
+- `afk-dispatch.yml` when its newest run, of any event, is older than 30 min
+  and none is queued or running;
+- `health.yml` `job=gate` (`--ref staging`) when the base tip has no verdict,
+  no health run is queued, running or on the pivot, and the newest
+  `health.yml` run is older than 2 h.
+
+A disabled workflow (the kill switch) is never dispatched; an unreadable
+fact dispatches nothing (the next tick is ten minutes away). Both machines
+run it: each tick re-reads the facts right before dispatching, and each
+workflow's concurrency group serialises a double fire.
+
+| Machine | Unit                                                                                     | Log                                              |
+| ------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| MacBook | `com.tolaria.heartbeat` launchd agent, `StartInterval` 600 s                             | `~/.cache/tolaria/heartbeat/agent.log`           |
+| Huawei  | `tolaria-heartbeat.timer` → oneshot `tolaria-heartbeat.service`, `OnUnitActiveSec=10min` | `journalctl --user -u tolaria-heartbeat.service` |
+
+Each tick writes `~/.cache/tolaria/heartbeat/last.json`; `bun run machine`
+and `bun run runner status` print it — last fire, and per clock `quiet`,
+`DISPATCHED` or `dispatch FAILED` with the reason — and flag it **DEAD** past
+30 min. `bun run heartbeat --dry-run` decides without dispatching or writing.
 
 ## Pause and resume
 
@@ -794,6 +826,10 @@ status on the gated sha (the only verdict store), which
 | `health.yml` `ladder`      | dispatch (`job: ladder`, `sha`) — from `early` | `[self-hosted, pass]`        | `bun run health:bisect ladder --sha <sha>`                                                            |
 | `health-early.yml` `early` | a push to the base, one run at a time          | GitHub-hosted `ubuntu-24.04` | `bun run health --early`: the [early run](#g-early-run); a RED dispatches `ladder`                    |
 
+**The schedule is best-effort**: GitHub drops most of its runs. The clock
+that gates an unverdicted tip when no event did is the
+[heartbeat](#heartbeat--the-fallback-clock) (issue #7445).
+
 **The scheduled run** gates `origin/staging`'s tip from the job's
 [worktree](#g-job-worktree) — the one linked worktree `health-main` accepts;
 its records still go to the [primary checkout](#g-primary-checkout)'s
@@ -1085,7 +1121,10 @@ picker's tier), `resume` and `host`.
 job), a 30-minute `schedule` sweep, and `workflow_dispatch` — which every
 `afk-pass` run sends at its end. That dispatch is created while the pass
 still holds its runner: it refills the slot when it lands on that same
-runner (counted as its own), otherwise the next trigger or sweep does.
+runner (counted as its own), otherwise the next trigger or sweep does. The
+`schedule` sweep is best-effort — GitHub drops most of its runs — so the
+clock under the event chain is the [heartbeat](#heartbeat--the-fallback-clock):
+it dispatches the dispatcher when its newest run is 30 min old (issue #7445).
 
 **One run at a time, across both machines.** The job declares
 `concurrency: { group: afk-dispatch, cancel-in-progress: false }`: a running
@@ -1964,6 +2003,7 @@ of its own sha.
 | `could not get a registration token`                | the `gh` login is not the repository's admin: `gh auth status`                                                                                                                        |
 | `node not resolvable on the rendered PATH`          | run `install` from a shell where `command -v node` resolves                                                                                                                           |
 | a [runner](#g-runner) offline on GitHub             | `bun run runner status`; `paused` = expected; `STOPPED` = its log (MacBook) or `journalctl` (Huawei)                                                                                  |
+| the loop idle, no `afk-dispatch` run for hours      | `bun run machine`: heartbeat `DEAD` → `bun run runner install` (or its log); `dispatch FAILED` → the `gh` login                                                                       |
 | the [Convex agent](#g-convex-agent) restarts        | `~/.cache/tolaria/convex/agent.log` — usually a second `convex dev` holding the port                                                                                                  |
 | `TOLARIA_PRIMARY_CHECKOUT is unset`                 | the runner predates issue #5636: `bun run runner install` on that machine                                                                                                             |
 | `deny-guard` blocks a `git push` of a session       | the push names the base/release branch, or is a bare push from a checkout on it: push the feature branch, or use `TOLARIA_ALLOW_BASE_PUSH=1` on purpose                               |

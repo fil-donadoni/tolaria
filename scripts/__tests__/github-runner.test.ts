@@ -47,6 +47,8 @@ const systemdTpl = readFileSync(
     "scripts/runner-units/tolaria-gh-runner@.service",
     "utf8"
 );
+const unit = (file: string) =>
+    readFileSync(`scripts/runner-units/${file}`, "utf8");
 
 function input(platform: "darwin" | "linux"): InstallInput {
     const runners = runnerSpecs(
@@ -91,6 +93,26 @@ function input(platform: "darwin" | "linux"): InstallInput {
         systemdUserDir: "/h/.config/systemd/user",
         logDir: "/h/.cache/tolaria/gh-runner",
         convexLogDir: "/h/.cache/tolaria/convex",
+        heartbeat:
+            platform === "darwin"
+                ? {
+                      plist: renderLaunchdUnit(
+                          unit("com.tolaria.heartbeat.plist"),
+                          subs,
+                          hasNode
+                      ),
+                  }
+                : {
+                      service: renderRunnerSystemdTemplate(
+                          unit("tolaria-heartbeat.service"),
+                          ROOT,
+                          "/usr/bin:/bin",
+                          "/r",
+                          () => true
+                      ),
+                      timer: unit("tolaria-heartbeat.timer"),
+                  },
+        heartbeatLogDir: "/h/.cache/tolaria/heartbeat",
         machineFile: { path: `${ROOT}/machine.json`, content: "{}\n" },
     };
 }
@@ -128,6 +150,9 @@ function installed(inp: InstallInput, paused: string[] = []): ObservedMachine {
         systemdTemplateText: inp.systemdTemplate,
         convexText: inp.convexPlist,
         convexRunning: inp.convexPlist !== null,
+        heartbeatText: inp.heartbeat?.plist ?? inp.heartbeat?.service ?? null,
+        heartbeatTimerText: inp.heartbeat?.timer ?? null,
+        heartbeatRunning: inp.heartbeat !== undefined,
         linger: true,
         machineText: inp.machineFile.content,
         busy: Object.fromEntries(inp.runners.map((r) => [r.name, false])),
@@ -468,6 +493,57 @@ describe("install plan", () => {
         const runs = argvs(planInstall(input("darwin"), fresh));
         expect(runs).toContain(
             "launchctl bootstrap gui/501 /h/Library/LaunchAgents/com.tolaria.convex.plist"
+        );
+    });
+
+    // The fallback clock (issue #7445): installed beside the runners on both
+    // machines, so a dropped GitHub schedule cannot idle the pipeline.
+    it("darwin: installs the heartbeat as a launchd agent", () => {
+        const steps = planInstall(input("darwin"), fresh);
+        expect(argvs(steps)).toContain(
+            "launchctl bootstrap gui/501 /h/Library/LaunchAgents/com.tolaria.heartbeat.plist"
+        );
+        expect(paths(steps)).toContain(
+            "/h/Library/LaunchAgents/com.tolaria.heartbeat.plist"
+        );
+    });
+
+    it("linux: installs the heartbeat service and enables its timer", () => {
+        const steps = planInstall(input("linux"), fresh);
+        expect(paths(steps)).toEqual(
+            expect.arrayContaining([
+                "/h/.config/systemd/user/tolaria-heartbeat.service",
+                "/h/.config/systemd/user/tolaria-heartbeat.timer",
+            ])
+        );
+        expect(argvs(steps)).toContain(
+            "systemctl --user enable --now tolaria-heartbeat.timer"
+        );
+    });
+
+    it("linux: a changed heartbeat service is rewritten without restarting the timer", () => {
+        const inp = input("linux");
+        const steps = planInstall(inp, {
+            ...installed(inp),
+            heartbeatText: "old",
+        });
+        expect(paths(steps)).toEqual([
+            "/h/.config/systemd/user/tolaria-heartbeat.service",
+        ]);
+        expect(argvs(steps)).toEqual(["systemctl --user daemon-reload"]);
+    });
+
+    it("the heartbeat units run scripts/heartbeat.ts every ten minutes", () => {
+        const plist = unit("com.tolaria.heartbeat.plist");
+        expect(plist).toMatch(
+            /<key>StartInterval<\/key>\s*<integer>600<\/integer>/
+        );
+        expect(plist).toContain("__REPO__/scripts/heartbeat.ts");
+        expect(unit("tolaria-heartbeat.timer")).toMatch(
+            /^OnUnitActiveSec=10min$/m
+        );
+        expect(unit("tolaria-heartbeat.service")).toMatch(
+            /^ExecStart=.* __REPO__\/scripts\/heartbeat\.ts$/m
         );
     });
 

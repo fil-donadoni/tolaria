@@ -1,0 +1,19 @@
+# The heartbeat — the pipeline's fallback clock (issue #7445, ADR 0156
+# Amendment IV): one tick of `scripts/heartbeat.ts`, which dispatches
+# `afk-dispatch.yml` and health's `gate` when GitHub dropped their schedules.
+# Started every ten minutes by tolaria-heartbeat.timer; the MacBook's
+# counterpart is com.tolaria.heartbeat.plist. Installed by
+# `bun run runner install` (docs/guides/github-pipeline.md § Install); __PATH__
+# and __REPO__ are substituted at install time (bun and `gh` are on that PATH).
+[Unit]
+Description=Tolaria heartbeat (fallback clock for afk-dispatch and health)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=__REPO__
+ExecStart=/usr/bin/env bun __REPO__/scripts/heartbeat.ts
+StandardInput=null
+TimeoutStartSec=300
+Environment=PATH=__PATH__

@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted, amended twice (Amendment I, the gap review, same day; Amendment II, the revert's receipt, 2026-10-21) — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.
+accepted, amended four times (Amendment I, the gap review, same day; Amendment II, the revert's receipt, 2026-10-21; Amendment III, a PR's own red under a RED, 2026-10-27; Amendment IV, the heartbeat, 2026-10-29) — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.
 accetta l'ADR e apri il PRD"), written at the owner's request as the LAST
 iteration of the workflow discussion ("arrivare a una soluzione che mi
 permetta di concentrarmi sul prodotto"). The repository stays **personal and
@@ -718,6 +718,41 @@ launchd agent booted out and disabled (still running since the Mergify
 cut-over of issue #5643, holding PRs on a stale RED). The Huawei's driver is
 stopped by the owner there. Deletion of the retired code follows as Phase 4
 (issue #5654, issue #5656, issue #5657).
+
+## Amendment IV (2026-10-29, issue #7445) — the heartbeat: a machine clock under the schedules
+
+§ 4 and Phase 2 replaced the machine timers with `schedule` triggers, treated
+as the safety net under the event chain (a pass dispatches the dispatcher at
+its end; `health-early` dispatches the gate). GitHub drops most of them:
+`afk-dispatch`'s `*/30` fired 3–6 times a day (one gap of 44 h,
+2026-10-25 → 10-27), `health`'s two-hourly 3–5 times (gaps up to 8 h). On
+2026-10-29 the loop sat idle about 2 h after the base went GREEN, until the
+owner dispatched by hand; the same gap left a tip without a gate (issue
+#7409).
+
+**Rule.** Every machine with runners carries a **heartbeat**: a user timer
+(`com.tolaria.heartbeat` launchd agent, `tolaria-heartbeat.timer`), installed
+by `bun run runner install`, that every ten minutes runs
+`scripts/heartbeat.ts`:
+
+- `afk-dispatch.yml` is dispatched when its newest run, of any event, is
+  older than 30 min and none is queued or running;
+- `health.yml` `job=gate` is dispatched when the base tip has no verdict, no
+  health run is queued, running or on the pivot, and the newest `health.yml`
+  run is older than 2 h.
+
+A disabled workflow is never dispatched (the kill switch holds); an
+unreadable fact dispatches nothing. The heartbeat is idempotent, not elected:
+both machines re-read the facts before dispatching and each workflow's
+concurrency group serialises a double fire. The schedules stay, demoted to
+best-effort. `bun run machine` and `bun run runner status` show the last tick
+and flag a dead heartbeat.
+
+This reverses § 4's "schedules replaced the machine timers" for these two
+clocks only: the job still runs on a runner, through the workflow; the timer
+only decides **when** to ask. The alternative — a long-lived job on a `maint`
+runner — was rejected: a runner restart or an offline runner kills it, and it
+holds a `maint` slot permanently.
 
 ## What would change the answer
 
