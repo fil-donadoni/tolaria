@@ -494,6 +494,7 @@ export const EFFECT_SENTENCE_KINDS = [
     "pump",
     "animate",
     "become-creature",
+    "add-subtype",
     "grant-ability",
     "grant-flashback",
     "choose-color-grant-protection",
@@ -821,6 +822,18 @@ export type EffectSentenceIR =
           readonly toughness: number;
           readonly subtype: string;
           readonly colors: readonly Color[];
+      }
+    | {
+          /**
+           * CR 205.3 + CR 613.1d — "<subject> becomes a <Subtype> in addition
+           * to its other types.": ONE creature subtype added, kept alongside
+           * the object's own (layer 4), with no duration — indefinite
+           * (CR 611.2c). A printed duration or a type-line rewrite is a
+           * different clause and is not read here.
+           */
+          readonly kind: "add-subtype";
+          readonly subject: SubjectIR;
+          readonly subtype: string;
       }
     | {
           /**
@@ -4922,6 +4935,9 @@ const SET_COLOR_CHOICE = /^(.+) becomes the color of your choice(?: (.+))?$/;
 // optional would read "Target land becomes a Forest" — a form nobody prints —
 // as an indefinite change (CR 611.2a).
 const SET_LAND_TYPE = /^(.+) becomes (.+?) (until .+)$/;
+// CR 205.3 + CR 613.1d — "<subject> becomes a <Subtype> in addition to its
+// other types". No duration group: a printed one is another clause.
+const ADD_SUBTYPE = /^(.+) becomes an? (\S+) in addition to its other types$/;
 /** CR 305.6 / CR 608.2d — the free choice among all five basic land types. */
 const ANY_BASIC_LAND_TYPE = "the basic land type of your choice";
 /**
@@ -7456,6 +7472,23 @@ function effectSentence(
             kind: "set-color-choice" as const,
             subject: subject.value,
             duration: duration.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── subtype added indefinitely (CR 205.3, layer 4) ─────────────────────
+    const addSubtype = span.match(ADD_SUBTYPE);
+    if (addSubtype !== null) {
+        if (!CREATURE_SUBTYPES.has(addSubtype[2]!))
+            return fail(
+                `"${addSubtype[2]}" is not a creature subtype read here`,
+                span
+            );
+        const subject = subjectRule.run(addSubtype[1]!, ctx);
+        if (!subject.ok) return subject;
+        return ok({
+            kind: "add-subtype" as const,
+            subject: subject.value,
+            subtype: addSubtype[2]!,
         } satisfies EffectSentenceIR);
     }
 

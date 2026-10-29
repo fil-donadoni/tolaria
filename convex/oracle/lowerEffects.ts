@@ -2197,6 +2197,29 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        // CR 205.3 + CR 613.1d — one subtype added indefinitely (CR 611.2c);
+        // only a creature on the battlefield is a legal recipient here.
+        case "add-subtype": {
+            if (
+                sentence.subject.kind === "target" &&
+                (sentence.subject.requirement.type !== "Creature" ||
+                    sentence.subject.requirement.count !== 1 ||
+                    (sentence.subject.requirement.zone !== undefined &&
+                        sentence.subject.requirement.zone !== "battlefield"))
+            )
+                return unlowerable(
+                    "a subtype grant reaches ONE creature on the battlefield (CR 205.3)"
+                );
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            return lowered([
+                {
+                    op: "addSubtype",
+                    target: target.value,
+                    subtype: sentence.subtype,
+                },
+            ]);
+        }
         case "grant-ability": {
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
