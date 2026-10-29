@@ -2810,6 +2810,9 @@ function revokeExilePlayGrant(card: CardInstanceState): void {
     // CR 601.2f (issue #2383) — the object-scoped cost tax rides
     // the SAME permission window; expires together.
     delete card.castFromExileCostIncrease;
+    // CR 611.2b (issue #7295) — the permission's board condition rides the
+    // same window; cleared with it.
+    delete card.castableFromExileCondition;
 }
 
 /** CR 500.4 (issue #2108) — "until the beginning of your next

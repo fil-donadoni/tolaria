@@ -72,7 +72,7 @@ import { declaresCombatRestrictionStaticEffect } from "../cards/registry";
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
 import {
-    exileCastPermission,
+    exileCastPermitted,
     graveyardCastMechanismForMember,
 } from "./castCost";
 import { getPrintedEscape } from "./escape";
@@ -1643,7 +1643,7 @@ export function permanentRealisedValue(
 
 /** The exiled cards `player` holds an OPEN play permission for, in any
  *  player's exile (CR 400.7 — the grant may be cross-player), read through
- *  `exileCastPermission`, the one authority the enumerator and the payment
+ *  `exileCastPermitted`, the one authority the enumerator and the payment
  *  path share (issue #4217). */
 function playableExileCards(
     state: GameState,
@@ -1652,7 +1652,7 @@ function playableExileCards(
     return state.players.flatMap((owner) =>
         owner.exile.filter(
             (c) =>
-                exileCastPermission(c, player.id, state.turn) &&
+                exileCastPermitted(state, c, player.id) &&
                 // A land is PLAYED, never cast (CR 305.9): a cast-only grant
                 // on one is unusable, so it counts only under a play grant —
                 // the same test `resolvePlayLandSourceZone` makes.

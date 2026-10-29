@@ -3626,7 +3626,10 @@ export const OP_EXECUTORS: {
                 playerId,
                 zoneOwnerId,
                 op.window,
-                op.withoutPayingManaCost || op.includesLand || op.costIncrease
+                op.withoutPayingManaCost ||
+                    op.includesLand ||
+                    op.costIncrease ||
+                    op.condition
                     ? {
                           withoutPayingManaCost: !!op.withoutPayingManaCost,
                           includesLand: !!op.includesLand,
@@ -3636,6 +3639,9 @@ export const OP_EXECUTORS: {
                           ...(op.costIncrease
                               ? { costIncrease: op.costIncrease }
                               : {}),
+                          // CR 611.2b (issue #7295) — the board condition,
+                          // stamped on the card and re-read at every attempt.
+                          ...(op.condition ? { condition: op.condition } : {}),
                       }
                     : undefined
             );
@@ -4857,7 +4863,16 @@ export const OP_EXECUTORS: {
         // batched primitive emits a single `CARDS_EXILED` carrying all three
         // cards, where a per-card `moveCardById` loop would emit three and
         // give Laelia, the Blade Reforged three counters for one exile.
-        const exiled = ctx.moveCardsById(playerId, topIds, "library", "exile");
+        // CR 406.3 (issue #7295) — `faceDown`: "look at the top N … exile them
+        // face down", known to the player alone (they looked). Rides the same
+        // batch, so it is still ONE exile occurrence.
+        const exiled = ctx.moveCardsById(
+            playerId,
+            topIds,
+            "library",
+            "exile",
+            op.faceDown ? playerId : undefined
+        );
         for (const id of exiled) {
             // CR 607 / 406.6 — stamp the resolving source so a later Op (here
             // or in a linked second ability) can name exactly these cards

@@ -2760,6 +2760,20 @@ function isSourceChosenSubtypeRef(value: unknown): boolean {
  *  `sacrifice.permanents`). */
 const isBarePicksRef = isBareRef;
 
+/** CR 611.2b (issue #7295) — `{ kind: "control", filter }` with a plain-object
+ *  `PermanentFilter`, the only condition shape `grantCastFromExile` admits. */
+function isControlCondition(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const v = value as Record<string, unknown>;
+    return (
+        v.kind === "control" &&
+        typeof v.filter === "object" &&
+        v.filter !== null &&
+        !Array.isArray(v.filter) &&
+        Object.keys(v).length === 2
+    );
+}
+
 /** `{ exiledWithSource: true }` — SHAPE of the CR 607 linked-exile selector
  *  (issue #783). A single key holding the literal `true`; the cards it names are
  *  read at resolution from `getCardsExiledWith(ctx.sourceInstanceId)`, so it
@@ -4293,6 +4307,13 @@ const OP_SCHEMAS: OpSchemaTable = {
                 v === "while-exiled" ||
                 v === "until-end-of-your-next-turn",
             withoutPayingManaCost: isBoolean,
+            // CR 611.2b (issue #7295) — "you may play them if you control a
+            // Wizard": the permission is live only while a board predicate
+            // holds. Only the `control` shape (a `PermanentFilter` on the
+            // grantee's battlefield) is admitted; the stamped
+            // `AlternativeCostCondition` has more kinds, none of which a
+            // standing permission has a card for.
+            condition: isControlCondition,
             // CR 305.9 (issue #1689) — true iff the grant's Oracle text says
             // "play" (land-inclusive), never for a "cast"-only grant.
             includesLand: isBoolean,
@@ -5606,6 +5627,8 @@ const OP_SCHEMAS: OpSchemaTable = {
             count: isEffectValue,
             linkToSource: isBoolean,
             bindAll: bindingDeclaration("picks"),
+            // CR 406.3 (issue #7295) — exile face down, known to `player`.
+            faceDown: isBoolean,
         },
     },
     // CR 701.20a + CR 400.7 — reveal the top `count` card(s) of a library and

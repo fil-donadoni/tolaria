@@ -37,6 +37,7 @@ import {
     type MovableZone,
     PERMANENT_TYPES,
     type PermanentFilter,
+    type AlternativeCostCondition,
     type EachDamagePlayerScope,
     type ManaPersistence,
     type PermanentView,
@@ -14317,7 +14318,8 @@ export function buildSpellContext(
             playerId: string,
             cardInstanceIds: readonly string[],
             from: MovableZone,
-            to: MovableZone
+            to: MovableZone,
+            faceDownKnowerId?: string
         ): string[] {
             // CR 603.3b / 608.2i (issue #1558, PR #3549 review finding 1) —
             // several cards moved by ONE instruction ("exile the top three
@@ -14346,13 +14348,31 @@ export function buildSpellContext(
                         player[fromField] as CardInstanceState[]
                     ).some((c) => c.id === cardInstanceId);
                     if (!exists) continue;
-                    const moved = moveCardWithGraveyardReplacement(
-                        state,
-                        player,
-                        cardInstanceId,
-                        from,
-                        to
-                    );
+                    // CR 406.3 (issue #7295) — "exile them face down", known to
+                    // `faceDownKnowerId` alone (they looked): the SAME stamp
+                    // `exileFaceDown` writes, kept inside this batch so the
+                    // instruction stays ONE exile occurrence.
+                    const moved =
+                        faceDownKnowerId !== undefined &&
+                        to === "exile" &&
+                        (from === "library" ||
+                            from === "hand" ||
+                            from === "graveyard")
+                            ? exileFaceDownCard(
+                                  player,
+                                  cardInstanceId,
+                                  from,
+                                  faceDownKnowerId,
+                                  "face-down-exile"
+                              )
+                            : moveCardWithGraveyardReplacement(
+                                  state,
+                                  player,
+                                  cardInstanceId,
+                                  from,
+                                  to
+                              );
+                    if (!moved) continue;
                     movedIds.push(moved.id);
                     // A direct `to: "exile"` request, or a graveyard-bound
                     // replacement that redirected this move to exile.
@@ -14943,6 +14963,8 @@ export function buildSpellContext(
                  *  paid for in its own colours. */
                 manaSubstitution?: ManaSubstitutionBreadth;
                 costIncrease?: ManaCost;
+                /** CR 611.2b (issue #7295) — see `SpellContext.grantCastFromExile`. */
+                condition?: AlternativeCostCondition;
             }
         ): void {
             // CR 601.3 — Ice Cauldron: mark a card in `zoneOwnerId`'s exile
@@ -15061,6 +15083,14 @@ export function buildSpellContext(
                 card.castFromExileCostIncrease = opts.costIncrease;
             } else {
                 delete card.castFromExileCostIncrease;
+            }
+            // CR 611.2b (issue #7295) — the permission's board condition
+            // ("if you control a Wizard"), re-read at every cast / play attempt
+            // by `exileCastPermitted`; cleared with the permission it rides.
+            if (opts?.condition) {
+                card.castableFromExileCondition = opts.condition;
+            } else {
+                delete card.castableFromExileCondition;
             }
         },
         grantCastFromGraveyard(
@@ -20745,6 +20775,9 @@ export function moveCard(
         delete card.castableFromExileIncludesLand;
         delete card.castFromExileManaSubstitution;
         delete card.castFromExileCostIncrease;
+        // CR 611.2b (issue #7295) — the permission's board condition rides the
+        // same window; cleared with it.
+        delete card.castableFromExileCondition;
     }
     // CR 122.2 / 608.2h — the departure-time counter memory is scoped to the
     // zone the permanent landed in. Any further zone change makes yet another
@@ -21087,6 +21120,9 @@ export function removeFromZone(
     // rides the SAME permission window; consumed together, so the card carries
     // no stale tax if it is ever exiled again by something else.
     delete card.castFromExileCostIncrease;
+    // CR 611.2b (issue #7295) — the permission's board condition rides the
+    // same window; cleared with it.
+    delete card.castableFromExileCondition;
     // CR 601.3 / 118.9 (issue #1344) — the per-card cast-from-
     // graveyard grant (Malcolm, Alluring Scoundrel) is consumed once the card
     // leaves the graveyard for the stack; clear the stale flags and expiry

@@ -54,7 +54,7 @@ import {
     isPlayableLibraryTopLand,
     spendGraveyardPlayPermission,
 } from "./rules";
-import { exileCastPermission } from "./castCost";
+import { exileCastPermitted } from "./castCost";
 import { checkAscendCityBlessing } from "./cityBlessing";
 import { tryGetDefinition } from "../cards";
 import type { MayPayCost } from "../cards/types";
@@ -437,6 +437,9 @@ function consumeExilePlayGrant(card: CardInstanceState): void {
     // permission window; a land is never cast so it has no tax to pay, but
     // drop the stale marker for hygiene like every sibling above.
     delete card.castFromExileCostIncrease;
+    // CR 611.2b (issue #7295) — the permission's board condition rides the
+    // same window; cleared with it.
+    delete card.castableFromExileCondition;
 }
 
 /** CR 305 / 305.1-analog — play a LAND from the GRAVEYARD under an
@@ -630,7 +633,7 @@ export function resolvePlayLandSourceZone(
         .find((c) => c.id === cardInstanceId);
     if (
         exileCard &&
-        exileCastPermission(exileCard, player.id, state.turn) &&
+        exileCastPermitted(state, exileCard, player.id) &&
         exileCard.castableFromExileIncludesLand === true
     ) {
         return "exile";

@@ -78,7 +78,7 @@ import {
     type ManaTap,
     type Move,
 } from "../moves";
-import { exileCastPermission } from "../castCost";
+import { exileCastPermitted } from "../castCost";
 import { getLegalActions } from "../rules";
 import { isLegalNamedCard } from "../pendingChoiceSubmit";
 import { isFaceDownExile } from "../faceDown";
@@ -1525,7 +1525,7 @@ function castWindowCandidates(
     // The SAME two gates the enumerator's exile branch applies (`moves.ts`), in
     // the same order — this is not a second legality opinion, it is the one the
     // server would apply to the `announceCast` the executor is about to fire.
-    if (!exileCastPermission(card, caster.id, state.turn)) return out;
+    if (!exileCastPermitted(state, card, caster.id)) return out;
     if (
         !getLegalActions(state, zoneOwner, card, false, caster.id).includes(
             "cast"

@@ -64,7 +64,7 @@ import {
     castExileCostOccupiesPayWithSlot,
     castRawManaCost,
     flashbackLifeCost,
-    exileCastPermission,
+    exileCastPermitted,
     graveyardCastMechanism,
     type CastFromZone,
 } from "./castCost";
@@ -5919,7 +5919,7 @@ export function enumerateMoves(
     for (const zoneOwner of state.players) {
         for (const card of zoneOwner.exile) {
             if (card.types.includes("Land")) continue;
-            if (!exileCastPermission(card, player.id, state.turn)) continue;
+            if (!exileCastPermitted(state, card, player.id)) continue;
             if (
                 !getLegalActions(
                     state,
@@ -6157,7 +6157,7 @@ export function onlyPassIsLegal(state: GameState, playerId: string): boolean {
     for (const zoneOwner of state.players) {
         for (const card of zoneOwner.exile) {
             if (card.types.includes("Land")) continue;
-            if (exileCastPermission(card, player.id, state.turn)) return false;
+            if (exileCastPermitted(state, card, player.id)) return false;
         }
     }
     // Library top: the positional play / cast permissions.
