@@ -21,6 +21,7 @@
  * A SURFACE THAT CANNOT HOLD A FLOOR is listed in `UNWALKED_SURFACES` with its
  * reason and its issue — never carried as an exception.
  */
+import { blurredOf, type RasterResult } from "./raster.ts";
 
 /** The counts held at zero. Order is the order a broken-floor line names them. */
 export const FLOORS = [
@@ -139,6 +140,11 @@ export interface ProbeResult {
      *  every bucket that reads nonzero naming at least one. What a failing
      *  cell's screenshot outlines. */
     offenders: Offender[];
+    /** The rasterisation-level half of `cardsSoft` (issue #6940), measured by
+     *  `raster.ts` AFTER the probe — a screenshot of each sampled face against
+     *  its own resolved resource. Absent on a probe that ran alone (the unit
+     *  tests); every sample over `CARD_BLUR_MAX` counts into the Floor. */
+    raster?: RasterResult;
 }
 
 /** One box that broke a Floor, in viewport CSS pixels (issue #6145). A
@@ -210,7 +216,10 @@ export function readingsOf(probe: ProbeResult, axe: AxeCount): Readings {
         cardsZero: probe.cards.zero,
         cardsStranded: probe.cards.stranded,
         cardsSquare: probe.cardsSquareN,
-        cardsSoft: probe.cardsSoftN + probe.cardsSoftUnknown,
+        cardsSoft:
+            probe.cardsSoftN +
+            probe.cardsSoftUnknown +
+            blurredOf(probe.raster?.samples ?? []).length,
         ctrlsZero: probe.ctrls.zero,
         ctrlsStranded: probe.ctrls.stranded,
         axeSerious: axe.serious,

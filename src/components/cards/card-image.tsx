@@ -49,6 +49,19 @@ const STABLE_LAYER: React.CSSProperties = {
 // composited result underneath on every frame.
 //
 // `contain: paint` survives because it is a hint, not a promotion.
+//
+// Eviction is a function of the GPU budget, not only of the card count (issue
+// #6940). Measured on the Draft pack grid (15 cards) and the Limited pool
+// builder (40+ cards) with `check:ui`'s rasterisation probe (`raster.js`):
+// under a starved budget (`--force-gpu-mem-available-mb=24`, the shape of a
+// 16 GB laptop under memory pressure) PROMOTED faces were evicted to blank
+// slots on two of ten cells, while the same surfaces with CONTAINED faces, the
+// same budget, max zoom and a hovered tile read sharp on all ten. With an
+// ordinary budget both modes read sharp — which is why no earlier walk saw it.
+// The eviction is NOT deterministic: a second run the same day, promoted
+// faces, same budget, max zoom, hovered, read sharp on all ten cells (Blur
+// Index ≤ 0.01), so the layer mode is held by
+// `unbounded-card-surfaces-contained-layer.test.tsx`, never by the walk.
 const CONTAINED_LAYER: React.CSSProperties = { contain: "paint" };
 
 type CardImageProps = {
@@ -85,8 +98,13 @@ type CardImageProps = {
     /**
      * Promote the card to its own compositor layer (default `true` — the
      * board's behaviour, unchanged). Pass `false` on any surface that renders
-     * an unbounded number of cards at once and does not animate their
+     * an unbounded number of cards at once and does not ROTATE or SCALE their
      * ancestors — see {@link CONTAINED_LAYER} for what over-promotion costs.
+     * A translate-only hover lift is not a reason to promote: a translation
+     * never changes the raster scale, so the contained card stays sharp
+     * through it (measured, issue #6940). The Draft pack tile and the deck
+     * builder tile pass `false`; `unbounded-card-surfaces-contained-layer.test.tsx`
+     * keeps them there.
      */
     promoteLayer?: boolean;
     /**
