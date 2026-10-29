@@ -19,7 +19,8 @@
  *
  * Runs from the primary checkout or a job's worktree of it (`health.yml`);
  * each probe is a throwaway worktree beside the primary, bootstrapped with
- * `worktree:init`. Its log: `.claude/telemetry/health/<sha12>.ladder.log`.
+ * `worktree:init` — a bisect probe's then regenerated as the queue draft
+ * (`derive:regenerate`, `draft` role, issue #7417). Its log: `.claude/telemetry/health/<sha12>.ladder.log`.
  * docs/guides/github-pipeline.md § health.
  */
 import { spawnSync } from "node:child_process";
@@ -33,6 +34,7 @@ import {
 import { basename, dirname, join } from "node:path";
 import { BASE_BRANCH } from "./lib/branches";
 import {
+    attributeMaintenance,
     bisectCulprits,
     bisectTests,
     culpritLines,
@@ -46,6 +48,7 @@ import {
     ladderRed,
     laddered,
     lastGreenOf,
+    PROBE_BOOTSTRAP,
     settleFreshPass,
     settleHeldRed,
     remainingGates,
@@ -110,12 +113,14 @@ function note(ctx: Ctx, line: string): void {
 
 let worktrees = 0;
 
-/** `fn` in a throwaway worktree at `sha`, bootstrapped; `infra` when the
+/** `fn` in a throwaway worktree at `sha`, bootstrapped — a bisect probe's
+ *  as the queue draft (`PROBE_BOOTSTRAP`, `draft`); `infra` when the
  *  worktree or its bootstrap could not be made. */
 function inWorktree(
     ctx: Ctx,
     sha: string,
-    fn: (wt: string) => ProbeOutcome
+    fn: (wt: string) => ProbeOutcome,
+    opts: { draft?: boolean } = {}
 ): ProbeOutcome {
     const wt = join(
         ctx.root,
@@ -132,10 +137,19 @@ function inWorktree(
         return "infra";
     }
     try {
-        const init = run(ctx, wt, "bun", ["run", "worktree:init"], {}).status;
-        if (init !== 0) {
-            note(ctx, `worktree:init at ${sha.slice(0, 8)} exited ${init}`);
-            return "infra";
+        const steps = opts.draft
+            ? PROBE_BOOTSTRAP.steps
+            : [["run", "worktree:init"]];
+        const env = opts.draft ? { ...PROBE_BOOTSTRAP.env } : {};
+        for (const step of steps) {
+            const status = run(ctx, wt, "bun", [...step], env).status;
+            if (status !== 0) {
+                note(
+                    ctx,
+                    `${step.join(" ")} at ${sha.slice(0, 8)} exited ${status}`
+                );
+                return "infra";
+            }
         }
         return fn(wt);
     } finally {
@@ -186,14 +200,19 @@ function probeTests(
     ctx: Ctx,
     wt: string,
     tests: readonly FailingTest[],
-    opts: { exactFiles?: boolean } = {}
+    opts: { exactFiles?: boolean; env?: Readonly<Record<string, string>> } = {}
 ): FailingTest[] {
     const present = tests.filter((t) =>
         opts.exactFiles ? existsSync(join(wt, t.file)) : hasTestFile(wt, t)
     );
     const red: FailingTest[] = [];
     for (const c of vitestCommands(present, opts))
-        red.push(...failedTests(c, run(ctx, wt, "bunx", c.args, c.env)));
+        red.push(
+            ...failedTests(
+                c,
+                run(ctx, wt, "bunx", c.args, { ...opts.env, ...c.env })
+            )
+        );
     return red;
 }
 
@@ -398,24 +417,34 @@ function bisect(
         ctx,
         `bisecting ${commits.length} commit(s) from GREEN ${good.slice(0, 8)} on ${tests.length} failing test(s)`
     );
-    const report = bisectCulprits(commits, tests, (sha, pending) => {
+    const subjectOf = (sha: string) =>
+        git(ctx.root, ["log", "-1", "--format=%s", sha]);
+    const bisected = bisectCulprits(commits, tests, (sha, pending) => {
         let red: FailingTest[] = [];
-        const outcome = inWorktree(ctx, sha, (wt) => {
-            red = probeTests(ctx, wt, pending);
-            return red.length > 0 ? "red" : "green";
-        });
+        const outcome = inWorktree(
+            ctx,
+            sha,
+            (wt) => {
+                red = probeTests(ctx, wt, pending, {
+                    env: PROBE_BOOTSTRAP.env,
+                });
+                return red.length > 0 ? "red" : "green";
+            },
+            { draft: true }
+        );
         note(
             ctx,
             `probe ${sha.slice(0, 8)}: ${outcome}${outcome === "red" ? ` (${red.length} of ${pending.length})` : ""}`
         );
         return outcome === "infra" ? "infra" : red;
     });
+    const report = attributeMaintenance(bisected, commits, subjectOf);
     return culpritLines({
         report,
         total: tests.length,
         good,
         commits: commits.length,
-        subjectOf: (sha) => git(ctx.root, ["log", "-1", "--format=%s", sha]),
+        subjectOf,
     });
 }
 

@@ -22,10 +22,18 @@
  *     the registry's index); a commit that does not have a file or an entry
  *     yet is green for it (a test the culprit added is green before it). The
  *     first red commit is the culprit, then the same for the tests still
- *     red-unexplained after it; each PR rides in the evidence.
+ *     red-unexplained after it; each PR rides in the evidence. A probe
+ *     runs in the queue draft's role (`PROBE_BOOTSTRAP`): derived state is
+ *     regenerated in the probed tree, so a PR commit reads the RED its own
+ *     sources cause before the base's `derive:sync` writes it (issue #7417).
+ *     A first red probe on a base-maintenance commit anyway is blamed on the
+ *     PR commits before it (`attributeMaintenance`).
  *
- * Node builtins plus `lib/health-verdict-store.ts`, `lib/health-evidence.ts`.
+ * Node builtins plus `lib/health-verdict-store.ts`, `lib/health-evidence.ts`,
+ * the leaves `lib/derive-sync.ts` and `lib/derived-state.ts`.
  */
+import { isBaseMaintenanceSubject } from "./derive-sync";
+import { TREE_ROLE_ENV } from "./derived-state";
 import { evidenceTests, failLines, type FailingTest } from "./health-evidence";
 import {
     HOSTED_MACHINE_PREFIX,
@@ -148,6 +156,26 @@ export function bisectTests(
     const tests = evidence ? evidenceTests(evidence) : [];
     return tests.length > 0 ? tests : files.map((file) => ({ file }));
 }
+
+/**
+ * How a bisect probe's worktree is made ready (issue #7417): bootstrapped,
+ * then its derived state regenerated as the queue's draft does
+ * (`check:lane --regenerate-derived`), every step and test run in the
+ * `draft` role. Under ADR 0157 a PR commit does not carry its catalogue or
+ * header — the base's `derive:sync` writes them after the merge — so probed
+ * as committed, a PR whose cards break a test reads GREEN and the derive
+ * commit after it reads RED.
+ */
+export const PROBE_BOOTSTRAP: {
+    readonly steps: readonly (readonly string[])[];
+    readonly env: Readonly<Record<string, string>>;
+} = {
+    steps: [
+        ["run", "worktree:init"],
+        ["run", "derive:regenerate"],
+    ],
+    env: { [TREE_ROLE_ENV]: "draft" },
+};
 
 /** One vitest invocation of a fresh run or a bisect probe, and the failing
  *  tests its outcome judges. */
@@ -508,6 +536,9 @@ export type TestProbe = readonly FailingTest[] | "infra";
 export interface CulpritFinding {
     culprit: string;
     tests: FailingTest[];
+    /** The base-maintenance commit the first red probe landed on, when the
+     *  culprit is named in its stead (`attributeMaintenance`). */
+    maintenance?: string;
 }
 
 export interface CulpritReport {
@@ -600,6 +631,53 @@ export function bisectCulprits(
     return { found, unexplained: null, probes };
 }
 
+/**
+ * The report with every culprit that is a base-maintenance commit
+ * (`isBaseMaintenanceSubject`: `derive:sync`, `bot-replay`) replaced by the
+ * PR commits of `commits` (oldest first, the bisected range) since the
+ * previous maintenance commit (issue #7417). Such a commit writes derived
+ * state only and its revert can never land (`check:derived-in-diff`): the
+ * RED it first shows is the PR commits' derived effect. None before it in
+ * the range → its tests are unexplained, never blamed on it.
+ */
+export function attributeMaintenance(
+    report: CulpritReport,
+    commits: readonly string[],
+    subjectOf: (sha: string) => string | undefined
+): CulpritReport {
+    const maintenance = (sha: string) =>
+        isBaseMaintenanceSubject(subjectOf(sha) ?? "");
+    const found: CulpritFinding[] = [];
+    let unexplained = report.unexplained;
+    for (const f of report.found) {
+        if (!maintenance(f.culprit)) {
+            found.push(f);
+            continue;
+        }
+        const at = commits.indexOf(f.culprit);
+        let from = at;
+        while (from > 0 && !maintenance(commits[from - 1])) from--;
+        const prs = at === -1 ? [] : commits.slice(from, at);
+        if (prs.length === 0) {
+            const reason = `the first red probe was base maintenance \`${f.culprit.slice(0, 12)}\` (\`${subjectOf(f.culprit) ?? ""}\`), with no PR commit before it in the bisected range`;
+            unexplained = {
+                tests: [...(unexplained?.tests ?? []), ...f.tests],
+                reason: unexplained
+                    ? `${unexplained.reason}; ${reason}`
+                    : reason,
+            };
+            continue;
+        }
+        for (const culprit of prs) {
+            const named = found.find((g) => g.culprit === culprit);
+            if (named) named.tests = [...named.tests, ...f.tests];
+            else
+                found.push({ culprit, tests: f.tests, maintenance: f.culprit });
+        }
+    }
+    return { found, unexplained, probes: report.probes };
+}
+
 /** A failing test as an evidence line names it: its own name (a blade
  *  entry's label), else its file. */
 function testLabel(t: FailingTest): string {
@@ -628,20 +706,37 @@ export function culpritLines(input: {
     subjectOf: (sha: string) => string | undefined;
 }): string[] {
     const { report } = input;
-    const lineOf = (culprit: string | null, reason?: string): string =>
+    const lineOf = (
+        culprit: string | null,
+        reason?: string,
+        maintenance?: string
+    ): string =>
         culpritLine({
             result: { culprit, probes: report.probes, reason },
             good: input.good,
             commits: input.commits,
             subject: culprit ? input.subjectOf(culprit) : undefined,
+            maintenance:
+                maintenance === undefined
+                    ? undefined
+                    : {
+                          sha: maintenance,
+                          subject: input.subjectOf(maintenance) ?? "",
+                      },
         });
     if (report.found.length === 0)
         return [lineOf(null, report.unexplained?.reason)];
     if (report.found.length === 1 && report.unexplained === null)
-        return [lineOf(report.found[0].culprit)];
+        return [
+            lineOf(
+                report.found[0].culprit,
+                undefined,
+                report.found[0].maintenance
+            ),
+        ];
     const lines = report.found.map(
         (f) =>
-            `${lineOf(f.culprit)} · explains ${f.tests.length} of ${input.total} failing test(s): ${testList(f.tests)}`
+            `${lineOf(f.culprit, undefined, f.maintenance)} · explains ${f.tests.length} of ${input.total} failing test(s): ${testList(f.tests)}`
     );
     if (report.unexplained !== null)
         lines.push(
@@ -662,13 +757,18 @@ export function culpritLine(input: {
     good: string | null;
     commits: number;
     subject?: string;
+    /** The base-maintenance commit the culprit is named in place of. */
+    maintenance?: { sha: string; subject: string };
 }): string {
     const { result } = input;
     if (result.culprit === null)
         return `- **culprit:** not named — ${result.reason ?? "no bisect"}`;
     const pr = input.subject ? prOfSubject(input.subject) : null;
     const who = pr !== null ? `PR #${pr}` : "a direct commit";
-    return `- **culprit:** ${who} · \`${result.culprit.slice(0, 12)}\` — bisected from GREEN \`${(input.good ?? "?").slice(0, 12)}\` over ${input.commits} commit(s), ${result.probes.length} probe(s)`;
+    const via = input.maintenance
+        ? ` · the first red probe was base maintenance \`${input.maintenance.sha.slice(0, 12)}\` (\`${input.maintenance.subject}\`), which writes only derived state — named the PR commit(s) since the previous maintenance commit`
+        : "";
+    return `- **culprit:** ${who} · \`${result.culprit.slice(0, 12)}\` — bisected from GREEN \`${(input.good ?? "?").slice(0, 12)}\` over ${input.commits} commit(s), ${result.probes.length} probe(s)${via}`;
 }
 
 /** `bun run test`'s chain, in order (`lib/health-retry.ts`). */
