@@ -49,7 +49,7 @@ import { buildActivationSacrificeSelection } from "./activationCostPicks";
 import { refreshRequiredTargetChoiceIds } from "./targetChoiceRequirements";
 import { commitCast } from "./castCommit";
 import { handCardMatchesFilter } from "./alternativeCost";
-import { exileCastPermission } from "./castCost";
+import { exileCastPermitted } from "./castCost";
 import type { CastFromZone } from "./castCost";
 import {
     isTapLockedBySummoningSickness,
@@ -321,9 +321,7 @@ export function findCastableExileCard(
         // be stamped and not yet OPEN (a warped card is castable only "after
         // the current turn has ended"), and this is the REAL payment path.
         const found = p.exile.find(
-            (c) =>
-                c.id === instanceId &&
-                exileCastPermission(c, casterId, state.turn)
+            (c) => c.id === instanceId && exileCastPermitted(state, c, casterId)
         );
         if (found) return found;
     }

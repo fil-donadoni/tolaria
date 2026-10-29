@@ -22,6 +22,7 @@ import type {
     CostLegs,
     CostReductionAmount,
     DelayedTriggerTiming,
+    AlternativeCostCondition,
     EffectCardFilter,
     CombatRole,
     EffectOp,
@@ -1319,6 +1320,17 @@ export type CardInstanceState = {
      *  same way. Cleared alongside `castableFromExileBy` wherever that field
      *  is cleared. Persisted so the tax survives a DB round-trip. */
     castFromExileCostIncrease?: ManaCost;
+    /** CR 611.2b (issue #7295) — a BOARD CONDITION riding {@link
+     *  castableFromExileBy}: "For as long as they remain exiled, you may play
+     *  them IF YOU CONTROL A WIZARD" (Flameshape). An ongoing effect, so it is
+     *  re-evaluated at every cast / play attempt rather than decided once at
+     *  resolution: the permission is lost when the condition stops holding and
+     *  regained when it holds again. Read by `exileCastPermitted`
+     *  (`gre/castCost.ts`), the ONE server-side authority, evaluated for the
+     *  caster through `alternativeCostConditionMet`. Absent = unconditional.
+     *  Cleared alongside `castableFromExileBy` wherever that field is
+     *  cleared. Persisted so the condition survives a DB round-trip. */
+    castableFromExileCondition?: AlternativeCostCondition;
     /** Turn-scoped expiry marker for {@link castableFromExileBy} (CR 514.2 /
      *  608.2g). When set, the play permission is an "until end of turn" impulse
      *  window (Headliner Scarlett, Expressive Iteration — "play that card this

@@ -244,6 +244,7 @@ export const CARD_FIELD_LIFECYCLE = {
     castableFromExileIncludesLand: { codec: "flag", reset: ["custom:turn"] },
     castFromExileManaSubstitution: { codec: "scalar", reset: ["custom:turn"] },
     castFromExileCostIncrease:  { codec: "scalar",  reset: ["custom:turn"] },
+    castableFromExileCondition: { codec: "scalar",  reset: ["custom:turn"] },
     exiledBySourceId:           { codec: "scalar",  reset: ZONE },
     // The graveyard twin of the exile window (issue #1344).
     castableFromGraveyardBy:    { codec: "scalar",  reset: ["custom:turn"] },
