@@ -4803,6 +4803,27 @@ function castVariantScore(
     );
 }
 
+/** Stand-in edges for `ref`'s sibling variants the root never opened (issue
+ *  #6985): one per legal root move that `isCastVariantOf(…, ref.move)` and has
+ *  no child under its tree key. Each carries `ref`'s rollout statistics and
+ *  its own move and key — so a starved root's `mean` blends in the sibling's
+ *  OWN policy prior, and `rootMoveFor` and the telemetry read it like any
+ *  opened edge. Not a `root.children` member: the DecisionTrace's candidate
+ *  rows list opened edges only. */
+function unopenedVariantEdges(root: Node, moves: Move[], ref: Edge): Edge[] {
+    const opened = new Set(
+        [...root.children.values()].map((e) => moveKey(e.move))
+    );
+    const out: Edge[] = [];
+    for (const move of moves) {
+        if (!isCastVariantOf(move, ref.move)) continue;
+        const key = moveKey(move);
+        if (opened.has(key)) continue;
+        out.push({ ...ref, move, key });
+    }
+    return out;
+}
+
 /** Whether `move` is a SIBLING VARIANT of `ref` — the same announcement with a
  *  different answer to one of the questions it asks (mode × X × target-tuple).
  *
@@ -5378,6 +5399,33 @@ export function selectRootMove(
                     mean(e) >= bestMean - weights.outcomeEps &&
                     isCastVariantOf(e.move, best.move)
             );
+            // Issue #6985 — a starved root opens only a few of an
+            // announcement's target siblings (25 targets against ~15
+            // iterations in the reported game), so the visited pool alone can
+            // hold nothing but misdirected variants while the right one was
+            // never opened. At a STARVED root only, every UNOPENED sibling of a
+            // cast or an activation joins the ranking as a stand-in carrying
+            // the picked edge's rollouts: `mean` blends in the sibling's own
+            // 1-ply prior (the only evidence about it), and it must clear the
+            // same outcome-equality bar a visited sibling does. A root with the
+            // budget to open its children never takes this path, so a variant
+            // the search actually valued is never overridden by a static score
+            // standing in for a rollout that was never run. A trigger's
+            // `submit-target` keeps the visited pool only: the root prunes
+            // dominated trigger targets on purpose
+            // (`withoutDominatedTriggerTargets`), and an unopened one there may
+            // be one of them.
+            if (
+                starvedPriors &&
+                (best.move.kind === "cast-spell" ||
+                    best.move.kind === "activate-ability")
+            ) {
+                for (const e of unopenedVariantEdges(root, moves, best)) {
+                    if (mean(e) >= bestMean - weights.outcomeEps) {
+                        variants.push(e);
+                    }
+                }
+            }
             for (const edge of variants) {
                 if (scoreOf(edge) > scoreOf(best)) {
                     best = edge;

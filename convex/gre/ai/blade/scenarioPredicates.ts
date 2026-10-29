@@ -16,7 +16,11 @@ import { instanceIdsForName, matchesMove, seatPlayerId } from "./matcher";
 import { materialMargin } from "../../evaluate";
 import { isLand, manaValue } from "../../constants";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
-import { getCardByName, getInstanceManaCost } from "../../../cards";
+import {
+    getCardByName,
+    getInstanceManaCost,
+    tryGetDefinition,
+} from "../../../cards";
 import { activationSacrificeVictims } from "../../activationCostPicks";
 
 /** CR 702.34a — five untapped Mountains, exactly Firebolt's {4}{R} flashback
@@ -652,4 +656,150 @@ export function boundedGraveyardCastIsOffered(
         casts.some((m) => picks(m) === 2) &&
         casts.every((m) => picks(m) <= 2)
     );
+}
+
+/** Issue #6985 — a removal spell in hand with a WIDE target fan-out (CR
+ *  601.2c: one cast move per legal permanent) while the Bot's attackers already
+ *  carry lethal through the opponent's single blocker, so every candidate
+ *  saturates the policy value and a starved root opens its few children
+ *  uniformly at random rather than best-policy-first. The three untapped lands
+ *  pay {1}{W}{B} and nothing else: one Plains plus Creeping Tar Pit cannot pay
+ *  the Tar Pit's own {1}{U}{B}, so the cast is the only spend. Own lands are
+ *  distinct names on purpose — identical tapped permanents collapse into ONE
+ *  target variant, and the fan-out is the whole point. Shared by the three
+ *  budget legs (starved own-side-never, starved exact target, full budget) so
+ *  they differ by `budget` alone. */
+export const STARVED_TARGET_FANOUT_BOARD = [
+    { name: "Vindicate", owner: "me" as const, zone: "hand" as const },
+    {
+        name: "Plains",
+        owner: "me" as const,
+        zone: "battlefield" as const,
+        count: 2,
+    },
+    {
+        name: "Creeping Tar Pit",
+        owner: "me" as const,
+        zone: "battlefield" as const,
+    },
+    ...[
+        "Scrubland",
+        "Swamp",
+        "Badlands",
+        "Tundra",
+        "Plateau",
+        "Savannah",
+        "Mountain",
+        "Forest",
+        "Bayou",
+    ].map((name) => ({
+        name,
+        owner: "me" as const,
+        zone: "battlefield" as const,
+        tapped: true,
+    })),
+    ...["Savannah Lions", "White Knight"].map((name) => ({
+        name,
+        owner: "me" as const,
+        zone: "battlefield" as const,
+        summoningSick: false,
+    })),
+    {
+        name: "Serra Angel",
+        owner: "me" as const,
+        zone: "battlefield" as const,
+        summoningSick: false,
+        count: 2,
+    },
+    {
+        name: "Hero",
+        token: true,
+        owner: "opp" as const,
+        zone: "battlefield" as const,
+        summoningSick: false,
+        counters: { "+1/+1": 5 },
+    },
+    {
+        name: "Astrologian's Planisphere",
+        owner: "opp" as const,
+        zone: "battlefield" as const,
+        attachedTo: "Hero",
+    },
+    ...["Mind Stone", "Sol Ring", "Millstone"].map((name) => ({
+        name,
+        owner: "opp" as const,
+        zone: "battlefield" as const,
+        tapped: true,
+    })),
+    {
+        name: "Island",
+        owner: "opp" as const,
+        zone: "battlefield" as const,
+        count: 6,
+        tapped: true,
+    },
+    {
+        name: "Howling Mine",
+        owner: "opp" as const,
+        zone: "battlefield" as const,
+    },
+    {
+        name: "Ornithopter",
+        owner: "opp" as const,
+        zone: "battlefield" as const,
+        summoningSick: false,
+    },
+];
+
+/** The targets of `move` when it is a cast of the card named `card`, else
+ *  `null` (any other move, a pass included). */
+function castTargetIds(
+    move: Move | null,
+    state: GameState,
+    card: string
+): string[] | null {
+    if (!move || !matchesMove(state, move, { kind: "cast-spell", card })) {
+        return null;
+    }
+    return move.kind === "cast-spell" ? move.targets.map((t) => t.id) : null;
+}
+
+/** Issue #6985 — a cast of `card`, if the move is one, names none of `seat`'s
+ *  own permanents. Any other move passes: whether to act at all is not the
+ *  question (issue #6913), where a harmful one-shot points is. */
+export function castSparesOwnPermanents(card: string, seat: BladeSeat) {
+    return (move: Move | null, state: GameState): boolean => {
+        const targets = castTargetIds(move, state, card);
+        if (!targets) return true;
+        const own = new Set(
+            state.players
+                .find((p) => p.id === seatPlayerId(state, seat))!
+                .battlefield.map((c) => c.id)
+        );
+        return targets.every((id) => !own.has(id));
+    };
+}
+
+/** Issue #6985 — a cast of `card`, if the move is one, targets only
+ *  battlefield permanents whose name is `targetName`. By the instance's own
+ *  definition rather than `instanceIdsForName`, because the target may be a
+ *  token, which has no catalogue card to resolve the name against. */
+export function castTargetsOnlyNamed(card: string, targetName: string) {
+    return (move: Move | null, state: GameState): boolean => {
+        const targets = castTargetIds(move, state, card);
+        if (!targets) return true;
+        const named = new Set(
+            state.players
+                .flatMap((p) => p.battlefield)
+                .filter((c) => {
+                    const id = (c.card as { id?: string } | undefined)?.id;
+                    return !!id && tryGetDefinition(id)?.name === targetName;
+                })
+                .map((c) => c.id)
+        );
+        if (named.size === 0) {
+            throw new Error(`no battlefield permanent named "${targetName}"`);
+        }
+        return targets.length > 0 && targets.every((id) => named.has(id));
+    };
 }
