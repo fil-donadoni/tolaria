@@ -461,11 +461,13 @@ export function dslSpellScriptValue(
  *  (`LatentLens.stackAnswerUnits`). 1 for any other card and with no board
  *  attached. */
 function heldAnswerShare(def: CardDefinition, board?: LatentLens): number {
-    const share = board?.stackAnswerUnits?.();
-    if (share === undefined || share >= 1) return 1;
+    // Ask the lens only for a stack answer: a reading of the board sets the
+    // lens's `measured` flag, which must stay this card's own measurement.
     const type = def.targetRequirement?.type;
     const types = Array.isArray(type) ? type : [type];
-    return types.every((t) => t === "spell") ? share : 1;
+    if (!types.every((t) => t === "spell")) return 1;
+    const share = board?.stackAnswerUnits?.();
+    return share === undefined || share >= 1 ? 1 : share;
 }
 
 /** Merges two `OpValue`s: points summed, tags unioned (dedup) — mirrors
