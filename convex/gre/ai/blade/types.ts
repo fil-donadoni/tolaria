@@ -241,11 +241,6 @@ export type BladeSetupStep =
           ability?: string;
           controller?: BladeSeat;
           target?: BladeSeat | string;
-          /** Narrows a targeted activation by the card NAME its sacrifice
-           *  cost gives up (CR 701.21a — "Sacrifice a land" over Forests and
-           *  Mountains is two distinct legal activations). Read only
-           *  alongside `target`. */
-          sacrifice?: string;
           zone?: "battlefield" | "hand";
       }
     /** Cast the named card from a seat's hand through the REAL move pipeline
