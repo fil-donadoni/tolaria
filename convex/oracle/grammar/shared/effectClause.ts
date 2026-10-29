@@ -1260,6 +1260,12 @@ export type EffectSentenceIR =
            * `destroy-countered-source` modifier; never by the counter rule.
            */
           readonly destroysCounteredSource?: true;
+          /**
+           * CR 613.1f + CR 611.2b — the countered ability's source permanent
+           * loses all abilities while the resolving source remains. Set by
+           * the fold of a `lose-abilities-countered-source` modifier.
+           */
+          readonly losesAbilitiesOfCounteredSource?: true;
       }
     | {
           /**
@@ -2391,6 +2397,13 @@ export type ModifierIR =
      * ability, folded onto the `counter` in front of it by `assembleSentences`.
      */
     | { readonly kind: "destroy-countered-source" }
+    /**
+     * CR 701.6a + CR 113.7a + CR 613.1f + CR 611.2b — "If an ability of an
+     * artifact, creature, or planeswalker is countered this way, that
+     * permanent loses all abilities for as long as this creature remains on
+     * the battlefield.": folded onto the `counter` in front of it.
+     */
+    | { readonly kind: "lose-abilities-countered-source" }
     /** CR 701.12a — "If you don't or can't make an exchange, sacrifice
      *  <this object>." (the sacrifice is CR 701.21a), folded onto the
      *  exchange in front of it. */
@@ -4080,6 +4093,32 @@ export function assembleSentences(
         }
         if (
             sentence.role === "modifier" &&
+            sentence.modifier.kind === "lose-abilities-countered-source"
+        ) {
+            const previous = effects[effects.length - 1];
+            // Same guard as the destroy rider: only an untaxed counter of an
+            // announced ability binds a source permanent.
+            if (
+                previous === undefined ||
+                previous.kind !== "counter" ||
+                previous.unlessPays !== undefined ||
+                previous.subject.kind !== "target" ||
+                !["ability", "any", "activated-ability"].includes(
+                    previous.subject.requirement.spellStackKind ?? "spell"
+                )
+            )
+                return {
+                    ok: false,
+                    reason: '"If an ability of … is countered this way" follows no counter of an ability',
+                };
+            effects[effects.length - 1] = {
+                ...previous,
+                losesAbilitiesOfCounteredSource: true as const,
+            };
+            continue;
+        }
+        if (
+            sentence.role === "modifier" &&
             sentence.modifier.kind === "destroy-countered-source"
         ) {
             const previous = effects[effects.length - 1];
@@ -5607,6 +5646,12 @@ const SACRIFICE_AT_COUNTERS =
 const DESTROY_COUNTERED_SOURCE =
     "If a permanent's ability is countered this way, destroy that permanent";
 /**
+ * CR 613.1f + CR 611.2b — the ability-loss counter rider, whole. The strip
+ * lasts while the resolving permanent ("this creature") stays on the battlefield.
+ */
+const LOSE_ABILITIES_COUNTERED_SOURCE =
+    "If an ability of an artifact, creature, or planeswalker is countered this way, that permanent loses all abilities for as long as this creature remains on the battlefield";
+/**
  * CR 702.33g + CR 202.3 — the kicked counter's replacement limit, whole:
  * "counter that spell if its mana value is N or less instead". Printed digits
  * only; "that spell" is the base counter's target, never a second announcement.
@@ -6081,6 +6126,11 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
             return ok({
                 role: "modifier" as const,
                 modifier: { kind: "resolves-if-target-illegal" as const },
+            });
+        if (span === LOSE_ABILITIES_COUNTERED_SOURCE)
+            return ok({
+                role: "modifier" as const,
+                modifier: { kind: "lose-abilities-countered-source" as const },
             });
         if (span === DESTROY_COUNTERED_SOURCE)
             return ok({

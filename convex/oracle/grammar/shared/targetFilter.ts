@@ -1957,6 +1957,13 @@ export function narrowedStackRequirement(
             count: 1,
             spellStackKind: "ability",
         } as TargetRequirement;
+    // CR 115.1 + CR 601.2c — "up to one" announces zero or one target.
+    if (span === "up to one target activated or triggered ability")
+        return {
+            type: "spell",
+            count: { min: 0, max: 1 },
+            spellStackKind: "ability",
+        } as TargetRequirement;
     // CR 115.1 — a spell OR ability an opponent controls that targets a land
     // you control (Teferi's Response).
     if (
