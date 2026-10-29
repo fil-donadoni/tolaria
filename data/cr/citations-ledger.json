@@ -10622,7 +10622,7 @@
         {"id":"202.2","line":"// CR 202.2 — the choice, and the shield's recheck, take a source that is black","sites":1,"status":"confirmed","ruleHash":"223ac4dfab3c4c25"},
         {"id":"202.2","line":"// CR 202.2). Mirrors Bad Moon's structure but filtered on white instead of","sites":1,"status":"baseline"},
         {"id":"202.2","line":"// Cards are classified by the colour identity of their mana cost (CR 202.2).","sites":14,"status":"baseline"},
-        {"id":"202.2","line":"// Cards are classified by the colour identity of their mana cost (CR 202.2):","sites":481,"status":"confirmed","ruleHash":"223ac4dfab3c4c25"},
+        {"id":"202.2","line":"// Cards are classified by the colour identity of their mana cost (CR 202.2):","sites":488,"status":"confirmed","ruleHash":"223ac4dfab3c4c25"},
         {"id":"202.2","line":"// Color derivation from mana cost (CR 202.2). Lives outside the GRE so the","sites":1,"status":"baseline"},
         {"id":"202.2","line":"// Colors (CR 202.2) of a battlefield-view permanent, derived from its mana","sites":1,"status":"baseline"},
         {"id":"202.2","line":"// Colour filter reads the EFFECTIVE colour (CR 202.2, layer 5 —","sites":1,"status":"baseline"},
