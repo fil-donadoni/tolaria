@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
     repairProofCheck,
+    repairProofRun,
     runPrCheck,
     type PrCheckContext,
 } from "../pr-checks";
+import { DERIVED_PATHS } from "../lib/derive-sync";
 import type { Lineage } from "../lib/health-verdict-store";
 
 // The PR checks ported from `land` (issue #5639). Each check is the pure
@@ -181,5 +183,43 @@ describe("repair-proof (issue #5462)", () => {
             );
             expect(r.refusal).toContain(CORPUS_TEST);
         });
+    });
+});
+
+// Issue #7489: a PR stops carrying the derived state (ADR 0157), so a revert
+// of a hand-written card left the Definition Index naming it and the proof
+// crashed on a stale index instead of running the RED's test.
+describe("repair-proof's run rebuilds the derived state (issue #7489)", () => {
+    const RESTORE = ["git", "checkout", "-q", "HEAD", "--", ...DERIVED_PATHS];
+
+    function record(codes: Record<string, number> = {}) {
+        const calls: string[][] = [];
+        const exec = (argv: readonly string[]) => {
+            calls.push([...argv]);
+            return codes[argv[1]] ?? 0;
+        };
+        return { calls, exec };
+    }
+
+    it("regenerates, runs the tests, then restores the derived paths", () => {
+        const { calls, exec } = record();
+        expect(repairProofRun([THIS_FILE], "/wt", exec)).toBe(0);
+        expect(calls).toEqual([
+            ["bun", "run", "derive:regenerate"],
+            ["bunx", "vitest", "run", THIS_FILE],
+            RESTORE,
+        ]);
+    });
+
+    it("restores the derived paths on a red run too", () => {
+        const { calls, exec } = record({ vitest: 1 });
+        expect(repairProofRun([THIS_FILE], "/wt", exec)).toBe(1);
+        expect(calls.at(-1)).toEqual(RESTORE);
+    });
+
+    it("is red without running the tests when the tree cannot be rebuilt", () => {
+        const { calls, exec } = record({ run: 2 });
+        expect(repairProofRun([THIS_FILE], "/wt", exec)).toBe(2);
+        expect(calls).toEqual([["bun", "run", "derive:regenerate"], RESTORE]);
     });
 });
