@@ -15,7 +15,7 @@ import { fakeGh, type FakeGh } from "./fake-gh";
  * batch health (`--under-lock`) runs no browser step at all (issue #5378),
  * and `--release` — what `release` passes — runs the offline gates and then
  * `check:game-download`, off the heavy mutex, holding only the browser lane;
- * its verdict decides the run's ONE record (issue #4962). A tip whose offline
+ * its verdict decides the run's ONE record. A tip whose offline
  * half already stands GREEN runs only the browser step.
  *
  * A scratch primary checkout whose `origin` is a local bare repo (the verdict

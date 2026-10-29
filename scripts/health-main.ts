@@ -20,19 +20,18 @@
  *                    prints the details. Fix-forward, then the next green run
  *                    removes it.
  *
- * A step that failed while the machine was asleep (`lib/health-verdict.ts`,
- * issue #4938) is `infra`: recorded, exit 1, but no `RED` marker written and
+ * A step that failed while the machine was asleep (`lib/health-verdict.ts`) is `infra`: recorded, exit 1, but no `RED` marker written and
  * none cleared — the tip is unproven, not red, and the next run re-gates it.
  * So is a browser step that found the Convex deployment down (its own exit
- * code, issue #4943) — and a run that owes one and whose PREFLIGHT finds it
+ * code, ) — and a run that owes one and whose PREFLIGHT finds it
  * down records `infra` at step `preflight:convex` before any gate runs, in
  * seconds rather than after ~40 minutes of gates. Health never STARTS the
- * backend: the AFK loop's `convex:ensure` does (issue #4945). So is a browser
+ * backend: the AFK loop's `convex:ensure` does. So is a browser
  * step the environment cut short (a fatal exit, or every failing row
  * `INFRA`): `last.json` names the two halves, `offline` and `browser`. One the
  * tree failed is RED.
  *
- * THE BROWSER HALF (issues #4962, #6143). `splitHealthGates` cuts the offline
+ * THE BROWSER HALF (issue #6143). `splitHealthGates` cuts the offline
  * gates from the browser steps. Only `--release` runs the browser steps:
  * after the offline gates, off the heavy mutex (their environment scrubs any
  * hold), in their own worktree. A tip whose offline half already stands GREEN
@@ -43,7 +42,7 @@
  * (a `running` record younger than 90 minutes), is not re-gated — so N
  * quick successive lands cost ONE health run on the final tip. Under
  * `--under-lock` (the cadence's waiter) a RED or INFRA tip is not re-gated
- * either; by hand it is (`gateSkipReason`, issue #4960).
+ * either; by hand it is (`gateSkipReason`, ).
  *
  * The gate runs in its own worktree at the tip, never in the primary
  * checkout's working tree (which may hold anything), and with
@@ -59,20 +58,20 @@
  * `gate.ts yield` acquisition (ADR 0136 §6); `release` never does. It is
  * refused beside `--release`: a hold is never carried into a browser step.
  *
- * Each step reports to the terminal while it runs (issue #3487) — start and
+ * Each step reports to the terminal while it runs — start and
  * end lines, the gate's `[gate]` mutex-wait lines live, a liveness line while
  * a step is long — and the per-sha log still receives the full child output.
  * `lib/health-step.ts` owns that.
  *
  * The Bot Findings refresh (`bot:reach`, `seed:bot-findings`, `gaps:sync`)
  * and the blade robustness / held-out pick agreement audits are NOT part of
- * this run (issue #5458): they keep a view of the Bot fresh and prove nothing
+ * this run: they keep a view of the Bot fresh and prove nothing
  * about the tree, so `bun run health:nightly` (`scripts/health-nightly.ts`, a
  * cron entry point) runs the refresh nightly and the audits weekly. Nor is
  * `check:convex-heap`, a capacity report run by hand (`bun run maintenance`).
  * The offline phase is `worktree:init`, `check:all`, the cheap guards, `test`.
  *
- * JOB RUNS (issue #5645, `lib/health-verdict-job.ts`). `--scheduled` is
+ * JOB RUNS (, `lib/health-verdict-job.ts`). `--scheduled` is
  * `health.yml`'s two-hourly run on a `lane` runner, from the job's worktree
  * of the primary checkout (the one linked worktree health accepts); it
  * re-gates an INFRA only with `--retry-infra` and never a tip the store holds

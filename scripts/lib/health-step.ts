@@ -75,23 +75,22 @@ export const DEFAULT_LIVENESS_MS = 60_000;
  * needs the local deployment and a browser, which is why it is not in
  * `check:all`. It is LAST, after every offline verdict, and it is a RELEASE
  * step: `bun run release` (`--release`) runs it, batch health never does
- * (issue #5378). It runs OUTSIDE the heavy-mutex hold (issue #4962), in its
+ * (issue #5378). It runs OUTSIDE the heavy-mutex hold, in its
  * own worktree when the offline half already stands. The verdict is still ONE
  * record per tip: offline green + browser green = GREEN. A browser step the
  * environment cut short is `infra` (`lib/health-verdict.ts`); one the tree
  * failed is RED.
  *
- * `check:ui --all`, the every-surface walk, is in NO automated run (issue
- * #6143): 52 walks over three weeks found zero tree defects, and a layout
+ * `check:ui --all`, the every-surface walk, is in NO automated run: 52 walks over three weeks found zero tree defects, and a layout
  * change comes only from a `src/**` diff, which pays its own scoped walk. It
  * stays a command run by hand (`PR_RECEIPT_GUARDS` below).
  *
- * THE RULE IS COST, NOT PHASE (issue #4963): a guard whose measured cost is
+ * THE RULE IS COST, NOT PHASE: a guard whose measured cost is
  * ≤ 10 s on the heavy tier belongs in the lane (`check:lane`, paid once by
  * `land`); health-only is for guards that cost more, and each one is named in
  * `HEALTH_ONLY_GUARDS` below with its measured cost. A new guard states its
  * measured cost in its PR. The rule it replaced — "a new guard goes on
- * `health`, never on a PR-phase gate" (issue #4490) — protected PRs from
+ * `health`, never on a PR-phase gate" — protected PRs from
  * COST, and applied to guards that cost nothing it only moved their failure
  * to the most expensive place: 19 of 40 RED tips in 14 days were violations
  * a 3-second check would have refused at `land`.
@@ -100,7 +99,7 @@ export const DEFAULT_LIVENESS_MS = 60_000;
  * cheap guards (`CHEAP_GUARDS` in `check-lane.ts`, with their measured costs
  * and admission paths). They run in the lane on every diff that can move them
  * AND stay here, because health is the full gate — the lane is only where a
- * violation is first seen. The fourth row, `blade-index` (issue #5940), is a
+ * violation is first seen. The fourth row, `blade-index`, is a
  * bot-node vitest file, not a script: health runs it in the `test` step
  * (`test:bot`), never as an entry of this list. Here they run AFTER `check:all`, which holds
  * `check:oracle`: an un-regenerated lockfile is lockfile DRIFT, and that is

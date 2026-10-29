@@ -65,15 +65,14 @@ export const HEAVY_HELD_PARALLELISM = 1;
  * 16 GiB machine with nothing running, because file cache and inactive pages
  * are not counted, and a sizing read off that number collapses to the floor.
  *
- * The one exception is `heavyHeld` (issue #4941): the lane holds the one
+ * The one exception is `heavyHeld`: the lane holds the one
  * browser slot, not the machine. A live heavy-gate holder — a suite, the
  * `oracle:compile` sweep, `verdicts:search`, `bot:reach`, a `land` — already
  * runs at the heavy tier's full worker count, and a Chrome pool beside it is
  * the load-20–38 contention the issue measured. So the lane walks ONE viewport
  * at a time instead (`HEAVY_HELD_PARALLELISM`), below the floor on purpose.
  * The STARTING size is read once: a holder arriving mid-run does not shrink a
- * pool already running, and a holder that leaves lets it grow (`growingLimit`,
- * issue #5023).
+ * pool already running, and a holder that leaves lets it grow (`growingLimit`).
  *
  * Pure, and total: a machine that reports nonsense gets the floor.
  */

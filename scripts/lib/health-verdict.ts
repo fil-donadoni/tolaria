@@ -21,24 +21,24 @@
  *
  * `infra` is ALSO a browser step that exited `DEPLOYMENT_DOWN_EXIT` (issue
  * #4943): the local Convex backend did not answer, so the step never started.
- * 7 of 12 REDs after issue #4913 put `check:ui --all` in the gate were that
+ * 7 of 12 REDs after  put `check:ui --all` in the gate were that
  * one line, each raising the marker, blocking `queue:plan` and spawning
  * `health:fix` while nothing in the tree was wrong. A run that owes a browser
  * step preflights the same probe (`convexPreflight`) so a down backend costs
  * seconds, not ~40 minutes of gates before the last step learns it.
  *
- * `infra` is ALSO a browser step the ENVIRONMENT cut short (issue #4962):
+ * `infra` is ALSO a browser step the ENVIRONMENT cut short:
  * exiting 2 (a fatal error before anything was measured — a sign-in the auth
  * backend refused), or exiting 1 with every failing row `INFRA`
  * (`walkRunVerdict`, `ui-gate/infra-verdict.ts`). One the TREE failed is RED.
- * Since issue #6143 the one browser step is `check:game-download`, at
+ * Since  the one browser step is `check:game-download`, at
  * `release`: no automated run walks `check:ui` any more.
  *
  * `infra` is ALSO a gate that never started (`INFRA_EXIT` → `gate-not-run`):
  * the dependency install failed, so nothing ran.
  *
  * `infra` is ALSO a browser step facing a deployment that serves code other
- * than the tip (issues #6132, #6133, `lib/deployment-skew.ts`): `convex dev`
+ * than the tip (issues , , `lib/deployment-skew.ts`): `convex dev`
  * pushes the PRIMARY checkout, and a primary moved off the base branch fails
  * a green tip's browser steps. The browser phase preflights it
  * (`PREFLIGHT_SKEW_STEP`) → `deployment-skew`.
