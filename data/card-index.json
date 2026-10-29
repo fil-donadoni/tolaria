@@ -5666,6 +5666,16 @@
         "source": "compiled"
     },
     {
+        "name": "Beacon of Tomorrows",
+        "scryfallId": "3ab166c9-af3e-4e65-88ed-9766b046c95b",
+        "oracleId": "85909caa-d2ad-4487-b9b7-6ac60a14b833",
+        "firstSet": "5dn",
+        "firstPrintId": "3ab166c9-af3e-4e65-88ed-9766b046c95b",
+        "firstPrintSet": "5dn",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Bear Cub",
         "scryfallId": "d71abb70-bee5-4823-83dc-db0707023b37",
         "oracleId": "ed206651-3d9b-4546-8d45-0682817192fd",
@@ -9820,6 +9830,16 @@
         "source": "compiled"
     },
     {
+        "name": "Capture of Jingzhou",
+        "scryfallId": "d2df84f2-08e8-43e4-825f-dccfe096d92b",
+        "oracleId": "89aa65d9-2502-40b0-90b6-b25a8e9f6155",
+        "firstSet": "ptk",
+        "firstPrintId": "d2df84f2-08e8-43e4-825f-dccfe096d92b",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Captured Sunlight",
         "scryfallId": "fcafc9eb-efa3-4f6c-a2ca-aec8692fddc1",
         "oracleId": "937cb494-7dcb-4a40-b1e0-6e6b31f5c8a6",
@@ -11460,6 +11480,16 @@
         "firstSet": "leg",
         "firstPrintId": "8cd7d7e1-f928-4429-9a59-ba0590a78e98",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Chronatog",
+        "scryfallId": "05ada02f-04e9-4269-b04a-97a7eaac2c46",
+        "oracleId": "bb300e38-32d7-4152-9a82-88d43af99f19",
+        "firstSet": "vis",
+        "firstPrintId": "05ada02f-04e9-4269-b04a-97a7eaac2c46",
+        "firstPrintSet": "vis",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Chronomaton",
@@ -36318,6 +36348,16 @@
         "firstPrintSet": "dom"
     },
     {
+        "name": "Karn's Temporal Sundering",
+        "scryfallId": "7a64c1a4-02ce-49d2-97f2-970b8c33672d",
+        "oracleId": "5afbd367-19c7-418f-994d-a7958fb1c4ae",
+        "firstSet": "dom",
+        "firstPrintId": "7a64c1a4-02ce-49d2-97f2-970b8c33672d",
+        "firstPrintSet": "dom",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Karoo Meerkat",
         "scryfallId": "16396594-4f59-4600-8e39-d99544062265",
         "oracleId": "871549e6-24c0-4fbd-8b71-ba8639b0ee47",
@@ -40469,6 +40509,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Magistrate's Scepter",
+        "scryfallId": "d4785ed7-c948-4ad2-b24d-2f45806d9fcc",
+        "oracleId": "487485a6-cf79-48c0-bea9-0ec6b3ee253c",
+        "firstSet": "mmq",
+        "firstPrintId": "d4785ed7-c948-4ad2-b24d-2f45806d9fcc",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Magma Burst",
         "scryfallId": "d9752bc3-0bdf-4657-8750-73c8cbc8e83f",
         "oracleId": "f5af6d60-decd-4e04-8841-da2d3000a405",
@@ -41908,6 +41958,16 @@
         "firstPrintId": "399c06d5-af2a-47a1-9239-ff14224a026b",
         "firstPrintSet": "exo",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Meditate",
+        "scryfallId": "edb79a97-c1fc-4aa3-bb13-3d24a6dabeea",
+        "oracleId": "f79f84c9-2023-4348-863b-a3b4bc382904",
+        "firstSet": "tmp",
+        "firstPrintId": "edb79a97-c1fc-4aa3-bb13-3d24a6dabeea",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -45896,6 +45956,16 @@
         "firstPrintId": "15717af0-30cd-4417-947a-c27cca06d93a",
         "firstPrintSet": "spm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Nexus of Fate",
+        "scryfallId": "f163cfbf-6df6-4af5-9fe4-23b0d511586a",
+        "oracleId": "6c1d22d4-f28e-4041-a9b6-1575e8929b61",
+        "firstSet": "m19",
+        "firstPrintId": "f163cfbf-6df6-4af5-9fe4-23b0d511586a",
+        "firstPrintSet": "m19",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -69422,12 +69492,32 @@
         "source": "compiled"
     },
     {
+        "name": "Temporal Manipulation",
+        "scryfallId": "b3964160-79d6-4cdd-8b43-7a8f5dde9da7",
+        "oracleId": "6b6ac99a-7548-4cad-9fe5-ea611618ab9e",
+        "firstSet": "p02",
+        "firstPrintId": "b3964160-79d6-4cdd-8b43-7a8f5dde9da7",
+        "firstPrintSet": "p02",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Temporal Spring",
         "scryfallId": "b584dfd1-a56c-406e-8504-47ea136dc102",
         "oracleId": "1d7a4e9c-b3c9-421e-b5f4-82d51d7d5125",
         "firstSet": "apc",
         "firstPrintId": "b584dfd1-a56c-406e-8504-47ea136dc102",
         "firstPrintSet": "apc"
+    },
+    {
+        "name": "Temporal Trespass",
+        "scryfallId": "a08b7a1e-b404-41ea-875f-b3468501cb4b",
+        "oracleId": "c216b924-88ac-4853-9e95-0c345c09eeb6",
+        "firstSet": "frf",
+        "firstPrintId": "a08b7a1e-b404-41ea-875f-b3468501cb4b",
+        "firstPrintSet": "frf",
+        "rarity": "mythic",
+        "source": "compiled"
     },
     {
         "name": "Temur Banner",
@@ -71245,6 +71335,16 @@
         "firstPrintId": "e5fd26ca-dc7d-453d-8653-7f967e8f6dc7",
         "firstPrintSet": "por",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Time Sieve",
+        "scryfallId": "c620e565-f5e1-467c-a1d1-8d05228b2f37",
+        "oracleId": "3da5977a-36d4-4f32-ab9b-8b93809d818d",
+        "firstSet": "arb",
+        "firstPrintId": "c620e565-f5e1-467c-a1d1-8d05228b2f37",
+        "firstPrintSet": "arb",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -79795,6 +79895,16 @@
         "firstSet": "rtr",
         "firstPrintId": "543d55cb-3a6b-4620-af25-10ae74ed32c4",
         "firstPrintSet": "rtr"
+    },
+    {
+        "name": "Wormfang Manta",
+        "scryfallId": "bc9bf91d-6f7c-4fb5-bbc6-c012212e62e9",
+        "oracleId": "17abf8c6-70b6-4877-a0f2-a87b22fb2828",
+        "firstSet": "jud",
+        "firstPrintId": "bc9bf91d-6f7c-4fb5-bbc6-c012212e62e9",
+        "firstPrintSet": "jud",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Wormhole Serpent",

@@ -58,11 +58,6 @@
             "issue": 4535
         },
         {
-            "key": "(op) › extraTurn",
-            "op": "extraTurn",
-            "issue": 4535
-        },
-        {
             "key": "(op) › grantCastTiming",
             "op": "grantCastTiming",
             "issue": 7356
@@ -101,16 +96,6 @@
             "key": "(op) › setLevel",
             "op": "setLevel",
             "issue": 7374
-        },
-        {
-            "key": "(op) › skipDrawStepThisTurn",
-            "op": "skipDrawStepThisTurn",
-            "issue": 4535
-        },
-        {
-            "key": "(op) › skipNextTurn",
-            "op": "skipNextTurn",
-            "issue": 4535
         },
         {
             "key": "(op) › transform",
