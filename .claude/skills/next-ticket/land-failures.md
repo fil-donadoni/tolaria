@@ -7,7 +7,8 @@ session, never handed to the queue). The Mergify queue (the land-runner is
 retired, issue #5643) rebased the PR in a draft, ran `check:lane` there, it
 went red or the rebase conflicted, and the queue relabelled the PR
 `ready-to-land` → `land-failed` with a comment carrying the reason. The
-issue's claim still stands; `queue:claim N` takes it over.
+issue's claim still stands (the `in-progress` label); the repair pass takes
+it over by adding itself as assignee (`SKILL.md` § 2).
 
 ## Read the failure first
 

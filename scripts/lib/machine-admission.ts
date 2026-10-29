@@ -2,8 +2,8 @@
  * Machine admission (issue #4966) — the one place that looks at the MACHINE.
  *
  * WHY. The gates ration CPU among themselves: the heavy mutex (`gate.ts`), the
- * `check:ui` lane (`ui-admission.ts`), the session cap on claims
- * (`queue-claim.ts`). None of them looked at the machine they run on. A gate
+ * `check:ui` lane (`ui-admission.ts`), the session cap on claims (retired
+ * with the claim journal, ADR 0156). None of them looked at the machine they run on. A gate
  * that took the mutex on a machine already at load 14 ran anyway, a browser
  * walk started beside it, and the verdicts they wrote were the machine's: the
  * full walk of tip aa785cf0 started at load 14.5 and ended, 45 minutes later
@@ -22,7 +22,7 @@
  *       they WAIT, bounded by `machine.waitMaxS`; past the bound the run is
  *       `refuse`d — recorded `infra` / `machine-saturated`, never RED, never
  *       a red lane (`MACHINE_SATURATED_EXIT`).
- *   session — `sessionAdmission`. `queue:claim` and `wt:new` (never a
+ *   session — `sessionAdmission`. `wt:new` (never a
  *       conversation's prompt, issue #5137) ask whether the machine has room for one more: the OTHER
  *       live project sessions against the effective cap, and the same memory
  *       pressure reading (sustained, and only beside other sessions — the
@@ -103,7 +103,7 @@ import { primaryCheckout } from "./primary-checkout";
  *  it as `infra` / `machine-saturated`; `gate-run.sh` owns 75 and 76. */
 export const MACHINE_SATURATED_EXIT = 77;
 
-/** The announced escape for a SESSION start (`queue:claim`, `wt:new`) —
+/** The announced escape for a SESSION start (`wt:new`) —
  *  `TOLARIA_OVER_CAP=1`, the machine equivalent of `--no-cap`. Every use is logged. It is read by the
  *  session decision alone: a session started past the cap passes the variable
  *  to every gate it runs, and those must still wait for the machine. */
@@ -1103,8 +1103,8 @@ export function sustainedSample(
 }
 
 /**
- * The session decision on the live machine — the ONE composition the hook,
- * `queue:claim` and `wt:new` share, so the three cannot disagree about who is
+ * The session decision on the live machine — the ONE composition the hook
+ * and `wt:new` share, so the two cannot disagree about who is
  * counted or what the cap is.
  */
 export function admitSessionNow(input: {

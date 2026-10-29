@@ -11,9 +11,7 @@ import {
     EVERYTHING,
     buildPlanRecord,
     planFilename,
-    admitPick,
-    liveClaims,
-    releasedClaims,
+    redRefusal,
     priorityRank,
     effectivePriority,
     bandIsInherited,
@@ -21,7 +19,6 @@ import {
     repairItems,
     resumeItems,
     UNPRIORITIZED,
-    type AdmissionInput,
     type BatchPlan,
     type BoardPriority,
     type IssueDetail,
@@ -1646,7 +1643,7 @@ describe("queue planner — `--lineage <N>` scopes the batch to one umbrella (is
         const details = { 100: { body: body({ targetFiles: ["src/a.ts"] }) } };
         // #200's claim is live (it has an open PR), and it belongs to another
         // umbrella. Filtering before the claim classification would hide it
-        // from `liveClaims` and let a scoped plan admit past `sessions.cap`.
+        // from the wrapper's `resume` classification.
         const plan = planBatch(issues, LINEAGE, makePort(details, [200]));
 
         expect(numbers(plan)).toEqual([100]);
@@ -2145,9 +2142,9 @@ describe("normal paths keep their existing behaviour", () => {
 
 describe("plan artefact (issue #2518)", () => {
     // A hand-picked batch was indistinguishable from a planned one, after the
-    // fact — nothing recorded which plan a claim came from. These tests pin
-    // the artefact's shape, since `claim-ledger.sh` (a shell script, outside
-    // vitest's reach) parses it with `jq` against exactly this contract:
+    // fact — nothing recorded which plan a pick came from. These tests pin
+    // the artefact's shape, since a later reader (a shell `jq`, outside
+    // vitest's reach) parses it against exactly this contract:
     // `record.session`, `record.noPriority` and `record.plan.batch[].number`.
     // A silent rename of any of those fields would not fail here — it would
     // fail SILENTLY in the hook, which is the whole failure mode this issue
@@ -2247,7 +2244,7 @@ describe("plan artefact (issue #2518)", () => {
         });
 
         it("orders chronologically under a plain lexicographic sort", () => {
-            // `claim-ledger.sh` finds "the latest plan for this session" with
+            // A reader finds "the latest plan for this session" with
             // `ls | sort | tail -1` — no JSON parsing. That only works if two
             // filenames for the same session sort the same way their
             // timestamps do.
@@ -2751,82 +2748,19 @@ describe("board priority — liveFetchBoardPriority (issue #2520)", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Admission (ADR 0136 §6-7, issue #3775)
+// Admission (ADR 0136 §6, issue #3775)
 //
-// Two refusals in front of the planner: "there is no room for another pass"
-// and "the base every pass would branch from is broken". Both are silent
-// failures if they are wrong in either direction — a refusal that never fires
-// is invisible (the queue just runs hot and yields less), and a refusal that
-// fires wrongly is an idle machine with a plausible-looking message. So each
-// asserts the DECISION and the WAY OUT the message names, never an
-// intermediate.
+// One refusal in front of the planner: "the base every pass would branch from
+// is broken". Silent if wrong in either direction, so each case asserts the
+// DECISION and the WAY OUT the message names, never an intermediate.
 // ─────────────────────────────────────────────────────────────────────────────
-
-describe("admission — session cap (ADR 0136 §7, issue #3775)", () => {
-    const below: AdmissionInput = {
-        claims: [10, 20],
-        cap: 3,
-        noCap: false,
-        red: null,
-    };
-
-    it("refuses the pick at the cap and names the claimed issues", () => {
-        const verdict = admitPick({ ...below, claims: [10, 20, 30] });
-        expect(verdict.admitted).toBe(false);
-        if (verdict.admitted) throw new Error("unreachable");
-        expect(verdict.refusal).toBe("cap");
-        // The claimed issues are the whole point of the message: "cap
-        // reached" with no names leaves the operator with nothing to wait on.
-        expect(verdict.message).toContain("#10");
-        expect(verdict.message).toContain("#20");
-        expect(verdict.message).toContain("#30");
-        expect(verdict.message).toContain("3/3");
-        // …and the exit.
-        expect(verdict.message).toContain("--no-cap");
-    });
-
-    it("refuses ABOVE the cap too — a cap tightened under live claims still holds", () => {
-        const verdict = admitPick({ ...below, claims: [10, 20, 30, 40] });
-        expect(verdict.admitted).toBe(false);
-    });
-
-    it("admits below the cap", () => {
-        expect(admitPick(below)).toEqual({ admitted: true });
-    });
-
-    it("--no-cap plans past it", () => {
-        expect(
-            admitPick({ ...below, claims: [10, 20, 30], noCap: true })
-        ).toEqual({ admitted: true });
-    });
-
-    it("--no-cap does NOT wave through a red base", () => {
-        // The one flag anybody reaches for when they are in a hurry must not
-        // silently opt out of the thing ADR 0136 §6 added to stop new
-        // worktrees branching from a tip known red.
-        const verdict = admitPick({
-            claims: [],
-            cap: 3,
-            noCap: true,
-            red: { sha: "abc123456789", failedStep: "test:bot" },
-        });
-        expect(verdict.admitted).toBe(false);
-        if (verdict.admitted) throw new Error("unreachable");
-        expect(verdict.refusal).toBe("red");
-    });
-});
 
 describe("admission — release health RED (ADR 0136 §6, issue #3775)", () => {
     it("refuses the pick, naming the sha, the failing step and the way out", () => {
-        const verdict = admitPick({
-            claims: [],
-            cap: 3,
-            noCap: false,
-            red: {
-                sha: "deadbeefcafe1234",
-                failedStep: "check:all",
-                log: ".claude/telemetry/health/deadbeef.log",
-            },
+        const verdict = redRefusal({
+            sha: "deadbeefcafe1234",
+            failedStep: "check:all",
+            log: ".claude/telemetry/health/deadbeef.log",
         });
         expect(verdict.admitted).toBe(false);
         if (verdict.admitted) throw new Error("unreachable");
@@ -2844,98 +2778,14 @@ describe("admission — release health RED (ADR 0136 §6, issue #3775)", () => {
         // torn. Degrading the message is correct; degrading the decision to
         // "admitted" would hand a pass a broken base because a telemetry file
         // was mid-write.
-        const verdict = admitPick({
-            claims: [],
-            cap: 3,
-            noCap: false,
-            red: {},
-        });
+        const verdict = redRefusal({});
         expect(verdict.admitted).toBe(false);
         if (verdict.admitted) throw new Error("unreachable");
         expect(verdict.message).toContain("bun run health:fix");
     });
 
-    it("RED is decided before the cap — the broken base is the bigger fact", () => {
-        const verdict = admitPick({
-            claims: [10, 20, 30],
-            cap: 3,
-            noCap: false,
-            red: { sha: "0123456789ab", failedStep: "test:app" },
-        });
-        expect(verdict.admitted).toBe(false);
-        if (verdict.admitted) throw new Error("unreachable");
-        expect(verdict.refusal).toBe("red");
-    });
-});
-
-describe("admission — live claims are the RECONCILIATION (issue #3775)", () => {
-    it("counts the open in-progress labels, minus what the ledger gave back", () => {
-        expect(liveClaims([10, 20, 30], [20])).toEqual([10, 30]);
-    });
-
-    it("counts a label the ledger never mentions — the journal is best-effort, the cap is not", () => {
-        // The direction a first cut had backwards: intersecting the two made
-        // the cap fail open to ZERO whenever the journal could not be read,
-        // and a live queue with four claims on it planned a fifth pick
-        // without a word.
-        expect(liveClaims([10, 20, 30], [])).toEqual([10, 20, 30]);
-    });
-
-    it("drops a released claim whose label outlived it — nobody is doing that work", () => {
-        expect(liveClaims([10], [10])).toEqual([]);
-    });
-
-    it("is sorted and deduplicated, so the refusal message is reproducible", () => {
-        expect(liveClaims([30, 10, 10, 20], [])).toEqual([10, 20, 30]);
-    });
-});
-
-describe("admission — the claim journal fold (issue #3775)", () => {
-    const row = (issue: number, event: string) =>
-        `{"ts":1,"session":"s","issue":${issue},"event":"${event}"}`;
-
-    it("reports a released issue and not a claimed one — last row wins", () => {
-        const ledger = [
-            row(10, "claim"),
-            row(20, "claim"),
-            row(10, "released"),
-            row(30, "claim"),
-        ].join("\n");
-        expect(releasedClaims(ledger)).toEqual([10]);
-    });
-
-    it("re-claiming after a release takes it back", () => {
-        expect(
-            releasedClaims(
-                [row(10, "claim"), row(10, "released"), row(10, "claim")].join(
-                    "\n"
-                )
-            )
-        ).toEqual([]);
-    });
-
-    it("an ownerless claim row still holds — unlike parseClaimOwners, which asks a different question", () => {
-        // `lib/claim-verdict.ts`'s fold drops ownerless rows because it answers
-        // "WHO owns this"; every row written before #2627 is ownerless, and
-        // treating those as released here would hand the cap free slots.
-        expect(releasedClaims(row(10, "claim"))).toEqual([]);
-    });
-
-    it("skips a torn line rather than misreading the rest", () => {
-        // The journal is appended to by a shell hook under `2>/dev/null`, so
-        // a half-written last line is a normal thing to find.
-        const ledger = `${row(10, "released")}\n{"issue":20,"event":"rel`;
-        expect(releasedClaims(ledger)).toEqual([10]);
-    });
-
-    it("ignores a row with no issue number", () => {
-        expect(
-            releasedClaims('{"event":"released"}\n' + row(10, "released"))
-        ).toEqual([10]);
-    });
-
-    it("reads an empty journal as nothing released", () => {
-        expect(releasedClaims("")).toEqual([]);
+    it("admits when no RED stands", () => {
+        expect(redRefusal(null)).toEqual({ admitted: true });
     });
 });
 

@@ -544,14 +544,11 @@ export interface BatchPlan {
 // Plan artefact — the durable record `queue:plan` writes to
 // `.claude/telemetry/plans/` (issue #2518).
 //
-// Nothing checked that the batch a pass CLAIMED was the batch the planner
-// PRODUCED, and nothing recorded which plan a claim came from — a
-// hand-picked batch was indistinguishable from a planned one, after the
-// fact. This record is what `claim-ledger.sh` joins a claim row against: it
-// names the session, so the join key is exactly the session id the hook
-// already reads off its own payload, and it carries the admitted batch (with
-// the priority read for each issue, already on `PlannedIssue.priority`) so a
-// later reader can tell whether a claimed issue was actually in it.
+// Nothing recorded which plan a pick came from — a hand-picked batch was
+// indistinguishable from a planned one, after the fact. This record names
+// the session and carries the admitted batch (with the priority read for each
+// issue, already on `PlannedIssue.priority`) and the `--lineage` restriction,
+// so a later reader can tell whether a picked issue was actually in it.
 //
 // `buildPlanRecord` is pure — same discipline as `planBatch` itself. The
 // actual filesystem write, the session id and the wall clock are the
@@ -605,7 +602,7 @@ export function buildPlanRecord(
 /**
  * Filename for the plan artefact: `<session>-<epoch-ms>.json`.
  *
- * Sortable and joinable by session in one shot — `claim-ledger.sh` globs
+ * Sortable and joinable by session in one shot — a reader globs
  * `<session>-*.json` and a lexicographic sort of same-width epoch
  * milliseconds is a chronological sort too, so "the latest plan for this
  * session" is `sort | tail -1` with no JSON parsing required to find it.

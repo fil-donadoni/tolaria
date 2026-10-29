@@ -12,7 +12,7 @@
 // (`docs/agents/quality-gates.md` § Machine admission).
 //
 // No session is refused at its prompt (issue #5137): a conversation adds no
-// load. Heavy gates wait on the machine; `queue:claim` and `wt:new` take the
+// load. Heavy gates wait on the machine; `wt:new` takes the
 // session decision (`lib/machine-admission.ts`).
 
 import { spawn, spawnSync } from "node:child_process";

@@ -76,7 +76,7 @@ describe("tolaria.config.json — the branch configuration", () => {
 });
 
 describe("tolaria.config.json — the session cap (ADR 0136 §7, issue #3775)", () => {
-    it("names a positive integer cap, and the planner reads that one", () => {
+    it("names a positive integer cap, and `sessionCap` reads that one", () => {
         const cfg = readSessionConfig(CONFIG_PATH);
         expect(cfg.cap).toBe(sessionCap());
         expect(Number.isInteger(cfg.cap)).toBe(true);
@@ -120,36 +120,21 @@ describe("tolaria.config.json — the session cap (ADR 0136 §7, issue #3775)", 
         });
     });
 
-    it("the planner reads the cap from here, never from a literal of its own", () => {
+    it("the machine admission reads the cap from here, never from a literal of its own", () => {
         // The failure this pins is the one ADR 0116 pinned for branch names:
         // a number copied into the code diverges from the document that is
-        // supposed to own it, and the copy is what actually runs.
-        //
-        // Scoped to the SESSION cap on purpose — `DEFAULTS.cap` in the same
-        // file is the fan-out BATCH size (`--cap 1`), a different number with
-        // a different owner, and a sweep that conflated the two would fail on
-        // a correct tree.
-        const wrapper = readFileSync(
-            join(REPO_ROOT, "scripts/queue-plan.ts"),
+        // supposed to own it, and the copy is what actually runs. The planner
+        // no longer counts claims (ADR 0156: claims are labels), so the
+        // machine admission is the one reader left.
+        const src = readFileSync(
+            join(REPO_ROOT, "scripts/lib/machine-admission.ts"),
             "utf8"
         );
-        // The clause is "`sessionCap` comes FROM `lib/branches`", not "it is
-        // the only symbol on that import line": the wrapper legitimately took
-        // `ORIGIN_BASE` from the same module (issue #4384), and the old
-        // anchored spelling reds on that while the number it guards is
-        // untouched. What still fails is the thing worth failing on —
-        // `sessionCap` imported from anywhere else, or not imported at all.
-        expect(wrapper).toMatch(
-            /import\s*\{[^}]*\bsessionCap\b[^}]*\}\s*from\s*"\.\/lib\/branches"/
+        expect(src).toMatch(
+            /import\s*\{[^}]*\bsessionCap\b[^}]*\}\s*from\s*"\.\/branches"/
         );
-        expect(wrapper).toMatch(/sessionCap\(\)/);
-        for (const file of [
-            "scripts/queue-plan.ts",
-            "scripts/lib/queue-plan.ts",
-        ]) {
-            const src = readFileSync(join(REPO_ROOT, file), "utf8");
-            expect(src).not.toMatch(/sessionCap\s*=\s*\(?\s*\)?\s*=?>?\s*\d/);
-        }
+        expect(src).toMatch(/sessionCap\(\)/);
+        expect(src).not.toMatch(/sessionCap\s*=\s*\(?\s*\)?\s*=?>?\s*\d/);
     });
 });
 

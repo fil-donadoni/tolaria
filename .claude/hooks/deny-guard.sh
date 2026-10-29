@@ -938,52 +938,21 @@ replan after a claim collision (§1b), opt in explicitly:
     fi
 fi
 
-# 6. The claim is one locked act — `bun run queue:claim N` (issue #4375).
-#
-# `sessions.cap` used to be enforced by `queue:plan`'s READ of the live claims,
-# and the claim itself was typed by the session later (`gh issue edit N
-# --add-label in-progress`), with nothing between the read and the write:
-# `claim-ledger.sh` observes and never blocks, and this file had no rule on the
-# label. Two sessions in that window both passed the cap — the observed
-# `4/3 live claims` of 2026-09-22. `queue:claim` re-reads the live claims UNDER
-# a lock, refuses at the cap (or on a collision), writes the label and the
-# journal row, and releases. A hand-typed claim skips all of that, so it is
-# denied and pointed at the verb. The hatch exists for a repair — releasing or
-# re-labelling by hand — never for a pass.
-#
-# Match the INVOCATION shape — at the start of a segment or right after a `|`
-# (the splitter does not break on a pipe), an env-var prefix allowed — so a
-# commit message quoting this rule is not a claim. The label in every form
-# `gh` accepts: `--add-label in-progress`, `--add-label=in-progress`, quoted,
-# first of a comma list. A `--remove-label in-progress` is a release, not a
-# claim — § 6b below polices that one.
-CLAIM_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+issue[[:space:]]+edit[[:space:]].*--add-label(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?in-progress["'"'"']?([[:space:],]|$)'
-if seg_has "$CLAIM_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_CLAIM=1' "$CLAIM_INVOKE"; then
-    deny "BLOCKED: hand-typed claim — the claim is one locked act (issue #4375).
-\`queue:plan\` counts the live claims and refuses a plan at \`sessions.cap\`,
-but a label typed later races that read: two sessions in the window both pass.
-\`queue:claim\` takes the claim lock, re-reads the live claims, refuses at the
-cap or on a collision, then writes the label AND the journal row:
-  bun run queue:claim <issue#>          # --no-cap plans past the cap deliberately
-Repairing a label by hand (a release is never denied):
-  TOLARIA_ALLOW_MANUAL_CLAIM=1 gh issue edit <issue#> --add-label in-progress"
-fi
+# 6. RETIRED (ADR 0156) — the claim is the label. The locked claim verb is
+#    gone: `afk-dispatch` or an attended `/next-ticket` adds `in-progress`
+#    with `gh issue edit`, so a typed claim is no longer denied.
 
-# 6b. The release is one act too — `bun run queue:release N` (issue #4752).
+# 6b. The release is one act — label AND assignee (issue #4752).
 #
 # An abort that typed `gh issue edit N --remove-label in-progress` left the
-# `@me` assignee `queue:claim` added and wrote no journal row, and the planner
-# deferred the issue as "assigned — someone is working it" on every pass,
-# forever. A hand release that ALSO removes the assignee is the repair `land`,
-# `claim-sweep.sh` and `afk-dispatch` already make, and stays allowed.
+# `@me` assignee, and the planner deferred the issue as "assigned — someone
+# is working it" on every pass, forever. A release that ALSO removes the
+# assignee is the one `afk-dispatch` and the merge path make, and is allowed.
 RELEASE_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+issue[[:space:]]+edit[[:space:]].*--remove-label(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?in-progress["'"'"']?([[:space:],]|$)'
 if seg_has "$RELEASE_INVOKE" && ! seg_has '[[:space:]]--remove-assignee(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?@me["'"'"']?([[:space:],]|$)' "$RELEASE_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_CLAIM=1' "$RELEASE_INVOKE"; then
     deny "BLOCKED: half a release — the label comes off, the assignee stays (issue #4752).
 The planner defers an assigned issue as \"someone is working it\" on every
-pass, so a label-only release starves it forever. Release as ONE act — label,
-assignee and the claim-journal row:
-  bun run queue:release <issue#>
-Or, repairing by hand, remove both:
+pass, so a label-only release starves it forever. Release as ONE act:
   gh issue edit <issue#> --remove-label in-progress --remove-label pr-open --remove-assignee @me"
 fi
 

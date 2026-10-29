@@ -309,18 +309,16 @@ describe("next-ticket consumes the planner (issue #2184, re-homed by ADR 0110)",
         expect(pkg.scripts["queue:plan"]).toBeTruthy();
     });
 
-    it("the abort step releases through `queue:release` and wires a prerequisite in both stores (issue #4752)", () => {
+    it("the abort step releases label AND assignee as one act and wires a prerequisite in both stores (issue #4752)", () => {
         const text = body();
         const abort = fileTail(text, "### Abort");
         expect(text.indexOf("### Abort")).toBeGreaterThan(-1);
-        expect(abort).toMatch(/bun run queue:release N/);
+        expect(abort).toMatch(
+            /gh issue edit N --remove-label in-progress --remove-label pr-open --remove-assignee @me/
+        );
         expect(abort).toMatch(/--add-blocked-by/);
         expect(abort).toMatch(/## Blocked by/);
         expect(abort).toMatch(/bun run queue:lint N/);
-        const pkg = JSON.parse(
-            fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8")
-        ) as { scripts: Record<string, string> };
-        expect(pkg.scripts["queue:release"]).toBeTruthy();
         expect(text).not.toMatch(/On abort: remove `in-progress`/);
     });
 
@@ -428,13 +426,15 @@ describe("next-ticket consumes the planner (issue #2184, re-homed by ADR 0110)",
         expect(text).toMatch(/`GITHUB_ACTIONS=true`/);
         const job = fileTail(text, "# /next-ticket — inside an `afk-pass` job");
         expect(job).toMatch(/`queue:plan`/);
-        expect(job).toMatch(/no `queue:claim`, no `wt:new`/i);
+        expect(job).toMatch(/no claim edit, no `wt:new`/i);
         expect(job).toMatch(/git push -u origin HEAD/);
         expect(job).toMatch(/gh run view <run-id> --log-failed/);
         expect(job).toMatch(/ready-to-land/);
         expect(job).toMatch(/--remove-label in-progress --remove-assignee @me/);
         // The attended path is untouched: its commands are still in the manifest.
-        expect(text).toMatch(/bun run queue:claim N/);
+        expect(text).toMatch(
+            /gh issue edit N --add-label in-progress --add-assignee @me/
+        );
         expect(text).toMatch(/wt:new/);
     });
 
