@@ -640,8 +640,8 @@ export function bisectCulprits(
  * RED it first shows is a PR commit's derived effect. Its tests are
  * unexplained, never blamed on it, when no PR commit precedes it in the
  * range — or when several do: each probed green, so nothing tells them
- * apart, and the ladder reverts the first culprit line (`parseCulprit`) —
- * a guess is worse than none. The reason lists the candidates.
+ * apart, and the ladder reverts every culprit line (`parseCulprits`) — a
+ * guess is worse than none. The reason lists the candidates.
  */
 export function attributeMaintenance(
     report: CulpritReport,
@@ -702,7 +702,7 @@ function testList(tests: readonly FailingTest[]): string {
 
 /**
  * The evidence bullets that name the bisect's outcome, the oldest culprit
- * first (the line `parseCulprit` reads). A culprit explaining every failing
+ * first (the lines `parseCulprits` reads, every one reverted). A culprit explaining every failing
  * test is `culpritLine`'s one line, as before; otherwise each line names the
  * tests it explains, and a last one those no culprit explains — never
  * dropped silently.
