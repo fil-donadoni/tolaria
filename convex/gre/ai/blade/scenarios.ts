@@ -9407,7 +9407,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             },
             describe: "untaps exactly its own two tapped lands",
         },
-        note: "Issue #6935. The rollout scores at the start of the bot's next turn, after its untap step (CR 502.3), so every answer's leaf had the same lands untapped: the answers tied inside `outcomeEps` and `material-tiebreak` picked by rollout noise — measured 1/8 seeds untapping both own Islands at authoring time (the rest: the decline, one Island, or the opponent's Mountains). A signed `choose-permanents` prior alone measured 2/8. Fixed by `pruneTapDominatedAnswers` (`dominance.ts`): answers whose settled positions differ only in tap status are ordered permanent by permanent and the dominated ones never open. Proof-of-failure: removing the prune from `choiceCandidates` reds this entry.",
+        note: "Issue #6935. The rollout scores at the start of the bot's next turn, after its untap step (CR 502.3), so every answer's leaf had the same lands untapped: the answers tied inside `outcomeEps` and `material-tiebreak` picked by rollout noise — measured 0/5 seeds untapping both own Islands on this entry's seeds (the decline, one Island, or the opponent's Mountains instead). A signed `choose-permanents` prior favouring own tapped picks measured 2/8 seeds: a prior biases which branch opens first, not which one wins a tie. Fixed by `pruneTapDominatedAnswers` (`dominance.ts`): answers whose settled positions differ only in tap status are ordered permanent by permanent and the dominated ones never open. Proof-of-failure: removing the prune from `choiceCandidates` reds this entry.",
     },
     {
         // Issue #6935 — fewer own tapped lands than `max`: Mox Sapphire pays
@@ -9468,7 +9468,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             },
             describe: "untaps exactly its one tapped land",
         },
-        note: "Issue #6935 acceptance criterion: with fewer own tapped lands than `max`, untap all of its own and no opponent land. Before the fix 1/5 seeds untapped the Island alone; with the dominance prune but no equal-position dedupe, 2/5 seeds submitted the Island padded with an untapped opponent Mountain. Proof-of-failure: removing the prune from `choiceCandidates` reds this entry.",
+        note: "Issue #6935 acceptance criterion: with fewer own tapped lands than `max`, untap all of its own and no opponent land. Before the fix 2/5 seeds untapped the Island alone (the decline or the opponent's Mountains on the rest); with the dominance prune but no equal-position dedupe, 2/5 seeds submitted the Island padded with an untapped opponent Mountain. Proof-of-failure: removing the prune from `choiceCandidates`, or the equal-position dedupe in `compareTapStatus`, reds this entry.",
     },
     {
         // Issue #3545 — the per-pick-cost shape: Magnetic Mountain's "choose any
