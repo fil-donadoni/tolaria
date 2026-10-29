@@ -262,7 +262,7 @@ function standsAbilityOnBoard(player: PlayerState): boolean {
     return player.battlefield.some((perm) => {
         const def = tryGetDefinition(String(perm.card.id ?? ""));
         return (
-            def !== undefined &&
+            def != null &&
             ((def.triggeredAbilities?.length ?? 0) > 0 ||
                 (def.activatedAbilities ?? []).some(
                     (a) => !isManaAbilityDefinition(a)

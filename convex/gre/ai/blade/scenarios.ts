@@ -10,7 +10,8 @@
  * every merged result.
  */
 
-import type { RegistryBladeScenario } from "./types";
+import type { BladeScenario, RegistryBladeScenario } from "./types";
+import type { ScenarioSpec } from "../../../debugScenarioSpec";
 import { isDiscouragedRolloutMove } from "../../search";
 import { instanceIdsForName, matchesMove, seatPlayerId } from "./matcher";
 import { getCardByName } from "../../../cards";
@@ -74,12 +75,12 @@ function heldAnswerPair(
         kind: "card",
         detail: "the opponent's hand: one card against none",
     } as const;
-    const position = (opponentHand: number) => ({
+    const position = (opponentHand: number): ScenarioSpec => ({
         cards: [
             { name: "Stone Rain", owner: "me", zone: "hand" },
             { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
             ...(opponentHand > 0
-                ? [
+                ? ([
                       {
                           // A spell the three Mountains cast next turn, not
                           // this one (Stone Rain taps them all): the card
@@ -90,7 +91,7 @@ function heldAnswerPair(
                           zone: "hand",
                           count: opponentHand,
                       },
-                  ]
+                  ] as ScenarioSpec["cards"])
                 : []),
             { name: "Volcanic Island", owner: "opp", zone: "battlefield" },
             { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
@@ -100,7 +101,10 @@ function heldAnswerPair(
         turn: 3,
         libraryCount: 20,
     });
-    const common = {
+    const common: Pick<
+        BladeScenario,
+        "setup" | "bot" | "budget" | "seeds" | "tier"
+    > = {
         setup: [
             {
                 kind: "cast",
@@ -113,7 +117,7 @@ function heldAnswerPair(
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
-    } as const;
+    };
     const anchor: RegistryBladeScenario = {
         ...common,
         label: anchorLabel,
