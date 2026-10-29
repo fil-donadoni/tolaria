@@ -1583,3 +1583,66 @@ export const greaterRealmOfPreservation = defineCard(() =>
         activationCost: { X: 1, W: 1 },
     })
 );
+
+// Land Tax — {W} Enchantment. "At the beginning of your upkeep, if an opponent
+// controls more lands than you, you may search your library for up to three
+// basic land cards, reveal them, put them into your hand, then shuffle."
+// (CR 603.4 intervening-if checked on trigger AND on
+// resolution, CR 701.23 search, CR 205.4a basic = supertype.) "You may" +
+// "up to three" are both honoured by the 0..3 search count.
+export const landTax = defineCard(() => ({
+    id: "d53b20b0-67bc-4587-817b-efbf21cb2512",
+    rarity: "uncommon",
+    name: "Land Tax",
+    oracleText:
+        "At the beginning of your upkeep, if an opponent controls more lands than you, you may search your library for up to three basic land cards, reveal them, put them into your hand, then shuffle.",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "land-tax-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, if an opponent controls more lands than you, you may search your library for up to three basic land cards, reveal them, put them into your hand, then shuffle.",
+            phase: "UPKEEP",
+            scope: "your",
+            interveningIf: (_event, self, state) => {
+                if (!state) return true;
+                const landsOf = (p: (typeof state.players)[number]) =>
+                    p.battlefield.filter((c) => c.types.includes("Land"))
+                        .length;
+                const mine = state.players.find(
+                    (p) => p.id === self.controllerId
+                );
+                const mineCount = mine ? landsOf(mine) : 0;
+                return state.players.some(
+                    (p) => p.id !== self.controllerId && landsOf(p) > mineCount
+                );
+            },
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Land", supertype: "Basic" },
+                    count: { min: 0, max: 3 },
+                    prompt: "Search your library for up to three basic land cards.",
+                    bind: "$picked",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$picked" },
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+        }),
+    ],
+}));

@@ -64,6 +64,14 @@ const EXCLUDED: Record<string, string> = {
         "body reads `$targetId` — charges an optional ability's cost while its `resolve()` benefit stays unseen",
     Portent:
         "carries an `aiEffects` shadow (issue #4143) that already prices the next-upkeep `draw` — a template on top would count it twice",
+    Abomination:
+        "body reads `$targetId` (the paired creature) and the card carries an `aiEffects` shadow on its trigger that already prices that destroy — a template on top would count it twice",
+    Cockatrice:
+        "body reads `$targetId` (the paired creature) and the card carries an `aiEffects` shadow on its trigger that already prices that destroy — a template on top would count it twice",
+    "Infernal Medusa":
+        "body reads `$targetId` (the paired creature) and the card carries an `aiEffects` shadow on its trigger that already prices that destroy — a template on top would count it twice",
+    "Thicket Basilisk":
+        "body reads `$targetId` (the paired creature) and the card carries an `aiEffects` shadow on its trigger that already prices that destroy — a template on top would count it twice",
 };
 
 /** Every catalogue template carrying a real `effects[]`, as `card → body`. */

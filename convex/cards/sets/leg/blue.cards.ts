@@ -4,6 +4,8 @@
 // generic mana is encoded as `X: n` (e.g. {3}{G}{W} → { X: 3, G: 1, W: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 
+import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
+
 import type { SpellContext, TargetSelection } from "../../types";
 import { defineCard, PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -1122,5 +1124,60 @@ export const elderSpawn = defineCard(() => ({
                 !getEffectiveColors(opponent).includes("R"),
             oracleText: "Elder Spawn can't be blocked by red creatures.",
         },
+    ],
+}));
+
+// Relic Bind — {2}{U} Aura (Enchant artifact an opponent controls). "Whenever
+// enchanted artifact becomes tapped, choose one — • This Aura deals 1 damage to
+// target player or planeswalker. • Target player gains 1 life." (CR 303.4 Aura,
+// CR 603.3c the mode and its target are locked as the trigger goes on the
+// stack, CR 700.2.)
+// compiler-gap: "Whenever enchanted artifact becomes tapped, choose one — • This Aura deals 1 damage to target player or planeswalker. • Target player gains 1 life." (#1009)
+export const relicBind = defineCard(() => ({
+    id: "a9b07dc4-21ad-410b-8f8a-2b034253bfee",
+    rarity: "uncommon",
+    name: "Relic Bind",
+    oracleText:
+        "Enchant artifact an opponent controls\nWhenever enchanted artifact becomes tapped, choose one —\n• This Aura deals 1 damage to target player or planeswalker.\n• Target player gains 1 life.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Artifact", count: 1, controller: "opponent" },
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "relic-bind-tapped",
+            oracleText:
+                "Whenever enchanted artifact becomes tapped, choose one —\n• This Aura deals 1 damage to target player or planeswalker.\n• Target player gains 1 life.",
+            scope: "host",
+            modes: [
+                {
+                    id: "damage",
+                    label: "Deal 1 damage to target player or planeswalker",
+                    oracleText:
+                        "This Aura deals 1 damage to target player or planeswalker.",
+                    targetRequirement: {
+                        type: ["player", "Planeswalker"],
+                        count: 1,
+                    },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 1,
+                            to: { target: 0 },
+                            source: { ref: "$source" },
+                        },
+                    ],
+                },
+                {
+                    id: "gain-life",
+                    label: "Target player gains 1 life",
+                    oracleText: "Target player gains 1 life.",
+                    targetRequirement: { type: "player", count: 1 },
+                    effects: [
+                        { op: "gainLife", player: { target: 0 }, amount: 1 },
+                    ],
+                },
+            ],
+        }),
     ],
 }));
