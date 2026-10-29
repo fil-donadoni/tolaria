@@ -14113,4 +14113,63 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 601.2 + CR 400.7 — "Choose target artifact card in your graveyard. You
+    // may cast that card this turn.": exhibits `grantCastFromGraveyard` over an
+    // announced graveyard target, which the canned smoke scenario cannot seed.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "0dc78b1e-581e-4f28-bf35-e2082553d6a9",
+            name: "Silas Renn, Seeker Adept",
+            manaCost: "{1}{U}{B}",
+            typeLine: "Legendary Artifact Creature — Human",
+            oracleText:
+                "Deathtouch\nWhenever Silas Renn deals combat damage to a player, choose target artifact card in your graveyard. You may cast that card this turn.\nPartner (You can have two commanders if both have partner.)",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Silas Renn, Seeker Adept",
+            types: ["Artifact", "Creature"],
+            supertypes: ["Legendary"],
+            subtypes: ["Human"],
+            manaCost: {
+                X: 1,
+                U: 1,
+                B: 1,
+            },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Deathtouch\nWhenever Silas Renn deals combat damage to a player, choose target artifact card in your graveyard. You may cast that card this turn.\nPartner (You can have two commanders if both have partner.)",
+            staticAbilities: ["deathtouch", "partner"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "silas-renn-seeker-adept-trigger",
+                    oracleText:
+                        "Whenever {self} deals combat damage to a player, choose target artifact card in your graveyard. You may cast that card this turn.",
+                    head: {
+                        kind: "combat-damage-to-player",
+                    },
+                    targetRequirement: {
+                        type: "Artifact",
+                        count: 1,
+                        zone: "graveyard",
+                        controller: "you",
+                    },
+                    effects: [
+                        {
+                            op: "grantCastFromGraveyard",
+                            card: {
+                                target: 0,
+                            },
+                            player: "controller",
+                            window: "this-turn",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
