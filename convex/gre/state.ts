@@ -86,6 +86,7 @@ import {
     ensureLayers2to5Base,
     setControlRelocation,
     syncLayers2to5,
+    syncStackObjectLayers2to5,
 } from "./layers2to5";
 
 // CR 613.1b layer 2 (PRD #2064 S4) — `gre/layers2to5.ts` derives WHO controls a
@@ -7815,9 +7816,10 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     // CR 601.2i / 613.1e — a cast trigger sees the spell's CURRENT colours,
     // layer 5 included (Painter's Servant's every-zone grant makes every spell
     // the chosen colour too, CR 109.2b). The object just moved onto the stack,
-    // so its layers are re-derived first; then the ONE colour authority
-    // (`getEffectiveColors`) is read rather than the printed cost.
-    syncLayers2to5(state);
+    // so ITS layers are re-derived first (never the whole board: this can run
+    // mid-resolution); then the ONE colour authority (`getEffectiveColors`) is
+    // read rather than the printed cost.
+    syncStackObjectLayers2to5(state, item);
     const colors = getEffectiveColors(item as unknown as PermanentView);
     const priorSpellCount = state.spellsCastThisTurn ?? 0;
     state.spellsCastThisTurn = priorSpellCount + 1;

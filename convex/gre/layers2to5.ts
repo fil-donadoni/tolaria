@@ -71,6 +71,7 @@ import { tryGetEmblemDefinition } from "../cards/emblems";
 import {
     applyCreatureTypeReplacement,
     applyLandTypeReplacement,
+    isSpellStackItem,
     sameOrder,
 } from "./constants";
 import { compareContinuousEffects } from "./continuousEffects";
@@ -95,7 +96,11 @@ import type {
     TextChange,
     ZoneScopedStaticEffect,
 } from "../cards/types";
-import type { CardInstanceState, GameState } from "./state/declarations";
+import type {
+    CardInstanceState,
+    GameState,
+    StackItem,
+} from "./state/declarations";
 
 /** The `StaticEffect` kinds layers 2-5 own, each mapped to ITS layer
  *  (CR 613.1b-e). A `Record` rather than a set, because the layer is the thing
@@ -441,16 +446,23 @@ function functionsInAllZones(effect: StaticEffect): boolean {
 
 /** CR 109.2a / 109.2b — does this effect's description reach objects OFF the
  *  battlefield (a card in a hand, library, graveyard or exile, or a spell)?
+ *  `spell` is false for an ABILITY on the stack: "spells" never names one
+ *  (CR 109.2b), so an every-zone grant leaves it alone.
  *  The target-side half of the zone gate only: an all-zone effect
  *  (`functionsInAllZones`, bestow) reaches the stack because its source lives
  *  there, an every-zone colour grant (`StaticColorGrant.affectsEveryZone`,
  *  Painter's Servant) because its text says "cards" and "spells" while its
  *  source stays on the battlefield. */
-function reachesOffBattlefield(effect: StaticEffect): boolean {
+function reachesOffBattlefield(effect: StaticEffect, spell: boolean): boolean {
     return (
-        functionsInAllZones(effect) ||
-        (effect.kind === "color-grant" && effect.affectsEveryZone === true)
+        functionsInAllZones(effect) || (spell && isEveryZoneColorGrant(effect))
     );
+}
+
+/** CR 109.2a / 109.2b — `StaticColorGrant.affectsEveryZone`, the one
+ *  every-zone declarer. */
+function isEveryZoneColorGrant(effect: StaticEffect | undefined): boolean {
+    return effect?.kind === "color-grant" && effect.affectsEveryZone === true;
 }
 
 /** The entries an object OUTSIDE the battlefield may be derived against: only
@@ -469,11 +481,17 @@ function reachesOffBattlefield(effect: StaticEffect): boolean {
  *  The instance's OWN ledger rows are not filtered here and must not be: they
  *  are not board sources, they name this object and nothing else, and
  *  `finishEffectsFor` unions them per target after this. */
-function allZoneEntriesOf(collected: SourceEntries): SourceEntries {
+function allZoneEntriesOf(
+    collected: SourceEntries,
+    /** False for an ability on the stack (`isSpellStackItem`). */
+    spell = true
+): SourceEntries {
     return {
         entries: collected.entries.filter((entry) => {
             const template = collected.templates.get(entry.id);
-            return template ? reachesOffBattlefield(template.effect) : false;
+            return template
+                ? reachesOffBattlefield(template.effect, spell)
+                : false;
         }),
         templates: collected.templates,
     };
@@ -1037,23 +1055,6 @@ function resolveAction(
     }
 }
 
-/** The entries a card in a hand, library, graveyard or exile is derived
- *  against: only the every-zone colour grants (CR 109.2a). Narrower than
- *  `allZoneEntriesOf` on purpose — bestow's all-zone type change is about a
- *  SPELL (CR 702.103b) and must not reach a card that is merely in a hand. */
-function everyZoneEntriesOf(collected: SourceEntries): SourceEntries {
-    return {
-        entries: collected.entries.filter((entry) => {
-            const effect = collected.templates.get(entry.id)?.effect;
-            return (
-                effect?.kind === "color-grant" &&
-                effect.affectsEveryZone === true
-            );
-        }),
-        templates: collected.templates,
-    };
-}
-
 /** CR 109.2a / 613.1e — writes the every-zone colour grants (Painter's
  *  Servant's "all cards that aren't on the battlefield … are the chosen
  *  color") onto every card in a hand, library, graveyard or exile, and clears
@@ -1066,40 +1067,94 @@ function everyZoneEntriesOf(collected: SourceEntries): SourceEntries {
  *  `getEffectiveColors` (`cards/effectiveColors.ts`) — the one colour
  *  authority every consumer reads, client included — has no board.
  *
- *  Cost: with no every-zone source in play this is one field read per hidden
- *  card, needed so a grant left behind by a source that just left is cleared
- *  (the grant is derived output, never a ledger). The `outsideGame` pile is
- *  not a zone (CR 400.1) and is never reached. */
+ *  Each every-zone entry is resolved against the card directly rather than
+ *  through `deriveLayers2to5`: a hidden card carries no layer-2-5 ledger and
+ *  no stored registry entry (both are purged on departure), and an additive
+ *  grant is order-independent (CR 105.3 "in addition"), so the per-card CR
+ *  613.8 dependency sort would buy nothing at the cost of one sort per card
+ *  per sync on the ISMCTS hot path. Bestow's all-zone type change is about a
+ *  SPELL (CR 702.103b) and is never resolved here.
+ *
+ *  Cost with no layer-2-5 source in play: one field read per hidden card, to
+ *  clear a grant left behind by a source that just left (the grant is derived
+ *  output, never a ledger). The `outsideGame` pile is not a zone (CR 400.1)
+ *  and is never reached. */
 function syncHiddenZoneColorGrants(
     state: GameState,
     view: LayerStateView,
     collected: SourceEntries
 ): void {
-    const everyZone = everyZoneEntriesOf(collected);
-    const anySource = everyZone.entries.length > 0;
-    for (const player of state.players) {
-        for (const zone of [
-            player.hand,
-            player.library,
-            player.graveyard,
-            player.exile,
-        ]) {
-            for (const card of zone) {
-                if (!anySource) {
-                    if (card.grantedColors !== undefined) {
-                        card.grantedColors = undefined;
-                    }
-                    continue;
+    const everyZone =
+        collected.entries.length === 0
+            ? []
+            : collected.entries.filter((entry) =>
+                  isEveryZoneColorGrant(
+                      collected.templates.get(entry.id)?.effect
+                  )
+              );
+    const syncZone = (zone: CardInstanceState[]): void => {
+        for (const card of zone) {
+            if (everyZone.length === 0) {
+                if (card.grantedColors !== undefined) {
+                    card.grantedColors = undefined;
                 }
-                const granted = deriveLayers2to5(
+                continue;
+            }
+            const granted: { color: string; sourceId: string }[] = [];
+            for (const entry of everyZone) {
+                const action = resolveAction(
                     view,
                     card as unknown as PermanentView,
-                    everyZone
-                ).grantedColors;
-                card.grantedColors = granted.length > 0 ? granted : undefined;
+                    entry,
+                    collected.templates
+                );
+                if (action?.kind !== "color-change") continue;
+                for (const color of action.add ?? []) {
+                    granted.push({ color, sourceId: attributionOf(entry) });
+                }
             }
+            card.grantedColors = granted.length > 0 ? granted : undefined;
         }
+    };
+    for (const player of state.players) {
+        syncZone(player.hand);
+        syncZone(player.library);
+        syncZone(player.graveyard);
+        syncZone(player.exile);
     }
+}
+
+/** CR 601.2i / 613.1 — re-derives layers 2-5 for ONE object that has just been
+ *  put on the stack, against the real board, and writes the answer onto it.
+ *
+ *  The cast choke point (`emitSpellCastEvent`) needs the spell's CURRENT
+ *  colours before its SPELL_CAST event is built, and a whole-board
+ *  `syncLayers2to5` there would re-derive every permanent — and could run the
+ *  layer-2 relocation pass — in the middle of a resolving effect (a
+ *  `during-resolution` cast). This touches the cast object and nothing else. */
+export function syncStackObjectLayers2to5(
+    state: GameState,
+    stackItem: StackItem
+): void {
+    const item = stackItem as unknown as CardInstanceState;
+    const view = state as unknown as LayerStateView;
+    const collected = collectSourceEntries(view);
+    if (
+        collected.entries.length === 0 &&
+        !hasStoredLayer2to5Entry(view) &&
+        !carriesLayer2to5State(item)
+    ) {
+        return;
+    }
+    ensureLayer4Base(item);
+    writeDerivedCharacteristics(
+        item,
+        deriveLayers2to5(
+            view,
+            item as unknown as PermanentView,
+            allZoneEntriesOf(collected, isSpellStackItem(stackItem))
+        )
+    );
 }
 
 /** The battlefield permanent with `id`, as a `PermanentView`, or `undefined`. */
@@ -1543,6 +1598,7 @@ function deriveBoardWithSources(
     // Collected once, and only if a stack object is actually going to be
     // derived: on the overwhelming majority of boards this filter never runs.
     let allZone: SourceEntries | undefined;
+    let abilityZone: SourceEntries | undefined;
     for (const item of opts?.includeStack === false
         ? []
         : (state.stack ?? [])) {
@@ -1562,13 +1618,15 @@ function deriveBoardWithSources(
         }
         ensureLayer4Base(card);
         // CR 109.2 — the TARGET side of the zone gate. See `allZoneEntriesOf`.
-        allZone ??= allZoneEntriesOf(collected);
+        const entries = isSpellStackItem(item)
+            ? (allZone ??= allZoneEntriesOf(collected))
+            : (abilityZone ??= allZoneEntriesOf(collected, false));
         derived.push({
             card,
             result: deriveLayers2to5(
                 view,
                 card as unknown as PermanentView,
-                allZone
+                entries
             ),
             zone: "stack",
         });

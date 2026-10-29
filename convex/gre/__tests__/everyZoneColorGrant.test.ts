@@ -125,6 +125,17 @@ describe("every-zone colour grant (CR 109.2a / 109.2b / 613.1e)", () => {
         );
     });
 
+    it("an ABILITY on the stack is not a spell and is left alone (CR 109.2b)", () => {
+        withTemporaryDefinition(painter(), () => {
+            const { state, spell } = board();
+            const ability = pushSpell(state, lightningBolt().id, "p2");
+            ability.abilityId = "test-7208-ability";
+            syncLayers2to5(state);
+            expect(colorsOf(spell)).toEqual(["R", "U"]);
+            expect(colorsOf(ability)).toEqual(["R"]);
+        });
+    });
+
     it("a source with no colour chosen grants nothing", () => {
         withTemporaryDefinition(painter(), () => {
             const { state, permanent, zones } = board(null);
