@@ -63,11 +63,6 @@
             "issue": 5186
         },
         {
-            "key": "(op) › loseAllAbilitiesWhileSourceRemains",
-            "op": "loseAllAbilitiesWhileSourceRemains",
-            "issue": 7372
-        },
-        {
             "key": "(op) › randomExileToHand",
             "op": "randomExileToHand",
             "issue": 5178
