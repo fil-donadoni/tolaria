@@ -891,7 +891,7 @@ export function formatAdr0136Rows(
 
 // ─── Issue #5460: the rows that prove or disprove the throughput target ──────
 
-/** Host stamp of a session whose claim predates `host` in `claims.jsonl`. */
+/** Host stamp of a session whose `sessions.jsonl` row carries no `host`. */
 export const UNSTAMPED_HOST = "(unstamped)";
 
 /** Local calendar day of an epoch-seconds instant, `YYYY-MM-DD`. */
@@ -902,26 +902,21 @@ export function isoDayOf(epochS: number): string {
     ).padStart(2, "0")}`;
 }
 
-/** `session → host` from the claim journal's `claim` rows; the first stamp wins. */
-export function hostBySessionFromClaims(jsonl: string): Map<string, string> {
+/** `session → host` from the session journal's rows (`session-origin.sh`);
+ *  the first stamp wins. */
+export function hostBySessionFromSessions(jsonl: string): Map<string, string> {
     const out = new Map<string, string>();
     for (const line of jsonl.split("\n")) {
         if (!line.trim()) continue;
         try {
             const r = JSON.parse(line) as {
                 session?: string;
-                event?: string;
                 host?: string;
             };
-            if (
-                r.event === "claim" &&
-                r.session &&
-                r.host &&
-                !out.has(r.session)
-            )
+            if (r.session && r.host && !out.has(r.session))
                 out.set(r.session, r.host);
         } catch {
-            /* a torn line is not a claim */
+            /* a torn line names no host */
         }
     }
     return out;
@@ -929,7 +924,7 @@ export function hostBySessionFromClaims(jsonl: string): Map<string, string> {
 
 export interface MachineThroughputRow {
     host: string;
-    /** PRs merged by sessions that claimed on this host. */
+    /** PRs merged by sessions that ran on this host. */
     prs: number;
     /** Local hours in which one of this host's sessions had a main-thread turn. */
     activeHours: number;
@@ -938,8 +933,8 @@ export interface MachineThroughputRow {
 
 /**
  * PRs landed per active hour, per machine. A session's machine is the `host`
- * its `claim` row in `claims.jsonl` stamped (`hostBySession`); a session with
- * no stamp (a claim older than the stamp, or none at all) pools under
+ * its row in `sessions.jsonl` stamped (`hostBySession`); a session with
+ * no stamp (a row older than the stamp, or none at all) pools under
  * {@link UNSTAMPED_HOST} rather than being credited to the wrong machine.
  * A PR belongs to the machine of the session whose `prs` names it.
  */

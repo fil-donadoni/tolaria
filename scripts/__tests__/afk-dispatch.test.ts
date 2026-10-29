@@ -132,7 +132,6 @@ function facts(
             prs: prMap,
             landQueue,
             branches: { local: [], remote: branches },
-            owners: new Map(),
             baseRef: "origin/staging",
             now: NOW,
             passRuns: runs,

@@ -34,7 +34,7 @@
  * NOT `telemetry.db`, and not `tool-events.jsonl`. The Now view reads no
  * database by contract (PRD #2621 D1) and `tool-events.jsonl` is 215 MB;
  * this journal is an append-only JSONL of one short line per session, the
- * same shape and the same directory as `claims.jsonl`.
+ * beside the rest of `.claude/telemetry/`.
  */
 
 import { readFileSync, statSync } from "node:fs";

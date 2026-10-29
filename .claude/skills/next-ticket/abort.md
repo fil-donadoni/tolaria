@@ -34,14 +34,18 @@ it and aborts again (issue #4752, issue #5564).
 
 **In an `afk-pass` job the release is the label** (`job.md` § Abort).
 
-**Release as ONE act: `bun run queue:release N`** — when the pass claimed
-it (`SKILL.md` § 2. Claim + worktree) — removes `in-progress` AND the `@me` assignee and writes the claim
-journal's `released` row. A hand-typed `--remove-label in-progress` leaves the
-assignee, and the planner defers an assigned issue as "someone is working it"
-on every pass, forever — `deny-guard.sh` § 6b denies it. Then remove the
-worktree.
+**Release as ONE act** — when the pass claimed it (`SKILL.md` § 2. Claim +
+worktree) — then read the labels back:
+
+```bash
+gh issue edit N --remove-label in-progress --remove-label pr-open --remove-assignee @me
+```
+
+A `--remove-label in-progress` alone leaves the assignee, and the planner defers an assigned
+issue as "someone is working it" on every pass, forever — `deny-guard.sh`
+§ 6b denies it. Then remove the worktree.
 
 **Done when:** prerequisite branch → `queue:lint N` is clean; owner-work
 branch → the labels read back show `ready-for-human` and no
 `ready-for-agent`, and the one comment is posted; either branch → if claimed,
-`queue:release N` printed its `released` row and the worktree is gone.
+the labels read back show no `in-progress` and the worktree is gone.

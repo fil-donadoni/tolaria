@@ -103,7 +103,7 @@ import { primaryCheckout } from "./primary-checkout";
  *  it as `infra` / `machine-saturated`; `gate-run.sh` owns 75 and 76. */
 export const MACHINE_SATURATED_EXIT = 77;
 
-/** The announced escape for a SESSION start (`queue:claim`, `wt:new`) —
+/** The announced escape for a SESSION start (`wt:new`) —
  *  `TOLARIA_OVER_CAP=1`, the machine equivalent of `--no-cap`. Every use is logged. It is read by the
  *  session decision alone: a session started past the cap passes the variable
  *  to every gate it runs, and those must still wait for the machine. */
@@ -1103,8 +1103,8 @@ export function sustainedSample(
 }
 
 /**
- * The session decision on the live machine — the ONE composition the hook,
- * `queue:claim` and `wt:new` share, so the three cannot disagree about who is
+ * The session decision on the live machine — the ONE composition the hook
+ * and `wt:new` share, so the two cannot disagree about who is
  * counted or what the cap is.
  */
 export function admitSessionNow(input: {

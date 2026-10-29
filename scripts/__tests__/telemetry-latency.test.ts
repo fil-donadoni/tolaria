@@ -6,7 +6,7 @@ import {
     formatAdr0136Rows,
     formatThroughputRows,
     healthMutexByDay,
-    hostBySessionFromClaims,
+    hostBySessionFromSessions,
     isoDayOf,
     landAttemptsPerPr,
     landMutexByDay,
@@ -707,22 +707,21 @@ describe("throughput target rows (issue #5460)", () => {
         hh * 3600 +
         mm * 60;
 
-    it("hostBySessionFromClaims keeps the first claim stamp and skips torn lines", () => {
+    it("hostBySessionFromSessions keeps the first host stamp and skips torn lines", () => {
         const jsonl = [
-            '{"session":"s1","event":"claim","host":"mac"}',
-            '{"session":"s1","event":"released"}',
-            '{"session":"s2","event":"claim"}',
+            '{"session":"s1","origin":"afk","host":"mac"}',
+            '{"session":"s2","origin":"interactive"}',
             "{not json",
-            '{"session":"s3","event":"claim","host":"huawei"}',
-            '{"session":"s1","event":"claim","host":"other"}',
+            '{"session":"s3","origin":"afk","host":"huawei"}',
+            '{"session":"s1","origin":"afk","host":"other"}',
         ].join("\n");
-        expect([...hostBySessionFromClaims(jsonl)]).toEqual([
+        expect([...hostBySessionFromSessions(jsonl)]).toEqual([
             ["s1", "mac"],
             ["s3", "huawei"],
         ]);
     });
 
-    it("machineThroughput: PRs per active hour by the session's claim host", () => {
+    it("machineThroughput: PRs per active hour by the session's host", () => {
         const d = "2026-10-05";
         const turns = [
             { session: "a", ts: at(d, 10, 5), outTok: 1, ctx: 1 },

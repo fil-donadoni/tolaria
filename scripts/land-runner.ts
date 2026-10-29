@@ -105,9 +105,8 @@ import { notifyOwner } from "./lib/notify-owner";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { FIXUP_PUSHED_RE, type LaneJson } from "./pr-fixup";
 import type { Deferral } from "./lib/land-runner";
-import { performRelease } from "./lib/queue-claim";
+import { releaseEditArgs } from "./lib/claim-labels";
 import { readRepairIssues } from "./land";
-import { claimLedgerPath } from "./lib/claim-verdict";
 
 /** Where the runner keeps its lock (= pid file), log and per-PR land logs,
  *  relative to the primary checkout. */
@@ -538,19 +537,8 @@ function applyOutcome(input: {
         const issue = issueOfBranch(pr.headRefName);
         if (issue === null) return null;
         closeIssueIfOpen(issue, pr.number, log);
-        const ledger = claimLedgerPath(input.primary);
         try {
-            performRelease({
-                issue,
-                session: "",
-                now: Math.floor(Date.now() / 1000),
-                by: "land-runner",
-                gh: (args) => void gh(args),
-                appendRow: (row) => {
-                    mkdirSync(dirname(ledger), { recursive: true });
-                    appendFileSync(ledger, JSON.stringify(row) + "\n");
-                },
-            });
+            gh(releaseEditArgs(issue));
             log(`PR #${pr.number}: issue #${issue}'s claim released`);
         } catch (err) {
             // `housekeeping` releases it within the hour (issue #5457).

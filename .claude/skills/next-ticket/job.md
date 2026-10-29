@@ -5,13 +5,13 @@ Reached from `SKILL.md` when `GITHUB_ACTIONS=true` (an `afk-pass` job, ADR
 terminal never has that variable and follows `SKILL.md` as written; nothing
 here changes it. A job differs in five places, and ONLY these:
 
-| Step                | Attended                                          | In a job                                                                                                                                                                                                                                  |
-| ------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| § 0 Pick            | `queue:plan`, or `/next-ticket N`                 | The prompt is `/next-ticket N`: the dispatcher already picked N. Never run `queue:plan`; read the issue and its comments in full.                                                                                                         |
-| § 1 Model check     | read the `model:*` label and stop on a lower tier | The dispatcher chose the tier from the label and launched this session on it. Say the tier in one line and go on; a label above the running tier is the dispatcher's defect: abort (below) and say so.                                    |
-| § 2 Claim, worktree | `queue:claim N`, `wt:new N`                       | The claim is the `in-progress` label the dispatcher set: read it back (`gh issue view N --json labels --jq '[.labels[].name]'`), never set it. The [job worktree](#the-worktree) is the shell's directory. No `queue:claim`, no `wt:new`. |
-| § 3 Implement       | commit when the work is a unit                    | Commit **and push early and often** (below): a killed job is resumed from its pushed branch.                                                                                                                                              |
-| § 5 Hand off        | `land:ready <PR#>`                                | The same: `bun run land:ready <PR#>`. It labels the PR `ready-to-land` and the pass ends.                                                                                                                                                 |
+| Step                | Attended                                              | In a job                                                                                                                                                                                                                               |
+| ------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| § 0 Pick            | `queue:plan`, or `/next-ticket N`                     | The prompt is `/next-ticket N`: the dispatcher already picked N. Never run `queue:plan`; read the issue and its comments in full.                                                                                                      |
+| § 1 Model check     | read the `model:*` label and stop on a lower tier     | The dispatcher chose the tier from the label and launched this session on it. Say the tier in one line and go on; a label above the running tier is the dispatcher's defect: abort (below) and say so.                                 |
+| § 2 Claim, worktree | `gh issue edit N --add-label in-progress`, `wt:new N` | The claim is the `in-progress` label the dispatcher set: read it back (`gh issue view N --json labels --jq '[.labels[].name]'`), never set it. The [job worktree](#the-worktree) is the shell's directory. No claim edit, no `wt:new`. |
+| § 3 Implement       | commit when the work is a unit                        | Commit **and push early and often** (below): a killed job is resumed from its pushed branch.                                                                                                                                           |
+| § 5 Hand off        | `land:ready <PR#>`                                    | The same: `bun run land:ready <PR#>`. It labels the PR `ready-to-land` and the pass ends.                                                                                                                                              |
 
 ## The worktree
 
@@ -69,12 +69,10 @@ Then follow `land-failures.md` for what each failure asks of the repair; its
 
 ## Abort
 
-`abort.md` applies, with one change to its last paragraph: the release is the
-label, not the journal. `queue:release N` writes a journal row this flow does
-not read; release the claim as ONE act with
-`gh issue edit N --remove-label in-progress --remove-assignee @me` (label and
-assignee together, as `deny-guard` § 6b requires), then read the labels back.
-There is no worktree to remove: the job's last step does it.
+`abort.md` applies, with one change to its last paragraph: there is no
+worktree to remove — the job's last step does it. The release is the same
+one act (`--remove-label in-progress --remove-assignee @me`, label and
+assignee together, as `deny-guard` § 6b requires).
 
 **Done when:** the claim was read back, never set; the branch is on `origin`
 and every commit is pushed; `land:ready` labelled the PR `ready-to-land` (or the claim

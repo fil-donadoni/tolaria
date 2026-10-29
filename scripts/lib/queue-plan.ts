@@ -350,9 +350,9 @@ export interface PlanConfig {
      * `effectivePriority` uses.
      *
      * Applied AFTER Stage 1, deliberately: `activeClaims` and `staleClaims`
-     * are whole-queue facts the session cap is computed from, and filtering
-     * before they are collected would let a lineage-scoped plan admit past the
-     * cap because it could not see the claims in other lineages.
+     * are whole-queue facts the wrapper classifies for `resume`, and
+     * filtering before they are collected would hide a dead pass's claim in
+     * another lineage.
      *
      * Out-of-lineage candidates are absent from the plan, not `deferred`: a
      * deferral means "considered this pass, not admitted", and a restricted
@@ -516,8 +516,8 @@ export interface BatchPlan {
      * is ever reached).
      *
      * The complement of `staleClaims` within the claimed set, and the input to
-     * the session cap (`liveClaims`). It is reported rather than re-derived
-     * because the wrapper's first cut recomputed it from the raw labels, which
+     * the wrapper's claim classification. It is reported rather than
+     * re-derived because the wrapper's first cut recomputed it from the raw labels, which
      * is the same decision spelled a second way — and spelled slightly wrong:
      * it had no way to know the planner had already classified a claimed
      * umbrella as `skipped`.
@@ -544,14 +544,11 @@ export interface BatchPlan {
 // Plan artefact — the durable record `queue:plan` writes to
 // `.claude/telemetry/plans/` (issue #2518).
 //
-// Nothing checked that the batch a pass CLAIMED was the batch the planner
-// PRODUCED, and nothing recorded which plan a claim came from — a
-// hand-picked batch was indistinguishable from a planned one, after the
-// fact. This record is what `claim-ledger.sh` joins a claim row against: it
-// names the session, so the join key is exactly the session id the hook
-// already reads off its own payload, and it carries the admitted batch (with
-// the priority read for each issue, already on `PlannedIssue.priority`) so a
-// later reader can tell whether a claimed issue was actually in it.
+// Nothing recorded which plan a pick came from — a hand-picked batch was
+// indistinguishable from a planned one, after the fact. This record names
+// the session and carries the admitted batch (with the priority read for each
+// issue, already on `PlannedIssue.priority`) and the `--lineage` restriction,
+// so a later reader can tell whether a picked issue was actually in it.
 //
 // `buildPlanRecord` is pure — same discipline as `planBatch` itself. The
 // actual filesystem write, the session id and the wall clock are the
@@ -605,7 +602,7 @@ export function buildPlanRecord(
 /**
  * Filename for the plan artefact: `<session>-<epoch-ms>.json`.
  *
- * Sortable and joinable by session in one shot — `claim-ledger.sh` globs
+ * Sortable and joinable by session in one shot — a reader globs
  * `<session>-*.json` and a lexicographic sort of same-width epoch
  * milliseconds is a chronological sort too, so "the latest plan for this
  * session" is `sort | tail -1` with no JSON parsing required to find it.
@@ -671,9 +668,8 @@ function hoursBetween(fromIso: string, toIso: string): number {
  * A claim nobody is working: no open PR for the issue and no activity on it
  * for longer than `staleClaimHours`. ONE definition, read by the planner
  * (which defers such an issue and excludes it from `activeClaims`) and by
- * `queue:claim` (which excludes it from the set the cap counts, issue #4375)
- * — two spellings of "stale" would let the planner admit a pick the claim
- * then refuses.
+ * its wrapper's in-flight set — two spellings of "stale" would let them
+ * disagree.
  */
 export function isStaleClaim(
     issue: { number: number; updatedAt: string },
@@ -1382,227 +1378,6 @@ export interface HealthMarker {
     log?: string;
 }
 
-/**
- * Live claims: the open `in-progress` issues the planner did not already
- * classify as stale, reconciled against the claims record.
- *
- * The LABEL is the count and the ledger only subtracts from it. That
- * direction is the whole design, and it is the one a first cut got backwards:
- * counting the INTERSECTION made the cap fail open to zero the moment the
- * journal could not be found, and a live queue with four claims on it planned
- * a fifth pick without a word. A throughput knob that silently never fires is
- * indistinguishable from one that was never built.
- *
- * So:
- *
- *   * an `in-progress` label with no ledger row at all COUNTS — the ledger is
- *     per-machine and best-effort (a shell hook under `2>/dev/null`), while
- *     the cap is a property of the repository's throughput, measured in PR/h
- *     by ACTIVE SESSIONS wherever they run;
- *   * an issue whose last ledger row is `released` does NOT count — the label
- *     outliving the release is exactly the orphan window `claim-sweep.sh` and
- *     `afk-dispatch` close, and holding a slot for it would wedge the queue on
- *     work nobody is doing;
- *   * a claim the planner reports as STALE is excluded by the caller before it
- *     gets here (`BatchPlan.staleClaims` — no open PR and untouched past
- *     `staleClaimHours`), for the same reason.
- *
- * Sorted ascending so a refusal message is reproducible.
- */
-export function liveClaims(inProgress: number[], released: number[]): number[] {
-    const gone = new Set(released);
-    return [...new Set(inProgress)]
-        .filter((n) => !gone.has(n))
-        .sort((a, b) => a - b);
-}
-
-/** The journal event `land:ready` writes (issue #5469, `buildPrOpenRow`). */
-export const PR_OPEN_EVENT = "pr-open";
-
-/**
- * Fold the claim journal (`.claude/telemetry/claims.jsonl`) into the issues
- * whose LAST row gave the claim back. Last row per issue wins: a `claim` row
- * takes it, a `pr-open` row (issue #5469: handed to the land-runner) keeps
- * it, any other event (`released`) returns it.
- *
- * Pure over the file's text, and deliberately NOT `lib/claim-verdict.ts`'s
- * `parseClaimOwners`: that fold answers "WHO owns this claim" and therefore
- * drops every row written before owners were recorded (#2627). Here a row with
- * no owner is a perfectly good claim, and an issue the journal never mentions
- * is not released — it is simply unknown, which `liveClaims` counts.
- *
- * Malformed lines are skipped rather than thrown on — a shell hook appends to
- * this journal under `2>/dev/null`, so a torn last line is a normal thing to
- * find and refusing to read the rest because of one is worse than ignoring it.
- */
-export function releasedClaims(ledgerText: string): number[] {
-    const released = new Set<number>();
-    for (const line of ledgerText.split("\n")) {
-        if (line.trim() === "") continue;
-        let row: { issue?: unknown; event?: unknown };
-        try {
-            row = JSON.parse(line) as { issue?: unknown; event?: unknown };
-        } catch {
-            continue;
-        }
-        if (typeof row.issue !== "number") continue;
-        if (row.event === "claim" || row.event === PR_OPEN_EVENT)
-            released.delete(row.issue);
-        else released.add(row.issue);
-    }
-    return [...released].sort((a, b) => a - b);
-}
-
-/**
- * Fold the claim journal into the issues THIS machine holds: those whose last
- * row is a `claim` (issue #5302). The journal is per-machine by construction —
- * gitignored, written only by this checkout's `queue:claim` and
- * `claim-ledger.sh` — so a row's presence is the machine identity. The row's
- * `host` stamp is diagnostic only and is never compared: macOS's hostname
- * follows the network, and a claim that stopped matching its own machine's
- * name would vanish from the local count — the cap failing open.
- *
- * A `pr-open` last row (issue #5469) is NOT held: the session pushed and
- * handed the PR to the land-runner, so the claim stands (`releasedClaims`)
- * but no session here is working it — it holds no `sessions.cap` slot.
- *
- * Same tolerance as `releasedClaims`: torn or malformed lines are skipped.
- */
-export function claimsHeldHere(ledgerText: string): number[] {
-    const held = new Set<number>();
-    for (const line of ledgerText.split("\n")) {
-        if (line.trim() === "") continue;
-        let row: { issue?: unknown; event?: unknown };
-        try {
-            row = JSON.parse(line) as { issue?: unknown; event?: unknown };
-        } catch {
-            continue;
-        }
-        if (typeof row.issue !== "number") continue;
-        if (row.event === "claim") held.add(row.issue);
-        else held.delete(row.issue);
-    }
-    return [...held].sort((a, b) => a - b);
-}
-
-/**
- * `claimsHeldHere` over a journal reader, with the two failure modes told
- * apart (issue #5302 review): an ABSENT journal (ENOENT) is a machine that
- * never claimed — nothing held here, `[]` — or a fresh second machine would
- * be refused by the other's claims, the very symptom the split exists to
- * cure. Any OTHER read failure (EACCES, EIO, …) is `null`: we cannot tell,
- * and `machineScope` then counts repository-wide. Should a wrong root make
- * the journal look absent, the machine admission's process census still
- * bounds the sessions this machine runs.
- */
-export function heldFromJournal(read: () => string): number[] | null {
-    try {
-        return claimsHeldHere(read());
-    } catch (err) {
-        return (err as NodeJS.ErrnoException).code === "ENOENT" ? [] : null;
-    }
-}
-
-/**
- * The live claims split by machine (issue #5302): the cap counts `local`
- * only — it measures CPU contention, and the PR/h knee behind `sessions.cap`
- * was measured on ONE machine — while `foreign` claims run on another machine
- * and occupy no slot here. They still collide: `claimDecision` checks the
- * whole live set, never this split.
- *
- * `heldHere` = `null` means the journal could not be read (`heldFromJournal`;
- * an absent one is `[]`), and then nothing is foreign: the count falls back to the repository-wide one, `scoped`
- * false. Fail-closed on purpose — an intersection with a missing journal once
- * made the cap fail open to zero (see `liveClaims`). A local claim whose row
- * the best-effort hook lost reads as foreign; the machine admission's process
- * census still counts its session.
- */
-export interface MachineScope {
-    local: number[];
-    foreign: number[];
-    scoped: boolean;
-}
-
-export function machineScope(
-    live: number[],
-    heldHere: number[] | null
-): MachineScope {
-    const sorted = [...new Set(live)].sort((a, b) => a - b);
-    if (heldHere === null) return { local: sorted, foreign: [], scoped: false };
-    const here = new Set(heldHere);
-    return {
-        local: sorted.filter((n) => here.has(n)),
-        foreign: sorted.filter((n) => !here.has(n)),
-        scoped: true,
-    };
-}
-
-/**
- * The cap's census: split the reconciled claims into the ones that COUNT and
- * the ones the liveness classifier proved recoverable (issue #4384).
- *
- * A `recoverable` claim is one the claim verdict has positively identified as
- * owned by NO running process, whose local branch still holds committed work.
- * It burns no CPU, and CPU contention is the entire thing the cap measures —
- * so it holds its LABEL (releasing it would orphan the WIP, and that call
- * stays `afk-dispatch`'s alone) without holding a SLOT. Before this
- * split, three such corpses refused every claim for 24 hours with zero
- * sessions running.
- *
- * EVERY OTHER READING COUNTS, including no reading at all. `live`, `suspect`
- * and `orphan` count; an issue the classifier has no verdict for — the probe
- * failed, `git ls-remote` could not reach the network, the journal is missing
- * — counts too. That asymmetry is the same one `ClaimFacts.ownerAlive`
- * documents at the other end: uncertainty never authorises more concurrency.
- * `orphan` counts deliberately as well — it is `afk-dispatch`'s to
- * drop, and the 24-hour stale rule already removes the abandoned ones before
- * they reach here.
- *
- * A `stranded` claim (issue #4763) is the same corpse one step later: owner
- * provably gone, but the work was PUSHED — an open PR or a pushed branch.
- * Before it had a state of its own it read `live` on the PR alone, and two of
- * them refused every pick at `3/3 live claims` with one session running. It
- * gives up its slot on the same evidence; the label stands, and the plan
- * hands it to the next pass as `resume`.
- *
- * A `pr-open` claim is a session that ENDED by design: it
- * pushed, labelled its PR `ready-to-land` and handed off to the land-runner.
- * No slot, and — unlike `stranded` — nothing to resume: it stays in the
- * collision set, so no pass re-takes an issue whose PR is queued to merge.
- *
- * All lists sorted, so a refusal message is reproducible.
- */
-export function capCensus(
-    claims: number[],
-    verdicts: Map<number, ClaimVerdictState>
-): CapCensus {
-    const live: number[] = [];
-    const recoverable: number[] = [];
-    const stranded: number[] = [];
-    const prOpen: number[] = [];
-    for (const n of [...new Set(claims)].sort((a, b) => a - b)) {
-        const state = verdicts.get(n);
-        if (state === "recoverable") recoverable.push(n);
-        else if (state === "stranded") stranded.push(n);
-        else if (state === "pr-open") prOpen.push(n);
-        else live.push(n);
-    }
-    return { live, recoverable, stranded, prOpen };
-}
-
-export interface CapCensus {
-    /** Claims counting against `sessions.cap`. */
-    live: number[];
-    /** Claims proved recoverable — the label stands, the slot does not. */
-    recoverable: number[];
-    /** Claims proved stranded (pushed work, dead owner, issue #4763) — the
-     *  label stands, the slot does not. */
-    stranded: number[];
-    /** Claims handed to the land-runner (issue #5469) — the label stands, the
-     *  slot does not, and they still collide. */
-    prOpen: number[];
-}
-
 /** A `land-failed` PR handed to the next pass as a repair (issue #5469): the
  *  PR, the issue its branch names, the branch `wt:new --resume` checks out,
  *  and the tier the ISSUE's `model:*` labels route to. */
@@ -1628,8 +1403,7 @@ export function repairItems(
     detailOf: (issue: number) => { labels: string[]; body: string } | null,
     config: PlanConfig,
     /** Issues whose claim reads `live`: a repair already under way (a pass
-     *  re-claimed it) is not offered again — the other machine's pass would
-     *  only collide on `queue:claim`. */
+     *  re-claimed it) is not offered again. */
     working: ReadonlySet<number> = new Set(),
     /** PRs past the repair cap (issue #6649, `cappedRepairPrs`): handed to a
      *  human, never offered again. */
@@ -1770,30 +1544,11 @@ export function orphanPlanParts(orphans: OrphanWorktree[]): {
     };
 }
 
-export interface AdmissionInput {
-    /** Live claims, already reconciled — see `liveClaims`. */
-    claims: number[];
-    /** `sessions.cap` from `tolaria.config.json`, never a literal. */
-    cap: number;
-    /** `--no-cap`: the announced escape from the cap refusal ONLY. */
-    noCap: boolean;
-    /** The release-health verdict, or `null` when no `RED` marker exists. */
-    red: HealthMarker | null;
-    /** Claims `capCensus` kept out of `claims` (issue #4384) — the refusal
-     *  names them so it points at the branches to resume. Threaded through
-     *  here too, so the combined decision and `capRefusal` cannot disagree
-     *  about what a refusal SAYS if a caller ever reaches for this one. */
-    recoverable?: number[];
-    /** Same, for `stranded` claims (issue #4763). */
-    stranded?: number[];
-}
-
 export type Admission =
     | { admitted: true }
     | {
           admitted: false;
           refusal:
-              | "cap"
               | "red"
               /** `--lineage <N>` named an issue that is not an umbrella. */
               | "lineage-not-umbrella"
@@ -1822,58 +1577,6 @@ export function redRefusal(red: HealthMarker | null): Admission {
                 red.log ? ` and the log (${red.log})` : ""
             }.\n` +
             `  \`land\` still warns and proceeds, so a session already mid-issue finishes.`,
-    };
-}
-
-/**
- * The cap refusal, on its own: it needs the planner's own classification of
- * which claims are live, so the wrapper asks it after `planBatch`.
- */
-export function capRefusal(
-    claims: number[],
-    cap: number,
-    noCap: boolean,
-    /** Claims excluded from the count by `capCensus` — named in the message so
-     *  the refusal points at the branches to resume, not only at `--no-cap`
-     *  (issue #4384). */
-    recoverable: number[] = [],
-    /** Same, for `stranded` claims (issue #4763). */
-    stranded: number[] = [],
-    /** How `claims` was scoped to this machine (`machineScope`, issue
-     *  #5302): the foreign claims it left out are named, and an unscoped
-     *  count (journal unreadable) says why it is repository-wide. Omitted =
-     *  a caller that never scoped, with nothing to explain. */
-    scope?: Pick<MachineScope, "foreign" | "scoped">
-): Admission {
-    if (noCap || claims.length < cap) return { admitted: true };
-    const recoverableLine =
-        recoverable.length === 0
-            ? ""
-            : `  ${claims.length + recoverable.length} claimed, ${claims.length} live, ${recoverable.length} recoverable (not counted): ` +
-              `${recoverable.map((n) => `#${n}`).join(", ")} — a dead pass left committed work on branch *issue-N.\n` +
-              `  the plan's \`resume\` names them; resume or salvage those branches (the label is not released by hand).\n`;
-    const strandedLine =
-        stranded.length === 0
-            ? ""
-            : `  ${stranded.length} stranded (not counted): ${stranded.map((n) => `#${n}`).join(", ")} — a dead pass left pushed work (PR or branch); the plan's \`resume\` hands it to the next pass.\n`;
-    const foreignLine =
-        !scope || scope.foreign.length === 0
-            ? ""
-            : `  ${scope.foreign.length} foreign (not counted): ${scope.foreign.map((n) => `#${n}`).join(", ")} — claimed on another machine; they still collide, they hold no slot here.\n`;
-    const breakdown = recoverableLine + strandedLine + foreignLine;
-    return {
-        admitted: false,
-        refusal: "cap",
-        message:
-            `session cap reached — ${claims.length}/${cap} live claims${scope?.scoped ? " on this machine" : ""}: ${claims
-                .map((n) => `#${n}`)
-                .join(", ")}.\n` +
-            (!scope || scope.scoped
-                ? ""
-                : `  Counted repository-wide: this machine's claim journal is unreadable, so no claim can be shown foreign.\n`) +
-            breakdown +
-            `  Per-session yield halves past the knee (PR/h by active sessions: 0.59 at 1, 1.44 at 3, 1.19 at 4).\n` +
-            `  Wait for one to land, or re-run with --no-cap to plan past it deliberately.`,
     };
 }
 
@@ -1924,28 +1627,4 @@ export function lineageRefusal(
         };
     }
     return { admitted: true };
-}
-
-/**
- * Should this session pick an issue? The ORDER of the two refusals, as one
- * decision — the wrapper asks them separately (RED before the queue read, the
- * cap after the plan), and this is what pins which one wins when both apply.
- *
- * RED is tested FIRST, and `--no-cap` does not touch it. The two answer
- * different questions — "is there room for one more pass?" versus "is the tree
- * every pass would branch from broken?" — and only the first is a tuning knob.
- * A `--no-cap` that also waved through a red base would let the one flag
- * anybody reaches for when they are in a hurry silently opt out of the thing
- * ADR 0136 §6 added to stop new worktrees branching from a tip known red.
- */
-export function admitPick(input: AdmissionInput): Admission {
-    const red = redRefusal(input.red);
-    if (!red.admitted) return red;
-    return capRefusal(
-        input.claims,
-        input.cap,
-        input.noCap,
-        input.recoverable ?? [],
-        input.stranded ?? []
-    );
 }
