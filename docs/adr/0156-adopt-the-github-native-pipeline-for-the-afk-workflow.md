@@ -655,6 +655,54 @@ limit, kill switch) stands for a reason a repair shares.
 **Under a RED the repair** rebases onto the RED tip only to resolve a
 conflict, and is verified against the PR's own failing files, not the base's.
 
+## Measurement — 24 hours unattended, 2026-10-28 09:12 → 10-29 09:12 UTC (issue #5653)
+
+Phase 3's proof, read after the preconditions of issue #5653's triage held
+(the 2026-10-25 backlog drained, issue #6766 and issue #6921 landed, the
+queue-depth admission of PR #7002 live): it measures the pipeline as of ADR
+0159/0160. Sources, re-derivable: `bun run weekly-report --days 1` (window
+above), the `afk-pass-record` artifact of every `afk-pass` run since
+2026-10-26 (host, PR, outcome, cost), `gh pr list --state merged`, the
+`owner-merge` runs and the `ready-for-human` items of the window.
+
+| Figure                                   | Reading                                                                                                                      | Target                                                 |     |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | --- |
+| PRs merged, all sources                  | 35 — 1.46/h (72 h: 159, 2.21/h)                                                                                              | ≥ today's (Aug 1 → Oct 14: 1,523 in 74 days, ≈ 0.86/h) | ✅  |
+| … opened by an `afk-pass` on the MacBook | 16 — 0.67/h; 17 passes, $26.85                                                                                               | —                                                      |     |
+| … opened by an `afk-pass` on the Huawei  | 5 — 0.21/h; 13 passes, $14.55                                                                                                | —                                                      |     |
+| … not by a pass                          | 14 — interactive sessions 9, RED-ladder reverts 3 (PR #7335, PR #7393, PR #7411), RED repairs by hand 2 (PR #7326, PR #7413) | —                                                      |     |
+| Failed landings                          | 11 of 46 attempts — 24 %                                                                                                     | 5–10 %                                                 | ❌  |
+| Owner interventions                      | 2 raised in the window, + 1 carried in                                                                                       | ≤ 1/day                                                | ❌  |
+| RED episodes                             | 3; 2 closed without the owner (67 %); to green median 4.1 h, p90 10.2 h                                                      | ≥ 80 %, p90 < 6 h                                      | ❌  |
+| Time to notice                           | the RED is a commit status and a failed-run email when health ends; the ladder's stop issue followed 26 min later            | ≤ 5 min                                                | ✅  |
+| Cost                                     | 30 passes, 23 issues, $41.40 API-equivalent; per issue median $1.28, p90 $3.20; no pass hit the usage limit                  | $100/month plan                                        | ✅  |
+| Hand merges                              | 0 — all 35 merged by Mergify                                                                                                 | —                                                      | ✅  |
+
+**Failed landings by cause:** rebase conflict 2, the PR's own defect 2, and 7
+red lanes the report files as `other` — the queue's "`check:lane
+(advisory)` is red on this PR" comment carries no cause the classifier reads.
+Four of the seven are one PR (PR #7338), which reached the repair cap.
+
+**Owner interventions:** PR #7338 at the repair cap, repaired by hand; the
+RED ladder stopped at `6491254e` (issue #7409) because its revert, PR #7407,
+blamed the base's own `derive:sync` commit — closed by an owner ruling (PR
+#7413) and a fix to the blame (issue #7417, PR #7421). Carried in: the
+ladder stop of issue #7322 (raised 05:16, before the window), closed by hand
+in it (PR #7326).
+
+**Where the hours went.** The base was RED for 15.2 of the 24 hours (0.9 +
+4.1 + 10.2), during which the dispatcher starts repairs only: the passes
+cluster in the 8.8 green hours. The Huawei ran 7.6 runner-hours for 5
+merged PRs (4 of its 13 runs failed: 1 `setup-failed`, 1 `timeout`, 2
+`no-hand-off`), the MacBook 5.7 runner-hours for 16. The binding limit was
+the RED, not the runners nor the subscription.
+
+**Reading.** PR/h holds; the interventions, the failed-landing share and the
+RED time to green do not. Whether `loop:afk` stops for good is the owner's
+call (issue #5653). On 2026-10-29 `bun run loop:status` reports no driver on
+the MacBook; the Huawei is not readable from here, and its `huawei-lane-1`
+runner is offline.
+
 ## What would change the answer
 
 A per-minute Actions fee that reaches public repositories; Anthropic
