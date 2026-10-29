@@ -1,7 +1,7 @@
 // Issue #6984 — the ONE source lookup behind the target-selection banner and
 // the graveyard target dialog title. Every `PendingTarget.kind` must name its
 // source (CR 601.2 cast, CR 602.1 activated ability, CR 603.3d trigger, CR
-// 707.10b copy-retarget); the old dialog lookup read the hand only and fell to
+// 707.10 copy-retarget); the old dialog lookup read the hand only and fell to
 // "spell" for all but a hand cast.
 import { describe, it, expect, vi } from "vitest";
 import type {

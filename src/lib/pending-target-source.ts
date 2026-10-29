@@ -15,7 +15,7 @@ import { displayCardId } from "~/lib/card-utils";
  *  `ability`, `trigger` and `copy-retarget`. */
 export type PendingTargetSource = {
     /** What the prompt shows: the source's name, "Copy" for a copy-retarget
-     *  (CR 707.10b), else the generic "spell" fallback. */
+     *  (CR 707.10), else the generic "spell" fallback. */
     name: string;
     /** The card being cast (CR 601.2) — in hand, or still in the graveyard /
      *  exile for a Flashback or a Cast permission. Never set for an ability or
