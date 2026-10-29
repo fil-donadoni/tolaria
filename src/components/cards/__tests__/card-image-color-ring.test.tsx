@@ -63,11 +63,12 @@ describe("layer-5 colour ring on the card face (CR 613.1e)", () => {
         expect(ringOf(container)).toBeNull();
     });
 
-    it("draws no ring on a face-down card — its face shows nothing of the hidden card (CR 708.2)", () => {
-        const card = bolt("exile", ["U"]);
+    it("rings a face-down object in the granted colour ONLY — never the hidden card's (CR 708.2)", () => {
+        const card = bolt("battlefield");
         turnFaceDown(NO_BOARD_LAYER_VIEW, card as never, "morph");
+        card.grantedColors = [{ color: "U", sourceId: "painter" }];
         const { container } = render(<CardImage card={card} />);
-        expect(ringOf(container)).toBeNull();
+        expect(ringOf(container)?.dataset.colorRing).toBe("Blue");
     });
 });
 

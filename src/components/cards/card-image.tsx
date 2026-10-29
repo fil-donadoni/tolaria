@@ -157,11 +157,13 @@ function CardImageImpl({
     // CR 613.1e — a layer-5 colour (`colorOverride` / `grantedColors`) rings
     // the card wherever it is drawn, not only on the battlefield: an
     // every-zone grant (Painter's Servant) colours hand, graveyard and exile
-    // cards too. A face-down face shows nothing of the hidden card.
-    const colorRing =
-        cardInstance && !faceDownFace
-            ? getEffectiveColorDisplay(cardInstance)
-            : null;
+    // cards too. A face-down object is ringed as well: its face-down values
+    // are copiable values (CR 708.2) and layer 5 still applies on top, so a
+    // face-down 2/2 under Painter's Servant IS the chosen colour — and only
+    // that colour, since the sentinel face has no mana cost.
+    const colorRing = cardInstance
+        ? getEffectiveColorDisplay(cardInstance)
+        : null;
     // Tokens (CR 111, 707.1) prefer a printed token's Scryfall id for art
     // when the card defines one (e.g. The Hive → 10E Wasp print). Tokens
     // without a printed image render the in-app TokenPlaceholder.
