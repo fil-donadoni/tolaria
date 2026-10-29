@@ -21,6 +21,11 @@ import { buildBladeState } from "../blade/runner";
 import type { BladeScenario } from "../blade/types";
 import type { GameState } from "../../state";
 import { tryGetDefinition } from "../../../cards";
+import {
+    beginDominanceDecision,
+    endDominanceDecision,
+    pruneTapDominatedAnswers,
+} from "../dominance";
 
 type SpecCard = BladeScenario["spec"]["cards"][number];
 
@@ -185,5 +190,81 @@ describe("tap-dominated choose-permanents answers are pruned (issue #6935)", () 
         );
         expect(choiceCandidates(state, head)).toHaveLength(generated.length);
         expect(openedAnswers(state)).toContainEqual([]);
+    });
+
+    it("never orders a land something else names: an aura on the tapped land keeps its answers incomparable", () => {
+        // Wild Growth's `attachedTo` names the Island it enchants, so the
+        // id-reference gate refuses to rank that land's tap status — the
+        // fail-closed side of CR 110.5a. The plain Island still orders.
+        const state = position(
+            [
+                { name: "Cloud of Faeries", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Wild Growth",
+                    owner: "me",
+                    zone: "battlefield",
+                    attachedTo: "Island",
+                },
+            ],
+            castCloud
+        );
+        const opened = openedAnswers(state);
+        expect(opened.length).toBeGreaterThan(1);
+        expect(opened).toContainEqual([
+            "mine tapped Island",
+            "mine tapped Island",
+        ]);
+    });
+
+    it("the per-decision memo never drops an answer whose dominator the later call does not offer", () => {
+        const state = position(
+            [
+                { name: "Cloud of Faeries", owner: "me", zone: "hand" },
+                { name: "Mox Sapphire", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+            ],
+            castCloud
+        );
+        const head = state.pendingChoices![0];
+        const generated = CHOICE_CANDIDATE_GENERATORS["choose-permanents"]!(
+            state,
+            head
+        );
+        const isMine = (id: string) =>
+            state.players
+                .find((p) => p.id === head.playerId)!
+                .battlefield.some((c) => c.id === id);
+        const mineOnly = (c: (typeof generated)[number]) =>
+            c.move.kind === "resolution-choice" &&
+            c.move.cardInstanceIds.length > 0 &&
+            c.move.cardInstanceIds.every(isMine);
+        // A second visit offering everything EXCEPT "untap my Island" alone:
+        // the decline and the sets reaching the opponent's side. Its best
+        // answer is then "my Island padded with their untapped Mountain" —
+        // a cached verdict that dropped it (its dominator is absent here)
+        // would leave the fallback to reopen every answer.
+        const withoutBest = generated.filter((c) => !mineOnly(c));
+        expect(withoutBest.length).toBeGreaterThan(1);
+        beginDominanceDecision();
+        try {
+            expect(
+                pruneTapDominatedAnswers(state, head, generated).map((c) =>
+                    mineOnly(c)
+                )
+            ).toEqual([true]);
+            const second = pruneTapDominatedAnswers(state, head, withoutBest);
+            expect(second.length).toBeLessThan(withoutBest.length);
+            expect(second.length).toBeGreaterThan(0);
+            expect(
+                second.every(
+                    (c) =>
+                        c.move.kind === "resolution-choice" &&
+                        c.move.cardInstanceIds.some(isMine)
+                )
+            ).toBe(true);
+        } finally {
+            endDominanceDecision();
+        }
     });
 });
