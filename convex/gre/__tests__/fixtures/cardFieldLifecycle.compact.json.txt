@@ -352,7 +352,9 @@
           "castableFromExileCondition": {
             "kind": "control",
             "filter": {
-              "subtype": "Wizard"
+              "subtypes": [
+                "Wizard"
+              ]
             }
           },
           "exiledBySourceId": "src-12",
@@ -764,7 +766,9 @@
       "castableFromExileCondition": {
         "kind": "control",
         "filter": {
-          "subtype": "Wizard"
+          "subtypes": [
+            "Wizard"
+          ]
         }
       },
       "exiledBySourceId": "src-12",

@@ -57,7 +57,7 @@ registerTokenDefinition({
             player: "controller",
             window: "while-exiled",
             includesLand: true,
-            condition: { kind: "control", filter: { subtype: "Wizard" } },
+            condition: { kind: "control", filter: { subtypes: ["Wizard"] } },
         },
     ] as EffectOp[],
 });

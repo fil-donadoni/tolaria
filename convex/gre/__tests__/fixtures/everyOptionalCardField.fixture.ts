@@ -192,7 +192,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         castFromExileCostIncrease: { generic: 2 },
         castableFromExileCondition: {
             kind: "control",
-            filter: { subtype: "Wizard" },
+            filter: { subtypes: ["Wizard"] },
         },
         castableFromExileUntilTurn: 20,
         castableFromExileUntilOwnTurn: 21,

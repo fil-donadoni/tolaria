@@ -67,13 +67,13 @@ describe("grantCastFromExile condition (CR 611.2b, issue #7295)", () => {
         const s = resolved();
         expect(exiled(s, "l1").castableFromExileCondition).toEqual({
             kind: "control",
-            filter: { subtype: "Wizard" },
+            filter: { subtypes: ["Wizard"] },
         });
         const back = expandState(compactState(s));
         expect(
             back.players[0].exile.find((c) => c.id === "l1")!
                 .castableFromExileCondition
-        ).toEqual({ kind: "control", filter: { subtype: "Wizard" } });
+        ).toEqual({ kind: "control", filter: { subtypes: ["Wizard"] } });
     });
 
     it("is live only while the controller controls a Wizard — lost and regained", () => {
@@ -94,6 +94,18 @@ describe("grantCastFromExile condition (CR 611.2b, issue #7295)", () => {
         // A Wizard returns: the permission is back.
         p1.battlefield.push(wizard());
         expect(cast(s, "l1")).toBe(true);
+    });
+
+    it("a non-Wizard permanent of the controller does not satisfy it", () => {
+        const s = resolved();
+        s.players[0].battlefield.push(
+            makeInstance(HIT_ID, {
+                id: "bear",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        expect(cast(s, "l1")).toBe(false);
     });
 
     it("a Wizard the OPPONENT controls does not satisfy it", () => {
