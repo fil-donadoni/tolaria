@@ -821,6 +821,13 @@ export type EffectSentenceIR =
           readonly toughness: number;
           readonly subtype: string;
           readonly colors: readonly Color[];
+          /**
+           * CR 613.1f — "<subject> loses all abilities and becomes a N/N
+           * [color] <Subtype> creature …": the layer-6 strip rides the same
+           * type-line replacement, and the subject may be an announced
+           * target (Oko's `+1`), not only the source.
+           */
+          readonly losesAllAbilities?: true;
       }
     | {
           /**
@@ -5000,6 +5007,15 @@ const ANIMATE_SELF =
  * by word by `readBecomeCreature` (one colour at most, ONE creature subtype).
  */
 const BECOME_CREATURE = /^(\S+) becomes a (\d+)\/(\d+) (.+) creature$/;
+/**
+ * CR 613.1f + CR 205.1a + CR 613.4b — "<subject> loses all abilities and
+ * becomes a [color] <Subtype> creature with base power and toughness N/N",
+ * indefinite (CR 611.2c): the strip and the type-line replacement of Oko's
+ * `+1`. The duration-led and "until …" printings are a different clause —
+ * the `loseAllAbilities` Op has no duration — and stay unread.
+ */
+const LOSE_ABILITIES_BECOME_CREATURE =
+    /^(.+) loses all abilities and becomes a (.+) creature with base power and toughness (\d+)\/(\d+)$/;
 /** CR 113.1a — the `with` tail of an animation that is ONE quoted ability. */
 const QUOTED_GRANT_TAIL = /^"([^"]+)"$/;
 const DAMAGE = /^(.+) deals (\S+|that much) damage to (.+)$/;
@@ -6768,9 +6784,38 @@ function readBecomeCreature(
     if (!subject.ok) return subject;
     if (subject.value.kind !== "self")
         return fail("a type-line replacement is read on the source only", span);
+    return readReplacedTypeLine(subject.value, m[4]!, m[2]!, m[3]!, span);
+}
+
+/**
+ * CR 613.1f + CR 205.1a — "<subject> loses all abilities and becomes a
+ * [color] <Subtype> creature with base power and toughness N/N". The subject
+ * is ONE announced target (no printed card has the source form); a sweep ("each creature target
+ * player controls") has no selector the Ops could name and is refused.
+ */
+function readLoseAbilitiesBecomeCreature(
+    m: RegExpMatchArray,
+    span: string,
+    ctx: unknown
+): RuleResult<EffectSentenceIR> {
+    const subject = subjectRule.run(m[1]!, ctx);
+    if (!subject.ok) return subject;
+    if (subject.value.kind !== "target")
+        return fail("an ability strip is read on an announced target", span);
+    return readReplacedTypeLine(subject.value, m[2]!, m[3]!, m[4]!, span, true);
+}
+
+function readReplacedTypeLine(
+    subject: SubjectIR,
+    middle: string,
+    power: string,
+    toughness: string,
+    span: string,
+    losesAllAbilities?: true
+): RuleResult<EffectSentenceIR> {
     const colors: Color[] = [];
     let subtype: string | undefined;
-    for (const word of m[4]!.split(" ")) {
+    for (const word of middle.split(" ")) {
         const color = COLOR_WORDS.get(word);
         if (color !== undefined && subtype === undefined && colors.length === 0)
             colors.push(color);
@@ -6782,11 +6827,12 @@ function readBecomeCreature(
         return fail("a replaced type line names its creature subtype", span);
     return ok({
         kind: "become-creature" as const,
-        subject: subject.value,
-        power: signedModifier(m[2]!),
-        toughness: signedModifier(m[3]!),
+        subject,
+        power: signedModifier(power),
+        toughness: signedModifier(toughness),
         subtype,
         colors,
+        ...(losesAllAbilities ? { losesAllAbilities } : {}),
     } satisfies EffectSentenceIR);
 }
 
@@ -7528,6 +7574,11 @@ function effectSentence(
     const becomeCreature = span.match(BECOME_CREATURE);
     if (becomeCreature !== null)
         return readBecomeCreature(becomeCreature, span, ctx);
+
+    // ── the ability strip with the same replacement (CR 613.1f) ───────────
+    const loseBecome = span.match(LOSE_ABILITIES_BECOME_CREATURE);
+    if (loseBecome !== null)
+        return readLoseAbilitiesBecomeCreature(loseBecome, span, ctx);
 
     // ── grant a keyword (CR 613.1f, layer 6) ───────────────────────────────
     const gainsAt = span.indexOf(" gains ");

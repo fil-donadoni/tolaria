@@ -68,11 +68,6 @@
             "issue": 5186
         },
         {
-            "key": "(op) › loseAllAbilities",
-            "op": "loseAllAbilities",
-            "issue": 7371
-        },
-        {
             "key": "(op) › loseAllAbilitiesWhileSourceRemains",
             "op": "loseAllAbilitiesWhileSourceRemains",
             "issue": 7372

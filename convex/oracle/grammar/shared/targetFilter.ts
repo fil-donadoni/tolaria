@@ -1887,8 +1887,19 @@ const OPTIONAL_COUNT_HEADS: ReadonlyMap<string, TargetRequirement["count"]> =
 export function opensTargetPhrase(span: string): boolean {
     if (span === "any target" || span.startsWith("target ")) return true;
     for (const head of OPTIONAL_COUNT_HEADS.keys())
-        if (span.startsWith(head)) return true;
+        if (span.startsWith(head) || span.startsWith(otherHead(head)))
+            return true;
     return false;
+}
+
+/**
+ * "up to one other target creature": the "other" sits between the
+ * count and the word "target", so it is a head of its own. It reads exactly as
+ * the descriptor's "other" does ("target other creature"): every object but the
+ * source (`excludeSource`).
+ */
+function otherHead(head: string): string {
+    return head.replace(/ target $/, " other target ");
 }
 
 /**
@@ -2016,6 +2027,21 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
             const descriptor = descriptorRule.run(span.slice(head.length), ctx);
             if (!descriptor.ok) return descriptor;
             return targetRequirementFromDescriptor(descriptor.value, count);
+        }
+        for (const [head, count] of OPTIONAL_COUNT_HEADS) {
+            const other = otherHead(head);
+            if (!span.startsWith(other)) continue;
+            const descriptor = descriptorRule.run(
+                span.slice(other.length),
+                ctx
+            );
+            if (!descriptor.ok) return descriptor;
+            if (descriptor.value.excludeSource === true)
+                return fail('"other" twice', span);
+            return targetRequirementFromDescriptor(
+                { ...descriptor.value, excludeSource: true },
+                count
+            );
         }
         if (!span.startsWith("target "))
             return fail('a target filter starts with "target "', span);
