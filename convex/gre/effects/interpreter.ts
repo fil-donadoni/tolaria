@@ -126,6 +126,7 @@ import {
     parseTargetNameRef,
     SOURCE_CHOSEN_SUBTYPE_REF,
 } from "./targetRef";
+import { librarySearchFloor } from "./librarySearchFloor";
 import {
     categorizedEligibleIds,
     maxCategorizedPicks,
@@ -6669,19 +6670,30 @@ export const OP_EXECUTORS: {
             op.zone === "library" &&
             op.kind === "search-library" &&
             available === 0;
+        // CR 701.23b / 701.23d (issue #3437) — a library search that states a
+        // quality may find fewer (or none); a bare-quantity one may not. The
+        // floor is derived from `filter`, not from the authored `count`.
+        const searchFloor = (requestedMin: number) =>
+            op.zone === "library" && op.kind === "search-library"
+                ? librarySearchFloor(op.filter, requestedMin)
+                : requestedMin;
         let count: number | { min: number; max: number };
         if (searchWithNoHit) {
             count = { min: 0, max: 0 };
         } else if (isChoiceCountRange(op.count)) {
             const max = Math.min(ceiling ?? 0, available);
             if (max <= 0) return;
-            count = { min: Math.min(op.count.min, max), max };
+            count = { min: Math.min(searchFloor(op.count.min), max), max };
         } else {
             // Issue #5559 — a computed exact count is resolved once, here,
             // as the choice is raised; an unresolvable or non-positive one
             // raises no choice (CR 107.1b).
-            count = Math.min(resolveValue(ctx, op.count) ?? 0, available);
-            if (count <= 0) return;
+            const exact = Math.min(resolveValue(ctx, op.count) ?? 0, available);
+            if (exact <= 0) return;
+            count =
+                searchFloor(exact) === exact
+                    ? exact
+                    : { min: searchFloor(exact), max: exact };
         }
         // The binding name doubles as the choiceId by default: unique within
         // the script (validator-enforced) and stable across replays, so the
