@@ -118,6 +118,11 @@ export function runnerAsset(
 export const LAUNCHD_RUNNER_PREFIX = "com.tolaria.gh-runner.";
 export const LAUNCHD_CONVEX_LABEL = "com.tolaria.convex";
 export const SYSTEMD_RUNNER_TEMPLATE = "tolaria-gh-runner@.service";
+/** The heartbeat's units (issue #7445): a launchd agent on macOS, a oneshot
+ *  service and its timer on Linux. */
+export const LAUNCHD_HEARTBEAT_LABEL = "com.tolaria.heartbeat";
+export const SYSTEMD_HEARTBEAT_SERVICE = "tolaria-heartbeat.service";
+export const SYSTEMD_HEARTBEAT_TIMER = "tolaria-heartbeat.timer";
 
 export function launchdRunnerLabel(name: string): string {
     return `${LAUNCHD_RUNNER_PREFIX}${name}`;
@@ -305,6 +310,13 @@ export interface ObservedMachine {
     /** macOS: the installed convex plist's text. */
     convexText: string | null;
     convexRunning: boolean;
+    /** The installed heartbeat unit's text: the plist on macOS, the service
+     *  on Linux (issue #7445). Absent = not installed. */
+    heartbeatText?: string | null;
+    /** Linux: the installed heartbeat timer's text. */
+    heartbeatTimerText?: string | null;
+    /** Loaded (macOS) / timer active (Linux). */
+    heartbeatRunning?: boolean;
     /** Linux: `loginctl` reports Linger=yes. */
     linger: boolean;
     /** The installed `machine.json`'s text. */
@@ -323,6 +335,11 @@ export interface InstallInput {
     systemdTemplate: string | null;
     /** macOS: the rendered convex plist, or null when not installed here. */
     convexPlist: string | null;
+    /** The rendered heartbeat units (issue #7445): `plist` on macOS,
+     *  `service` + `timer` on Linux; undefined = not installed here. */
+    heartbeat?: { plist?: string; service?: string; timer?: string };
+    /** The heartbeat agent's log directory (macOS). */
+    heartbeatLogDir?: string;
     launchAgentsDir: string;
     systemdUserDir: string;
     logDir: string;
@@ -487,6 +504,60 @@ function launchdLoad(
     return steps;
 }
 
+/** Linux: write the heartbeat's service and timer when they differ, and
+ *  enable the timer (restart it when its own text changed). The service is a
+ *  oneshot: its next tick runs the new text, nothing to restart. */
+function systemdHeartbeat(input: InstallInput, seen: ObservedMachine): Step[] {
+    const { service, timer } = input.heartbeat ?? {};
+    if (service === undefined || timer === undefined) return [];
+    const steps: Step[] = [];
+    const serviceChanged = (seen.heartbeatText ?? null) !== service;
+    const timerChanged = (seen.heartbeatTimerText ?? null) !== timer;
+    if (serviceChanged) {
+        steps.push({
+            kind: "write",
+            why: `${seen.heartbeatText ? "update" : "install"} the heartbeat service`,
+            path: join(input.systemdUserDir, SYSTEMD_HEARTBEAT_SERVICE),
+            content: service,
+        });
+    }
+    if (timerChanged) {
+        steps.push({
+            kind: "write",
+            why: `${seen.heartbeatTimerText ? "update" : "install"} the heartbeat timer`,
+            path: join(input.systemdUserDir, SYSTEMD_HEARTBEAT_TIMER),
+            content: timer,
+        });
+    }
+    if (serviceChanged || timerChanged) {
+        steps.push({
+            kind: "run",
+            why: "reload systemd's user units",
+            argv: ["systemctl", "--user", "daemon-reload"],
+        });
+    }
+    if (!seen.heartbeatRunning) {
+        steps.push({
+            kind: "run",
+            why: "enable and start the heartbeat timer",
+            argv: [
+                "systemctl",
+                "--user",
+                "enable",
+                "--now",
+                SYSTEMD_HEARTBEAT_TIMER,
+            ],
+        });
+    } else if (timerChanged) {
+        steps.push({
+            kind: "run",
+            why: "restart the heartbeat timer on its changed text",
+            argv: ["systemctl", "--user", "restart", SYSTEMD_HEARTBEAT_TIMER],
+        });
+    }
+    return steps;
+}
+
 /** The steps that take the observed machine to the declared one. Empty when
  *  nothing differs — `install` is idempotent by construction. */
 export function planInstall(
@@ -625,6 +696,36 @@ export function planInstall(
                 )
             );
         }
+        const plist = input.heartbeat?.plist;
+        if (plist !== undefined) {
+            if (
+                input.heartbeatLogDir !== undefined &&
+                (seen.heartbeatText !== plist || !seen.heartbeatRunning)
+            ) {
+                steps.push({
+                    kind: "mkdir",
+                    why: "heartbeat log directory",
+                    path: input.heartbeatLogDir,
+                });
+            }
+            steps.push(
+                ...launchdLoad(
+                    input.uid,
+                    LAUNCHD_HEARTBEAT_LABEL,
+                    join(
+                        input.launchAgentsDir,
+                        `${LAUNCHD_HEARTBEAT_LABEL}.plist`
+                    ),
+                    plist,
+                    {
+                        text: seen.heartbeatText ?? null,
+                        running: seen.heartbeatRunning ?? false,
+                        paused: false,
+                    },
+                    "the heartbeat"
+                )
+            );
+        }
     } else {
         const templateChanged =
             seen.systemdTemplateText !== input.systemdTemplate;
@@ -692,6 +793,7 @@ export function planInstall(
             }
             if (pending) steps.push(clearRestartPending(r.name, marker));
         }
+        steps.push(...systemdHeartbeat(input, seen));
         if (!seen.linger) {
             steps.push({
                 kind: "note",

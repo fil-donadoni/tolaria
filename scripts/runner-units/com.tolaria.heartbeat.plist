@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The heartbeat — the pipeline's fallback clock (issue #7445, ADR 0156
+  Amendment IV): every ten minutes `scripts/heartbeat.ts` dispatches
+  `afk-dispatch.yml` and health's `gate` when GitHub dropped their schedules.
+  A one-shot per tick, not kept alive. The Huawei's counterpart is
+  tolaria-heartbeat.timer. Installed by `bun run runner install`
+  (docs/guides/github-pipeline.md § Install); __REPO__, __BUN__, __HOME__ and
+  __RUNNER_PATH__ are substituted at install time (`gh` is on that PATH).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.tolaria.heartbeat</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__BUN__</string>
+        <string>__REPO__/scripts/heartbeat.ts</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__REPO__</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>600</integer>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>__HOME__</string>
+        <key>PATH</key>
+        <string>__RUNNER_PATH__</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>__HOME__/.cache/tolaria/heartbeat/agent.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.cache/tolaria/heartbeat/agent.log</string>
+</dict>
+</plist>

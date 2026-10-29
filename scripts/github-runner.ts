@@ -30,6 +30,7 @@ import {
     defaultCounts,
     describeStep,
     LAUNCHD_CONVEX_LABEL,
+    LAUNCHD_HEARTBEAT_LABEL,
     launchdRunnerLabel,
     parseDeclaration,
     parseBusyView,
@@ -46,6 +47,8 @@ import {
     runnerSpecs,
     sanitizeHost,
     serializeDeclaration,
+    SYSTEMD_HEARTBEAT_SERVICE,
+    SYSTEMD_HEARTBEAT_TIMER,
     SYSTEMD_RUNNER_TEMPLATE,
     systemdRunnerPath,
     systemdRunnerUnit,
@@ -58,6 +61,7 @@ import {
     type RunnerPlatform,
     type Step,
 } from "./lib/github-runner";
+import { HEARTBEAT_STATE, heartbeatLines } from "./lib/heartbeat";
 import { renderLaunchdUnit } from "./lib/launchd-render";
 import {
     planPruneStale,
@@ -71,6 +75,7 @@ const RUNNER_ROOT = join(HOME, ".local/share/tolaria/actions-runner");
 const CACHE_DIR = join(HOME, ".cache/tolaria/actions-runner");
 const LOG_DIR = join(HOME, ".cache/tolaria/gh-runner");
 const CONVEX_LOG_DIR = join(HOME, ".cache/tolaria/convex");
+const HEARTBEAT_LOG_DIR = dirname(HEARTBEAT_STATE);
 const LAUNCH_AGENTS = join(HOME, "Library/LaunchAgents");
 const SYSTEMD_USER = join(HOME, ".config/systemd/user");
 const MACHINE_FILE = join(RUNNER_ROOT, "machine.json");
@@ -187,6 +192,29 @@ function observe(
             platform === "darwin" &&
             sh(["launchctl", "print", `gui/${uid}/${LAUNCHD_CONVEX_LABEL}`])
                 .status === 0,
+        heartbeatText:
+            platform === "darwin"
+                ? readOrNull(
+                      join(LAUNCH_AGENTS, `${LAUNCHD_HEARTBEAT_LABEL}.plist`)
+                  )
+                : readOrNull(join(SYSTEMD_USER, SYSTEMD_HEARTBEAT_SERVICE)),
+        heartbeatTimerText:
+            platform === "linux"
+                ? readOrNull(join(SYSTEMD_USER, SYSTEMD_HEARTBEAT_TIMER))
+                : null,
+        heartbeatRunning:
+            platform === "darwin"
+                ? sh([
+                      "launchctl",
+                      "print",
+                      `gui/${uid}/${LAUNCHD_HEARTBEAT_LABEL}`,
+                  ]).status === 0
+                : sh([
+                      "systemctl",
+                      "--user",
+                      "is-active",
+                      SYSTEMD_HEARTBEAT_TIMER,
+                  ]).stdout.trim() === "active",
         machineText: readOrNull(MACHINE_FILE),
         busy,
         linger:
@@ -421,6 +449,7 @@ function main(): void {
             let plists: Record<string, string> = {};
             let convexPlist: string | null = null;
             let systemdTemplate: string | null = null;
+            let heartbeat: { plist?: string; service?: string; timer?: string };
             try {
                 if (platform === "darwin") {
                     const subs = {
@@ -439,6 +468,15 @@ function main(): void {
                             renderRunnerPlist(tpl, r, subs),
                         ])
                     );
+                    heartbeat = {
+                        plist: renderLaunchdUnit(
+                            readFileSync(
+                                join(UNITS, `${LAUNCHD_HEARTBEAT_LABEL}.plist`),
+                                "utf8"
+                            ),
+                            subs
+                        ),
+                    };
                     if (!flags.has("no-convex")) {
                         convexPlist = renderLaunchdUnit(
                             readFileSync(
@@ -449,13 +487,30 @@ function main(): void {
                         );
                     }
                 } else {
+                    const path = systemdRunnerPath(
+                        HOME,
+                        dirname(which("node"))
+                    );
+                    // The runner template's renderer: the same PATH, repo
+                    // and checks (the heartbeat names no runner root).
+                    const unit = (file: string) =>
+                        renderRunnerSystemdTemplate(
+                            readFileSync(join(UNITS, file), "utf8"),
+                            RUNNER_ROOT,
+                            path,
+                            repo
+                        );
+                    heartbeat = {
+                        service: unit(SYSTEMD_HEARTBEAT_SERVICE),
+                        timer: unit(SYSTEMD_HEARTBEAT_TIMER),
+                    };
                     systemdTemplate = renderRunnerSystemdTemplate(
                         readFileSync(
                             join(UNITS, SYSTEMD_RUNNER_TEMPLATE),
                             "utf8"
                         ),
                         RUNNER_ROOT,
-                        systemdRunnerPath(HOME, dirname(which("node"))),
+                        path,
                         repo,
                         undefined,
                         runners.some((r) => r.role === "pass")
@@ -476,6 +531,8 @@ function main(): void {
                     plists,
                     systemdTemplate,
                     convexPlist,
+                    heartbeat,
+                    heartbeatLogDir: HEARTBEAT_LOG_DIR,
                     launchAgentsDir: LAUNCH_AGENTS,
                     systemdUserDir: SYSTEMD_USER,
                     logDir: LOG_DIR,
@@ -539,6 +596,11 @@ function main(): void {
                     `${LAUNCHD_CONVEX_LABEL}\t${seen.convexRunning ? "running" : "STOPPED"}`
                 );
             }
+            for (const line of heartbeatLines(
+                readOrNull(HEARTBEAT_STATE),
+                Date.now()
+            ))
+                console.log(line.trimStart());
             const gh = sh([
                 "gh",
                 "api",
