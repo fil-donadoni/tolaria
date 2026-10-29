@@ -832,5 +832,8 @@ describe("Games phase leads with Standings + Deck preview, table last (issue #69
             <LimitedEventDetail eventId={"event-1" as never} />
         );
         expect(container.querySelector('[data-slot="games-lead"]')).toBeNull();
+        expect(
+            container.querySelector('[data-slot="event-table"]')
+        ).not.toBeNull();
     });
 });

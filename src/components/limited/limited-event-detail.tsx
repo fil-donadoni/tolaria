@@ -352,8 +352,8 @@ export default function LimitedEventDetail({
                                 <div
                                     className={
                                         viewerSeat && isPoolFinal
-                                            ? undefined
-                                            : "md:col-span-2"
+                                            ? "min-w-0"
+                                            : "min-w-0 md:col-span-2"
                                     }
                                 >
                                     <LimitedStandingsTable event={event} />
