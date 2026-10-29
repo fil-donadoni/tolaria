@@ -619,6 +619,47 @@ describe("consumers — land refuses a non-repair PR on a RED in the store", () 
             expect(none.stdout).toMatch(/proved=no/);
         });
     });
+
+    it("a repair of a two-culprit RED lands on its share, without AMBER (issue #7448)", () => {
+        withRoot((root) => {
+            const bin = path.join(root, "bin");
+            fs.mkdirSync(bin);
+            // The fake vitest fails exactly the file named in FAKE_RED.
+            fs.writeFileSync(
+                path.join(bin, "bunx"),
+                `#!/bin/sh\necho "$@" >> "${root}/bunx.calls"\n[ "$3" = "\${FAKE_RED:-}" ] && exit 1\nexit 0\n`,
+                { mode: 0o755 }
+            );
+            fs.mkdirSync(path.join(root, "t"));
+            fs.writeFileSync(path.join(root, "t", "a.test.ts"), "");
+            fs.writeFileSync(path.join(root, "t", "b.test.ts"), "");
+            const step = repairProofStep(["t/a.test.ts", "t/b.test.ts"]);
+            const sh = (red: string) =>
+                spawnSync(
+                    "sh",
+                    ["-c", `${step} && echo "proved=\${REPAIR_PROVED:-no}"`],
+                    {
+                        cwd: root,
+                        encoding: "utf8",
+                        env: {
+                            ...process.env,
+                            PATH: `${bin}:${process.env.PATH}`,
+                            FAKE_RED: red,
+                            REPAIR_PROVED: "",
+                        },
+                    }
+                );
+            const share = sh("t/b.test.ts");
+            expect(share.status).toBe(0);
+            expect(share.stdout).toMatch(/still red: t\/b\.test\.ts/);
+            expect(share.stdout).toMatch(/proved=no/);
+            // One vitest run per file, so one culprit's red never masks the other's green.
+            expect(fs.readFileSync(path.join(root, "bunx.calls"), "utf8")).toBe(
+                "vitest run t/a.test.ts\nvitest run t/b.test.ts\n"
+            );
+            expect(sh("").stdout).toMatch(/proved=1/);
+        });
+    });
 });
 
 describe("consumers — health:fix acts on a RED in the store", () => {

@@ -22,13 +22,16 @@ function redLineage(tests: string[] = [THIS_FILE]): Lineage {
     } as Lineage;
 }
 
+/** A runner whose every file exits `code`. */
+const exitAll = (code: number) => (t: readonly string[]) => t.map(() => code);
+
 function ctx(over: Partial<PrCheckContext>): PrCheckContext {
     return {
         cwd: process.cwd(),
         prBody: "Closes #900",
         lineage: () => redLineage(),
         repairIssues: () => [900],
-        runTests: () => 0,
+        runTests: exitAll(0),
         ...over,
     };
 }
@@ -53,7 +56,7 @@ describe("robustness-baseline", () => {
 
 describe("repair-proof (issue #5462)", () => {
     it("is red when the RED verdict's failing tests still fail", () => {
-        const r = repairProofCheck(ctx({ runTests: () => 1 }));
+        const r = repairProofCheck(ctx({ runTests: exitAll(1) }));
         expect(r.refusal).toContain("still fail");
         expect(r.refusal).toContain(THIS_FILE);
     });
@@ -64,7 +67,7 @@ describe("repair-proof (issue #5462)", () => {
             ctx({
                 runTests: (t) => {
                     ran = t;
-                    return 0;
+                    return exitAll(0)(t);
                 },
             })
         );
@@ -77,7 +80,7 @@ describe("repair-proof (issue #5462)", () => {
         const r = repairProofCheck(
             ctx({
                 prBody: "Closes #1",
-                runTests: () => ((ran = true), 1),
+                runTests: (t) => ((ran = true), exitAll(1)(t)),
             })
         );
         expect(r.refusal).toBeNull();
@@ -88,7 +91,7 @@ describe("repair-proof (issue #5462)", () => {
         const r = repairProofCheck(
             ctx({
                 lineage: () => ({ kind: "green", verdict: null }),
-                runTests: () => 1,
+                runTests: exitAll(1),
             })
         );
         expect(r.refusal).toBeNull();
@@ -98,7 +101,7 @@ describe("repair-proof (issue #5462)", () => {
         const r = repairProofCheck(
             ctx({
                 lineage: () => redLineage(["scripts/__tests__/gone.test.ts"]),
-                runTests: () => 1,
+                runTests: exitAll(1),
             })
         );
         expect(r.refusal).toBeNull();
@@ -113,7 +116,7 @@ describe("repair-proof (issue #5462)", () => {
                     verdict: null,
                     error: "no token",
                 }),
-                runTests: () => 1,
+                runTests: exitAll(1),
             })
         );
         expect(r.refusal).toBeNull();
@@ -134,7 +137,7 @@ describe("repair-proof (issue #5462)", () => {
                     readsCorpus,
                     runTests: (t) => {
                         ran = t;
-                        return 0;
+                        return exitAll(0)(t);
                     },
                 })
             );
@@ -150,7 +153,7 @@ describe("repair-proof (issue #5462)", () => {
                     lineage: both,
                     corpusExcluded: () => true,
                     readsCorpus,
-                    runTests: () => 1,
+                    runTests: exitAll(1),
                 })
             );
             expect(r.refusal).toContain(THIS_FILE);
@@ -164,7 +167,7 @@ describe("repair-proof (issue #5462)", () => {
                     lineage: () => redLineage([CORPUS_TEST]),
                     corpusExcluded: () => true,
                     readsCorpus,
-                    runTests: () => ((ran = true), 1),
+                    runTests: (t) => ((ran = true), exitAll(1)(t)),
                 })
             );
             expect(r.refusal).toBeNull();
@@ -178,11 +181,51 @@ describe("repair-proof (issue #5462)", () => {
                     lineage: both,
                     corpusExcluded: () => false,
                     readsCorpus,
-                    runTests: () => 1,
+                    runTests: exitAll(1),
                 })
             );
             expect(r.refusal).toContain(CORPUS_TEST);
         });
+    });
+});
+
+// Issue #7448: RED @ 6491254e had two culprits (PR #7401, PR #7396), each
+// reverted by its own repair; the proof demanded each revert turn BOTH failing
+// tests green, so neither could land first.
+describe("repair-proof of a two-culprit RED (issue #7448)", () => {
+    const OTHER = "scripts/__tests__/land.test.ts";
+    const twoCulprits = () => redLineage([THIS_FILE, OTHER]);
+    /** A repair whose diff turns `share` green and leaves the rest red. */
+    const repairing =
+        (share: string) =>
+        (t: readonly string[]): number[] =>
+            t.map((f) => (f === share ? 0 : 1));
+
+    it("each repair passes on its own share, naming the other culprit's still red", () => {
+        for (const [share, other] of [
+            [THIS_FILE, OTHER],
+            [OTHER, THIS_FILE],
+        ]) {
+            const r = repairProofCheck(
+                ctx({ lineage: twoCulprits, runTests: repairing(share) })
+            );
+            expect(r.refusal).toBeNull();
+            expect(r.note).toContain(`still red: ${other}`);
+        }
+    });
+
+    it("a repair that turns none of them green still refuses", () => {
+        const r = repairProofCheck(
+            ctx({ lineage: twoCulprits, runTests: exitAll(1) })
+        );
+        expect(r.refusal).toContain("still fail");
+    });
+
+    it("a repair of the whole RED passes with no note", () => {
+        const r = repairProofCheck(
+            ctx({ lineage: twoCulprits, runTests: exitAll(0) })
+        );
+        expect(r).toEqual({ refusal: null });
     });
 });
 
@@ -203,7 +246,7 @@ describe("repair-proof's run rebuilds the derived state (issue #7489)", () => {
 
     it("regenerates, runs the tests, then restores the derived paths", () => {
         const { calls, exec } = record();
-        expect(repairProofRun([THIS_FILE], "/wt", exec)).toBe(0);
+        expect(repairProofRun([THIS_FILE], "/wt", exec)).toEqual([0]);
         expect(calls).toEqual([
             ["bun", "run", "derive:regenerate"],
             ["bunx", "vitest", "run", THIS_FILE],
@@ -211,15 +254,28 @@ describe("repair-proof's run rebuilds the derived state (issue #7489)", () => {
         ]);
     });
 
+    it("runs one vitest per file, regenerating once (issue #7448)", () => {
+        const { calls, exec } = record();
+        expect(repairProofRun(["a.test.ts", "b.test.ts"], "/wt", exec)).toEqual(
+            [0, 0]
+        );
+        expect(calls).toEqual([
+            ["bun", "run", "derive:regenerate"],
+            ["bunx", "vitest", "run", "a.test.ts"],
+            ["bunx", "vitest", "run", "b.test.ts"],
+            RESTORE,
+        ]);
+    });
+
     it("restores the derived paths on a red run too", () => {
         const { calls, exec } = record({ vitest: 1 });
-        expect(repairProofRun([THIS_FILE], "/wt", exec)).toBe(1);
+        expect(repairProofRun([THIS_FILE], "/wt", exec)).toEqual([1]);
         expect(calls.at(-1)).toEqual(RESTORE);
     });
 
     it("is red without running the tests when the tree cannot be rebuilt", () => {
         const { calls, exec } = record({ run: 2 });
-        expect(repairProofRun([THIS_FILE], "/wt", exec)).toBe(2);
+        expect(repairProofRun([THIS_FILE], "/wt", exec)).toEqual([2]);
         expect(calls).toEqual([["bun", "run", "derive:regenerate"], RESTORE]);
     });
 });
