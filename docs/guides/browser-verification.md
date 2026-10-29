@@ -309,10 +309,13 @@ record and no budget file:
 - `cardsZero`, `cardsStranded`, `ctrlsZero`, `ctrlsStranded` — a collapsed or
   unreachable card tile or control (see [Reading the output](#reading-the-output));
 - `cardsSquare` — a card showing page background in its corner (issue #2724);
-- `cardsSoft` — a printed card face sharper in the slot than its resolved
-  rendition (issue #3553); a face whose rendition the probe does not know
-  (`cardsSoftUnknown`) counts too, because a face it cannot measure is one it
-  cannot prove sharp;
+- `cardsSoft` — a printed card face whose slot is wider, in device pixels,
+  than its resolved rendition (issue #3553), OR whose pixels on screen are
+  softer than that rendition allows (issue #6940: `raster.js` screenshots up to
+  four faces per cell and compares their gradient energy against the same
+  resource redrawn in a canvas, a Blur Index over `CARD_BLUR_MAX` counts); a
+  face whose rendition the probe does not know (`cardsSoftUnknown`) counts too,
+  because a face it cannot measure is one it cannot prove sharp;
 - `axeSerious`, `axeCritical` — axe-core violations at those impacts;
 - `hOverflow` — the page scrolls sideways.
 

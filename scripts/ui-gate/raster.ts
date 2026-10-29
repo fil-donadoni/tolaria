@@ -27,11 +27,15 @@ export const RASTER_SAMPLES_PER_CELL = 4;
 /** The Blur Index past which a face is SOFT (see `raster.js`: 0 = as sharp as
  *  its resource allows, 1 = as soft as a half-resolution raster of it).
  *
- *  Measured on this lane (issue #6940, 2026-10-29) before the fix: a sharp
- *  face reads 0.0–0.2 at every viewport, the margin being the compositor's
- *  bilinear downsample against the canvas's high-quality one; a face the
- *  compositor rasterised at a lower scale reads 0.8–1.2. 0.5 is the midpoint
- *  of a gap with nothing in it, not a tuned number. */
+ *  Measured on this lane (issue #6940, 2026-10-29), `draft-pick` and
+ *  `limited-build` at all five viewports, headless and headed (GPU), at max
+ *  zoom, after a hover: a sharp face reads 0.00–0.10, the margin being the
+ *  compositor's bilinear downsample against the canvas's high-quality one;
+ *  `half` reads 0.33–0.50 of `ref`, so a half-resolution raster would read
+ *  ~1.0. A face whose promoted layer the compositor EVICTED under a starved
+ *  GPU budget (`--force-gpu-mem-available-mb=24`) read 1.50 and 2.05 with a
+ *  screenshot energy of 0 — a blank slot. 0.5 is the midpoint of a gap with
+ *  nothing in it, not a tuned number. */
 export const CARD_BLUR_MAX = 0.5;
 
 /** One measured face, named so the run says WHICH card and by how much. `w`

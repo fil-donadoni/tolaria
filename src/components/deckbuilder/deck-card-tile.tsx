@@ -244,12 +244,20 @@ export default function DeckCardTile({
                 card is read through the Peek Panel's Inspect CTA instead. On a
                 `readOnly` mount there is no drag to lose the gesture to and no
                 Peek Panel to read the card in, so the hold-preview is the one
-                card-reading affordance and comes back on (issue #3167). */}
+                card-reading affordance and comes back on (issue #3167).
+
+                `promoteLayer={false}` on EVERY mount (issue #6940) — it used to
+                be `!readOnly`, promoting each editable tile. A pile view
+                mounts the whole pool, and a promoted face is a GPU layer the
+                compositor evicts first under a starved budget: measured as a
+                blank slot on this tile. The tile's only ancestor motion is the
+                translate-only lift (hover / selected), which never changes the
+                raster scale, so the contained face stays sharp through it. */}
             <CardImage
                 card={{ id: printId ?? cardId }}
                 holdPreview={readOnly}
                 lazy={readOnly}
-                promoteLayer={!readOnly}
+                promoteLayer={false}
             />
             {/* A "removable" hover cue (parity with the pre-#1581 deckbuilder
                 tile), keyed off the group so it only lights the hovered card.
