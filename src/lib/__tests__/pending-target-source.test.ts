@@ -12,6 +12,8 @@ import type {
 } from "~/types/game";
 
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, (id: string) => ({ id, name: `Card ${id}` })),
     tryGetDefinition: (id: string) =>
         id.startsWith("emblem-") ? undefined : { id, name: `Card ${id}` },
 }));
@@ -20,6 +22,10 @@ vi.mock("@convex/cards/emblems", () => ({
         id.startsWith("emblem-") ? { name: `Emblem ${id}` } : undefined,
 }));
 
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 import { resolvePendingTargetSource } from "../pending-target-source";
 
 function inst(id: string, defId: string): CardInstance {
