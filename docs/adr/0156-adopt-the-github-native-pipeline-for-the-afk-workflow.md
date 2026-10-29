@@ -705,10 +705,19 @@ Huawei's yield; not the runners nor the subscription.
 
 **Reading.** PR/h holds, 2.6 times the baseline over 72 hours. The
 interventions (1.7/day), the failed-landing share (22 %) and the RED time to
-green (p90 10.2 h) do not. Whether `loop:afk` stops for good is the owner's
-call (issue #5653). On 2026-10-29 `bun run loop:status` reports no driver on
-the MacBook; the Huawei is not readable from here, and its `huawei-lane-1`
-runner is offline.
+green (p90 10.2 h) do not.
+
+**Decision (owner, 2026-10-29).** The new pipeline stays and the old one is
+retired, the missed targets notwithstanding: "still breaking in, every day a
+few things to fix, but it has had long stretches of autonomy without
+excessive cost". The misses are the pipeline's own defects (issue #7445,
+issue #7446, issue #7447, issue #7448, the `other` landing cause above), each
+fixed forward as an issue, not a reason to keep `loop:afk`. The same day, on
+the MacBook: `loop:afk --stop` and `--disarm`, the `com.tolaria.land-runner`
+launchd agent booted out and disabled (still running since the Mergify
+cut-over of issue #5643, holding PRs on a stale RED). The Huawei's driver is
+stopped by the owner there. Deletion of the retired code follows as Phase 4
+(issue #5654, issue #5656, issue #5657).
 
 ## What would change the answer
 
