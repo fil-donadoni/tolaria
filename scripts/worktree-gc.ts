@@ -31,7 +31,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
-import { worktreeQuietMinutes, type ShRunner } from "./loop-doctor";
+import { worktreeQuietMinutes, type ShRunner } from "./lib/claim-verdict";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { CLAIM_LABEL, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { issueOfBranch } from "./lib/issue-worktree";

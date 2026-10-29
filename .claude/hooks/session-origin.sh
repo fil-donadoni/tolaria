@@ -3,17 +3,15 @@
 #
 # The Now view lists live sessions and claimed issues, and until this hook
 # existed neither could say whether an unattended AFK driver pass
-# (`loop-drain.sh` → `claude -p`) or a human at a terminal was behind them.
+# (an `afk-pass` job → `claude -p`) or a human at a terminal was behind them.
 # That is the first question asked of a claim that looks stuck: is a robot on
 # it, or is somebody typing?
 #
 # THE SIGNAL IS RECORDED, NOT DERIVED — the same reasoning `claim-ledger.sh`
-# spells out for its `owner` join (#2627). `loop-drain.sh` already exports
-# `TOLARIA_LOOP_DRAIN=1` on every pass it launches, and `loop-handoff.sh`'s
-# `blocked_reason` already trusts exactly that variable to know a pass was
-# driver-started. Hooks inherit the session process's environment, so reading
-# it HERE, inside the session, at the moment it starts, is the truth. After
-# the fact there is nothing to look it up in: the variable is gone with the
+# spells out for its `owner` join (#2627). `scripts/afk-pass.ts` exports
+# `TOLARIA_LOOP_DRAIN=1` on every pass it launches. Hooks inherit the
+# session process's environment, so reading it HERE, inside the session,
+# at the moment it starts, is the truth. After the fact there is nothing to look it up in: the variable is gone with the
 # process, and the session UUID appears in no argv.
 #
 # The transcript's own `entrypoint` field (`sdk-cli` for a headless `claude
@@ -49,7 +47,7 @@ else
     origin="interactive"
 fi
 
-# The RUN this pass belongs to (issue #3699). `loop-drain.sh` exports
+# The RUN this pass belongs to (issue #3699). `scripts/afk-pass.ts` exports
 # TOLARIA_LOOP_RUN_ID on every pass it launches, and the budget guard sums the
 # transcripts of exactly these sessions — so a run's budget is the run's spend
 # and not a five-hour window over every session on the machine. Empty for an

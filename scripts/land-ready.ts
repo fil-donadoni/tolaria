@@ -127,7 +127,7 @@ import {
 import { isCheapStep, preQueueSteps } from "./lib/pre-queue-steps";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { buildPrOpenRow } from "./lib/queue-claim";
-import { claimLedgerPath } from "./loop-doctor";
+import { claimLedgerPath } from "./lib/claim-verdict";
 import {
     PR_CHECK_NAMES,
     runPrCheck,

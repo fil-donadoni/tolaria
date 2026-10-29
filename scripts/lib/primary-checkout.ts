@@ -10,8 +10,7 @@
 // different signature, left alone here). Migrating those five onto this
 // module was explicitly out of scope for #2519: each already shipped behind
 // its own tests, and unifying them was a separate change from adding the two
-// NEW callers that issue needed (`loop-status.ts` and the
-// `/api/loop-status` route in `telemetry-serve.ts`).
+// NEW callers that issue needed (both since retired).
 //
 // `land.ts`'s copy was folded into this module by #2656 (the receipt writer
 // needed the SAME resolution, and a second production caller finally made

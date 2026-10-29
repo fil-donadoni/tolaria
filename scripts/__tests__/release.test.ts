@@ -283,25 +283,6 @@ describe("release — parseFixBound", () => {
     });
 });
 
-describe("the AFK loop repairs only through the bounded headless fixer (issue #5589)", () => {
-    it("loop-drain.sh stops on a RED it may not repair, and never calls release", () => {
-        // PRD issue #3197 left the overnight repair out of scope; the owner
-        // authorised it in issue #5589 — ONE `health:fix --headless` per RED
-        // tip, decided by `health:fix --plan`, never `release`.
-        const sh = readFileSync(join(__dirname, "..", "loop-drain.sh"), "utf8");
-        // Through the verdict store since issue #5462.
-        expect(sh).toMatch(/health:status --json/);
-        expect(sh).toMatch(/stopping rather than stacking work on a red tip/);
-        expect(sh).not.toMatch(/bun run release/);
-        // Every invocation (messages name `bun run health:fix` for a human,
-        // the driver runs it `--silent`): the plan, then the headless fixer.
-        const calls = [
-            ...sh.matchAll(/bun run --silent health:fix (\S+)/g),
-        ].map((m) => m[1]);
-        expect(calls).toEqual(["--plan", "--headless"]);
-    });
-});
-
 describe("the fix loop's dependency cannot vanish silently (PR #3209 deleted it once)", () => {
     /**
      * Issue #3199 shipped `scripts/health-fix.ts` and its test in PR #3207.

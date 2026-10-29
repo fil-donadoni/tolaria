@@ -211,23 +211,16 @@ describe("test-reach — a spawned shell driver propagates reach (issue #5555)",
         const sh = [
             `#!/bin/sh`,
             `# runs gone.ts`,
-            `_doctor="$SCRIPT_DIR/loop-doctor.ts"`,
+            `_doctor="$SCRIPT_DIR/doctor.ts"`,
             `bun scripts/lib/x.ts --flag # then y.ts`,
             `cat data/idx.json; echo "\${#arr[@]}"`,
             `bunx vitest run scripts/__tests__/z.test.ts`,
         ].join("\n");
         expect(shellFileNames(sh).sort()).toEqual([
+            "doctor.ts",
             "idx.json",
-            "loop-doctor.ts",
             "x.ts",
         ]);
-    });
-
-    it("live tree: a diff on the loop doctor alone plans the loop-drain prompt test (issue #5551)", () => {
-        const live = reachIndex(resolve(__dirname, "../.."));
-        expect(
-            relatedTests(live, ["scripts/loop-doctor.ts"])["node-tooling"]
-        ).toContain("scripts/__tests__/loop-drain-prompt.test.ts");
     });
 });
 

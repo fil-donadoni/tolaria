@@ -27,13 +27,13 @@ const label = (s: SpecKey) => `${s.project}:${s.file}`;
 
 describe("orderSpecs — the ordering rule", () => {
     // The shape of the measured problem: `node-engine` sorts first by name,
-    // but `node-tooling` holds the single longest file (loop-drain, 59 s) and
+    // but `node-tooling` holds the single longest file (59 s) and
     // the larger project total.
     const specs = [
         spec("node-engine", "convex/a.test.ts"),
         spec("node-tooling", "scripts/small.test.ts"),
         spec("node-engine", "convex/b.test.ts"),
-        spec("node-tooling", "scripts/loop-drain.test.ts"),
+        spec("node-tooling", "scripts/long.test.ts"),
         spec("node-engine", "convex/c.test.ts"),
         spec("dom", "src/x.test.tsx"),
     ];
@@ -42,13 +42,13 @@ describe("orderSpecs — the ordering rule", () => {
         "node-engine:convex/b.test.ts": 30_000,
         "node-engine:convex/c.test.ts": 5_000,
         "node-tooling:scripts/small.test.ts": 1_000,
-        "node-tooling:scripts/loop-drain.test.ts": 59_000,
+        "node-tooling:scripts/long.test.ts": 59_000,
         "dom:src/x.test.tsx": 2_000,
     });
 
     it("runs projects by cached total descending, longest file first inside each", () => {
         expect(orderSpecs(specs, (s) => s, cache).map(label)).toEqual([
-            "node-tooling:scripts/loop-drain.test.ts", // 60 s total
+            "node-tooling:scripts/long.test.ts", // 60 s total
             "node-tooling:scripts/small.test.ts",
             "node-engine:convex/b.test.ts", // 45 s total
             "node-engine:convex/a.test.ts",
@@ -88,7 +88,7 @@ describe("orderSpecs — the ordering rule", () => {
             "node-engine:convex/a.test.ts",
             "node-engine:convex/b.test.ts",
             "node-engine:convex/c.test.ts",
-            "node-tooling:scripts/loop-drain.test.ts",
+            "node-tooling:scripts/long.test.ts",
             "node-tooling:scripts/small.test.ts",
         ]);
     });

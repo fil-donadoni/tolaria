@@ -7,7 +7,7 @@ import * as path from "path";
 // Every test here forks a real `sh`, which forks a real `bun run` against a
 // scratch package.json, and several of them deliberately wait on a sleeping
 // child. The default 5s per-test ceiling is tuned for pure in-process
-// assertions — same allowance, and the same reason, as `loop-drain.test.ts`.
+// assertions.
 vi.setConfig({ testTimeout: 30_000 });
 
 /**
@@ -25,7 +25,7 @@ vi.setConfig({ testTimeout: 30_000 });
  * outlives the call that started it, and re-running the identical command
  * re-attaches rather than starting a second gate — and each has its own test.
  *
- * Driven like `loop-drain.test.ts`: a scratch cwd holding its own
+ * Driven from a scratch cwd holding its own
  * `package.json`, so `bun run <name>` inside the script resolves to a fixture
  * script and never to a real gate.
  */

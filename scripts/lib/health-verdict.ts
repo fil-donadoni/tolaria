@@ -106,8 +106,8 @@ export const PREFLIGHT_SKEW_STEP = "preflight:deployment-skew";
 export const PREFLIGHT_MACHINE_STEP = "preflight:machine";
 
 /** What to do about each cause — one sentence `last.json` carries as
- *  `reason`, so every reader (`health:status`, `queue:plan`, `loop-drain`)
- *  prints the same instruction. No double quotes: `loop-drain` reads it with
+ *  `reason`, so every reader (`health:status`, `queue:plan`, a shell driver)
+ *  prints the same instruction. No double quotes: a shell driver reads it with
  *  `sed`. */
 export const INFRA_REMEDY: Record<InfraCause, string> = {
     sleep: "the machine slept during the step; re-run `bun run health` awake",
@@ -349,7 +349,7 @@ export interface InfraRecord {
 }
 
 /** One line for a reader that is NOT stopped by an INFRA verdict
- *  (`queue:plan`; `loop-drain` composes the same line in sh): the tip is
+ *  (`queue:plan`; a shell driver composes the same line): the tip is
  *  unproven, not red, and here is what to do. */
 export function infraNotice(r: InfraRecord): string {
     const sha = r.sha ? r.sha.slice(0, 8) : "unknown sha";

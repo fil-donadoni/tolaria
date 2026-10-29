@@ -3,7 +3,7 @@
 //
 // This was `fetchBoardPriority`, private to `scripts/queue-plan.ts`, which
 // FAILS LOUD on a degraded read (`die()` → exit 2): there, a silently
-// mis-ordered batch is worse than a stopped loop. `loop:status` is the second
+// mis-ordered batch is worse than a stopped loop. The retired status view is the second
 // caller this issue adds, and it is a read-only observability command — a
 // missing `read:project` scope there must NOT crash the whole view, a
 // missing priority column is cosmetic.
@@ -12,7 +12,7 @@
 // `onError` is invoked at every point the original inline version called
 // `die()`, and what happens next is entirely the caller's choice. `queue:plan`
 // passes its own `die` — so ITS behaviour (fail loud, exit 2, exact operator
-// guidance) is unchanged by this extraction. `loop:status` passes a collector
+// guidance) is unchanged by this extraction. The retired status view passes a collector
 // that degrades gracefully: render priorities as unknown, print one warning
 // line, keep going.
 //
@@ -31,7 +31,7 @@
 // caller gets it. Whether a failed read may degrade to a stale snapshot is a
 // failure POLICY — same class as `onError` — so it lives in the caller:
 // `queue:plan` wraps this function in its own file-backed cache,
-// `loop:status` caches the value it gets in its own server route.
+// the retired status view cached the value it gets in its own server route.
 //
 // ── Why this is a raw GraphQL query and not `gh project item-list` ──────────
 //
@@ -48,7 +48,7 @@
 // The pool is 5000 points per HOUR, shared by every session and script on
 // the machine. At 768 a read it affords 6.5 board reads an hour in total,
 // which is how the account reached `graphql 0/5000 remaining` with the REST
-// pool untouched at 5000/5000 and `loop:status` reporting every `gh`-backed
+// pool untouched at 5000/5000 and the retired status view reporting every `gh`-backed
 // section UNAVAILABLE at once. At 7 it affords ~700.
 //
 // Two things follow from asking directly rather than through `gh project`:
@@ -86,7 +86,7 @@ export const VALID_PRIORITIES: readonly BoardPriority[] = [
 
 /** The `--no-priority` skip's own message — exported so a caller that wants
  *  to report the same warning WITHOUT making the (skipped) call at all, e.g.
- *  `loop:status`'s `fetchPriorityGracefully`, doesn't have to duplicate the
+ *  the retired status view's `fetchPriorityGracefully`, doesn't have to duplicate the
  *  string. */
 export const NO_PRIORITY_WARNING =
     "--no-priority: board priorities NOT applied; this plan uses the default order only";

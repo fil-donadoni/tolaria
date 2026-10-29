@@ -34,7 +34,7 @@ import {
     type WorkflowRun,
 } from "../lib/afk-dispatch";
 import { claimFate, pick } from "../lib/picker";
-import { classifyClaims } from "../loop-doctor";
+import { classifyClaims } from "../lib/claim-verdict";
 import {
     repairItems,
     type IssueDetail,
@@ -100,7 +100,7 @@ function record(over: Partial<PassRecord> = {}): PassRecord {
 /** The dispatcher's claim verdicts — `classifyClaims`, the one authority
  *  (issue #6223) — over runs, pushed branches and PRs, with no journal owner
  *  and no local branch (this machine's evidence is pinned in
- *  `loop-doctor.test.ts`). Every claim was taken well before the runs listed
+ *  `claim-verdict.test.ts`). Every claim was taken well before the runs listed
  *  (a run after the claim is the pipeline's evidence), unless `at` says
  *  otherwise. */
 function facts(

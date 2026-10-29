@@ -28,8 +28,7 @@ import * as path from "path";
  * session holding the heavy gate, two of these timed out inside
  * `bun run land` and went green immediately when re-run alone. A spawn-bound
  * test that fails on machine load is noise in the one gate this repo has, and
- * it reds the merge-train for whoever is landing next. Same treatment, and the
- * same reason, as `loop-drain.test.ts` / `loop-handoff.test.ts`.
+ * it reds the merge-train for whoever is landing next.
  */
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -2574,7 +2573,7 @@ describe("Agent spawns declare their role", () => {
 /**
  * The owner join (#2627).
  *
- * `loop:doctor` releases claims whose evidence is dead, and the strongest
+ * `afk-dispatch` releases claims whose evidence is dead, and the strongest
  * evidence — "the process that took this claim is gone" — had nowhere to come
  * from. A claim row named a Claude Code SESSION UUID, and a session UUID is
  * not a process handle: it appears in no argv, and Claude Code holds no open
@@ -2624,8 +2623,7 @@ describe("claim-ledger — records the owning process (#2627)", () => {
         // `runHook` spawns the hook directly from THIS process, so the walk's
         // correct answer is knowable exactly: `process.pid`. Matching on this
         // process's own binary name is the injection seam
-        // (`TOLARIA_CLAIM_OWNER_COMM`) standing in for `claude`, the same role
-        // `isAlive` plays in `lib/loop-status.ts` — a vitest-spawned hook has
+        // (`TOLARIA_CLAIM_OWNER_COMM`) standing in for `claude` — a vitest-spawned hook has
         // no `claude` ancestor, so without it the recording path could only
         // ever be asserted against a real Claude Code process, i.e. never.
         const row = claimRow({
@@ -2685,7 +2683,7 @@ describe("claim-ledger — records the owning process (#2627)", () => {
     });
 
     it("records owner: null rather than GUESSING when no owning process resolves", () => {
-        // An unusual spawn chain, or no `ps`. `loop:doctor` reads a missing
+        // An unusual spawn chain, or no `ps`. the claim verdict reads a missing
         // owner as UNKNOWN and changes no verdict on it — whereas a guessed
         // pid would be a liveness reading about the wrong process, in either
         // direction: freezing a real orphan, or releasing live work.

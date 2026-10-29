@@ -17,7 +17,7 @@ import {
 
 /**
  * `gh()` replays a READ that met a transient GitHub 5xx (issue #5540): one
- * `HTTP 504` on the queue read stopped a whole `loop:afk` run at pre-flight.
+ * `HTTP 504` on the queue read stopped a whole AFK run at pre-flight.
  * A write is never replayed — a 504 on a write may have landed.
  */
 
@@ -63,7 +63,7 @@ function flaky(errors: unknown[]) {
 }
 
 describe("isTransientGhError", () => {
-    it("recognises the 504 that stopped loop:afk, and 502/503", () => {
+    it("recognises the 504 that stopped an AFK run, and 502/503", () => {
         expect(isTransientGhError(GATEWAY_504)).toBe(true);
         expect(isTransientGhError(new Error("HTTP 502: Bad Gateway"))).toBe(
             true

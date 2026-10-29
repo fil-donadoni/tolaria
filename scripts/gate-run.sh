@@ -153,7 +153,7 @@ is_alive() {
 # forever: every later call re-attaches, waits the ceiling, exits 75, and the
 # gate is never started — silently, with the PREVIOUS run's log tail as the
 # diagnostic. So the pid is paired with the process's own start stamp, the same
-# primitive `loop-doctor.ts` uses to join a claim to a live process (#2627).
+# primitive `lib/claim-verdict.ts` uses to join a claim to a live process (#2627).
 # Unreadable stamp → treated as NOT ours, which starts a fresh run: the safe
 # direction, since a duplicate gate is visible and a wedged one is not.
 #

@@ -697,7 +697,7 @@ describe("readReceipts detects tampering outside the sanctioned write path", () 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// newestBatchDir (PR #2545 review, finding 4) — `loop:status` (#2519) uses
+// newestBatchDir (PR #2545 review, finding 4) — the dashboard (#2519) uses
 // this to decide which batch's receipts the whole view describes, so a wrong
 // answer here silently points the dashboard/CLI at a stale batch. No test
 // existed despite that.

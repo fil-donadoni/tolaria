@@ -2,7 +2,7 @@
  * A push notification to the owner, from a script nobody watches (issue
  * #5467): `TOLARIA_NOTIFY_CMD` wins (run by `sh -c` with the message as
  * `$1` — an `ntfy` curl on the Huawei), else the desktop's own notifier.
- * The same order as `loop-drain.sh`'s `notify_owner`. Never throws: a
+ * Never throws: a
  * notification that cannot be shown leaves the caller's log line.
  *
  * Inside a GitHub Actions job the variable reaches the process through the

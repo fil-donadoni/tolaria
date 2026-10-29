@@ -2915,7 +2915,7 @@ describe("admission — the claim journal fold (issue #3775)", () => {
     });
 
     it("an ownerless claim row still holds — unlike parseClaimOwners, which asks a different question", () => {
-        // `loop-doctor.ts`'s fold drops ownerless rows because it answers
+        // `lib/claim-verdict.ts`'s fold drops ownerless rows because it answers
         // "WHO owns this"; every row written before #2627 is ownerless, and
         // treating those as released here would hand the cap free slots.
         expect(releasedClaims(row(10, "claim"))).toEqual([]);
@@ -3113,7 +3113,7 @@ describe("resumeItems — dead passes' claims go to the next pass (issue #4763, 
     it("orders by BAND before issue number — a dead P0 claim is never resumed after a P1 (issue #5174)", () => {
         // The incident: P0 issue #4862's pass died with a local branch while
         // the loop picked P1 work past it. Once it is resumable it must also
-        // be FIRST: `loop-drain` takes `resume[0]`.
+        // be FIRST: the dispatcher takes `resume[0]`.
         const items = resumeItems(
             [
                 row(4142, "stranded", 5160),

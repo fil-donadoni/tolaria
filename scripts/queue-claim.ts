@@ -46,7 +46,7 @@ import {
     claimLedgerPath,
     claimVerdicts,
     interpretPsResult,
-} from "./loop-doctor";
+} from "./lib/claim-verdict";
 import {
     heldFromJournal,
     isStaleClaim,
@@ -184,7 +184,7 @@ async function withClaimLock<T>(label: string, fn: () => T): Promise<T> {
 // ── reads ────────────────────────────────────────────────────────────────────
 
 /** `title` is carried for the liveness classifier's sake (issue #4384) — it
- *  is what `loop:doctor` prints beside a verdict, and asking for it costs
+ *  is what a claim report prints beside a verdict, and asking for it costs
  *  nothing on a query that is already being made. */
 function claimedIssues(): {
     number: number;
@@ -366,7 +366,7 @@ async function main(): Promise<void> {
     const session = process.env.CLAUDE_CODE_SESSION_ID ?? "";
     if (session === "")
         console.error(
-            "queue:claim: no CLAUDE_CODE_SESSION_ID — this claim is recorded with an empty session, so the end-of-session sweep will not release it; `loop:doctor` will, by evidence"
+            "queue:claim: no CLAUDE_CODE_SESSION_ID — this claim is recorded with an empty session, so the end-of-session sweep will not release it; `afk-dispatch` will, by evidence"
         );
 
     const machine = admitSessionNow({
@@ -393,10 +393,10 @@ async function main(): Promise<void> {
 
     const outcome = await withClaimLock(`claim #${issue}`, () => {
         const claimed = claimedIssues();
-        // The cap counts ACTIVE sessions, so it asks `loop:doctor`'s liveness
+        // The cap counts ACTIVE sessions, so it asks `lib/claim-verdict.ts`'s liveness
         // classifier, imported, never a second opinion. A claim proved
         // `recoverable` or `stranded` keeps its label and gives up its slot —
-        // nothing here writes a release, that stays `loop:doctor --release`'s
+        // nothing here writes a release, that stays `afk-dispatch`'s
         // call — and is out of the collision set, so a pass RESUMING it is
         // admitted. No verdict at all counts as live. The census reads the set
         // reconciled against this machine's `released` rows; the collision
@@ -444,11 +444,11 @@ async function main(): Promise<void> {
     const recovered =
         outcome.recoverable.length === 0
             ? ""
-            : `, ${outcome.recoverable.length} recoverable not counted (${outcome.recoverable.map((n) => `#${n}`).join(", ")} — \`bun run loop:doctor\`)`;
+            : `, ${outcome.recoverable.length} recoverable not counted (${outcome.recoverable.map((n) => `#${n}`).join(", ")} — \`/next-ticket N --resume\`)`;
     const strandedNote =
         outcome.stranded.length === 0
             ? ""
-            : `, ${outcome.stranded.length} stranded not counted (${outcome.stranded.map((n) => `#${n}`).join(", ")} — \`bun run loop:doctor\`)`;
+            : `, ${outcome.stranded.length} stranded not counted (${outcome.stranded.map((n) => `#${n}`).join(", ")} — \`/next-ticket N --resume\`)`;
     const { local, foreign, scoped } = outcome.scope;
     const foreignNote =
         foreign.length === 0

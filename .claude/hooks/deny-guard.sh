@@ -284,7 +284,7 @@ seg_has() {
 # server startup banner piped into a pager, which was never the failure §3
 # exists to catch.
 # ─────────────────────────────────────────────────────────────────────────────
-GATE_EXEMPT_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|loop:doctor|usage:window|telemetry:dash|cockpit|format|dev|preview)$'
+GATE_EXEMPT_SCRIPT_RE='^(cr|cr:check|findings|queue:plan|usage:window|telemetry:dash|cockpit|format|dev|preview)$'
 
 # True when the given SEGMENT text reaches the gate runner.
 segment_reaches_gate() {
@@ -573,7 +573,7 @@ fi
 #
 # **The informational allowlist, seeded against `package.json` (verify with
 # `bun run <name>` before adding another):** `cr`, `cr:check`, `findings`,
-# `queue:plan`, `loop:doctor`, `usage:window`, `telemetry:dash`, `cockpit`
+# `queue:plan`, `usage:window`, `telemetry:dash`, `cockpit`
 # (issue #5652: a server with no verdict, like `telemetry:dash`), `format`.
 # Nothing else — in particular `lint`,
 # `format:check`, `check:ts`, `check:index`, `check:stubs` and
@@ -975,7 +975,7 @@ fi
 # `@me` assignee `queue:claim` added and wrote no journal row, and the planner
 # deferred the issue as "assigned — someone is working it" on every pass,
 # forever. A hand release that ALSO removes the assignee is the repair `land`,
-# `claim-sweep.sh` and `loop:doctor --release` already make, and stays allowed.
+# `claim-sweep.sh` and `afk-dispatch` already make, and stays allowed.
 RELEASE_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+issue[[:space:]]+edit[[:space:]].*--remove-label(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?in-progress["'"'"']?([[:space:],]|$)'
 if seg_has "$RELEASE_INVOKE" && ! seg_has '[[:space:]]--remove-assignee(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?@me["'"'"']?([[:space:],]|$)' "$RELEASE_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_CLAIM=1' "$RELEASE_INVOKE"; then
     deny "BLOCKED: half a release — the label comes off, the assignee stays (issue #4752).

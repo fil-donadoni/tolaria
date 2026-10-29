@@ -32,7 +32,7 @@ import {
     type WeightClass,
 } from "./usage-window";
 import { claimFate, type JudgedClaim, type PickResult } from "./picker";
-import type { PassRunState } from "../loop-doctor";
+import type { PassRunState } from "./claim-verdict";
 import type { HealthMarker, RepairItem } from "./queue-plan";
 import { CLAIM_LABEL } from "./claim-labels";
 import { FAILED_LABEL, READY_LABEL } from "./land-labels";
@@ -617,7 +617,7 @@ export const CLAIM_RUN_SLACK_MS = 2 * 60_000;
 
 /**
  * What the `afk-pass` runs say about one claim (`ClaimFacts.run` in
- * `loop-doctor.ts`, whose `classifyClaim` is the ONE verdict, issue #6223):
+ * `lib/claim-verdict.ts`, whose `classifyClaim` is the ONE verdict, issue #6223):
  *
  *   * `active` — a run for the issue is queued or running;
  *   * `ended`  — a run for it was created AFTER the claim was taken

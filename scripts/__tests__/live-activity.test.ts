@@ -466,7 +466,7 @@ describe("live-activity — review of PR #3136", () => {
 describe("live-activity — session entrypoint (issue #3144)", () => {
     it("folds the entrypoint off the transcript, latest line winning, and leaves it null when no line carries one", () => {
         // The FALLBACK signal for who started a session: `sdk-cli` is a
-        // headless `claude -p` — the shape `loop-drain.sh` launches — and
+        // headless `claude -p` — the shape an `afk-pass` job launches — and
         // `cli` an interactive terminal. Read exactly like `cwd`/`gitBranch`
         // beside it, so a session that gains the field mid-transcript ends up
         // with the value its latest line carries, not its first.
