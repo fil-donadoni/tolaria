@@ -16588,7 +16588,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             predicate: castSparesOwnPermanents("Vindicate", "me"),
             describe: "a Vindicate cast names none of the Bot's own permanents",
         },
-        note: "Issue #6985 — lethal already on board saturates every 1-ply policy value, so the starved root opens three of Vindicate's twenty target variants at random and the announcement-variant ranking used to see only those. Pre-fix: seeds 6, 22, 23, 32, 33, 37 destroyed a Bot land. Passing is allowed (act vs pass is issue #6913).",
+        note: "Issue #6985 — lethal already on board saturates every 1-ply policy value, so the starved root opens three of Vindicate's twenty target variants at random and the announcement-variant ranking used to see only those. Pre-fix: seeds 6, 7, 22 and others destroyed a Bot land. Passing is allowed (act vs pass is issue #6913).",
     },
     {
         label: "starved target fan-out: Vindicate aims at the opponent's Hero token (iterations 15)",
@@ -16603,13 +16603,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 15 },
-        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 14, 17],
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 13, 19, 25, 31, 35, 36, 40],
         tier: "must",
         expect: {
             predicate: castTargetsOnlyNamed("Vindicate", "Hero"),
             describe: "a Vindicate cast targets the opponent's Hero token",
         },
-        note: "Issue #6985 — the same board at the `medium` preset's measured live depth (10–18 iterations): every unopened target sibling now joins the announcement-variant ranking, so the 6/6 Hero wins on the resolved margin. Pre-fix: seeds 7, 11, 12, 14, 17 hit Ornithopter.",
+        note: "Issue #6985 — the same board at the `medium` preset's measured live depth (10–18 iterations): every unopened target sibling now joins the announcement-variant ranking, so the 6/6 Hero wins on the resolved margin. Pre-fix: seeds 13, 19, 25, 31, 35, 36, 40 hit Ornithopter or Mind Stone.",
     },
     {
         label: "starved target fan-out: Vindicate aims at the opponent's Hero token (iterations 400)",
