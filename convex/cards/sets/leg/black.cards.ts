@@ -937,7 +937,7 @@ export const wallOfTombstones = defineCard(() => ({
 
 // Abomination — {3}{B}{B} 2/6. "Whenever this creature blocks or becomes
 // blocked by a green or white creature, destroy that creature at end of
-// combat." (CR 509.1h combat pairing, CR 511.3 end-of-combat timing.) The gate
+// combat." (CR 509.1h combat pairing, CR 511.1 end-of-combat step.) The gate
 // reads the OTHER creature's live layer-5 colours (CR 202.2, CR 613) captured on
 // the BLOCKERS_CONFIRMED event, never a state lookup.
 const ABOMINATION_ID = "a69e2cf8-5ecb-485a-92a2-b4e0a7959f1f";

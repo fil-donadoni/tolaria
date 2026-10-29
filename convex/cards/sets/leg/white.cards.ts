@@ -1587,7 +1587,7 @@ export const greaterRealmOfPreservation = defineCard(() =>
 // Land Tax — {W} Enchantment. "At the beginning of your upkeep, if an opponent
 // controls more lands than you, you may search your library for up to three
 // basic land cards, reveal them, put them into your hand, then shuffle."
-// (CR 603.6a upkeep trigger, CR 603.4 intervening-if checked on trigger AND on
+// (CR 603.4 intervening-if checked on trigger AND on
 // resolution, CR 701.23 search, CR 205.4a basic = supertype.) "You may" +
 // "up to three" are both honoured by the 0..3 search count.
 export const landTax = defineCard(() => ({

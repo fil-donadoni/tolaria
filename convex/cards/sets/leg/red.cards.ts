@@ -910,8 +910,8 @@ export const cavernsOfDespair = defineCard(() => ({
 }));
 
 // Crimson Manticore — {2}{R}{R} 2/2. "{R}, {T}: This creature deals 1 damage
-// to target attacking or blocking creature." (CR 508.1 / 509.1 — the array
-// form of `combatRoleFilter`, as D'Avenant Archer.)
+// to target attacking or blocking creature." (The array form of
+// `combatRoleFilter`, as D'Avenant Archer.)
 export const crimsonManticore = defineCard(() => ({
     id: "96f73f9c-1c4e-4343-bfa0-cc5c4a7a562e",
     rarity: "rare",
