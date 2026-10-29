@@ -46,19 +46,19 @@ const stack = [
 describe("resolvePendingTargetSource", () => {
     it("names a spell cast from hand", () => {
         expect(
-            resolvePendingTargetSource(target("spell", "h1"), me, stack).name
+            resolvePendingTargetSource(target("cast", "h1"), me, stack).name
         ).toBe("Card bolt");
     });
 
     it("names a spell cast from the graveyard", () => {
         expect(
-            resolvePendingTargetSource(target("spell", "g1"), me, stack).name
+            resolvePendingTargetSource(target("cast", "g1"), me, stack).name
         ).toBe("Card flash");
     });
 
     it("names a spell cast from exile", () => {
         expect(
-            resolvePendingTargetSource(target("spell", "e1"), me, stack).name
+            resolvePendingTargetSource(target("cast", "e1"), me, stack).name
         ).toBe("Card foretold");
     });
 
@@ -90,7 +90,7 @@ describe("resolvePendingTargetSource", () => {
                 .name
         ).toBe("Copy");
         expect(
-            resolvePendingTargetSource(target("spell", "zz"), me, stack).name
+            resolvePendingTargetSource(target("cast", "zz"), me, stack).name
         ).toBe("spell");
     });
 });
