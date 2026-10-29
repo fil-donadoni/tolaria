@@ -447,8 +447,25 @@ export function dslSpellScriptValue(
     latent?: LatentWeights
 ): number | undefined {
     const ctx = contextFreeGrounding(latent);
-    return dslSpellScriptOpValue(def, board ? withLatentLens(ctx, board) : ctx)
-        ?.points;
+    const points = dslSpellScriptOpValue(
+        def,
+        board ? withLatentLens(ctx, board) : ctx
+    )?.points;
+    if (points === undefined) return undefined;
+    return points * heldAnswerShare(def, board);
+}
+
+/** The share of a spell script's worth a card HELD in hand keeps on this
+ *  board: a spell whose only legal target is a stack object (`"spell"`) does
+ *  nothing, riders included, until there is a spell to answer
+ *  (`LatentLens.stackAnswerUnits`). 1 for any other card and with no board
+ *  attached. */
+function heldAnswerShare(def: CardDefinition, board?: LatentLens): number {
+    const share = board?.stackAnswerUnits?.();
+    if (share === undefined || share >= 1) return 1;
+    const type = def.targetRequirement?.type;
+    const types = Array.isArray(type) ? type : [type];
+    return types.every((t) => t === "spell") ? share : 1;
 }
 
 /** Merges two `OpValue`s: points summed, tags unioned (dedup) — mirrors

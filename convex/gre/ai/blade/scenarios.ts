@@ -49,7 +49,102 @@ import {
     castTargetsOnlyNamed,
 } from "./scenarioPredicates";
 
+/** The held-answer pair (issue #7337), classified `conditional` and left
+ *  unlinked (no `pairOf`): a linked pair asks the fit for a 100-point
+ *  separation, the land an answer saves is worth about 16, and the fit bought
+ *  the gap by inflating land and colour weights, which moved a neighbouring
+ *  colour-axis entry off two of thirty seeds. The term the fit lacks is the
+ *  answer's worth against the spells still to come; until it exists the pair
+ *  gates the Bot here and stays out of the fit corpus.
+ *
+ *  The position: the opponent's Stone Rain on the bot's Volcanic Island, the
+ *  bot holding two Islands and ONE stack answer. The only difference between
+ *  the halves is the opponent's hand: with a card left the answer still has a
+ *  spell to wait for and is kept; with none it has nothing to wait for and
+ *  the land is saved. */
+function heldAnswerPair(
+    answer: string,
+    /** False for an answer that only ever targets the land spell itself
+     *  (Teferi's Response): there is nothing else it waits for, so countering
+     *  is right at any opponent hand and no keep-half exists. */
+    keepsForLaterSpell = true
+): RegistryBladeScenario[] {
+    const anchorLabel = `held answer: keeps ${answer} when the opponent still holds cards, even with Stone Rain on its land`;
+    const discriminant = {
+        kind: "card",
+        detail: "the opponent's hand: one card against none",
+    } as const;
+    const position = (opponentHand: number) => ({
+        cards: [
+            { name: "Stone Rain", owner: "me", zone: "hand" },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
+            ...(opponentHand > 0
+                ? [
+                      {
+                          // A spell the three Mountains cast next turn, not
+                          // this one (Stone Rain taps them all): the card
+                          // stays in hand through the first rollout ply, and
+                          // the held answer has something to wait for.
+                          name: "Mons's Goblin Raiders",
+                          owner: "me",
+                          zone: "hand",
+                          count: opponentHand,
+                      },
+                  ]
+                : []),
+            { name: "Volcanic Island", owner: "opp", zone: "battlefield" },
+            { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
+            { name: answer, owner: "opp", zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 3,
+        libraryCount: 20,
+    });
+    const common = {
+        setup: [
+            {
+                kind: "cast",
+                card: "Stone Rain",
+                by: "me",
+                target: "Volcanic Island",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+    } as const;
+    const anchor: RegistryBladeScenario = {
+        ...common,
+        label: anchorLabel,
+        classification: { kind: "conditional", discriminant },
+        spec: position(1),
+        expect: { moves: [{ kind: "pass" }] },
+        note: `Issue #7337, anchor of the held-answer pair. The opponent just cast Stone Rain on the bot's Volcanic Island and holds one more card, so the held ${answer} still has a spell to answer: it keeps its worth and the land is the price. The other half, "held answer: counters Stone Rain with ${answer} when the opponent has no cards left" empties the hand.`,
+    };
+    const counters: RegistryBladeScenario = {
+        ...common,
+        label: `held answer: counters Stone Rain with ${answer} when the opponent has no cards left`,
+        classification: { kind: "conditional", discriminant },
+        spec: position(0),
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: answer,
+                    target: "Stone Rain",
+                },
+            ],
+        },
+        note: `Issue #7337. The same board with the opponent's hand empty: a held ${answer} has no spell to wait for, so keeping it was worth the full unit of its answer (about 112, 286 for Teferi's Response) in every rollout and always out-scored the ~16 the land is worth. \`stackAnswerUnits\` (latentBoard.ts) scales the held answer by the opponent's hand, so countering wins.`,
+    };
+    return keepsForLaterSpell ? [anchor, counters] : [counters];
+}
+
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
+    ...heldAnswerPair("Counterspell"),
+    ...heldAnswerPair("Mana Leak"),
+    ...heldAnswerPair("Teferi's Response", false),
     {
         // ORDERED TARGET GROUP reachability (CR 601.2c / 702.33g, issue
         // #4193). Kicked Jilt announces TWO targets through one widened

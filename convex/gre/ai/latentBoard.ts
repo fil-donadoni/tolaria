@@ -59,7 +59,11 @@ import {
     pendingTargetingSource,
     targetingSourceFromCard,
 } from "../rules";
-import { isLand, PLACEHOLDER_CARD_ID } from "../constants";
+import {
+    isLand,
+    isManaAbilityDefinition,
+    PLACEHOLDER_CARD_ID,
+} from "../constants";
 import {
     effectiveMaxHandSize,
     PHASE_ORDER,
@@ -252,6 +256,21 @@ export function withCardEntered(
     };
 }
 
+/** Whether `player` controls a permanent with an ability that uses the stack
+ *  (a non-mana activated ability or a triggered one). */
+function standsAbilityOnBoard(player: PlayerState): boolean {
+    return player.battlefield.some((perm) => {
+        const def = tryGetDefinition(String(perm.card.id ?? ""));
+        return (
+            def !== undefined &&
+            ((def.triggeredAbilities?.length ?? 0) > 0 ||
+                (def.activatedAbilities ?? []).some(
+                    (a) => !isManaAbilityDefinition(a)
+                ))
+        );
+    });
+}
+
 /** A lens that prices a card in hand against THIS board (issue #3398).
  *
  *  `victimUnits(slot)` answers, for announced target slot `slot`:
@@ -291,6 +310,11 @@ export function makeLatentBoardLens(
     // A slot index past the authored list belongs to the trailing open-ended
     // group when there is one; otherwise it is genuinely unknown.
     const openEnded = openEndedSlotRequirement(def);
+
+    // An answer that also reaches abilities (Stifle, Teferi's Response) has
+    // a target whenever an opponent's permanent can activate or trigger.
+    const stackKind = def.targetRequirement?.spellStackKind;
+    const answersAbilities = stackKind !== undefined && stackKind !== "spell";
 
     const denominator = representativeVictimLoss(weights);
     const memo = new Map<number, number | undefined>();
@@ -343,6 +367,21 @@ export function makeLatentBoardLens(
             const units = memo.get(slot);
             if (units !== undefined) measured = true;
             return units;
+        },
+        stackAnswerUnits() {
+            // The opponents' hand sizes are public; a card in one is a
+            // spell a held answer can wait for. With every opponent hand
+            // empty the answer has nothing to answer until they draw it.
+            const opponents = state.players.filter((p) => p.id !== casterId);
+            const share =
+                opponents.some((p) => p.hand.length > 0) ||
+                (answersAbilities && opponents.some(standsAbilityOnBoard))
+                    ? 1
+                    : 0;
+            // A zero is a reading of this board, not an assumption: it lifts
+            // the no-script coverage floor the way a measured victim does.
+            if (share === 0) measured = true;
+            return share;
         },
         sweepUnits(select, outcome = LEAVES) {
             const lossOf = memberLoss(outcome, realisedLoss, returnedWorth);
