@@ -213,9 +213,8 @@ registerTokenDefinition({
 
 describe("boundCount owner filter (CR 108.3)", () => {
     it("counts only snapshots the player OWNS — a stolen permanent is not counted", () => {
-        // p1 controls its own creature and one stolen from p2; p2 controls
-        // one stolen from p1. p1 owns "a" and "lent": the creature p1 controls
-        // but does not own ("stolen") is excluded.
+        // p1 controls "a" (its own) and "stolen" (owned by p2); p2 controls
+        // "lent" (owned by p1). p1 owns "a" and "lent" — "stolen" is excluded.
         const state = makeState({
             players: [
                 makePlayer("p1", {
