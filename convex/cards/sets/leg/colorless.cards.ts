@@ -836,12 +836,13 @@ export const forethoughtAmulet = defineCard(() => ({
 //
 // Ability 1 is a plain counter add (CR 122.1). Ability 2 is a PRINTED modal
 // ability: the mode is chosen at announcement (CR 601.2b / 700.2) via
-// `modes`, so mode 2's target is locked then (CR 601.2c / 700.2d) while mode 1
+// `modes`, so mode 2's target is locked then (CR 601.2c / 700.2c) while mode 1
 // has none (the hand is hidden) and its "you may" is a 0-or-1 pick at
 // resolution (CR 608.2d). "Activate only if" is `canActivate` (CR 602.5b) over
 // the source's hatchling count; the sacrifice is a cost (CR 118.1, 602.2b), so
 // the count is read before the Egg leaves. Mode 2 returns the card under its
 // owner's control, the card's owner, as it comes from your graveyard.
+// compiler-gap: "Sacrifice this artifact: Choose one. Activate only if there are two or more hatchling counters on this artifact." (#2230)
 export const triassicEgg = defineCard(() => ({
     id: "ce3756f7-0d99-4562-b32d-66de18a58fdf",
     rarity: "rare",
@@ -915,7 +916,6 @@ export const triassicEgg = defineCard(() => ({
                             op: "moveZone",
                             target: { target: 0 },
                             to: "battlefield",
-                            from: "graveyard",
                         },
                     ],
                 },
