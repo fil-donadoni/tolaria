@@ -50557,6 +50557,14 @@
         "source": "compiled"
     },
     {
+        "name": "Pit Scorpion",
+        "scryfallId": "cc564f84-0d6e-4e09-a58d-a694d918cf12",
+        "oracleId": "4804fc42-588c-487a-8ff7-bcc16749fc1f",
+        "firstSet": "leg",
+        "firstPrintId": "cc564f84-0d6e-4e09-a58d-a694d918cf12",
+        "firstPrintSet": "leg"
+    },
+    {
         "name": "Pit Trap",
         "scryfallId": "c588fe7f-945d-4459-904c-67442f88b4e1",
         "oracleId": "671c4677-fe0a-4bda-9674-f4dcd9069bfd",
@@ -73102,6 +73110,14 @@
         "firstPrintSet": "vis",
         "rarity": "rare",
         "source": "compiled"
+    },
+    {
+        "name": "Triassic Egg",
+        "scryfallId": "ce3756f7-0d99-4562-b32d-66de18a58fdf",
+        "oracleId": "4f27abe8-3e98-4bb8-afdb-e4b718d83032",
+        "firstSet": "leg",
+        "firstPrintId": "ce3756f7-0d99-4562-b32d-66de18a58fdf",
+        "firstPrintSet": "leg"
     },
     {
         "name": "Tribal Flames",
