@@ -801,13 +801,6 @@
     },
     {
         "class": "ability",
-        "cardId": "9cd91814-6177-4a3d-a1c1-a3be7d7c7957",
-        "name": "Cockatrice",
-        "abilityId": "cockatrice-combat-kill",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "a82c87b1-de37-4423-a1a4-533a1d8108b2",
         "name": "Cocoon",
         "abilityId": "cocoon-etb",
@@ -1448,13 +1441,6 @@
         "cardId": "b63ac9a6-aaa5-4659-97d1-c5f6b0d5ccfe",
         "name": "Infernal Denizen",
         "abilityId": "infernal-denizen-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "dc60077f-d577-4a6c-a78f-697317024c40",
-        "name": "Infinite Authority",
-        "abilityId": "infinite-authority-combat-kill",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -2411,13 +2397,6 @@
     },
     {
         "class": "ability",
-        "cardId": "e92cce01-b3bd-4307-aae5-9a7c8fa386ab",
-        "name": "Thicket Basilisk",
-        "abilityId": "basilisk-combat-kill",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "a2931ae0-7836-4000-b9ec-f2029ebf5d96",
         "name": "Throne of Bone",
         "abilityId": "throne-of-bone-life",
@@ -2667,14 +2646,6 @@
     },
     {
         "class": "delayed-trigger",
-        "cardId": "9cd91814-6177-4a3d-a1c1-a3be7d7c7957",
-        "name": "Cockatrice",
-        "delayedTriggerId": "cockatrice-combat-kill-destroy",
-        "issue": 1436,
-        "note": "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436"
-    },
-    {
-        "class": "delayed-trigger",
         "cardId": "e11bf79b-a951-4d0c-acdf-d8ba5290a648",
         "name": "Farrelite Priest",
         "delayedTriggerId": "farrelite-priest-sacrifice",
@@ -2806,14 +2777,6 @@
         "cardId": "d992b336-3b6e-43e1-8662-d85664349b44",
         "name": "Siren's Call",
         "delayedTriggerId": "sirens-call-destroy",
-        "issue": 1436,
-        "note": "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436"
-    },
-    {
-        "class": "delayed-trigger",
-        "cardId": "e92cce01-b3bd-4307-aae5-9a7c8fa386ab",
-        "name": "Thicket Basilisk",
-        "delayedTriggerId": "basilisk-combat-kill-destroy",
         "issue": 1436,
         "note": "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436"
     },

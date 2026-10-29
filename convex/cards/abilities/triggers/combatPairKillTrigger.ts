@@ -135,6 +135,10 @@ export function combatPairKill(args: CombatPairKillArgs): {
             if (!opponent) return false;
             return args.opponentFilter ? args.opponentFilter(opponent) : true;
         },
+        // AI-only shadow (never executed, valued by `OP_VALUERS`): the real body
+        // reads the firing event, which no Effect Script can, so the value
+        // model sketches the OUTCOME — the paired creature is destroyed.
+        aiEffects: [{ op: "destroy", target: { ref: "$event.blockerId" } }],
         resolve: (ctx: SpellContext, event: GameEvent) => {
             if (event.type !== "BLOCKERS_CONFIRMED") return;
             // Re-derive the owned combatant at resolution from the source. For
@@ -160,22 +164,33 @@ export function combatPairKill(args: CombatPairKillArgs): {
         },
     };
 
-    const delayed: DelayedTriggerDef = {
-        id: args.delayedTriggerId,
-        oracleText: args.delayedOracleText,
-        timing: "next-end-of-combat",
-        resolve: (ctx: SpellContext, payload: Record<string, string>) => {
-            if (!payload.targetId) return;
-            // CR 701.8 — destroy returns true only when the creature actually
-            // moved to a graveyard (not regenerated / replaced / already gone).
-            // That truth is the "destroyed this way" condition for any follow-up.
-            const destroyed = ctx.destroy({
-                type: "permanent",
-                id: payload.targetId,
-            });
-            if (destroyed && args.onDestroyed) args.onDestroyed(ctx, payload);
-        },
-    };
+    // CR 701.8 — the end-of-combat destroy is a plain Effect Script on the
+    // scheduling payload's `targetId` (bound as `$targetId`). Only a card with
+    // an `onDestroyed` follow-up needs the "destroyed this way" truth
+    // `ctx.destroy` returns, so only it keeps an imperative body.
+    const delayed: DelayedTriggerDef = args.onDestroyed
+        ? {
+              id: args.delayedTriggerId,
+              oracleText: args.delayedOracleText,
+              timing: "next-end-of-combat",
+              resolve: (ctx: SpellContext, payload: Record<string, string>) => {
+                  if (!payload.targetId) return;
+                  // CR 701.8 — destroy returns true only when the creature
+                  // actually moved to a graveyard (not regenerated / replaced
+                  // / already gone).
+                  const destroyed = ctx.destroy({
+                      type: "permanent",
+                      id: payload.targetId,
+                  });
+                  if (destroyed) args.onDestroyed?.(ctx, payload);
+              },
+          }
+        : {
+              id: args.delayedTriggerId,
+              oracleText: args.delayedOracleText,
+              timing: "next-end-of-combat",
+              effects: [{ op: "destroy", target: { ref: "$targetId" } }],
+          };
 
     return { trigger, delayed };
 }
