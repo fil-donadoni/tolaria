@@ -27,7 +27,7 @@
  *     regenerated in the probed tree, so a PR commit reads the RED its own
  *     sources cause before the base's `derive:sync` writes it (issue #7417).
  *     A first red probe on a base-maintenance commit anyway is blamed on the
- *     PR commits before it (`attributeMaintenance`).
+ *     one PR commit before it, or on none (`attributeMaintenance`).
  *
  * Node builtins plus `lib/health-verdict-store.ts`, `lib/health-evidence.ts`,
  * the leaves `lib/derive-sync.ts` and `lib/derived-state.ts`.
@@ -634,11 +634,14 @@ export function bisectCulprits(
 /**
  * The report with every culprit that is a base-maintenance commit
  * (`isBaseMaintenanceSubject`: `derive:sync`, `bot-replay`) replaced by the
- * PR commits of `commits` (oldest first, the bisected range) since the
+ * PR commit of `commits` (oldest first, the bisected range) since the
  * previous maintenance commit (issue #7417). Such a commit writes derived
  * state only and its revert can never land (`check:derived-in-diff`): the
- * RED it first shows is the PR commits' derived effect. None before it in
- * the range → its tests are unexplained, never blamed on it.
+ * RED it first shows is a PR commit's derived effect. Its tests are
+ * unexplained, never blamed on it, when no PR commit precedes it in the
+ * range — or when several do: each probed green, so nothing tells them
+ * apart, and the ladder reverts the first culprit line (`parseCulprit`) —
+ * a guess is worse than none. The reason lists the candidates.
  */
 export function attributeMaintenance(
     report: CulpritReport,
@@ -658,8 +661,12 @@ export function attributeMaintenance(
         let from = at;
         while (from > 0 && !maintenance(commits[from - 1])) from--;
         const prs = at === -1 ? [] : commits.slice(from, at);
-        if (prs.length === 0) {
-            const reason = `the first red probe was base maintenance \`${f.culprit.slice(0, 12)}\` (\`${subjectOf(f.culprit) ?? ""}\`), with no PR commit before it in the bisected range`;
+        if (prs.length !== 1) {
+            const via = `the first red probe was base maintenance \`${f.culprit.slice(0, 12)}\` (\`${subjectOf(f.culprit) ?? ""}\`)`;
+            const reason =
+                prs.length === 0
+                    ? `${via}, with no PR commit before it in the bisected range`
+                    : `${via}; ${prs.length} PR commits precede it since the previous maintenance commit, none named: ${prs.map((sha) => `\`${sha.slice(0, 12)}\` (${subjectOf(sha) ?? ""})`).join(", ")}`;
             unexplained = {
                 tests: [...(unexplained?.tests ?? []), ...f.tests],
                 reason: unexplained
@@ -668,12 +675,14 @@ export function attributeMaintenance(
             };
             continue;
         }
-        for (const culprit of prs) {
-            const named = found.find((g) => g.culprit === culprit);
-            if (named) named.tests = [...named.tests, ...f.tests];
-            else
-                found.push({ culprit, tests: f.tests, maintenance: f.culprit });
-        }
+        const named = found.find((g) => g.culprit === prs[0]);
+        if (named) named.tests = [...named.tests, ...f.tests];
+        else
+            found.push({
+                culprit: prs[0],
+                tests: f.tests,
+                maintenance: f.culprit,
+            });
     }
     return { found, unexplained, probes: report.probes };
 }
@@ -766,7 +775,7 @@ export function culpritLine(input: {
     const pr = input.subject ? prOfSubject(input.subject) : null;
     const who = pr !== null ? `PR #${pr}` : "a direct commit";
     const via = input.maintenance
-        ? ` · the first red probe was base maintenance \`${input.maintenance.sha.slice(0, 12)}\` (\`${input.maintenance.subject}\`), which writes only derived state — named the PR commit(s) since the previous maintenance commit`
+        ? ` · the first red probe was base maintenance \`${input.maintenance.sha.slice(0, 12)}\` (\`${input.maintenance.subject}\`), which writes only derived state — named the one PR commit since the previous maintenance commit`
         : "";
     return `- **culprit:** ${who} · \`${result.culprit.slice(0, 12)}\` — bisected from GREEN \`${(input.good ?? "?").slice(0, 12)}\` over ${input.commits} commit(s), ${result.probes.length} probe(s)${via}`;
 }

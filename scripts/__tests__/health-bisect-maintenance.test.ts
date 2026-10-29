@@ -139,17 +139,15 @@ describe("the incident's shape: a PR's cards break a test only once derive:sync 
         expect(lines[0]).not.toContain("base maintenance");
     });
 
-    it("a first red probe on the derive commit anyway names the PR commits since the previous maintenance commit", () => {
+    it("a first red probe on the derive commit anyway, with two PR commits before it: none named, both listed", () => {
         const h = history();
         const report = attributeMaintenance(
             bisectCulprits(h.commits, [CUT], probeWith([])),
             h.commits,
             subjectOf
         );
-        expect(report.found.map((f) => f.culprit)).toEqual([h.other, h.pr]);
-        expect(report.found.every((f) => f.maintenance === h.derive)).toBe(
-            true
-        );
+        expect(report.found).toEqual([]);
+        expect(report.unexplained?.tests).toEqual([CUT]);
         const lines = culpritLines({
             report,
             total: 1,
@@ -157,11 +155,13 @@ describe("the incident's shape: a PR's cards break a test only once derive:sync 
             commits: h.commits.length,
             subjectOf,
         });
-        expect(lines.some((l) => l.includes("PR #7396"))).toBe(true);
-        expect(lines.every((l) => !l.includes("a direct commit"))).toBe(true);
+        expect(lines).toHaveLength(1);
+        expect(lines[0]).toContain("not named");
         expect(lines[0]).toContain(
             `base maintenance \`${h.derive.slice(0, 12)}\``
         );
+        expect(lines[0]).toContain("(#7396)");
+        expect(lines[0]).toContain("(#7395)");
     });
 });
 
@@ -187,6 +187,24 @@ describe("attributeMaintenance — the window since the previous maintenance com
         );
         expect(out.found.map((f) => f.culprit)).toEqual(["c"]);
         expect(out.unexplained).toBeNull();
+    });
+
+    it("the one PR commit is named, its evidence line saying why", () => {
+        const out = attributeMaintenance(
+            report("d"),
+            ["a", "b", "c", "d"],
+            subjectOf
+        );
+        const lines = culpritLines({
+            report: out,
+            total: 1,
+            good: "0".repeat(40),
+            commits: 4,
+            subjectOf,
+        });
+        expect(lines).toHaveLength(1);
+        expect(lines[0]).toMatch(/^- \*\*culprit:\*\* PR #2 · `c`/);
+        expect(lines[0]).toContain("base maintenance `d`");
     });
 
     it("no PR commit before it in the range: unexplained, never the maintenance commit", () => {
