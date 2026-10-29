@@ -10,6 +10,7 @@ import type { ResolveCard } from "../../formats";
 import type { LimitedPoolCard } from "../eventTypes";
 import {
     assertLimitedSeatOwnership,
+    findPoolIntroductions,
     findSeatPool,
     poolFromLimitedPoolCards,
     resolveLimitedDeckLegality,
@@ -253,5 +254,65 @@ describe("resolveLimitedDeckLegality — print-keyed deck entries (issue #5473)"
         const { isLegal, reasons } = resolveLimitedDeckLegality(deck, seatPool);
         expect(isLegal).toBe(false);
         expect(reasons.some((r) => r.code === "pool-not-granted")).toBe(true);
+    });
+});
+
+describe("findPoolIntroductions — the edit guard (issue #2816)", () => {
+    const card = (cardId: string) => ({ cardId, cardName: cardId });
+    const pool = [poolCard("lea-bolt"), poolCard("lea-bolt")];
+    const deck = (main: string[], side: string[] = []) => ({
+        cards: main.map(card),
+        sideboard: side.map(card),
+    });
+    const codes = (before: ReturnType<typeof deck>, after: typeof before) =>
+        findPoolIntroductions(before, after, pool, resolve).map((r) => r.code);
+
+    it("refuses a card the Pool never granted", () => {
+        const before = deck(["lea-bolt"], ["lea-bolt"]);
+        expect(
+            codes(before, deck(["lea-bolt", "lea-giant"], ["lea-bolt"]))
+        ).toEqual(["pool-not-granted"]);
+    });
+
+    it("refuses more copies than granted", () => {
+        const before = deck(["lea-bolt"], ["lea-bolt"]);
+        expect(
+            codes(before, deck(["lea-bolt", "lea-bolt"], ["lea-bolt"]))
+        ).toEqual(["pool-excess-copies"]);
+    });
+
+    it("accepts a zone move and a removal", () => {
+        const before = deck(["lea-bolt"], ["lea-bolt"]);
+        expect(codes(before, deck(["lea-bolt", "lea-bolt"]))).toEqual([]);
+        expect(codes(before, deck(["lea-bolt"]))).toEqual([]);
+    });
+
+    it("accepts basics freely", () => {
+        const before = deck(["lea-bolt"], ["lea-bolt"]);
+        expect(
+            codes(before, deck(["lea-bolt", "lea-plains"], ["lea-bolt"]))
+        ).toEqual([]);
+    });
+
+    it("lets an already-illegal deck be edited back into legality", () => {
+        const before = deck(["lea-bolt", "lea-giant"], ["lea-bolt"]);
+        expect(codes(before, deck(["lea-bolt"], ["lea-bolt"]))).toEqual([]);
+        // an untouched off-Pool card is not an introduction
+        expect(
+            codes(
+                before,
+                deck(["lea-bolt", "lea-giant", "lea-plains"], ["lea-bolt"])
+            )
+        ).toEqual([]);
+    });
+
+    it("refuses every introduction when the deck has no Pool", () => {
+        const reasons = findPoolIntroductions(
+            deck([]),
+            deck(["lea-bolt"]),
+            null,
+            resolve
+        );
+        expect(reasons.map((r) => r.code)).toEqual(["pool-unresolved"]);
     });
 });
