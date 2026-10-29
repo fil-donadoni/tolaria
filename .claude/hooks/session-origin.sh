@@ -7,8 +7,7 @@
 # That is the first question asked of a claim that looks stuck: is a robot on
 # it, or is somebody typing?
 #
-# THE SIGNAL IS RECORDED, NOT DERIVED — the same reasoning `claim-ledger.sh`
-# spells out for its `owner` join (#2627). `scripts/afk-pass.ts` exports
+# THE SIGNAL IS RECORDED, NOT DERIVED. `scripts/afk-pass.ts` exports
 # `TOLARIA_LOOP_DRAIN=1` on every pass it launches. Hooks inherit the
 # session process's environment, so reading it HERE, inside the session,
 # at the moment it starts, is the truth. After the fact there is nothing to look it up in: the variable is gone with the
@@ -31,8 +30,7 @@ payload=$(cat)
 session=$(printf '%s' "$payload" | jq -r '.session_id // ""')
 [ -n "$session" ] || exit 0
 
-# `${CLAUDE_PROJECT_DIR:-.}` — the same root `claim-ledger.sh` writes to, so
-# both journals live in one place. In a `/next-ticket` session that is the
+# `${CLAUDE_PROJECT_DIR:-.}` — the telemetry root. In a `/next-ticket` session that is the
 # PRIMARY checkout even after the session cd's into its worktree: the harness
 # fixes the variable at session start.
 dir="${CLAUDE_PROJECT_DIR:-.}/.claude/telemetry"
@@ -53,13 +51,17 @@ fi
 # and not a five-hour window over every session on the machine. Empty for an
 # interactive session, and for a pass from before this field existed; both read
 # as "belongs to no run", which is what they are.
+#
+# `host` is the machine this session runs on: `telemetry:latency`'s
+# per-machine throughput row reads it (issue #5460).
 jq -nc \
     --argjson ts "$(date +%s)" \
     --arg session "$session" \
     --arg origin "$origin" \
     --arg run "${TOLARIA_LOOP_RUN_ID:-}" \
     --arg cwd "$(pwd)" \
-    '{ts: $ts, session: $session, origin: $origin, run: $run, cwd: $cwd}' \
+    --arg host "$(hostname 2>/dev/null)" \
+    '{ts: $ts, session: $session, origin: $origin, run: $run, cwd: $cwd, host: $host}' \
     >>"$dir/sessions.jsonl" 2>/dev/null
 
 exit 0

@@ -8,7 +8,6 @@ import {
     repairsTried,
 } from "../lib/repair-cap";
 import { repairItems, type PlanConfig } from "../lib/queue-plan";
-import { claimOverlap, overlapRefusal } from "../lib/queue-claim";
 
 const CONFIG = {
     batchCap: 1,
@@ -69,36 +68,5 @@ describe("repair cap — rounds (issue #6649)", () => {
         expect(repairItems(prs, detail, CONFIG).map((r) => r.pr)).toEqual([
             10, 11,
         ]);
-    });
-});
-
-describe("queue:claim — overlap with an in-flight PR (issue #6649)", () => {
-    const inFlight = [
-        { number: 7, files: ["scripts/lib/queue-plan.ts"] },
-        { number: 8, files: null },
-    ];
-
-    it("refuses an issue whose files overlap an in-flight one", () => {
-        const busy = claimOverlap({
-            issue: 9,
-            files: ["scripts/lib/queue-plan.ts"],
-            inFlight,
-        });
-        expect(busy?.number).toBe(7);
-        expect(overlapRefusal(9, 7)).toContain("--overlap-ok");
-    });
-
-    it("lets through disjoint files, unknown files, and the issue's own PR", () => {
-        expect(
-            claimOverlap({ issue: 9, files: ["scripts/other.ts"], inFlight })
-        ).toBeNull();
-        expect(claimOverlap({ issue: 9, files: null, inFlight })).toBeNull();
-        expect(
-            claimOverlap({
-                issue: 7,
-                files: ["scripts/lib/queue-plan.ts"],
-                inFlight,
-            })
-        ).toBeNull();
     });
 });

@@ -123,8 +123,6 @@
         "prints:sync": "bun scripts/prints-sync.ts",
         "prints:ensure": "bun scripts/prints-sync.ts --if-empty --warn-only",
         "prints:sync:deploy": "bun scripts/prints-sync.ts --deploy --if-empty --warn-only",
-        "queue:claim": "bun scripts/queue-claim.ts",
-        "queue:release": "bun scripts/queue-release.ts",
         "queue:churn": "bun scripts/queue-churn.ts",
         "queue:lint": "bun scripts/queue-lint.ts",
         "card:link": "bun scripts/card-link.ts",

@@ -10,7 +10,6 @@ import {
 import { isAdoptableWorktree } from "../lib/issue-worktree";
 import { orphanPlanParts, resumeItems } from "../lib/queue-plan";
 import type { PlanConfig, QueueIssue } from "../lib/queue-plan";
-import type { ClaimOwner } from "../lib/claim-verdict";
 
 /**
  * Orphaned issue worktrees (issue #5531): an unclaimed issue whose worktree
@@ -20,25 +19,13 @@ const PROVEN: OrphanWorktreeFacts = {
     issue: 5287,
     path: "/w/tolaria-issue-5287",
     unpushedCommits: 1,
-    ownerRecorded: false,
-    ownerAlive: null,
     processInside: false,
     quietMinutes: 600,
 };
 
 describe("classifyOrphanWorktree (issue #5531)", () => {
-    it("adopts: unpushed commit, no owner ever recorded, nothing inside, quiet", () => {
+    it("adopts: unpushed commit, nothing inside, quiet", () => {
         expect(classifyOrphanWorktree(PROVEN).state).toBe("adopt");
-    });
-
-    it("adopts a provably dead recorded owner", () => {
-        expect(
-            classifyOrphanWorktree({
-                ...PROVEN,
-                ownerRecorded: true,
-                ownerAlive: false,
-            }).state
-        ).toBe("adopt");
     });
 
     it("zero unpushed commits is not an orphan — a fresh pick may reuse it", () => {
@@ -53,21 +40,10 @@ describe("classifyOrphanWorktree (issue #5531)", () => {
         expect(v.reason).toContain(PROVEN.path);
     });
 
-    it("a live recorded owner holds it", () => {
-        expect(
-            classifyOrphanWorktree({
-                ...PROVEN,
-                ownerRecorded: true,
-                ownerAlive: true,
-            }).state
-        ).toBe("held");
-    });
-
     it.each([
         ["unpushed count", { unpushedCommits: null }],
         ["process list", { processInside: null }],
         ["quiescence", { quietMinutes: null }],
-        ["recorded owner liveness", { ownerRecorded: true, ownerAlive: null }],
     ] as [string, Partial<OrphanWorktreeFacts>][])(
         "unknown %s holds it — never adopted, never picked fresh",
         (_, patch) => {
@@ -107,7 +83,6 @@ describe("orphanWorktrees census (issue #5531)", () => {
     };
     const base = {
         baseRef: "origin/staging",
-        owners: new Map<number, ClaimOwner>(),
         now: 0,
         runner,
         cwdProbe: () => false,

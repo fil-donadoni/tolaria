@@ -34,7 +34,7 @@ import {
     formatAdr0136Rows,
     formatThroughputRows,
     healthMutexByDay,
-    hostBySessionFromClaims,
+    hostBySessionFromSessions,
     landAttemptsPerPr,
     landMutexByDay,
     machineThroughput,
@@ -269,9 +269,9 @@ const landAttemptRows = db
 
 db.close();
 
-const claimsPath = join(dirname(dbPath), "claims.jsonl");
-const hostBySession = hostBySessionFromClaims(
-    existsSync(claimsPath) ? readFileSync(claimsPath, "utf8") : ""
+const sessionsPath = join(dirname(dbPath), "sessions.jsonl");
+const hostBySession = hostBySessionFromSessions(
+    existsSync(sessionsPath) ? readFileSync(sessionsPath, "utf8") : ""
 );
 
 if (turns.length === 0) {

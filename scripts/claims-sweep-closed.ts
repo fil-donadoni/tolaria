@@ -4,7 +4,7 @@
  * issues (issue #5572).
  *
  * A claim is released by the path that ends it: the land-runner at merge,
- * `housekeeping` for the merged PRs it walks, `queue:release` on an abort.
+ * `housekeeping` for the merged PRs it walks, the abort's `gh issue edit`.
  * An issue closed any other way — by hand, as a duplicate, or by a runner
  * still holding code from before the release removed `pr-open` (it never
  * reloads its own code) — kept `in-progress` / `pr-open` for good. This sweep

@@ -6,8 +6,8 @@
  * meant to come off on every exit path. A pass that dies mid-flight never
  * releases it, and an orphaned claim is silent and permanent: every later
  * pass sees `in-progress` and skips the issue as somebody else's live work.
- * `classifyClaim` reads the evidence (branch, open PR, land queue, owning
- * process, `afk-pass` runs) and names the claim's state; `afk-dispatch`
+ * `classifyClaim` reads the evidence (branch, open PR, land queue,
+ * `afk-pass` runs) and names the claim's state; `afk-dispatch`
  * releases the orphans, `queue:plan` hands recoverable and stranded work to
  * the next pass as `resume`.
  *
@@ -20,11 +20,10 @@
  * gathering helpers stay here beside the verdict they feed.
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import { CLAIM_LABEL } from "./claim-labels";
 import { FAILED_LABEL, READY_LABEL } from "./land-labels";
 import {
-    CLAIM_RUN_SLACK_MS,
     PASS_WORKFLOW,
     WORKFLOW_RUN_FIELDS,
     parseWorkflowRuns,
@@ -92,33 +91,6 @@ export type ClaimFacts = {
      */
     localWorkSinceClaim?: boolean | null;
     /**
-     * Is the OS process that took this claim still running? (#2627)
-     *
-     * TRI-STATE on purpose, and the third state is the important one:
-     *
-     *   - `true`  — a live process owns this claim. Never release it.
-     *   - `false` — the owner is provably gone (its pid is dead, or the pid
-     *               was recycled by a process that started at a different
-     *               time). No age rule applies any more (issue #5174): the
-     *               claim is `stranded`, `recoverable` or `orphan` at once,
-     *               and the next pass resumes it. Only an `orphan` (nothing
-     *               on any branch) is ever releasable.
-     *   - `null`  — unknown. No owner was recorded for this claim (every row
-     *               written before #2627 landed), or the process probe itself
-     *               was unavailable. Also does not release anything on its
-     *               own — the classifier behaves exactly as it did before.
-     *
-     * Only a POSITIVE reading moves a verdict: `null` never authorises a
-     * release. The failure mode of this whole subsystem is unclaiming a
-     * healthy concurrent pass, so a liveness fact we are unsure about must not
-     * be the thing that does it.
-     *
-     * See `parseClaimOwners` / `isOwnerAlive` for how the join is made —
-     * there is no pid anywhere in the GitHub API's idea of a claim, so it
-     * comes from the claim journal, recorded at claim time.
-     */
-    ownerAlive: boolean | null;
-    /**
      * Commits on the claim's local-only branch that exist nowhere else —
      * `git rev-list --count <base>..<branch>` (issue #3698).
      *
@@ -128,17 +100,16 @@ export type ClaimFacts = {
      *   - `0` — a branch with nothing on it. `wt:new` creates one before the
      *     pass writes a line, so this is the ordinary shape of a claim that
      *     died early, and there is nothing to recover.
-     *   - `null` — unknown (the count could not be read). Like `ownerAlive`,
-     *     unknown changes no verdict: it falls through to the age rules that
+     *   - `null` — unknown (the count could not be read). Unknown changes no
+     *     verdict: it falls through to the age rules that
      *     were there before.
      */
     unpushedCommits: number | null;
     /**
      * Minutes since anything in the claim's worktree last changed — its
      * index, or any file `git status` names (issue #5174). Read only for a
-     * dead owner with a local branch: the owner stamp is the claiming
-     * `claude` pid, and an interactive session restarted with `--resume`
-     * gets a NEW pid while its human keeps editing. `null` = no worktree or
+     * claim whose `afk-pass` run ended with a local branch: a session may
+     * have resumed it by hand and still be editing. `null` = no worktree or
      * unreadable — nobody can be at work in a worktree that does not exist.
      */
     worktreeQuietMinutes?: number | null;
@@ -183,21 +154,21 @@ export type ClaimVerdict = { state: ClaimVerdictState; reason: string };
  */
 export const DEFAULT_MIN_AGE_HOURS = 2;
 
-/** A dead owner's claim younger than this is still `suspect` (issue #5174):
- *  `queue:claim` adds the label BEFORE it writes the journal row that moves
- *  the owner, so for that instant the journal can name a previous, dead
- *  claimant. Minutes, not the 2 h rope — it covers a write, not a pass. */
+/** A claim whose `afk-pass` run ended, younger than this, is still
+ *  `suspect` (issue #5174): the dispatcher adds the label before it
+ *  dispatches the run, and the run list can lag the claim by that instant.
+ *  Minutes, not the 2 h rope — it covers a write, not a pass. */
 export const DEAD_OWNER_FLOOR_MINUTES = 5;
 
-/** A claim with no proof either way — no run of its own, no owner on record
- *  in this machine's journal, no pushed work — is held this long before it
- *  reads `orphan` (issue #6223). Absence is not death: the session may run on
- *  another machine, whose journal and local branches nobody here can read,
- *  and a session pushes only at hand-off. Past a day it is not a slow pass —
+/** A claim with no proof either way — no run of its own, no pushed work —
+ *  is held this long before it reads `orphan` (issue #6223). Absence is not
+ *  death: the claim may be an attended session's, or run on another
+ *  machine, whose local branches nobody here can read, and a session pushes
+ *  only at hand-off. Past a day it is not a slow pass —
  *  nothing in this loop stays unpushed that long. */
 export const UNPROVEN_CLAIM_HOURS = 24;
 
-/** A dead owner's worktree touched more recently than this is `live`
+/** A dead pass's worktree touched more recently than this is `live`
  *  (issue #5174) — see `ClaimFacts.worktreeQuietMinutes`. */
 export const DEAD_OWNER_QUIET_MINUTES = 30;
 
@@ -205,17 +176,18 @@ export const DEAD_OWNER_QUIET_MINUTES = 30;
  * THE verdict on a claim (issue #6223): the queue verbs and the AFK
  * dispatcher (its picker and its hold-time release) all call this, over the union of their evidence — no caller keeps a private
  * age, branch or run rule. Before, the dispatcher judged claims by `afk-pass`
- * runs alone and this file by the journal owner and age alone, and the two
+ * runs alone and this file by a journal owner and age alone, and the two
  * disagreed claim by claim: 28 claims "orphan" here sat "live" there forever.
  *
  * The evidence rules, in order:
  *   - a run named for the issue proves the pipeline owns the claim: an
  *     active one holds it, and their end proves death;
- *   - a live owning process on this machine proves a session;
- *   - with neither, the claim is judged by its pushed work — and a local
+ *   - without one, the claim is judged by its pushed work — and a local
  *     branch counts as work only if it holds something newer than the claim.
- * Unknown evidence never releases: only a POSITIVE death reading (a dead
- * journal owner, an ended run) or a day of nothing at all makes an `orphan`.
+ * Unknown evidence never releases: only a POSITIVE death reading (an ended
+ * run) or a day of nothing at all makes an `orphan`. The claim is a label
+ * (ADR 0156): no process is recorded beside it, so an attended session is
+ * held by its pushed work and the day's rope alone.
  *
  * Pure, because the alternative to a testable classifier here is a script that
  * unclaims another session's work and is discovered by the person whose work
@@ -235,7 +207,7 @@ export function classifyClaim(
     // Handed to the land-runner (issue #5469): the session ended at push +
     // `ready-to-land` BY DESIGN, so a dead owner here is the normal shape, not
     // a corpse. Not `stranded` (nothing to resume — the runner lands it), not
-    // `orphan` (the label must stand until the merge), no cap slot.
+    // `orphan` (the label must stand until the merge).
     if (facts.hasOpenPr && facts.landQueue === "ready") {
         return {
             state: "pr-open",
@@ -249,29 +221,21 @@ export function classifyClaim(
             reason: "its `afk-pass` run is queued or running",
         };
 
-    // A live owning process outranks every death reading and age rule below
-    // (#2627). Note the explicit `=== true`: `null` means "we could not
-    // tell", and only a POSITIVE liveness reading may hold a claim.
-    const alive = facts.ownerAlive === true;
-    // Death needs a POSITIVE reading too, the mirror of `alive`: a journal
-    // owner provably gone, or the claim's own `afk-pass` runs all ended.
-    const dead = !alive && (facts.ownerAlive === false || run === "ended");
-    const died =
-        facts.ownerAlive === false
-            ? "owning process is gone"
-            : "its `afk-pass` run ended";
+    // Death needs a POSITIVE reading: the claim's own `afk-pass` runs all
+    // ended.
+    const dead = run === "ended";
+    const died = "its `afk-pass` run ended";
 
-    // `land-failed` is a repair pick: whoever ran it is gone unless PROVED
-    // alive (the `pr-open` row cleared the owner stamp, so `null` is the
-    // ordinary reading), and the next pass resumes it.
-    if (facts.hasOpenPr && facts.landQueue === "failed" && !alive) {
+    // `land-failed` is a repair pick: whoever ran it is gone (an active run
+    // returned above), and the next pass resumes it.
+    if (facts.hasOpenPr && facts.landQueue === "failed") {
         return {
             state: "stranded",
             reason: "the land-runner labelled its PR `land-failed` — a repair pick for the next pass; the label is NOT released",
         };
     }
     // Work that left this machine — an open PR, a pushed branch — is live
-    // unless the owner is PROVABLY gone (issue #4763): a pass that pushed and
+    // unless its pass is PROVABLY gone (issue #4763): a pass that pushed and
     // then ended its turn waiting (`claude -p`: the end of the turn is the
     // end of the process) held a cap slot with no time bound. `stranded` is
     // NOT `recoverable` (that work is on no remote) and NOT `orphan` (the
@@ -291,8 +255,6 @@ export function classifyClaim(
         };
     }
 
-    if (alive) return { state: "live", reason: "owning process still alive" };
-
     // A local branch is work only if it holds something newer than the claim
     // (issue #6223): a stale branch matching the issue name — a long-dead
     // pass's leftover — read as "could still be implementing" for 9 h.
@@ -300,13 +262,13 @@ export function classifyClaim(
         facts.hasLocalBranch && facts.localWorkSinceClaim !== false;
     const stale = facts.hasLocalBranch && !localWork;
 
-    // A dead owner whose branch holds work is its own state (issue #3698),
+    // A dead pass whose branch holds work is its own state (issue #3698),
     // and the distinction is not cosmetic: `live` hides it and `orphan`
     // releases the label while the work stays in a worktree nothing points
     // at any more. `recoverable` says the one thing an operator can act on —
     // the pass is gone, its work is not, here is the branch.
     //
-    // A provably dead owner is never `live` or `suspect` on age (issue
+    // A provably dead pass is never `live` or `suspect` on age (issue
     // #5174): the ropes below cover a pass we cannot SEE, and this one we can
     // see is gone. Whatever the commit count (the worktree may hold
     // uncommitted edits the count cannot see) it is `recoverable`; nothing
@@ -341,7 +303,7 @@ export function classifyClaim(
     if (run === "unknown") {
         return {
             state: localWork ? "live" : "suspect",
-            reason: `the claim's \`afk-pass\` runs or its claim time could not be read, and no owner is proved dead — unknown evidence never releases (claimed ${facts.ageHours.toFixed(1)}h ago)`,
+            reason: `the claim's \`afk-pass\` runs or its claim time could not be read, so no pass is proved dead — unknown evidence never releases (claimed ${facts.ageHours.toFixed(1)}h ago)`,
         };
     }
 
@@ -361,201 +323,15 @@ export function classifyClaim(
             reason:
                 facts.ageHours < minAgeHours
                     ? `no branch, no PR — but claimed ${facts.ageHours.toFixed(1)}h ago, which is what a healthy pass looks like before its first push`
-                    : `no run of its own, no owner on record here, no pushed work${stale ? " (its local branch predates the claim)" : ""} — claimed ${facts.ageHours.toFixed(1)}h ago, but absence is not death; held until ${unprovenHours}h`,
+                    : `no run of its own, no pushed work${stale ? " (its local branch predates the claim)" : ""} — claimed ${facts.ageHours.toFixed(1)}h ago, but absence is not death; held until ${unprovenHours}h`,
         };
     }
     return {
         state: "orphan",
         reason: localWork
             ? `local branch never pushed, untouched for ${facts.ageHours.toFixed(0)}h — the signature of a pass killed mid-edit`
-            : `no run, no owner, no pushed work for ${facts.ageHours.toFixed(0)}h`,
+            : `no run, no pushed work for ${facts.ageHours.toFixed(0)}h`,
     };
-}
-
-// ── owner liveness: joining a claim to an OS process (#2627) ───────────────
-//
-// THE PROBLEM. A claim is a GitHub label, and nothing about a label says which
-// process took it. The claim journal (`.claude/telemetry/claims.jsonl`) keys
-// rows by Claude Code SESSION UUID; the only liveness primitive anywhere on
-// disk is the single GLOBAL driver pid (the retired loop driver's), and that answers
-// "is SOME pass running", not "is THIS claim's pass running". Conflating the
-// two protects every stale claim for as long as the driver keeps running —
-// precisely the bug #2627 is about.
-//
-// WHY NOT DERIVE IT AFTER THE FACT. Two routes were tried and are dead ends:
-//   * `lsof` on the session transcript (`~/.claude/projects/<slug>/<uuid>.jsonl`)
-//     would be a true UUID→pid join needing no new bookkeeping. Measured
-//     2026-08-25 against three live sessions: Claude Code holds NO open
-//     descriptor on its transcript (`lsof -p <pid> | grep '\.jsonl'` is empty).
-//     There is nothing to look up.
-//   * the session UUID appears nowhere in the process's argv, so `pgrep -f`
-//     cannot find it either.
-//
-// SO THE JOIN IS RECORDED, NOT DERIVED. `.claude/hooks/claim-ledger.sh` already
-// runs inside the claiming session at the exact moment of the claim; it now
-// walks its own process ancestry to the nearest `claude` process and writes
-// `owner: {pid, startedAt}` onto the claim row. `startedAt` is the process's
-// start timestamp (`ps -o lstart=`) and exists solely to defeat PID REUSE: a
-// recycled pid is a DIFFERENT process with a different start time, and without
-// that column a dead pass would look alive again as soon as the OS handed its
-// number to something else.
-//
-// Everything here degrades to `null` — "unknown", which changes no verdict —
-// rather than to `false`, because `false` is the reading that authorises a
-// release.
-
-/** The process that took a claim, as recorded on its journal row. */
-export type ClaimOwner = {
-    session: string;
-    pid: number;
-    /** `ps -o lstart=` at claim time — the PID-reuse discriminator. */
-    startedAt: string;
-    /** When the journal row was written, ms (its `ts`); `null` = absent. */
-    claimedAtMs?: number | null;
-};
-
-/**
- * Probe one pid. Returns the process's start timestamp, `""` when there is no
- * such process, and `null` when the probe itself could not answer (no `ps`,
- * an unexpected exit) — the "unknown" reading that must never release.
- *
- * Injectable so tests need no real processes to exercise the liveness branches.
- */
-export type ProcessProbe = (pid: number) => string | null;
-
-/**
- * The exit-code mapping of `ps -o lstart= -p N`, split out from the spawn so
- * every branch is reachable from a test. Three readings, and mixing up the
- * last two is the whole risk: "no such process" AUTHORISES a release, while
- * "the probe failed" must not.
- *
- *   - `ps` missing / could not run  → `null` (unknown)
- *   - exit 0 with a stamp           → the stamp
- *   - exit 1 (nothing matched)      → `""` (no such process)
- *   - any other non-zero exit       → `null` (unknown)
- *
- * Exit 0 with EMPTY output is `null` too: `ps` claiming success while telling
- * us nothing is not evidence that a process is gone.
- */
-export function interpretPsResult(r: {
-    error?: unknown;
-    status: number | null;
-    stdout?: string | null;
-}): string | null {
-    if (r.error) return null;
-    if (r.status === 0) {
-        const out = (r.stdout ?? "").trim();
-        return out === "" ? null : out;
-    }
-    if (r.status === 1) return "";
-    return null;
-}
-
-/**
- * `LC_ALL=C TZ=UTC` IS LOAD-BEARING, and is byte-identical to the WRITE side
- * (`.claude/hooks/claim-ledger.sh`). `ps -o lstart=` renders a human string
- * through the caller's locale AND timezone — measured on one machine, same
- * process, same instant: `Tue Aug 25 09:15:42 2026` by default,
- * `Di. 25 Aug. 09:15:42 2026` under `LC_TIME=de_DE`,
- * `Tue Aug 25 07:15:42 2026` under `TZ=UTC`.
- *
- * `isOwnerAlive` compares the two stamps as exact trimmed strings, so a
- * `LANG`/`TZ` divergence between the claiming shell and this reader would make
- * a LIVE owner compare unequal and read as a recycled pid. That direction is
- * safe (the claim just falls back to the age thresholds — pre-#2627
- * behaviour), which is precisely why it would never be noticed: the feature
- * would simply stop holding live claims. Fixing both ends to one locale and
- * one zone removes the divergence. DST does not enter into it — a fixed
- * instant rendered in a fixed zone is a fixed string.
- */
-export const defaultProcessProbe: ProcessProbe = (pid) =>
-    interpretPsResult(
-        spawnSync("ps", ["-o", "lstart=", "-p", String(pid)], {
-            encoding: "utf8",
-            env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
-        })
-    );
-
-/**
- * Fold the claim journal into "who owns each issue's CURRENT claim".
- *
- * Pure over the file's text so it is testable without a filesystem. Last row
- * per issue wins: a `released` row clears the owner (whatever holds the label
- * now was not recorded here), and a `claim` row with no `owner` — every row
- * written before #2627 — yields `null`, i.e. unknown.
- *
- * Malformed lines are skipped rather than thrown on: this journal is appended
- * to by a shell hook under `2>/dev/null`, so a torn last line is a normal
- * thing to find, and refusing to sweep because of one is worse than ignoring
- * it (the rest of the fold is still sound, and an unknown owner is safe).
- */
-export function parseClaimOwners(ledgerText: string): Map<number, ClaimOwner> {
-    const owners = new Map<number, ClaimOwner>();
-    for (const line of ledgerText.split("\n")) {
-        if (line.trim() === "") continue;
-        let row: {
-            session?: unknown;
-            issue?: unknown;
-            event?: unknown;
-            owner?: { pid?: unknown; startedAt?: unknown } | null;
-            ts?: unknown;
-        };
-        try {
-            row = JSON.parse(line);
-        } catch {
-            continue;
-        }
-        if (typeof row.issue !== "number") continue;
-        if (row.event !== "claim") {
-            owners.delete(row.issue);
-            continue;
-        }
-        owners.delete(row.issue);
-        const owner = row.owner;
-        if (
-            owner &&
-            typeof owner.pid === "number" &&
-            Number.isInteger(owner.pid) &&
-            owner.pid > 0 &&
-            typeof owner.startedAt === "string" &&
-            owner.startedAt !== ""
-        ) {
-            owners.set(row.issue, {
-                session: typeof row.session === "string" ? row.session : "",
-                pid: owner.pid,
-                startedAt: owner.startedAt,
-                claimedAtMs:
-                    typeof row.ts === "number" && Number.isFinite(row.ts)
-                        ? row.ts * 1000
-                        : null,
-            });
-        }
-    }
-    return owners;
-}
-
-/**
- * Is the recorded owner still running? Tri-state, matching
- * `ClaimFacts.ownerAlive`: `null` whenever we cannot tell.
- */
-export function isOwnerAlive(
-    owner: ClaimOwner | undefined,
-    probe: ProcessProbe = defaultProcessProbe
-): boolean | null {
-    if (!owner) return null; // no recorded owner → unknown
-    const startedAt = probe(owner.pid);
-    if (startedAt === null) return null; // probe unavailable → unknown
-    if (startedAt === "") return false; // no such process → dead
-    // Same pid, different start time = the number was recycled. The claim's
-    // real owner is gone.
-    return startedAt.trim() === owner.startedAt.trim();
-}
-
-/** Where the claim journal lives — the same path the hooks write. */
-export function claimLedgerPath(
-    root = process.env.CLAUDE_PROJECT_DIR ?? "."
-): string {
-    return `${root}/.claude/telemetry/claims.jsonl`;
 }
 
 // bun auto-loads `.env.local`, whose GITHUB_TOKEN shadows the gh keyring and
@@ -753,14 +529,8 @@ export function buildClaimFacts(
     branches: BranchNames,
     now: number = Date.now(),
     /**
-     * Owner liveness, gathered by the caller — the process check is I/O and
-     * `classifyClaim` stays pure. Defaults to `null` ("unknown"), so every
-     * existing caller keeps exactly the verdicts it had before #2627.
-     */
-    ownerAlive: boolean | null = null,
-    /**
-     * Commits on this claim's local-only branch, gathered by the caller for
-     * the same reason `ownerAlive` is — counting them is I/O. Defaults to
+     * Commits on this claim's local-only branch, gathered by the caller —
+     * counting them is I/O and `classifyClaim` stays pure. Defaults to
      * `null` ("unknown"), so every existing caller keeps exactly the verdicts
      * it had before issue #3698.
      */
@@ -782,7 +552,6 @@ export function buildClaimFacts(
         hasLocalBranch: !hasRemoteBranch && matches(branches.local),
         hasOpenPr: [...prBranches].some((b) => suffix.test(b)),
         ageHours: (now - claimTimeMs(issue)) / (1000 * 60 * 60),
-        ownerAlive,
         unpushedCommits,
         worktreeQuietMinutes,
     };
@@ -1066,22 +835,10 @@ export function countUnpushedCommits(
     return Number.isInteger(n) && n >= 0 ? n : null;
 }
 
-// ── the classification pipeline, shared with the queue verbs (issue #4384) ──
+// ── the classification pipeline, shared by `queue:plan` and `afk-dispatch` ──
 //
-// THE BUG THIS EXISTS FOR. The session cap counted LABELS. `queue:claim` and
-// `queue:plan` built their live set from the `in-progress` labels minus an
-// open PR minus 24 hours of silence, and that path held no process-liveness
-// evidence at all — while this file's classifier had it, and had already
-// printed the right diagnosis. Observed 2026-09-22: two loop passes
-// died mid-issue leaving three claims standing (#4117, #4306, #4307), `ps`
-// showed ZERO owning processes, the claim report read `2 RECOVERABLE`, and
-// the next claim was still refused at `3/3 live claims`. Real concurrent
-// sessions: none. The cap measures ACTIVE sessions (the PR/h knee,
-// `docs/agents/quality-gates.md` § Session admission); it was counting
-// corpses.
-//
-// So the verdict is exported rather than re-derived. ONE definition, imported.
-// A second opinion in the queue verbs is how the two ends drift.
+// The verdict is exported rather than re-derived (issue #4384). ONE
+// definition, imported: a second opinion in a caller is how two ends drift.
 
 export type ClaimClassification = {
     issue: number;
@@ -1106,10 +863,8 @@ export function classifyClaims(
         /** Head branch → land-queue state (`landQueueByBranch`, issue #5469). */
         landQueue?: Map<string, LandQueueState>;
         branches: BranchNames;
-        owners: Map<number, ClaimOwner>;
         baseRef: string;
         now?: number;
-        probe?: ProcessProbe;
         /** The runner `countUnpushedCommits` uses — the tests' seam. */
         countRunner?: ShRunner;
         /** `worktreeQuietMinutes` — the tests' seam. */
@@ -1126,17 +881,11 @@ export function classifyClaims(
 ): ClaimClassification[] {
     const now = deps.now ?? Date.now();
     return issues.map((issue) => {
-        const owner = deps.owners.get(issue.number);
         const facts = buildClaimFacts(
             issue,
             deps.prBranches,
             deps.branches,
             now,
-            ownerOfThisClaim(
-                isOwnerAlive(owner, deps.probe),
-                owner,
-                issue.claimedAt
-            ),
             countUnpushedCommits(
                 issue.number,
                 deps.branches.local,
@@ -1170,11 +919,8 @@ export function classifyClaims(
                               ))
                       )(issue.number, Date.parse(claimedAt));
         // Read only where it can move a verdict: `git status` per claim is
-        // not free, and only a dead owner's local branch consults it.
-        if (
-            (facts.ownerAlive === false || facts.run === "ended") &&
-            facts.hasLocalBranch
-        )
+        // not free, and only a dead pass's local branch consults it.
+        if (facts.run === "ended" && facts.hasLocalBranch)
             facts.worktreeQuietMinutes = (
                 deps.worktreeQuiet ?? worktreeQuietMinutes
             )(issue.number, now);
@@ -1188,89 +934,18 @@ export function classifyClaims(
 }
 
 /**
- * A journal owner speaks for the CURRENT claim only if its row was written at
- * or after the claim's label event (issue #6223 review). The dispatcher's
- * release writes no `released` row, so a dead owner from an EARLIER claim of
- * the issue stays last-row-wins; read as `dead`, it would release the next
- * claimant — a session on another machine — five minutes in. A death
- * reading that cannot be tied to this claim (row older than the claim, or
- * either time unknown) is `null`; a live process stays live whatever its row.
- */
-export function ownerOfThisClaim(
-    alive: boolean | null,
-    owner: ClaimOwner | undefined,
-    /** `undefined` = the caller reads no claim times (the journal alone
-     *  decides, as before issue #6223); `null` = the read failed. */
-    claimedAt: string | null | undefined
-): boolean | null {
-    if (alive !== false || claimedAt === undefined) return alive;
-    const at = claimedAt === null ? NaN : Date.parse(claimedAt);
-    const rowAt = owner?.claimedAtMs ?? null;
-    if (!Number.isFinite(at) || rowAt === null) return null;
-    return rowAt >= at - CLAIM_RUN_SLACK_MS ? false : null;
-}
-
-/** The claim journal, folded to owners. Missing or unreadable → an empty map,
- *  i.e. every claim reads `ownerAlive: null` (unknown) and no verdict moves. */
-export function readClaimOwners(
-    root = process.env.CLAUDE_PROJECT_DIR ?? "."
-): Map<number, ClaimOwner> {
-    try {
-        return parseClaimOwners(readFileSync(claimLedgerPath(root), "utf8"));
-    } catch {
-        return new Map();
-    }
-}
-
-/**
- * The I/O wrapper the queue verbs call: issue number → verdict state, over
- * the same scans every claim reader runs.
+ * The I/O wrapper `queue:plan` calls: every claim's verdict AND its open PR,
+ * so the `resume` list can NAME a stranded claim's PR (issue #4763).
  *
- * TOTAL BY CONTRACT, and the direction is the safe one. Every read here can
- * fail — `git ls-remote` needs the network, `gh pr list` can be rate-limited,
- * a worktree may have no journal — and a failure yields an EMPTY map, which
- * the census reads as "no evidence" and therefore as live. A broken probe can
- * only ever make the cap stricter, never let a session past it.
- *
- * `shChecked` IS THAT CONTRACT, and the default the CLI uses would break it.
- * `sh` renders a non-zero exit as `""`, so `JSON.parse("" || "[]")` is an
- * empty PR set and `"".split("\n")` an empty remote-branch list — indis-
- * tinguishable from "no open PRs and no pushed branches". The `catch` below
- * would never fire, and `classifyClaim` would form REAL verdicts from
- * degraded data. That is not academic: a healthy claim whose session pushed
- * its branch, opened a PR and then exited normally is `live` ONLY via the
- * `hasOpenPr` / `hasRemoteBranch` checks. Lose both reads at once — one
- * network outage reaches `gh` and `git ls-remote` alike — and it falls
- * through to dead-owner-with-local-commits and classifies `recoverable`,
- * which `capCensus` then excludes from the cap. A failed read would have made
- * the cap LOOSER, the one direction this whole design forbids. Throwing is
- * what turns that into the documented empty map.
- */
-export function claimVerdicts(
-    issues: ClaimedIssue[],
-    baseRef: string,
-    root = process.env.CLAUDE_PROJECT_DIR ?? ".",
-    now: number = Date.now(),
-    /** Fail-CLOSED by default — see the paragraph above. The tests' seam. */
-    runner: ShRunner = shChecked
-): Map<number, ClaimVerdictState> {
-    return new Map(
-        claimClassifications(issues, baseRef, root, now, runner).map((c) => [
-            c.issue,
-            c.verdict.state,
-        ])
-    );
-}
-
-/**
- * `claimVerdicts`' full rows — verdict AND the open PR — for the caller that
- * must NAME a stranded claim's PR (`queue:plan`'s `resume` list, issue
- * #4763). Same scans, same fail-closed contract: any failed read → `[]`.
+ * TOTAL BY CONTRACT: any failed read → `[]`, so no claim is handed to a
+ * pass on degraded data. `shChecked` IS that contract — `sh` renders a
+ * non-zero exit as `""`, indistinguishable from "no open PRs and no pushed
+ * branches", and a healthy pushed claim would fall through to a dead-pass
+ * verdict. Throwing is what turns a lost read into the empty list.
  */
 export function claimClassifications(
     issues: ClaimedIssue[],
     baseRef: string,
-    root = process.env.CLAUDE_PROJECT_DIR ?? ".",
     now: number = Date.now(),
     runner: ShRunner = shChecked
 ): ClaimClassification[] {
@@ -1283,7 +958,6 @@ export function claimClassifications(
             prs,
             landQueue: landQueueByBranch(rows),
             branches: fetchBranchNames(runner),
-            owners: readClaimOwners(root),
             baseRef,
             now,
             countRunner: runner,

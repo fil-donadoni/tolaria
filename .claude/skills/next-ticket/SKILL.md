@@ -92,8 +92,8 @@ replace §§ 0–2's commands.
   umbrella's when it carries one; a `priorityBand` echo names it. "Finish PRD #N" is `--lineage <N>`,
   never a hand-picked batch (non-umbrella or childless target → non-zero exit,
   no fallback to the whole queue).
-- `queue:plan` refuses on **cap** (live claims at `sessions.cap`; stop) or on
-  a **RED** health marker (exit: `bun run health:fix` instead of a pick).
+- `queue:plan` refuses on a **RED** health marker (exit: `bun run
+health:fix` instead of a pick).
 - Read the issue and its comments IN FULL. Its `Target files:` section (one
   path per line) is the blast radius: scope reading and the §4 review by it;
   fix a missing or comma-joined section in the issue.
@@ -101,7 +101,8 @@ replace §§ 0–2's commands.
   branch or opened a PR) or recoverable (local branch, maybe uncommitted WIP
   in its worktree) — or a **repair** pick (`queue:plan`'s `repair[0]`, first
   of all picks: the queue labelled its PR `land-failed`). Do not start
-  over: `queue:claim N`, then `cd "$(bun run --silent wt:new N --resume)"`;
+  over: `gh issue edit N --add-assignee @me` (the label stands), then
+  `cd "$(bun run --silent wt:new N --resume)"`;
   `git status` shows the WIP. Repair → `land-failures.md`. Open PR → read it
   against the issue, go to §5. Branch, no PR → finish §3–§4, open the PR, §5.
 
@@ -127,13 +128,13 @@ label = Sonnet), or the pass has stopped.
 
 ## 2. Claim + worktree
 
-- `bun run queue:claim N` — one locked act. Refusal `claimed` → pick the
-  next issue; `cap` → stop (`--no-cap` is an announced escape, never for a
-  pass). Never hand-type `--add-label in-progress`.
+- The claim is the label (ADR 0156): `gh issue view N --json labels`; a
+  fresh pick already `in-progress` → pick the next. Else
+  `gh issue edit N --add-label in-progress --add-assignee @me`.
 - `cd "$(bun run --silent wt:new N)"` (`--fix` for bugs): a fresh worktree
   branched from `origin/<base>`, never a standing one.
 
-**Done when:** `queue:claim` printed `claimed issue #N` and the shell is in
+**Done when:** the issue wears `in-progress` and the shell is in
 the issue's worktree (fresh, or the dead pass's branch on `--resume`).
 
 ## 3. Implement — in THIS context
@@ -213,7 +214,7 @@ nor wait.
   heading; write "none owed" there when it is not. The runner seeds it.
 - Hand off: `bun run land:ready <PR#>` (step 0 = the preflight: behind →
   rebases for you, overlap → refuses) — PR labelled `ready-to-land`, claim
-  `pr-open` (stands, no cap slot; released at merge).
+  `pr-open` (stands; released at merge).
   Refused → `land-failures.md`.
 - **Gap issue**: `gap-holes.md` before the report.
 

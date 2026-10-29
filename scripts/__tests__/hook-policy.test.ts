@@ -35,8 +35,6 @@ vi.setConfig({ testTimeout: 30_000 });
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const HOOKS = path.join(REPO_ROOT, ".claude", "hooks");
 const DENY_GUARD = path.join(HOOKS, "deny-guard.sh");
-const CLAIM_LEDGER = path.join(HOOKS, "claim-ledger.sh");
-const CLAIM_SWEEP = path.join(HOOKS, "claim-sweep.sh");
 const SESSION_ORIGIN = path.join(HOOKS, "session-origin.sh");
 const JOIN_AWK = path.join(HOOKS, "lib", "join-continued-lines.awk");
 
@@ -1558,50 +1556,18 @@ describe("deny-guard — the hand-off is land:ready, never a raw ready-to-land l
     });
 });
 
-describe("deny-guard — the claim is one locked act: queue:claim, never a hand-typed label (issue #4375)", () => {
-    // `queue:plan` counts the live claims and refuses at the cap; a label typed
-    // later races that read, and two sessions in the window both pass
-    // (observed `4/3 live claims`, 2026-09-22). The verb re-reads UNDER a lock.
-    it("denies `gh issue edit N --add-label in-progress` and names the verb", () => {
+describe("deny-guard — the claim is the label, typed by hand (ADR 0156)", () => {
+    // The locked claim verb is retired: an attended `/next-ticket` claims
+    // with `gh issue edit`, the shape `afk-dispatch` uses.
+    it("allows `gh issue edit N --add-label in-progress --add-assignee @me`", () => {
         for (const cmd of [
-            "gh issue edit 4375 --add-label in-progress",
             "gh issue edit 4375 --add-label in-progress --add-assignee @me",
-            "git fetch && gh issue edit 4375 --add-label in-progress",
-            "FOO=1 gh issue edit 4375 --add-label in-progress",
-            // The splitter does not break on a pipe: a claim behind one is
-            // still a claim.
-            "true | gh issue edit 4375 --add-label in-progress",
-            // Every label spelling `gh` accepts.
-            "gh issue edit 4375 --add-label=in-progress",
-            'gh issue edit 4375 --add-label "in-progress"',
-            "gh issue edit 4375 --add-label in-progress,model:opus",
+            "gh issue edit 4375 --add-label in-progress",
+            "gh issue edit 4375 --add-label bug,in-progress",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
-            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
-            expect(r.stderr).toMatch(/bun run queue:claim/);
+            expect(denied(r), `expected ALLOW for: ${cmd}`).toBe(false);
         }
-    });
-
-    it("does not deny a label that merely starts with the claim's name", () => {
-        const r = runHook(
-            DENY_GUARD,
-            bash(
-                "gh issue edit 4375 --add-label in-progress-review",
-                issueWorktree
-            )
-        );
-        expect(denied(r)).toBe(false);
-    });
-
-    it("allows a whole release — `--remove-label in-progress --remove-assignee` is not a claim", () => {
-        const r = runHook(
-            DENY_GUARD,
-            bash(
-                "gh issue edit 4375 --remove-label in-progress --remove-assignee @me",
-                issueWorktree
-            )
-        );
-        expect(denied(r)).toBe(false);
     });
 
     it("allows the release that also drops pr-open — the shape `releaseEditArgs` emits (issue #5562)", () => {
@@ -1614,88 +1580,12 @@ describe("deny-guard — the claim is one locked act: queue:claim, never a hand-
         );
         expect(denied(r)).toBe(false);
     });
-
-    it("allows an edit that adds some OTHER label", () => {
-        const r = runHook(
-            DENY_GUARD,
-            bash(
-                "gh issue edit 4375 --add-label ready-for-agent",
-                issueWorktree
-            )
-        );
-        expect(denied(r)).toBe(false);
-    });
-
-    it("allows the repair hatch, on the command itself", () => {
-        const r = runHook(
-            DENY_GUARD,
-            bash(
-                "TOLARIA_ALLOW_MANUAL_CLAIM=1 gh issue edit 4375 --add-label in-progress",
-                issueWorktree
-            )
-        );
-        expect(denied(r)).toBe(false);
-    });
-
-    it("does not deny prose that quotes the command", () => {
-        const r = runHook(
-            DENY_GUARD,
-            bash(
-                "git commit -m 'never type gh issue edit N --add-label in-progress by hand'",
-                issueWorktree
-            )
-        );
-        expect(denied(r)).toBe(false);
-    });
-
-    it("`bun run queue:claim N` is allowed, and is NOT a planner run (§5 MAX_PASSES)", () => {
-        const projectDir = fs.mkdtempSync(
-            path.join(os.tmpdir(), "hook-claim-")
-        );
-        const env = { CLAUDE_PROJECT_DIR: projectDir };
-        try {
-            for (let i = 0; i < 2; i++) {
-                const r = runHook(
-                    DENY_GUARD,
-                    bash("bun run queue:claim 4375", issueWorktree, "sess-c"),
-                    env
-                );
-                expect(denied(r), `claim call ${i + 1}`).toBe(false);
-            }
-            // Two claims left no pass marker, so the FIRST planner run of the
-            // session is still allowed — the verb did not spend the pass.
-            expect(
-                fs.existsSync(
-                    path.join(
-                        projectDir,
-                        ".claude",
-                        "telemetry",
-                        "pass-markers",
-                        "sess-c"
-                    )
-                )
-            ).toBe(false);
-            const plan = runHook(
-                DENY_GUARD,
-                bash("bun run queue:plan --cap 1", issueWorktree, "sess-c"),
-                env
-            );
-            expect(denied(plan)).toBe(false);
-        } finally {
-            fs.rmSync(projectDir, {
-                recursive: true,
-                force: true,
-                maxRetries: 10,
-                retryDelay: 100,
-            });
-        }
-    });
 });
 
-describe("deny-guard — the release is one act too: queue:release, never half a release (issue #4752)", () => {
+describe("deny-guard — the release is one act: label AND assignee, never half a release (issue #4752)", () => {
     // A label-only release left the `@me` assignee, and the planner deferred
     // the issue as "assigned — someone is working it" on every pass, forever.
-    it("denies `--remove-label in-progress` without `--remove-assignee`, and names the verb", () => {
+    it("denies `--remove-label in-progress` without `--remove-assignee`, and names the whole release", () => {
         for (const cmd of [
             "gh issue edit 4470 --remove-label in-progress",
             "git fetch && gh issue edit 4470 --remove-label in-progress",
@@ -1710,7 +1600,7 @@ describe("deny-guard — the release is one act too: queue:release, never half a
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
-            expect(r.stderr).toMatch(/bun run queue:release/);
+            expect(r.stderr).toMatch(/--remove-assignee @me/);
         }
     });
 
@@ -1725,9 +1615,8 @@ describe("deny-guard — the release is one act too: queue:release, never half a
         }
     });
 
-    it("allows `bun run queue:release N`, a label that merely starts with the claim's name, and prose", () => {
+    it("allows a label that merely starts with the claim's name, and prose", () => {
         for (const cmd of [
-            "bun run queue:release 4470",
             "gh issue edit 4470 --remove-label in-progress-review",
             "git commit -m 'never type gh issue edit N --remove-label in-progress by hand'",
         ]) {
@@ -1820,520 +1709,6 @@ describe("deny-guard — a bare oracle:compile on a Bot diff is ALLOWED: § 7 is
     });
 });
 
-describe("claim-ledger — records what THIS session claimed", () => {
-    let projectDir: string;
-
-    const ledger = () =>
-        path.join(projectDir, ".claude", "telemetry", "claims.jsonl");
-
-    beforeAll(() => {
-        projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "hook-ledger-"));
-    });
-
-    it("records a claim, with the issue number and the session id", () => {
-        const r = runHook(
-            CLAIM_LEDGER,
-            bash(
-                "gh issue edit 2183 --add-label in-progress --add-assignee @me",
-                "/x",
-                "sess-A"
-            ),
-            { CLAUDE_PROJECT_DIR: projectDir }
-        );
-        expect(r.code).toBe(0);
-
-        const rows = fs
-            .readFileSync(ledger(), "utf8")
-            .trim()
-            .split("\n")
-            .map((l) => JSON.parse(l));
-        expect(rows).toHaveLength(1);
-        expect(rows[0]).toMatchObject({
-            issue: 2183,
-            session: "sess-A",
-            event: "claim",
-        });
-        // Diagnostic machine stamp (issue #5302) — never compared, but present.
-        expect(rows[0].host).toEqual(expect.stringMatching(/./));
-    });
-
-    it("does NOT record an issue edit that is not a claim", () => {
-        // Without this, every relabel would look like a claim and the Stop
-        // sweep would try to release issues this session never took.
-        const before = fs.readFileSync(ledger(), "utf8");
-        for (const cmd of [
-            "gh issue edit 999 --add-label ready-for-human",
-            "gh issue edit 999 --remove-label in-progress",
-            "gh issue view 999 --json labels",
-            "gh issue list --label in-progress",
-        ]) {
-            runHook(CLAIM_LEDGER, bash(cmd, "/x", "sess-A"), {
-                CLAUDE_PROJECT_DIR: projectDir,
-            });
-        }
-        expect(fs.readFileSync(ledger(), "utf8")).toBe(before);
-    });
-
-    it("records EVERY issue of a batch claim, not just the first", () => {
-        // A batch is claimed in one Bash call. The single-`sed` version
-        // captured only the first number, so the rest never reached the ledger
-        // and claim-sweep could not release them. Observed 2026-08-17: a
-        // headless pass claimed #2445/#1969/#1851/#1852, died, and left all
-        // four labelled in-progress with no branch, no PR and no ledger row —
-        // invisible to the sweep and skipped by every later pass thereafter.
-        const dir = fs.mkdtempSync(
-            path.join(os.tmpdir(), "hook-ledger-batch-")
-        );
-        const rows = (cmd: string) => {
-            runHook(CLAIM_LEDGER, bash(cmd, "/x", "sess-B"), {
-                CLAUDE_PROJECT_DIR: dir,
-            });
-            const file = path.join(dir, ".claude", "telemetry", "claims.jsonl");
-            const out = fs
-                .readFileSync(file, "utf8")
-                .trim()
-                .split("\n")
-                .map((l) => (JSON.parse(l) as { issue: number }).issue);
-            fs.rmSync(file);
-            return out.sort((a, b) => a - b);
-        };
-
-        // one edit, several issues
-        expect(
-            rows("gh issue edit 2445 1969 1851 1852 --add-label in-progress")
-        ).toEqual([1851, 1852, 1969, 2445]);
-
-        // chained edits, one per issue
-        expect(
-            rows(
-                "gh issue edit 2445 --add-label in-progress && " +
-                    "gh issue edit 1969 --add-label in-progress"
-            )
-        ).toEqual([1969, 2445]);
-
-        // `#`-prefixed, and a non-claim edit in the same command must not ride along
-        expect(
-            rows(
-                "gh issue edit #2445 --add-label in-progress; " +
-                    "gh issue edit 777 --add-label needs-design"
-            )
-        ).toEqual([2445]);
-
-        fs.rmSync(dir, {
-            recursive: true,
-            force: true,
-            maxRetries: 10,
-            retryDelay: 100,
-        });
-    });
-
-    it("does not record a claim from PROSE that quotes the command", () => {
-        // This happened. A commit message explaining the batch-claim bug quoted
-        // the command shape; the hook matched the two patterns anywhere in the
-        // string and wrote a phantom claim on #2445 — an issue another session
-        // was actively working. `claim-sweep.sh` releases what the ledger says
-        // this session took, so a phantom claim can unclaim live work; that one
-        // survived only because the other session had already pushed a branch.
-        const dir = fs.mkdtempSync(
-            path.join(os.tmpdir(), "hook-ledger-prose-")
-        );
-        const file = path.join(dir, ".claude", "telemetry", "claims.jsonl");
-        // Both patterns on ONE line, so the same-segment rule cannot be what
-        // saves it: a real invocation STARTS its segment, prose does not.
-        const prose = [
-            "git commit -m 'the old hook matched gh issue edit 2445 --add-label in-progress written inside this very message'",
-            "echo 'see also: gh issue edit 1969 --add-label in-progress'",
-            "# gh issue edit 1851 --add-label in-progress   (a commented example)",
-        ].join("\n");
-
-        runHook(CLAIM_LEDGER, bash(prose, "/x", "sess-C"), {
-            CLAUDE_PROJECT_DIR: dir,
-        });
-        expect(
-            fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "",
-            "prose wrote a claim row"
-        ).toBe("");
-
-        // …and the real invocation, chained behind another command, still counts.
-        runHook(
-            CLAIM_LEDGER,
-            bash(
-                "git fetch origin main && gh issue edit 2445 --add-label in-progress",
-                "/x",
-                "sess-C"
-            ),
-            { CLAUDE_PROJECT_DIR: dir }
-        );
-        expect(fs.readFileSync(file, "utf8")).toContain('"issue":2445');
-
-        fs.rmSync(dir, {
-            recursive: true,
-            force: true,
-            maxRetries: 10,
-            retryDelay: 100,
-        });
-    });
-
-    it("never blocks — it is an observer", () => {
-        const r = runHook(CLAIM_LEDGER, bash("rm -rf /", "/x"), {
-            CLAUDE_PROJECT_DIR: projectDir,
-        });
-        expect(r.code).toBe(0);
-    });
-});
-
-describe("claim-ledger — joins a claim to the plan in force (issue #2518)", () => {
-    // Observed 2026-08-17: a batch ran while 43 prioritized issues sat ready,
-    // and the claim rows carried nothing that could tell "planned" from
-    // "hand-picked" apart. `queue-plan.ts` now writes one artefact per run to
-    // `.claude/telemetry/plans/<session>-<epoch-ms>.json`; this hook is the
-    // other half — every claim row must name that artefact (or its absence)
-    // and flag, never block, a claimed issue the plan did not admit.
-    let projectDir: string;
-
-    const ledger = () =>
-        path.join(projectDir, ".claude", "telemetry", "claims.jsonl");
-
-    const lastRow = () => {
-        const lines = fs.readFileSync(ledger(), "utf8").trim().split("\n");
-        return JSON.parse(lines[lines.length - 1]);
-    };
-
-    /** Write a plan artefact in the exact shape `buildPlanRecord` produces —
-     *  this hook parses it with `jq` against that contract. */
-    const writePlan = (
-        session: string,
-        epochMs: number,
-        admittedNumbers: number[]
-    ) => {
-        const dir = path.join(projectDir, ".claude", "telemetry", "plans");
-        fs.mkdirSync(dir, { recursive: true });
-        const record = {
-            version: 1,
-            session,
-            ts: new Date(epochMs).toISOString(),
-            noPriority: false,
-            plan: {
-                version: 1,
-                batch: admittedNumbers.map((number) => ({
-                    number,
-                    title: `issue ${number}`,
-                    type: "fix",
-                    model: "sonnet",
-                    hitl: false,
-                    targetFiles: [],
-                    blastRadius: "unknown",
-                    reason: "admitted",
-                })),
-                deferred: [],
-                skipped: [],
-                staleClaims: [],
-            },
-        };
-        fs.writeFileSync(
-            path.join(dir, `${session}-${epochMs}.json`),
-            JSON.stringify(record)
-        );
-    };
-
-    const claim = (issueNumber: number, session: string) =>
-        runHook(
-            CLAIM_LEDGER,
-            bash(
-                `gh issue edit ${issueNumber} --add-label in-progress --add-assignee @me`,
-                "/x",
-                session
-            ),
-            { CLAUDE_PROJECT_DIR: projectDir }
-        );
-
-    beforeAll(() => {
-        projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "hook-plan-"));
-    });
-
-    it("names the plan and reports no mismatch when the claim was admitted", () => {
-        writePlan("sess-match", 1_000, [2511]);
-        const r = claim(2511, "sess-match");
-        expect(r.code).toBe(0);
-        expect(lastRow()).toMatchObject({
-            issue: 2511,
-            session: "sess-match",
-            plan: "sess-match-1000.json",
-            planMismatch: null,
-        });
-    });
-
-    it("flags — but does not block — a claim absent from the plan's admitted batch", () => {
-        writePlan("sess-mismatch", 1_000, [2511]);
-        const r = claim(1852, "sess-mismatch");
-        expect(r.code).toBe(0); // report, never block
-        expect(lastRow()).toMatchObject({
-            issue: 1852,
-            session: "sess-mismatch",
-            plan: "sess-mismatch-1000.json",
-            planMismatch: { claimed: 1852, planned: [2511] },
-        });
-        // "loudly" — the flag is visible in real time, not just on disk.
-        expect(r.stderr).toMatch(/mismatch/i);
-        expect(r.stderr).toMatch(/#1852/);
-        expect(r.stderr).toMatch(/2511/);
-    });
-
-    it("records an explicit `plan: null` marker when no plan preceded the claim", () => {
-        const r = claim(700, "sess-no-plan");
-        expect(r.code).toBe(0);
-        expect(lastRow()).toMatchObject({
-            issue: 700,
-            session: "sess-no-plan",
-            plan: null,
-        });
-        expect(r.stderr).toMatch(/no preceding plan/i);
-    });
-
-    it("joins to the LATEST plan when a session has replanned", () => {
-        // A same-pass replan (TOLARIA_ALLOW_REPLAN=1, deny-guard.sh §5)
-        // produces a second, newer artefact for the same session. The hook
-        // must compare against that one, not the stale first pass.
-        writePlan("sess-replan", 1_000, [1111]);
-        writePlan("sess-replan", 2_000, [2222]);
-        const r = claim(2222, "sess-replan");
-        expect(r.code).toBe(0);
-        expect(lastRow()).toMatchObject({
-            issue: 2222,
-            session: "sess-replan",
-            plan: "sess-replan-2000.json",
-            planMismatch: null,
-        });
-    });
-
-    it("does not mistake a different session's plan for its own", () => {
-        writePlan("sess-owner", 1_000, [3333]);
-        const r = claim(3333, "sess-stranger");
-        expect(r.code).toBe(0);
-        expect(lastRow()).toMatchObject({
-            issue: 3333,
-            session: "sess-stranger",
-            plan: null, // sess-owner's plan is not sess-stranger's plan
-        });
-    });
-});
-
-describe("claim-sweep — releases this session's claims, and only those", () => {
-    /** A fake `gh` on PATH, scripted per test. Recording what it was CALLED
-     *  with is the whole assertion: the failure mode being guarded is the sweep
-     *  releasing an issue it should not have. */
-    function makeGhStub(dir: string, script: string) {
-        const bin = path.join(dir, "bin");
-        fs.mkdirSync(bin, { recursive: true });
-        const gh = path.join(bin, "gh");
-        fs.writeFileSync(gh, `#!/bin/sh\n${script}\n`, { mode: 0o755 });
-        return bin;
-    }
-
-    function setup(ledgerRows: object[], ghScript: string) {
-        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hook-sweep-"));
-        fs.mkdirSync(path.join(dir, ".claude", "telemetry"), {
-            recursive: true,
-        });
-        fs.writeFileSync(
-            path.join(dir, ".claude", "telemetry", "claims.jsonl"),
-            ledgerRows.map((r) => JSON.stringify(r)).join("\n") + "\n"
-        );
-        const bin = makeGhStub(dir, ghScript);
-        return { dir, bin, calls: path.join(dir, "gh-calls.log") };
-    }
-
-    /**
-     * gh stub: issue is claimed, and NOTHING is in flight for it.
-     *
-     * The `pr list` arm answers per QUERY SHAPE rather than unconditionally,
-     * because the shape is what was broken (#2314). Real `gh` behaviour,
-     * reproduced against PR #2313 on head `feat/issue-1625`:
-     *
-     *     gh pr list --state open --search "issue-1625 in:head"  → 0
-     *     gh pr list --state open --limit 200 --json headRefName → the PR
-     *
-     * `in:` is a qualifier over title/body/comments, not over the head branch,
-     * so the search form returns 0 for EVERY issue. A stub that echoes a fixed
-     * count regardless of arguments cannot tell the two apart — which is why
-     * the original suite passed against a guard that never matched anything.
-     */
-    const CLAIMED_NO_PR = `
-echo "$@" >> "$GH_CALLS"
-case "$1 $2" in
-  "issue view") echo "bug,in-progress" ;;
-  "pr list")
-    case "$*" in
-      *--search*) echo "0" ;;        # the broken form: matches nothing, ever
-      *headRefName*) echo "0" ;;     # the working form: genuinely no open PR
-      *) echo "0" ;;
-    esac
-    ;;
-  *) exit 0 ;;
-esac
-`;
-
-    /** gh stub: issue is claimed AND an open PR exists on its head branch. */
-    const CLAIMED_WITH_PR = `
-echo "$@" >> "$GH_CALLS"
-case "$1 $2" in
-  "issue view") echo "bug,in-progress" ;;
-  "pr list")
-    case "$*" in
-      *--search*)    echo "0" ;;     # what real gh returns for \`in:head\`
-      *headRefName*) echo "1" ;;     # the PR is visible only to the head probe
-      *) echo "0" ;;
-    esac
-    ;;
-  *) exit 0 ;;
-esac
-`;
-
-    it("releases an issue this session claimed that is still labelled and has no open PR", () => {
-        const { dir, bin, calls } = setup(
-            [{ ts: 1, session: "sess-A", issue: 700, event: "claim" }],
-            CLAIMED_NO_PR
-        );
-        const r = runHook(
-            CLAIM_SWEEP,
-            { session_id: "sess-A", hook_event_name: "SessionEnd" },
-            {
-                CLAUDE_PROJECT_DIR: dir,
-                PATH: `${bin}:${process.env.PATH}`,
-                GH_CALLS: calls,
-            }
-        );
-        expect(r.code).toBe(0);
-        expect(fs.readFileSync(calls, "utf8")).toMatch(
-            /issue edit 700 --remove-label in-progress/
-        );
-    });
-
-    it("does NOT release a claim made by a DIFFERENT session", () => {
-        // The load-bearing case: several sessions run under the same GitHub
-        // account, so assignee cannot distinguish them. Ownership comes from
-        // the ledger or the sweep unclaims somebody else's live work.
-        const { dir, bin, calls } = setup(
-            [{ ts: 1, session: "sess-OTHER", issue: 700, event: "claim" }],
-            CLAIMED_NO_PR
-        );
-        runHook(
-            CLAIM_SWEEP,
-            { session_id: "sess-A", hook_event_name: "SessionEnd" },
-            {
-                CLAUDE_PROJECT_DIR: dir,
-                PATH: `${bin}:${process.env.PATH}`,
-                GH_CALLS: calls,
-            }
-        );
-        expect(fs.existsSync(calls)).toBe(false);
-    });
-
-    it("does NOT release an issue with an open PR — the work is in flight", () => {
-        // The load-bearing regression (#2314). The probe must look at the head
-        // REF; the previous `--search "issue-N in:head"` form returned 0 with
-        // the PR wide open, so the guard failed OPEN and the sweep released
-        // every claim it saw. The stub answers per query shape, so a revert to
-        // the search form goes red here instead of silently passing.
-        const { dir, bin, calls } = setup(
-            [{ ts: 1, session: "sess-A", issue: 700, event: "claim" }],
-            CLAIMED_WITH_PR
-        );
-        runHook(
-            CLAIM_SWEEP,
-            { session_id: "sess-A", hook_event_name: "SessionEnd" },
-            {
-                CLAUDE_PROJECT_DIR: dir,
-                PATH: `${bin}:${process.env.PATH}`,
-                GH_CALLS: calls,
-            }
-        );
-        const log = fs.readFileSync(calls, "utf8");
-        expect(log).not.toMatch(/issue edit/);
-        // …and it must be asking about the head ref at all.
-        expect(log).toMatch(/headRefName/);
-    });
-
-    it("does NOT release an issue whose branch is pushed but has no PR yet", () => {
-        // The window between the subagent's first push and `gh pr create` is
-        // exactly when a claim is most load-bearing and least visible: no PR
-        // exists, so a PR-only probe reads it as abandoned work.
-        const { dir, bin, calls } = setup(
-            [{ ts: 1, session: "sess-A", issue: 700, event: "claim" }],
-            CLAIMED_NO_PR
-        );
-        fs.writeFileSync(
-            path.join(bin, "git"),
-            `#!/bin/sh\ncase "$*" in\n  *ls-remote*) echo "deadbeef\\trefs/heads/feat/issue-700" ;;\n  *) exit 0 ;;\nesac\n`,
-            { mode: 0o755 }
-        );
-        runHook(
-            CLAIM_SWEEP,
-            { session_id: "sess-A", hook_event_name: "SessionEnd" },
-            {
-                CLAUDE_PROJECT_DIR: dir,
-                PATH: `${bin}:${process.env.PATH}`,
-                GH_CALLS: calls,
-            }
-        );
-        expect(fs.readFileSync(calls, "utf8")).not.toMatch(/issue edit/);
-    });
-
-    it("does NOT release an issue that no longer carries the claim label", () => {
-        const { dir, bin, calls } = setup(
-            [{ ts: 1, session: "sess-A", issue: 700, event: "claim" }],
-            `
-echo "$@" >> "$GH_CALLS"
-case "$1 $2" in
-  "issue view") echo "bug" ;;
-  "pr list")    echo "0" ;;
-  *)            exit 0 ;;
-esac
-`
-        );
-        runHook(
-            CLAIM_SWEEP,
-            { session_id: "sess-A", hook_event_name: "SessionEnd" },
-            {
-                CLAUDE_PROJECT_DIR: dir,
-                PATH: `${bin}:${process.env.PATH}`,
-                GH_CALLS: calls,
-            }
-        );
-        expect(fs.readFileSync(calls, "utf8")).not.toMatch(/issue edit/);
-    });
-
-    it("does NOT release a claim this session already released", () => {
-        const { dir, bin, calls } = setup(
-            [
-                { ts: 1, session: "sess-A", issue: 700, event: "claim" },
-                { ts: 2, session: "sess-A", issue: 700, event: "released" },
-            ],
-            CLAIMED_NO_PR
-        );
-        runHook(
-            CLAIM_SWEEP,
-            { session_id: "sess-A", hook_event_name: "SessionEnd" },
-            {
-                CLAUDE_PROJECT_DIR: dir,
-                PATH: `${bin}:${process.env.PATH}`,
-                GH_CALLS: calls,
-            }
-        );
-        expect(fs.existsSync(calls)).toBe(false);
-    });
-
-    it("exits 0 with no ledger at all — a Stop hook must never block the session ending", () => {
-        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hook-sweep-empty-"));
-        const r = runHook(
-            CLAIM_SWEEP,
-            { session_id: "sess-A", hook_event_name: "SessionEnd" },
-            { CLAUDE_PROJECT_DIR: dir }
-        );
-        expect(r.code).toBe(0);
-    });
-});
-
 describe("hooks are wired into settings.json", () => {
     it("registers every hook script, and each script is executable", () => {
         // A hook that exists but is not registered is silent — the exact shape
@@ -2365,9 +1740,10 @@ describe("hooks are wired into settings.json", () => {
     });
 
     it("wires each hook to the EVENT it is written for", () => {
-        // Registration is not enough. `claim-sweep.sh` was wired to `Stop`,
-        // which fires at the end of every assistant TURN — so it ran mid-batch
-        // and released claims whose work had barely started (issue #2314). The
+        // Registration is not enough. A claim-releasing hook (retired with the
+        // claims journal, ADR 0156) was wired to `Stop`, which fires at the
+        // end of every assistant TURN — so it ran mid-batch and released
+        // claims whose work had barely started (issue #2314). The
         // registration guard above was green throughout: the hook was present,
         // executable and referenced, just listening to the wrong thing.
         //
@@ -2375,8 +1751,6 @@ describe("hooks are wired into settings.json", () => {
         // without an entry fails here, which forces the "when does this run?"
         // question to be answered once, in writing.
         const EVENT_OF: Record<string, string> = {
-            "claim-ledger.sh": "PreToolUse",
-            "claim-sweep.sh": "SessionEnd",
             "deny-guard.sh": "PreToolUse",
             "session-origin.sh": "SessionStart",
             "spawn-guard.sh": "PreToolUse",
@@ -2413,9 +1787,6 @@ describe("hooks are wired into settings.json", () => {
             ).toContain(expected);
         }
 
-        // The sweep releases claims. On `Stop` it would fire while the batch's
-        // subagents are still working — the exact #2314 regression.
-        expect(eventsOf("claim-sweep.sh")).not.toContain("Stop");
         expect(eventsOf("timing-log.sh")).toContain("PostToolUse");
     });
 
@@ -2570,130 +1941,6 @@ describe("Agent spawns declare their role", () => {
     });
 });
 
-/**
- * The owner join (#2627).
- *
- * `afk-dispatch` releases claims whose evidence is dead, and the strongest
- * evidence — "the process that took this claim is gone" — had nowhere to come
- * from. A claim row named a Claude Code SESSION UUID, and a session UUID is
- * not a process handle: it appears in no argv, and Claude Code holds no open
- * descriptor on its own transcript (measured 2026-08-25), so it cannot be
- * resolved to a pid after the fact. This hook is the only code that runs
- * INSIDE the claiming session at the moment of the claim, so the join is
- * recorded here or nowhere.
- */
-describe("claim-ledger — records the owning process (#2627)", () => {
-    // The name `ps` reports for THIS process — what the hook's ancestor walk
-    // compares. Not `basename(process.execPath)`: on Node 26 a worker's comm is
-    // `node-MainThread`, so the binary name never matches.
-    const ownComm = () =>
-        spawnSync("ps", ["-o", "comm=", "-p", String(process.pid)], {
-            encoding: "utf8",
-        })
-            .stdout.trim()
-            .split("/")
-            .pop()!;
-
-    const claimRow = (env: NodeJS.ProcessEnv) => {
-        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hook-owner-"));
-        const r = runHook(
-            CLAIM_LEDGER,
-            bash(
-                "gh issue edit 2627 --add-label in-progress",
-                "/x",
-                "sess-owner"
-            ),
-            { CLAUDE_PROJECT_DIR: dir, ...env }
-        );
-        expect(r.code).toBe(0);
-        const file = path.join(dir, ".claude", "telemetry", "claims.jsonl");
-        const row = JSON.parse(fs.readFileSync(file, "utf8").trim()) as {
-            owner: { pid: number; startedAt: string } | null;
-        };
-        fs.rmSync(dir, {
-            recursive: true,
-            force: true,
-            maxRetries: 10,
-            retryDelay: 100,
-        });
-        return row;
-    };
-
-    it("stamps the row with the nearest owning process and its start time", () => {
-        // `runHook` spawns the hook directly from THIS process, so the walk's
-        // correct answer is knowable exactly: `process.pid`. Matching on this
-        // process's own binary name is the injection seam
-        // (`TOLARIA_CLAIM_OWNER_COMM`) standing in for `claude` — a vitest-spawned hook has
-        // no `claude` ancestor, so without it the recording path could only
-        // ever be asserted against a real Claude Code process, i.e. never.
-        const row = claimRow({
-            TOLARIA_CLAIM_OWNER_COMM: ownComm(),
-        });
-        expect(row.owner).not.toBeNull();
-        expect(row.owner!.pid).toBe(process.pid);
-
-        // The start time is the PID-REUSE discriminator, so it has to be the
-        // real thing rather than any non-empty string: a recycled pid is a
-        // different process, and without this column a dead pass reads as
-        // alive again the moment the OS hands its number to something else.
-        //
-        // The reference `ps` is pinned to the same fixed locale and zone the
-        // hook uses — `lstart` is a LOCALISED, ZONED human string, so an
-        // unpinned reference here would only agree with the hook by the
-        // accident of this machine's `LANG`/`TZ` (see the stability test
-        // below and the comment in claim-ledger.sh).
-        const lstart = spawnSync(
-            "ps",
-            ["-o", "lstart=", "-p", String(process.pid)],
-            {
-                encoding: "utf8",
-                env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
-            }
-        ).stdout.trim();
-        expect(lstart).not.toBe("");
-        expect(row.owner!.startedAt).toBe(lstart);
-    });
-
-    it("stamps the SAME string whatever LANG/TZ the claiming shell inherits", () => {
-        // `ps -o lstart=` renders through the caller's locale AND timezone.
-        // Measured, same process and same instant: `Tue Aug 25 09:15:42 2026`
-        // by default, `Di. 25 Aug. 09:15:42 2026` under `LC_TIME=de_DE`,
-        // `Tue Aug 25 07:15:42 2026` under `TZ=UTC`. `isOwnerAlive` compares
-        // the write-side and read-side stamps as exact trimmed strings, so an
-        // unpinned stamp makes a LIVE owner read as a recycled pid the moment
-        // the two sides disagree about locale or zone — the whole feature
-        // going silently inert (safe direction, hence never noticed).
-        const comm = ownComm();
-        const plain = claimRow({ TOLARIA_CLAIM_OWNER_COMM: comm });
-        const foreign = claimRow({
-            TOLARIA_CLAIM_OWNER_COMM: comm,
-            LANG: "de_DE.UTF-8",
-            LC_TIME: "de_DE.UTF-8",
-            TZ: "Asia/Tokyo",
-        });
-        expect(plain.owner).not.toBeNull();
-        expect(foreign.owner).not.toBeNull();
-        expect(foreign.owner!.startedAt).toBe(plain.owner!.startedAt);
-        // And it is the C-locale rendering, not whatever this machine's
-        // default happens to be — pinning both ends to the same string is
-        // only worth anything if that string is chosen, not inherited.
-        expect(plain.owner!.startedAt).toMatch(
-            /^[A-Z][a-z]{2} [A-Z][a-z]{2} +\d{1,2} \d{2}:\d{2}:\d{2} \d{4}$/
-        );
-    });
-
-    it("records owner: null rather than GUESSING when no owning process resolves", () => {
-        // An unusual spawn chain, or no `ps`. the claim verdict reads a missing
-        // owner as UNKNOWN and changes no verdict on it — whereas a guessed
-        // pid would be a liveness reading about the wrong process, in either
-        // direction: freezing a real orphan, or releasing live work.
-        const row = claimRow({
-            TOLARIA_CLAIM_OWNER_COMM: "no-such-process-name-anywhere",
-        });
-        expect(row.owner).toBeNull();
-    });
-});
-
 describe("session-origin hook — who started this session (issue #3144)", () => {
     let projectDir: string;
     const journal = () =>
@@ -2809,20 +2056,6 @@ describe("resident prose pruned to its hook — each denial names the fix (issue
             ]) {
                 expect(r.stderr).toMatch(new RegExp(`\\b${role}\\b`));
             }
-        }
-    });
-
-    it("`Claim = bun run queue:claim N (hand-typed label denied)` → deny-guard §6 names the verb", () => {
-        // The comma-list form too: a claim riding behind another label was
-        // allowed until this sentence's deletion made the hook its only copy.
-        for (const cmd of [
-            "gh issue edit 5102 --add-label in-progress",
-            "gh issue edit 5102 --add-label bug,in-progress",
-            'gh issue edit 5102 --add-label "model:opus,in-progress"',
-        ]) {
-            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
-            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
-            expect(r.stderr).toMatch(/bun run queue:claim <issue#>/);
         }
     });
 

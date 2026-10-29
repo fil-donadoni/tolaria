@@ -12,15 +12,13 @@
 //   bun run queue:plan --cap 2
 //   bun run queue:plan --limit 100     # how deep to read the queue
 //   bun run queue:plan --pretty
-//   bun run queue:plan --no-cap       # plan past the session cap deliberately
 //   bun run queue:plan --inferred '{"2104":["convex/cards/sets/ice/**"]}'
 //   bun run queue:plan --lineage 2180   # only PRD #2180's open children
 //
-// It REFUSES to plan in two cases (ADR 0136 §6-7, issue #3775): while live
-// claims are at `sessions.cap`, and while the release-health `RED` marker is
-// up. Both print the way out — `--no-cap` for the first, `bun run health:fix`
-// for the second — and both exit non-zero, which is what stops a driver
-// rather than letting a pass pick for itself.
+// It REFUSES to plan while the release-health `RED` marker is up (ADR 0136
+// §6): it prints the way out (`bun run health:fix`) and exits non-zero,
+// which is what stops a driver rather than letting a pass pick for itself.
+// Claims are labels (ADR 0156): no session cap is counted here.
 //
 // The `--inferred` map is the fallback for issues predating the `Target files:`
 // convention: run once, read which candidates came back with an unknown blast
@@ -49,18 +47,12 @@ import {
     VALID_PRIORITIES,
 } from "./lib/board-priority";
 import {
-    capCensus,
     repairItems,
     orphanPlanParts,
     resumeItems,
-    capRefusal,
-    heldFromJournal,
     buildPlanRecord,
     lineageRefusal,
-    liveClaims,
-    machineScope,
     redRefusal,
-    releasedClaims,
     planBatch,
     planFilename,
     inFlightSet,
@@ -72,7 +64,7 @@ import {
     type QueueIssue,
     type QueuePort,
 } from "./lib/queue-plan";
-import { ORIGIN_BASE, sessionCap } from "./lib/branches";
+import { ORIGIN_BASE } from "./lib/branches";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { infraNotice, type InfraRecord } from "./lib/health-verdict";
 import {
@@ -81,11 +73,7 @@ import {
     verdictStore,
     type VerdictStore,
 } from "./lib/health-verdict-store";
-import {
-    claimClassifications,
-    claimLedgerPath,
-    readClaimOwners,
-} from "./lib/claim-verdict";
+import { claimClassifications } from "./lib/claim-verdict";
 import { orphanWorktrees } from "./lib/orphan-worktree";
 import { FAILED_LABEL } from "./lib/land-labels";
 import { cappedRepairPrs } from "./lib/repair-cap";
@@ -175,8 +163,6 @@ function arg(name: string, fallback: number): number {
 /** Issues with an open PR — the liveness signal that keeps a long-running claim
  *  from being swept. Derived from the head branch name, because that branch is
  *  the loop's atomic ownership claim (`feat/issue-N` / `fix/issue-N`). */
-/** Exported for `queue:claim`: ONE definition of "which issues have a PR",
- *  feeding the shared `isStaleClaim` from both verbs. */
 export function issuesWithOpenPr(): number[] {
     const prs = JSON.parse(
         gh([
@@ -625,16 +611,11 @@ function inferredTargetFiles(): Record<number, string[]> | undefined {
 // `.claude/telemetry/plans/`, gitignored wholesale under `.claude/telemetry/`
 // and pruned like the sibling `pass-markers` directory (deny-guard.sh §5).
 //
-// The session id is the join key `claim-ledger.sh` needs: it reads
-// `.session_id` off its own hook payload for every claim, and that is the
-// SAME id Claude Code exposes to a Bash tool call as `CLAUDE_CODE_SESSION_ID`
-// — confirmed against this very run (the orchestrator's session id IS the
-// `BATCH_ID` every subagent receipt is keyed by, see `scripts/lib/receipt.ts`
-// "Batch-scoped, keyed by the orchestrator's SESSION id"). Falling back to
-// empty string when the env var is absent (a manual, non-Claude-Code
-// invocation) is deliberate — `planFilename` turns that into `"unknown"`
-// rather than a guessed id that would falsely join to some other session's
-// claims.
+// Keyed by `CLAUDE_CODE_SESSION_ID`, the id the session's telemetry carries.
+// Falling back to empty string when the env var is absent (a manual,
+// non-Claude-Code invocation) is deliberate — `planFilename` turns that into
+// `"unknown"` rather than a guessed id that would falsely join to some other
+// session.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PLANS_RETENTION_DAYS = 7;
@@ -665,8 +646,8 @@ function pruneOldPlans(dir: string): void {
  * a telemetry write failing must not take that down with it.
  *
  * `now` is passed in rather than read here so the artefact carries the SAME
- * timestamp the plan was computed with (`PlanConfig.now`), which is what
- * `claim-ledger.sh` sorts filenames by.
+ * timestamp the plan was computed with (`PlanConfig.now`), which its
+ * filename sorts by.
  */
 function writePlanArtefact(
     plan: ReturnType<typeof planBatch>,
@@ -747,43 +728,6 @@ export function readHealthInfra(
     } catch {
         return null;
     }
-}
-
-/**
- * The claim journal's RELEASED issues — what `liveClaims` subtracts from the
- * `in-progress` labels.
- *
- * `claimLedgerPath()`'s own default root is `CLAUDE_PROJECT_DIR ?? "."`, and
- * that bare `.` is the trap: `queue:plan` runs from wherever the session
- * happens to be, and from an issue worktree it resolved to a directory with
- * no journal in it at all. `.claude/hooks/claim-ledger.sh` writes under the
- * session's project directory — the primary checkout — so that is what this
- * resolves to when the environment does not name one. (The health marker
- * above resolves to the primary checkout for the same reason: read a record
- * where its writer puts it, never where the caller happens to stand.)
- *
- * Total: an unreadable or absent journal subtracts nothing, which leaves the
- * labels counting on their own. That is the safe direction — see `liveClaims`.
- */
-function releasedClaimsOnThisMachine(): number[] {
-    const root = process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout();
-    try {
-        return releasedClaims(readFileSync(claimLedgerPath(root), "utf8"));
-    } catch {
-        return [];
-    }
-}
-
-/**
- * The claims the same journal says THIS machine holds (issue #5302) — what
- * the cap counts. Total the other way round from the function above: an
- * unreadable journal is `null`, which `machineScope` reads as "nothing is
- * foreign", so the cap falls back to the repository-wide count; an ABSENT one
- * holds nothing (`heldFromJournal`).
- */
-function claimsHeldOnThisMachine(): number[] | null {
-    const root = process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout();
-    return heldFromJournal(() => readFileSync(claimLedgerPath(root), "utf8"));
 }
 
 /** The whole open `ready-for-agent` queue, Stage-1 fields (`readWholeQueue`).
@@ -927,24 +871,17 @@ function main(): void {
                 .filter((i) => !i.labels.some((l) => l.name === "in-progress"))
                 .map((i) => i.number)
         ),
-        {
-            baseRef: ORIGIN_BASE,
-            owners: readClaimOwners(
-                process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout()
-            ),
-        }
+        { baseRef: ORIGIN_BASE }
     );
     const orphanParts = orphanPlanParts(orphans);
 
     // In-flight set (issue #6195): live claims and open PRs occupy their
-    // files. A stale or released claim occupies nothing.
-    const releasedNow = releasedClaimsOnThisMachine();
+    // files. A stale claim occupies nothing.
     const prs = openPrFiles();
     const occupying = new Set<number>(Object.keys(prs.byIssue).map(Number));
     for (const i of issues)
         if (
             i.labels.some((l) => l.name === "in-progress") &&
-            !releasedNow.includes(i.number) &&
             !isStaleClaim(
                 i,
                 port.issuesWithOpenPr,
@@ -967,61 +904,22 @@ function main(): void {
     );
     plan.skipped.push(...orphanParts.skipped);
 
-    // Admission is decided on the PLANNER's own classification
-    // (`activeClaims`), never on the raw labels: a claim it already called
-    // STALE is work nobody is doing, and counting those toward the cap would
-    // let three abandoned labels wedge the queue shut with no session running
-    // at all. Re-deriving that set here would be the same decision spelled a
-    // second way, which is exactly what this wrapper is not for.
-    const released = releasedClaimsOnThisMachine();
-    const reconciled = liveClaims(plan.activeClaims, released);
-    // …and then asks the LIVENESS classifier which of those claims still has a
-    // process behind it (issue #4384). `lib/claim-verdict.ts`'s verdict, imported — the
-    // cap measures active sessions, and a claim it proved `recoverable` (owner
-    // gone, committed work on a local branch) burns no CPU. The label stays:
-    // releasing it is `afk-dispatch`'s call alone. An issue with no
-    // verdict counts as live — uncertainty never authorises more concurrency.
-    // A `stranded` claim (issue #4763: owner gone, work pushed) gives up its
-    // slot the same way, and is handed to the next pass as `resume`.
-    //
-    // STALE claims are classified too, for `resume` only: the
-    // 24-hour rule drops them from the cap, but a dead pass's committed work
-    // past that age is still work — skipping it as "release it" left it for a
-    // human the AFK loop never calls. The census below reads `reconciled` only.
-    const stale = liveClaims(plan.staleClaims, released);
+    // The planner's own classification (`activeClaims`, `staleClaims`),
+    // never the raw labels, asked of the liveness classifier: a dead pass's
+    // claim — `stranded` (pushed work) or `recoverable` (a local branch) — is
+    // handed to the next pass as `resume`. STALE claims are classified too:
+    // a dead pass's committed work past the 24-hour rule is still work.
+    const claimed = new Set([...plan.activeClaims, ...plan.staleClaims]);
     const classified = claimClassifications(
         issues
-            .filter(
-                (i) => reconciled.includes(i.number) || stale.includes(i.number)
-            )
+            .filter((i) => claimed.has(i.number))
             .map((i) => ({
                 number: i.number,
                 title: i.title,
                 updatedAt: i.updatedAt,
             })),
-        ORIGIN_BASE,
-        process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout()
+        ORIGIN_BASE
     );
-    const census = capCensus(
-        reconciled,
-        new Map(classified.map((c) => [c.issue, c.verdict.state]))
-    );
-    // The cap counts THIS machine's claims (issue #5302): a claim another
-    // machine holds runs on another CPU. The planner already keeps every
-    // claimed issue out of the batch, so foreign work is never re-picked.
-    const scope = machineScope(census.live, claimsHeldOnThisMachine());
-    const admission = capRefusal(
-        scope.local,
-        sessionCap(),
-        process.argv.includes("--no-cap"),
-        census.recoverable,
-        census.stranded,
-        scope
-    );
-    // Refuse BEFORE the artefact is written and before anything reaches
-    // stdout: no plan was handed out, so no plan record should claim one was,
-    // and a driver reads a non-zero exit as "stop", which is the point.
-    if (!admission.admitted) die(admission.message);
 
     // Repair picks FIRST (issue #5469): a PR the land-runner labelled
     // `land-failed`. Its claim reads `stranded` too, so it is dropped from

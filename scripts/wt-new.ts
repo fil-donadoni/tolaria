@@ -14,8 +14,7 @@
 // Prints the worktree path on its last line, so a caller can `cd "$(…)"`.
 //
 // A worktree is a session about to work, so the MACHINE is asked first (issue
-// #4966): the same decision `queue:claim` gets
-// (`lib/machine-admission.ts`). Refused → exit 1, nothing created; the
+// #4966): `lib/machine-admission.ts`. Refused → exit 1, nothing created; the
 // announced, logged escape is `TOLARIA_OVER_CAP=1`.
 //
 // `--resume` (issue #4763): the worktree of a STRANDED claim — a dead pass's
@@ -28,7 +27,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
-import { checkClaimGate, realClaimGateDeps } from "./lib/claim-gate";
+import { claimRefusal, issueLabelArgs } from "./lib/claim-labels";
+import { gh } from "./lib/gh";
 import {
     isAdoptableWorktree,
     issueWorktree,
@@ -40,7 +40,6 @@ import {
     logSessionAdmission,
     sessionRefusal,
 } from "./lib/machine-admission";
-import { claimLedgerPath } from "./lib/claim-verdict";
 
 function git(args: string[], cwd: string): string {
     const r = spawnSync("git", args, { encoding: "utf8", cwd });
@@ -91,14 +90,11 @@ function main(): void {
         return;
     }
     // Nothing is created for an issue this session never claimed (issue #5996).
-    const refusal = checkClaimGate(
+    const refusal = claimRefusal(
         issue,
         `wt:new ${issue}${argv.includes("--fix") ? " --fix" : ""}${argv.includes("--resume") ? " --resume" : ""}`,
         process.env,
-        realClaimGateDeps(
-            claimLedgerPath,
-            process.env.CLAUDE_PROJECT_DIR ?? primary
-        )
+        (n) => gh(issueLabelArgs(n)).split("\n").filter(Boolean)
     );
     if (refusal !== null) {
         console.error(`✗ wt:new: ${refusal}`);

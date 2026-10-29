@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import {
     CLAIM_LABEL,
     PR_OPEN_LABEL,
+    UNCLAIMED_OK_ENV,
+    claimRefusal,
     closedClaimsToRelease,
     closedWithLabelArgs,
     releaseEditArgs,
@@ -52,5 +54,39 @@ describe("claims on closed issues (issue #5572)", () => {
     it("housekeeping's step runs a script that exists", () => {
         const script = CLOSED_CLAIMS_STEP.argv[1]!;
         expect(existsSync(join(__dirname, "..", "..", script))).toBe(true);
+    });
+});
+
+describe("claimRefusal — `wt:new` and `land:ready` need the label claim (issue #5996, ADR 0156)", () => {
+    const labels = (names: string[]) => () => names;
+
+    it("proceeds on an issue wearing `in-progress`", () => {
+        expect(
+            claimRefusal(7, "wt:new 7", {}, labels(["bug", CLAIM_LABEL]))
+        ).toBeNull();
+    });
+
+    it("refuses an unclaimed issue, naming the claim command and the escape", () => {
+        const r = claimRefusal(7, "wt:new 7", {}, labels(["ready-for-agent"]));
+        expect(r).toContain("issue #7 is not claimed");
+        expect(r).toContain(
+            "gh issue edit 7 --add-label in-progress --add-assignee @me"
+        );
+        expect(r).toContain(`${UNCLAIMED_OK_ENV}=1`);
+    });
+
+    it("the announced escape proceeds without reading the labels", () => {
+        let read = false;
+        const r = claimRefusal(
+            7,
+            "land:ready 70",
+            { [UNCLAIMED_OK_ENV]: "1" },
+            () => {
+                read = true;
+                return [];
+            }
+        );
+        expect(r).toBeNull();
+        expect(read).toBe(false);
     });
 });
