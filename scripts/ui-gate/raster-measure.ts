@@ -11,7 +11,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "playwright";
-import type { BlurExample, RasterResult, RasterSkip } from "./raster.ts";
+import {
+    CARD_BLUR_MAX,
+    type BlurExample,
+    type RasterResult,
+    type RasterSkip,
+} from "./raster.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const RASTER_PATH = path.join(HERE, "raster.js");
@@ -48,6 +53,7 @@ interface Candidates {
 }
 
 interface Comparison {
+    blank?: boolean;
     shot?: number;
     ref?: number;
     half?: number;
@@ -67,6 +73,30 @@ interface RasterPage {
         src: string;
     }) => Promise<Comparison>;
     __tolariaRasterClear: () => void;
+}
+
+/** Shots per face before a soft or blank reading is believed, and the pause
+ *  between them. Three attempts 400 ms apart bound a worst-case face at
+ *  under two seconds plus its shots. */
+export const RASTER_ATTEMPTS = 3;
+export const RASTER_RETRY_MS = 400;
+
+/** A reading that would count against the Floor as it stands. */
+function suspect(cmp: Comparison | null): boolean {
+    if (!cmp) return true;
+    if (cmp.blank) return true;
+    return typeof cmp.blur === "number" && cmp.blur > CARD_BLUR_MAX;
+}
+
+/** `a` is a better (sharper, more complete) reading than `b`. A blank is worse
+ *  than any number; an unjudgeable face (`blur` null) is neutral. */
+function betterThan(a: Comparison, b: Comparison | null): boolean {
+    if (!b) return true;
+    if (b.blank) return !a.blank;
+    if (a.blank) return false;
+    const ab = typeof a.blur === "number" ? a.blur : Infinity;
+    const bb = typeof b.blur === "number" ? b.blur : Infinity;
+    return ab < bb;
 }
 
 function renditionOf(src: string): string {
@@ -92,48 +122,74 @@ export async function measureRaster(page: Page): Promise<RasterResult> {
     );
     const samples: BlurExample[] = [];
     const skipped: RasterSkip[] = [];
+    /** One shot-and-compare of a marked face. */
+    const attempt = async (
+        c: Candidate
+    ): Promise<{ cmp: Comparison } | { skip: string }> => {
+        let png64: string;
+        try {
+            // The element's own box in DEVICE pixels. `animations:
+            // "disabled"` finishes a hover translate or a transition the
+            // walk may have started, so the frame compared is a settled
+            // one, never a mid-transition raster; the offender box keeps
+            // the pre-shot coordinates, which a 2px lift does not move
+            // out of its outline.
+            const buf = await page
+                .locator(`[data-ui-gate-raster="${c.k}"]`)
+                .screenshot({
+                    type: "png",
+                    animations: "disabled",
+                    caret: "hide",
+                    scale: "device",
+                    timeout: 5_000,
+                });
+            png64 = buf.toString("base64");
+        } catch (err) {
+            const first = (err as Error).message.split("\n")[0];
+            if (PAGE_GONE.test(first)) throw err;
+            return { skip: `screenshot failed: ${first}` };
+        }
+        const cmp = await page.evaluate(
+            (spec) =>
+                (globalThis as unknown as RasterPage).__tolariaRasterCompare(
+                    spec
+                ),
+            { k: c.k, png64, src: c.src }
+        );
+        if (cmp.error || cmp.skip) return { skip: cmp.error ?? cmp.skip! };
+        return { cmp };
+    };
     try {
         for (const c of candidates.picked) {
-            let png64: string;
-            try {
-                // The element's own box in DEVICE pixels. `animations:
-                // "disabled"` finishes a hover translate or a transition the
-                // walk may have started, so the frame compared is a settled
-                // one, never a mid-transition raster; the offender box keeps
-                // the pre-shot coordinates, which a 2px lift does not move
-                // out of its outline.
-                const buf = await page
-                    .locator(`[data-ui-gate-raster="${c.k}"]`)
-                    .screenshot({
-                        type: "png",
-                        animations: "disabled",
-                        caret: "hide",
-                        scale: "device",
-                        timeout: 5_000,
-                    });
-                png64 = buf.toString("base64");
-            } catch (err) {
-                const first = (err as Error).message.split("\n")[0];
-                if (PAGE_GONE.test(first)) throw err;
-                skipped.push({
-                    t: c.t,
-                    w: c.w,
-                    why: `screenshot failed: ${first}`,
-                });
+            // CONFIRM BEFORE RED. A face read soft or blank once is shot again
+            // after a pause, up to RASTER_ATTEMPTS times, and the BEST reading
+            // stands: a frame caught mid-paint, a fade still running, a layer
+            // not yet rastered all clear on the retry, while an evicted layer
+            // or a genuinely soft raster reads the same every time. Measured
+            // on this lane: a transient read 1.06 on one run and 0.00 on the
+            // next; the evicted layers of the starved-budget experiment read
+            // blank on every attempt.
+            let best: Comparison | null = null;
+            let skip: string | null = null;
+            for (let i = 0; i < RASTER_ATTEMPTS; i++) {
+                if (i > 0) await page.waitForTimeout(RASTER_RETRY_MS);
+                const r = await attempt(c);
+                if ("skip" in r) {
+                    skip = r.skip;
+                    break;
+                }
+                if (betterThan(r.cmp, best)) best = r.cmp;
+                if (!suspect(best)) break;
+            }
+            if (skip !== null && best === null) {
+                skipped.push({ t: c.t, w: c.w, why: skip });
                 continue;
             }
-            const cmp = await page.evaluate(
-                (spec) =>
-                    (
-                        globalThis as unknown as RasterPage
-                    ).__tolariaRasterCompare(spec),
-                { k: c.k, png64, src: c.src }
-            );
-            if (cmp.error || cmp.skip) {
-                skipped.push({ t: c.t, w: c.w, why: cmp.error ?? cmp.skip! });
-                continue;
-            }
-            if (cmp.blur === null || cmp.blur === undefined) {
+            if (!best) continue;
+            if (
+                !best.blank &&
+                (best.blur === null || best.blur === undefined)
+            ) {
                 skipped.push({
                     t: c.t,
                     w: c.w,
@@ -149,10 +205,11 @@ export async function measureRaster(page: Page): Promise<RasterResult> {
                 h: c.h,
                 w: c.w,
                 dpr: c.dpr,
-                blur: +cmp.blur.toFixed(3),
-                shot: cmp.shot ?? 0,
-                ref: cmp.ref ?? 0,
-                half: cmp.half ?? 0,
+                blur: best.blank ? 0 : +best.blur!.toFixed(3),
+                ...(best.blank ? { blank: true } : {}),
+                shot: best.shot ?? 0,
+                ref: best.ref ?? 0,
+                half: best.half ?? 0,
                 src: renditionOf(c.src),
                 dec: c.dec,
             });

@@ -304,3 +304,63 @@ describe("describeRaster — a cell with no sample says what its faces were", ()
         expect(some).not.toContain("rasterRejected");
     });
 });
+
+describe("raster.js — normalised energy is contrast-free, and a uniform region is no picture", () => {
+    type Norm = {
+        normalizedEnergy: (
+            data: number[],
+            w: number,
+            h: number,
+            inset: number
+        ) => number | null;
+    };
+    const m = (() => {
+        const window = new Window({ url: "http://localhost/" });
+        const context = createContext(window as unknown as object);
+        runInContext(RASTER_SOURCE, context);
+        return (window as unknown as { __tolariaRasterMath: Norm })
+            .__tolariaRasterMath;
+    })();
+    const W = 64;
+    const H = 48;
+
+    it("does not move under an affine luminance map — a 60% scrim, a fade caught mid-way", () => {
+        const sharp = stripes(W, H, 4);
+        const faded = sharp.map((v, i) => (i % 4 === 3 ? v : v * 0.4 + 20));
+        const a = m.normalizedEnergy(sharp, W, H, 0.12)!;
+        const b = m.normalizedEnergy(faded, W, H, 0.12)!;
+        expect(Math.abs(a - b) / a).toBeLessThan(0.02);
+    });
+
+    it("still orders a sharp picture above a blurred one", () => {
+        // Period 16: broad features with sharp edges, the shape of card art. A
+        // period-4 pattern under a 5-wide box blur averages to near-flat and
+        // says nothing about either rendering.
+        const sharp = stripes(W, H, 16);
+        const soft = blurred(sharp, W, H, 2);
+        expect(m.normalizedEnergy(soft, W, H, 0.12)!).toBeLessThan(
+            m.normalizedEnergy(sharp, W, H, 0.12)! * 0.8
+        );
+    });
+
+    it("reads a uniform region as null — blank, not sharp", () => {
+        const flat = new Array<number>(W * H * 4).fill(90);
+        expect(m.normalizedEnergy(flat, W, H, 0.12)).toBeNull();
+    });
+});
+
+describe("blurredOf — a blank face counts whatever its index", () => {
+    it("counts blank samples", () => {
+        expect(
+            blurredOf([sample({ blur: 0, blank: true }), sample({ blur: 0 })])
+        ).toHaveLength(1);
+    });
+    it("names a blank face BLANK on the cell line", () => {
+        expect(
+            describeRaster({
+                samples: [sample({ blur: 0, blank: true, shot: 0 })],
+                skipped: [],
+            })
+        ).toContain("Brainstorm 208px@2x dec208px grid BLANK (shot0/");
+    });
+});

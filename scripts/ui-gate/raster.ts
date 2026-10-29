@@ -47,6 +47,10 @@ export interface BlurExample {
     half: number;
     src: string;
     dec: string;
+    /** The screenshot was a UNIFORM region on every attempt — no picture at
+     *  all where the face should be: an evicted layer, a blank slot. Counted
+     *  as soft (the Blur Index is meaningless on a flat region). */
+    blank?: boolean;
 }
 
 /** A picked face that could not be measured, and why. */
@@ -80,7 +84,7 @@ export interface RasterResult {
 /** The faces whose Blur Index exceeds {@link CARD_BLUR_MAX}: the reading the
  *  `cardsSoft` Floor counts. Pure, for the unit test. */
 export function blurredOf(samples: readonly BlurExample[]): BlurExample[] {
-    return samples.filter((s) => s.blur > CARD_BLUR_MAX);
+    return samples.filter((s) => s.blank || s.blur > CARD_BLUR_MAX);
 }
 
 /** The diagnostic fragment of one cell line: every sample with its Blur
@@ -93,7 +97,7 @@ export function describeRaster(r: RasterResult): string {
           blurred
               .map(
                   (s) =>
-                      `${s.t} ${s.w}px@${s.dpr}x dec${s.dec} ${s.src} blur${s.blur.toFixed(2)} (shot${s.shot}/ref${s.ref}/half${s.half})`
+                      `${s.t} ${s.w}px@${s.dpr}x dec${s.dec} ${s.src} ${s.blank ? "BLANK" : `blur${s.blur.toFixed(2)}`} (shot${s.shot}/ref${s.ref}/half${s.half})`
               )
               .join("; ") +
           "]"
@@ -103,7 +107,7 @@ export function describeRaster(r: RasterResult): string {
           r.samples
               .map(
                   (s) =>
-                      `${s.w}px@${s.dpr}x ${s.src}:${s.blur.toFixed(2)}(s${s.shot}/r${s.ref}/h${s.half})`
+                      `${s.w}px@${s.dpr}x ${s.src}:${s.blank ? "BLANK" : s.blur.toFixed(2)}(s${s.shot}/r${s.ref}/h${s.half})`
               )
               .join(",") +
           "}"

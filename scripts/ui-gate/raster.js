@@ -25,9 +25,14 @@
 // styles — a canvas never exists there.
 //
 // THE MEASUREMENT. Luminance gradient energy — the mean of |∂L/∂x| + |∂L/∂y|
-// over the face's interior — is a scale-free proxy for sharpness that survives
-// a sub-pixel misalignment between the two renderings (a per-pixel diff would
-// not). Three energies are taken on the same inset region:
+// over the face's interior — divided by the region's luminance contrast (its
+// standard deviation) is a scale-free, CONTRAST-FREE proxy for sharpness: it
+// survives a sub-pixel misalignment between the two renderings (a per-pixel
+// diff would not) and a scrim, a fade-in caught mid-way or a gradient overlay
+// (which scale gradient and contrast alike; measured on this lane before the
+// normalisation: one tablet cell read 0.00, 0.39 and 1.06 on three runs of the
+// same face, a fade). Three normalised energies are taken on the same inset
+// region:
 //
 //   shot  the screenshot, i.e. what the user sees;
 //   ref   the resolved resource drawn at the face's device size with
@@ -89,9 +94,47 @@
         return n ? sum / n : 0;
     }
 
-    /** The Blur Index (see the header). `null` when the reference cannot
-     *  distinguish sharp from half-resolution at this size — a face so small
-     *  that halving it loses nothing measurable. */
+    /** Standard deviation of the luminance over the same inset region: the
+     *  region's CONTRAST. */
+    function luminanceSigma(data, w, h, inset) {
+        const x0 = Math.floor(w * inset);
+        const x1 = Math.ceil(w * (1 - inset));
+        const y0 = Math.floor(h * inset);
+        const y1 = Math.ceil(h * (1 - inset));
+        let sum = 0;
+        let sq = 0;
+        let n = 0;
+        for (let y = y0; y < y1; y++) {
+            for (let x = x0; x < x1; x++) {
+                const i = (y * w + x) * 4;
+                const l =
+                    0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                sum += l;
+                sq += l * l;
+                n++;
+            }
+        }
+        if (!n) return 0;
+        const mean = sum / n;
+        return Math.sqrt(Math.max(0, sq / n - mean * mean));
+    }
+
+    /** Gradient energy NORMALISED by contrast — the quantity the Blur Index is
+     *  built on. A scrim, a fade-in caught mid-way, a `pointer-events: none`
+     *  gradient over the card all apply an affine map to luminance
+     *  (L' = αL + c): that scales the gradient and the contrast by the same
+     *  α, so their ratio does not move, while a lower-resolution raster loses
+     *  gradient far faster than contrast. `null` when the region is UNIFORM
+     *  (σ under 1 level): there is no picture to measure. */
+    function normalizedEnergy(data, w, h, inset) {
+        const sigma = luminanceSigma(data, w, h, inset);
+        if (sigma < 1) return null;
+        return gradientEnergy(data, w, h, inset) / sigma;
+    }
+
+    /** The Blur Index (see the header), on normalised energies. `null` when
+     *  the reference cannot distinguish sharp from half-resolution at this
+     *  size — a face so small that halving it loses nothing measurable. */
     function blurIndex(shot, ref, half) {
         const span = ref - half;
         if (!(ref > 0) || span <= ref * 0.05) return null;
@@ -124,6 +167,8 @@
 
     window.__tolariaRasterMath = {
         gradientEnergy,
+        luminanceSigma,
+        normalizedEnergy,
         blurIndex,
         fadedOrFiltered,
         transformed,
@@ -342,14 +387,25 @@
         } catch {
             return { error: "reference canvas tainted (no CORS)" };
         }
-        const shot = gradientEnergy(shotData, W, H, INSET);
-        const refE = gradientEnergy(refData, W, H, INSET);
-        const half = gradientEnergy(halfData, W, H, INSET);
+        const refE = normalizedEnergy(refData, W, H, INSET);
+        const half = normalizedEnergy(halfData, W, H, INSET);
+        const shot = normalizedEnergy(shotData, W, H, INSET);
+        if (refE === null) return { skip: "reference region is uniform" };
+        // A uniform screenshot is no picture at all where the face should be:
+        // the layer evicted, the slot blank. The caller re-shoots before it
+        // believes it (a frame not yet painted looks the same).
+        if (shot === null)
+            return {
+                blank: true,
+                shot: 0,
+                ref: +refE.toFixed(3),
+                half: +(half ?? 0).toFixed(3),
+            };
         return {
             shot: +shot.toFixed(3),
             ref: +refE.toFixed(3),
-            half: +half.toFixed(3),
-            blur: blurIndex(shot, refE, half),
+            half: +(half ?? 0).toFixed(3),
+            blur: blurIndex(shot, refE, half ?? 0),
             pxW: W,
             pxH: H,
             natW: nw,
