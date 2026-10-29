@@ -84,7 +84,7 @@ function renderCard(card: CardInstance, ctx: Record<string, unknown> = {}) {
         debugAllActions: false,
         onSwitchGame: () => {},
         ...ctx,
-    } as React.ContextType<typeof GameContext>;
+    } as unknown as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>
             <PendingChoiceBufferContext value={noopBuffer}>
