@@ -5298,6 +5298,27 @@ function lowerFrameChain(
                 });
                 break;
             }
+            // CR 707.2 + CR 611.2a — the recipient is announced (or is the
+            // source) BEFORE the copied object, so its slot comes first.
+            case "becomeCopy": {
+                const target = objectSelector(
+                    frame.recipient,
+                    walk.targets,
+                    site
+                );
+                if (!target.ok) return target;
+                const source = objectSelector(frame.source, walk.targets, site);
+                if (!source.ok) return source;
+                ops.push({
+                    op: "becomeCopy",
+                    target: target.value,
+                    source: source.value,
+                    ...(frame.duration === undefined
+                        ? {}
+                        : { duration: durationSpec(frame.duration) }),
+                });
+                break;
+            }
             // CR 601.2 + CR 400.7 — the announced graveyard card may be cast
             // this turn; the folded rider exiles it as it leaves the stack.
             case "grantCastFromGraveyard": {

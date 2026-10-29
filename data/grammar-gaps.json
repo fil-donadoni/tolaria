@@ -13,11 +13,6 @@
             "issue": 7369
         },
         {
-            "key": "(op) › becomeCopy",
-            "op": "becomeCopy",
-            "issue": 7370
-        },
-        {
             "key": "(op) › becomeMonarch",
             "op": "becomeMonarch",
             "issue": 4536

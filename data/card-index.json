@@ -43433,6 +43433,16 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Mirage Mirror",
+        "scryfallId": "29148d7e-b398-4e19-a29e-d9a660ad5016",
+        "oracleId": "6a84eda1-7e72-4b5a-849f-b6e177565aeb",
+        "firstSet": "hou",
+        "firstPrintId": "29148d7e-b398-4e19-a29e-d9a660ad5016",
+        "firstPrintSet": "hou",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Mire Boa",
         "scryfallId": "190dffdc-9d85-430d-9aea-b75084104840",
         "oracleId": "e9a3a466-df78-49a0-add3-975b94c5cd09",
@@ -73333,6 +73343,16 @@
         "firstPrintId": "23a4bac2-f6cb-4712-8510-a63657c43a5c",
         "firstPrintSet": "eld",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "True Polymorph",
+        "scryfallId": "04a1f384-9266-425c-b739-09d74871fc7b",
+        "oracleId": "8d24e181-74c1-4913-a18a-59378ec7d9e7",
+        "firstSet": "afr",
+        "firstPrintId": "04a1f384-9266-425c-b739-09d74871fc7b",
+        "firstPrintSet": "afr",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
