@@ -984,7 +984,7 @@ function main(): void {
     // A `stranded` claim (issue #4763: owner gone, work pushed) gives up its
     // slot the same way, and is handed to the next pass as `resume`.
     //
-    // STALE claims are classified too, for `resume` only (issue #5174): the
+    // STALE claims are classified too, for `resume` only: the
     // 24-hour rule drops them from the cap, but a dead pass's committed work
     // past that age is still work — skipping it as "release it" left it for a
     // human the AFK loop never calls. The census below reads `reconciled` only.

@@ -2,7 +2,7 @@
  * Which tests a diff can reach through the import graph (ADR 0154 §2, issue
  * #5464) — the scoping `check:lane` runs for the `engine` and `skin` lanes in
  * place of whole vitest projects, and for the `full` lane's bot half
- * (`botTests` / `botRelatedTests`, issue #6149).
+ * (`botTests` / `botRelatedTests`).
  *
  * A test is RELATED to a diff when the diff contains the test itself or any
  * module in the test's transitive local import closure. That is the question
@@ -33,7 +33,7 @@
  *     scanned for the file names it runs (issue #5555): `test → harness →
  *     "x.sh" → bun "$SCRIPT_DIR/y.ts" → its imports` is one transitive
  *     chain. Before it a name node was a dead end, and a red a shell-spawned
- *     script caused escaped `land` (issue #5551).
+ *     script caused escaped `land`.
  *
  * WHAT THE WALK STILL CANNOT SEE, stated so nobody reads a skip as a proof:
  * a census that walks a DIRECTORY (`readdirSync(".claude/skills")`) or matches

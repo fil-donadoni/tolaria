@@ -16,7 +16,7 @@
  * proves nothing about which session owns a claim, and a wrong release
  * unclaims live work.
  *
- * Library only: its CLI retired with the loop driver (issue #7486); the
+ * Library only: its CLI retired with the loop driver; the
  * gathering helpers stay here beside the verdict they feed.
  */
 import { spawnSync } from "node:child_process";

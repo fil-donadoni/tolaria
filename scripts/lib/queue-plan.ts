@@ -1565,7 +1565,7 @@ export function machineScope(
  * gives up its slot on the same evidence; the label stands, and the plan
  * hands it to the next pass as `resume`.
  *
- * A `pr-open` claim (issue #5469) is a session that ENDED by design: it
+ * A `pr-open` claim is a session that ENDED by design: it
  * pushed, labelled its PR `ready-to-land` and handed off to the land-runner.
  * No slot, and — unlike `stranded` — nothing to resume: it stays in the
  * collision set, so no pass re-takes an issue whose PR is queued to merge.

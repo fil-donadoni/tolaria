@@ -26,7 +26,7 @@
 //   - stdin is not a TTY         — no human to grill, so a spawned session
 //                                  would block on its first question. This
 //                                  closes an OBSERVED hole: the session that
-//                                  found issue #3187 ran `release` from
+//                                  found a RED ran `release` from
 //                                  inside another Claude session. Waived by
 //                                  `--headless` (issue #5589): the session
 //                                  is `claude -p` on `/health-fix <sha>
@@ -50,8 +50,8 @@
 // Exit code: 0 when there is nothing to fix or the fixer landed its repair;
 // 1 on any refusal and on any `stuck` verdict.
 //
-// `release`'s loop around this (issue #3201) and the skill itself (issue
-// #3200) import what is defined here.
+// `release`'s loop around this and the skill itself import what is
+// defined here.
 //
 // `ladder` (issue #5646) is the RED ladder's last rungs as a job
 // (`health-fix.yml`): it reads the standing RED's facts off the pivot, asks

@@ -12,7 +12,7 @@
  *
  *   1. list `ready-to-land` PRs (`--state all`): a row whose own labels are
  *      not `ready-to-land` without `land-failed` is the search index lagging
- *      a relabel — held (issue #5941); a closed/merged one, or one whose
+ *      a relabel — held; a closed/merged one, or one whose
  *      branch is gone from origin, is STALE — unlabelled and logged;
  *   2. read the health lineage through the verdict store: under RED only a
  *      PR closing a recorded `/health-fix` issue lands, the rest stay queued
@@ -27,7 +27,7 @@
  *      changed, close the issue if the merge did not, release its claim
  *      (label, assignee, journal row), remove the worktree; 77, a signal or
  *      a worktree that could not be prepared (network, disk) → stays queued;
- *      any other red is classified (`classifyRed`, issue #5955) from the
+ *      any other red is classified (`classifyRed`) from the
  *      lane's sidecar JSON (`TOLARIA_LANE_JSON_OUT`) and `land`'s own
  *      output: `regenerable` → `pr:fixup run --in-place` in the worktree
  *      `land` rebased, the PR stays queued; `infra` → stays queued, retried
@@ -40,7 +40,7 @@
  * reads `RUNNER_SOURCE_PATHS` at the primary's HEAD and, once they moved,
  * exits `RESTART_EXIT` when launchd supervises it
  * (`KeepAlive.SuccessfulExit = false` starts it on the new code), or says so
- * once when started by hand, whose next start does (issue #5941).
+ * once when started by hand, whose next start does.
  *
  * Flags: `--once` (one tick, then exit — cron/launchd-friendly), `--dry-run`
  * (print the tick's plan, touch nothing), `--interval <s>` (between ticks;
