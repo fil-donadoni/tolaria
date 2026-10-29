@@ -129,6 +129,7 @@ import {
     type RuleResult,
 } from "../../rule";
 import { isSelfPhrase } from "./cost";
+import { durationRule, type DurationIR } from "./duration";
 import {
     isLandOnlyTarget,
     readAmount,
@@ -350,6 +351,20 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 707.2 + CR 611.2a — "<this permanent|target X> becomes a copy
+           * of <target Y>[ until end of turn]": an EXISTING permanent takes
+           * the copiable values of another. The recipient is the source or an
+           * announced target; the copied object is an announced target, which
+           * may print "another target" (CR 115.3). `duration` is absent for an
+           * indefinite copy.
+           */
+          readonly frame: "becomeCopy";
+          readonly recipient: SubjectIR;
+          readonly source: SubjectIR;
+          readonly duration?: DurationIR;
+      }
+    | {
+          /**
            * CR 601.2 + CR 400.7 — "you may cast target <card> from your
            * graveyard this turn": an impulse window over ONE announced card in
            * the controller's graveyard. `exilesOnResolve` is the folded
@@ -479,6 +494,10 @@ export const VERB_FRAMES: readonly {
         opens: /^create a token that's a copy of /i,
     },
     {
+        name: "becomeCopy",
+        opens: /^(?:this|target|another target) .+? becomes a copy of /i,
+    },
+    {
         name: "grantCastFromGraveyard",
         opens: /^you may cast target /i,
     },
@@ -536,6 +555,9 @@ const NAME_LIST = /\b(and|or|and\/or|named)\b/i;
 const PROTECTION_FROM_EVERYTHING =
     "you gain protection from everything until your next turn";
 const COPY_TOKEN_OPENER = "create a token that's a copy of ";
+/** CR 707.2 — "<recipient> becomes a copy of <source>[ <duration>]". */
+const BECOME_COPY =
+    /^(.+?) becomes a copy of (.+?)(?: (until end of turn|until your next turn))?$/;
 const CAST_FROM_GRAVEYARD_THIS_TURN =
     /^you may cast target (.+?) from your graveyard this turn$/;
 /** CR 500.7 — the one extra-turn spelling per subject; nothing trails "this one". */
@@ -1552,6 +1574,48 @@ function readMember(
             };
         return {
             frames: [{ frame: "copyToken", source: subject.value }],
+            referent,
+        };
+    }
+    if (opensFrame("becomeCopy", lower)) {
+        const copy = lower.match(BECOME_COPY);
+        if (copy === null)
+            return { refused: `"${member}" is not a copy-becoming clause` };
+        const recipient = subjectRule.run(copy[1]!, ctx);
+        if (!recipient.ok)
+            return { refused: recipient.reason, failure: recipient };
+        // CR 707.2 — the recipient is the source or its own announcement; a
+        // pronoun, a sweep or a host is another copy effect no fixture pins.
+        if (
+            recipient.value.kind !== "self" &&
+            !(recipient.value.kind === "target" && !recipient.value.another)
+        )
+            return {
+                refused: `"${copy[1]!}" is not a recipient a copy is read onto — only the source or a target is`,
+            };
+        const source = subjectRule.run(copy[2]!, ctx);
+        if (!source.ok) return { refused: source.reason, failure: source };
+        // CR 707.2 — the copied object is an announced target; "except it …"
+        // (CR 707.9) and a chosen card are other forms.
+        if (source.value.kind !== "target")
+            return {
+                refused: `"${copy[2]!}" is not an object a copy is read from — only an announced target is`,
+            };
+        let duration: DurationIR | undefined;
+        if (copy[3] !== undefined) {
+            const span = durationRule.run(copy[3], ctx);
+            if (!span.ok) return { refused: span.reason, failure: span };
+            duration = span.value;
+        }
+        return {
+            frames: [
+                {
+                    frame: "becomeCopy",
+                    recipient: recipient.value,
+                    source: source.value,
+                    ...(duration === undefined ? {} : { duration }),
+                },
+            ],
             referent,
         };
     }

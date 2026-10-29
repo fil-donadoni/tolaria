@@ -14172,4 +14172,48 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 707.2 + CR 611.2a — "{2}: This artifact becomes a copy of target
+    // artifact, creature, enchantment, or land until end of turn.": exhibits
+    // `becomeCopy` acting on `$source`, which the canned smoke scenario cannot
+    // seed (the permanent it copies is announced at activation).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "6a84eda1-7e72-4b5a-849f-b6e177565aeb",
+            name: "Mirage Mirror",
+            manaCost: "{3}",
+            typeLine: "Artifact",
+            oracleText:
+                "{2}: This artifact becomes a copy of target artifact, creature, enchantment, or land until end of turn.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Mirage Mirror",
+            types: ["Artifact"],
+            manaCost: { X: 3 },
+            oracleText:
+                "{2}: This artifact becomes a copy of target artifact, creature, enchantment, or land until end of turn.",
+            activatedAbilities: [
+                {
+                    id: "mirage-mirror-ability",
+                    oracleText:
+                        "{2}: This artifact becomes a copy of target artifact, creature, enchantment, or land until end of turn.",
+                    cost: { mana: { X: 2 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "becomeCopy",
+                            target: { ref: "$source" },
+                            source: { target: 0 },
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                    targetRequirement: {
+                        type: ["Artifact", "Creature", "Enchantment", "Land"],
+                        count: 1,
+                    },
+                },
+            ],
+        },
+    },
 ]);
