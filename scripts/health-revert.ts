@@ -31,8 +31,11 @@
  *
  * Invoked by `health:fix ladder` (`scripts/health-fix.ts`); the decisions
  * and every text it writes are `lib/health-ladder.ts`'s. Exit 0: the revert
- * PR is queued (or the dry run applied); 1: a failed try; 2: usage; 3: the
- * revert does not apply; 4: nothing recorded, nothing made.
+ * PR is queued (or the dry run applied); 1: a failed try; 2: usage, or a
+ * base-maintenance `--culprit` (`derive:sync — …`, `bot-replay — …`: it
+ * writes derived state only and its revert can never land),
+ * refused before anything is recorded; 3: the revert does not apply; 4:
+ * nothing recorded, nothing made.
  * docs/guides/github-pipeline.md § health-fix.
  */
 import { spawnSync } from "node:child_process";
@@ -40,6 +43,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { CLAIM_LABEL, PR_OPEN_LABEL } from "./lib/claim-labels";
+import { isBaseMaintenanceSubject } from "./lib/derive-sync";
 import { prOfSubject } from "./lib/health-bisect";
 import { fixAttemptStore, type FixAttempt } from "./lib/health-fix-attempts";
 import {
@@ -96,6 +100,22 @@ function must(cmd: string, args: string[], cwd: string): string {
 }
 
 /** The PR number a `gh pr create` URL ends with, or null. */
+/**
+ * Why `--culprit` may not be reverted, or null (issue #7417): a
+ * base-maintenance commit writes derived state only — the RED it shows is a
+ * PR's — and `check:derived-in-diff` refuses its revert, so the PR could
+ * never land. An unreadable subject is not refused here: the revert's own
+ * reads fail on it.
+ */
+export function maintenanceRefusal(
+    culprit: string,
+    log: { ok: boolean; out: string }
+): string | null {
+    const subject = log.out.trim();
+    if (!log.ok || !isBaseMaintenanceSubject(subject)) return null;
+    return `refused: ${culprit} is a base-maintenance commit (\`${subject}\`) — it writes derived state only and its revert can never land (\`check:derived-in-diff\`, ADR 0157); revert the PR commit(s) before it (issue #7417)`;
+}
+
 export function prNumberOfUrl(url: string): number | null {
     const m = /\/pull\/(\d+)\s*$/.exec(url.trim());
     return m ? Number(m[1]) : null;
@@ -115,6 +135,14 @@ function main(): number {
     const attemptNo = Number(arg("--attempt") ?? "1");
     const root = primaryCheckout(process.cwd());
     const say = (line: string) => console.log(`health-revert: ${line}`);
+    const refusal = maintenanceRefusal(
+        culpritArg,
+        run("git", ["log", "-1", "--format=%s", culpritArg], root)
+    );
+    if (refusal !== null) {
+        console.error(`health-revert: ${refusal}`);
+        return 2;
+    }
     const attempts = fixAttemptStore(root);
     const record = (
         outcome: FixAttempt["outcome"],

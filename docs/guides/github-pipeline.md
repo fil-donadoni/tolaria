@@ -847,7 +847,14 @@ job) is written by the next health run before it gates.
    culprit. The first red commit's PR (` (#N)` in a squash subject) is added
    to the RED's published evidence as a `- **culprit:**` line, which
    `bun run health:status --evidence` prints. A probe that could not run ends
-   the search with no culprit rather than a guess.
+   the search with no culprit rather than a guess. Each probe runs as the
+   queue draft (`derive:regenerate`, `draft` role, issue #7417): a PR commit
+   carries no catalogue or header of its own (ADR 0157), so probed as
+   committed it would read green and the base's `derive:sync` after it red.
+   A base-maintenance commit (`derive:sync — …`, `bot-replay — …`) is never
+   the culprit: a first red probe on one names the one PR commit since the
+   previous one (several: none named, the candidates listed — a guess is
+   worse than none), and `health:revert` refuses one (exit 2).
 
 Every RED the ladder confirms gets that `- **culprit:**` line, named or not
 — the mark that it was climbed: a later ladder on the same RED stops at once
