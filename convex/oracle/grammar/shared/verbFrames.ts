@@ -352,6 +352,15 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 104.2b — "you win the game": the controller wins through an
+           * ability. Only the bare "you" subject is read; the gate ("if …",
+           * "Then if …") is the enclosing clause's condition, never part of
+           * the frame.
+           */
+          readonly frame: "winGame";
+      }
+    | {
+          /**
            * CR 122.1 — "<player> gets N poison/experience counters" and
            * "you get {E}{E}" (CR 107.14: one energy counter per symbol): a
            * counter kind a PLAYER holds is added to that player.
@@ -507,6 +516,7 @@ export const VERB_FRAMES: readonly {
     },
     { name: "skipNextTurn", opens: /^you skip your next turn$/i },
     { name: "becomeMonarch", opens: /^you become the monarch\b/i },
+    { name: "winGame", opens: /^you win the game\b/i },
     {
         name: "playerCounters",
         // The finite verb behind a player reference, then a counter: the
@@ -593,6 +603,8 @@ const CAST_FROM_GRAVEYARD_THIS_TURN =
     /^you may cast target (.+?) from your graveyard this turn$/;
 /** CR 725.1 — the whole sentence, nothing trailing. */
 const BECOME_MONARCH = "you become the monarch";
+/** CR 104.2b — the whole sentence, nothing trailing. */
+const WIN_GAME = "you win the game";
 /**
  * CR 122.1 + CR 107.14 — "<player> gets {E}{E}" (the optional trailing space
  * is what stripping the "(two energy counters)" reminder, CR 207.2a, leaves)
@@ -1606,6 +1618,13 @@ function readMember(
                 refused: `"${member}" — only the bare "You become the monarch" is read`,
             };
         return { frames: [{ frame: "becomeMonarch" }], referent };
+    }
+    if (opensFrame("winGame", lower)) {
+        if (lower !== WIN_GAME)
+            return {
+                refused: `"${member}" — only the bare "You win the game" is read`,
+            };
+        return { frames: [{ frame: "winGame" }], referent };
     }
     if (opensFrame("playerCounters", lower)) {
         const counters = lower.match(PLAYER_COUNTERS);
