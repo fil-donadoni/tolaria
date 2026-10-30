@@ -3979,6 +3979,24 @@ export interface EffectCopyExcept {
      *  copy"; Saheeli, Sublime Artificer, issue #3236). See
      *  `CopyEffectOptions.additionalTypes`. */
     additionalTypes?: CardType[];
+    /** CR 707.9a "…except it has this ability" (Thespian's Stage, issue
+     *  #7207) — ids of activated abilities printed on the card that PRINTS
+     *  the resolving ability (`SpellContext.abilityCardId`), which the copy
+     *  gains as part of the copying process. Resolved to
+     *  `CopyEffectOptions.additionalActivatedAbilities` references at
+     *  execution, because only then is the printing card known. */
+    additionalActivatedAbilityIds?: string[];
+}
+
+/** CR 707.9a — one activated ability a copy effect makes part of the copy's
+ *  copiable values: the ability `abilityId` printed in the
+ *  `activatedAbilities[]` of definition `sourceCardId`. A REFERENCE, not an
+ *  ability id on the copy's own card: the copy presents the copied object's
+ *  definition, and a copy of the copy (CR 707.3) inherits the reference
+ *  whatever card it is printed as. */
+export interface CopyGainedActivatedAbility {
+    sourceCardId: string;
+    abilityId: string;
 }
 
 /** Options for a copy effect applied via `SpellContext.becomeCopyOf`. */
@@ -4032,6 +4050,18 @@ export interface CopyEffectOptions {
      *  every application (a re-copy of an object carrying no such clause
      *  leaves no stale keyword behind). */
     additionalStaticAbilities?: string[];
+    /** CR 707.9a "except it has this ability" (Thespian's Stage, issue
+     *  #7207) — activated abilities the copy GAINS as part of the copying
+     *  process. "This ability becomes part of the copiable values for the
+     *  copy", so it is the activated-ability sibling of
+     *  `additionalStaticAbilities`, never a layer-6 grant: stamped on the
+     *  `CopyExcept` clause, read by `getEffectiveActivatedAbilities` beside
+     *  the presented definition's own abilities, lost with them to a "loses
+     *  all abilities" effect, and inherited by a copy of the copy (CR 707.3 —
+     *  the rule's own Unstable Shapeshifter example). Recomputed on every
+     *  application: the copy of a different object keeps only what THIS copy
+     *  effect, or the new source's own stamp, gives it. */
+    additionalActivatedAbilities?: CopyGainedActivatedAbility[];
     /** CR 707.2 "except its base power and toughness are N/N" — the copy's
      *  BASE P/T (layer 7a) replaces the copied object's printed values.
      *  Eternalize (CR 702.129a) makes a 4/4; Embalm (CR 702.128a) omits it and
@@ -4095,6 +4125,7 @@ export type CopyExcept = Pick<
     | "additionalTypes"
     | "additionalSubtypes"
     | "additionalStaticAbilities"
+    | "additionalActivatedAbilities"
     | "noManaCost"
 >;
 
@@ -4230,6 +4261,15 @@ export interface SpellContext {
      *  card on the stack (ADR 0048). Empty string for synthetic items with
      *  no registry id. */
     sourceCardId: string;
+    /** CR 113.1 / 707.9a — the card definition id that PRINTS the resolving
+     *  ability: the granting card's for an ability granted to the source, or
+     *  gained through a copy effect, else `sourceCardId`. Read by "except it
+     *  has this ability" (`EffectCopyExcept.additionalActivatedAbilityIds`):
+     *  the ability is looked up where it is printed, never on the card the
+     *  source presents. Set by the stack resolver's context builder
+     *  (`""` for a synthetic item with no registry id, which gains nothing);
+     *  read as `sourceCardId` when a hand-built context omits it. */
+    abilityCardId?: string;
     /** The event that fired this triggered ability (CR 603), or undefined at
      *  spell / activated-ability sites. Threaded from the resolving stack item
      *  (`StackItem.triggerEvent`). Read by the Effect Script interpreter to

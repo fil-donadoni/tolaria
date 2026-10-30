@@ -2282,6 +2282,8 @@ function isCopyExceptClause(value: unknown): boolean {
         // CR 707.9b "except it's an artifact in addition to its other types"
         // (issue #3236).
         "additionalTypes",
+        // CR 707.9a "except it has this ability" (issue #7207).
+        "additionalActivatedAbilityIds",
     ]);
     const keys = Object.keys(e);
     if (keys.length === 0) return false;
@@ -2316,6 +2318,16 @@ function isCopyExceptClause(value: unknown): boolean {
         (!Array.isArray(e.additionalTypes) ||
             e.additionalTypes.length === 0 ||
             !isStringArray(e.additionalTypes, TOKEN_CARD_TYPES))
+    ) {
+        return false;
+    }
+    if (
+        "additionalActivatedAbilityIds" in e &&
+        (!Array.isArray(e.additionalActivatedAbilityIds) ||
+            e.additionalActivatedAbilityIds.length === 0 ||
+            !e.additionalActivatedAbilityIds.every(
+                (s) => typeof s === "string" && s.length > 0
+            ))
     ) {
         return false;
     }

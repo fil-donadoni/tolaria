@@ -3226,9 +3226,14 @@ function isSourceSelfRef(selector: EffectObjectSelector): boolean {
  *  the same clause differently. Arrays are copied so instance state never
  *  aliases a module-level card definition. */
 function copyOptionsFromExcept(
+    ctx: SpellContext,
     except: EffectCopyExcept | undefined
 ): CopyEffectOptions {
     if (!except) return {};
+    // CR 707.9a "except it has this ability" — the ability is the one printed
+    // on the card that prints the RESOLVING ability (a copy that gained it
+    // resolves it from Thespian's Stage's definition, not the land it copies).
+    const abilityCardId = ctx.abilityCardId ?? ctx.sourceCardId;
     return {
         ...(except.basePower !== undefined
             ? { basePower: except.basePower }
@@ -3248,6 +3253,15 @@ function copyOptionsFromExcept(
                   additionalStaticAbilities: [
                       ...except.additionalStaticAbilities,
                   ],
+              }
+            : {}),
+        ...(except.additionalActivatedAbilityIds && abilityCardId
+            ? {
+                  additionalActivatedAbilities:
+                      except.additionalActivatedAbilityIds.map((abilityId) => ({
+                          sourceCardId: abilityCardId,
+                          abilityId,
+                      })),
               }
             : {}),
         ...(except.noManaCost ? { noManaCost: true } : {}),
@@ -6073,7 +6087,7 @@ export const OP_EXECUTORS: {
         if (!recipient || recipient.type !== "permanent") return;
         if (!source || source.type !== "permanent") return;
         if (recipient.id === source.id) return;
-        ctx.becomeCopyOf(source.id, copyOptionsFromExcept(op.except), {
+        ctx.becomeCopyOf(source.id, copyOptionsFromExcept(ctx, op.except), {
             permanentId: recipient.id,
             ...(op.duration ? { duration: op.duration } : {}),
         });
@@ -6228,7 +6242,7 @@ export const OP_EXECUTORS: {
                           ? { lastKnownFromGraveyardOrExile: true }
                           : {}),
                       ...(lastKnownCopiable ? { lastKnownCopiable: true } : {}),
-                      ...copyOptionsFromExcept(except),
+                      ...copyOptionsFromExcept(ctx, except),
                   }
                 : undefined;
         const createdIds: string[] = [];

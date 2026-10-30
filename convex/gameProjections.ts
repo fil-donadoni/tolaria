@@ -580,8 +580,12 @@ function hideFaceDownIdentity(slimmed: {
     imagePrintId?: string;
     preCopyImagePrintId?: string;
     sourcePrintId?: string;
+    copyExcept?: unknown;
 }): void {
     delete slimmed.faceDownOf;
+    // CR 708.5 — a copy effect's "except" clause names what the card copied
+    // and, through a gained ability's `sourceCardId`, the card underneath.
+    delete slimmed.copyExcept;
     delete slimmed.imagePrintId;
     delete slimmed.preCopyImagePrintId;
     delete slimmed.sourcePrintId;
