@@ -296,6 +296,17 @@ export type SlotIR =
      */
     | { readonly kind: "madness"; readonly cost: ManaCost }
     /**
+     * CR 702.96a — an "Overload [cost]" line: the alternative cost that turns
+     * every "target" of the spell into "each", lowered onto
+     * `CardDefinition.overload`. `description` is the printed line, as the
+     * catalogue writes it ("Overload {2}{W}{W}").
+     */
+    | {
+          readonly kind: "overload";
+          readonly cost: ManaCost;
+          readonly description: string;
+      }
+    /**
      * CR 702.37e — a "Morph [cost]" line: the cost to turn the permanent face
      * up, lowered onto `CardDefinition.morph`.
      */

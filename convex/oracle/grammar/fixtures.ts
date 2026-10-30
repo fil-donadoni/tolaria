@@ -14216,4 +14216,43 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 702.96a — "Overload {2}{W}{W}": the cost rides `overload`, and the body's target slot becomes the `forEach { set: "targets" }` sweep the overloaded cast iterates. Exhibits that sweep, which the smoke scenario cannot build (issue #3274).
+    {
+        rule: "overload",
+        card: {
+            oracleId: "b01d61cc-9844-4191-86a0-f2db6d42d6e5",
+            name: "Damn",
+            manaCost: "{B}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                'Destroy target creature. A creature destroyed this way can\'t be regenerated.\nOverload {2}{W}{W} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+            layout: "normal",
+        },
+        expected: {
+            name: "Damn",
+            types: ["Sorcery"],
+            manaCost: { B: 2 },
+            oracleText:
+                'Destroy target creature. A creature destroyed this way can\'t be regenerated.\nOverload {2}{W}{W} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+            overload: {
+                id: "overload",
+                description: "Overload {2}{W}{W}",
+                mana: { X: 2, W: 2 },
+            },
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "destroy",
+                            target: { ref: "$each" },
+                            cantBeRegenerated: true,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

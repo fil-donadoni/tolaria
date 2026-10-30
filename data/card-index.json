@@ -19712,6 +19712,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dynacharge",
+        "scryfallId": "e612a032-39be-44cd-a78c-29f89dc384b0",
+        "oracleId": "61869f52-51a8-4126-af06-5f5c3d80c28c",
+        "firstSet": "rtr",
+        "firstPrintId": "e612a032-39be-44cd-a78c-29f89dc384b0",
+        "firstPrintSet": "rtr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Dystopia",
         "scryfallId": "5f8bb451-706d-44ff-bbad-9ddc6f9f786a",
         "oracleId": "d0e6203b-cef2-470f-8c79-7b139290e2d5",
@@ -66817,6 +66827,16 @@
         "firstPrintId": "0cb84193-9648-46e5-a34d-c12cc3f1d7f2",
         "firstPrintSet": "akh",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Stirring Address",
+        "scryfallId": "2de3e3b0-6ecf-4bf6-9595-0e5e59ef1d6a",
+        "oracleId": "45a60f56-35e4-46e5-838f-8b4407a67cd6",
+        "firstSet": "mh1",
+        "firstPrintId": "2de3e3b0-6ecf-4bf6-9595-0e5e59ef1d6a",
+        "firstPrintSet": "mh1",
+        "rarity": "common",
         "source": "compiled"
     },
     {
