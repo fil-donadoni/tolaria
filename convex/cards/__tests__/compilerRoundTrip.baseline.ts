@@ -1136,7 +1136,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Timetwister",
     "Tinder Wall",
     "Tireless Tracker",
-    "Tishana's Tidebinder",
     "Titania's Song",
     "Titania, Protector of Argoth",
     "Tolaria",
