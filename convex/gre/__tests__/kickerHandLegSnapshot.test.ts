@@ -97,7 +97,7 @@ describe("Dralnu's Pet — Kicker hand-leg snapshot (issue #2008)", () => {
             expect(live.counters?.["+1/+1"]).toBe(mv);
             expect(live.staticAbilities).toContain("flying");
 
-            const view = projectPublicState(state, "p2");
+            const view = projectPublicState(state, 1, "p2");
             const seen = view.players[0].battlefield.find(
                 (c) => c.id === "pet"
             );
