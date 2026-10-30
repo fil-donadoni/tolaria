@@ -4103,6 +4103,10 @@ function finalizeSpellResolution(
                 // from, for "if this creature was kicked with its {A} kicker"
                 // (the Apocalypse Volvers). Same snapshot, same instant.
                 kickerPayments: item.kickerPayments,
+                // CR 118.8 / 608.2h — "X is the discarded card's mana value"
+                // (Dralnu's Pet): the card given up to pay the additional
+                // cost, snapshotted on the stack item at cast commit.
+                additionalCostMv: item.additionalSacrificeSnapshot?.mv,
                 // CR 702.44a/b (issue #2378) — Sunburst. THE one entry site
                 // that can supply this: 702.44b adds counters "only if the
                 // object with sunburst is entering the battlefield from the

@@ -139,29 +139,46 @@ export const arcticMerfolk = defineCard(() => ({
 // Dralnu's Pet — {1}{U}{U} Creature — Shapeshifter, 2/2. "Kicker—{2}{B},
 // Discard a creature card.\nIf this creature was kicked, it enters with
 // flying and with X +1/+1 counters on it, where X is the discarded card's
-// mana value." STOP-AND-ISSUE (gre-development.md § DSL-first authoring):
-// the Kicker's mana+discard cost is payable today (`KickerCost.hand`,
-// `gre/kicker.ts`, wired into the cast pipeline), but paying it discards the
-// chosen card with NO snapshot of which card paid it — unlike the card's own
-// additional-sacrifice cost, which DOES snapshot mana value onto the
-// resulting `StackItem` (`additionalSacrificeSnapshot`). There is no
-// EffectValue / `entersWith.counters` shape that can read "the mana value of
-// the card discarded to pay this Kicker's hand leg" — `entersWith.counters[
-// ].count` only accepts `number | "X" | "kicker"`, no dynamic per-instance
-// read. This is a genuine missing engine capability (a StackItem snapshot),
-// not an Op-wiring gap, so it is NOT a `resolve()` case ("the Op I need
-// doesn't exist yet" is not a valid resolve() justification) — left as a
-// tracked stub. tracked-by: #2008
-// export const dralnusPet: CardDefinition = {
-//     id: "cd5f4daf-7b54-4425-a93a-19532dfb83ca", // PLS 23
-//     name: "Dralnu's Pet",
-//     rarity: "rare",
-//     manaCost: { X: 1, U: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Shapeshifter"],
-//     power: 2,
-//     toughness: 2,
-// };
+// mana value." (CR 702.33a Kicker with a mana + HAND leg, `KickerCost.hand`,
+// issue #2008. The discarded card's mana value is snapshotted at cast commit
+// (CR 118.8 / 608.2h, `castCommit.ts` → `StackItem.additionalSacrificeSnapshot`)
+// and read back by the CR 614.1c entry replacement through
+// `entersWith.counters` `count: "additionalCostMv"`. Flying is the Faerie
+// Squadron template: a `keyword-grant` gated on `wasKicked`, no stack window.)
+export const dralnusPet = defineCard(() => ({
+    id: "cd5f4daf-7b54-4425-a93a-19532dfb83ca", // PLS 23
+    rarity: "rare",
+    name: "Dralnu's Pet",
+    oracleText:
+        "Kicker—{2}{B}, Discard a creature card. (You may pay {2}{B} and discard a creature card in addition to any other costs as you cast this spell.)\nIf this creature was kicked, it enters with flying and with X +1/+1 counters on it, where X is the discarded card's mana value.",
+    manaCost: { X: 1, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Shapeshifter"],
+    power: 2,
+    toughness: 2,
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker—{2}{B}, Discard a creature card",
+            mana: { X: 2, B: 1 },
+            hand: {
+                action: "discard",
+                requirements: [{ filter: { type: "Creature" }, count: 1 }],
+            },
+        },
+    ],
+    entersWith: {
+        counters: [{ type: "+1/+1", count: "additionalCostMv" }],
+    },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: (target, source) =>
+                target.id === source.id && target.wasKicked === true,
+            keyword: "flying",
+        },
+    ],
+}));
 
 // Escape Routes — {2}{U} Enchantment. "{2}{U}: Return target white or black
 // creature you control to its owner's hand." (CR 400.7 bounce via the
