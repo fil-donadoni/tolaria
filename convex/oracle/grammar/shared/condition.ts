@@ -230,6 +230,13 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
             return comparativeControlsRule.run(clause, ctx);
         const none = clause.match(CONTROLS_NONE);
         if (none !== null) return readControlsNone(none, span, ctx);
+        const counted = countedControlsRule.run(clause, ctx);
+        if (counted.ok && counted.value.player === "you")
+            return ok({
+                kind: "controls" as const,
+                filter: counted.value.filter,
+                atLeast: counted.value.atLeast,
+            });
         return controlsRule.run(clause, ctx);
     }),
     // CR 603.4 — an intervening "if" clause opens with the word itself.
