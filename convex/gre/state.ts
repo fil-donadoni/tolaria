@@ -11717,6 +11717,13 @@ function cloneSpellOntoStack(
     // permanent whose check-time condition could read it) — but the identical
     // containment argument applies to `escaped`, which is cleared anyway.
     delete copy.castOffSorceryTiming;
+    // CR 707.10 (issue #7211) — a copy copies the DECISIONS made for the
+    // original, never the mana that paid for it: "Because mana isn't an object,
+    // a copy of Dawnglow Infusion won't cause you to gain any life, no matter
+    // what mana was spent to cast the original spell." So the per-colour
+    // record a `noteManaSpent` card took at commit stays with the original —
+    // a copied converge spell reads 0 colours, a copied Soul Burn 0 {B}.
+    delete copy.notedManaSpent;
     // CR 707.2 — "Other effects (including type-changing and TEXT-CHANGING
     // effects) … are not copied", and CR 702.47c says a splice reveal IS a
     // text-changing effect (rule 612). So the copy is a copy of the MAIN spell

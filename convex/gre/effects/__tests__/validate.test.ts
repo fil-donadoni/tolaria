@@ -8761,3 +8761,52 @@ describe("manaAbilityEffects — the stackless mana-ability site (CR 605.1a / 60
         expect(errors.some((e) => /non-empty/.test(e))).toBe(true);
     });
 });
+
+describe("colorsSpentToCast — the Converge value's opt-in gates (CR 207.2c, issue #7211)", () => {
+    const reads: EffectOp[] = [
+        {
+            op: "if",
+            predicate: {
+                left: { manaValue: { of: { target: 0 } } },
+                op: "le",
+                right: { colorsSpentToCast: true },
+            },
+            then: [{ op: "exile", target: { target: 0 } }],
+        },
+    ];
+
+    it("accepts a spell script that declares noteManaSpent", () => {
+        expect(
+            validateEffectScript(host({ effects: reads, noteManaSpent: true }))
+        ).toEqual([]);
+    });
+
+    it("rejects a spell script without noteManaSpent — the record would never be taken", () => {
+        const errors = validateEffectScript(host({ effects: reads }));
+        expect(errors.some((e) => /noteManaSpent: true/.test(e))).toBe(true);
+    });
+
+    it("rejects it at an ability site — an ability is not cast", () => {
+        const errors = validateAbilityEffectScript(
+            { id: "a", effects: reads },
+            "Test Card"
+        );
+        expect(errors.some((e) => /an ability is not cast/.test(e))).toBe(true);
+    });
+
+    it("rejects a malformed shape (only the literal true is the value)", () => {
+        const errors = validateEffectScript(
+            host({
+                noteManaSpent: true,
+                effects: [
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: { colorsSpentToCast: 1 },
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+});
