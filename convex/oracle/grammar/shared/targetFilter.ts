@@ -517,6 +517,17 @@ const QUALIFIERS: readonly (readonly [string, Qualifier])[] = [
             return null;
         },
     ],
+    // CR 102.2 — "you don't control": every permanent has a controller, and
+    // in a two-player game (ADR 0010) the one who isn't you is your opponent,
+    // so the set is exactly "an opponent controls".
+    [
+        " you don't control",
+        (into) => {
+            if (into.controller !== undefined) return "two controller clauses";
+            into.controller = "opponent";
+            return null;
+        },
+    ],
     // CR 506.2 + CR 508.5 — "defending player controls": the player the
     // source's own attack is against. This engine is two-player (ADR 0010), so
     // that is the source controller's one opponent — the same collapse the
