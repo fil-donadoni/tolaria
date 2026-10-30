@@ -136,6 +136,7 @@ import {
     isLandOnlyTarget,
     readAmount,
     subjectRule,
+    whereXAmount,
     type AmountIR,
     type EffectSentenceIR,
     type SubjectIR,
@@ -366,7 +367,7 @@ export type FrameIR =
            * hand-written definition splices (`empowerJaceOps`).
            */
           readonly frame: "empowerJace";
-          readonly count: number;
+          readonly count: AmountIR;
       }
     | {
           /**
@@ -650,8 +651,11 @@ const BECOME_COPY =
     /^(.+?) becomes a copy of (.+?)(?: (until end of turn|until your next turn))?$/;
 const CAST_FROM_GRAVEYARD_THIS_TURN =
     /^you may cast target (.+?) from your graveyard this turn$/;
-/** CR 701.71a — "empower Jace N", a printed count and nothing trailing. */
-const EMPOWER_JACE = /^empower jace (\S+)$/i;
+/**
+ * CR 701.71a — "empower Jace N", a printed count, or "empower Jace X, where X
+ * is <quantity>" (CR 107.3): the tail defining X is the shared one.
+ */
+const EMPOWER_JACE = /^empower jace (\S+?)(?:, where X is (.+))?$/i;
 /** CR 725.1 — the whole sentence, nothing trailing. */
 const BECOME_MONARCH = "you become the monarch";
 /** CR 104.2b — the whole sentence, nothing trailing. */
@@ -1683,10 +1687,33 @@ function readMember(
         return { frames: [{ frame: "skipNextTurn" }], referent };
     if (opensFrame("empowerJace", lower)) {
         const empower = lower.match(EMPOWER_JACE);
-        const count = empower === null ? null : readNumberWord(empower[1]!);
-        if (count === null)
+        if (empower === null)
             return {
-                refused: `"${member}" — only a printed count is read ("Empower Jace N")`,
+                refused: `"${member}" — only "Empower Jace N" and "Empower Jace X, where X is <quantity>" are read`,
+            };
+        let count: AmountIR | null;
+        if (empower[2] === undefined) count = readAmount(empower[1]!);
+        else {
+            // CR 107.3 — only the head's own X is bound by the tail.
+            if (empower[1]!.toLowerCase() !== "x")
+                return {
+                    refused: `"${member}" — a "where X is" tail defines an X the head prints`,
+                };
+            const tail = whereXAmount(empower[2], ctx);
+            if (!tail.ok) return { refused: tail.reason, failure: tail };
+            if (tail.value.kind !== "counted")
+                return {
+                    refused: `"${member}" — only a counted set defines the X`,
+                };
+            count = tail.value;
+        }
+        if (
+            count === null ||
+            count.kind === "x" ||
+            count.kind === "event-amount"
+        )
+            return {
+                refused: `"${member}" — only a printed count or a counted X is read`,
             };
         return { frames: [{ frame: "empowerJace", count }], referent };
     }
