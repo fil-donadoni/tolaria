@@ -407,10 +407,8 @@ describe("activated ability slot (CR 602.1a)", () => {
             ).ok
         ).toBe(false);
         expect(
-            activatedSlot.run(
-                "{T}: Tap target land with a +1/+1 counter on it.",
-                land
-            ).ok
+            activatedSlot.run("{T}: Tap target land you don't control.", land)
+                .ok
         ).toBe(false);
     });
 

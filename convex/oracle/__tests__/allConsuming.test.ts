@@ -190,13 +190,13 @@ describe("all-consuming invariant — targeted residue shapes", () => {
     const cases: [string, OracleCard, string][] = [
         // ── activated abilities (#2697) ────────────────────────────────────
         // A trailing QUALIFIER inside a target filter: the difference between
-        // "target land" and "target land with a +1/+1 counter on it" is the
+        // "target creature" and "target creature you don't control" is the
         // whole card, and reading the prefix is the defect this file exists
         // to catch.
         [
             "activated ability + unreadable target qualifier",
             land,
-            "{T}: Tap target land with a +1/+1 counter on it.",
+            "{T}: Tap target land you don't control.",
         ],
         [
             "activated ability + a trailing sentence",
@@ -310,7 +310,7 @@ describe("all-consuming invariant — targeted residue shapes", () => {
         const outcome = compileCard(
             mutate(
                 land,
-                "{T}: Add {G}.\n{T}: Tap target land with a +1/+1 counter on it."
+                "{T}: Add {G}.\n{T}: Tap target land you don't control."
             )
         );
         expect(outcome.state).toBe("unparsed");
