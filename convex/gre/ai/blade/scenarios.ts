@@ -16756,4 +16756,254 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #6985 — the full-budget leg: with every sibling opened the widening adds nothing, and the pick must stay on the Hero.",
     },
+    // The held-answer pair (issue #7337), classified `conditional` and left
+    // unlinked (no `pairOf`): a linked pair asks the fit for a 100-point
+    // separation, the land an answer saves is worth about 16, and the fit bought
+    // the gap by inflating land and colour weights, which moved a neighbouring
+    // colour-axis entry off two of thirty seeds. The term the fit lacks is the
+    // answer's worth against the spells still to come; until it exists the pair
+    // gates the Bot here and stays out of the fit corpus.
+    //
+    // The position: the opponent's Stone Rain on the bot's Volcanic Island, the
+    // bot holding two Islands and ONE stack answer. The only difference between
+    // the halves is the opponent's hand: with a card left the answer still has a
+    // spell to wait for and is kept; with none it has nothing to wait for and
+    // the land is saved.
+    {
+        setup: [
+            {
+                kind: "cast",
+                card: "Stone Rain",
+                by: "me",
+                target: "Volcanic Island",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        label: "held answer: keeps Counterspell when the opponent still holds cards, even with Stone Rain on its land",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the opponent's hand: one card against none",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Stone Rain", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "me",
+                    zone: "hand",
+                    count: 1,
+                },
+                { name: "Volcanic Island", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Counterspell", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        expect: { moves: [{ kind: "pass" }] },
+        note: 'Issue #7337, anchor of the held-answer pair. The opponent just cast Stone Rain on the bot\'s Volcanic Island and holds one more card, so the held Counterspell still has a spell to answer: it keeps its worth and the land is the price. The other half, "held answer: counters Stone Rain with Counterspell when the opponent has no cards left" empties the hand.',
+    },
+    {
+        setup: [
+            {
+                kind: "cast",
+                card: "Stone Rain",
+                by: "me",
+                target: "Volcanic Island",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        label: "held answer: counters Stone Rain with Counterspell when the opponent has no cards left",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the opponent's hand: one card against none",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Stone Rain", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Volcanic Island", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Counterspell", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Counterspell",
+                    target: "Stone Rain",
+                },
+            ],
+        },
+        note: "Issue #7337. The same board with the opponent's hand empty: a held Counterspell has no spell to wait for, so keeping it was worth the full unit of its answer (about 112, 286 for Teferi's Response) in every rollout and always out-scored the ~16 the land is worth. `stackAnswerUnits` (latentBoard.ts) scales the held answer by the opponent's hand, so countering wins.",
+    },
+    {
+        setup: [
+            {
+                kind: "cast",
+                card: "Stone Rain",
+                by: "me",
+                target: "Volcanic Island",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        label: "held answer: keeps Mana Leak when the opponent still holds cards, even with Stone Rain on its land",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the opponent's hand: one card against none",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Stone Rain", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "me",
+                    zone: "hand",
+                    count: 1,
+                },
+                { name: "Volcanic Island", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Mana Leak", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        expect: { moves: [{ kind: "pass" }] },
+        note: 'Issue #7337, anchor of the held-answer pair. The opponent just cast Stone Rain on the bot\'s Volcanic Island and holds one more card, so the held Mana Leak still has a spell to answer: it keeps its worth and the land is the price. The other half, "held answer: counters Stone Rain with Mana Leak when the opponent has no cards left" empties the hand.',
+    },
+    {
+        setup: [
+            {
+                kind: "cast",
+                card: "Stone Rain",
+                by: "me",
+                target: "Volcanic Island",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        label: "held answer: counters Stone Rain with Mana Leak when the opponent has no cards left",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the opponent's hand: one card against none",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Stone Rain", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Volcanic Island", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Mana Leak", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        expect: {
+            moves: [
+                { kind: "cast-spell", card: "Mana Leak", target: "Stone Rain" },
+            ],
+        },
+        note: "Issue #7337. The same board with the opponent's hand empty: a held Mana Leak has no spell to wait for, so keeping it was worth the full unit of its answer (about 112, 286 for Teferi's Response) in every rollout and always out-scored the ~16 the land is worth. `stackAnswerUnits` (latentBoard.ts) scales the held answer by the opponent's hand, so countering wins.",
+    },
+    {
+        setup: [
+            {
+                kind: "cast",
+                card: "Stone Rain",
+                by: "me",
+                target: "Volcanic Island",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        label: "held answer: counters Stone Rain with Teferi's Response when the opponent has no cards left",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the opponent's hand: one card against none",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Stone Rain", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Volcanic Island", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Teferi's Response", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Teferi's Response",
+                    target: "Stone Rain",
+                },
+            ],
+        },
+        note: "Issue #7337. The same board with the opponent's hand empty: a held Teferi's Response has no spell to wait for, so keeping it was worth the full unit of its answer (about 112, 286 for Teferi's Response) in every rollout and always out-scored the ~16 the land is worth. `stackAnswerUnits` (latentBoard.ts) scales the held answer by the opponent's hand, so countering wins.",
+    },
 ];
