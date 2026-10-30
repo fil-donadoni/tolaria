@@ -137,6 +137,9 @@ export type CostAtomIR =
      *  (Attunement). Self only: a return cost naming any OTHER object is a
      *  different leg this grammar deliberately does not read. */
     | { readonly kind: "return-self" }
+    /** CR 606.4 — the loyalty symbol: `+N` puts N loyalty counters on the
+     *  source, `−N` removes N, `0` is neutral. `amount` is the signed value. */
+    | { readonly kind: "loyalty"; readonly amount: number }
     /** CR 602.1a / 118.1 — "Return an Elf you control to its owner's hand" as
      *  a cost (Wirewood Symbiote): the payer picks ONE matching permanent they
      *  control (CR 109.2 — the source may be it). Lowers to
@@ -154,6 +157,10 @@ export interface ActivationCostIR {
 export { isSelfPhrase } from "./targetFilter";
 
 const PAY_LIFE = /^Pay (\d+) life$/;
+// CR 606.4 — the loyalty symbol, read AFTER normalisation (`normalize.ts`
+// folds U+2212 to "-"). `-X` is NOT matched here: a variable loyalty cost is a
+// separate refused form.
+const LOYALTY_SYMBOL = /^(?:([+-])(\d+)|0)$/;
 const DISCARD_X = /^Discard X cards$/;
 const DISCARD_HAND = /^Discard your hand$/;
 /** CR 701.9a / 118.3 — "Discard your hand" rides the `discardAtRandom` cost
@@ -278,6 +285,21 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
     "cost atom",
     (span, ctx) => {
         if (span === "{T}") return ok({ kind: "tap" as const });
+        const loyalty = span.match(LOYALTY_SYMBOL);
+        if (loyalty !== null) {
+            // CR 606.2 — only a planeswalker has loyalty abilities.
+            const typeLine = (ctx as Partial<ParseContext>).typeLine;
+            if (!typeLine?.types.includes("Planeswalker"))
+                return fail(
+                    "a loyalty cost on a non-planeswalker (CR 606.2)",
+                    span
+                );
+            const magnitude = Number(loyalty[2] ?? 0);
+            return ok({
+                kind: "loyalty" as const,
+                amount: loyalty[1] === "-" ? -magnitude : magnitude,
+            });
+        }
         if (span.startsWith("{")) {
             const read = readManaCost(span);
             return read.ok
@@ -529,6 +551,10 @@ export const activationCostRule: Rule<ActivationCostIR> = subGrammar(
                 return fail(`cost atom "${atom.kind}" appears twice`, span);
             seen.add(atom.kind);
         }
+        // CR 606.4 — the loyalty symbol IS the whole cost of a loyalty ability;
+        // beside another atom it is a line we have misread.
+        if (seen.has("loyalty") && atoms.value.length > 1)
+            return fail("a loyalty cost stands alone (CR 606.4)", span);
         // CR 113.6m — with the card in hand, the rest of the cost is paid
         // without it: mana is the one companion leg this grammar reads (a tap,
         // a counter or another self-move names a permanent the card is not).
@@ -653,6 +679,9 @@ export function lowerActivationCost(
                 break;
             case "return-other":
                 cost.returnToHandFilter = atom.filter;
+                break;
+            case "loyalty":
+                cost.loyalty = atom.amount;
                 break;
             default: {
                 const never: never = atom;
