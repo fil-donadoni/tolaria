@@ -11,16 +11,16 @@ import {
     makeState,
     pushSpell,
 } from "../../../cards/__tests__/setup.helper";
-import type {
-    CardDefinition,
-    CardInstanceState,
-    EffectOp,
-} from "../../../cards/types";
+import type { CardDefinition, EffectOp } from "../../../cards/types";
 import { forest } from "../../../cards/sets/lea/colorless.cards";
 import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import { projectPublicState } from "../../../gameProjections";
-import { getPlayer, resolveTopOfStack } from "../../state";
-import type { GameState } from "../../types";
+import {
+    getPlayer,
+    resolveTopOfStack,
+    type CardInstanceState,
+    type GameState,
+} from "../../state";
 import { validateEffectScript } from "../validate";
 
 type Zone = "hand" | "graveyard" | "library" | "exile";

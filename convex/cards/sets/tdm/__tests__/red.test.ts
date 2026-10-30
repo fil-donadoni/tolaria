@@ -26,6 +26,7 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
+import { collectTriggers } from "../../../../gre/triggers";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -237,5 +238,75 @@ describe("Cori-Steel Cutter (TDM #103, Flurry + Equipment, issue #1202)", () => 
         expect(getEffectiveToughness(state, foundBear)).toBe(3);
         expect(foundBear.staticAbilities).toContain("trample");
         expect(foundBear.staticAbilities).toContain("haste");
+    });
+});
+
+// Tersa Lightshatter (issue #1702) — the attack trigger's intervening-if
+// (CR 603.4: checked when it triggers AND as it resolves) and the random
+// graveyard exile it gates (CR 609.3), playable this turn, lands included.
+describe("Tersa Lightshatter — attack impulse from a random graveyard card (CR 603.4 / 609.3)", () => {
+    const TERSA_ID = "99e96b34-b1c4-4647-a38e-2cf1aedaaace";
+    const FOREST_ID = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
+
+    function board(graveyardCards: number): GameState {
+        const tersa = makeInstance(TERSA_ID, {
+            id: "tersa",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const graveyard = Array.from({ length: graveyardCards }, (_, i) =>
+            makeInstance(FOREST_ID, {
+                id: `gy-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            })
+        );
+        return makeState({
+            phase: "DECLARE_ATTACKERS",
+            players: [
+                makePlayer("p1", { battlefield: [tersa], graveyard }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    const attack = {
+        type: "ATTACKERS_DECLARED" as const,
+        attackingPlayerId: "p1",
+        attackerIds: ["tersa"],
+    };
+
+    it("with seven graveyard cards, exiles one at random and lets p1 play it this turn", () => {
+        const state = board(7);
+        const triggers = collectTriggers(state, [attack]);
+        expect(triggers.map((t) => t.triggeredAbilityId)).toEqual([
+            "tersa-lightshatter-attack-impulse",
+        ]);
+        state.stack.push(triggers[0]!);
+        resolveTopOfStack(state);
+        const p1 = state.players[0]!;
+        expect(p1.graveyard).toHaveLength(6);
+        expect(p1.exile).toHaveLength(1);
+        const exiled = p1.exile[0]!;
+        expect(exiled.id).toMatch(/^gy-/);
+        expect(exiled.castableFromExileBy).toBe("p1");
+        expect(exiled.castableFromExileUntilTurn).toBe(state.turn);
+    });
+
+    it("with six graveyard cards, does not trigger", () => {
+        expect(collectTriggers(board(6), [attack])).toHaveLength(0);
+    });
+
+    it("does nothing if the graveyard drops below seven before it resolves", () => {
+        const state = board(7);
+        const triggers = collectTriggers(state, [attack]);
+        expect(triggers).toHaveLength(1);
+        state.stack.push(triggers[0]!);
+        state.players[0]!.graveyard.pop();
+        resolveTopOfStack(state);
+        expect(state.players[0]!.graveyard).toHaveLength(6);
+        expect(state.players[0]!.exile).toHaveLength(0);
     });
 });

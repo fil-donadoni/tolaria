@@ -2597,3 +2597,67 @@ describe("Orcish Lumberjack ({T}, Sacrifice a Forest: Add three mana of R and/or
         expect(player.manaPool.R).toBe(0);
     });
 });
+
+// Orcish Librarian (issue #1702) — "look at the top eight, exile four of them
+// at random, put the rest on top in any order": the random four come only out
+// of the window (CR 609.3 / 401.4), and the controller orders what is left.
+describe("Orcish Librarian — random exile from the top eight (CR 609.3 / 401.4)", () => {
+    const LIBRARIAN_ID = "8ed908d6-6d06-4ccb-9577-37ef2d01c1a5";
+    const FOREST_ID = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
+
+    function board(librarySize: number) {
+        const librarian = makeInstance(LIBRARIAN_ID, {
+            id: "librarian",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const library = Array.from({ length: librarySize }, (_, i) =>
+            makeInstance(FOREST_ID, {
+                id: `lib-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [librarian], library }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, librarian, libraryIds: library.map((c) => c.id) };
+    }
+
+    it("exiles four of the top eight at random and puts the other four back in the chosen order", () => {
+        const { state, librarian, libraryIds } = board(10);
+        resolveActivated(state, librarian, "orcish-librarian-dig");
+        const p1 = state.players[0]!;
+        const exiled = p1.exile.map((c) => c.id);
+        expect(exiled).toHaveLength(4);
+        for (const id of exiled) expect(libraryIds.slice(0, 8)).toContain(id);
+        const head = state.pendingChoices![0]!;
+        expect(head.kind).toBe("order-top");
+        const rest = libraryIds
+            .slice(0, 8)
+            .filter((id) => !exiled.includes(id));
+        const chosenOrder = [...rest].reverse();
+        submitChoice(state, chosenOrder);
+        expect(p1.library.map((c) => c.id)).toEqual([
+            ...chosenOrder,
+            ...libraryIds.slice(8),
+        ]);
+    });
+
+    it("a library shorter than eight: exiles four and orders what is left", () => {
+        const { state, librarian, libraryIds } = board(6);
+        resolveActivated(state, librarian, "orcish-librarian-dig");
+        const p1 = state.players[0]!;
+        expect(p1.exile).toHaveLength(4);
+        const rest = libraryIds.filter(
+            (id) => !p1.exile.some((c) => c.id === id)
+        );
+        submitChoice(state, rest);
+        expect(p1.library.map((c) => c.id)).toEqual(rest);
+    });
+});

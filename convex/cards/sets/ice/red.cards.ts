@@ -60,12 +60,6 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 //     declared set and are evaluated at attacker/blocker confirmation
 //     (`validateDeclaredAttackers` / `validateDeclaredBlockers`), the mirror of
 //     the menace `validateMinimumBlockers` check.
-//   • Library random-exile + reorder — Orcish Librarian ("look at top eight,
-//     exile four at RANDOM, reorder the rest"). `peekLibraryTop` /
-//     `reorderLibraryTop` / the `scryReorder` Op ship, but no SpellContext
-//     primitive selects/exiles N cards at random from a library set (the seeded
-//     PRNG is engine-internal; only hand-shaped draws are exposed).
-//     tracked-by: #1702
 //   • Other specialized interactions — Chaos Moon (parity mana substitution),
 //     Earthlink (dies→sac-land), Ghostly Flame (colourless-damage-source
 //     static), Melee / Monsoon (choose-blocks / Island-count end-step),
@@ -1907,27 +1901,62 @@ export const orcishHealer = defineCard(() => ({
         },
     ],
 }));
-// Orcish Librarian — DEFERRED, re-verified against the current engine for
-// issue #728 (2026-07). `peekLibraryTop(8)` + `orderTop`/`reorderLibraryTop`
-// cover the "look at top eight / put the rest on top in any order" legs (and
-// the `scryReorder` Op shipped in #885), but "exile four of them AT RANDOM" has
-// no SpellContext primitive: the seeded PRNG (`gre/rng.ts`) is engine-internal
-// and the only exposed draws are hand-shaped (`discardAtRandom`,
-// `revealRandomHandCard`, `lookRandomHandCard`) or whole-zone
-// (`shuffleLibrary`) — there is no random-select over an arbitrary set of card
-// ids. Stop-and-issue, not invented. Blocked on a random-select primitive over
-// a card set: tracked-by: #1702
-// export const orcishLibrarian: CardDefinition = {
-//     id: "8ed908d6-6d06-4ccb-9577-37ef2d01c1a5",
-//     name: "Orcish Librarian",
-//     rarity: "rare",
-//     oracleText: "{R}, {T}: Look at the top eight cards of your library. Exile four of them at random, then put the rest on top of your library in any order.",
-//     manaCost: { X: 1, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Orc"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Orcish Librarian — "{R}, {T}: Look at the top eight cards of your library.
+// Exile four of them at random, then put the rest on top of your library in
+// any order." (issue #1702). The random four come out of the top-eight window
+// through `selectAtRandom` (CR 609.3 — a short library yields what it has),
+// are exiled face up (CR 701.13a), and the controller orders what is left of
+// the window on top via `scryReorder` with no destination (CR 401.4): with
+// eight or more cards that is exactly the four unexiled ones, with fewer it is
+// the whole remaining library, which is all the window held. The exiled cards
+// are public and the reordered ones are looked at, so the controller learns
+// every card of the window, as the look does.
+//
+// compiler-gap: "{R}, {T}: Look at the top eight cards of your library. Exile four of them at random, then put the rest on top of your library in any order." (#2693)
+export const orcishLibrarian = defineCard(() => ({
+    id: "8ed908d6-6d06-4ccb-9577-37ef2d01c1a5",
+    name: "Orcish Librarian",
+    rarity: "rare",
+    oracleText:
+        "{R}, {T}: Look at the top eight cards of your library. Exile four of them at random, then put the rest on top of your library in any order.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Orc"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "orcish-librarian-dig",
+            oracleText:
+                "{R}, {T}: Look at the top eight cards of your library. Exile four of them at random, then put the rest on top of your library in any order.",
+            cost: { mana: { R: 1 }, tap: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "selectAtRandom",
+                    zone: "library",
+                    top: 8,
+                    count: 4,
+                    bind: "$exiled",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$exiled" },
+                    player: "controller",
+                    from: "library",
+                    to: "exile",
+                },
+                {
+                    op: "scryReorder",
+                    player: "controller",
+                    count: 4,
+                    destination: "none",
+                    prompt: "Put the rest on top of your library in any order.",
+                },
+            ],
+        },
+    ],
+}));
 // Orcish Lumberjack — "{T}, Sacrifice a Forest: Add three mana in any
 // combination of {R} and/or {G}." A mana ability (CR 605.1a, `useStack: false`)
 // whose Forest sacrifice cost uses `sacrificeFilter`; "any combination of R/G"
