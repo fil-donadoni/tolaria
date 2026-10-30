@@ -11,6 +11,7 @@ import {
     orderSpecs,
     type SpecKey,
 } from "../lib/vitest-sequencer";
+import { RUN_LAST_ENV, runLastFiles } from "../lib/vitest-run-last";
 
 const spec = (project: string, file: string, groupOrder = 0): SpecKey => ({
     project,
@@ -79,6 +80,22 @@ describe("orderSpecs — the ordering rule", () => {
             .filter((s) => s.project === "node-engine")
             .map((s) => s.file);
         expect(engine[0]).toBe("convex/new.test.ts");
+    });
+
+    it("runs a file named run-last after every other file of its project, longest or not (issue #7584)", () => {
+        // `b` is engine's longest: alone it would run first and never see
+        // what `a` or `c` leave in the shared worker.
+        const last = runLastFiles({ [RUN_LAST_ENV]: "convex/b.test.ts" });
+        expect(orderSpecs(specs, (s) => s, cache, last).map(label)).toEqual([
+            "node-tooling:scripts/long.test.ts",
+            "node-tooling:scripts/small.test.ts",
+            "node-engine:convex/a.test.ts",
+            "node-engine:convex/c.test.ts",
+            "node-engine:convex/b.test.ts",
+            "dom:src/x.test.tsx",
+        ]);
+        // Unset: the order every gate runs in, unchanged.
+        expect(runLastFiles({}).size).toBe(0);
     });
 
     it("an empty cache degrades to project name, then path — never to input order", () => {

@@ -25,6 +25,9 @@
  *   3. Within a project, files with NO cached duration first (a new file's
  *      cost is unknown — the same bet `BaseSequencer` makes), then longest
  *      first; ties by path, so the order is a pure function of the cache.
+ *   0. Before key 3, a file named in `RUN_LAST_ENV` runs after every other
+ *      file of its project (issue #7584: the RED ladder's one-worker re-run
+ *      puts the failing file behind its possible polluter). Unset: no-op.
  *
  * NO order derived from the diff (ADR 0104): the only input is vitest's own
  * results cache, which says how long a file took, never whether it changed.
@@ -39,6 +42,7 @@
 import { relative } from "node:path";
 import { BaseSequencer } from "vitest/node";
 import type { TestSpecification } from "vitest/node";
+import { runLastFiles } from "./vitest-run-last";
 
 /** The three facts the ordering rule reads off one test file. */
 export interface SpecKey {
@@ -65,7 +69,8 @@ const byString = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 export function orderSpecs<T>(
     specs: readonly T[],
     keyOf: (spec: T) => SpecKey,
-    durationOf: DurationLookup
+    durationOf: DurationLookup,
+    last: ReadonlySet<string> = new Set()
 ): T[] {
     const rows = specs.map((spec) => {
         const key = keyOf(spec);
@@ -92,6 +97,9 @@ export function orderSpecs<T>(
                 return total !== 0
                     ? total
                     : byString(a.key.project, b.key.project);
+            }
+            if (last.has(a.key.file) !== last.has(b.key.file)) {
+                return last.has(a.key.file) ? 1 : -1;
             }
             if ((a.duration === undefined) !== (b.duration === undefined)) {
                 return a.duration === undefined ? -1 : 1;
@@ -122,7 +130,8 @@ export class LongestFirstSequencer extends BaseSequencer {
                 file: relative(root, spec.moduleId),
             }),
             (project, file) =>
-                cache.getFileTestResults(`${project}:${file}`)?.duration
+                cache.getFileTestResults(`${project}:${file}`)?.duration,
+            runLastFiles(process.env)
         );
     }
 }
