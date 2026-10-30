@@ -1,9 +1,9 @@
 {
-    "effectiveDate": "2026-09-25",
-    "fileName": "MagicCompRules 20260925.txt",
-    "txtUrl": "https://media.wizards.com/2026/downloads/MagicCompRules%2020260925.txt",
-    "pdfUrl": "https://media.wizards.com/2026/downloads/MagicCompRules%2020260925.pdf",
+    "effectiveDate": "2026-08-07",
+    "fileName": "MagicCompRules 20260807.txt",
+    "txtUrl": "https://media.wizards.com/2026/downloads/MagicCompRules%2020260807.txt",
+    "pdfUrl": "https://media.wizards.com/2026/downloads/MagicCompRules%2020260807.pdf",
     "indexUrl": "https://magic.wizards.com/en/rules",
-    "sha256": "8d860e451f20f38865b725b42d82feb714c725373dd8f3b32b8652b3eeb070ca",
-    "vendoredAt": "2026-10-30"
+    "sha256": "2ed5f1bbb4f8771c84a6f2944a218428c6c5ccba21110a5d101b9a51a4c062b3",
+    "vendoredAt": "2026-08-10"
 }
