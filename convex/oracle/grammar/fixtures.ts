@@ -33,6 +33,180 @@ export interface GoldenFixture {
 // Frozen: `fixtureForms` caches by array identity, so the registry may never
 // change in place.
 export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
+    // CR 701.71a (issue #7198) — "Empower Jace N": the keyword action's whole
+    // composition (`empowerJaceOps`, cards/abilities/empowerJace.ts). Exhibits
+    // an `if` over a runtime count of Jace planeswalker tokens, a `forEach`
+    // over a runtime-selected set and `counters` on `$each`, none of which
+    // the canned smoke scenario can stage.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "ecdfee75-15fd-41ea-89d4-4bfc1fa4d032",
+            name: "Keeper of the Quiet Hour",
+            manaCost: "{3}",
+            typeLine: "Artifact Creature — Chimera",
+            oracleText:
+                'When this creature enters, empower Jace 2. (Put two loyalty counters on a Jace token you control. If you don\'t control one, first create a blue Jace planeswalker token with "[−1]: Surveil 1" and "[−3]: Draw a card.")',
+            power: "3",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Keeper of the Quiet Hour",
+            types: ["Artifact", "Creature"],
+            subtypes: ["Chimera"],
+            manaCost: { X: 3 },
+            power: 3,
+            toughness: 2,
+            oracleText:
+                'When this creature enters, empower Jace 2. (Put two loyalty counters on a Jace token you control. If you don\'t control one, first create a blue Jace planeswalker token with "[−1]: Surveil 1" and "[−3]: Draw a card.")',
+            compiledTriggeredAbilities: [
+                {
+                    id: "keeper-of-the-quiet-hour-trigger",
+                    oracleText: "When this creature enters, empower Jace 2.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: {
+                                    count: {
+                                        zone: "battlefield",
+                                        controller: "controller",
+                                        filter: {
+                                            type: "Planeswalker",
+                                            subtype: "Jace",
+                                            isToken: true,
+                                        },
+                                    },
+                                },
+                                op: "lt",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "createToken",
+                                    token: {
+                                        name: "Jace",
+                                        types: ["Planeswalker"],
+                                        subtypes: ["Jace"],
+                                        colors: ["U"],
+                                        activatedAbilities: [
+                                            {
+                                                id: "jace-token-surveil",
+                                                oracleText: "−1: Surveil 1.",
+                                                cost: { loyalty: -1 },
+                                                useStack: true,
+                                                effects: [
+                                                    {
+                                                        op: "scryReorder",
+                                                        player: "controller",
+                                                        count: 1,
+                                                        destination:
+                                                            "graveyard",
+                                                    },
+                                                ],
+                                            },
+                                            {
+                                                id: "jace-token-draw",
+                                                oracleText: "−3: Draw a card.",
+                                                cost: { loyalty: -3 },
+                                                useStack: true,
+                                                effects: [
+                                                    {
+                                                        op: "draw",
+                                                        player: "controller",
+                                                        count: 1,
+                                                    },
+                                                ],
+                                            },
+                                        ],
+                                        imagePrintId:
+                                            "8d1e424f-6407-4f8c-bed2-eaf148237c81",
+                                    },
+                                    controller: "controller",
+                                },
+                            ],
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                left: {
+                                    count: {
+                                        zone: "battlefield",
+                                        controller: "controller",
+                                        filter: {
+                                            type: "Planeswalker",
+                                            subtype: "Jace",
+                                            isToken: true,
+                                        },
+                                    },
+                                },
+                                op: "le",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "forEach",
+                                    select: {
+                                        set: "permanents",
+                                        zone: "battlefield",
+                                        controller: "controller",
+                                        filter: {
+                                            type: "Planeswalker",
+                                            subtype: "Jace",
+                                            isToken: true,
+                                        },
+                                    },
+                                    effects: [
+                                        {
+                                            op: "counters",
+                                            action: "add",
+                                            counter: "loyalty",
+                                            target: { ref: "$each" },
+                                            count: 2,
+                                        },
+                                    ],
+                                },
+                            ],
+                            else: [
+                                {
+                                    op: "choice",
+                                    kind: "choose-permanents",
+                                    player: "controller",
+                                    zone: "battlefield",
+                                    filter: {
+                                        type: "Planeswalker",
+                                        subtype: "Jace",
+                                        isToken: true,
+                                    },
+                                    count: 1,
+                                    prompt: "Choose a Jace planeswalker token to empower.",
+                                    bind: "$empoweredJace",
+                                },
+                                {
+                                    op: "forEach",
+                                    select: {
+                                        set: "bound",
+                                        ref: "$empoweredJace",
+                                    },
+                                    effects: [
+                                        {
+                                            op: "counters",
+                                            action: "add",
+                                            counter: "loyalty",
+                                            target: { ref: "$each" },
+                                            count: 2,
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 107.1b + CR 402.3 — "…deals X damage to that player, where X is the
     // number of cards in their hand minus 4": the chosen player's hand less a
     // printed constant. Exhibits a `dealDamage` whose amount is a difference
