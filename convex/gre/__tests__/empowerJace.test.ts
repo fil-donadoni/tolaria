@@ -17,13 +17,16 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { getDefinition } from "../../cards";
 import {
+    tokenDefinitionId,
     tryGetDefinition,
     withTemporaryDefinition,
 } from "../../cards/registry";
+import type { TokenSpec } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
 import { activateAbilityOnState } from "../activation";
 import { refreshExpectedInput } from "../expectedInput";
 import { checkStateBasedActions } from "../sba";
+import { hasColor } from "../targetFilters";
 import { currentLoyalty } from "../loyalty";
 import { validateEffectScript } from "../effects/validate";
 import {
@@ -89,12 +92,34 @@ describe("Empower Jace N (CR 701.71a)", () => {
         expect(tokens).toHaveLength(1);
         const jace = tokens[0];
         expect(jace.types).toEqual(["Planeswalker"]);
+        expect(hasColor(jace, "U")).toBe(true);
         expect(currentLoyalty(jace)).toBe(2);
         // CR 704.5i — it survives the SBA check: the counters landed in the
         // same resolution as the 0-loyalty token.
         expect(state.players[0].graveyard.some((c) => c.id === jace.id)).toBe(
             false
         );
+    });
+
+    it("Empower Jace 0 creates the 0-loyalty token, which the SBA then removes (CR 704.5i)", () => {
+        const state = board();
+        withTemporaryDefinition(
+            {
+                ...empowerSpell(1),
+                effects: empowerJaceOps({
+                    count: { zone: "hand", controller: "controller" },
+                }),
+            },
+            () => {
+                pushSpell(state, ANCESTRAL_RECALL, "p1");
+                resolveTopOfStack(state);
+            }
+        );
+        // p1's hand is empty: N resolves to 0.
+        expect(jaceTokens(state)).toHaveLength(1);
+        expect(currentLoyalty(jaceTokens(state)[0])).toBe(0);
+        checkStateBasedActions(state);
+        expect(jaceTokens(state)).toHaveLength(0);
     });
 
     it("with a Jace token already controlled, creates none and grows it", () => {
@@ -252,6 +277,29 @@ describe("wire format — the Jace token on the projected board", () => {
         ).toEqual([
             ["jace-token-surveil", -1],
             ["jace-token-draw", -3],
+        ]);
+    });
+
+    it("a client that never saw the token decodes its loyalty abilities from the id alone", () => {
+        // A fresh image id makes an id no `createToken` ever registered: the
+        // client bundle's cold path (`maybeSynthesizeToken`).
+        const coldId = tokenDefinitionId({
+            ...(JACE_PLANESWALKER_TOKEN as TokenSpec),
+            imagePrintId: "00000000-0000-0000-0000-000000007198",
+        });
+        const def = tryGetDefinition(coldId);
+        expect(def?.types).toEqual(["Planeswalker"]);
+        expect(def?.subtypes).toEqual(["Jace"]);
+        expect(def?.manaCost).toMatchObject({ U: expect.any(Number) });
+        expect(
+            def?.activatedAbilities?.map((a) => [
+                a.id,
+                a.cost.loyalty,
+                a.useStack,
+            ])
+        ).toEqual([
+            ["jace-token-surveil", -1, true],
+            ["jace-token-draw", -3, true],
         ]);
     });
 });
