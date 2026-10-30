@@ -471,7 +471,8 @@ export const bottleOfSuleiman = defineCard(() => ({
                 {
                     op: "coinFlip",
                     win: {
-                        consequence: "Create a 5/5 flying Djinn",
+                        consequence:
+                            "Create a 5/5 colorless Djinn artifact creature token with flying.",
                         effects: [
                             {
                                 op: "createToken",
@@ -479,6 +480,7 @@ export const bottleOfSuleiman = defineCard(() => ({
                                     name: "Djinn",
                                     types: ["Artifact", "Creature"],
                                     subtypes: ["Djinn"],
+                                    colors: [],
                                     power: 5,
                                     toughness: 5,
                                     staticAbilities: ["flying"],
@@ -488,7 +490,7 @@ export const bottleOfSuleiman = defineCard(() => ({
                         ],
                     },
                     loss: {
-                        consequence: "Bottle of Suleiman deals 5 damage to you",
+                        consequence: "This artifact deals 5 damage to you.",
                         effects: [
                             {
                                 op: "dealDamage",
