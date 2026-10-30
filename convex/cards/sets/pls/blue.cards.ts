@@ -145,6 +145,7 @@ export const arcticMerfolk = defineCard(() => ({
 // and read back by the CR 614.1c entry replacement through
 // `entersWith.counters` `count: "additionalCostMv"`. Flying is the Faerie
 // Squadron template: a `keyword-grant` gated on `wasKicked`, no stack window.)
+// compiler-gap: Kicker—{2}{B}, Discard a creature card. (#7552)
 export const dralnusPet = defineCard(() => ({
     id: "cd5f4daf-7b54-4425-a93a-19532dfb83ca", // PLS 23
     rarity: "rare",
