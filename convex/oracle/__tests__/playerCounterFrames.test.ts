@@ -251,7 +251,7 @@ describe("player-counter and monarch frames — refusals", () => {
             "When this creature enters, target player gets two rad counters.",
         ],
         [
-            "a subject the player grammar does not know",
+            "a player group the lowering cannot resolve (each player)",
             "When this creature enters, each player gets a poison counter.",
         ],
         [
