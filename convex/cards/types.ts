@@ -19899,7 +19899,7 @@ export type EffectOp =
      *  as much as possible"); an empty pool or a count that is not positive
      *  binds nothing and the script continues, every later `{ ref }` reader
      *  skipping (CR 608.2b). The picks binding is consumed by the existing
-     *  movers (`moveZone { cards: { ref } }`, `exile`).
+     *  picks readers (`moveZone { cards: { ref } }`, `grantCastFromExile`).
      *
      *  Deliberately NOT here: the battlefield (a random permanent is a random
      *  TARGET or a random object of a sweep, a different selection), the

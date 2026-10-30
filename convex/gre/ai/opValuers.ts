@@ -3174,7 +3174,7 @@ const lookHand: Valuer<"lookHand"> = () => ZERO_OP_VALUE;
 
 // CR 609.3 (issue #1702) — a random pick that only BINDS: no card moves, so
 // the value lives entirely in the Op that consumes the picks (the `moveZone`
-// or `exile` reading the binding), which its own valuer prices.
+// reading the binding), which its own valuer prices.
 const selectAtRandom: Valuer<"selectAtRandom"> = () => ZERO_OP_VALUE;
 
 const scryReorder: Valuer<"scryReorder"> = (op, ctx) => {

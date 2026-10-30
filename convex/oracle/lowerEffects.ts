@@ -5841,6 +5841,10 @@ function lowerMoveFrame(
             return lowered([move]);
         }
         case "chosen":
+            // CR 609.3 — a pick at random is an exact count: a range would
+            // fall through to a player's choice, a different selection.
+            if (object.random === true && typeof object.count !== "number")
+                return unlowerable("a pick at random reads an exact count");
             // CR 603.2 — every printed hand→battlefield drop says "you may"
             // (folded into the pick's range by the `optional` wrapper); the
             // bare instruction is not a printed form.
@@ -6299,7 +6303,8 @@ function chosenMoveOps(
         ...(tapped ? { tapped: true } : {}),
     };
     // CR 609.3 (issue #1702) — "at random": the PRNG picks the exact count
-    // the frame admitted (never a range), out of the same pool.
+    // the frame admitted (never a range — the caller refuses one), out of
+    // the same pool.
     if (object.random === true && typeof count === "number")
         return [
             {
