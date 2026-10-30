@@ -479,6 +479,11 @@ import {
     morphTurnUpPaymentPlan,
 } from "./gre/morph";
 import { isOverloadAlternativeCost } from "./gre/overload";
+import {
+    applyEmergeReduction,
+    isEmergeAlternativeCost,
+    settleEmergeReduction,
+} from "./gre/emerge";
 import { turnFaceUpOnBattlefield } from "./gre/faceDown";
 import {
     adventureCastOptionFor,
@@ -5604,6 +5609,17 @@ export function finalizeTargetSelection(
         cardDef.name ?? (chosenAltCost ? "Alternative cost" : "Kicker")
     );
     const castSac = resolveCastPermanentSelection(castPermSel, additionalSac);
+    // CR 702.119a / 702.119c — an emerge cast's total is reduced by its
+    // victim's mana value, applied to the already-modified total (CR 601.2f).
+    // A forced victim is picked by now and reduces here; a real choice parks
+    // and reduces when the pick lands (`selectSacrificeOnState`).
+    const emergeCast = isEmergeAlternativeCost(cardDef, chosenAltCost);
+    const emergeReductionOwed = settleEmergeReduction(
+        state,
+        emergeCast,
+        manaCost,
+        castSac
+    );
     // CR 118.9 — the HAND leg of the chosen alternative cost (Force of Will
     // "exile a blue card", Foil "discard an Island card and another card"). A
     // player-chosen filtered give-up FROM HAND, paid at commit through the
@@ -5721,6 +5737,7 @@ export function finalizeTargetSelection(
             ...(additionalCostLegId ? { additionalCostLegId } : {}),
             ...(exilePicker ? { additionalCost: exilePicker } : {}),
             ...(castSac ? { sacrificeSelection: castSac } : {}),
+            ...(emergeReductionOwed ? { emergeReductionOwed: true } : {}),
             ...(castConvokeChoice
                 ? { convokeCreatureChoice: castConvokeChoice }
                 : {}),
@@ -7391,6 +7408,15 @@ export const announceCast = mutation({
             // Out's is life-only) silently dropped `ownSac`, i.e. Drought's
             // "Sacrifice a Swamp" (CR 118.8) went unpaid and unchecked.
             const castSac = resolveCastPermanentSelection(altChoice, ownSac);
+            // CR 702.119a / 702.119c — the emerge reduction, on the same terms
+            // as `finalizeTargetSelection`'s: forced victim → reduce now, real
+            // choice → reduce when the pick lands.
+            const emergeReductionOwed = settleEmergeReduction(
+                state,
+                isEmergeAlternativeCost(cardDef, chosenAltCost),
+                altManaCost,
+                castSac
+            );
             // CR 118.8 / 601.2f / 702.81a — the card's own hand-cost additional
             // leg and the retrace discard, through the SAME authority the other
             // two commit paths use. An ALTERNATIVE cost replaces the mana cost
@@ -7481,6 +7507,9 @@ export const announceCast = mutation({
                     ...announcedModeFields(castModeFields),
                     ...(kickerPayments ? { kickerPayments } : {}),
                     ...(castSac ? { sacrificeSelection: castSac } : {}),
+                    ...(emergeReductionOwed
+                        ? { emergeReductionOwed: true }
+                        : {}),
                     ...(altExilePicker
                         ? { additionalCost: altExilePicker }
                         : {}),
@@ -8519,6 +8548,13 @@ export function selectSacrificeOnState(
 
     if (isSacrificeSelectionComplete(sel)) {
         if (container === "cast") {
+            // CR 702.119a / 702.119c — the emerge victim is now chosen, so
+            // the total it reduces is final before any pool test commits it.
+            const pc = state.pendingCast!;
+            if (pc.emergeReductionOwed) {
+                applyEmergeReduction(state, pc.manaCost, sel);
+                delete pc.emergeReductionOwed;
+            }
             // tryAutoCommitPendingCast applies the selection + finalizes when
             // mana is also covered (else the player keeps tapping lands).
             tryAutoCommitPendingCast(state, args.playerId);

@@ -75,6 +75,7 @@ const NOT_A_BODY_KEYWORD = new Set([
     "replicate",
     "delve",
     "evoke",
+    "emerge",
     "retrace",
     "cascade",
     "rebound",

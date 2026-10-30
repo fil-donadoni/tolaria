@@ -106,6 +106,11 @@ import { canPayRetraceDiscard, hasRetrace } from "./retrace";
 import { substituteColorFilter } from "./textChanges";
 import type { TextChangeCarrier } from "./textChanges";
 import {
+    isEmergeAlternativeCost,
+    largestEmergeReduction,
+    reduceGenericCost,
+} from "./emerge";
+import {
     convokeEligibleCreatures,
     coverColoredAndHybridPips,
     consumeColoredAndHybridPips,
@@ -1821,6 +1826,24 @@ export function getLegalActions(
                                 )
                                     ? { extraMana: flashSurchargeOf(card) }
                                     : {}),
+                                // CR 702.119a — an emerge cast is affordable
+                                // when SOME victim's reduction makes it so;
+                                // the reduction grows with the victim's mana
+                                // value, so the largest one decides.
+                                ...(isEmergeAlternativeCost(
+                                    tryGetDefinition(
+                                        (card.card as { id?: string }).id ?? ""
+                                    ) ?? undefined,
+                                    alt
+                                )
+                                    ? {
+                                          extraReductionGeneric:
+                                              largestEmergeReduction(
+                                                  caster,
+                                                  alt
+                                              ),
+                                      }
+                                    : {}),
                             }
                         )
                     )) &&
@@ -2811,6 +2834,12 @@ function canPotentiallyPayCost(
          *  unkicked variant off-window, and without it the affordance offers a
          *  cast that would park unpayable at the mana step. */
         extraMana?: ManaCost;
+        /** CR 702.119a / 601.2f — a GENERIC reduction this particular cast
+         *  buys on top of the board's cost modifiers: the emerge reduction by
+         *  the largest mana value among the permanents the emerge cost could
+         *  sacrifice (`largestEmergeReduction`, `gre/emerge.ts`). Applied after
+         *  the modifiers, exactly where the commit applies it. */
+        extraReductionGeneric?: number;
     } = {}
 ): boolean {
     let rawCost = costOverride ?? getInstanceManaCost(card);
@@ -2898,6 +2927,9 @@ function canPotentiallyPayCost(
             getCostModifiers(state, card, "spell", undefined, player.id)
         );
     }
+    // CR 702.119a / 601.2f — the emerge reduction is a cost reduction too, so
+    // it applies to the total the modifiers above produced.
+    reduceGenericCost(cost, opts.extraReductionGeneric ?? 0);
     // CR 107.4e (issue #4934) — a guild-hybrid pip is mana owed too: left out,
     // a cost of hybrid pips alone (the ECL evoke trio's `{G/U}{G/U}`) read as
     // free and the gate offered a cast on no lands.
