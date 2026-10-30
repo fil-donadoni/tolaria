@@ -11,9 +11,12 @@
  *       (issue #5858). Reproduced → bisect.
  *       Exit 0: no RED stands (none, or closed GREEN); 1: the RED stands
  *       (or the last run was INFRA); 2: usage.
- *   bun run health:bisect bisect --sha <sha> [--good <sha>] [--files a,b] [--dry-run]
+ *       A fresh run passing the failing files alone in a shared-worker
+ *       project re-runs that project whole first, the failing files last.
+ *   bun run health:bisect bisect --sha <sha> [--good <sha>] [--files a,b] [--projects p,q] [--dry-run]
  *       The bisect alone: the RED's failing tests (its evidence's FAIL
- *       lines, or the whole --files) between the last GREEN (or <good>) and
+ *       lines, or the whole --files; inside the whole --projects when
+ *       given) between the last GREEN (or <good>) and
  *       <sha>; prints the culprit lines and, unless --dry-run, adds them to
  *       the RED's published evidence.
  *
@@ -52,10 +55,16 @@ import {
     settleFreshPass,
     settleHeldRed,
     remainingGates,
+    freshRunSteps,
+    probeCommands,
+    scopeLabel,
+    sharedWorkerProjects,
     testFileFilter,
-    vitestCommands,
+    type FreshOutcome,
     type FreshRun,
     type ProbeOutcome,
+    type ProbeScope,
+    type VitestCommand,
 } from "./lib/health-bisect";
 import {
     evidenceFiles,
@@ -193,74 +202,81 @@ function hasTestFile(wt: string, t: FailingTest): boolean {
     }
 }
 
-/** The failing tests that fail at one commit: none when every one passes,
- *  or when the commit does not have it yet (no file, or no test of that
- *  name — vitest skips it). */
+/** The failing tests that fail at one commit, looked for in `scope`: none
+ *  when every one passes, or when the commit does not have it yet (no file,
+ *  or no test of that name — vitest skips it). */
 function probeTests(
     ctx: Ctx,
     wt: string,
     tests: readonly FailingTest[],
+    scope: ProbeScope,
     opts: { exactFiles?: boolean; env?: Readonly<Record<string, string>> } = {}
 ): FailingTest[] {
     const present = tests.filter((t) =>
         opts.exactFiles ? existsSync(join(wt, t.file)) : hasTestFile(wt, t)
     );
+    if (present.length === 0) return [];
+    return runCommands(ctx, wt, probeCommands(present, scope, opts), opts.env);
+}
+
+/** The failing tests among `cmds`' that their runs in `wt` failed. */
+function runCommands(
+    ctx: Ctx,
+    wt: string,
+    cmds: readonly VitestCommand[],
+    env: Readonly<Record<string, string>> = {}
+): FailingTest[] {
     const red: FailingTest[] = [];
-    for (const c of vitestCommands(present, opts))
+    for (const c of cmds)
         red.push(
             ...failedTests(
                 c,
-                run(ctx, wt, "bunx", c.args, { ...opts.env, ...c.env })
+                run(ctx, wt, "bunx", c.args, { ...env, ...c.env })
             )
         );
     return red;
 }
 
-/** The fresh run's outcome; `elsewhere` names the gate the RED's run never
- *  reached that failed once the failing files passed. */
-interface Fresh {
-    outcome: ProbeOutcome;
-    elsewhere?: string;
-}
-
-/** The RED's failure re-run at its sha — then, when it passes, every gate
- *  its run never reached (`remainingGates`): only all of them green close
- *  the RED as GREEN. */
-function freshRun(ctx: Ctx, plan: Plan): Fresh {
-    let elsewhere: string | undefined;
+/** The RED's failure re-run at its sha (`freshRunSteps`): the failing files
+ *  alone, then their shared-worker projects whole, then every gate its run
+ *  never reached — only all of them green close the RED as GREEN. */
+function freshRun(
+    ctx: Ctx,
+    plan: Plan,
+    tests: readonly FailingTest[],
+    projects: readonly string[]
+): FreshOutcome {
+    let fresh: FreshOutcome = { outcome: "infra", scope: { kind: "files" } };
     const outcome = inWorktree(ctx, ctx.sha, (wt) => {
-        const first =
-            plan.kind === "tests"
-                ? probeTests(
-                      ctx,
-                      wt,
-                      plan.files.map((file) => ({ file })),
-                      { exactFiles: true }
-                  ).length > 0
-                    ? "red"
-                    : "green"
-                : run(ctx, wt, "bun", healthStepArgs(plan.step), {}).status ===
-                    0
-                  ? "green"
-                  : "red";
-        if (first !== "green") return first;
-        const rest = remainingGates(
-            plan,
-            splitHealthGates(HEALTH_SCRIPTS).offline
-        );
-        if (rest.length > 0)
-            note(
-                ctx,
-                `the failing part passed — the gates its run never reached: ${rest.join(", ")}`
-            );
-        for (const step of rest)
-            if (run(ctx, wt, "bun", healthStepArgs(step), {}).status !== 0) {
-                elsewhere = step;
-                return "red";
+        fresh = freshRunSteps(
+            {
+                // A file the RED sha does not have is not re-run.
+                plan:
+                    plan.kind === "tests"
+                        ? {
+                              ...plan,
+                              files: plan.files.filter((f) =>
+                                  existsSync(join(wt, f))
+                              ),
+                          }
+                        : plan,
+                tests,
+                projects,
+                remaining: remainingGates(
+                    plan,
+                    splitHealthGates(HEALTH_SCRIPTS).offline
+                ),
+            },
+            {
+                note: (line) => note(ctx, line),
+                runTests: (cmds) => runCommands(ctx, wt, cmds),
+                runStep: (step) =>
+                    run(ctx, wt, "bun", healthStepArgs(step), {}).status === 0,
             }
-        return "green";
+        );
+        return fresh.outcome;
     });
-    return { outcome, elsewhere };
+    return outcome === "infra" ? { ...fresh, outcome } : fresh;
 }
 
 /** Drops the probe worktrees a killed ladder left beside the primary. */
@@ -380,6 +396,7 @@ function fileFlake(ctx: Ctx, plan: Plan, evidence: string | undefined): void {
 function bisect(
     ctx: Ctx,
     tests: readonly FailingTest[],
+    scope: ProbeScope,
     goodArg?: string
 ): string[] {
     const store = verdictStore(ctx.root);
@@ -415,7 +432,7 @@ function bisect(
         .filter(Boolean);
     note(
         ctx,
-        `bisecting ${commits.length} commit(s) from GREEN ${good.slice(0, 8)} on ${tests.length} failing test(s)`
+        `bisecting ${commits.length} commit(s) from GREEN ${good.slice(0, 8)} on ${tests.length} failing test(s)${scope.kind === "projects" ? `, each probe running ${scope.projects.join(", ")} whole` : ""}`
     );
     const subjectOf = (sha: string) =>
         git(ctx.root, ["log", "-1", "--format=%s", sha]);
@@ -425,7 +442,7 @@ function bisect(
             ctx,
             sha,
             (wt) => {
-                red = probeTests(ctx, wt, pending, {
+                red = probeTests(ctx, wt, pending, scope, {
                     env: PROBE_BOOTSTRAP.env,
                 });
                 return red.length > 0 ? "red" : "green";
@@ -553,7 +570,11 @@ function ladder(ctx: Ctx): number {
         ctx,
         `fresh run of ${ctx.sha.slice(0, 8)}: ${plan.kind === "tests" ? plan.files.join(", ") : `bun run ${plan.step}`}`
     );
-    const { outcome, elsewhere } = freshRun(ctx, plan);
+    const tests =
+        plan.kind === "tests" ? bisectTests(evidence, plan.files) : [];
+    const projects =
+        plan.kind === "tests" ? sharedWorkerProjects(evidence, plan.files) : [];
+    const { outcome, elsewhere, scope } = freshRun(ctx, plan, tests, projects);
     if (outcome === "infra") {
         note(ctx, "the fresh run could not run — the RED stands, unconfirmed");
         return settle(1);
@@ -566,6 +587,7 @@ function ladder(ctx: Ctx): number {
                     sha: ctx.sha,
                     plan,
                     freshMachine: machineName(),
+                    ran: scopeLabel(plan, scope),
                     at: new Date().toISOString(),
                     log: runUrl(),
                     dryRun: ctx.dryRun,
@@ -593,7 +615,7 @@ function ladder(ctx: Ctx): number {
         note(ctx, "reproduced — the RED stands");
         lines =
             plan.kind === "tests"
-                ? bisect(ctx, bisectTests(evidence, plan.files))
+                ? bisect(ctx, tests, scope)
                 : [
                       `${LADDER_MARK}not bisected — a failed \`${plan.step}\` names no test file`,
                   ];
@@ -610,7 +632,7 @@ function main(): number {
     let sha = arg("--sha");
     if (cmd !== "ladder" && cmd !== "bisect") {
         console.error(
-            "usage: health:bisect ladder [--sha <sha>] | bisect --sha <sha> [--good <sha>] [--files a,b] [--dry-run]"
+            "usage: health:bisect ladder [--sha <sha>] | bisect --sha <sha> [--good <sha>] [--files a,b] [--projects p,q] [--dry-run]"
         );
         return 2;
     }
@@ -678,7 +700,15 @@ function main(): number {
         );
         return 2;
     }
-    const lines = bisect(ctx, tests, arg("--good"));
+    // `--projects a,b`: probe inside those shared-worker projects, whole
+    // (issue #7584) — a failure that reproduces only beside its polluter.
+    const projects = arg("--projects")?.split(",").filter(Boolean);
+    const lines = bisect(
+        ctx,
+        tests,
+        projects ? { kind: "projects", projects } : { kind: "files" },
+        arg("--good")
+    );
     for (const line of lines) note(ctx, line);
     publishCulprit(ctx, lines);
     return 0;

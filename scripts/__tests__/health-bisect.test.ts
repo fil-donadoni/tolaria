@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -23,7 +23,13 @@ import {
     settleFreshPass,
     settleHeldRed,
     vitestCommands,
+    freshRunSteps,
+    probeCommands,
+    scopeLabel,
+    sharedWorkerProjects,
+    SHARED_WORKER_PROJECTS,
     type FreshPassEffects,
+    type FreshRunEffects,
     type ProbeOutcome,
 } from "../lib/health-bisect";
 import {
@@ -45,6 +51,7 @@ import {
     machineName,
     type Verdict,
 } from "../lib/health-verdict-store";
+import { runLastFiles } from "../lib/vitest-run-last";
 
 /**
  * The RED ladder (issue #5645): a fresh run of a RED, the GREEN a flake
@@ -204,7 +211,9 @@ describe("a fresh pass on another runner class is environment-dependent, never a
         if (out.kind !== "environment") return;
         expect(out.line).toContain(`\`${hosted}\` (github-hosted)`);
         expect(out.line).toContain("`huawei` (self-hosted)");
-        expect(out.line).toContain("environment-dependent, not a flake");
+        expect(out.line).toContain("not reproduced on another runner class");
+        // Issue #7584: a one-worker pass never reproduced the RED's schedule.
+        expect(out.line).not.toContain("not a flake");
         // The ladder's mark: the RED is climbed once, and names no culprit.
         expect(laddered(out.line)).toBe(true);
     });
@@ -294,6 +303,161 @@ describe("settleFreshPass — what the ladder does with a fresh pass (issue #585
         expect(settle("macbook", fx, true)).toBe(0);
         expect(calls.greens).toEqual([]);
         expect(calls.flakes).toBe(1);
+    });
+});
+
+describe("a cross-file leak in a shared-worker project reproduces in the whole project, never alone (issue #7584)", () => {
+    const victim = "convex/gre/__tests__/loyaltyMoves.bot.test.ts";
+    const failing = { file: victim, name: "loyalty moves > Jace" };
+    const evidence = buildEvidence({
+        sha: RED.sha,
+        step: "test",
+        output: ` FAIL  |bot-node| ${victim} > loyalty moves > Jace\nError: Card not found by name: Jace\n Test Files  1 failed (1)\n`,
+        status: 1,
+        signal: null,
+        machine: "github-hosted-runner",
+        at: "2026-10-29T00:00:00Z",
+        logPath: "/tmp/x.log",
+    }).body;
+    const plan = {
+        kind: "tests" as const,
+        step: "test",
+        files: [victim],
+    };
+
+    /** The fresh run's I/O: the victim passes alone, fails beside the
+     *  rest of its project (the polluter registered a token first). */
+    function leaky(wholeFails: boolean) {
+        const runs: string[][] = [];
+        const notes: string[] = [];
+        const fx: FreshRunEffects = {
+            note: (l) => notes.push(l),
+            runTests: (cmds) => {
+                const red: { file: string; name?: string }[] = [];
+                for (const c of cmds) {
+                    runs.push(c.args);
+                    if (wholeFails && c.args.includes("--project"))
+                        red.push(...c.tests);
+                }
+                return red;
+            },
+            runStep: () => true,
+        };
+        return { runs, notes, fx };
+    }
+
+    it("reads the shared-worker project off the evidence, else off the path", () => {
+        expect(sharedWorkerProjects(evidence, [victim])).toEqual(["bot-node"]);
+        expect(sharedWorkerProjects(null, [victim])).toEqual(["bot-node"]);
+        expect(
+            sharedWorkerProjects(null, ["convex/gre/__tests__/cut.test.ts"])
+        ).toEqual(["node-engine"]);
+        // A dom file keeps per-file isolation: alone is its whole schedule.
+        expect(
+            sharedWorkerProjects(
+                buildEvidence({
+                    sha: RED.sha,
+                    step: "test",
+                    output: " FAIL  |dom| src/components/Board.test.tsx > b\n",
+                    status: 1,
+                    signal: null,
+                    machine: "huawei",
+                    at: "2026-10-29T00:00:00Z",
+                    logPath: "/tmp/x.log",
+                }).body,
+                ["src/components/Board.test.tsx"]
+            )
+        ).toEqual([]);
+    });
+
+    it("a bot-node file green alone but red in its project: reproduced, the bisect probes the project — never flake, never environment", () => {
+        const { runs, fx } = leaky(true);
+        const out = freshRunSteps(
+            {
+                plan,
+                tests: [failing],
+                projects: sharedWorkerProjects(evidence, plan.files),
+                remaining: ["test:blade"],
+            },
+            fx
+        );
+        expect(out).toEqual({
+            outcome: "red",
+            scope: { kind: "projects", projects: ["bot-node"] },
+        });
+        // Alone first, then the whole project, one worker — no unreached
+        // gate runs once it reproduced.
+        expect(runs).toEqual([
+            ["vitest", "run", victim],
+            ["vitest", "run", "--project", "bot-node", "--no-file-parallelism"],
+        ]);
+        // The bisect's probes run that same scope, so a commit that only
+        // ADDS the polluter (PR #7563) reads red.
+        expect(probeCommands([failing], out.scope).map((c) => c.args)).toEqual([
+            ["vitest", "run", "--project", "bot-node", "--no-file-parallelism"],
+        ]);
+        // The victim runs after every other bot-node file, its polluter
+        // included — never by the duration cache's order, which ran
+        // loyaltyMoves first and passed the whole project at 8491d0b85.
+        expect(
+            runLastFiles(probeCommands([failing], out.scope)[0]!.env)
+        ).toEqual(new Set([victim]));
+    });
+
+    it("green in the project too: a pass whose environment line says what ran, never 'not a flake'", () => {
+        const { runs, fx } = leaky(false);
+        const out = freshRunSteps(
+            {
+                plan,
+                tests: [failing],
+                projects: ["bot-node"],
+                remaining: [],
+            },
+            fx
+        );
+        expect(out.outcome).toBe("green");
+        expect(runs).toHaveLength(2);
+        const line = notReproduced({
+            redMachine: machineName({
+                GITHUB_ACTIONS: "true",
+                RUNNER_ENVIRONMENT: "github-hosted",
+            }),
+            freshMachine: "huawei",
+            ran: scopeLabel(plan, out.scope),
+        });
+        expect(line.kind).toBe("environment");
+        if (line.kind !== "environment") return;
+        expect(line.line).toContain(
+            "the whole `bot-node` project(s) in one worker"
+        );
+        expect(line.line).not.toContain("not a flake");
+    });
+
+    it("a file outside every shared-worker project passes alone: no project re-run", () => {
+        const { runs, fx } = leaky(true);
+        const out = freshRunSteps(
+            {
+                plan: { ...plan, files: ["src/components/Board.test.tsx"] },
+                tests: [{ file: "src/components/Board.test.tsx" }],
+                projects: [],
+                remaining: [],
+            },
+            fx
+        );
+        expect(out).toEqual({ outcome: "green", scope: { kind: "files" } });
+        expect(runs).toHaveLength(1);
+    });
+
+    it("pins the shared-worker projects to vitest.config.ts's `isolate: false` ones", () => {
+        const config = readFileSync(
+            join(__dirname, "..", "..", "vitest.config.ts"),
+            "utf8"
+        );
+        const off = [...config.matchAll(/name: "([\w-]+)"[\s\S]*?\n {16}\},/g)]
+            .filter((m) => /\n\s*isolate: false,/.test(m[0]))
+            .map((m) => m[1])
+            .sort();
+        expect(off).toEqual([...SHARED_WORKER_PROJECTS].sort());
     });
 });
 
