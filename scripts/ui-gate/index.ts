@@ -923,7 +923,11 @@ function computeRunScope(opts: Options): UiScope {
 function computeWalkOwed(opts: Options): WalkOwed {
     if (opts.all) return { owed: true, rule: "--all", path: "(every surface)" };
     try {
-        return landingWalkOwed(changedSinceBase(opts.base), REPO_ROOT);
+        return landingWalkOwed(
+            changedSinceBase(opts.base),
+            REPO_ROOT,
+            opts.base
+        );
     } catch (err) {
         return {
             owed: true,
