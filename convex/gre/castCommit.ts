@@ -58,6 +58,7 @@ import { castAsModalBack } from "./modalBackCast";
 import {
     NO_SPELL_MANA_RIDERS,
     commitLandsForCost,
+    costCardSnapshot,
     emitSpellCastEvent,
     getCastManaSubstitutions,
     getOpponentId,
@@ -249,6 +250,19 @@ export function commitCast(
     // CR 118.9 — the alternative-cost HAND leg: move each picked card from
     // hand to exile / graveyard. Vanished-card policy: a pick no longer in
     // hand makes the commit stale.
+    // CR 118.8 / 608.2h — snapshot the single card this leg gives up BEFORE it
+    // leaves the hand ("X is the discarded card's mana value", a Kicker's
+    // discard leg — Dralnu's Pet). Single-card legs only: "the discarded
+    // card" has no referent above one. A sacrifice / exile leg below wins the
+    // slot, as it does on the activation path.
+    const handLegPicks = legs.alternativeCostHandChoice?.pickedCardIds;
+    const handLegCard =
+        handLegPicks?.length === 1
+            ? caster.hand.find((c) => c.id === handLegPicks[0])
+            : undefined;
+    const handLegSnapshot = handLegCard
+        ? costCardSnapshot(handLegCard)
+        : undefined;
     if (legs.alternativeCostHandChoice?.pickedCardIds) {
         if (
             !payAlternativeCostHandChoice(
@@ -313,10 +327,9 @@ export function commitCast(
     // snapshot-flagged: its mana value + subtypes ride on the stack item,
     // read at resolve via `SpellContext.getAdditionalSacrificeMv` /
     // `getAdditionalCostSubtypes`.
-    let additionalSacrificeSnapshot = sacrificeSnapshotFromSelection(
-        legs.sacrificeSelection,
-        state
-    );
+    let additionalSacrificeSnapshot =
+        sacrificeSnapshotFromSelection(legs.sacrificeSelection, state) ??
+        handLegSnapshot;
     // CR 406 — the exile additional cost (Soul Exchange). Snapshot the exiled
     // permanent's mv/subtypes ("+2/+2 if the exiled creature was a Thrull"),
     // then exile it (no sacrifice cause to leave-the-battlefield triggers).
