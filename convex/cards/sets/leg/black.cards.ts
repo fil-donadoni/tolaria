@@ -786,7 +786,6 @@ export const spiritShackle = defineCard(() => ({
 // off the event (`$event.damagedPlayer`) and the ten-poison loss is the global
 // SBA. ONE counter per damage event whatever its amount. This is a plain
 // triggered ability, not the Poisonous keyword (CR 702.70).
-// compiler-gap: "Whenever this creature deals damage to a player, that player gets a poison counter." (#2230)
 export const pitScorpion = defineCard(() => ({
     id: "cc564f84-0d6e-4e09-a58d-a694d918cf12",
     rarity: "common",
