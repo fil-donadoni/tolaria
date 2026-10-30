@@ -52,6 +52,9 @@ import {
 import { representativeVictimLoss } from "./representativeVictim";
 import { currentLoyalty } from "../loyalty";
 import { effectivePermanentView } from "../permanentView";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { describeDamageSource } from "../replacements";
+import { lethalDamageThreshold } from "../lethalDamage";
 import { clearCardFieldsAt } from "../state/cardFieldLifecycle";
 import { liveSupertypesOf } from "../snow";
 import {
@@ -354,8 +357,118 @@ export function makeLatentBoardLens(
         return best / denominator;
     };
 
+    // CR 701.14a — every battlefield permanent the slot's requirement can
+    // legally name, with the player whose side it stands on.
+    const legalCombatants = (
+        requirement: TargetRequirement | undefined
+    ): { perm: CardInstanceState; ownerId: string }[] | undefined => {
+        if (!requirement) return undefined;
+        const source = pendingTargetingSource(state, card.id, "cast");
+        const found: { perm: CardInstanceState; ownerId: string }[] = [];
+        for (const target of getLegalTargets(
+            state,
+            requirement,
+            source,
+            casterId
+        )) {
+            if (target.type !== "permanent") continue;
+            for (const player of state.players) {
+                const perm = player.battlefield.find((p) => p.id === target.id);
+                if (perm) found.push({ perm, ownerId: player.id });
+            }
+        }
+        return found;
+    };
+
+    // What a fight reads off one combatant, once per permanent: its effective
+    // P/T through the layers, the damage already marked, and the two keywords
+    // that change what damage does to it.
+    const combatants = new Map<
+        string,
+        {
+            power: number;
+            toughness: number;
+            damageMarked: number;
+            deathtouch: boolean;
+            indestructible: boolean;
+        }
+    >();
+    const combatantOf = (perm: CardInstanceState) => {
+        let info = combatants.get(perm.id);
+        if (!info) {
+            const abilities = describeDamageSource(
+                state,
+                perm.id
+            ).staticAbilities;
+            info = {
+                power: getEffectivePower(state, perm),
+                toughness: getEffectiveToughness(state, perm),
+                damageMarked: perm.damageMarked ?? 0,
+                deathtouch: abilities.includes("deathtouch"),
+                indestructible: abilities.includes("indestructible"),
+            };
+            combatants.set(perm.id, info);
+        }
+        return info;
+    };
+
+    // CR 704.5g / CR 702.2b — whether `from` dealing its power to `to` kills
+    // it, damage already marked counted. Zero power deals no damage, so it
+    // never kills, deathtouch included. CR 702.12b — an indestructible
+    // creature is not destroyed by lethal damage or by deathtouch.
+    const fightKills = (from: CardInstanceState, to: CardInstanceState) => {
+        const source = combatantOf(from);
+        const target = combatantOf(to);
+        if (source.power <= 0 || target.indestructible) return false;
+        const threshold = lethalDamageThreshold({
+            effectiveToughness: target.toughness,
+            damageMarked: target.damageMarked,
+            sourceHasDeathtouch: source.deathtouch,
+        });
+        return source.power >= threshold;
+    };
+
+    const fightMemo = new Map<string, number | undefined>();
+    const computeFight = (
+        creatureSlot: number,
+        otherSlot: number
+    ): number | undefined => {
+        const fighters = legalCombatants(slots[creatureSlot] ?? openEnded);
+        const victims = legalCombatants(slots[otherSlot] ?? openEnded);
+        if (!fighters || !victims) return undefined;
+        let best: number | undefined;
+        for (const f of fighters) {
+            for (const v of victims) {
+                if (f.perm.id === v.perm.id) continue;
+                // A creature that dies is the caster's gain when an
+                // opponent's, its cost when the caster's own.
+                const side = (ownerId: string) =>
+                    ownerId === casterId ? -1 : 1;
+                let net = 0;
+                if (fightKills(f.perm, v.perm)) {
+                    net += side(v.ownerId) * realisedLoss(v.perm);
+                }
+                if (fightKills(v.perm, f.perm)) {
+                    net += side(f.ownerId) * realisedLoss(f.perm);
+                }
+                best = best === undefined ? net : Math.max(best, net);
+            }
+        }
+        return (best ?? 0) / denominator;
+    };
+
     return {
         weights: base.weights,
+        fightUnits(creatureSlot, otherSlot) {
+            if (slots.length === 0) return undefined;
+            const key = `${creatureSlot}:${otherSlot}`;
+            if (!fightMemo.has(key)) {
+                fightMemo.set(key, computeFight(creatureSlot, otherSlot));
+            }
+            const units = fightMemo.get(key);
+            if (units !== undefined) measured = true;
+            return units;
+        },
         requirementUnits(requirement) {
             const units = unitsOf(requirement);
             if (units !== undefined) measured = true;

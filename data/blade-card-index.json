@@ -813,6 +813,13 @@
             "needsSetup": false
         }
     ],
+    "Triangle of War": [
+        {
+            "label": "discriminating pair: activates Triangle of War with a 6/6 beside the 1/1 against a 4/4",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Uro, Titan of Nature's Wrath": [
         {
             "label": "self-sacrificing ETB: hard-casts Uro for its enter trigger",

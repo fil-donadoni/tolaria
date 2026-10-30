@@ -130,6 +130,11 @@ const SPLIT_SIGN_OPS: Partial<
     Record<EffectOp["op"], Readonly<Record<string, Beneficence>>>
 > = {
     redirectDamage: { from: "beneficial", to: "harmful" },
+    // CR 701.14a — the `other` combatant is the stake (opponent's creature
+    // preferred); the `creature` fighter has NO fixed sign: the Bot's own
+    // lethal creature and an opponent's creature are both right fighters
+    // depending on the exchange, which the valuer's pair reading prices.
+    fight: { creature: "neutral", other: "harmful" },
 };
 
 /** Accumulate each Op's sign onto every announced slot the Op names. */

@@ -721,6 +721,36 @@
         "turn": 3,
         "libraryCount": 20
     },
+    "discriminating pair: activates Triangle of War with a 6/6 beside the 1/1 against a 4/4": {
+        "cards": [
+            {
+                "name": "Triangle of War",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Eager Cadet",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Kindercatch",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Rumbling Baloth",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 3,
+        "landCount": 2
+    },
     "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)": null,
     "discriminating pair: attacks with a counter-bodied Walking Ballista into an empty board": {
         "cards": [

@@ -867,6 +867,9 @@ function etbGrounding(
     const reachesFace = types.some((t) => t === "any" || t === "player");
     return withLatentLens(ctx, {
         ...typed,
+        // The board lens's pair reading is indexed by the SPELL's target
+        // slots, which are not this ability's.
+        fightUnits: undefined,
         victimUnits: (slot) =>
             slot === 0 ? measured : typed.victimUnits(slot),
         faceOnly: (slot) => slot === 0 && measured === 0 && reachesFace,
