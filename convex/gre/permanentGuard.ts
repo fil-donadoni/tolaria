@@ -22,6 +22,7 @@
 //   - cantBeEnchanted  → state.ts aura-resolution attach gate
 //   - indestructible   → state.ts::regenerateOrDestroy
 //   - controlCantChange→ state.ts::applyControlChange
+//   - survivesZeroLoyalty → sba.ts::checkZeroLoyaltySBA (CR 704.5i)
 //
 // `player-guard` (`StaticPlayerGuard`, `playerHasShroud` below) is the
 // PLAYER-scoped sibling (CR 702.18 shroud applied to a player, CR 115.4):
@@ -110,6 +111,7 @@ type GuardClause = keyof Pick<
     | "cantBeEnchanted"
     | "indestructible"
     | "controlCantChange"
+    | "survivesZeroLoyalty"
 >;
 
 /** True if any active `permanent-guard` static effect on the battlefield bars
