@@ -215,19 +215,6 @@ import {
     type UiScope,
     type WalkOwed,
 } from "../lib/ui-scope.ts";
-import {
-    acquireUiLane,
-    admitUiMachine,
-    gateLockRoot,
-    heavyHolderLive,
-    stampUiLaneProgress,
-    MachineSaturatedError,
-    type UiMachineAdmission,
-} from "../lib/ui-admission.ts";
-import {
-    MACHINE_SATURATED_EXIT,
-    readMachineConfig,
-} from "../lib/machine-admission.ts";
 import { FUNCTION_TIMEOUT_PATTERN, type RetryPolicy } from "./infra-verdict.ts";
 import {
     convexProbe,
@@ -1034,30 +1021,6 @@ async function main(): Promise<number> {
         );
     }
 
-    // One browser run at a time on this machine (issue #4687): concurrent runs
-    // share one Convex backend, and contention there reads as UI failures. Taken
-    // only now, so `--scope-only` and an empty scope never queue; released by
-    // the hold's own exit / signal handlers on every path out.
-    const machine: UiMachineAdmission = { admitted: false, beside: null };
-    await acquireUiLane({
-        root: gateLockRoot(),
-        label: `check:ui ${process.argv.slice(2).join(" ")}`.trim(),
-        announce: log,
-        // The lane is ours; the machine may not be (issue #4966). Waits,
-        // bounded, and past the bound nothing is walked — except on a
-        // running heavy holder's load, which is walked beside (issue #4988).
-        admitMachine: async () => {
-            Object.assign(
-                machine,
-                await admitUiMachine({
-                    root: gateLockRoot(),
-                    thresholds: readMachineConfig(),
-                    announce: log,
-                })
-            );
-            return machine.admitted;
-        },
-    });
     loadAtStart = loadAverage();
 
     const port = await freePort();
@@ -1066,19 +1029,10 @@ async function main(): Promise<number> {
     // How many viewports at once (issue #3653), sized ONCE from the machine's
     // cores and memory — never from the load, which on a shared machine is the
     // neighbours' (issue #4687): the lane just acquired the one browser slot.
-    // A live heavy-gate holder caps it to one context (issue #4941): the
-    // browser slot is ours, the machine is not. So does the holder the
-    // machine admission just walked past, should it have released since.
     const ncpu = os.cpus().length;
     const totalMem = os.totalmem();
-    const heavyHolder = machine.beside ?? heavyHolderLive(gateLockRoot());
-    const cappedBy =
-        opts.parallel === null && heavyHolder !== null
-            ? { pid: heavyHolder.pid, label: heavyHolder.label }
-            : null;
-    const startSize =
-        opts.parallel ??
-        viewportParallelism(ncpu, totalMem, heavyHolder !== null);
+    const cappedBy = null;
+    const startSize = opts.parallel ?? viewportParallelism(ncpu, totalMem);
     // What an uncapped run would have walked at: the pool may grow to it once
     // the holder leaves (issue #5023), and the fleet is provisioned for it up
     // front. `--parallel=N` is the user's count and never grows.
@@ -1819,7 +1773,7 @@ async function main(): Promise<number> {
                     start: startSize,
                     uncapped: uncappedSize,
                     cappedBy,
-                    holderNow: () => heavyHolderLive(gateLockRoot()),
+                    holderNow: () => null,
                     now: Date.now,
                     startedAtMs: startedAt,
                 });
@@ -1842,12 +1796,6 @@ async function main(): Promise<number> {
                             stallAfterMs: CELL_DEADLINE_MS / 2,
                         });
                         log(line);
-                        // What every session queued on the lane sees.
-                        stampUiLaneProgress(
-                            gateLockRoot(),
-                            process.pid,
-                            line.replace(/^ui-gate: /, "")
-                        );
                     },
                     {
                         setInterval,
@@ -2024,12 +1972,6 @@ async function main(): Promise<number> {
 try {
     process.exit(await main());
 } catch (err) {
-    if (err instanceof MachineSaturatedError) {
-        // Not a FatalError: exit 2 reads as a walk the environment cut short,
-        // and this one never started — `health-verdict` names the cause.
-        process.stderr.write(`\n✗ check:ui: ${err.message}\n`);
-        process.exit(MACHINE_SATURATED_EXIT);
-    }
     if (err instanceof FatalError || err instanceof LaneAccountError) {
         process.stderr.write(`\n✗ check:ui: ${err.message}\n`);
         process.exit(

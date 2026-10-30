@@ -20,19 +20,18 @@
  *                    prints the details. Fix-forward, then the next green run
  *                    removes it.
  *
- * A step that failed while the machine was asleep (`lib/health-verdict.ts`,
- * issue #4938) is `infra`: recorded, exit 1, but no `RED` marker written and
+ * A step that failed while the machine was asleep (`lib/health-verdict.ts`) is `infra`: recorded, exit 1, but no `RED` marker written and
  * none cleared — the tip is unproven, not red, and the next run re-gates it.
  * So is a browser step that found the Convex deployment down (its own exit
- * code, issue #4943) — and a run that owes one and whose PREFLIGHT finds it
+ * code, ) — and a run that owes one and whose PREFLIGHT finds it
  * down records `infra` at step `preflight:convex` before any gate runs, in
  * seconds rather than after ~40 minutes of gates. Health never STARTS the
- * backend: the AFK loop's `convex:ensure` does (issue #4945). So is a browser
+ * backend: the AFK loop's `convex:ensure` does. So is a browser
  * step the environment cut short (a fatal exit, or every failing row
  * `INFRA`): `last.json` names the two halves, `offline` and `browser`. One the
  * tree failed is RED.
  *
- * THE BROWSER HALF (issues #4962, #6143). `splitHealthGates` cuts the offline
+ * THE BROWSER HALF (issue #6143). `splitHealthGates` cuts the offline
  * gates from the browser steps. Only `--release` runs the browser steps:
  * after the offline gates, off the heavy mutex (their environment scrubs any
  * hold), in their own worktree. A tip whose offline half already stands GREEN
@@ -43,7 +42,7 @@
  * (a `running` record younger than 90 minutes), is not re-gated — so N
  * quick successive lands cost ONE health run on the final tip. Under
  * `--under-lock` (the cadence's waiter) a RED or INFRA tip is not re-gated
- * either; by hand it is (`gateSkipReason`, issue #4960).
+ * either; by hand it is (`gateSkipReason`, ).
  *
  * The gate runs in its own worktree at the tip, never in the primary
  * checkout's working tree (which may hold anything), and with
@@ -59,20 +58,20 @@
  * `gate.ts yield` acquisition (ADR 0136 §6); `release` never does. It is
  * refused beside `--release`: a hold is never carried into a browser step.
  *
- * Each step reports to the terminal while it runs (issue #3487) — start and
+ * Each step reports to the terminal while it runs — start and
  * end lines, the gate's `[gate]` mutex-wait lines live, a liveness line while
  * a step is long — and the per-sha log still receives the full child output.
  * `lib/health-step.ts` owns that.
  *
  * The Bot Findings refresh (`bot:reach`, `seed:bot-findings`, `gaps:sync`)
  * and the blade robustness / held-out pick agreement audits are NOT part of
- * this run (issue #5458): they keep a view of the Bot fresh and prove nothing
+ * this run: they keep a view of the Bot fresh and prove nothing
  * about the tree, so `bun run health:nightly` (`scripts/health-nightly.ts`, a
  * cron entry point) runs the refresh nightly and the audits weekly. Nor is
  * `check:convex-heap`, a capacity report run by hand (`bun run maintenance`).
  * The offline phase is `worktree:init`, `check:all`, the cheap guards, `test`.
  *
- * JOB RUNS (issue #5645, `lib/health-verdict-job.ts`). `--scheduled` is
+ * JOB RUNS (, `lib/health-verdict-job.ts`). `--scheduled` is
  * `health.yml`'s two-hourly run on a `lane` runner, from the job's worktree
  * of the primary checkout (the one linked worktree health accepts); it
  * re-gates an INFRA only with `--retry-infra` and never a tip the store holds
@@ -81,16 +80,9 @@
  * tests, so only its RED reaches the store. A RED of either goes through the
  * ladder (`scripts/health-bisect.ts`): a fresh run, then the bisect.
  *
- * The MACHINE is asked before the gates start (issue #4966,
- * `lib/machine-admission.ts`): over a `machine.*` threshold the run waits,
- * bounded, then ends `infra` at `preflight:machine` — and a suite step whose
- * every failed test timed out while its own samples read saturated is `infra`
- * too (`machine-timeout`), ONCE: the same step timing out on the next run is
- * RED.
- *
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
  * `lib/health-verdict.ts`, `lib/convex-reachable.ts`,
- * `lib/deployment-skew.ts` (builtins), `lib/machine-admission.ts` (builtins and `lib/branches.ts`),
+ * `lib/deployment-skew.ts` (builtins),
  * `lib/health-robustness-audit.ts` and `lib/health-pick-agreement-audit.ts`
  * (their records, for `--status`), `lib/test-headroom.ts` (builtins), and
  * through `lib/health-verdict.ts` the
@@ -154,11 +146,9 @@ import {
     INFRA_REMEDY,
     infraCause,
     PREFLIGHT_CONVEX_STEP,
-    PREFLIGHT_MACHINE_STEP,
     PREFLIGHT_SKEW_STEP,
     readLastSleepAt,
     recordInfra,
-    repeatedMachineTimeout,
     type BrowserStepsState,
     type HealthStatus,
     type InfraCause,
@@ -176,12 +166,6 @@ import {
     type Verdict,
 } from "./lib/health-verdict-store";
 import { publishRunMarker } from "./lib/health-pivot";
-import { gateLockRoot, runningHolderLine } from "./lib/ui-admission";
-import {
-    readMachineConfig,
-    runSaturated,
-    waitForMachine,
-} from "./lib/machine-admission";
 import { browserStepsOwed, gateSkipReason } from "./lib/health-gate-skip";
 import {
     appendFileSync,
@@ -1238,31 +1222,6 @@ async function main(): Promise<void> {
             browser: "not run",
         });
 
-    // The machine, asked before ~40 minutes of gates start on it (issue
-    // #4966). Under a caller's hold the gate that took the mutex has already
-    // asked, and waited: asking again would only wait twice. With no hold
-    // (`release`, by hand) a running heavy gate's load is not waited on
-    // (issue #4988): every step below queues for the mutex behind it and
-    // asks again under its own hold, so waiting here only adds a bound that
-    // holder can outlast.
-    const thresholds = readMachineConfig();
-    if (process.env.TOLARIA_GATE_HELD !== "1") {
-        const machine = await waitForMachine({
-            thresholds,
-            tag: "health-main:",
-            announce: (line) => console.error(line),
-            heavyHolder: () => runningHolderLine(gateLockRoot()),
-        });
-        if (!machine.admitted)
-            finishInfra(
-                ctx,
-                "machine-saturated",
-                PREFLIGHT_MACHINE_STEP,
-                undefined,
-                { browser: "not run" }
-            );
-    }
-
     const steps: HealthStep[] = offline.map((name, i) => ({
         ordinal: i + 1,
         total: offline.length,
@@ -1298,18 +1257,7 @@ async function main(): Promise<void> {
                     step: step.name,
                     exitCode: r.status,
                     output: r.output,
-                    // The machine of the run whose failure this classifies —
-                    // the retry's, when there was one: its start, every
-                    // liveness beat, its end (issue #5939).
-                    machineSaturated: runSaturated(r.samples ?? [], thresholds),
                 });
-                // The machine's excuse does not repeat: the same step timing
-                // out on two runs in a row is the tree's.
-                if (
-                    failedCause === "machine-timeout" &&
-                    repeatedMachineTimeout(last, step.name)
-                )
-                    failedCause = null;
                 failedStep = step.name;
                 failedOutput = {
                     output: r.output,

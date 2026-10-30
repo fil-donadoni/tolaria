@@ -21,29 +21,24 @@
  *
  * `infra` is ALSO a browser step that exited `DEPLOYMENT_DOWN_EXIT` (issue
  * #4943): the local Convex backend did not answer, so the step never started.
- * 7 of 12 REDs after issue #4913 put `check:ui --all` in the gate were that
+ * 7 of 12 REDs after  put `check:ui --all` in the gate were that
  * one line, each raising the marker, blocking `queue:plan` and spawning
  * `health:fix` while nothing in the tree was wrong. A run that owes a browser
  * step preflights the same probe (`convexPreflight`) so a down backend costs
  * seconds, not ~40 minutes of gates before the last step learns it.
  *
- * `infra` is ALSO a browser step the ENVIRONMENT cut short (issue #4962):
+ * `infra` is ALSO a browser step the ENVIRONMENT cut short:
  * exiting 2 (a fatal error before anything was measured — a sign-in the auth
  * backend refused), or exiting 1 with every failing row `INFRA`
  * (`walkRunVerdict`, `ui-gate/infra-verdict.ts`). One the TREE failed is RED.
- * Since issue #6143 the one browser step is `check:game-download`, at
+ * Since  the one browser step is `check:game-download`, at
  * `release`: no automated run walks `check:ui` any more.
  *
- * `infra` is ALSO a run the MACHINE could not carry (issue #4966): a gate that
- * waited out `machine.waitMaxS` on a saturated machine and never started
- * (`MACHINE_SATURATED_EXIT` → `machine-saturated`), and a suite step whose
- * EVERY failed test timed out while its own samples read saturated
- * (`machine-timeout`). A single assertion that failed beside the timeouts
- * keeps the step RED — and so does the same step timing out on the very next
- * run (`repeatedMachineTimeout`): the excuse is the machine's once.
+ * `infra` is ALSO a gate that never started (`INFRA_EXIT` → `gate-not-run`):
+ * the dependency install failed, so nothing ran.
  *
  * `infra` is ALSO a browser step facing a deployment that serves code other
- * than the tip (issues #6132, #6133, `lib/deployment-skew.ts`): `convex dev`
+ * than the tip (issues , , `lib/deployment-skew.ts`): `convex dev`
  * pushes the PRIMARY checkout, and a primary moved off the base branch fails
  * a green tip's browser steps. The browser phase preflights it
  * (`PREFLIGHT_SKEW_STEP`) → `deployment-skew`.
@@ -51,7 +46,7 @@
  * Node builtins plus `lib/convex-reachable.ts` (builtins only),
  * `ui-gate/infra-verdict.ts` (which adds only it and `lib/deployment-skew.ts`,
  * builtins only) and
- * `lib/machine-admission.ts` (builtins plus `lib/branches.ts`) —
+ * `lib/infra-exit.ts` (builtins plus `lib/branches.ts`) —
  * `health-main.ts` carries the same constraint.
  */
 import { spawnSync } from "node:child_process";
@@ -59,10 +54,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEPLOYMENT_DOWN_EXIT } from "./convex-reachable";
 import { walkRunVerdict } from "../ui-gate/infra-verdict";
-import {
-    MACHINE_SATURATED_EXIT,
-    timeoutOnlyFailure,
-} from "./machine-admission";
+import { INFRA_EXIT } from "./infra-exit";
 
 /**
  * `pending` (ADR 0157 § Option 1b, "Health", issue #6248): the tip is
@@ -85,10 +77,8 @@ export type InfraCause =
     | "convex-down"
     /** A browser step the environment cut short (`walkRunVerdict`). */
     | "browser-step"
-    /** A gate waited out its bound on a saturated machine: nothing ran. */
-    | "machine-saturated"
-    /** A step ran, and failed ONLY by timing out, on a saturated machine. */
-    | "machine-timeout"
+    /** A gate never started (a failed dependency install): nothing ran. */
+    | "gate-not-run"
     /** The deployment served code other than the tip (issue #6132). */
     | "deployment-skew";
 
@@ -101,10 +91,6 @@ export const PREFLIGHT_CONVEX_STEP = "preflight:convex";
  *  (issue #6132). */
 export const PREFLIGHT_SKEW_STEP = "preflight:deployment-skew";
 
-/** The step name `last.json` records when the machine stayed saturated past
- *  the bound before any gate ran (issue #4966). */
-export const PREFLIGHT_MACHINE_STEP = "preflight:machine";
-
 /** What to do about each cause — one sentence `last.json` carries as
  *  `reason`, so every reader (`health:status`, `queue:plan`, a shell driver)
  *  prints the same instruction. No double quotes: a shell driver reads it with
@@ -115,10 +101,8 @@ export const INFRA_REMEDY: Record<InfraCause, string> = {
         "the local Convex backend did not answer; start it with `bun run convex:ensure` (the AFK loop's next pass does), then the next health run re-gates the tip",
     "browser-step":
         "a browser step was cut short by the environment (a fatal exit, or every failing row INFRA); the next release re-runs it",
-    "machine-saturated":
-        "the machine stayed over machine.loadMax or under memory pressure past machine.waitMaxS, so nothing ran; see `bun run machine`, and the next health run re-gates the tip",
-    "machine-timeout":
-        "every failed test timed out while the machine was saturated; the next health run re-gates the tip, and the same step timing out again is RED",
+    "gate-not-run":
+        "a gate could not start (the dependency install failed), so nothing ran; the next health run re-gates the tip",
     "deployment-skew":
         "the local Convex deployment serves the primary checkout, and the primary is off the base branch, dirty under convex/, or does not contain the tip; put the primary back on the base branch (`git -C <primary> switch <base> && git -C <primary> merge --ff-only origin/<base>`), wait for convex dev to push, and re-run `release`",
 };
@@ -194,9 +178,6 @@ export interface StepOutcome {
     /** The child's stdout + stderr — read for a browser step, and for a
      *  step that failed on a saturated machine. */
     output?: string;
-    /** The step's own load / swap samples crossed a `machine.*` threshold
-     *  (`runSaturated`). Absent reads as a calm machine. */
-    machineSaturated?: boolean;
 }
 
 /** The `HEALTH_SCRIPTS` entry's script name: the word before any flag. */
@@ -226,8 +207,8 @@ export function infraCause(input: StepOutcome): InfraCause | null {
     const browser = isBrowserStep(input.step);
     if (browser && input.exitCode === DEPLOYMENT_DOWN_EXIT)
         return "convex-down";
-    // A gate that never started: the machine stayed saturated past the bound.
-    if (input.exitCode === MACHINE_SATURATED_EXIT) return "machine-saturated";
+    // A gate that never started: nothing ran.
+    if (input.exitCode === INFRA_EXIT) return "gate-not-run";
     if (input.lastSleepAt !== null && input.lastSleepAt >= input.startedAt)
         return "sleep";
     if (
@@ -235,42 +216,7 @@ export function infraCause(input: StepOutcome): InfraCause | null {
         walkRunVerdict(input.exitCode ?? null, input.output ?? "") === "infra"
     )
         return "browser-step";
-    // The machine explains a failure only when the failure is one it can
-    // cause: a suite whose every failed test timed out. (An unsettled
-    // browser step is `browser-step` above, saturated or not.) The caller
-    // excuses it ONCE — `repeatedMachineTimeout`.
-    if (
-        !browser &&
-        input.machineSaturated &&
-        timeoutOnlyFailure(input.output ?? "")
-    )
-        return "machine-timeout";
     return null;
-}
-
-/**
- * Whether a `machine-timeout` is the SECOND in a row at the same step — and
- * so not excused. A step's own workers raise the load its samples read (one
- * per liveness beat since issue #5939, and other holders' load while it
- * queues on the heavy mutex), so "saturated" cannot tell a busy machine from
- * a regression that hangs the suite; what tells them apart is that the
- * machine's excuse does not repeat.
- * The first timeout-only failure is `infra` and the tip is gated again; the
- * same step failing the same way on the very next run is the tree's.
- */
-export function repeatedMachineTimeout(
-    previous: {
-        status: HealthStatus;
-        infraCause?: string;
-        failedStep?: string;
-    } | null,
-    step: string
-): boolean {
-    return (
-        previous?.status === "infra" &&
-        previous.infraCause === "machine-timeout" &&
-        previous.failedStep === step
-    );
 }
 
 /**

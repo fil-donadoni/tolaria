@@ -304,8 +304,6 @@ export const CENSUS_WALK_EXEMPT: Readonly<Record<string, string>> = {
         "`readdirSync` inside an inline source-string fixture; it censuses no repo corpus",
     "scripts/__tests__/ladder-verdict.test.ts":
         "`git ls-files` named in a comment only; it censuses no repo corpus",
-    "scripts/__tests__/machine-admission-spawn.test.ts":
-        "a scratch log dir; it censuses no repo corpus",
     "scripts/__tests__/receipt.test.ts":
         "`readdirSync` named in comments and test titles only; it censuses no repo corpus",
     "scripts/__tests__/queue-plan.test.ts":

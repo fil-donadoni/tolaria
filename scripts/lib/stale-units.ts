@@ -2,8 +2,7 @@
 // (issue #6019): PR #5856 deleted `scripts/health-runner.ts` and
 // `scripts/reaper.ts`, but the Huawei's `tolaria-health` / `tolaria-reaper`
 // user units stayed installed and failed every tick. `bun run runner install`
-// (and `bun run runner prune`) plans their removal; `bun run machine` reports
-// them. The parsing and the plan are pure; `readInstalledUnits` is the one
+// (and `bun run runner prune`) plans their removal. The parsing and the plan are pure; `readInstalledUnits` is the one
 // filesystem read.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";

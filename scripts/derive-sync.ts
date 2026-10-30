@@ -122,7 +122,6 @@ import {
     derivedLateLine,
     derivedLateTitle,
     derivedStaleLine,
-    heavyHeldLine,
     pushDerivedCommit,
     renderBotRegressionIssue,
     renderDerivedLateIssue,
@@ -133,7 +132,6 @@ import {
     type DerivedEntry,
     type DriftSweepResult,
     type Freshness,
-    type HeavyHolder,
     type LateKind,
     type LostCard,
 } from "./lib/derive-sync";
@@ -1004,31 +1002,6 @@ function moveToTip(head: string, newTip: string, swept: Lockfile): boolean {
     );
 }
 
-/**
- * The heavy mutex's live holder, or null when it is free — or when this run
- * already sits under a hold (`TOLARIA_GATE_HELD`), where the sweep runs in
- * place and never queues. Read through `gate.ts who --json`, the gate's own
- * reader (issue #6524). An unreadable answer is "free": the sweep then waits
- * as it always did, never a refusal on a guess.
- */
-function heavyHolder(): HeavyHolder | null {
-    if (process.env.TOLARIA_GATE_HELD === "1") return null;
-    const r = spawnSync("bun", ["scripts/gate.ts", "who", "--json"], {
-        cwd: ROOT,
-        encoding: "utf8",
-        timeout: 30_000,
-    });
-    if (r.status !== 0) return null;
-    try {
-        const parsed = JSON.parse(r.stdout.trim().split("\n").pop() ?? "") as {
-            holder: HeavyHolder | null;
-        };
-        return parsed.holder ?? null;
-    } catch {
-        return null;
-    }
-}
-
 /** The Bot-play replay on the base (issue #6463). Exit code. */
 function replayBot(dryRun: boolean): number {
     // A throwaway tree only: the run detaches and restores files below, and
@@ -1064,7 +1037,6 @@ function replayBot(dryRun: boolean): number {
             headerBotHash === treeBotHash
                 ? null
                 : openIssueByTitle(title, BOT_REGRESSION_LABELS[1]!),
-        heavyHolder: headerBotHash === treeBotHash ? null : heavyHolder(),
     });
     if (plan.kind === "current") {
         say(
@@ -1076,10 +1048,6 @@ function replayBot(dryRun: boolean): number {
         say(
             `${head.slice(0, 10)}: this Bot (${treeBotHash.slice(0, 19)}) already took cards out of \`ready\` — issue #${plan.issue} is open, not swept again`
         );
-        return 0;
-    }
-    if (plan.kind === "held") {
-        say(heavyHeldLine(plan.holder));
         return 0;
     }
     say(

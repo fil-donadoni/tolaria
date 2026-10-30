@@ -26,8 +26,7 @@
  * FILES — a lane's command already names a scoped set, and the whole project
  * would cost minutes for one flaky file.
  *
- * Node builtins plus `lib/health-step.ts`, `lib/health-evidence.ts` and
- * `lib/machine-admission.ts` —
+ * Node builtins plus `lib/health-step.ts` and `lib/health-evidence.ts` —
  * `health-main.ts` carries the same constraint.
  */
 import {
@@ -38,7 +37,33 @@ import {
     stripAnsi,
 } from "./health-evidence";
 import type { HealthStep, StepResult } from "./health-step";
-import { timeoutOnlyFailure } from "./machine-admission";
+
+/**
+ * Whether EVERY test a vitest run failed, it failed by timing out. One
+ * assertion that failed beside the timeouts and the run is the tree's.
+ */
+export function timeoutOnlyFailure(output: string): boolean {
+    const failed = [...output.matchAll(/^\s*Tests\s+(\d+) failed/gm)].reduce(
+        (n, m) => n + Number(m[1]),
+        0
+    );
+    // Vitest's "Failed Tests" section: one ` FAIL  <file> > <test>` line per
+    // failed test, its error on the next line. Read per block, never as two
+    // counts over the whole output — a timeout message printed twice must
+    // not stand in for an assertion printed once.
+    const lines = output.split("\n");
+    let blocks = 0;
+    for (let i = 0; i < lines.length; i++) {
+        if (!/^\s*FAIL\s+\S/.test(lines[i])) continue;
+        blocks++;
+        const error = lines.slice(i + 1).find((l) => l.trim() !== "") ?? "";
+        if (!/^\s*Error: (?:Test|Hook) timed out in \d+ms/.test(error))
+            return false;
+    }
+    // Every failed test accounted for: a failure with no block of its own is
+    // one this cannot vouch for.
+    return failed > 0 && blocks === failed;
+}
 
 /** The step the retry applies to. */
 export const RETRY_STEP = "test";

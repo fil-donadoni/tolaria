@@ -49,11 +49,6 @@ import {
     DERIVED_PATHS,
     DERIVE_SYNC_COMMIT_SUBJECT,
 } from "../lib/derive-sync";
-import {
-    admissionOrder,
-    waiterSince,
-    type GateWaiter,
-} from "../lib/gate-liveness";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "../lib/branches";
 import { classifyLane } from "../check-lane";
 import type { UiScope } from "../lib/ui-scope";
@@ -1004,14 +999,6 @@ describe("land.ts — post-merge housekeeping is the same list in both paths", (
 });
 
 describe("land.ts — lockedEnv (review round 2, B1)", () => {
-    it("declares the caller's ROLE, which is what makes a queued land visible to the mutex's yield rule (ADR 0136 §6)", () => {
-        // The batch health gate steps aside while any `land` is queued. A
-        // waiter is only recognisable as a landing because of this variable —
-        // without it health overtakes every queue and each landing pays the
-        // ten minutes the yield rule exists to save it.
-        expect(lockedEnv({}).TOLARIA_GATE_ROLE).toBe("land");
-    });
-
     // bun auto-loads `.env.local`, which in this repo carries a server-side
     // bug-report `GITHUB_TOKEN` that `gh` prefers over the keyring login.
     // Inherited by the locked child that runs the embedded `gh pr merge`,
@@ -1311,68 +1298,6 @@ describe("land.ts — nested heavy gate inside the locked command", () => {
         expect(r.status, r.stdout + r.stderr).toBe(0);
         expect(r.stdout).toContain("NESTED-OK");
     }, 20_000);
-
-    // This test proves passthrough (TOLARIA_GATE_HELD present → no wait), not
-    // the absence of deadlock — proving a negative needs the failure mode to
-    // actually occur under a bound. The test below is that: it reproduces the
-    // deadlock committed, on a bounded timeout, rather than resting on a
-    // manual probe recorded only in prose (review round 2 caveat).
-    it("a heavy call that does NOT inherit TOLARIA_GATE_HELD deadlocks against a lock its own ancestor holds", () => {
-        // Pre-seed the lock exactly as a live heavy holder would: owner.json
-        // naming a pid that IS alive (this test process's own — `alive()` in
-        // gate.ts checks `process.kill(pid, 0)`, which succeeds for our own
-        // pid) and a fresh timestamp (nowhere near STALE_MS). Then spawn a
-        // heavy call against that SAME lock root from a neutral cwd with
-        // TOLARIA_GATE_HELD stripped — the exact situation land.ts's design
-        // exists to avoid: a heavy call that does not know it is nested.
-        mkdirSync(join(lockRoot, "gate.lock"), { recursive: true });
-        writeFileSync(
-            join(lockRoot, "gate.lock", "owner.json"),
-            JSON.stringify({
-                pid: process.pid,
-                label: "simulated live holder",
-                cwd: lockRoot,
-                ts: Date.now(),
-            })
-        );
-
-        const env = gateEnv();
-        delete env.TOLARIA_GATE_HELD;
-
-        const r = spawnSync("bun", [GATE, "heavy", "echo SHOULD-NOT-RUN"], {
-            encoding: "utf8",
-            cwd: lockRoot,
-            env,
-            timeout: 3000,
-        });
-
-        // spawnSync's `timeout` SIGTERMs the child when it fires and never
-        // sets a normal exit `status` — that is the proof the process was
-        // still blocked in acquire()'s poll loop, not merely slow: a
-        // passthrough call (see the test above) returns in well under 100ms.
-        expect(r.signal).toBe("SIGTERM");
-        expect(r.stdout).not.toContain("SHOULD-NOT-RUN");
-    }, 8000);
-
-    // Proof-of-failure: temporarily deleted the `TOLARIA_GATE_HELD:
-    // tier === "heavy" ? "1" : …` line in gate.ts's `env` object (main()),
-    // so a nested heavy call would never see the flag its own parent had.
-    // The FIRST test above ("passes straight through") then goes RED at
-    // ~15s: the inner call blocks in acquire()'s poll loop, spawnSync's
-    // `timeout: 15_000` SIGTERMs it, gate.ts's signal handler exits 130,
-    // and line 371 fails on `r.status`. vitest completes normally
-    // (1 failed, exit 1). Reverted.
-    //
-    // Why the bound is load-proof: the happy path returns in <100ms, three
-    // orders of magnitude inside 15s, and the bound sits under the test's
-    // own 20s vitest timeout so spawnSync always fires first and leaves
-    // room to report.
-    //
-    // Run WITHOUT that `timeout` (the round-2 shape), the same mutation did
-    // not redden at all — it hung: spawnSync blocks the worker
-    // synchronously, so vitest's timeout could not preempt it and
-    // `bun run test` had to be force-stopped. That is the regression the
-    // bound exists to convert into a failing assertion.
 });
 
 /**
@@ -2342,47 +2267,6 @@ describe("land.ts — no preflight (ADR 0154 §5, issue #5457)", () => {
         expect(refuse).toBeGreaterThan(-1);
         expect(heavy).toBeGreaterThan(refuse);
         expect(main.match(/spawnSync\(/g)).toHaveLength(1);
-    });
-
-    /**
-     * Issue #4988 — the waiter entry dates from when the land was ISSUED,
-     * not from when it reached the gate. Still true with no preflight: the
-     * refusal checks (`gh pr view`, the receipt and scenario diffs) run
-     * before the entry exists.
-     */
-    it("queues by when it was ISSUED — ahead of a health waiter and of a land issued after it", () => {
-        const issuedAt = 50_000_000;
-        const registeredAt = issuedAt + 15_000;
-        const waiter = (over: Partial<GateWaiter>): GateWaiter => ({
-            pid: 1,
-            role: "land",
-            tier: "heavy",
-            label: "",
-            cwd: "/repo",
-            since: registeredAt,
-            ...over,
-        });
-        const env = lockedEnv({}, issuedAt);
-        const queue = [
-            waiter({
-                pid: 10,
-                role: "health",
-                tier: "yield",
-                since: issuedAt + 5_000,
-            }),
-            waiter({ pid: 20, since: issuedAt + 10_000 }),
-            waiter({ pid: 30, since: waiterSince(env, registeredAt) }),
-        ];
-        expect(queue[2].since).toBe(issuedAt);
-        expect(admissionOrder(queue, registeredAt).map((w) => w.pid)).toEqual([
-            30, 20, 10,
-        ]);
-        expect(waiterSince(lockedEnv({}), registeredAt)).toBe(registeredAt);
-        const main = mainOf(landSource());
-        const issued = main.indexOf("const issuedAt = Date.now();");
-        expect(issued).toBeGreaterThan(-1);
-        expect(issued).toBeLessThan(main.indexOf("parseArgs(argv)"));
-        expect(main).toMatch(/lockedEnv\(process\.env, issuedAt\)/);
     });
 });
 

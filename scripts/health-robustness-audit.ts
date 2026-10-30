@@ -27,11 +27,6 @@ import {
     WORKTREE_BOOTSTRAP,
 } from "./lib/health-step";
 import { infraCause, readLastSleepAt } from "./lib/health-verdict";
-import {
-    readMachineSample,
-    readMachineConfig,
-    runSaturated,
-} from "./lib/machine-admission";
 
 const HEALTH_DIR = ".claude/telemetry/health";
 
@@ -78,7 +73,6 @@ async function main(): Promise<void> {
     // The yield acquisition wrapping this process is the hold: the audit's own
     // `gate.ts heavy` passes through it (`keepHold`).
     const env = healthGateEnv(process.env, { keepHold: true });
-    const thresholds = readMachineConfig();
     let added = false;
     try {
         const run = async (): Promise<{
@@ -106,7 +100,6 @@ async function main(): Promise<void> {
             );
             if (!boot.ok) return { ...boot, excused: true };
             const startedAt = Date.now();
-            const before = readMachineSample();
             const r = await runHealthStep(
                 {
                     ordinal: 2,
@@ -125,10 +118,6 @@ async function main(): Promise<void> {
                 step: ROBUSTNESS_STEP,
                 exitCode: r.status,
                 output: r.output,
-                machineSaturated: runSaturated(
-                    [before, readMachineSample()],
-                    thresholds
-                ),
             });
             return { ok: r.ok, output: r.output, excused: cause !== null };
         };
