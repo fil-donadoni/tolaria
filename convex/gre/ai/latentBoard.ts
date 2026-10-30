@@ -52,6 +52,9 @@ import {
 import { representativeVictimLoss } from "./representativeVictim";
 import { currentLoyalty } from "../loyalty";
 import { effectivePermanentView } from "../permanentView";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { describeDamageSource } from "../replacements";
+import { lethalDamageThreshold } from "../lethalDamage";
 import { clearCardFieldsAt } from "../state/cardFieldLifecycle";
 import { liveSupertypesOf } from "../snow";
 import {
@@ -354,8 +357,87 @@ export function makeLatentBoardLens(
         return best / denominator;
     };
 
+    // CR 701.14a — every battlefield permanent the slot's requirement can
+    // legally name, with the player whose side it stands on.
+    const legalCombatants = (
+        requirement: TargetRequirement | undefined
+    ): { perm: CardInstanceState; ownerId: string }[] | undefined => {
+        if (!requirement) return undefined;
+        const source = pendingTargetingSource(state, card.id, "cast");
+        const found: { perm: CardInstanceState; ownerId: string }[] = [];
+        for (const target of getLegalTargets(
+            state,
+            requirement,
+            source,
+            casterId
+        )) {
+            if (target.type !== "permanent") continue;
+            for (const player of state.players) {
+                const perm = player.battlefield.find((p) => p.id === target.id);
+                if (perm) found.push({ perm, ownerId: player.id });
+            }
+        }
+        return found;
+    };
+
+    // CR 704.5g / CR 702.2b — whether `from` dealing its power to `to` kills
+    // it, damage already marked counted. Zero power deals no damage, so it
+    // never kills, deathtouch included.
+    const fightKills = (from: CardInstanceState, to: CardInstanceState) => {
+        const power = getEffectivePower(state, from);
+        if (power <= 0) return false;
+        const threshold = lethalDamageThreshold({
+            effectiveToughness: getEffectiveToughness(state, to),
+            damageMarked: to.damageMarked,
+            sourceHasDeathtouch: describeDamageSource(
+                state,
+                from.id
+            ).staticAbilities.includes("deathtouch"),
+        });
+        return power >= threshold;
+    };
+
+    const fightMemo = new Map<string, number | undefined>();
+    const computeFight = (
+        creatureSlot: number,
+        otherSlot: number
+    ): number | undefined => {
+        const fighters = legalCombatants(slots[creatureSlot] ?? openEnded);
+        const victims = legalCombatants(slots[otherSlot] ?? openEnded);
+        if (!fighters || !victims) return undefined;
+        let best: number | undefined;
+        for (const f of fighters) {
+            for (const v of victims) {
+                if (f.perm.id === v.perm.id) continue;
+                // A creature that dies is the caster's gain when an
+                // opponent's, its cost when the caster's own.
+                const side = (ownerId: string) =>
+                    ownerId === casterId ? -1 : 1;
+                let net = 0;
+                if (fightKills(f.perm, v.perm)) {
+                    net += side(v.ownerId) * realisedLoss(v.perm);
+                }
+                if (fightKills(v.perm, f.perm)) {
+                    net += side(f.ownerId) * realisedLoss(f.perm);
+                }
+                best = best === undefined ? net : Math.max(best, net);
+            }
+        }
+        return (best ?? 0) / denominator;
+    };
+
     return {
         weights: base.weights,
+        fightUnits(creatureSlot, otherSlot) {
+            if (slots.length === 0) return undefined;
+            const key = `${creatureSlot}:${otherSlot}`;
+            if (!fightMemo.has(key)) {
+                fightMemo.set(key, computeFight(creatureSlot, otherSlot));
+            }
+            const units = fightMemo.get(key);
+            if (units !== undefined) measured = true;
+            return units;
+        },
         requirementUnits(requirement) {
             const units = unitsOf(requirement);
             if (units !== undefined) measured = true;
