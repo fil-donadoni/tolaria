@@ -824,6 +824,19 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         );
         return;
     }
+    // colorsSpentToCast (issue #7211, CR 105.1 / 207.2c Converge): the amount
+    // reads how many colours of mana paid for the cast — a payment record the
+    // canned generator never takes (it does not drive the cast-payment seam).
+    // Skip-with-reason — the value member's own interpreter test is the
+    // behavioural guarantor (new-construct regime).
+    if ("colorsSpentToCast" in value) {
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads the colours of mana spent to cast the spell — the canned generator records no cast payment`
+        );
+        return;
+    }
     // additionalCostPaid (CR 702.33, ADR 0079): the amount reads whether ONE named
     // Kicker was paid — the same cast-time decision `kickerCount` reads, so the
     // canned generator (which casts unkicked) can't reproduce it either.
