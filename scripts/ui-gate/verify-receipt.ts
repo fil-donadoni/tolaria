@@ -159,7 +159,10 @@ export function changedLinesOfDiff(diff: string): string {
             lines.push(line.slice(1));
         }
     }
-    return lines.join("\n");
+    // Every line keeps its newline: a content rule that needs a character
+    // after its token (`fixed`, `sticky`) must match the LAST changed line too,
+    // exactly as it does at the end of a whole file.
+    return lines.map((l) => `${l}\n`).join("");
 }
 
 /**

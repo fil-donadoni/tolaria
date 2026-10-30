@@ -78,6 +78,24 @@ describe("landingWalkOwed — content rules read the changed lines (issue #7592)
         });
     });
 
+    it("a bare `sticky` on the LAST changed line still owes a walk", () => {
+        const multi = [
+            "export const Bar = () => (",
+            "    <div",
+            "        className={`",
+            "    top-0",
+            "        `}",
+            "    />",
+            ");",
+            "",
+        ].join("\n");
+        write(CARD, multi);
+        commit();
+        write(CARD, multi.replace("    top-0", "    top-0\n    sticky"));
+        commit();
+        expect(owed([CARD])).toMatchObject({ owed: true, path: CARD });
+    });
+
     it("REMOVING a z-index owes a walk", () => {
         write(CARD, WITH_Z.replace(" z-10", ""));
         commit();
@@ -115,6 +133,11 @@ describe("changedLinesOfDiff", () => {
             "-const a = 1;",
             "+++counter;",
         ].join("\n");
-        expect(changedLinesOfDiff(diff)).toBe("const a = 1;\n++counter;");
+        expect(changedLinesOfDiff(diff)).toBe("const a = 1;\n++counter;\n");
+    });
+
+    it("keeps a removed line that itself starts with dashes", () => {
+        const diff = ["@@ -1 +0,0 @@", "--- a separator", "+"].join("\n");
+        expect(changedLinesOfDiff(diff)).toBe("-- a separator\n\n");
     });
 });
