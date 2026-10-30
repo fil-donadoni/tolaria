@@ -22,8 +22,8 @@ export { FAILED_LABEL, READY_LABEL, MANUAL_LABEL };
 /** Set on the `land` the runner spawns — the one hatch `deny-guard.sh` § 8
  *  admits for a `land` invocation. */
 export const RUNNER_ENV = "TOLARIA_LAND_RUNNER";
-/** `land`'s "the machine stayed saturated, nothing ran" exit (issue #4966) —
- *  mirrored from `lib/machine-admission.ts` so this module stays pure. */
+/** `land`'s "nothing ran" (INFRA) exit —
+ *  mirrored from `lib/infra-exit.ts` so this module stays pure. */
 export const SATURATED_EXIT = 77;
 /** Lines of `land`'s output the failure comment carries. */
 export const EXCERPT_LINES = 60;
@@ -166,7 +166,7 @@ export type LandOutcome =
 
 /**
  * `land`'s exit code read as a labelling decision. 0 merged. 77 is the
- * machine staying saturated (issue #4966) or a failed post-rebase
+ * a failed post-rebase
  * dependency install (issue #6000) — `land` gated NOTHING, so the PR
  * stays queued, never `land-failed`. A `null` status is `land` killed by a
  * signal (the runner stopped mid-landing): nothing proves the PR red, so it
@@ -191,7 +191,7 @@ export function outcomeOf(
     if (status === SATURATED_EXIT)
         return {
             action: "requeue",
-            reason: "infra (exit 77) — machine stayed saturated or the dependency install failed; land gated nothing",
+            reason: "infra (exit 77) — the dependency install failed; land gated nothing",
         };
     if (status === null)
         return { action: "requeue", reason: "land was killed by a signal" };

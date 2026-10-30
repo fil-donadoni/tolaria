@@ -66,14 +66,7 @@ const ALLOWLIST = new Map<string, string>([]);
  * where the verdict moves with load although the test never times itself.
  * A deterministic test does not belong here — it belongs in a gated suite.
  */
-const NO_CLOCK_ALLOWLIST = new Map([
-    [
-        "scripts/__tests__/gate.perf.test.ts",
-        "drives gate.ts's heartbeat against REAL CPU burned by a subprocess: a " +
-            "starved burner is correctly declared STALLED, so the verdict depends " +
-            "on the machine's load without any clock read in the test (issue #3792)",
-    ],
-]);
+const NO_CLOCK_ALLOWLIST = new Map([]);
 
 // ─── the detector ───────────────────────────────────────────────────────────
 //
@@ -315,6 +308,7 @@ describe("perf-test boundary — every perf test reads a clock (issue #5001)", (
     });
 
     it("every no-clock allowlist entry exists, is a perf test, and still needs the entry", () => {
+        expect(NO_CLOCK_ALLOWLIST).toBeInstanceOf(Map);
         for (const [file, reason] of NO_CLOCK_ALLOWLIST) {
             expect(
                 reason.length,

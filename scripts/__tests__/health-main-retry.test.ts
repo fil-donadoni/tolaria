@@ -9,7 +9,6 @@ import {
     runStepWithRetry,
 } from "../lib/health-retry";
 import { decodeStatus, encodeDescription } from "../lib/health-verdict-store";
-import { runSaturated, type MachineThresholds } from "../lib/machine-admission";
 
 /**
  * Health re-runs a failed vitest project once before writing RED (issue
@@ -205,40 +204,6 @@ describe("retryDecision — review hardening", () => {
         const out = await runStepWithRetry(TEST_STEP, f.run);
         expect(out.retried).toBeUndefined();
         expect(f.ran).toHaveLength(1);
-    });
-});
-
-describe("a retried step is classified on the retry's machine (issue #5939)", () => {
-    // health-main reads `runSaturated` over the samples of the result it
-    // classifies; on a retry that is the retry's run, start to end.
-    const T: MachineThresholds = {
-        loadMax: 8,
-        sessionBudgetMb: 2500,
-        waitMaxS: 900,
-    };
-    const at = (load1: number) => ({
-        load1,
-        swapUsedMb: null,
-        pressure: null,
-        reclaimableMb: null,
-    });
-
-    it("a first run on a loaded machine does not excuse a retry that failed on a calm one", async () => {
-        const first = {
-            ...result(false, FAIL_ENGINE),
-            samples: [at(12), at(12)],
-        };
-        const retry = {
-            ...result(false, FAIL_ENGINE),
-            samples: [at(1), at(1)],
-        };
-        const out = await runStepWithRetry(
-            TEST_STEP,
-            fakeRunner([first, retry]).run
-        );
-        expect(out.retried).toEqual(["node-engine"]);
-        expect(out.result.samples).toEqual(retry.samples);
-        expect(runSaturated(out.result.samples ?? [], T)).toBe(false);
     });
 });
 

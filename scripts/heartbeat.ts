@@ -6,8 +6,8 @@
 //
 //   bun run heartbeat [--dry-run]
 //
-// Writes the tick to ~/.cache/tolaria/heartbeat/last.json (`bun run machine`
-// and `bun run runner status` print it). Exits 1 when a read or a dispatch
+// Writes the tick to ~/.cache/tolaria/heartbeat/last.json (`bun run runner status`
+// prints it). Exits 1 when a read or a dispatch
 // failed, so the service manager's status shows it; otherwise 0.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";

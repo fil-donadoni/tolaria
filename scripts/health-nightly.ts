@@ -39,7 +39,6 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
-import { HEALTH_ROLE } from "./lib/gate-liveness";
 import {
     auditsDue,
     batchTouchesBot,
@@ -289,7 +288,6 @@ function audits(
     delete env.TOLARIA_GATE_HELD;
     delete env.TOLARIA_ALLOW_FULL_SUITE;
     delete env.TOLARIA_VITEST_WORKERS;
-    env.TOLARIA_GATE_ROLE = HEALTH_ROLE;
     let ok = true;
     const requests = [auditRequestFile(sha), pickRequestFile(sha)];
     for (const script of [ROBUSTNESS_AUDIT, PICK_AGREEMENT_AUDIT]) {

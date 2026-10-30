@@ -59,23 +59,20 @@ export const HEAVY_HELD_PARALLELISM = 1;
  * The load average was the sizing input from issue #3653 to this one, and on
  * a shared machine it was almost always another session's: the heavy gates
  * keep the 1-minute average over 6 on 8 cores for most of the day, so five
- * viewports ran in series 24 runs out of 25. Admission (`ui-admission.ts`)
- * now guarantees this is the one browser run on the machine, so the contexts
- * are sized for the run that holds the lane: cores minus the lane's own
+ * viewports ran in series 24 runs out of 25. The contexts are sized for the run: cores minus the lane's own
  * reserve, capped by memory, clamped to `MIN_PARALLELISM..MAX_PARALLELISM`.
  * Total memory, not `os.freemem()`: macOS reports under 2 GiB "free" on a
  * 16 GiB machine with nothing running, because file cache and inactive pages
  * are not counted, and a sizing read off that number collapses to the floor.
  *
- * The one exception is `heavyHeld` (issue #4941): the lane holds the one
+ * The one exception is `heavyHeld`: the lane holds the one
  * browser slot, not the machine. A live heavy-gate holder — a suite, the
  * `oracle:compile` sweep, `verdicts:search`, `bot:reach`, a `land` — already
  * runs at the heavy tier's full worker count, and a Chrome pool beside it is
  * the load-20–38 contention the issue measured. So the lane walks ONE viewport
  * at a time instead (`HEAVY_HELD_PARALLELISM`), below the floor on purpose.
  * The STARTING size is read once: a holder arriving mid-run does not shrink a
- * pool already running, and a holder that leaves lets it grow (`growingLimit`,
- * issue #5023).
+ * pool already running, and a holder that leaves lets it grow (`growingLimit`).
  *
  * Pure, and total: a machine that reports nonsense gets the floor.
  */

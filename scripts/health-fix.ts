@@ -74,7 +74,6 @@ import { join } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { laddered, prOfSubject } from "./lib/health-bisect";
 import type { HealthStatus } from "./lib/health-verdict";
-import { OVER_CAP_ENV } from "./lib/machine-admission";
 import {
     fixAttemptStore,
     LOOP_FIX_ATTEMPTS,
@@ -637,7 +636,6 @@ function runFixer(input: {
             cwd,
             env: {
                 ...process.env,
-                [OVER_CAP_ENV]: "1",
                 // `repair-issue` run by this fixer records the ladder's own.
                 ...(input.rung
                     ? { [LADDER_ATTEMPT_ENV]: String(input.rung.attempt) }

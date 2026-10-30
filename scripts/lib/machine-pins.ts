@@ -16,16 +16,6 @@
  * Dependency-free: the test setup imports it.
  */
 export const MACHINE_PINS = {
-    // Machine admission (issue #4966): a calm machine instead of the real
-    // one — a suite run on a saturated machine must neither wait on it nor
-    // pass because of it.
-    TOLARIA_MACHINE_PROBE: JSON.stringify({
-        load1: 0,
-        swapUsedMb: 0,
-        pressure: 1,
-        reclaimableMb: 16_384,
-        sessions: [],
-    }),
     // The land-runner (issue #5469): runs nowhere — no test merges.
     TOLARIA_LAND_RUNNER_PLATFORM: "",
 } as const;

@@ -134,7 +134,7 @@ export type UiScope =
 
 /** `check:ui`'s exit when the scope is full or undecided and nobody chose a
  *  walk (issue #6144): nothing ran, no browser started. Distinct from 0–4
- *  and from `MACHINE_SATURATED_EXIT`. */
+ *  and from `INFRA_EXIT`. */
 export const UI_SCOPE_UNDECIDED_EXIT = 5;
 
 /** The AFK marker: an `afk-pass` job sets `TOLARIA_LOOP_DRAIN` and

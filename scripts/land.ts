@@ -113,11 +113,7 @@ import {
     type VerdictStore,
 } from "./lib/health-verdict-store";
 import { pivotRepairIssues } from "./lib/health-pivot";
-import {
-    GATE_OVERRIDE_ENV,
-    MACHINE_SATURATED_EXIT,
-} from "./lib/machine-admission";
-import { WAITER_SINCE_ENV } from "./lib/gate-liveness";
+import { INFRA_EXIT } from "./lib/infra-exit";
 import {
     classifyScenarioSection,
     owesScenario,
@@ -1318,25 +1314,10 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
  * `feat/issue-N` branch `land` runs from — `land` IS the merge-train, the
  * case that guard exempts.
  */
-export function lockedEnv(
-    base: NodeJS.ProcessEnv,
-    /** When this `land` was issued, epoch ms. */
-    issuedAt?: number
-): NodeJS.ProcessEnv {
+export function lockedEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
     return {
         ...netEnv(base),
         TOLARIA_ALLOW_FULL_SUITE: "1",
-        // What this caller IS, for the mutex's admission order (ADR 0136 §6,
-        // issue #4965): a `land` is admitted before every other class, and a
-        // queued land is only recognisable as one because of this.
-        TOLARIA_GATE_ROLE: "land",
-        // WHEN it joined that order (issue #4988): the moment it was issued.
-        // The refusal checks run before the waiter entry exists, and a place
-        // dated from their end put this land behind every land issued after
-        // it that reached the queue first.
-        ...(issuedAt === undefined
-            ? {}
-            : { [WAITER_SINCE_ENV]: String(issuedAt) }),
     };
 }
 
@@ -1405,8 +1386,6 @@ export function repairProofOf(
 async function main(): Promise<void> {
     // A gating lane never skips the committed-corpus tests (issue #5675).
     refuseCorpusExclusion("land");
-    // The land's place in the mutex's order dates from here (`lockedEnv`).
-    const issuedAt = Date.now();
     const cwd = process.cwd();
     const [, , ...argv] = process.argv;
     const { pr, merge, teardown, repair, redOk } = parseArgs(argv);
@@ -1588,18 +1567,14 @@ async function main(): Promise<void> {
         stdio: "inherit",
         cwd,
         env: {
-            ...lockedEnv(process.env, issuedAt),
-            // Housekeeping is `git` and `gh` on a PR that already merged: it
-            // starts nothing heavy, so it does not wait for the machine.
-            ...(mode === "housekeeping" ? { [GATE_OVERRIDE_ENV]: "1" } : {}),
+            ...lockedEnv(process.env),
         },
     });
-    // The gate held the mutex and the machine never calmed (issue #4966), or
-    // the post-rebase dependency install failed (issue #6000): nothing was
+    // The post-rebase dependency install failed (issue #6000): nothing was
     // gated, pushed or merged, so this is not a failed land.
-    if (result.status === MACHINE_SATURATED_EXIT)
+    if (result.status === INFRA_EXIT)
         console.error(
-            `land: NOT landed, and NOT failed — INFRA (exit ${MACHINE_SATURATED_EXIT}): the machine stayed saturated past the bound, or the dependency install failed, so no gate ran and PR #${pr} is untouched. Re-issue the same command once \`bun run machine\` reads calm.`
+            `land: NOT landed, and NOT failed — INFRA (exit ${INFRA_EXIT}): the dependency install failed, so no gate ran and PR #${pr} is untouched. Re-issue the same command.`
         );
     process.exit(result.status ?? 1);
 }

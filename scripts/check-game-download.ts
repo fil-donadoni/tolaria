@@ -20,9 +20,7 @@
  * game route (`src/router.tsx`) makes both games fetch every Set and every
  * shard, and reds both lines.
  *
- * Needs the local deployment (`bun run convex:ensure`) and Chromium; takes
- * the machine's one browser lane (`acquireUiLane`), like `check:ui`, because
- * both drive the same backend. Tier: health (`HEALTH_ONLY_GUARDS` in
+ * Needs the local deployment (`bun run convex:ensure`) and Chromium. Tier: health (`HEALTH_ONLY_GUARDS` in
  * `lib/health-step.ts`, with its measured cost) — a production `vite build`
  * and two games are far past the lane's 10 s.
  *
@@ -45,7 +43,6 @@ import {
     reachable,
     readEnvLocal,
 } from "./lib/convex-reachable";
-import { acquireUiLane, gateLockRoot } from "./lib/ui-admission";
 import { BRAIN_WORKER_CHUNK_PREFIX } from "./lib/asset-graph";
 import {
     cardDataKind,
@@ -404,12 +401,6 @@ async function main(): Promise<number> {
             `the Convex deployment at ${convexUrl} did not answer — \`bun run convex:ensure\``
         );
     }
-    await acquireUiLane({
-        root: gateLockRoot(),
-        label: "check:game-download",
-        announce: log,
-    });
-
     const outDir = fs.mkdtempSync(
         path.join(os.tmpdir(), "tolaria-game-download-")
     );

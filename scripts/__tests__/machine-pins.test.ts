@@ -37,9 +37,6 @@ const PLATFORM_READS: Record<string, Read> = {
     "scripts/lib/health-verdict.ts": {
         mechanics: "last sleep: journalctl vs sysctl",
     },
-    "scripts/lib/machine-admission.ts": {
-        mechanics: "load and memory: /proc vs sysctl (the probe is pinned)",
-    },
     "scripts/lib/notify-owner.ts": {
         mechanics: "notification: notify-send vs osascript",
     },

@@ -442,49 +442,22 @@ export type BotReplayPlan =
     /** This Bot already froze cards and its regression issue is open: not
      *  re-swept — the sweep would re-find the same `lost`. */
     | { readonly kind: "filed"; readonly issue: number }
-    | { readonly kind: "sweep" }
-    /** A sweep is owed but another process holds the heavy mutex: not
-     *  waited for (a wait is 2 h of a `maint` runner sweeping nothing, issue
-     *  #6524) — the next push or the nightly retries. */
-    | { readonly kind: "held"; readonly holder: HeavyHolder };
-
-/** The heavy mutex's live holder, as `gate.ts who --json` reads it. */
-export interface HeavyHolder {
-    readonly pid: number;
-    readonly cwd: string;
-    readonly label: string;
-    readonly heldMs: number;
-}
-
-/** The one line a `held` plan says, naming the holder (issue #6524). */
-export function heavyHeldLine(holder: HeavyHolder): string {
-    const minutes = Math.floor(holder.heldMs / 60_000);
-    const held =
-        minutes < 60
-            ? `${minutes}m`
-            : `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, "0")}m`;
-    return `heavy mutex held by ${holder.pid} (${holder.cwd}, ${holder.label}, ${held}) — not waiting; the next push or the nightly retries`;
-}
+    | { readonly kind: "sweep" };
 
 /**
  * Whether the tip owes a replay. `openRegression` is the open regression
  * issue for THIS tree's Bot hash, if one exists — a Bot that already froze
  * cards is not swept again every hour until the issue is fixed: the fix
- * moves the hash. `heavyHolder` is the mutex's live holder (null: free, or
- * the caller already runs under a hold); it only matters when a sweep is
- * owed — `current` and `filed` take no mutex.
+ * moves the hash.
  */
 export function botReplayPlan(input: {
     readonly headerBotHash: string;
     readonly treeBotHash: string;
     readonly openRegression: number | null;
-    readonly heavyHolder: HeavyHolder | null;
 }): BotReplayPlan {
     if (input.headerBotHash === input.treeBotHash) return { kind: "current" };
     if (input.openRegression !== null)
         return { kind: "filed", issue: input.openRegression };
-    if (input.heavyHolder !== null)
-        return { kind: "held", holder: input.heavyHolder };
     return { kind: "sweep" };
 }
 

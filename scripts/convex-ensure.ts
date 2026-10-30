@@ -66,7 +66,6 @@ import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 import { LAUNCHD_CONVEX_LABEL } from "./lib/github-runner.ts";
-import { readProcessCwds } from "./lib/machine-admission.ts";
 import { primaryCheckout } from "./lib/primary-checkout.ts";
 import {
     localInstanceName,
@@ -186,7 +185,24 @@ export function startStamp(pid: number): string {
 
 /** `/proc/<pid>/cwd` on Linux, `lsof` elsewhere (issue #5305). */
 function processCwd(pid: number): string | null {
-    return readProcessCwds([pid])?.get(pid) ?? null;
+    if (process.platform === "linux") {
+        try {
+            return fs.readlinkSync(`/proc/${pid}/cwd`);
+        } catch {
+            return null; // vanished, or not ours to read
+        }
+    }
+    const lsof = spawnSync(
+        "lsof",
+        ["-a", "-d", "cwd", "-p", String(pid), "-Fn"],
+        {
+            encoding: "utf8",
+            timeout: 5_000,
+            cwd: "/",
+        }
+    );
+    const line = (lsof.stdout ?? "").split("\n").find((l) => l.startsWith("n"));
+    return line ? line.slice(1) : null;
 }
 
 /** `lsof` prints the resolved path (`/private/var/…` for `/var/…` on macOS). */
