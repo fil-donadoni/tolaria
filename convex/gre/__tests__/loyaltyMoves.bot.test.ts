@@ -21,8 +21,8 @@ import { assertLoyaltyActivationLegal } from "../../game";
 import { buildStateFromScenario } from "../scenarioBuilder";
 import { createInitialGameState, type PlayerInput } from "../setup";
 import {
+    getAllCatalogueCards,
     getCardByName,
-    registeredDefinitions,
     tryGetDefinition,
 } from "../../cards";
 import { withTemporaryDefinition } from "../../cards/registry";
@@ -67,7 +67,7 @@ function find(state: GameState, name: string): CardInstanceState {
 /** Every shipped planeswalker definition, in a stable order. */
 function shippedPlaneswalkers(): CardDefinition[] {
     const out: CardDefinition[] = [];
-    for (const def of registeredDefinitions()) {
+    for (const def of getAllCatalogueCards()) {
         if (!def.types.includes("Planeswalker")) continue;
         if (!def.activatedAbilities?.some((a) => a.cost.loyalty !== undefined))
             continue;

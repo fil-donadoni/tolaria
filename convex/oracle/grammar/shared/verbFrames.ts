@@ -355,6 +355,18 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 701.71a — "Empower Jace N": the keyword action, whose rule
+           * text is itself a composition (create the Jace planeswalker token
+           * if you control none, choose one, put N loyalty counters on it).
+           * The ONE frame that lowers to several Ops: the keyword names the
+           * whole action, so it is read whole and lowered by the factory a
+           * hand-written definition splices (`empowerJaceOps`).
+           */
+          readonly frame: "empowerJace";
+          readonly count: number;
+      }
+    | {
+          /**
            * CR 504.1 + CR 614.10 — "you skip your draw step this turn": the
            * controller's draw step of the turn in progress does not happen.
            * The one-shot sentence, not the static "Skip your draw step."
@@ -536,6 +548,7 @@ export const VERB_FRAMES: readonly {
         opens: /^(?:after this phase, there is an additional combat phase)\b/i,
     },
     { name: "skipNextTurn", opens: /^you skip your next turn$/i },
+    { name: "empowerJace", opens: /^empower jace\b/i },
     { name: "becomeMonarch", opens: /^you become the monarch\b/i },
     { name: "winGame", opens: /^you win the game\b/i },
     {
@@ -622,6 +635,8 @@ const BECOME_COPY =
     /^(.+?) becomes a copy of (.+?)(?: (until end of turn|until your next turn))?$/;
 const CAST_FROM_GRAVEYARD_THIS_TURN =
     /^you may cast target (.+?) from your graveyard this turn$/;
+/** CR 701.71a — "empower Jace N", a printed count and nothing trailing. */
+const EMPOWER_JACE = /^empower jace (\S+)$/i;
 /** CR 725.1 — the whole sentence, nothing trailing. */
 const BECOME_MONARCH = "you become the monarch";
 /** CR 104.2b — the whole sentence, nothing trailing. */
@@ -1631,6 +1646,15 @@ function readMember(
     }
     if (opensFrame("skipNextTurn", lower))
         return { frames: [{ frame: "skipNextTurn" }], referent };
+    if (opensFrame("empowerJace", lower)) {
+        const empower = lower.match(EMPOWER_JACE);
+        const count = empower === null ? null : readNumberWord(empower[1]!);
+        if (count === null)
+            return {
+                refused: `"${member}" — only a printed count is read ("Empower Jace N")`,
+            };
+        return { frames: [{ frame: "empowerJace", count }], referent };
+    }
     if (opensFrame("skipDrawStepThisTurn", lower))
         return { frames: [{ frame: "skipDrawStepThisTurn" }], referent };
     if (opensFrame("becomeMonarch", lower)) {

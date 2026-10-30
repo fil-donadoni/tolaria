@@ -32,7 +32,7 @@ import {
     latentValue,
     standingAbilityValueById,
 } from "../cardValue";
-import { registeredDefinitions } from "../../cards";
+import { getAllCatalogueCards, registeredDefinitions } from "../../cards";
 import { isManaAbilityDefinition, manaValue } from "../constants";
 import { projectPublicState } from "../../gameProjections";
 import {
@@ -184,7 +184,7 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
             });
 
             it("a planeswalker carries no standing ability value (the loyalty model prices it)", () => {
-                const walkers = [...registeredDefinitions()].filter((d) =>
+                const walkers = getAllCatalogueCards().filter((d) =>
                     d.types.includes("Planeswalker")
                 );
                 expect(walkers.length).toBeGreaterThan(0);
@@ -612,7 +612,7 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
                 });
 
                 it("a cycling land's hand-only ability is never battlefield worth (review #5155): Triome and channel lands sit at the floor on both faces", () => {
-                    const offBoard = [...registeredDefinitions()].filter(
+                    const offBoard = getAllCatalogueCards().filter(
                         (d) =>
                             d.types.includes("Land") &&
                             !d.types.includes("Creature") &&
@@ -647,7 +647,7 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
                 });
 
                 it("census: every catalogue land whose abilities are all mana abilities has no standing worth", () => {
-                    const lands = [...registeredDefinitions()].filter(
+                    const lands = getAllCatalogueCards().filter(
                         (d) =>
                             d.types.includes("Land") &&
                             !d.types.includes("Creature")

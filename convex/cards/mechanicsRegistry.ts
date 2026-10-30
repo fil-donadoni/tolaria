@@ -132,7 +132,8 @@ export interface MechanicRow {
 }
 
 /** CR 701 — Keyword Actions (63 rows, 701.2 through 701.64; 701.1 is the
- *  section's intro paragraph and carries no keyword). */
+ *  section's intro paragraph and carries no keyword), plus the rows censused
+ *  past 701.64 as a card needs them (701.71 Empower Jace, issue #7198). */
 const KEYWORD_ACTIONS: MechanicRow[] = [
     // 701.2 Activate
     {
@@ -712,6 +713,16 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         kind: "keyword-action",
         cr: "701.64",
         status: "planned",
+    },
+    // 701.71 Empower Jace
+    {
+        id: "empower-jace",
+        name: "Empower Jace",
+        kind: "keyword-action",
+        cr: "701.71",
+        status: "implemented",
+        binding: "convex/cards/abilities/empowerJace.ts empowerJaceOps",
+        note: 'CR 701.71a — "To empower Jace N means \'If you don\'t control a Jace planeswalker token, create a blue Jace planeswalker token with 0 loyalty, "[−1]: Surveil 1," and "[−3]: Draw a card." Choose a Jace planeswalker token you control. Put N loyalty counters on it.\'" Issue #7198. A keyword ACTION printed alone or as the tail of another effect ("Counter target spell. Empower Jace 1."), emitted by the `empower-jace` effect sentence of the Oracle grammar. NO new Op (primitive reuse, ADR 0045): it is the `amass` row\'s composition (CR 701.47a) with a planeswalker token and loyalty counters — an `if` over a `count` of Jace planeswalker TOKENS you control (`isToken`, a Jace card does not count) creating `JACE_PLANESWALKER_TOKEN`, then `forEach` over the forced 0/1-token case or a `choose-permanents` `choice` for 2+, and `counters` (add, "loyalty") on `$each`. The token\'s two loyalty abilities ride `EffectTokenSpec.activatedAbilities` with a `cost.loyalty` leg (admitted by `isTokenAbilityCost` for this row), activated through the one CR 606 authority `gre/loyalty.ts`. N accepts any `EffectValue`.',
     },
 ];
 

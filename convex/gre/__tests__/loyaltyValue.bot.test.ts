@@ -24,7 +24,7 @@ import {
 import { cardValue, evaluateBreakdown } from "../evaluate";
 import { buildStateFromScenario } from "../scenarioBuilder";
 import { createInitialGameState, type PlayerInput } from "../setup";
-import { getCardByName, registeredDefinitions } from "../../cards";
+import { getAllCatalogueCards, getCardByName } from "../../cards";
 import { projectPublicState } from "../../gameProjections";
 import type { CardDefinition } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
@@ -101,7 +101,7 @@ function build(spec: ScenarioSpec): GameState {
 
 function shippedPlaneswalkers(): CardDefinition[] {
     const out: CardDefinition[] = [];
-    for (const def of registeredDefinitions()) {
+    for (const def of getAllCatalogueCards()) {
         if (!def.types.includes("Planeswalker")) continue;
         if (!def.activatedAbilities?.some((a) => a.cost.loyalty !== undefined))
             continue;
