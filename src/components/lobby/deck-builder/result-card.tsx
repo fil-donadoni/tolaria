@@ -98,7 +98,6 @@ export default function ResultCard({
                     <CardImage
                         card={{ id: selected }}
                         lazy
-                        promoteLayer={false}
                         holdPreview={false}
                     />
                 </div>
@@ -137,7 +136,6 @@ export default function ResultCard({
                     <CardImage
                         card={{ id: selected }}
                         lazy
-                        promoteLayer={false}
                         holdPreview={false}
                     />
                 </div>

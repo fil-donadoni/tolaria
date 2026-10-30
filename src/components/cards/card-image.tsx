@@ -27,41 +27,25 @@ import useCardSlotFloor from "~/hooks/useCardSlotFloor";
 import { useTokenPrints } from "~/hooks/useTokenPrints";
 import { resolveArtPrintId } from "~/lib/tokenArt";
 
-// `contain: paint` + promoted layer keep Chrome's compositor from shipping
-// the bitmap as a low-res tile while ancestors are transitioning/rotating.
-const STABLE_LAYER: React.CSSProperties = {
-    contain: "paint",
-    transform: "translateZ(0)",
-    willChange: "transform",
-    backfaceVisibility: "hidden",
-};
-
-// The same containment WITHOUT the forced compositor layer, for surfaces that
-// render an unbounded number of cards and never animate their ancestors.
+// Every printed face is CONTAINED, never PROMOTED to its own compositor layer
+// (issue #7590). `contain: paint` keeps the art clipped to the slot and makes
+// the slot a stacking context (`card-ring.ts` relies on that); it is a hint,
+// not a promotion.
 //
-// `will-change: transform` + `translateZ(0)` promote every card to its own GPU
-// layer. That is a good trade on the board (a few dozen cards, ancestors
-// genuinely rotating) and a bad one in a scrolling result grid: at ~240 cards
-// Chrome exhausts its tile memory and starts EVICTING layers, which paints as
-// blank regions, cards that flicker in and out on hover, and images decoded at
-// the `sizes` hint (140px) instead of their 488px intrinsic width. A sticky
-// `backdrop-filter` above the grid compounds it — the blur must read back the
-// composited result underneath on every frame.
+// A promoted face (`will-change: transform` + `translateZ(0)`, the default
+// until issue #7590) was meant to keep the compositor from shipping a low-res
+// tile while ancestors move. Measured with `check:ui`'s rasterisation probe
+// (`raster.js`), it does the opposite: Chrome rasterises a `will-change`
+// layer ONCE, at the scale its ancestors have at that moment, and never
+// re-rasters it when that scale changes. Inside a dialog opening with
+// `zoom-in-95` the face was rastered mid-animation and upscaled for good —
+// Blur Index 0.54–0.62 on the convoke picker; contained, 0.00–0.02. A
+// contained face is rastered with its ancestor and re-rastered when the
+// ancestor's animation ends.
 //
-// `contain: paint` survives because it is a hint, not a promotion.
-//
-// Eviction is a function of the GPU budget, not only of the card count (issue
-// #6940). Measured on the Draft pack grid (15 cards) and the Limited pool
-// builder (40+ cards) with `check:ui`'s rasterisation probe (`raster.js`):
-// under a starved budget (`--force-gpu-mem-available-mb=24`, the shape of a
-// 16 GB laptop under memory pressure) PROMOTED faces were evicted to blank
-// slots on two of ten cells, while the same surfaces with CONTAINED faces, the
-// same budget, max zoom and a hovered tile read sharp on all ten. With an
-// ordinary budget both modes read sharp — which is why no earlier walk saw it.
-// The eviction is NOT deterministic: a second run the same day, promoted
-// faces, same budget, max zoom, hovered, read sharp on all ten cells (Blur
-// Index ≤ 0.01), so the layer mode is held by
-// `unbounded-card-surfaces-contained-layer.test.tsx`, never by the walk.
+// Over-promotion also costs memory (issue #6940): at ~240 cards Chrome
+// exhausts its tile budget and EVICTS layers, which paints as blank slots.
+// `unbounded-card-surfaces-contained-layer.test.tsx` holds the mode.
 const CONTAINED_LAYER: React.CSSProperties = { contain: "paint" };
 
 type CardImageProps = {
@@ -96,18 +80,6 @@ type CardImageProps = {
      */
     includeThumb?: boolean;
     /**
-     * Promote the card to its own compositor layer (default `true` — the
-     * board's behaviour, unchanged). Pass `false` on any surface that renders
-     * an unbounded number of cards at once and does not ROTATE or SCALE their
-     * ancestors — see {@link CONTAINED_LAYER} for what over-promotion costs.
-     * A translate-only hover lift is not a reason to promote: a translation
-     * never changes the raster scale, so the contained card stays sharp
-     * through it (measured, issue #6940). The Draft pack tile and the deck
-     * builder tile pass `false`; `unbounded-card-surfaces-contained-layer.test.tsx`
-     * keeps them there.
-     */
-    promoteLayer?: boolean;
-    /**
      * Forwarded to {@link CardPreview}: pass `false` on an EDITING surface
      * (deckbuilder tile, draft pack card, search result) where a 250ms touch
      * hold is the DRAG, not a preview (PRD #2405 gesture model A, issue
@@ -132,7 +104,6 @@ function CardImageImpl({
     showCopyBadge = false,
     sizes = DEFAULT_CARD_IMAGE_SIZES,
     includeThumb = true,
-    promoteLayer = true,
     holdPreview = true,
 }: CardImageProps) {
     const cardInstance = isCardInstance(card) ? card : undefined;
@@ -219,7 +190,7 @@ function CardImageImpl({
             <div
                 ref={slotRef}
                 className="relative w-full h-full card-corner overflow-hidden"
-                style={promoteLayer ? STABLE_LAYER : CONTAINED_LAYER}
+                style={CONTAINED_LAYER}
             >
                 {faceDownFace?.kind === "back" ? (
                     <CardBack />
@@ -293,7 +264,6 @@ const CardImage = memo(
         prev.showCopyBadge === next.showCopyBadge &&
         prev.sizes === next.sizes &&
         prev.includeThumb === next.includeThumb &&
-        prev.promoteLayer === next.promoteLayer &&
         prev.holdPreview === next.holdPreview &&
         cardImageSignature(prev.card) === cardImageSignature(next.card)
 );
