@@ -1,15 +1,17 @@
 // Cut Experiment (PRD #1616, ADR 0134, issue #3738) — GLOSSARY "Cut Experiment".
 //
-// Pick Invariants prove the Draft Signal read is built right; this proves the
-// Bot Drafter actually MOVES on it. For N fixed seeds, two synthetic cube
-// tables differ in exactly one seat: in table A the seat immediately upstream
-// of the observed seat (round-1 pass direction) takes only cards of one colour
-// whenever it can; in table B it drafts normally. Summed over the seeds, the
-// downstream seat must end with less power of that colour in table A.
+// For N fixed seeds, two synthetic cube tables differ in exactly one seat: in
+// table A the seat immediately upstream of the observed seat (round-1 pass
+// direction) takes only cards of one colour whenever it can; in table B it
+// drafts normally.
 //
-// OPINION, not an invariant: like an Anchor Pick it holds for sensible
-// weightings, not every one. A red run calls for a decision (accept and
-// restate, or revert), never an automatic weight change.
+// The OPINION half — a downstream seat that READS the Draft Signal loses more
+// of the cut colour than one drafting blind — is RETIRED from the gate (owner
+// ruling 2026-10-30, issue #7522): at the current weights it held for no
+// colour (G last, flipped to 100.5 read vs 120.5 blind by a one-row cube
+// addition), and any cube addition reshuffles the seeds' packs. It returns
+// here as a gate once issue #7418's weights hold it. What stays is the
+// harness, which is not an opinion: the cut reaches the observed seat.
 import { describe, it, expect } from "vitest";
 import {
     buildDraftLabPickRating,
@@ -29,11 +31,6 @@ const SEEDS = [11, 23, 37, 41, 59, 71, 83, 97];
 /** Round 0 passes `+1` (`draftEngine.ts#passDirection`): seat 0 feeds seat 1. */
 const CUT_SEAT = 0;
 const OBSERVED_SEAT = 1;
-/** At the current weights the opinion holds for G only — drop read vs blind
- *  over these seeds: W 119.5/138.5, U 79.0/110.5, B 167.5/173.0,
- *  R 102.5/138.0 all fail (R flipped once the cube's red widened). Owner's
- *  ruling 2026-10-29: accept and restate to G; weights are not tuned here,
- *  the gap is issue #7418. */
 const CUT_COLOURS: readonly SignalColour[] = ["G"];
 
 const getPickRating = buildDraftLabPickRating(PACK_SLOTS);
@@ -92,31 +89,25 @@ function total(colour: SignalColour, options: DraftLabRunOptions): number {
     );
 }
 
-describe("Cut Experiment: Bot Drafter reads Draft Signals (issue #3738)", () => {
+describe("Cut Experiment: the upstream cut reaches the observed seat (issue #3738)", () => {
     for (const colour of CUT_COLOURS) {
-        it(`reading a ${colour} cut moves the downstream seat off ${colour}`, () => {
+        it(`a ${colour} cut upstream leaves the blind downstream seat less ${colour}`, () => {
             const pickPolicies: SeatPickPolicies = new Map([
                 [CUT_SEAT, onlyColour(colour)],
             ]);
-            // The cut also removes cards from the pack mechanically, so the
-            // raw A-vs-B gap is not evidence of READING. Each arm is run with
-            // and without the signal read; the signal's contribution is how
-            // much further the cut pushes the seat when it can read it.
-            const dropRead =
-                total(colour, {}) - total(colour, { pickPolicies });
+            // Blind on both arms: the drop is the cut's mechanical effect on
+            // the packs, with no Draft Signal read in it.
+            const blind: DraftLabRunOptions = { readSignal: false };
             const dropBlind =
-                total(colour, { readSignal: false }) -
-                total(colour, { pickPolicies, readSignal: false });
+                total(colour, blind) -
+                total(colour, { ...blind, pickPolicies });
             expect(
-                dropRead,
-                `OPINION-class Cut Experiment (GLOSSARY): with the seat upstream ` +
-                    `cutting ${colour}, a downstream seat that READS the signal ` +
-                    `should lose more ${colour} power than one that cannot ` +
-                    `(drop ${dropRead.toFixed(1)} read vs ${dropBlind.toFixed(1)} ` +
-                    `blind over ${SEEDS.length} seeds). A red run calls for a ` +
-                    `decision — accept and restate, or revert — never an ` +
-                    `automatic weight change.`
-            ).toBeGreaterThan(dropBlind);
+                dropBlind,
+                `the seat upstream cutting ${colour} must leave the observed ` +
+                    `seat with less ${colour} power over ${SEEDS.length} seeds ` +
+                    `(drop ${dropBlind.toFixed(1)}) — else the pick policy never ` +
+                    `reached the table`
+            ).toBeGreaterThan(0);
         });
     }
 });
