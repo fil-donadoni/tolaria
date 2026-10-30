@@ -4266,8 +4266,9 @@ export interface SpellContext {
      *  gained through a copy effect, else `sourceCardId`. Read by "except it
      *  has this ability" (`EffectCopyExcept.additionalActivatedAbilityIds`):
      *  the ability is looked up where it is printed, never on the card the
-     *  source presents. Absent outside the stack resolver; read as
-     *  `sourceCardId` then. */
+     *  source presents. Set by the stack resolver's context builder
+     *  (`""` for a synthetic item with no registry id, which gains nothing);
+     *  read as `sourceCardId` when a hand-built context omits it. */
     abilityCardId?: string;
     /** The event that fired this triggered ability (CR 603), or undefined at
      *  spell / activated-ability sites. Threaded from the resolving stack item

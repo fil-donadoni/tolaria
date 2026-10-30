@@ -21,6 +21,8 @@ import type { CardDefinition } from "../../cards/types";
 import { activateAbilityOnState, applyOneTargetSelection } from "../../game";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import { applyCopy, presentedDefId } from "../copy";
+import { turnFaceDown } from "../faceDown";
+import { projectPublicState } from "../../gameProjections";
 import { validateAbilityEffectScript } from "../effects/validate";
 import {
     removePermanentTo,
@@ -198,6 +200,20 @@ describe("copy effect gains an activated ability — CR 707.9a (issue #7207)", (
             const stage = find(state, "stage");
             stage.abilitiesSuppressedBy = [{ sourceId: "humility", seq: 99 }];
             expect(abilityIds(stage)).toEqual([]);
+        });
+    });
+
+    it("a face-down copy has no gained ability, and does not show it to the opponent (CR 708.2 / 708.5)", () => {
+        withTemporaryDefinition(STAGE, () => {
+            const state = stageBoard();
+            copyOnto(state, "stage", "mine");
+            const stage = find(state, "stage");
+            turnFaceDown(state, stage, "morph");
+            expect(abilityIds(stage)).not.toContain(COPY_ABILITY);
+            const seen = projectPublicState(state, 1, "p2")
+                .players.flatMap((p) => p.battlefield)
+                .find((c) => c.id === "stage")!;
+            expect(seen.copyExcept).toBeUndefined();
         });
     });
 

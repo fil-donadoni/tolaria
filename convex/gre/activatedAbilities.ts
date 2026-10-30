@@ -1,4 +1,7 @@
-import type { ActivatedAbility } from "../cards/types";
+import type {
+    ActivatedAbility,
+    CopyGainedActivatedAbility,
+} from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import { latestTimestamp, outrankedBy } from "./continuousEffects";
 import type { CardInstanceState } from "./state/declarations";
@@ -109,9 +112,11 @@ export function getEffectiveActivatedAbilities(
         // falls with the native ones. It is printed on another card, so it
         // travels with the ability-copy pointer the resolution sites already
         // read (`"card-abilities"`). A copy of the very card that prints it
-        // already has it natively.
-        for (const gained of card.copyExcept?.additionalActivatedAbilities ??
-            []) {
+        // already has it natively. Not while the copy effect's text is hidden:
+        // a face-down permanent has no abilities (CR 708.2 — the stamp waits
+        // on the instance for it to turn face up), and a full-text effect
+        // (layer 3) replaces every copiable ability with the text it shows.
+        for (const gained of gainedThroughCopy(card)) {
             if (gained.sourceCardId === cardId) continue;
             const tmpl = resolveGrantedActivatedAbility(
                 gained.sourceCardId,
@@ -143,6 +148,18 @@ export function getEffectiveActivatedAbilities(
         }
     }
     return out;
+}
+
+/** CR 707.9a — the activated abilities a copy effect made part of `card`'s
+ *  copiable values, as references, while those values are what the permanent
+ *  presents: none while face down (CR 708.2) or under a full-text effect
+ *  (CR 613.1c). Shared with the client ability views (`src/lib/card-utils.ts`)
+ *  so the preview lists exactly the rows the engine offers. */
+export function gainedThroughCopy(
+    card: Pick<CardInstanceState, "copyExcept" | "faceDown" | "fullTextAnchor">
+): CopyGainedActivatedAbility[] {
+    if (card.faceDown || card.fullTextAnchor) return [];
+    return card.copyExcept?.additionalActivatedAbilities ?? [];
 }
 
 /** The LATEST layer timestamp among the live "loses all abilities" sources on

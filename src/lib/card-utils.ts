@@ -46,6 +46,7 @@ import {
     abilityLossTimestamp,
     getEffectiveActivatedAbilities,
     grantOutrankedByAbilityLoss,
+    gainedThroughCopy,
     resolveGrantedActivatedAbility,
 } from "@convex/gre/activatedAbilities";
 import type { GrantedAbilityOrigin } from "@convex/gre/activatedAbilities";
@@ -3430,8 +3431,9 @@ export function getDisplayAbilities(
     // CR 707.9a — an ability a copy effect made part of the copiable values
     // ("except it has this ability", Thespian's Stage): the same rows, and
     // the same skip, the engine's `getEffectiveActivatedAbilities` offers.
-    for (const gained of instance?.copyExcept?.additionalActivatedAbilities ??
-        []) {
+    for (const gained of instance
+        ? gainedThroughCopy(instance as unknown as CardInstanceState)
+        : []) {
         if (gained.sourceCardId === cardId) continue;
         const tmpl = resolveGrantedActivatedAbility(
             gained.sourceCardId,
