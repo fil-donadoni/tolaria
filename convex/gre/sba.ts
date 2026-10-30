@@ -34,6 +34,7 @@ import {
 import { checkAscendCityBlessing } from "./cityBlessing";
 import { checkPreparedCopySBA } from "./prepare";
 import { isProtectedFromSource } from "./protection";
+import { isGuardedAgainst } from "./permanentGuard";
 import { applyLoseGameReplacements } from "./replacements";
 import { applyStateTriggers } from "./triggers";
 import { tryGetDefinition } from "../cards";
@@ -470,14 +471,21 @@ export function checkZeroToughnessSBA(state: GameState): boolean {
  *  the zero-toughness sweep above. A planeswalker reaches 0 loyalty by paying a
  *  `-N` loyalty ability down to 0 (CR 606.5 forbids going below 0) or by taking
  *  loyalty-removing damage (CR 120.3, `removeLoyaltyForDamage`). Loops until
- *  stable because one death can cascade further SBAs. */
+ *  stable because one death can cascade further SBAs.
+ *
+ *  A `permanent-guard` with `survivesZeroLoyalty` exempts the walkers it
+ *  matches (Sanctum Lurker: "Planeswalkers you control aren't put into their
+ *  owners' graveyards for having 0 loyalty"), read live per check. */
 export function checkZeroLoyaltySBA(state: GameState): boolean {
     let removedAny = false;
     for (;;) {
         let removed = false;
         for (const player of state.players) {
             const victim = player.battlefield.find(
-                (c) => isPlaneswalker(c) && (c.counters?.loyalty ?? 0) <= 0
+                (c) =>
+                    isPlaneswalker(c) &&
+                    (c.counters?.loyalty ?? 0) <= 0 &&
+                    !isGuardedAgainst(state, c, "survivesZeroLoyalty")
             );
             if (victim) {
                 removePermanentTo(state, victim.id, "graveyard");
