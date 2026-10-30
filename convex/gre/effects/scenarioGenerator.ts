@@ -1648,6 +1648,15 @@ const SCENARIO_SKIPS = {
         code: "randomness",
         reason: `Op "randomExileToHand" picks a random card from a source-linked exile pile — the canned generator does not provision the pile; covered by the Op's interpreter tests`,
     },
+    // `selectAtRandom` (issue #1702) binds a RANDOM subset of a
+    // zone pool and moves nothing: the canned generator has no outcome to
+    // assert (the picks are a binding, not a state change) and cannot
+    // predict which cards the seeded PRNG draws — reported as an explicit
+    // skip; execution coverage is the Op's own interpreter tests.
+    selectAtRandom: {
+        code: "randomness",
+        reason: `Op "selectAtRandom" binds a random subset of a zone pool and moves nothing — covered by the Op's interpreter tests`,
+    },
     // A `lookDistribute` Op suspends resolution for a live look-distribute
     // pick (issue #984) — a canned scenario cannot submit the
     // hand/bottom choice, so the script is reported as an explicit skip;

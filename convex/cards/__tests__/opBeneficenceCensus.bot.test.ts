@@ -273,6 +273,7 @@ const NEUTRAL_ROWS = [
     "reveal",
     "revealTopAndRoute",
     "sacrifice",
+    "selectAtRandom",
     "setBasePT",
     "setCardTypes",
     "setColor",
@@ -288,6 +289,7 @@ const BINDING_ONLY = [
     "mayPay",
     "nameCard",
     "payVariableMana",
+    "selectAtRandom",
 ];
 const COMPLETE_SCRIPT_FLOOR = 1838;
 

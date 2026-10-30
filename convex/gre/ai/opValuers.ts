@@ -3172,6 +3172,11 @@ const lookRandomHand: Valuer<"lookRandomHand"> = () => ZERO_OP_VALUE;
 // same ZERO_OP_VALUE rather than each guessing a number.)
 const lookHand: Valuer<"lookHand"> = () => ZERO_OP_VALUE;
 
+// Issue #1702 — a random pick that only BINDS: no card moves, so
+// the value lives entirely in the Op that consumes the picks (the `moveZone`
+// reading the binding), which its own valuer prices.
+const selectAtRandom: Valuer<"selectAtRandom"> = () => ZERO_OP_VALUE;
+
 const scryReorder: Valuer<"scryReorder"> = (op, ctx) => {
     const { amount, scaling } = ctx.value(op.count);
     return {
@@ -3350,6 +3355,7 @@ export const OP_VALUERS: {
     discard,
     discardAtRandom,
     randomExileToHand,
+    selectAtRandom,
     divideIntoPiles,
     emblem,
     extraTurn,
@@ -3838,6 +3844,11 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // CR 701.20a — binds the chosen NAME; the material is whatever later Op
     // reads the binding back, which is why `bind` is a required field.
     nameCard: "neutral",
+    // Issue #1702 — binds a RANDOM pick of cards and moves none:
+    // the zone's owner is neither helped nor hurt until the sibling Op that
+    // reads the picks acts on them (a `moveZone` to exile, to hand), which
+    // carries its own row. `bind` is required for exactly that reason.
+    selectAtRandom: "neutral",
     // CR 205.3m (issue #3721) — `nameCard`'s twin for creature types, and
     // neutral for the identical reason: the Op hands its `player` a pick out
     // of CR 205.3m's table and takes nothing from anyone. It moves no card, no
@@ -4039,6 +4050,7 @@ export const BINDING_ONLY_OPS: ReadonlySet<EffectOp["op"]> = new Set<
     "nameCard",
     "chooseCreatureType",
     "chooseLandType",
+    "selectAtRandom",
 ]);
 
 /** Sign of one Op for its recipient (issue #1888). Reads the Op's own shape for

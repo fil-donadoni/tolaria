@@ -12338,6 +12338,64 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // Issue #1702 — the moveZone frame's chosen card "at random":
+    // "return two creature cards at random from your graveyard to the
+    // battlefield" lowers to a `selectAtRandom` of the picks in the
+    // `choice`'s place, then the same `moveZone` of them.
+    {
+        rule: "verb frame",
+        card: {
+            name: "Moldgraf Monstrosity",
+            manaCost: "{4}{G}{G}{G}",
+            typeLine: "Creature — Insect",
+            oracleText:
+                "Trample\nWhen this creature dies, exile it, then return two creature cards at random from your graveyard to the battlefield.",
+            power: "8",
+            toughness: "8",
+            oracleId: "3c4d5392-27cf-492e-9ae1-dee330b82223",
+            layout: "normal",
+        },
+        expected: {
+            name: "Moldgraf Monstrosity",
+            types: ["Creature"],
+            subtypes: ["Insect"],
+            manaCost: { X: 4, G: 3 },
+            power: 8,
+            toughness: 8,
+            oracleText:
+                "Trample\nWhen this creature dies, exile it, then return two creature cards at random from your graveyard to the battlefield.",
+            staticAbilities: ["trample"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "moldgraf-monstrosity-trigger",
+                    oracleText:
+                        "When this creature dies, exile it, then return two creature cards at random from your graveyard to the battlefield.",
+                    head: { kind: "died", scope: "self" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "exile",
+                        },
+                        {
+                            op: "selectAtRandom",
+                            zone: "graveyard",
+                            filter: { type: "Creature" },
+                            count: 2,
+                            bind: "$picked1",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$picked1" },
+                            player: "controller",
+                            from: "graveyard",
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // Verb Frames (issue #6630, CR 701.21a) — the `sacrifice` frame's
     // IMPERATIVE edict, "Sacrifice a creature": the controller's own pick
     // behind an enters head. Exhibits the "sacrifice consumes a choice

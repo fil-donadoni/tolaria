@@ -2653,6 +2653,15 @@ function bindSnapshot(
     ]);
 }
 
+/** The POOL half of a `choice` Op — the fields that decide WHICH cards are
+ *  eligible, as opposed to who picks and how many. `selectAtRandom`
+ *  (issue #1702) reads its pool through the same `choiceCandidates`, so a
+ *  random pick and a chosen one can never disagree about eligibility. */
+type ChoicePool = Pick<
+    OpOf<"choice">,
+    "zone" | "filter" | "candidates" | "superlative" | "allControllers"
+>;
+
 /** CR 400.2 (issue #2600) — resolves a PUBLIC-zone `candidates` set (the
  *  "from among them" shape): the ids the named picks bindings hold, in binding
  *  order, intersected with the zone's CURRENT contents and narrowed by the
@@ -2667,7 +2676,7 @@ function bindSnapshot(
  *  recheck would reject every one of them. */
 function boundSetCandidates(
     ctx: SpellContext,
-    op: OpOf<"choice">,
+    op: ChoicePool,
     cards: readonly (Parameters<typeof matchesCardFilter>[1] & {
         id: string;
     })[]
@@ -2684,6 +2693,34 @@ function boundSetCandidates(
         }
     }
     return { available: ids.length, candidateIds: ids };
+}
+
+/** Issue #1702 — the eligible ids of a `selectAtRandom`
+ *  pick, through `choice`'s `choiceCandidates` so the two Ops share one
+ *  eligibility rule. That function leaves an UNFILTERED hand or library as a
+ *  bare count (a `choice` there needs no allow-list); a random pick needs the
+ *  ids, so the whole zone is enumerated for exactly those two cases. `top`
+ *  then windows a library to its first N cards: an unresolvable `top` leaves
+ *  no candidate, never the whole library. */
+function randomSelectionPool(
+    ctx: SpellContext,
+    op: OpOf<"selectAtRandom">,
+    ownerId: string
+): string[] {
+    const pool: ChoicePool = {
+        zone: op.zone,
+        ...(op.filter ? { filter: op.filter } : {}),
+    };
+    const ids =
+        choiceCandidates(ctx, pool, ownerId).candidateIds ??
+        (op.zone === "hand"
+            ? ctx.getHandIds(ownerId)
+            : ctx.getLibraryCards(ownerId).map((c) => c.id));
+    if (op.top === undefined) return [...ids];
+    const top = resolveValue(ctx, op.top);
+    if (top === undefined) return [];
+    const window = new Set(ctx.peekLibraryTop(ownerId, Math.max(0, top)));
+    return ids.filter((id) => window.has(id));
 }
 
 /** CR 608.2h — the ids among `ids` tied for the greatest (or least) `stat`.
@@ -2725,7 +2762,7 @@ function extremeByStat(
  *  "target player reveals their hand, YOU choose a card from it"). */
 function choiceCandidates(
     ctx: SpellContext,
-    op: OpOf<"choice">,
+    op: ChoicePool,
     zoneOwnerId: string
 ): { available: number; candidateIds?: string[] } {
     // Fail closed if a script bypassed the validator: a restriction that
@@ -3494,6 +3531,28 @@ export const OP_EXECUTORS: {
         const picked = ctx.pickRandomCardExiledWith(ctx.sourceInstanceId);
         if (!picked) return;
         ctx.moveCardById(picked.ownerId, picked.id, "exile", "hand");
+    },
+    // CR 609.3 (issue #1702) — choose `count` cards AT RANDOM from a zone
+    // pool and bind them; nothing moves. The pool is `choice`'s own
+    // (`randomSelectionPool` → `choiceCandidates`), the randomness the seeded
+    // PRNG's (`pickAtRandom`), drawn once per pick WITHOUT replacement — so
+    // the picked set is uniform over the N-subsets and a replay reproduces
+    // it. A short pool yields what it has (CR 609.3); an empty one, or a
+    // count that is not positive, binds nothing and later refs skip.
+    selectAtRandom(ctx, op) {
+        const ownerId = resolvePlayerRef(ctx, op.zoneOwnerId ?? "controller");
+        if (ownerId === undefined) return;
+        const count = resolveValue(ctx, op.count);
+        if (count === undefined || count <= 0) return;
+        const remaining = randomSelectionPool(ctx, op, ownerId);
+        const picks: string[] = [];
+        while (picks.length < count) {
+            const id = ctx.pickAtRandom(remaining);
+            if (id === undefined) break;
+            picks.push(id);
+            remaining.splice(remaining.indexOf(id), 1);
+        }
+        if (picks.length > 0) ctx.noteChoice(op.bind, picks);
     },
     // CR 500.7 (issue #686) — schedule an extra turn for `player` (Time
     // Warp). Skipped when the player cannot be resolved (CR 608.2b).

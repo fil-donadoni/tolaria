@@ -53,6 +53,7 @@ const DECLARATIONS = [
     "recallCapturedBinding.bind:snapshot",
     "reveal.bind:picks",
     "sacrifice.bind:snapshot",
+    "selectAtRandom.bind:picks",
     "tapUntap.bind:snapshot",
 ];
 

@@ -44325,6 +44325,16 @@
         "source": "compiled"
     },
     {
+        "name": "Moldgraf Monstrosity",
+        "scryfallId": "f387c86a-702f-4f86-bcb9-d2bfa46fd211",
+        "oracleId": "3c4d5392-27cf-492e-9ae1-dee330b82223",
+        "firstSet": "isd",
+        "firstPrintId": "f387c86a-702f-4f86-bcb9-d2bfa46fd211",
+        "firstPrintSet": "isd",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Mole Man, Moloid Master",
         "scryfallId": "1b406cc5-75c9-430a-83a2-de0f2a8aeae6",
         "oracleId": "34994475-b914-44f6-8ca1-c2747b6d5956",
@@ -48448,6 +48458,14 @@
         "oracleId": "9b7a0c9d-1045-4fc0-b5e3-18616106da08",
         "firstSet": "ice",
         "firstPrintId": "7ff511f3-416e-4919-acd6-fd8183bf5c60",
+        "firstPrintSet": "ice"
+    },
+    {
+        "name": "Orcish Librarian",
+        "scryfallId": "8ed908d6-6d06-4ccb-9577-37ef2d01c1a5",
+        "oracleId": "3a05904d-5439-446d-a2a1-1475c9c7371d",
+        "firstSet": "ice",
+        "firstPrintId": "8ed908d6-6d06-4ccb-9577-37ef2d01c1a5",
         "firstPrintSet": "ice"
     },
     {
@@ -70726,6 +70744,14 @@
         "source": "compiled"
     },
     {
+        "name": "Tersa Lightshatter",
+        "scryfallId": "99e96b34-b1c4-4647-a38e-2cf1aedaaace",
+        "oracleId": "9918eb7b-054e-4b1c-afc7-1163ab642d50",
+        "firstSet": "tdm",
+        "firstPrintId": "99e96b34-b1c4-4647-a38e-2cf1aedaaace",
+        "firstPrintSet": "tdm"
+    },
+    {
         "name": "Testament Bearer",
         "scryfallId": "a5424859-628a-4c19-acd0-0c63c21c8338",
         "oracleId": "ce0f6cd6-35d5-4f52-b81e-6d15e3bf916e",
@@ -72658,6 +72684,16 @@
         "firstSet": "wth",
         "firstPrintId": "9236a857-c4ca-4de2-a4a2-e0914d16b54b",
         "firstPrintSet": "wth",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Tomb Fortress",
+        "scryfallId": "5ffd1a43-5613-4058-9e51-fd3cc1585651",
+        "oracleId": "986f510c-e2ec-423e-a443-51a169939558",
+        "firstSet": "40k",
+        "firstPrintId": "5ffd1a43-5613-4058-9e51-fd3cc1585651",
+        "firstPrintSet": "40k",
         "rarity": "rare",
         "source": "compiled"
     },
