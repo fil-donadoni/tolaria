@@ -1,5 +1,5 @@
 import type { CardInstance } from "~/types/game";
-import type { CardVisualState, ActivatableAbility } from "./battlefield-card";
+import type { CardVisualState, ActivatableAbility } from "~/types/battlefield";
 import { useGameContext } from "~/hooks/useGameContext";
 import TurnFaceUpButton from "./turn-face-up-button";
 import { useArrowHighlight } from "~/hooks/arrowHighlightContext";

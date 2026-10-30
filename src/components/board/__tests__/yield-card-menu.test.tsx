@@ -41,7 +41,7 @@ vi.mock("~/lib/session", () => ({ clearSession: () => {} }));
 
 import PauseMenuDialog from "../pause-menu-dialog";
 import BoardBattlefieldCard from "../board-battlefield-card";
-import type { CardVisualState, ActivatableAbility } from "../battlefield-card";
+import type { CardVisualState, ActivatableAbility } from "~/types/battlefield";
 import { resetPreviewSingleton } from "../../cards/card-preview-singleton";
 
 const NOBLE = getCardByName("Noble Hierarch");

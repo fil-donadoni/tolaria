@@ -8,7 +8,7 @@ import ActionSheet, {
     type ActionSheetItem,
 } from "~/components/ui/action-sheet";
 import { formatOracleText } from "~/lib/oracle-text";
-import type { ActivatableAbility } from "./battlefield-card";
+import type { ActivatableAbility } from "~/types/battlefield";
 
 /** Shared activated-ability affordance UI for both the classic
  *  ({@link BattlefieldCard}) and the spatial ({@link BoardBattlefieldCard})

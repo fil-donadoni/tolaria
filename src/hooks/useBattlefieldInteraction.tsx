@@ -59,7 +59,7 @@ import {
     isTapOtherSelectionComplete,
     type TapOtherCandidate,
 } from "@convex/gre/tapOtherCost";
-import type { ActivatableAbility } from "~/components/board/battlefield-card";
+import type { ActivatableAbility } from "~/types/battlefield";
 import ManaChoicePicker from "~/components/board/mana-choice-picker";
 import ManaTapOtherBanner from "~/components/board/mana-tap-other-banner";
 import CastCostDialog from "~/components/cards/cast-cost-dialog";

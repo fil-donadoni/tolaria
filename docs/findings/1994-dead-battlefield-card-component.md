@@ -1,7 +1,8 @@
 ---
 title: BattlefieldCard (battlefield-card.tsx) is dead code with the same tap-rotation bug this issue fixed
 discoveredBy: 1994
-status: draft
+status: triaged
+issue: 7608
 confidence: high
 ---
 

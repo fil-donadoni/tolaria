@@ -3,8 +3,7 @@
 // board already stamps on every pile tile (`data-zone-drop`/`data-zone-owner`,
 // `player-library.tsx` / `player-graveyard.tsx` / `player-exile.tsx`) and
 // every battlefield permanent (`data-arrow-anchor-permanent`, shared with the
-// target-arrow anchor registry, `battlefield-card.tsx` /
-// `board-battlefield-card.tsx`).
+// target-arrow anchor registry, `board-battlefield-card.tsx`).
 //
 // A ONE-TIME synchronous `document.querySelector` read at verb-selection
 // time, never a live subscription — deliberately DOM-touching (like the
