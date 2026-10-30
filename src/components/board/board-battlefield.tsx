@@ -16,7 +16,7 @@ import { attachmentHostName, attachmentLabel } from "~/lib/attachment";
 import { toLayerState } from "~/lib/effective-stats";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardBattlefieldCard from "./board-battlefield-card";
-import type { CardVisualState } from "./battlefield-card";
+import type { CardVisualState } from "~/types/battlefield";
 import BattlefieldStack from "./battlefield-stack";
 import CombatPanels from "./combat-panels";
 import AttachedCardsCluster from "./attached-cards-cluster";

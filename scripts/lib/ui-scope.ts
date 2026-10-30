@@ -585,6 +585,12 @@ export function renderUiScope(scope: UiScope, base: string): string {
  * the walk is too dear to owe for content the diff never touched). A handler
  * or a string edited in a file that has a `z-index` elsewhere owes no walk;
  * adding or removing a marker does. A new file's every line is changed.
+ * Two diffs owe nothing whatever the path: a module whose
+ * changed lines are only one-line `import type` / `export type … from`
+ * statements — the build erases them, as the scope rule above already says —
+ * and a DELETED module, which renders nowhere: a deletion something still
+ * imports fails `check:ts`, not a walk. A deleted stylesheet or asset stays
+ * owed by its path.
  * `land` and `check:ui -- --scope-only` both call this.
  */
 export type WalkOwed =
@@ -652,6 +658,26 @@ export function owedByContent(rawSource: string): string | null {
     return null;
 }
 
+/** A TypeScript module: the only paths a type-only edit or a deletion can
+ *  clear. */
+function isModulePath(path: string): boolean {
+    return /\.tsx?$/.test(path);
+}
+
+/** One changed line the build erases: a one-line `import type` or
+ *  `export type … from` statement, or a blank line. */
+const TYPE_ONLY_LINE =
+    /^\s*(?:(?:import|export)\s+type\s[^;]*\bfrom\s+["'][^"']+["'];?\s*)?$/;
+
+/** The changed lines hold at least one type-only statement and nothing else
+ *  (comment-only lines aside): nothing of the edit survives the build. */
+function onlyTypeImports(changed: string): boolean {
+    const lines = withoutCommentLines(changed)
+        .split("\n")
+        .filter((l) => l.trim() !== "");
+    return lines.length > 0 && lines.every((l) => TYPE_ONLY_LINE.test(l));
+}
+
 /** A file whose content is data, never markup or style: no content rule
  *  applies to it (`owedByPath` still does — a `public/` JSON is owed). */
 function isDataPath(path: string): boolean {
@@ -659,17 +685,24 @@ function isDataPath(path: string): boolean {
 }
 
 /** `changedLines(path)` returns the path's added and removed lines (a new
- *  file's whole content), or `null` when the diff cannot be read. */
+ *  file's whole content), or `null` when the diff cannot be read;
+ *  `deleted(path)` says the diff removes the path. */
 export function uiWalkOwed(
     changed: readonly string[],
-    changedLines: (path: string) => string | null
+    changedLines: (path: string) => string | null,
+    deleted: (path: string) => boolean = () => false
 ): WalkOwed {
     const reachable = domReachablePaths([...changed].sort());
     for (const path of reachable) {
+        if (isModulePath(path) && deleted(path)) continue;
         const byPath = owedByPath(path);
-        if (byPath) return { owed: true, rule: byPath, path };
+        if (byPath && !isModulePath(path)) {
+            return { owed: true, rule: byPath, path };
+        }
         if (isDataPath(path)) continue;
         const source = changedLines(path);
+        if (source !== null && onlyTypeImports(source)) continue;
+        if (byPath) return { owed: true, rule: byPath, path };
         if (source === null) {
             return {
                 owed: true,

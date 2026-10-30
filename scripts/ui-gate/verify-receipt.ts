@@ -100,7 +100,8 @@ export function landingDiffScope(
 
 /** `uiWalkOwed` over the tree at `root`: each changed path judged by the
  *  lines its diff against `base`'s merge-base adds or removes (issue #7592),
- *  a path git does not track by its whole content. `land` and
+ *  a path git does not track by its whole content, a path gone from the
+ *  tree as deleted (issue #7608). `land` and
  *  `check:ui -- --scope-only` share this one call. */
 export function landingWalkOwed(
     changed: readonly string[],
@@ -120,30 +121,40 @@ export function landingWalkOwed(
         }
     };
     const mergeBase = git(["merge-base", base, "HEAD"])?.trim() || null;
-    return uiWalkOwed(changed, (p) => {
-        // No merge-base: the changed lines cannot be told apart — the path
-        // stays owed (fail closed).
-        if (mergeBase === null) return null;
-        const diff = git([
-            "diff",
-            "-U0",
-            "--no-color",
-            "--no-ext-diff",
-            mergeBase,
-            "--",
-            p,
-        ]);
-        if (diff === null) return null;
-        if (diff !== "") return changedLinesOfDiff(diff);
-        // An empty diff is either an untracked file (new, every line changed)
-        // or a path back at its base content (nothing changed).
-        if (git(["ls-files", "--error-unmatch", "--", p]) !== null) return "";
-        try {
-            return fs.readFileSync(path.join(root, p), "utf8");
-        } catch {
-            return null;
-        }
-    });
+    return uiWalkOwed(
+        changed,
+        (p) => {
+            // No merge-base: the changed lines cannot be told apart — the path
+            // stays owed (fail closed).
+            if (mergeBase === null) return null;
+            const diff = git([
+                "diff",
+                "-U0",
+                "--no-color",
+                "--no-ext-diff",
+                mergeBase,
+                "--",
+                p,
+            ]);
+            if (diff === null) return null;
+            if (diff !== "") return changedLinesOfDiff(diff);
+            // An empty diff is either an untracked file (new, every line changed)
+            // or a path back at its base content (nothing changed).
+            if (git(["ls-files", "--error-unmatch", "--", p]) !== null)
+                return "";
+            try {
+                return fs.readFileSync(path.join(root, p), "utf8");
+            } catch {
+                return null;
+            }
+        },
+        // Deleted = git had it at the merge-base and the tree no longer does;
+        // a path merely missing from disk is not a deletion git records.
+        (p) =>
+            mergeBase !== null &&
+            !fs.existsSync(path.join(root, p)) &&
+            git(["cat-file", "-e", `${mergeBase}:${p}`]) !== null
+    );
 }
 
 /** The added and removed lines of a unified diff, without their `+`/`-`

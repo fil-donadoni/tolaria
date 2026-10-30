@@ -27,7 +27,7 @@
 import { createContext, useContext } from "react";
 import type { ProjectedManualCard } from "@convex/manual";
 import type { CardInstance } from "~/types/game";
-import type { ActivatableAbility } from "~/components/board/battlefield-card";
+import type { ActivatableAbility } from "~/types/battlefield";
 import type { ManualDispatch, RequestVerbInput } from "./manual-runtime";
 import {
     findManualAnchor,
