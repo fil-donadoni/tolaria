@@ -109,7 +109,7 @@ export const BASIC_LAND_SUBTYPE_ORDER: readonly string[] = [
 /** CR 205.3g — artifact types. */
 export const ARTIFACT_SUBTYPES: ReadonlySet<string> = set(
     "Attraction,Blood,Bobblehead,Book,Clue,Contraption,Equipment,Food," +
-        "Fortification,Gold,Incubator,Infinity,Junk,Lander,Map,Mutagen," +
+        "Fortification,Gold,Heartwood,Incubator,Infinity,Junk,Lander,Map,Mutagen," +
         "Powerstone,Spacecraft,Stone,Treasure,Vehicle,Vibranium"
 );
 
