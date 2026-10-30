@@ -580,9 +580,12 @@ export function renderUiScope(scope: UiScope, base: string): string {
  *     budget" in `tolaria.config.json`'s `$comment` — is prose, not a class
  *     or a style, and owed every diff that touched the config a walk.
  * Tests, markdown, scripts and server-only paths cannot reach the DOM and owe
- * nothing. Content is read from the file AS CHANGED, not its hunks: a leaf
- * file that declares a scroll container anywhere owes a walk — over-owing is
- * the safe side. `land` and `check:ui -- --scope-only` both call this.
+ * nothing. Content rules read the diff's CHANGED LINES — added or removed —
+ * never what an untouched part of the file already declares (owner ruling:
+ * the walk is too dear to owe for content the diff never touched). A handler
+ * or a string edited in a file that has a `z-index` elsewhere owes no walk;
+ * adding or removing a marker does. A new file's every line is changed.
+ * `land` and `check:ui -- --scope-only` both call this.
  */
 export type WalkOwed =
     | { owed: true; rule: string; path: string }
@@ -634,7 +637,8 @@ function withoutCommentLines(source: string): string {
         .join("\n");
 }
 
-/** The rule the CONTENT of a changed file trips, or `null`. */
+/** The rule the changed CONTENT of a file trips, or `null`. `rawSource` is
+ *  the diff's added and removed lines (or a whole new file). */
 export function owedByContent(rawSource: string): string | null {
     const source = withoutCommentLines(rawSource);
     if (Z_INDEX_CONTENT.test(source)) return "declares a z-index";
@@ -654,21 +658,22 @@ function isDataPath(path: string): boolean {
     return /\.json$/.test(path);
 }
 
-/** `read(path)` returns the file as changed, or `null` when it is gone/unreadable. */
+/** `changedLines(path)` returns the path's added and removed lines (a new
+ *  file's whole content), or `null` when the diff cannot be read. */
 export function uiWalkOwed(
     changed: readonly string[],
-    read: (path: string) => string | null
+    changedLines: (path: string) => string | null
 ): WalkOwed {
     const reachable = domReachablePaths([...changed].sort());
     for (const path of reachable) {
         const byPath = owedByPath(path);
         if (byPath) return { owed: true, rule: byPath, path };
         if (isDataPath(path)) continue;
-        const source = read(path);
+        const source = changedLines(path);
         if (source === null) {
             return {
                 owed: true,
-                rule: "file gone or unreadable, so its content cannot be cleared",
+                rule: "diff unreadable, so its changed lines cannot be cleared",
                 path,
             };
         }
@@ -680,7 +685,7 @@ export function uiWalkOwed(
         reason:
             reachable.length === 0
                 ? "no changed path can reach the DOM"
-                : "only leaf components, copy or handlers: no stylesheet, shell, layout, overlay, z-index, scroll container or responsive rule",
+                : "no stylesheet, shell, layout or overlay path, and no changed line adds or removes a z-index, positioning, scroll container or responsive rule",
     };
 }
 

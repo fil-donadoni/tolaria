@@ -98,19 +98,71 @@ export function landingDiffScope(
     });
 }
 
-/** `uiWalkOwed` over the tree at `root`: each changed file read as it stands
- *  (issue #5459). `land` and `check:ui -- --scope-only` share this one call. */
+/** `uiWalkOwed` over the tree at `root`: each changed path judged by the
+ *  lines its diff against `base`'s merge-base adds or removes (issue #7592),
+ *  a path git does not track by its whole content. `land` and
+ *  `check:ui -- --scope-only` share this one call. */
 export function landingWalkOwed(
     changed: readonly string[],
-    root: string
+    root: string,
+    base: string = ORIGIN_BASE
 ): WalkOwed {
+    const git = (args: string[]): string | null => {
+        try {
+            return execFileSync("git", args, {
+                cwd: root,
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "ignore"],
+                maxBuffer: 64 * 1024 * 1024,
+            });
+        } catch {
+            return null;
+        }
+    };
+    const mergeBase = git(["merge-base", base, "HEAD"])?.trim() || null;
     return uiWalkOwed(changed, (p) => {
+        // No merge-base: the changed lines cannot be told apart — the path
+        // stays owed (fail closed).
+        if (mergeBase === null) return null;
+        const diff = git([
+            "diff",
+            "-U0",
+            "--no-color",
+            "--no-ext-diff",
+            mergeBase,
+            "--",
+            p,
+        ]);
+        if (diff === null) return null;
+        if (diff !== "") return changedLinesOfDiff(diff);
+        // An empty diff is either an untracked file (new, every line changed)
+        // or a path back at its base content (nothing changed).
+        if (git(["ls-files", "--error-unmatch", "--", p]) !== null) return "";
         try {
             return fs.readFileSync(path.join(root, p), "utf8");
         } catch {
             return null;
         }
     });
+}
+
+/** The added and removed lines of a unified diff, without their `+`/`-`
+ *  marker. Only lines inside a hunk count: the `---`/`+++` file headers, and
+ *  anything else before the first `@@`, are not content. */
+export function changedLinesOfDiff(diff: string): string {
+    const lines: string[] = [];
+    let inHunk = false;
+    for (const line of diff.split("\n")) {
+        if (line.startsWith("diff --git ")) inHunk = false;
+        else if (line.startsWith("@@")) inHunk = true;
+        else if (inHunk && (line.startsWith("+") || line.startsWith("-"))) {
+            lines.push(line.slice(1));
+        }
+    }
+    // Every line keeps its newline: a content rule that needs a character
+    // after its token (`fixed`, `sticky`) must match the LAST changed line too,
+    // exactly as it does at the end of a whole file.
+    return lines.map((l) => `${l}\n`).join("");
 }
 
 /**
