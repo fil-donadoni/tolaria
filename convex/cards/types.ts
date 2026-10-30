@@ -14753,6 +14753,32 @@ export type EffectCountersValue = {
  *  `"kicker"`, not this value). */
 export type EffectKickerCountValue = { kickerCount: true };
 
+/** colorsSpentToCast — how many DISTINCT COLORS of mana were spent to cast the
+ *  resolving spell (CR 105.1: white, blue, black, red, green — colorless `C`
+ *  never counts), a thin JSON-pure skin over `SpellContext.getNotedManaSpent`
+ *  folded through `distinctColorsSpent` (`cards/entersWith.ts`, the counter
+ *  Sunburst's CR 702.44a entry tally already uses). Issue #7211. Like
+ *  `kickerCount` it is NOT an Op and NOT a new STRUCTURAL construct — it reads
+ *  back one number (0–5) and nothing composes it, so it does not reopen
+ *  ADR 0045.
+ *
+ *  It is the value the Converge ability word (CR 207.2c) names: "Exile target
+ *  nonland permanent if its mana value is less than or equal to the number of
+ *  colors of mana spent to cast this spell" (Prismatic Ending) is an `if` whose
+ *  comparison reads `{ manaValue: { of: { target: 0 } } }` `le` this value —
+ *  the CONDITION is checked at resolution, the target set is unrestricted.
+ *
+ *  No `of` selector, for `kickerCount`'s reason: the read is scoped to the
+ *  resolving stack item itself. The record exists only when the card declares
+ *  `CardDefinition.noteManaSpent: true` — `validateEffectScript` refuses a
+ *  spell script that reads this value without it (an absent record would read
+ *  0 silently), and refuses it at every ABILITY site (an ability is not cast).
+ *  A COPY of the spell reads 0: CR 707.10 copies decisions, not the mana that
+ *  paid for them (its Dawnglow Infusion example — "mana isn't an object"), so
+ *  `cloneSpellOntoStack` drops `notedManaSpent` off every copy. A spell cast
+ *  without paying its mana cost likewise spent nothing and reads 0. */
+export type EffectColorsSpentToCastValue = { colorsSpentToCast: true };
+
 /** additionalCostPaid — how many times the NAMED Kicker of the resolving spell was paid
  *  as it was cast (CR 702.33 / 702.33e), a thin JSON-pure skin over
  *  `SpellContext.getKickerPaidCount`. The PER-KICKER sibling of
@@ -15127,7 +15153,8 @@ export interface EffectDivideValue {
 
 /** A runtime numeric parameter of an Op (ADR 0045): a literal count, a `ref`
  *  reading a bound object's numeric property, a `count` of a selected set, the
- *  chosen-cost `X`, a `counters` count on a selected object, a selected object's `manaValue`, a
+ *  chosen-cost `X`, a `counters` count on a selected object, the resolving
+ *  spell's `colorsSpentToCast`, a selected object's `manaValue`, a
  *  characteristic of the cost-`sacrificed` permanent, a player's
  *  `domain`, a permanent's `escaped` flag, the
  *  currently-resolving triggered ability's `abilityResolutionCount` (issue
@@ -15146,6 +15173,7 @@ export type EffectValue =
     | EffectXValue
     | EffectCountersValue
     | EffectKickerCountValue
+    | EffectColorsSpentToCastValue
     | EffectAdditionalCostPaidValue
     | EffectManaValueValue
     | EffectSacrificedValue

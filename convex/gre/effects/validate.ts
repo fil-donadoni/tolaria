@@ -77,7 +77,10 @@ export type EffectScriptHost = Pick<
     // CR 702.96 (issue #3215) — read ONLY by the Overload slot-reference gate
     // below. Optional for the same reason `types` is: a synthetic test host
     // that omits it simply skips that one check.
-    Partial<Pick<CardDefinition, "overload">>;
+    Partial<Pick<CardDefinition, "overload">> &
+    // Issue #7211 — read ONLY by the `colorsSpentToCast` gate below: the
+    // value reads a record the engine takes only for a card that opts in.
+    Partial<Pick<CardDefinition, "noteManaSpent">>;
 
 /** Field schema for one Op: required fields (each must be present and valid)
  *  plus optional fields (validated only when present). Any field NOT listed
@@ -1577,6 +1580,19 @@ function isKickerCountValue(value: unknown): boolean {
     );
 }
 
+/** `{ colorsSpentToCast: true }` — SHAPE of the converge value construct
+ *  (CR 105.1 / 207.2c, issue #7211). No parameters — reads the resolving
+ *  spell's noted mana off the stack item. Mirrors `isKickerCountValue`. */
+function isColorsSpentToCastValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "colorsSpentToCast" &&
+        (value as { colorsSpentToCast: unknown }).colorsSpentToCast === true
+    );
+}
+
 /** `{ additionalCostPaid: "<id>" }` — SHAPE of the per-Kicker payment value construct
  *  (CR 702.33 / 702.33e, ADR 0079). One parameter: the `KickerCost.id` declared
  *  on the card. Reads how many times THAT Kicker was paid off the stack item's
@@ -2009,6 +2025,7 @@ function isEffectValue(value: unknown): boolean {
         isXValue(value) ||
         isCountersValue(value) ||
         isKickerCountValue(value) ||
+        isColorsSpentToCastValue(value) ||
         isAdditionalCostPaidValue(value) ||
         isManaValueValue(value) ||
         isSacrificedValue(value) ||
@@ -9476,6 +9493,24 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
     // spell has no firing event, so `$event` is illegal (ADR 0049).
     validateEffectOpList(def.effects, label, EMPTY_BINDINGS, errors, undefined);
 
+    // CR 105.1 / 207.2c (issue #7211) — `{ colorsSpentToCast: true }` reads
+    // `StackItem.notedManaSpent`, which the cast-payment seam records ONLY for
+    // a card declaring `noteManaSpent: true`. Without it the record is absent
+    // and every converge clause reads 0 colours — a silent no-op, not an error.
+    // A read inside a token's or a delayed trigger's body resolves as THAT
+    // ability, on a stack item with no record — the same silent 0.
+    const convergeSites = colorsSpentToCastSites(def.effects);
+    if (convergeSites.spell && !def.noteManaSpent) {
+        errors.push(
+            `${label}: reads { colorsSpentToCast: true } but does not declare noteManaSpent: true — the mana spent to cast it is never recorded, so the value always reads 0`
+        );
+    }
+    if (convergeSites.nested) {
+        errors.push(
+            `${label}: reads { colorsSpentToCast: true } inside a createToken token or delayedTrigger body — that body resolves as an ability, not as the spell, so it has no mana spent to cast it`
+        );
+    }
+
     // exileSelf / shuffleSelfIntoLibrary on a PERMANENT spell (issue #1097) —
     // see `SELF_REDIRECT_OPS`'s own doc comment: the flag they set is never
     // read by a permanent's resolution branch, so it silently no-ops instead
@@ -9563,6 +9598,52 @@ function countTargetSetSweeps(node: unknown): number {
             0
         )
     );
+}
+
+/** True iff a `{ colorsSpentToCast: true }` value appears anywhere in a script
+ *  tree (issue #7211). Shape-matched for `findTargetSlotRefs`'s reason: the
+ *  value is legal in every numeric position, and a field list would rot. */
+function containsColorsSpentToCast(node: unknown): boolean {
+    if (Array.isArray(node)) return node.some(containsColorsSpentToCast);
+    if (node === null || typeof node !== "object") return false;
+    if (isColorsSpentToCastValue(node)) return true;
+    return Object.values(node).some(containsColorsSpentToCast);
+}
+
+/** Where a SPELL script reads `{ colorsSpentToCast: true }` (issue #7211):
+ *  `spell` — in a body that resolves as the spell itself; `nested` — inside a
+ *  body that resolves later as an ABILITY of its own (a `createToken` token's
+ *  abilities, a `delayedTrigger`'s effects), whose stack item carries no
+ *  record of the spell's mana. */
+function colorsSpentToCastSites(node: unknown): {
+    spell: boolean;
+    nested: boolean;
+} {
+    const found = { spell: false, nested: false };
+    const walk = (n: unknown): void => {
+        if (Array.isArray(n)) {
+            n.forEach(walk);
+            return;
+        }
+        if (n === null || typeof n !== "object") return;
+        if (isColorsSpentToCastValue(n)) {
+            found.spell = true;
+            return;
+        }
+        const obj = n as Record<string, unknown>;
+        for (const [key, value] of Object.entries(obj)) {
+            const abilityBody =
+                (obj.op === "createToken" && key === "token") ||
+                (obj.op === "delayedTrigger" && key === "effects");
+            if (abilityBody) {
+                if (containsColorsSpentToCast(value)) found.nested = true;
+            } else {
+                walk(value);
+            }
+        }
+    };
+    walk(node);
+    return found;
 }
 
 function findTargetSlotRefs(node: unknown, out: unknown[]): void {
@@ -9710,6 +9791,15 @@ export function validateAbilityEffectScript(
         errors,
         eventTypeList(triggerEventType)
     );
+    // CR 601.2 / 602.1a (issue #7211) — only a SPELL is cast; an ability is
+    // activated or triggered, so "the number of colors of mana spent to cast
+    // this spell" has no referent here; the record an activation notes is ITS
+    // activation cost.
+    if (containsColorsSpentToCast(ability.effects)) {
+        errors.push(
+            `${label}: reads { colorsSpentToCast: true } — an ability is not cast, so it has no mana spent to cast it; only a spell-site script may read it`
+        );
+    }
     return errors;
 }
 

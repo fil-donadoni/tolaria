@@ -127,6 +127,7 @@ import {
     SOURCE_CHOSEN_SUBTYPE_REF,
 } from "./targetRef";
 import { librarySearchFloor } from "./librarySearchFloor";
+import { distinctColorsSpent } from "../../cards/entersWith";
 import {
     categorizedEligibleIds,
     maxCategorizedPicks,
@@ -922,6 +923,15 @@ function resolveValue(
     // gate (Overload, Burst Lightning, Bloodchief's Thirst, Tear Asunder,
     // Consult the Star Charts). One execution path, no arithmetic.
     if ("kickerCount" in value) return ctx.getKickerCount();
+    // colorsSpentToCast (issue #7211) — how many distinct COLORS of mana were
+    // spent to cast the resolving spell (CR 105.1: colorless never counts), the
+    // number the Converge ability word (CR 207.2c) names. A thin skin over the
+    // noted-mana record through the SAME counter Sunburst's entry tally uses
+    // (CR 702.44a), so the two can never disagree. A copy carries no record
+    // (CR 707.10), so it reads 0.
+    if ("colorsSpentToCast" in value) {
+        return distinctColorsSpent(ctx.getNotedManaSpent());
+    }
     // additionalCostPaid — how many times the NAMED Kicker was paid (CR 702.33 /
     // 702.33e), a thin skin over ctx.getKickerPaidCount. The PER-KICKER sibling
     // of `kickerCount`: a card with two independently payable Kickers ("Kicker
