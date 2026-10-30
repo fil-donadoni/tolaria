@@ -21294,7 +21294,7 @@
         {"id":"601.2b","line":"// is announced on the CR 601.2b channel every other row here uses, so","sites":1,"status":"baseline"},
         {"id":"601.2b","line":"// legal choice for X is 0) and the alternative-cost picker (CR 601.2b)","sites":1,"status":"baseline"},
         {"id":"601.2b","line":"// mode in FIRST (CR 601.2b, before targets), and only the chosen mode's","sites":1,"status":"baseline"},
-        {"id":"601.2b","line":"// nor, CR 601.2b (issue #7526), an Adventure or morph cast","sites":1,"status":"confirmed","ruleHash":"b29d06932bab0594"},
+        {"id":"601.2b","line":"// nor, CR 601.2b, an Adventure or morph cast","sites":1,"status":"confirmed","ruleHash":"b29d06932bab0594"},
         {"id":"601.2b","line":"// number of target creatures.\" (CR 601.2b pay-X-life additional cost; CR 601.2d","sites":1,"status":"baseline"},
         {"id":"601.2b","line":"// one cast (CR 601.2b \"each player\", APNAP order via `forEach { set:","sites":1,"status":"baseline"},
         {"id":"601.2b","line":"// optionChoice — the modal \"choose one\" Op (CR 700.2 / 601.2b, issue #849).","sites":1,"status":"baseline"},

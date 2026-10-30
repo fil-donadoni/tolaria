@@ -1625,7 +1625,7 @@ export function getLegalActions(
                 //
                 // CR 601.3e (issue #7205) — and an announcement no grant covers
                 // (a filtered permission's uncovered half) is no cast at all;
-                // nor, CR 601.2b (issue #7526), an Adventure or morph cast
+                // nor, CR 601.2b, an Adventure or morph cast
                 // riding a grant that already replaces the mana cost.
                 alsoLegal: (_subject, altCostId) =>
                     libraryTopAnnouncementLicensed(
