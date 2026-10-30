@@ -145,6 +145,37 @@ describe("CR 712.4a — withMeldPairs resolves the pair from the meld ability's 
         expect(byName(out, "Quiet, Test Incarnate").meldResult).toBe(true);
     });
 
+    it("prefers the longest name when one meld name prefixes another", () => {
+        // A shorter name earlier in corpus order must not win the match.
+        const prefix = meldRow(7, {
+            name: "Quiet",
+            manaCost: "{1}",
+            typeLine: "Artifact",
+            oracleText: "",
+        });
+        const out = withMeldPairs([prefix, HOLDER, PARTNER, RESULT]);
+        expect(byName(out, "Quiet Warden").meldBack?.name).toBe(
+            "Quiet Colossus"
+        );
+        expect(byName(out, "Quiet").meldBack).toBeUndefined();
+    });
+
+    it("stamps neither pair when two holders claim the same card (CR 701.42b)", () => {
+        const rival = meldRow(8, {
+            manaCost: HOLDER.manaCost,
+            typeLine: HOLDER.typeLine,
+            power: HOLDER.power,
+            toughness: HOLDER.toughness,
+            name: "Quiet Rival",
+            oracleText:
+                "{5}: If you both own and control Quiet Rival and a creature named Quiet Warden, exile them, then meld them into Quiet Colossus.",
+        });
+        const out = withMeldPairs([HOLDER, rival, PARTNER, RESULT]);
+        expect(byName(out, "Quiet Warden").meldBack).toBeUndefined();
+        expect(byName(out, "Quiet Rival").meldBack).toBeUndefined();
+        expect(byName(out, "Quiet Keeper").meldBack).toBeUndefined();
+    });
+
     it("leaves a meld card with no counterpart in the corpus unstamped", () => {
         const out = withMeldPairs([HOLDER, RESULT]);
         expect(byName(out, "Quiet Keeper").meldBack).toBeUndefined();

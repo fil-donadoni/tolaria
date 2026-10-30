@@ -726,9 +726,7 @@ function compileMeldLayout(card: OracleCard): CompileOutcome {
     const backOutcome = compileCard(faceAsOracleCard(card, back));
     if (front.state === "unparsed" || backOutcome.state === "unparsed") {
         return unparsed([
-            ...(front.state === "unparsed"
-                ? front.gaps.map(refuseMeldClause)
-                : []),
+            ...(front.state === "unparsed" ? refuseMeldClause(front.gaps) : []),
             ...(backOutcome.state === "unparsed" ? backOutcome.gaps : []),
         ]);
     }
@@ -793,12 +791,23 @@ function compileMeldLayout(card: OracleCard): CompileOutcome {
         : { state: "ready", definition, opsUsed, slots };
 }
 
-/** CR 701.42a — a gap on the meld ability's line, re-keyed to
- *  {@link MELD_CLAUSE_REASON}. Card-level (no attribution), so every meld
- *  ability of the corpus — activated, triggered, attack-gated — is ONE gap
- *  claimed by ONE issue rather than a no-slot key per wording. */
-function refuseMeldClause(gap: Gap): Gap {
-    return gap.line.includes(MELD_CLAUSE)
-        ? { line: gap.line, fragment: gap.line, reason: MELD_CLAUSE_REASON }
-        : gap;
+/** CR 701.42a — the gaps on the meld ability's line, re-keyed to ONE gap
+ *  under {@link MELD_CLAUSE_REASON}. Card-level (no attribution), so every
+ *  meld ability of the corpus — activated, triggered, attack-gated — is one
+ *  gap claimed by one issue rather than a no-slot key per wording. */
+function refuseMeldClause(gaps: readonly Gap[]): Gap[] {
+    const out: Gap[] = [];
+    const clauseLines = new Set<string>();
+    for (const gap of gaps) {
+        if (!gap.line.includes(MELD_CLAUSE)) out.push(gap);
+        else if (!clauseLines.has(gap.line)) {
+            clauseLines.add(gap.line);
+            out.push({
+                line: gap.line,
+                fragment: gap.line,
+                reason: MELD_CLAUSE_REASON,
+            });
+        }
+    }
+    return out;
 }

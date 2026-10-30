@@ -44,13 +44,20 @@ function faceOf(card: OracleCard): OracleFace {
     };
 }
 
-/** The meld card whose name directly follows `lead` in `text`, if any. */
+/** The meld card whose name directly follows `lead` in `text`, if any — the
+ *  LONGEST such name, so a name that is a prefix of another ("Urza" beside
+ *  "Urza, Planeswalker") can never win by corpus order. */
 function namedAfter(
     text: string,
     lead: string,
     candidates: readonly OracleCard[]
 ): OracleCard | undefined {
-    return candidates.find((c) => text.includes(`${lead}${c.name}`));
+    let best: OracleCard | undefined;
+    for (const c of candidates) {
+        if (!text.includes(`${lead}${c.name}`)) continue;
+        if (best === undefined || c.name.length > best.name.length) best = c;
+    }
+    return best;
 }
 
 /**
@@ -64,8 +71,12 @@ export function withMeldPairs(
     const meld = cards.filter((c) => c.layout === MELD_LAYOUT);
     if (meld.length === 0) return cards;
 
-    const backOf = new Map<string, OracleFace>();
-    const results = new Set<string>();
+    const claims: {
+        holder: OracleCard;
+        partner: OracleCard;
+        result: OracleCard;
+    }[] = [];
+    const claimed = new Map<string, number>();
     for (const holder of meld) {
         const result = namedAfter(holder.oracleText, MELD_CLAUSE, meld);
         const partner = namedAfter(holder.oracleText, "named ", meld);
@@ -73,6 +84,21 @@ export function withMeldPairs(
         if (result === holder || partner === holder || result === partner) {
             continue;
         }
+        claims.push({ holder, partner, result });
+        for (const c of [holder, partner]) {
+            claimed.set(c.oracleId, (claimed.get(c.oracleId) ?? 0) + 1);
+        }
+    }
+
+    // A front card claimed by two holders is a corpus the rules cannot
+    // produce (CR 701.42b: a pair is two cards). EVERY claim touching it is
+    // dropped, so none of their cards is stamped and each is refused as
+    // unpaired rather than melded by whichever claim came first.
+    const backOf = new Map<string, OracleFace>();
+    const results = new Set<string>();
+    for (const { holder, partner, result } of claims) {
+        if (claimed.get(holder.oracleId) !== 1) continue;
+        if (claimed.get(partner.oracleId) !== 1) continue;
         const back = faceOf(result);
         backOf.set(holder.oracleId, back);
         backOf.set(partner.oracleId, back);
