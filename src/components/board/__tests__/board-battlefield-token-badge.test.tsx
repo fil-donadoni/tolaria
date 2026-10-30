@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import type { CardInstance, Player } from "~/types/game";
-import type { CardVisualState } from "../battlefield-card";
+import type { CardVisualState } from "~/types/battlefield";
 import { GameContext } from "~/hooks/useGameContext";
 
 const MOTION_PROPS = new Set([

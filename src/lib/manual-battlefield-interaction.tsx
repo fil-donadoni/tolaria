@@ -21,7 +21,7 @@
 // once per mounted seat is trivially rules-of-hooks safe.
 
 import type { BattlefieldInteractionHook } from "~/hooks/useBattlefieldInteractionContext";
-import type { CardVisualState } from "~/components/board/battlefield-card";
+import type { CardVisualState } from "~/types/battlefield";
 import {
     dispatchManualCardVerb,
     manualBattlefieldVerbs,

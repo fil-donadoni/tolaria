@@ -48,7 +48,7 @@ import {
 import { COMBAT_GROUP_BG } from "~/lib/combat-colors";
 import { cardRingClass, COMBAT_GROUP_ROLE } from "~/lib/card-ring";
 import { usePlainPriorityWindow } from "~/hooks/usePlainPriorityWindow";
-import type { CardVisualState } from "~/components/board/battlefield-card";
+import type { CardVisualState } from "~/types/battlefield";
 
 /** A NON-stack (`useStack: false`) mana ability's `cost.tapOtherFilter` pick,
  *  parked CLIENT-side between the ability-menu click and the single

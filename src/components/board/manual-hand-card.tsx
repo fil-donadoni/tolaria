@@ -74,7 +74,7 @@ export default function ManualHandCard({
     // carrying it, never intercept the pointerdown that gesture bubbles up
     // to. Click/touch are the ONE gesture this component owns, via the same
     // `ActivatableAbilityMenu` + `useAbilityCardClick` pair the battlefield
-    // permanents already ride (`battlefield-card.tsx`).
+    // permanents already ride (`board-battlefield-card.tsx`).
     return (
         <ActivatableAbilityMenu
             abilities={manualAbilities}

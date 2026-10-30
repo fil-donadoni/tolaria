@@ -8,7 +8,7 @@ import ActionSheet, {
     type ActionSheetItem,
 } from "~/components/ui/action-sheet";
 import { formatOracleText } from "~/lib/oracle-text";
-import type { ActivatableAbility } from "./battlefield-card";
+import type { ActivatableAbility } from "~/types/battlefield";
 
 /** Shared activated-ability affordance UI for both the classic
  *  ({@link BattlefieldCard}) and the spatial ({@link BoardBattlefieldCard})
@@ -25,8 +25,9 @@ import type { ActivatableAbility } from "./battlefield-card";
  *  mana+stack mana entry / refund flip all flow through ONE code path on both
  *  boards.
  *
- *  Extracted from `BattlefieldCard` on its second consumer (the spatial card),
- *  per the CLAUDE.md "extract shared helper on the 2nd use" rule. The substantial
+ *  Extracted from the classic board's `BattlefieldCard` (since deleted, issue
+ *  #7608) on its second consumer (the spatial card), per the CLAUDE.md
+ *  "extract shared helper on the 2nd use" rule. The substantial
  *  duplicated part — the context-menu + action-sheet markup and the keep-priority
  *  modifier read — lives here; each card keeps the tiny touch-vs-click decision
  *  (a JSX `onTouchStart` + `onClick`) on its own clickable element, controlling

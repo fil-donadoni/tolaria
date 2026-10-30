@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { ActivatableAbility } from "~/components/board/battlefield-card";
+import type { ActivatableAbility } from "~/types/battlefield";
 
 /** Touch-vs-click decision for a battlefield card that carries activatable
  *  abilities (PRD #249, slice #278). Shared by the classic
