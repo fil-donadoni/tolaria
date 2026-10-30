@@ -2193,6 +2193,23 @@ const setLevel: Valuer<"setLevel"> = (op, ctx) => ({
     tags: ["pump"],
 });
 
+/** CR 701.37a (issue #3217) — "Monstrosity N" is, in board terms, N +1/+1
+ *  counters on the permanent: priced exactly as the `counters` Op prices them,
+ *  so a monstrosity and an equal "put N +1/+1 counters" never disagree. The
+ *  designation itself has no rules meaning (CR 701.37b) — what it buys is the
+ *  card's own "becomes monstrous" trigger, which the SEARCH measures by
+ *  applying the activation through the real GRE (the trigger fires in-tree),
+ *  just as `setLevel` leaves its section's abilities to the search. This
+ *  static value cannot see that the permanent is already monstrous (it is
+ *  handed the Op, never the board); the search can, and finds the no-op. */
+const monstrosity: Valuer<"monstrosity"> = (op, ctx) => {
+    const { amount: count, scaling } = ctx.value(op.count);
+    return {
+        points: priced(ctx, "pump", 2 * count),
+        tags: tagScaling(scaling, "pump"),
+    };
+};
+
 // -------------------------------------------------------------------------
 // Backfill-Op valuers (issue #1430). Each maps its Op onto the SAME fixed
 // feature basis the charter Ops use — no per-card shapes, no new dimensions.
@@ -3308,6 +3325,7 @@ export const OP_VALUERS: {
     pump,
     counters,
     setLevel,
+    monstrosity,
     // Backfilled Ops (issue #1430).
     addMana,
     drainManaPool,
@@ -3580,6 +3598,10 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // the Class itself, i.e. its controller, so a redirect reader that lands on
     // this Op is looking at a gift.
     setLevel: "beneficial",
+    // CR 701.37a (issue #3217) — +1/+1 counters and a designation on the
+    // permanent itself, nothing taken away: a gift to its controller, the
+    // `setLevel` reasoning exactly.
+    monstrosity: "beneficial",
     // CR 614.9 (issue #3810) — the sign is genuinely neutral AT THIS
     // AXIS, and not for want of a decision: a redirect conserves the
     // stake. It takes exactly as much off the recipient it shields as it

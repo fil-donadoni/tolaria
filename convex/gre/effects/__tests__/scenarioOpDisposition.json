@@ -215,6 +215,7 @@
         "code": "op-own-tests",
         "reason": "Op \"mill\" moves top-of-library cards to the graveyard — covered by the Op's interpreter tests"
     },
+    "monstrosity": "runs",
     "moveSpellFromStack": {
         "code": "op-own-tests",
         "reason": "Op \"moveSpellFromStack\" targets a spell on the stack — covered by the Op's interpreter tests"

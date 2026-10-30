@@ -1506,6 +1506,14 @@
         "source": "compiled"
     },
     {
+        "name": "Alpha Deathclaw",
+        "scryfallId": "ca4c8b04-66af-4cb3-8003-9088d8344b20",
+        "oracleId": "0a7d0d1f-a5ac-4db9-860c-9fcbe3fd9e71",
+        "firstSet": "pip",
+        "firstPrintId": "ca4c8b04-66af-4cb3-8003-9088d8344b20",
+        "firstPrintSet": "pip"
+    },
+    {
         "name": "Alpha Kavu",
         "scryfallId": "545ed916-59fc-4c60-9260-8c2dc88e67a1",
         "oracleId": "f1a76cca-829a-4576-a560-f1af34b80b87",
@@ -24768,6 +24776,16 @@
         "source": "compiled"
     },
     {
+        "name": "Fleetfeather Cockatrice",
+        "scryfallId": "1139236e-5d71-4fc1-937d-ba1efadee031",
+        "oracleId": "d5006683-f1c4-4a18-bf64-2d075372534c",
+        "firstSet": "jou",
+        "firstPrintId": "1139236e-5d71-4fc1-937d-ba1efadee031",
+        "firstPrintSet": "jou",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Fleetfoot Dancer",
         "scryfallId": "2473d738-fe15-402a-ad24-0d6e5c4dfda3",
         "oracleId": "8f606acf-db16-42cd-8907-dad88c4a1d54",
@@ -28265,6 +28283,16 @@
         "firstPrintId": "9ad94e39-0aac-46bb-a7f2-bd88c537cb9c",
         "firstPrintSet": "lgn",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Gluttonous Cyclops",
+        "scryfallId": "e583f6be-3d78-4085-9059-c3c989a4977f",
+        "oracleId": "35101c6c-0bcc-4b1f-9cb5-a82e4d2f8220",
+        "firstSet": "jou",
+        "firstPrintId": "e583f6be-3d78-4085-9059-c3c989a4977f",
+        "firstPrintSet": "jou",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -33951,6 +33979,16 @@
         "firstPrintId": "82351724-2814-4d9e-b065-bb72c761b2e7",
         "firstPrintSet": "hml",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Ill-Tempered Cyclops",
+        "scryfallId": "d1f7f757-31ac-43e6-8be0-c5948d478d2f",
+        "oracleId": "07f62413-92cc-4f44-a827-a7c3a7318602",
+        "firstSet": "ths",
+        "firstPrintId": "d1f7f757-31ac-43e6-8be0-c5948d478d2f",
+        "firstPrintSet": "ths",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -46265,6 +46303,16 @@
         "source": "compiled"
     },
     {
+        "name": "Nessian Asp",
+        "scryfallId": "2d922596-4c2d-47fd-8c28-0e62972effbf",
+        "oracleId": "8b46e077-f667-432f-ab5b-8256a7378311",
+        "firstSet": "ths",
+        "firstPrintId": "2d922596-4c2d-47fd-8c28-0e62972effbf",
+        "firstPrintSet": "ths",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Nessian Courser",
         "scryfallId": "88b18b70-f656-4426-a3e5-69cf61fdaad1",
         "oracleId": "e876d1fc-3acd-41a3-a34b-2bfa83204393",
@@ -54139,6 +54187,16 @@
         "firstPrintId": "cd793778-f099-4b8e-af19-fc0ec4292824",
         "firstPrintSet": "aer",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Ravenous Leucrocota",
+        "scryfallId": "1e91524b-4885-45fc-b22d-f9e5ee55845d",
+        "oracleId": "dcc5ca3f-5309-4833-bee4-f2508382ea06",
+        "firstSet": "jou",
+        "firstPrintId": "1e91524b-4885-45fc-b22d-f9e5ee55845d",
+        "firstPrintSet": "jou",
+        "rarity": "common",
         "source": "compiled"
     },
     {

@@ -476,7 +476,10 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         name: "Monstrosity",
         kind: "keyword-action",
         cr: "701.37",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "the monstrosity Op → SpellContext.monstrosity → becomeMonstrousOnCard (gre/state.ts)",
+        note: 'CR 701.37a — "Monstrosity N" means "If this permanent isn\'t monstrous, put N +1/+1 counters on it and it becomes monstrous." A keyword ACTION printed as the payload of an activated ability ("{5}{B}{G}: Monstrosity 4."), so like Adapt and Explore this row is the CR 701 census entry and the name authority, never a `staticAbilities[]` grant string. The whole action is the `monstrosity` Effect Op (issue #3217): the "isn\'t monstrous" check lives in the action, so an activation on an already-monstrous permanent still resolves and does nothing — no counters, no event. CR 701.37b: the designation is `CardInstanceState.monstrous` (mirrored on `PermanentView`), set once by its single writer `becomeMonstrousOnCard`, cleared on every zone change (the departure funnel and the CR 400.7 re-entry reset, `CARD_FIELD_LIFECYCLE` scope `zone-change`), and never copied — `applyCopy` rewrites only copiable values, so no code is owed for "neither an ability nor part of the permanent\'s copiable values". The transition emits `PERMANENT_BECAME_MONSTROUS`, the event "When this creature becomes monstrous" triggers match on their own instance id. CR 701.37c: the Op\'s `count` is an `EffectValue`, so "Monstrosity X" composes, and the X the permanent became monstrous with rides the event as `count` (`$event.count`) for the becomes-monstrous trigger that reads it — the only place the corpus\'s "monstrosity X" cards refer to X. Compiled from "Monstrosity N." by the effect-clause grammar. First card: Alpha Deathclaw (sets/pip/multicolor.cards.ts).',
     },
     // 701.38 Vote
     {
@@ -3351,6 +3354,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         mechanicId: "class-level-bar",
         binding: "SpellContext.setLevel",
         note: 'Set a permanent\'s LEVEL (CR 716.2a, issue #3234) — "this Class\'s level becomes N", the activated half of a class level bar. A thin declarative skin over the SpellContext primitive `setLevel`, one execution path (ADR 0045), which writes `CardInstanceState.classLevel` and emits the `LEVEL_GAINED` event "When this Class becomes level N, ..." triggers listen for. `target` is an announced slot, the resolving source (`$source` — the only shape a class level bar uses, since CR 716.2a\'s ability is printed on the Class it levels) or a forEach `$each`; `level` is a LITERAL integer >= 2 (CR 716.2 prints the number on the bar, so there is nothing to compute, and level 1 is the default CR 716.2d already gives every permanent). NOT the `counters` Op with a "level" counter type: CR 716.4 and CR 711.7 both state class levels and level counters do not interact, so the level must be invisible to every counter-removal, counter-doubling and "for each counter" effect in the pool — different storage with different CR-mandated visibility is not the same primitive wearing different parameters (§ Primitive reuse). Monotonic: the primitive refuses a level that is not strictly greater than the current one, so a "becomes level N" trigger can never be re-armed; today that is unreachable anyway, because the `classLevelBar` activation gate only admits the bar for level current+1. Skipped when the target has left the battlefield (CR 608.2b).',
+    },
+    {
+        op: "monstrosity",
+        status: "implemented",
+        cr: "701.37",
+        mechanicId: "monstrosity",
+        binding: "SpellContext.monstrosity",
+        note: 'Monstrosity N (CR 701.37a, issue #3217) — "If this permanent isn\'t monstrous, put N +1/+1 counters on it and it becomes monstrous." A thin declarative skin over the SpellContext primitive `monstrosity`, one execution path (ADR 0045), routed through `becomeMonstrousOnCard`: the counters go through `addCounterToCard` (the shared "put a counter" seam), the designation is `CardInstanceState.monstrous` (CR 701.37b), and the transition emits `PERMANENT_BECAME_MONSTROUS`. NOT the Adapt decomposition (`if` + `counters`, CR 701.46a): the designation is a fact no counter count can stand in for (a monstrous creature that lost its counters is still monstrous) and no existing Op produces the becomes-monstrous event (§ Primitive reuse). `target` is `$source` in every printed form, an announced slot or a forEach `$each`; `count` is an `EffectValue` so "Monstrosity X" composes (CR 701.37c). Already monstrous, or the target left the battlefield (CR 608.2b): no counters, no event.',
     },
     {
         op: "tapUntap",

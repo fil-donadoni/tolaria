@@ -856,11 +856,6 @@
         },
         {
             "kind": "grammar",
-            "key": "activated › effect clause › Monstrosity N",
-            "issue": 3217
-        },
-        {
-            "kind": "grammar",
             "key": "activated › effect clause › Prevent all combat damage that would be dealt by target attacking creature this turn",
             "issue": 4572
         },

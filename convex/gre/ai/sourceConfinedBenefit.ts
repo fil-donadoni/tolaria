@@ -110,6 +110,9 @@ const SOURCE_CONFINED_OPS: ReadonlySet<string> = new Set([
     // lands on the permanent its `target` names, the `counters` shape exactly:
     // the abilities the new level turns on are the Class's own.
     "setLevel",
+    // CR 701.37a (issue #3217) — the counters and the designation both land
+    // on the permanent `target` names, the `counters` shape exactly.
+    "monstrosity",
     "tapUntap",
     "skipNextUntap",
     "grantAbility",
