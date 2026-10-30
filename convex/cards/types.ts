@@ -10341,6 +10341,14 @@ export interface StaticPermanentGuard {
     /** CR 613.1b layer 2 — the guarded permanent's controller can't be
      *  changed. Gated in `applyControlChange`. */
     controlCantChange?: boolean;
+    /** CR 704.5i exemption — the guarded permanent isn't put into its owner's
+     *  graveyard for having 0 loyalty ("Planeswalkers you control aren't put
+     *  into their owners' graveyards for having 0 loyalty", Sanctum Lurker).
+     *  Gated in `sba.ts::checkZeroLoyaltySBA`; read live, so the walker goes
+     *  at the next SBA check once the source leaves. Every other route to
+     *  the graveyard (destroy, sacrifice, the CR 704.5j legend rule) is
+     *  untouched. */
+    survivesZeroLoyalty?: boolean;
 }
 
 /** Continuous PLAYER-scoped shroud static effect (CR 702.18 applied to a
