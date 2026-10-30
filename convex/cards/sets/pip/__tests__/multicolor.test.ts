@@ -22,6 +22,8 @@ import {
 } from "../../../../gre/layers";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
+import { withTemporaryDefinition } from "../../../registry";
+import type { CardDefinition } from "../../../types";
 
 // ---------------------------------------------------------------------------
 // Alpha Deathclaw — Monstrosity (CR 701.37, issue #3217). Driven through the
@@ -184,5 +186,43 @@ describe("Alpha Deathclaw — the monstrous designation (CR 701.37b)", () => {
         expect(clone.card.id).toBe(alphaDeathclaw.id);
         expect(clone.monstrous).toBeUndefined();
         expect(deathclaw.monstrous).toBe(true);
+    });
+});
+
+describe("Monstrosity X — the X rides the event (CR 701.37c)", () => {
+    it("CR 701.37c — a becomes-monstrous trigger reads the count the permanent became monstrous with as $event.count", () => {
+        // A Deathclaw variant whose trigger gains life equal to X, the
+        // Polukranos shape ("When ~ becomes monstrous, it deals X damage …").
+        const variant: CardDefinition = {
+            ...alphaDeathclaw,
+            triggeredAbilities: [
+                {
+                    id: "variant-gain-x",
+                    oracleText:
+                        "When this creature becomes monstrous, you gain X life.",
+                    event: "PERMANENT_BECAME_MONSTROUS",
+                    matches: (event, self) =>
+                        event.type === "PERMANENT_BECAME_MONSTROUS" &&
+                        event.instanceId === self.id,
+                    effects: [
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: { ref: "$event.count" },
+                        },
+                    ],
+                },
+            ],
+        };
+        withTemporaryDefinition(variant, () => {
+            const { state, deathclaw } = deathclawBoard();
+            const before = state.players[0].life;
+            activateMonstrosity(state, deathclaw);
+            expect(state.stack.map((item) => item.triggeredAbilityId)).toEqual([
+                "variant-gain-x",
+            ]);
+            resolveTopOfStack(state);
+            expect(state.players[0].life).toBe(before + 4);
+        });
     });
 });
