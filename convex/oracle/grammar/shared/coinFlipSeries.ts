@@ -162,8 +162,12 @@ export function foldCoinFlipSeries(
         if (markers.length !== 2 || wonPayoff?.role !== "coin-flip-won-payoff")
             return '"Flip a coin until you lose a flip." must be followed by its payoff "… for each flip you won"';
         return {
-            kind: "coin-flip-until-loss",
-            counters: wonPayoff.counters,
+            frames: [
+                {
+                    frame: "coinFlipUntilLoss" as const,
+                    counters: wonPayoff.counters,
+                },
+            ],
         };
     }
     const [choose, series, payoff] = markers;
@@ -202,8 +206,12 @@ function foldCoinFlip(
     if (win === undefined && loss === undefined)
         return '"Flip a coin." with no "If you win/lose the flip, …" outcome does nothing';
     return {
-        kind: "coin-flip",
-        ...(win !== undefined ? { win } : {}),
-        ...(loss !== undefined ? { loss } : {}),
+        frames: [
+            {
+                frame: "coinFlip" as const,
+                ...(win !== undefined ? { win } : {}),
+                ...(loss !== undefined ? { loss } : {}),
+            },
+        ],
     };
 }

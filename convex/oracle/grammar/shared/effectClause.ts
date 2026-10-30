@@ -516,8 +516,6 @@ export const EFFECT_SENTENCE_KINDS = [
     "redirect-next-damage",
     "draw",
     "coin-flip-series",
-    "coin-flip",
-    "coin-flip-until-loss",
     "destroy",
     "exile",
     "counter",
@@ -1211,24 +1209,6 @@ export type EffectSentenceIR =
           readonly player: PlayerRefIR;
           /** Cards drawn for each flip made. */
           readonly perFlip: number;
-      }
-    /**
-     * CR 705.1 — "Flip a coin. If you win the flip, <A>. If you lose the
-     * flip, <B>." Folded from the flip and its outcome sentences
-     * (`coinFlipSeries.ts`); an absent outcome does nothing.
-     */
-    | {
-          readonly kind: "coin-flip";
-          readonly win?: CoinFlipBranchIR;
-          readonly loss?: CoinFlipBranchIR;
-      }
-    /**
-     * CR 705.2 — "Flip a coin until you lose a flip. Put a +1/+1 counter on
-     * <subject> for each flip you won." Counters scaled by the flips won.
-     */
-    | {
-          readonly kind: "coin-flip-until-loss";
-          readonly counters: Extract<EffectSentenceIR, { kind: "counters" }>;
       }
     | {
           readonly kind: "destroy";

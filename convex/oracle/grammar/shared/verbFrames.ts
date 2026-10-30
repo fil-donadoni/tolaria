@@ -132,6 +132,7 @@ import {
 import { isSelfPhrase } from "./cost";
 import { durationRule, type DurationIR } from "./duration";
 import {
+    type CoinFlipBranchIR,
     isLandOnlyTarget,
     readAmount,
     subjectRule,
@@ -291,6 +292,26 @@ export type FrameIR =
            * member, so it has no `VERB_FRAMES` opener.
            */
           readonly frame: "copySpell";
+      }
+    | {
+          /**
+           * CR 705.1 — "Flip a coin. If you win the flip, <A>. If you lose
+           * the flip, <B>.": the controller flips; an unprinted outcome does
+           * nothing. Built by `foldCoinFlip` from the flip and its outcome
+           * sentences (`coinFlipSeries.ts`), never read from a chain member.
+           */
+          readonly frame: "coinFlip";
+          readonly win?: CoinFlipBranchIR;
+          readonly loss?: CoinFlipBranchIR;
+      }
+    | {
+          /**
+           * CR 705.2 — "Flip a coin until you lose a flip. Put <counters> on
+           * <subject> for each flip you won.": the counters are scaled by the
+           * flips won. Built by `foldCoinFlip`, never read from a chain member.
+           */
+          readonly frame: "coinFlipUntilLoss";
+          readonly counters: Extract<EffectSentenceIR, { kind: "counters" }>;
       }
     | {
           /**

@@ -4797,73 +4797,6 @@ function lowerSentenceBody(
                 },
             ]);
         }
-        case "coin-flip": {
-            // CR 705.1 — the controller flips; each printed outcome is a
-            // branch run through the same op list an `if` branch is, the
-            // unprinted one a deliberate no-op (issue #1367).
-            const branch = (
-                b: CoinFlipBranchIR | undefined
-            ): Lowered<{ consequence: string; effects: EffectOp[] }> => {
-                if (b === undefined)
-                    return lowered({
-                        consequence: "Nothing happens.",
-                        effects: [],
-                    });
-                const inner = gatedSentence(b.effect, walk, site);
-                if (!inner.ok) return inner;
-                return lowered({
-                    consequence: `${capitalise(
-                        b.clause.split(SELF_MARKER).join(site.selfName)
-                    )}.`,
-                    effects: inner.value,
-                });
-            };
-            const win = branch(sentence.win);
-            if (!win.ok) return win;
-            const loss = branch(sentence.loss);
-            if (!loss.ok) return loss;
-            return lowered([
-                { op: "coinFlip", win: win.value, loss: loss.value },
-            ]);
-        }
-        case "coin-flip-until-loss": {
-            // CR 705.2 — flip until the first lost flip; the counters are
-            // scaled by the flips won ("for each flip you won").
-            const target = objectSelector(
-                sentence.counters.subject,
-                slots,
-                site
-            );
-            if (!target.ok) return target;
-            const count = lowerAmount(sentence.counters.count, site);
-            if (!count.ok) return count;
-            if (typeof count.value !== "number")
-                return unlowerable(
-                    '"for each flip you won" scales only a printed number of counters'
-                );
-            return lowered([
-                {
-                    op: "coinFlipSeries",
-                    untilLoss: true,
-                    bindWins: "$wins",
-                },
-                {
-                    op: "counters",
-                    action: "add",
-                    counter: sentence.counters.counter,
-                    target: target.value,
-                    count:
-                        count.value === 1
-                            ? { ref: "$wins" }
-                            : {
-                                  scaled: {
-                                      value: { ref: "$wins" },
-                                      times: count.value,
-                                  },
-                              },
-                },
-            ]);
-        }
         case "choose-color-grant-protection": {
             // CR 613.1f — evidenced by exactly one corpus form (Glory): a
             // plain controller-scoped sweep. A target-player sweep or an
@@ -5343,6 +5276,73 @@ function lowerFrameChain(
                     player: "controller",
                 });
                 break;
+            case "coinFlip": {
+                // CR 705.1 — the controller flips; each printed outcome is a
+                // branch run through the same op list an `if` branch is, the
+                // unprinted one a deliberate no-op (issue #1367).
+                const branch = (
+                    b: CoinFlipBranchIR | undefined
+                ): Lowered<{ consequence: string; effects: EffectOp[] }> => {
+                    if (b === undefined)
+                        return lowered({
+                            consequence: "Nothing happens.",
+                            effects: [],
+                        });
+                    const inner = gatedSentence(b.effect, walk, site);
+                    if (!inner.ok) return inner;
+                    return lowered({
+                        consequence: `${capitalise(
+                            b.clause.split(SELF_MARKER).join(site.selfName)
+                        )}.`,
+                        effects: inner.value,
+                    });
+                };
+                const win = branch(frame.win);
+                if (!win.ok) return win;
+                const loss = branch(frame.loss);
+                if (!loss.ok) return loss;
+                ops.push({ op: "coinFlip", win: win.value, loss: loss.value });
+                break;
+            }
+            case "coinFlipUntilLoss": {
+                // CR 705.2 — flip until the first lost flip; the counters are
+                // scaled by the flips won ("for each flip you won").
+                const target = objectSelector(
+                    frame.counters.subject,
+                    walk.targets,
+                    site
+                );
+                if (!target.ok) return target;
+                const count = lowerAmount(frame.counters.count, site);
+                if (!count.ok) return count;
+                if (typeof count.value !== "number")
+                    return unlowerable(
+                        '"for each flip you won" scales only a printed number of counters'
+                    );
+                ops.push(
+                    {
+                        op: "coinFlipSeries",
+                        untilLoss: true,
+                        bindWins: "$wins",
+                    },
+                    {
+                        op: "counters",
+                        action: "add",
+                        counter: frame.counters.counter,
+                        target: target.value,
+                        count:
+                            count.value === 1
+                                ? { ref: "$wins" }
+                                : {
+                                      scaled: {
+                                          value: { ref: "$wins" },
+                                          times: count.value,
+                                      },
+                                  },
+                    }
+                );
+                break;
+            }
             case "copySpell":
                 return unlowerable(
                     '"copy this spell" is read only behind a sacrificing player\'s "If the player does"'
