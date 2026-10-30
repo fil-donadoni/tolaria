@@ -30,7 +30,7 @@
         {
             "key": "(op) › emblem",
             "op": "emblem",
-            "issue": 4536
+            "issue": 7549
         },
         {
             "key": "(op) › exileAndReturnTransformed",
@@ -85,7 +85,7 @@
         {
             "key": "(op) › winGame",
             "op": "winGame",
-            "issue": 4536
+            "issue": 7550
         }
     ],
     "claims": [
