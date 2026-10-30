@@ -4,7 +4,7 @@
 // built from `projectPublicState` + `buildTriggerStateView`, never a hand-built
 // view; the activation runs through the real `activateAbility` handler.
 // Engine-side rules (CR 606.3 allowance, the CR 704.5i exemption) are pinned in
-// `convex/gre/__tests__/planeswalkerStatics.test.ts`.
+// `convex/gre/__tests__/planeswalkerStatics.bot.test.ts`.
 
 import { describe, expect, it } from "vitest";
 import { activateAbility } from "@convex/game";
