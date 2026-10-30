@@ -146,9 +146,6 @@ function heldAnswerPair(
 }
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
-    ...heldAnswerPair("Counterspell"),
-    ...heldAnswerPair("Mana Leak"),
-    ...heldAnswerPair("Teferi's Response", false),
     {
         // ORDERED TARGET GROUP reachability (CR 601.2c / 702.33g, issue
         // #4193). Kicked Jilt announces TWO targets through one widened
@@ -16855,4 +16852,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #6985 — the full-budget leg: with every sibling opened the widening adds nothing, and the pick must stay on the Hero.",
     },
+    ...heldAnswerPair("Counterspell"),
+    ...heldAnswerPair("Mana Leak"),
+    ...heldAnswerPair("Teferi's Response", false),
 ];
