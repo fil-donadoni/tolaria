@@ -48451,6 +48451,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Orcish Librarian",
+        "scryfallId": "8ed908d6-6d06-4ccb-9577-37ef2d01c1a5",
+        "oracleId": "3a05904d-5439-446d-a2a1-1475c9c7371d",
+        "firstSet": "ice",
+        "firstPrintId": "8ed908d6-6d06-4ccb-9577-37ef2d01c1a5",
+        "firstPrintSet": "ice"
+    },
+    {
         "name": "Orcish Lumberjack",
         "scryfallId": "21ef13e3-658c-43a3-a290-4c5dde8e8b55",
         "oracleId": "383e3fe4-8558-4561-8632-6eadb5d5963c",
@@ -70724,6 +70732,14 @@
         "firstPrintSet": "kld",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Tersa Lightshatter",
+        "scryfallId": "99e96b34-b1c4-4647-a38e-2cf1aedaaace",
+        "oracleId": "9918eb7b-054e-4b1c-afc7-1163ab642d50",
+        "firstSet": "tdm",
+        "firstPrintId": "99e96b34-b1c4-4647-a38e-2cf1aedaaace",
+        "firstPrintSet": "tdm"
     },
     {
         "name": "Testament Bearer",
