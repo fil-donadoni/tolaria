@@ -647,7 +647,6 @@
         {"id":"105.1","line":"// CR 105.1 — \"any COLOR\": colorless is never a substitution target.","sites":1,"status":"baseline"},
         {"id":"105.1","line":"// CR 105.1 — \"green creatures\": ONE colour word is the filter's `color`","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
         {"id":"105.1","line":"// CR 105.1 — a \"Choose a color.\" marker waits for the ONE sentence that","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
-        {"id":"105.1","line":"// CR 105.1 — colorless {C} is not a colour; two {W} are one colour.","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
         {"id":"105.1","line":"// CR 105.1 — five COLORS, colorless NOT among them.","sites":1,"status":"baseline"},
         {"id":"105.1","line":"// CR 105.1 — five colours are legal targets, `{C}` is not; the pairs","sites":1,"status":"baseline"},
         {"id":"105.1","line":"// CR 105.1 — the five colours; \"any color\" never offers","sites":1,"status":"baseline"},
