@@ -45245,6 +45245,14 @@
         "firstPrintSet": "c15"
     },
     {
+        "name": "Mystic Forge",
+        "scryfallId": "924a24e7-91b8-4ceb-a136-7a765d98c994",
+        "oracleId": "994bc16d-fdc6-475c-96df-beeb4d5aa03e",
+        "firstSet": "m20",
+        "firstPrintId": "924a24e7-91b8-4ceb-a136-7a765d98c994",
+        "firstPrintSet": "m20"
+    },
+    {
         "name": "Mystic Gate",
         "scryfallId": "3dfa866b-93e2-4365-91b0-f12d1f7c5395",
         "oracleId": "e9f5feb2-2c1a-46ce-885a-4f378d7d10af",
