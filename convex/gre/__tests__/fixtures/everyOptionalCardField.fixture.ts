@@ -109,6 +109,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         canAttackDespiteDefenderThisTurn: true,
         counters: { "+1/+1": 2 },
         classLevel: 2,
+        monstrous: true,
         countersAtLeave: { "+1/+1": 1 },
         capturedBindings: { exiled: ["inst-x"] },
         worldSeq: 12,

@@ -491,6 +491,20 @@ export const EVENT_FIELD_REGISTRY: Record<
                     : undefined,
         },
     },
+    // CR 701.37c — "the value of X as that permanent became monstrous": the
+    // count the monstrosity action put on it, read by the becomes-monstrous
+    // trigger ("it deals X damage …") as `$event.count`. A number, the
+    // `DAMAGE_DEALT.amount` shape.
+    PERMANENT_BECAME_MONSTROUS: {
+        count: {
+            family: "number",
+            resolve: (e) =>
+                e.type === "PERMANENT_BECAME_MONSTROUS" &&
+                Number.isFinite(e.count)
+                    ? String(e.count)
+                    : undefined,
+        },
+    },
 };
 
 /** The registry row for a `(GameEventType, field)` pair, or undefined when the

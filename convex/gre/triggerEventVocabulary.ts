@@ -284,6 +284,14 @@ export const EVENT_FIELD_KINDS: {
         types: "scalar",
         subtypes: "scalar",
     },
+    // CR 701.37a — a permanent became monstrous (the transition only).
+    PERMANENT_BECAME_MONSTROUS: {
+        instanceId: "object",
+        controllerId: "player",
+        count: "scalar",
+        types: "scalar",
+        subtypes: "scalar",
+    },
     // CR 115.1 / 702.21a — something became a target (Ward watches it).
     BECAME_TARGET: {
         target: "target",

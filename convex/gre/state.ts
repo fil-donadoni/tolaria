@@ -7265,6 +7265,9 @@ export function removePermanentTo(
     // reach `getGraveyardStackAbilities` and gate a graveyard ability off a
     // level the object no longer has.
     delete creature.classLevel;
+    // CR 701.37b — "it stays monstrous until it leaves the battlefield": the
+    // designation goes with the object on every departure, like the level.
+    delete creature.monstrous;
     const owner = getPlayer(state, creature.ownerId);
     // CR 404.3 (issue #1967) — APPEND, never prepend. This is the funnel for
     // every battlefield departure (death, sacrifice, bounce, tuck), so it is
@@ -8725,6 +8728,42 @@ export function setClassLevelOnCard(
             controllerId: card.controllerId,
             level,
             previousLevel,
+            types: [...card.types],
+            subtypes: [...card.subtypes],
+        },
+    ];
+}
+
+/** CR 701.37a (issue #3217) — "Monstrosity N": if `card` isn't monstrous, put
+ *  N +1/+1 counters on it and it becomes monstrous. The single writer of
+ *  `CardInstanceState.monstrous`, and the single emitter of
+ *  `PERMANENT_BECAME_MONSTROUS`.
+ *
+ *  The "isn't monstrous" check is part of the action itself, not of its
+ *  activation: on an already-monstrous permanent the ability still resolves and
+ *  does nothing — no counters, no event, so a "When this creature becomes
+ *  monstrous" trigger fires once per object (CR 701.37b keeps the designation
+ *  until the permanent leaves the battlefield). The counters go through
+ *  `addCounterToCard`, the same seam every other "put a counter" effect uses,
+ *  so a counter-placement replacement sees them as it would any others; the
+ *  designation is set whatever number that seam ends up placing, because the
+ *  action happened. The event goes AFTER both halves, so a trigger that reads
+ *  the permanent at resolution sees it monstrous and grown. */
+export function becomeMonstrousOnCard(
+    state: GameState,
+    card: CardInstanceState,
+    count: number
+): void {
+    if (card.monstrous === true) return;
+    addCounterToCard(state, card, "+1/+1", count);
+    card.monstrous = true;
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "PERMANENT_BECAME_MONSTROUS",
+            instanceId: card.id,
+            controllerId: card.controllerId,
+            count,
             types: [...card.types],
             subtypes: [...card.subtypes],
         },
@@ -13200,6 +13239,16 @@ export function buildSpellContext(
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             setClassLevelOnCard(state, found.card, level);
+        },
+        // CR 701.37a (issue #3217) — "Monstrosity N". Routed through the
+        // shared `becomeMonstrousOnCard` mutator, the twin of `setLevel`'s
+        // `setClassLevelOnCard`: one writer of the designation, one emitter of
+        // its event.
+        monstrosity(target: TargetSelection, count: number): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            becomeMonstrousOnCard(state, found.card, count);
         },
         // CR 700.2c — re-write a permanent's stored modal colour post-ETB. The
         // "choose a color" half of a re-choosable modal permanent (Chromatic

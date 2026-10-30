@@ -4547,6 +4547,18 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.setLevel(target, op.level);
     },
+    // CR 701.37a (issue #3217) — "Monstrosity N". A thin declarative skin
+    // over `SpellContext.monstrosity`, ONE execution path (ADR 0045). Skipped
+    // when the target is gone (CR 608.2b — `resolveObjectRef` returns
+    // undefined); the primitive itself does nothing on an already-monstrous
+    // permanent, so the counters and the event come once per object.
+    monstrosity(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        const count = resolveValue(ctx, op.count);
+        if (count === undefined) return;
+        ctx.monstrosity(target, count);
+    },
     // CR 701.26 (issue #842) — tap or untap a permanent. A thin declarative
     // skin over `tap` / `untap`, ONE execution path (ADR 0045). Skipped when
     // the target is gone (CR 608.2b — the permanent left the battlefield;

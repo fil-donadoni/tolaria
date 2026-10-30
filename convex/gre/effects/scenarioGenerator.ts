@@ -2468,6 +2468,31 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSubject(req, op.target);
             return;
+        case "monstrosity":
+            // `monstrosity` (issue #3217, CR 701.37a) puts N +1/+1 counters on
+            // a not-yet-monstrous permanent and makes it monstrous. Modelled
+            // exactly like `setLevel`: an announced permanent slot or an
+            // ability's own `$source`, against the generic filler permanent
+            // (never monstrous — nothing seeds the designation). A `$each`
+            // target or a `ref`/`count` N (Monstrosity X) is not modelled.
+            if (!subjectModelled(req, op.target)) {
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "monstrosity" targets $each — covered by the Op's interpreter test`
+                );
+                return;
+            }
+            if (typeof op.count !== "number") {
+                skipBecause(
+                    req,
+                    "runtime-amount",
+                    `Op "monstrosity" uses a ref/count N the canned generator does not model — covered by the Op's interpreter test`
+                );
+                return;
+            }
+            recordSubject(req, op.target);
+            return;
         case "tapUntap":
             // `tapUntap` (issue #842) taps/untaps a permanent (CR 701.26). The
             // generator can assert a TAP on an announced permanent slot or on
@@ -3665,6 +3690,38 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: actual === op.level,
                     detail: `class level ${actual}, expected ${op.level}`,
+                };
+            },
+        };
+    },
+    // `monstrosity` (issue #3217, CR 701.37a) — on the seeded (never
+    // monstrous) filler permanent the action always happens: N more +1/+1
+    // counters and the designation set. `$each` targets and non-literal N are
+    // skipped upstream in `analyseOp` (returns null defensively here).
+    monstrosity(rawOp, scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "monstrosity" }>;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
+        if (typeof op.count !== "number") return null;
+        const permBefore = pre.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === permId);
+        if (!permBefore || permBefore.monstrous === true) return null;
+        const before = permBefore.counters?.["+1/+1"] ?? 0;
+        const expected = before + op.count;
+        return {
+            label: `monstrosity ${op.count} on permanent ${permId} (+1/+1 ${before}→${expected}, monstrous)`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                const actual = perm.counters?.["+1/+1"] ?? 0;
+                return {
+                    ok: actual === expected && perm.monstrous === true,
+                    detail: `+1/+1 counters ${actual} (expected ${expected}), monstrous ${perm.monstrous === true}`,
                 };
             },
         };
