@@ -3184,11 +3184,17 @@ export interface CardBackFace {
 }
 
 /** CR 712.1 — "there are three kinds of double-faced cards: nonmodal
- *  double-faced cards …, modal double-faced cards, and meld cards." The two
- *  this engine models, as {@link CardBackFace.kind}. Meld (CR 712.4) has no
- *  back FACE in this sense — its back is half of a combined face — and stays
- *  out of scope (ADR 0041, ADR 0122). */
-export type CardBackFaceKind = "nonmodal" | "modal";
+ *  double-faced cards …, modal double-faced cards, and meld cards." Each, as
+ *  {@link CardBackFace.kind}.
+ *
+ *  A `"meld"` face (CR 712.4) is the pair's COMBINED back face, declared on
+ *  both front cards (PRD #3227): it determines characteristics only as a
+ *  melded permanent (CR 712.4b) and is never turned up by transform
+ *  (CR 712.4c). Issue #7581 admits it as compiler output only — the Oracle
+ *  compiler lowers the meld layout into it, and every such card is
+ *  quarantined while the Meld row of the Mechanics Registry is `planned`. The
+ *  melded permanent itself is issue #3341. */
+export type CardBackFaceKind = "nonmodal" | "modal" | "meld";
 
 /** CR 715 / 722 — the KIND of an {@link InsetSpell}, and the whole of what
  *  distinguishes the two rules that share the inset frame.

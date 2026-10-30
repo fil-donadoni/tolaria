@@ -49,6 +49,7 @@ import {
 } from "./compile";
 import { canonicaliseShorthands, sortKeys } from "./gates";
 import { printManaCost } from "./manaCost";
+import { MELD_LAYOUT } from "./meldPairs";
 import type {
     CompiledDefinition,
     CompileOutcome,
@@ -490,18 +491,29 @@ export function goldOracleCard(definition: CardDefinition): OracleCard {
                                         toughness: String(definition.toughness),
                                     }),
                           },
-                          modalBackFaceOf(definition.backFace),
+                          backFaceAsOracleFace(definition.backFace),
                       ],
                   }
-                : { layout: "normal" }),
+                : definition.backFace?.kind === "meld"
+                  ? {
+                        // CR 712.4 (issue #7581) — a MELD front card is its
+                        // own Scryfall row (no `card_faces`); the combined
+                        // back face reaches the compiler as `meldBack`,
+                        // stamped at corpus level by `withMeldPairs`. Rebuilt
+                        // here from `backFace`, the face it was lowered from.
+                        layout: MELD_LAYOUT,
+                        meldBack: backFaceAsOracleFace(definition.backFace),
+                    }
+                  : { layout: "normal" }),
     };
 }
 
-/** CR 712.3 — the {@link OracleFace} a modal {@link CardBackFace} was lowered
- *  from, the inverse of `compileModalDfcLayout`'s copy. The mana cost is the
- *  back face's own (CR 712.11b, issue #7200): empty on a land back face, the
- *  printed cost on a cast one. */
-function modalBackFaceOf(back: CardBackFace): OracleFace {
+/** CR 712.3 / 712.4 — the {@link OracleFace} a modal or meld
+ *  {@link CardBackFace} was lowered from, the inverse of
+ *  `compileModalDfcLayout`'s and `compileMeldLayout`'s copies. The mana cost
+ *  is the back face's own (CR 712.11b, issue #7200): empty on a land back
+ *  face and on a meld back face (CR 712.8g), the printed cost on a cast one. */
+function backFaceAsOracleFace(back: CardBackFace): OracleFace {
     const head = [...(back.supertypes ?? []), ...back.types].join(" ");
     const subtypes = back.subtypes ?? [];
     return {

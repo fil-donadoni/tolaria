@@ -95,6 +95,11 @@ export const CARD_BACK_FACE_KINDS: Record<
         contributesChooseableName: false,
     },
     modal: { registration: "twin", contributesChooseableName: true },
+    // CR 712.4 (PRD #3227 call 3) — the combined back face registers as a
+    // twin under `${parentId}#meld`. CR 712.19 lets a player choose its name,
+    // but no meld twin is registered until issue #3341 ships the melded
+    // permanent, so nothing would resolve: false, and #3341 flips it.
+    meld: { registration: "twin", contributesChooseableName: false },
 };
 
 /** CR 712.1 — the kind of `backFace`, with the documented default: absent
