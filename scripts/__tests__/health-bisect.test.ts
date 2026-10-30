@@ -51,6 +51,7 @@ import {
     machineName,
     type Verdict,
 } from "../lib/health-verdict-store";
+import { runLastFiles } from "../lib/vitest-run-last";
 
 /**
  * The RED ladder (issue #5645): a fresh run of a RED, the GREEN a flake
@@ -395,6 +396,12 @@ describe("a cross-file leak in a shared-worker project reproduces in the whole p
         expect(probeCommands([failing], out.scope).map((c) => c.args)).toEqual([
             ["vitest", "run", "--project", "bot-node", "--no-file-parallelism"],
         ]);
+        // The victim runs after every other bot-node file, its polluter
+        // included — never by the duration cache's order, which ran
+        // loyaltyMoves first and passed the whole project at 8491d0b85.
+        expect(
+            runLastFiles(probeCommands([failing], out.scope)[0]!.env)
+        ).toEqual(new Set([victim]));
     });
 
     it("green in the project too: a pass whose environment line says what ran, never 'not a flake'", () => {

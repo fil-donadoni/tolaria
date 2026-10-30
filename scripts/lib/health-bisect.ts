@@ -34,10 +34,12 @@
  *     one PR commit before it, or on none (`attributeMaintenance`).
  *
  * Node builtins plus `lib/health-verdict-store.ts`, `lib/health-evidence.ts`,
- * the leaves `lib/derive-sync.ts` and `lib/derived-state.ts`.
+ * the leaves `lib/derive-sync.ts`, `lib/derived-state.ts` and
+ * `lib/vitest-run-last.ts`.
  */
 import { isBaseMaintenanceSubject } from "./derive-sync";
 import { TREE_ROLE_ENV } from "./derived-state";
+import { RUN_LAST_ENV } from "./vitest-run-last";
 import { evidenceTests, failLines, type FailingTest } from "./health-evidence";
 import {
     HOSTED_MACHINE_PREFIX,
@@ -375,8 +377,10 @@ export type ProbeScope =
  * A shared-worker project re-run whole, one file at a time in ONE worker
  * (`--no-file-parallelism`): every file shares the registry the polluter
  * leaves behind, whatever the probing machine's CPU count — the RED's run
- * paired them by its own `maxWorkers`. The order is the sequencer's
- * (`lib/vitest-sequencer.ts`), a pure function of the duration cache.
+ * paired them by its own `maxWorkers`. The failing files run LAST
+ * (`RUN_LAST_ENV`): the sequencer's duration order alone put
+ * `loyaltyMoves.bot.test.ts` before its polluter and the whole `bot-node`
+ * project passed at the RED sha (measured, issue #7584).
  */
 export function projectCommand(
     project: string,
@@ -384,7 +388,9 @@ export function projectCommand(
 ): VitestCommand {
     return {
         args: ["vitest", "run", "--project", project, "--no-file-parallelism"],
-        env: {},
+        env: {
+            [RUN_LAST_ENV]: [...new Set(tests.map((t) => t.file))].join(","),
+        },
         tests: [...tests],
     };
 }
