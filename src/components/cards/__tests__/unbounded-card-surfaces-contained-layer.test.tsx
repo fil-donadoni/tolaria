@@ -14,13 +14,16 @@ import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt
 
 /**
- * The surfaces that mount a whole pool or pack of printed faces render them
- * CONTAINED, never promoted to their own compositor layer (issue #6940).
+ * Every printed face renders CONTAINED, never promoted to its own compositor
+ * layer (issue #6940, issue #7590).
  *
- * WHY A TEST. `check:ui`'s rasterisation probe sees the defect only when the
- * GPU budget is starved — under an ordinary budget a promoted face and a
- * contained one both read sharp, so the lane cannot red a tile that goes back
- * to `promoteLayer` default. Measured 2026-10-29 with
+ * Two measured costs of a promoted face. A `will-change` layer is rastered
+ * once, at the scale its ancestors have then: inside a dialog opening with
+ * `zoom-in-95` it stays soft for good (issue #7590 — `check:ui` reds that
+ * one). And under a starved GPU budget promoted faces are evicted to blank
+ * slots (issue #6940) — which `check:ui` sees only when the budget is
+ * starved, so the lane cannot red a pack tile that goes back to promoting.
+ * Measured 2026-10-29 with
  * `--force-gpu-mem-available-mb=24`: promoted faces on the Draft pack grid and
  * the Limited pool builder were evicted to blank slots (2 of 10 cells);
  * contained faces on the same surfaces, same budget, were sharp on all 10.
@@ -39,10 +42,13 @@ function slotOf(container: HTMLElement): HTMLElement {
     return slot;
 }
 
-describe("unbounded card surfaces render contained faces (issue #6940)", () => {
-    it("positive control: CardImage's default is the promoted layer the board relies on", () => {
+describe("printed faces render contained, never promoted (issue #6940, issue #7590)", () => {
+    it("CardImage's face is contained: no compositor hint, no forced layer", () => {
         const { container } = render(<CardImage card={{ id: BOLT_ID }} />);
-        expect(slotOf(container).style.willChange).toBe("transform");
+        const slot = slotOf(container);
+        expect(slot.style.willChange).toBe("");
+        expect(slot.style.transform).toBe("");
+        expect(slot.style.contain).toBe("paint");
     });
 
     it("the Draft pack tile does not promote its face", () => {

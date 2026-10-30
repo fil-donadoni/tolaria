@@ -15,6 +15,7 @@ vi.mock("motion/react", () => ({
 }));
 
 import CardTilt3D from "../card-tilt-3d";
+import { CARD_TILT } from "~/lib/board-motion";
 
 /** Stub getBoundingClientRect on the tilt root so jsdom (which returns a 0×0
  *  box) yields a measurable card surface for the pointer math. */
@@ -211,6 +212,76 @@ describe("CardTilt3D hover interactions (#253)", () => {
             </CardTilt3D>
         );
         expect(screen.getByTestId("face").textContent).toBe("Lightning Bolt");
+    });
+
+    // Issue #7590: a standing 3D context rasterised every card at rest soft
+    // (check:ui Blur Index 0.51–0.62 on the card-choice picker).
+    it("holds the 3D context only while tilted — a card at rest is flat 2D", () => {
+        vi.useFakeTimers();
+        try {
+            render(
+                <CardTilt3D>
+                    <div data-testid="face" />
+                </CardTilt3D>
+            );
+            const root = tiltRoot();
+            const inner = tiltInner();
+            const flat = () => {
+                expect(root.style.perspective).toBe("");
+                expect(inner.style.transformStyle).toBe("");
+                expect(inner.style.willChange).toBe("");
+                expect(inner.style.transform).toBe("");
+            };
+            flat();
+
+            stubRect(root, { left: 0, top: 0, width: 200, height: 280 });
+            fireEvent.pointerMove(root, { clientX: 30, clientY: 30 });
+            expect(root.style.perspective).toBe("700px");
+            expect(inner.style.transformStyle).toBe("preserve-3d");
+            expect(inner.style.willChange).toBe("transform");
+
+            // The eased settle runs IN the 3D context; it is dropped after.
+            fireEvent.pointerLeave(root);
+            expect(inner.style.transformStyle).toBe("preserve-3d");
+            vi.advanceTimersByTime(CARD_TILT.flattenAfterMs);
+            flat();
+
+            // A re-entry during the settle keeps the card tilted.
+            fireEvent.pointerMove(root, { clientX: 30, clientY: 30 });
+            fireEvent.pointerLeave(root);
+            fireEvent.pointerMove(root, { clientX: 30, clientY: 30 });
+            vi.advanceTimersByTime(CARD_TILT.flattenAfterMs);
+            expect(inner.style.transformStyle).toBe("preserve-3d");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("drops the 3D context at once when the tilt is suppressed mid-settle", () => {
+        vi.useFakeTimers();
+        try {
+            const { rerender } = render(
+                <CardTilt3D>
+                    <div data-testid="face" />
+                </CardTilt3D>
+            );
+            const root = tiltRoot();
+            stubRect(root, { left: 0, top: 0, width: 200, height: 280 });
+            fireEvent.pointerMove(root, { clientX: 30, clientY: 30 });
+            fireEvent.pointerLeave(root);
+            rerender(
+                <CardTilt3D suppressTilt>
+                    <div data-testid="face" />
+                </CardTilt3D>
+            );
+            expect(root.style.perspective).toBe("");
+            expect(tiltInner().style.transformStyle).toBe("");
+            expect(tiltInner().style.transform).toBe("");
+            // The pending settle timer was cancelled, not left to fire.
+            expect(vi.getTimerCount()).toBe(0);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("disables tilt + glare entirely under prefers-reduced-motion", () => {

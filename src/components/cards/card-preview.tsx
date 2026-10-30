@@ -160,8 +160,8 @@ export default function CardPreview({
             )
                 return;
             const el = containerRef.current;
-            // The board flattens this card's subtree (CardTilt3D `preserve-3d`
-            // + `overflow-hidden`), so an INSIDE right-click hit-tests to the
+            // The board flattens this card's subtree while tilted (CardTilt3D
+            // `preserve-3d` + `overflow-hidden`), so an INSIDE right-click hit-tests to the
             // tilt root ABOVE this container. Use the tilt root (when present)
             // as the "inside" boundary so the quick-click toggle can close the
             // preview instead of this listener racing it closed-then-reopened.
@@ -222,7 +222,7 @@ export default function CardPreview({
 
     // Bind the desktop right-press gesture on the element that ACTUALLY receives
     // the pointer event. On the spatial board the card is wrapped in CardTilt3D
-    // (`transform-style: preserve-3d`) around an `overflow-hidden` box; per CSS,
+    // (`transform-style: preserve-3d` while tilted) around an `overflow-hidden` box; per CSS,
     // `overflow:hidden` inside a preserve-3d context flattens the subtree into a
     // single plane, so a real right-click on a (hover-)tilted card hit-tests to
     // that flattening wrapper — an ANCESTOR of this container — and never reaches

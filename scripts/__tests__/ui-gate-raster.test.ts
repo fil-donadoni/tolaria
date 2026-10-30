@@ -365,6 +365,80 @@ describe("raster.js — normalised energy is contrast-free, and a uniform region
     });
 });
 
+describe("raster.js — an inert overlay inside the face is masked out (issue #7590)", () => {
+    type Masked = {
+        normalizedEnergy: (
+            data: number[],
+            w: number,
+            h: number,
+            inset: number,
+            mask?: Uint8Array | null
+        ) => number | null;
+        maskOf: (
+            rects: number[][],
+            w: number,
+            h: number,
+            pad: number
+        ) => Uint8Array | null;
+        maskedShare: (
+            mask: Uint8Array | null,
+            w: number,
+            h: number,
+            inset: number
+        ) => number;
+        blurIndex: (shot: number, ref: number, half: number) => number | null;
+    };
+    const m = (() => {
+        const window = new Window({ url: "http://localhost/" });
+        const context = createContext(window as unknown as object);
+        runInContext(RASTER_SOURCE, context);
+        return (window as unknown as { __tolariaRasterMath: Masked })
+            .__tolariaRasterMath;
+    })();
+    const W = 96;
+    const H = 128;
+    /** The battlefield's P/T badge: a black box with white glyph strokes,
+     *  pasted over the lower right of an otherwise identical face. */
+    const BADGE = [0.45, 0.6, 0.85, 0.82];
+    function withBadge(src: number[]): number[] {
+        const out = src.slice();
+        const [fx0, fy0, fx1, fy1] = BADGE;
+        for (let y = Math.floor(fy0 * H); y < Math.ceil(fy1 * H); y++)
+            for (let x = Math.floor(fx0 * W); x < Math.ceil(fx1 * W); x++) {
+                const v = x % 9 < 2 ? 255 : 0;
+                const i = (y * W + x) * 4;
+                out[i] = out[i + 1] = out[i + 2] = v;
+            }
+        return out;
+    }
+
+    it("reads a badged face as sharp as its resource once the badge is masked — and as blurred without the mask", () => {
+        const ref = texture(W, H);
+        const half = blurred(ref, W, H, 2);
+        const shot = withBadge(ref);
+        const index = (mask: Uint8Array | null) =>
+            m.blurIndex(
+                m.normalizedEnergy(shot, W, H, 0.12, mask)!,
+                m.normalizedEnergy(ref, W, H, 0.12, mask)!,
+                m.normalizedEnergy(half, W, H, 0.12, mask)!
+            )!;
+        // The defect this mask removes: the badge alone reads as blur.
+        expect(index(null)).toBeGreaterThan(0.5);
+        expect(index(m.maskOf([BADGE], W, H, 1))).toBeLessThan(0.05);
+    });
+
+    it("measures the share of the inset region a mask covers", () => {
+        expect(m.maskOf([], W, H, 0)).toBeNull();
+        expect(m.maskedShare(null, W, H, 0.12)).toBe(0);
+        const all = m.maskOf([[0, 0, 1, 1]], W, H, 0);
+        expect(m.maskedShare(all, W, H, 0.12)).toBe(1);
+        const badge = m.maskOf([BADGE], W, H, 0);
+        const share = m.maskedShare(badge, W, H, 0.12);
+        expect(share).toBeGreaterThan(0.1);
+        expect(share).toBeLessThan(0.3);
+    });
+});
+
 describe("blurredOf — a blank face counts whatever its index", () => {
     it("counts blank samples", () => {
         expect(

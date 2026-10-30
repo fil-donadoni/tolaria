@@ -78,12 +78,7 @@ export default function BasicLandTile({
                         title={`Choose ${subtype} art`}
                         className="aspect-5/7 w-14 overflow-hidden md:w-20 short-viewport:w-14 rounded-sm border border-border-subtle/40 bg-surface-elevated/40 transition hover:border-accent/60 disabled:opacity-40"
                     >
-                        {cardId !== null && (
-                            <CardImage
-                                card={{ id: cardId }}
-                                promoteLayer={false}
-                            />
-                        )}
+                        {cardId !== null && <CardImage card={{ id: cardId }} />}
                     </button>
                 )}
             />

@@ -84,7 +84,7 @@ export const COMBAT_GROUP_ROLE: readonly CardRingRole[] = [
  *  (`z-index: auto`, painted by DOM order). A buried card's whole ring
  *  rectangle then paints over the cards stacked on top of it and the pile
  *  reads as a lattice of rings rather than a stack of outlined cards. The art
- *  itself does not leak because `CardImage`'s `promoteLayer` makes it a
+ *  itself does not leak because `CardImage`'s `contain: paint` makes it a
  *  stacking context — the ring is a SIBLING of that layer, not inside it.
  *
  *  `isolate` on the tile gives the ring the containment its `z-index` already

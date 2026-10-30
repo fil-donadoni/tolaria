@@ -47,6 +47,15 @@
 // slot (the `cardsSoft` class) is not this check's business — such a face is
 // skipped here and the two checks are summed into the one `cardsSoft` Floor.
 //
+// WHAT IS MASKED. An inert overlay painted INSIDE the face — the battlefield's
+// P/T badge, a counter chip — is not the card's pixels: on a 46px board card
+// the 2/1 badge covers a fifth of the art, and its flat black box inflates the
+// region's contrast while the reference (the bare resource) has none of it —
+// measured Blur Index 0.60–0.73 on a face as sharp as its resource (issue
+// #7590). Such overlays are `pointer-events: none`, so the occlusion lattice
+// below never sees them; `overlayRects` finds them with hit-testing forced on,
+// and their boxes are excluded from all three energies alike.
+//
 // WHAT IS NOT MEASURED, and why each is a skip and never a red: a face under
 // an overlay (the pixels would be the overlay's), a FADED face (`opacity-60`
 // on a pending pick, `opacity-30` while dragging: the composite against the
@@ -71,9 +80,18 @@
      *  stalled fetch must end in a skip, never a hung cell. */
     const LOAD_TIMEOUT_MS = 8000;
 
+    /** Most of the inset region overlays may cover before the face is
+     *  rejected as occluded: past it, too little card is left to judge. */
+    const MAX_MASKED = 0.5;
+    /** Overlay hit-test lattice, per axis, over the inset region. */
+    const OVERLAY_LATTICE = 12;
+
     /** Mean |∂L/∂x| + |∂L/∂y| of the luminance of an RGBA buffer over the
-     *  pixels strictly inside the `inset` fraction of each edge. */
-    function gradientEnergy(data, w, h, inset) {
+     *  pixels strictly inside the `inset` fraction of each edge. `mask`
+     *  (optional, one byte per pixel, 1 = excluded) drops every pixel whose
+     *  own value or either forward neighbour is masked, so an overlay's edge
+     *  never counts as the card's detail. */
+    function gradientEnergy(data, w, h, inset, mask) {
         const x0 = Math.floor(w * inset);
         const x1 = Math.ceil(w * (1 - inset)) - 1;
         const y0 = Math.floor(h * inset);
@@ -85,7 +103,9 @@
         let n = 0;
         for (let y = y0; y < y1; y++) {
             for (let x = x0; x < x1; x++) {
-                const i = (y * w + x) * 4;
+                const p = y * w + x;
+                if (mask && (mask[p] || mask[p + 1] || mask[p + w])) continue;
+                const i = p * 4;
                 const l = lum(i);
                 sum += Math.abs(lum(i + 4) - l) + Math.abs(lum(i + w * 4) - l);
                 n++;
@@ -95,8 +115,8 @@
     }
 
     /** Standard deviation of the luminance over the same inset region: the
-     *  region's CONTRAST. */
-    function luminanceSigma(data, w, h, inset) {
+     *  region's CONTRAST. `mask` as in {@link gradientEnergy}. */
+    function luminanceSigma(data, w, h, inset, mask) {
         const x0 = Math.floor(w * inset);
         const x1 = Math.ceil(w * (1 - inset));
         const y0 = Math.floor(h * inset);
@@ -106,6 +126,7 @@
         let n = 0;
         for (let y = y0; y < y1; y++) {
             for (let x = x0; x < x1; x++) {
+                if (mask && mask[y * w + x]) continue;
                 const i = (y * w + x) * 4;
                 const l =
                     0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
@@ -126,10 +147,40 @@
      *  α, so their ratio does not move, while a lower-resolution raster loses
      *  gradient far faster than contrast. `null` when the region is UNIFORM
      *  (σ under 1 level): there is no picture to measure. */
-    function normalizedEnergy(data, w, h, inset) {
-        const sigma = luminanceSigma(data, w, h, inset);
+    function normalizedEnergy(data, w, h, inset, mask) {
+        const sigma = luminanceSigma(data, w, h, inset, mask);
         if (sigma < 1) return null;
-        return gradientEnergy(data, w, h, inset) / sigma;
+        return gradientEnergy(data, w, h, inset, mask) / sigma;
+    }
+
+    /** A `w`×`h` pixel mask (1 = excluded) from overlay boxes given as
+     *  fractions `[x0, y0, x1, y1]` of the face's box, each grown by `pad`
+     *  pixels (the overlay's antialiased edge, a shadow). `null` when there
+     *  is nothing to mask. */
+    function maskOf(rects, w, h, pad) {
+        if (!rects || !rects.length) return null;
+        const mask = new Uint8Array(w * h);
+        for (const [fx0, fy0, fx1, fy1] of rects) {
+            const x0 = Math.max(0, Math.floor(fx0 * w) - pad);
+            const y0 = Math.max(0, Math.floor(fy0 * h) - pad);
+            const x1 = Math.min(w, Math.ceil(fx1 * w) + pad);
+            const y1 = Math.min(h, Math.ceil(fy1 * h) + pad);
+            for (let y = y0; y < y1; y++) mask.fill(1, y * w + x0, y * w + x1);
+        }
+        return mask;
+    }
+
+    /** The fraction of the inset region a mask excludes. */
+    function maskedShare(mask, w, h, inset) {
+        if (!mask) return 0;
+        const x0 = Math.floor(w * inset);
+        const x1 = Math.ceil(w * (1 - inset));
+        const y0 = Math.floor(h * inset);
+        const y1 = Math.ceil(h * (1 - inset));
+        let masked = 0;
+        for (let y = y0; y < y1; y++)
+            for (let x = x0; x < x1; x++) masked += mask[y * w + x];
+        return masked / Math.max(1, (x1 - x0) * (y1 - y0));
     }
 
     /** The Blur Index (see the header), on normalised energies. `null` when
@@ -169,6 +220,8 @@
         gradientEnergy,
         luminanceSigma,
         normalizedEnergy,
+        maskOf,
+        maskedShare,
         blurIndex,
         fadedOrFiltered,
         transformed,
@@ -195,6 +248,68 @@
         return true;
     }
 
+    /** An element that puts pixels of its own on screen: visible, not fully
+     *  transparent, and with a background, a raster or text of its own. A
+     *  state ring (a border or shadow around a transparent box) and an idle
+     *  glare (opacity 0) paint nothing over the art. */
+    function paintsOver(n) {
+        const cs = getComputedStyle(n);
+        if (cs.visibility === "hidden" || parseFloat(cs.opacity) < 0.02)
+            return false;
+        // An `<svg>` is a container — a full-board arrow layer is one, and
+        // transparent wherever no arrow is drawn — so only raster content
+        // counts by tag.
+        if (/^(IMG|CANVAS|VIDEO)$/i.test(n.tagName)) return true;
+        if (cs.backgroundImage && cs.backgroundImage !== "none") return true;
+        const bg = cs.backgroundColor.match(/[\d.]+/g);
+        if (bg && bg.length === 4 && parseFloat(bg[3]) > 0.02) return true;
+        if (bg && bg.length === 3) return true;
+        for (const c of n.childNodes)
+            if (c.nodeType === 3 && c.textContent.trim()) return true;
+        return false;
+    }
+
+    /** The overlays painted over the face's inset region, as fractions of its
+     *  box (see WHAT IS MASKED). Hit-testing is forced on for the duration —
+     *  the overlays worth finding are exactly the `pointer-events: none`
+     *  ones — and a lattice of points collects every element above the image
+     *  that is not one of its ancestors and paints. */
+    function overlayRects(e, r) {
+        const force = document.createElement("style");
+        force.textContent = "* { pointer-events: auto !important; }";
+        document.head.appendChild(force);
+        const found = new Set();
+        try {
+            for (let j = 0; j < OVERLAY_LATTICE; j++) {
+                for (let i = 0; i < OVERLAY_LATTICE; i++) {
+                    const fx =
+                        INSET + ((1 - 2 * INSET) * (i + 0.5)) / OVERLAY_LATTICE;
+                    const fy =
+                        INSET + ((1 - 2 * INSET) * (j + 0.5)) / OVERLAY_LATTICE;
+                    const stack = document.elementsFromPoint(
+                        r.left + r.width * fx,
+                        r.top + r.height * fy
+                    );
+                    for (const n of stack) {
+                        if (n === e) break;
+                        if (!n.contains(e) && paintsOver(n)) found.add(n);
+                    }
+                }
+            }
+        } finally {
+            force.remove();
+        }
+        return [...found].map((n) => {
+            const o = n.getBoundingClientRect();
+            return [
+                Math.max(0, (o.left - r.left) / r.width),
+                Math.max(0, (o.top - r.top) / r.height),
+                Math.min(1, (o.right - r.left) / r.width),
+                Math.min(1, (o.bottom - r.top) / r.height),
+            ];
+        });
+    }
+
     /** Why a printed face is not a candidate, or `null` when it is. The order
      *  is cheapest first; the reason is what the cell line reports, so a
      *  surface that yields no sample says what its faces were. */
@@ -211,9 +326,13 @@
         return null;
     }
 
+    /** Overlay boxes per marked face, read back by the compare. */
+    let overlaysByMark = {};
+
     window.__tolariaRasterClear = () => {
         for (const e of document.querySelectorAll(`[${MARK}]`))
             e.removeAttribute(MARK);
+        overlaysByMark = {};
     };
 
     // The same short selector `probe.js` names an offender by, so a blurred
@@ -254,7 +373,13 @@
                 rejected[why] = (rejected[why] || 0) + 1;
                 continue;
             }
-            all.push({ e, r, layoutW: e.offsetWidth || r.width });
+            const overlays = overlayRects(e, r);
+            const probeMask = maskOf(overlays, 100, 140, 0);
+            if (maskedShare(probeMask, 100, 140, INSET) > MAX_MASKED) {
+                rejected.occluded = (rejected.occluded || 0) + 1;
+                continue;
+            }
+            all.push({ e, r, overlays, layoutW: e.offsetWidth || r.width });
         }
         all.sort((a, b) => b.layoutW - a.layoutW);
         const picked = [];
@@ -271,6 +396,7 @@
             rejected,
             picked: picked.map((c, k) => {
                 c.e.setAttribute(MARK, String(k));
+                overlaysByMark[k] = c.overlays;
                 return {
                     k,
                     sel: selectorOf(c.e),
@@ -387,9 +513,17 @@
         } catch {
             return { error: "reference canvas tainted (no CORS)" };
         }
-        const refE = normalizedEnergy(refData, W, H, INSET);
-        const half = normalizedEnergy(halfData, W, H, INSET);
-        const shot = normalizedEnergy(shotData, W, H, INSET);
+        // One mask for all three: the overlay's box is excluded from the
+        // screenshot and from both renderings of the bare resource alike.
+        const mask = maskOf(
+            overlaysByMark[spec.k],
+            W,
+            H,
+            Math.ceil(window.devicePixelRatio)
+        );
+        const refE = normalizedEnergy(refData, W, H, INSET, mask);
+        const half = normalizedEnergy(halfData, W, H, INSET, mask);
+        const shot = normalizedEnergy(shotData, W, H, INSET, mask);
         if (refE === null) return { skip: "reference region is uniform" };
         // A uniform screenshot is no picture at all where the face should be:
         // the layer evicted, the slot blank. The caller re-shoots before it

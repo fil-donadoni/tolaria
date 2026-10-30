@@ -90,12 +90,7 @@ export default function CardProfileCardRow({
                     className="relative aspect-5/7 w-11 shrink-0"
                     data-card-profile-art={card.cardId}
                 >
-                    <CardImage
-                        card={{ id: card.cardId }}
-                        lazy
-                        promoteLayer={false}
-                        sizes="44px"
-                    />
+                    <CardImage card={{ id: card.cardId }} lazy sizes="44px" />
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-sm text-text">
