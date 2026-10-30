@@ -98,6 +98,12 @@ export interface LatentLens {
         select: EffectForEachSelector,
         outcome?: SweepOutcome
     ): number | undefined;
+    /** The share of a stack answer's unit (`counter`, `moveSpellFromStack`)
+     *  a card HELD in hand is credited on this board: 0 while every
+     *  opponent's hand is empty (an answer waits for a spell to answer),
+     *  else 1. Present only on a lens attached to a real board; absent, a
+     *  valuation keeps the full unit. */
+    stackAnswerUnits?(): number;
     /** Issue #5162 (ADR 0151) — the Differential Reading of a one-shot
      *  `forEach { set: "players" }` body: `valueSide` is run once per player
      *  on the board, with that player as the `$each` it names, and the sides
