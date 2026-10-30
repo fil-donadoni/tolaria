@@ -713,7 +713,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "March of Souls",
     "Marhault Elsdragon",
     "Marsh Crocodile",
-    "Marsh Viper",
     "Martyr's Cry",
     "Martyrs of Korlis",
     "Master of Death",

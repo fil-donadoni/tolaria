@@ -728,6 +728,16 @@
         "source": "compiled"
     },
     {
+        "name": "Aether Meltdown",
+        "scryfallId": "91f99614-45e2-4688-8403-f3a6b9162b08",
+        "oracleId": "433a2880-d989-4c40-99fa-0896de341b88",
+        "firstSet": "kld",
+        "firstPrintId": "91f99614-45e2-4688-8403-f3a6b9162b08",
+        "firstPrintSet": "kld",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Aether Mutation",
         "scryfallId": "a9507116-ede8-40a1-8fa3-705e6f6f64c0",
         "oracleId": "6697fe5b-90ac-4321-aa2f-cdc6ec283cb4",
@@ -3925,6 +3935,16 @@
         "firstPrintId": "e3eb615b-249d-433f-a521-8310e8784b5d",
         "firstPrintSet": "uds",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Attune with Aether",
+        "scryfallId": "32b0707d-241e-4ced-9251-b16af4fef2cb",
+        "oracleId": "b337c241-f2c4-48e3-a303-371b172fcd18",
+        "firstSet": "kld",
+        "firstPrintId": "32b0707d-241e-4ced-9251-b16af4fef2cb",
+        "firstPrintSet": "kld",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -13910,6 +13930,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Crimson Fleet Commodore",
+        "scryfallId": "c90fdccf-30a6-40ee-9b35-83a6ee5c0681",
+        "oracleId": "d5ac319a-c870-4890-87c0-0e02f122f234",
+        "firstSet": "cmr",
+        "firstPrintId": "c90fdccf-30a6-40ee-9b35-83a6ee5c0681",
+        "firstPrintSet": "cmr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Crimson Kobolds",
         "scryfallId": "13696657-aeef-4add-9a3b-8137fce01fe3",
         "oracleId": "93fdcc49-e3c8-4f8c-a3bc-064c6392b4ca",
@@ -14288,6 +14318,16 @@
         "firstSet": "inv",
         "firstPrintId": "522ddc6f-ec13-4a70-8f4c-b3c846b102fd",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Crypt Cobra",
+        "scryfallId": "4f7bcd36-13e2-4ac7-a449-246cecb3fc0f",
+        "oracleId": "456bbc0e-a648-481f-b37e-9996029556bd",
+        "firstSet": "mir",
+        "firstPrintId": "4f7bcd36-13e2-4ac7-a449-246cecb3fc0f",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Crypt Creeper",
@@ -16111,6 +16151,16 @@
         "firstPrintId": "bdb63768-2d8a-4a74-a312-b981dd462cdc",
         "firstPrintSet": "ptk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Decoction Module",
+        "scryfallId": "b08ae769-0070-47a6-aae0-1a3bcfd40d07",
+        "oracleId": "1daba4f6-2a7d-426a-97d1-0298a7100c45",
+        "firstSet": "kld",
+        "firstPrintId": "b08ae769-0070-47a6-aae0-1a3bcfd40d07",
+        "firstPrintSet": "kld",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -23114,6 +23164,16 @@
         "source": "compiled"
     },
     {
+        "name": "Feast of Succession",
+        "scryfallId": "ac83f97d-c8c9-480c-a32c-918035673ab4",
+        "oracleId": "c3601f22-7b22-4116-8633-ba67841524bd",
+        "firstSet": "cmr",
+        "firstPrintId": "ac83f97d-c8c9-480c-a32c-918035673ab4",
+        "firstPrintSet": "cmr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Feast of the Unicorn",
         "scryfallId": "096e41d6-79c3-463f-ae63-872c3d8729a7",
         "oracleId": "274d89b8-1e59-4992-9299-dc793b7f6752",
@@ -27842,6 +27902,16 @@
         "source": "compiled"
     },
     {
+        "name": "Glassblower's Puzzleknot",
+        "scryfallId": "7d123031-6702-4d49-a788-42eb6dbc569e",
+        "oracleId": "0fbe0610-8565-4910-bf35-2c10e38b633a",
+        "firstSet": "kld",
+        "firstPrintId": "7d123031-6702-4d49-a788-42eb6dbc569e",
+        "firstPrintSet": "kld",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Glasses of Urza",
         "scryfallId": "cafc2350-5d64-4379-9198-79a114654d45",
         "oracleId": "af7fabf4-8d55-4b06-9c21-472f4a5775b4",
@@ -27866,6 +27936,16 @@
         "firstSet": "onc",
         "firstPrintId": "c9262000-e6f3-4da1-ad1c-038f65d3bef6",
         "firstPrintSet": "onc"
+    },
+    {
+        "name": "Glimmer of Genius",
+        "scryfallId": "19f1673d-c92c-43be-8648-af7fbc790421",
+        "oracleId": "b9c58cfb-b7d5-4e86-a5d3-efb07192aa22",
+        "firstSet": "kld",
+        "firstPrintId": "19f1673d-c92c-43be-8648-af7fbc790421",
+        "firstPrintSet": "kld",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Glimmerbell",
@@ -32283,6 +32363,16 @@
         "firstPrintId": "38bcd111-0830-4fc0-a113-37eb306fb1a0",
         "firstPrintSet": "csp",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Highspire Infusion",
+        "scryfallId": "08325c39-0eeb-4bd0-9adc-2892c1c6637e",
+        "oracleId": "c86ed70b-ab09-402e-8aaf-6332b4749453",
+        "firstSet": "aer",
+        "firstPrintId": "08325c39-0eeb-4bd0-9adc-2892c1c6637e",
+        "firstPrintSet": "aer",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -48897,6 +48987,16 @@
         "firstPrintSet": "cn2"
     },
     {
+        "name": "Palace Sentinels",
+        "scryfallId": "3e002a99-eb2b-4cc3-992e-f3ee42245dba",
+        "oracleId": "d29d3b44-06dd-45dd-bbb2-506a6fce6a8d",
+        "firstSet": "cn2",
+        "firstPrintId": "3e002a99-eb2b-4cc3-992e-f3ee42245dba",
+        "firstPrintSet": "cn2",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Paladin en-Vec",
         "scryfallId": "bf1ea89d-4b9d-455f-a7f4-a26026e0c272",
         "oracleId": "fd8722e1-9c41-4037-ab7e-47e2aa9858a0",
@@ -50241,6 +50341,16 @@
         "firstSet": "pls",
         "firstPrintId": "e8440ca8-73ca-462b-a735-f6fb3d0de603",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Phyrexian Vatmother",
+        "scryfallId": "f0024556-0317-4c28-83c3-0a6020d72a2b",
+        "oracleId": "e9162478-0b10-422a-a11c-7b39b00f026e",
+        "firstSet": "mbs",
+        "firstPrintId": "f0024556-0317-4c28-83c3-0a6020d72a2b",
+        "firstPrintSet": "mbs",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Phyrexian Vault",
@@ -57562,6 +57672,16 @@
         "firstSet": "atq",
         "firstPrintId": "b4ff60ce-073c-46b8-807c-8b40467b960c",
         "firstPrintSet": "atq",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Sage of Shaila's Claim",
+        "scryfallId": "0987d29a-2043-4341-89d5-5e34bb6507e2",
+        "oracleId": "a0b413cc-b16f-4112-8061-2ccded7f481d",
+        "firstSet": "kld",
+        "firstPrintId": "0987d29a-2043-4341-89d5-5e34bb6507e2",
+        "firstPrintSet": "kld",
         "rarity": "common",
         "source": "compiled"
     },
@@ -66452,6 +66572,16 @@
         "source": "compiled"
     },
     {
+        "name": "Staunch Throneguard",
+        "scryfallId": "41017b24-957b-403d-b417-d84ad2624794",
+        "oracleId": "c8131fb3-3146-4434-9e4b-ac88ab3cbe37",
+        "firstSet": "cmr",
+        "firstPrintId": "41017b24-957b-403d-b417-d84ad2624794",
+        "firstPrintSet": "cmr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Steadfast Cathar",
         "scryfallId": "5e1b65a7-d385-428b-986c-a0d9283a5f75",
         "oracleId": "00895741-f94f-4d80-8ca4-c436bf3c8d56",
@@ -68394,6 +68524,16 @@
         "source": "compiled"
     },
     {
+        "name": "Suq'Ata Assassin",
+        "scryfallId": "1b7178c6-f989-437d-83e3-04b9817f2c54",
+        "oracleId": "db43b866-13e0-4336-a580-b64fe1ee5954",
+        "firstSet": "vis",
+        "firstPrintId": "1b7178c6-f989-437d-83e3-04b9817f2c54",
+        "firstPrintSet": "vis",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Surge Node",
         "scryfallId": "12414fc0-bb24-4244-baf4-adad0125376e",
         "oracleId": "3b30f043-aa79-4262-b13f-6cd794b1920b",
@@ -68594,6 +68734,16 @@
         "firstSet": "lea",
         "firstPrintId": "6176936d-72e2-4205-8871-4c5a4f1cb2d8",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Swamp Mosquito",
+        "scryfallId": "21961b79-637a-4aa5-89b5-4e6e9f60d4d1",
+        "oracleId": "4bb4844c-2678-45c7-8f5e-9cf185fd484b",
+        "firstSet": "all",
+        "firstPrintId": "21961b79-637a-4aa5-89b5-4e6e9f60d4d1",
+        "firstPrintSet": "all",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Swarm of Bloodflies",
@@ -70962,6 +71112,16 @@
         "source": "compiled"
     },
     {
+        "name": "Thorn of the Black Rose",
+        "scryfallId": "2e4829c6-50d4-4602-af78-59249486a97c",
+        "oracleId": "a7894a81-8c0a-4015-8bc1-2698cf5306d1",
+        "firstSet": "cn2",
+        "firstPrintId": "2e4829c6-50d4-4602-af78-59249486a97c",
+        "firstPrintSet": "cn2",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Thorn Thallid",
         "scryfallId": "16e61c00-3e94-4f6f-8515-65b430829e91",
         "oracleId": "1239d3bf-06e8-4732-b1e2-f6eb145e5894",
@@ -71374,6 +71534,16 @@
         "firstSet": "lea",
         "firstPrintId": "a2931ae0-7836-4000-b9ec-f2029ebf5d96",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Throne of the High City",
+        "scryfallId": "22766d81-21ca-429a-b2e2-fdb338a33aa4",
+        "oracleId": "9684447a-5955-4bc7-8ad0-8bb8b316873b",
+        "firstSet": "cn2",
+        "firstPrintId": "22766d81-21ca-429a-b2e2-fdb338a33aa4",
+        "firstPrintSet": "cn2",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Thrór's Map",
@@ -73588,6 +73758,16 @@
         "firstSet": "leg",
         "firstPrintId": "8f649cb5-e19c-453f-b062-4fd452d92257",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Tune the Narrative",
+        "scryfallId": "40b13321-98f1-4e8c-802d-65498e43ec24",
+        "oracleId": "4262a726-d1da-4bdc-ab14-73212aa83f9c",
+        "firstSet": "mh3",
+        "firstPrintId": "40b13321-98f1-4e8c-802d-65498e43ec24",
+        "firstPrintSet": "mh3",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Tunnel",

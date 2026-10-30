@@ -5302,6 +5302,22 @@ function lowerFrameChain(
             case "skipNextTurn":
                 ops.push({ op: "skipNextTurn", player: "controller" });
                 break;
+            // CR 725.1 — the controller takes the monarch designation.
+            case "becomeMonarch":
+                ops.push({ op: "becomeMonarch" });
+                break;
+            // CR 122.1 — a counter kind a player holds, added to that player.
+            case "playerCounters": {
+                const player = playerRef(frame.player, walk.targets, site);
+                if (!player.ok) return player;
+                ops.push({
+                    op: "addPlayerCounter",
+                    player: player.value,
+                    counter: frame.counter,
+                    amount: frame.count,
+                });
+                break;
+            }
             // CR 504.1 — the controller's draw step of this turn is skipped.
             case "skipDrawStepThisTurn":
                 ops.push({ op: "skipDrawStepThisTurn", player: "controller" });

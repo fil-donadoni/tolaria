@@ -116,6 +116,7 @@ import { readNumberWord } from "./quantity";
 import type { ImpulsePlayIR } from "./impulsePlay";
 import type {
     CardType,
+    PlayerCounterKind,
     EffectCardFilter,
     EffectChoiceSuperlative,
     TargetRequirement,
@@ -342,6 +343,26 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 725.1 — "you become the monarch": the controller takes the
+           * designation. Only the bare "you" subject is read; "target
+           * opponent becomes the monarch" earns the wider subject when a
+           * card prints it standalone.
+           */
+          readonly frame: "becomeMonarch";
+      }
+    | {
+          /**
+           * CR 122.1 — "<player> gets N poison/experience counters" and
+           * "you get {E}{E}" (CR 107.14: one energy counter per symbol): a
+           * counter kind a PLAYER holds is added to that player.
+           */
+          readonly frame: "playerCounters";
+          readonly player: PlayerRefIR;
+          readonly counter: PlayerCounterKind;
+          readonly count: number;
+      }
+    | {
+          /**
            * CR 707.2 + CR 111.1 — "create a token that's a copy of <object>":
            * the controller creates a token whose copiable values are the
            * named object's. The object is the source only ("this creature").
@@ -485,6 +506,16 @@ export const VERB_FRAMES: readonly {
         opens: /^(?:after this phase, there is an additional combat phase)\b/i,
     },
     { name: "skipNextTurn", opens: /^you skip your next turn$/i },
+    { name: "becomeMonarch", opens: /^you become the monarch\b/i },
+    {
+        name: "playerCounters",
+        // The finite verb behind a player reference, then a counter: the
+        // energy symbols or a count word and a counter noun.
+        opens: new RegExp(
+            `^(?:${PLAYER_PHRASES.join("|")}) gets? (?:\\{e\\}|\\S+ \\S+ counters?\\b)`,
+            "i"
+        ),
+    },
     {
         name: "skipDrawStepThisTurn",
         opens: /^you skip your draw step this turn$/i,
@@ -560,6 +591,15 @@ const BECOME_COPY =
     /^(.+?) becomes a copy of (.+?)(?: (until end of turn|until your next turn))?$/;
 const CAST_FROM_GRAVEYARD_THIS_TURN =
     /^you may cast target (.+?) from your graveyard this turn$/;
+/** CR 725.1 — the whole sentence, nothing trailing. */
+const BECOME_MONARCH = "you become the monarch";
+/**
+ * CR 122.1 + CR 107.14 — "<player> gets {E}{E}" (the optional trailing space
+ * is what stripping the "(two energy counters)" reminder, CR 207.2a, leaves)
+ * or "<player> gets two poison counters".
+ */
+const PLAYER_COUNTERS =
+    /^(.+?) gets? (?:((?:\{E\})+) ?|(\S+) (poison|energy|experience) counters?)$/;
 /** CR 500.7 — the one extra-turn spelling per subject; nothing trails "this one". */
 const EXTRA_TURN =
     /^(?:(take)|(you take|target player takes)) an extra turn after this one$/;
@@ -1560,6 +1600,42 @@ function readMember(
         return { frames: [{ frame: "skipNextTurn" }], referent };
     if (opensFrame("skipDrawStepThisTurn", lower))
         return { frames: [{ frame: "skipDrawStepThisTurn" }], referent };
+    if (opensFrame("becomeMonarch", lower)) {
+        if (lower !== BECOME_MONARCH)
+            return {
+                refused: `"${member}" — only the bare "You become the monarch" is read`,
+            };
+        return { frames: [{ frame: "becomeMonarch" }], referent };
+    }
+    if (opensFrame("playerCounters", lower)) {
+        const counters = lower.match(PLAYER_COUNTERS);
+        if (counters === null)
+            return {
+                refused: `"${member}" — only poison, energy and experience counters are read`,
+            };
+        const player = playerRefRule.run(counters[1]!, ctx);
+        if (!player.ok) return { refused: player.reason, failure: player };
+        const count =
+            counters[2] !== undefined
+                ? counters[2].length / 3
+                : readNumberWord(counters[3]!);
+        if (count === null)
+            return { refused: `"${counters[3]}" is not a printed count` };
+        return {
+            frames: [
+                {
+                    frame: "playerCounters",
+                    player: player.value,
+                    counter:
+                        counters[2] !== undefined
+                            ? "energy"
+                            : (counters[4] as PlayerCounterKind),
+                    count,
+                },
+            ],
+            referent,
+        };
+    }
     if (opensFrame("copyToken", lower)) {
         const objectSpan = lower.slice(COPY_TOKEN_OPENER.length);
         const subject = subjectRule.run(objectSpan, ctx);
