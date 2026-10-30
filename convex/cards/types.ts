@@ -21820,6 +21820,33 @@ export interface CardDefinition {
      *  By convention this card's `AlternativeCost.id` is `"overload"`. Used by
      *  Damn (MH2) and Winds of Abandon (MH1). */
     overload?: AlternativeCost;
+    /** CR 702.119 — Emerge. "Emerge [cost]" is two static abilities that
+     *  function while the spell is on the stack: "You may cast this spell by
+     *  paying [cost] and sacrificing a creature rather than paying its mana
+     *  cost" and "If you chose to pay this spell's emerge cost, its total cost
+     *  is reduced by an amount of generic mana equal to the sacrificed
+     *  creature's mana value" (CR 702.119a). "Emerge from [quality]" (CR
+     *  702.119b) sacrifices a [quality] permanent instead.
+     *
+     *  This field carries the whole cost — the `mana` leg AND a `permanent`
+     *  leg of `{ action: "sacrifice", count: 1, filter }` — reusing the
+     *  {@link AlternativeCost} shape verbatim because 702.119a says casting a
+     *  spell using its emerge ability "follows the rules for paying
+     *  alternative costs in rules 601.2b and 601.2f–h". The `filter` IS the
+     *  variant: `{ types: "Creature" }` for plain emerge, the quality for
+     *  "emerge from" (`{ types: "Artifact" }` — any artifact permanent,
+     *  creature or not). `emergeCostShapeError` (`gre/emerge.ts`) refuses any
+     *  other leg shape, catalogue-wide.
+     *
+     *  Dedicated field, not an `alternativeCosts[]` entry, so the chosen cost
+     *  is IDENTIFIABLE as "the emerge one" by reference at cast commit
+     *  (`isEmergeAlternativeCost`, `convex/gre/emerge.ts`) — the identity is
+     *  what licenses the second ability, the generic reduction by the
+     *  sacrificed permanent's mana value, applied once the victim is chosen
+     *  (CR 702.119c) and before any mana is paid.
+     *
+     *  By convention this card's `AlternativeCost.id` is `"emerge"`. */
+    emerge?: AlternativeCost;
     /** CR 702.37 — Morph. The card's printed MORPH COST, i.e. the cost paid to
      *  turn the face-down permanent face up as a special action (CR 702.37e /
      *  116.2b), NOT the cost of casting it face down. The face-down cast is

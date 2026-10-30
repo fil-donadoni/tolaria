@@ -2846,6 +2846,16 @@ export type PendingCast = {
      *  built until commit, and without the carry the permanent that enters is
      *  one nobody warped — bought at the discount and never exiled. */
     warped?: boolean;
+    /** CR 702.119a / 702.119c — this cast chose the card's Emerge cost and its
+     *  victim was NOT yet chosen when the cast parked (a real choice between
+     *  permanents of different mana value), so `manaCost` still holds the
+     *  UNREDUCED total. `selectSacrificeOnState` applies the reduction by the
+     *  picked permanent's mana value the moment the selection completes —
+     *  before `tryAutoCommitPendingCast` can test the pool against it — and
+     *  clears this flag, so the reduction is applied exactly once. Absent when
+     *  the victim was forced at announcement: that reduction is already in
+     *  `manaCost`. */
+    emergeReductionOwed?: true;
     /** CR 702.103a — true iff the alternative cost chosen for this cast is the
      *  card's Bestow cost (`isBestowAlternativeCost` at announcement). Carried
      *  through a parked cast (the ordinary "tap for the mana" park, or a real

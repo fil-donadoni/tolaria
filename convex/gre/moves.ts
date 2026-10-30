@@ -70,6 +70,11 @@ import {
 } from "./castCost";
 import { BESTOW_TARGET_REQUIREMENT, hasLegalBestowHost } from "./bestow";
 import {
+    isEmergeAlternativeCost,
+    largestEmergeReduction,
+    reduceGenericCost,
+} from "./emerge";
+import {
     additionalCostDiscardXCeiling,
     payableAdditionalCostLegs,
     resolveAdditionalCosts,
@@ -3205,11 +3210,22 @@ export function enumerateCastMoves(
                   // tapped land splits a pool of interchangeable victims
                   // (`identityKey`), so it would re-plan victims the server
                   // auto-resolved before the taps and drop the cast.
+                  // CR 702.119a — emerge is exempt: its victim is NAMED on
+                  // the Move whenever the server would park for it, and a
+                  // named victim replaces the sandbox's own post-tap
+                  // auto-resolve (`applyAlternativeCostPermanentLegForSearch`),
+                  // so the taps cannot re-plan it.
                   .filter(
                       (m) =>
                           m.kind !== "cast-spell" ||
                           !alt.permanent ||
-                          m.tapPlan.length === 0
+                          m.tapPlan.length === 0 ||
+                          isEmergeAlternativeCost(
+                              tryGetDefinition(
+                                  (card.card as { id?: string }).id ?? ""
+                              ) ?? undefined,
+                              alt
+                          )
                   )
                   .map((m) =>
                       m.kind === "cast-spell"
@@ -3272,13 +3288,19 @@ function searchPayableOwnAlternativeCosts(
         [
             ...(def.alternativeCosts ?? []),
             ...(def.evoke ? [def.evoke] : []),
+            ...(def.emerge ? [def.emerge] : []),
         ].map((a) => a.id)
     );
     if (ownIds.size === 0) return [];
     return affordableAlternativeCosts(state, player, card).filter(
         (a) =>
             ownIds.has(a.id) &&
-            (a.permanent === undefined || manaValue(a.mana) === 0) &&
+            (a.permanent === undefined ||
+                manaValue(a.mana) === 0 ||
+                // CR 702.119a — emerge's mana leg IS priced against its
+                // permanent leg: the Move names the victim and the tap plan
+                // carries its reduction (`emergeReduction` below).
+                isEmergeAlternativeCost(def, a)) &&
             (a.energy ?? 0) === 0 &&
             !(
                 a.id === def.evoke?.id &&
@@ -3866,6 +3888,16 @@ function enumerateCastMovesFromZone(
               // cross-player exile cast, not the announcing player.
               getCostModifiers(state, card, "spell", undefined, player.id)
             : undefined;
+    // CR 702.119a / 601.2f — an emerge cast's reduction by its victim's mana
+    // value. The Move names the LARGEST-mana-value victim
+    // (`planCastCostPicks`), so the tap plan is priced with that victim's
+    // reduction — exactly what the server takes off once the pick lands. Board-
+    // and card-only, so hoisted beside the modifiers.
+    const emergeReduction =
+        chosenAltCost !== undefined &&
+        isEmergeAlternativeCost(def ?? undefined, chosenAltCost)
+            ? largestEmergeReduction(player, chosenAltCost)
+            : 0;
 
     // CR 601.3c / 601.2f (issue #2146) — the conditional-flash SURCHARGE the
     // Invasion cycle prices its off-window cast at ("You may cast this spell as
@@ -4064,6 +4096,8 @@ function enumerateCastMovesFromZone(
             if (costModifiers) {
                 applyCostModifiers(normCost, costModifiers);
             }
+            // CR 702.119a — after the modifiers, as the commit applies it.
+            reduceGenericCost(normCost, emergeReduction);
             // CR 118.9-analog / 119.4 (issue #2398) — a cast whose mana cost
             // the permission replaced starts its life leg at the substituted
             // amount; a Phyrexian split (below) can only add to it, and no

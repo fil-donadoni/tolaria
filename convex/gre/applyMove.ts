@@ -470,6 +470,14 @@ export function applyAlternativeCostPermanentLegForSearch(
     );
     if (!selection) return true;
     const owner = getPlayer(state, playerId);
+    // The Move names victims only when the SERVER parked for them, i.e. when
+    // its announce-time auto-resolve picked nothing for this one-requirement
+    // selection. The sandbox has already run the tap plan, and a tapped
+    // permanent can make two once-distinct candidates look fungible here, so
+    // its own auto-resolve must not stand beside the named ones (it would add
+    // a second victim — CR 702.119a's emerge, whose tap plan is not empty,
+    // reaches exactly that).
+    if ((picks?.sacrificeIds ?? []).length > 0) selection.picked = [];
     for (const id of picks?.sacrificeIds ?? []) {
         if (!owner.battlefield.some((c) => c.id === id)) return false;
         if (!selection.picked.includes(id)) selection.picked.push(id);

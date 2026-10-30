@@ -34,6 +34,7 @@ import { resolveAdditionalCosts } from "./additionalCost";
 import { getStaticAdditionalSacrifices } from "./state";
 import { getInstanceManaCost } from "../cards";
 import { buildCastPermanentCostChoice } from "./kicker";
+import { largestEmergeVictim } from "./emerge";
 import {
     applySacrificeSelection,
     sacrificeSnapshotFromResults,
@@ -323,7 +324,20 @@ export function planCastCostPicks(
             def.name ?? "Alternative cost"
         );
         if (altSelection) {
-            const submitted = completeSacrificeSelection(state, altSelection);
+            // CR 702.119a — the emerge victim is the LARGEST-mana-value match,
+            // the one whose reduction `moves.ts` prices the tap plan with; any
+            // other alternative cost keeps the cheapest-first default.
+            const emergeVictim =
+                def.emerge !== undefined && opts.altCost === def.emerge
+                    ? largestEmergeVictim(player, def.emerge)
+                    : undefined;
+            const submitted = completeSacrificeSelection(
+                state,
+                altSelection,
+                emergeVictim && !altSelection.picked.includes(emergeVictim.id)
+                    ? player.battlefield.find((c) => c.id === emergeVictim.id)
+                    : undefined
+            );
             if (submitted === null) return null;
             if (submitted.length > 0) picks.sacrificeIds = submitted;
         }

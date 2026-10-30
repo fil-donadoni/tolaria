@@ -644,6 +644,10 @@ export function getAlternativeCost(
     // its overload ability follows the rules for paying alternative costs in
     // rules 601.2b and 601.2f–h").
     if (def?.overload?.id === altCostId) return def.overload;
+    // CR 702.119a — same treatment for `def.emerge` ("casting a spell using
+    // its emerge ability follows the rules for paying alternative costs in
+    // rules 601.2b and 601.2f–h").
+    if (def?.emerge?.id === altCostId) return def.emerge;
     // CR 702.37a — the morph face-down cast ("pay {3} rather than pay its mana
     // cost … This follows the rules for paying alternative costs"). Unlike
     // every branch above it is SYNTHESIZED, not a field the card declares: the
@@ -743,6 +747,12 @@ export function affordableAlternativeCosts(
         // no creatures does. Its mana leg's affordability is the "cast"
         // legality gate's job, like Dash's and morph's.
         ...(def.overload ? [def.overload] : []),
+        // CR 702.119a — Emerge IS an alternative cost, offered on the same
+        // terms: `canPayAlternativeCost` requires a permanent its sacrifice
+        // leg can take. Its mana leg is not checked here for the reason
+        // Dash's isn't — the "cast" legality gate (`gre/rules.ts`) prices it,
+        // with the largest reduction a victim could buy (`gre/emerge.ts`).
+        ...(def.emerge ? [def.emerge] : []),
         // CR 702.37a — the morph face-down cast, offered on the same terms.
         // Its {3} mana leg is not checked here for exactly the reason Dash's
         // isn't (see the doc above): affordability of a MANA leg is the "cast"

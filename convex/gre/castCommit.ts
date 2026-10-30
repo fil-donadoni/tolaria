@@ -327,6 +327,19 @@ export function commitCast(
     // snapshot-flagged: its mana value + subtypes ride on the stack item,
     // read at resolve via `SpellContext.getAdditionalSacrificeMv` /
     // `getAdditionalCostSubtypes`.
+    // CR 601.2h — "unpayable costs can't be paid": a permanent picked to pay
+    // the cost that has since left the battlefield (sacrificed to a mana
+    // ability while the cast was parked) makes the commit stale, exactly as a
+    // vanished exile or convoke pick does. Without this an emerge cast kept the
+    // reduction its victim bought (CR 702.119a) and sacrificed nothing.
+    if (
+        legs.sacrificeSelection &&
+        !legs.sacrificeSelection.picked.every((id) =>
+            state.players.some((p) => p.battlefield.some((c) => c.id === id))
+        )
+    ) {
+        return null;
+    }
     let additionalSacrificeSnapshot =
         sacrificeSnapshotFromSelection(legs.sacrificeSelection, state) ??
         handLegSnapshot;
