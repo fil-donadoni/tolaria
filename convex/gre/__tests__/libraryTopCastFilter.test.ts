@@ -26,18 +26,27 @@ import type { Id } from "../../_generated/dataModel";
 import {
     getLegalActions,
     isCastableLibraryTopSpell,
+    libraryTopAnnouncementLicensed,
     libraryTopCastGrant,
     libraryTopCastLifeCost,
 } from "../rules";
 import { splitCastAltCostId } from "../splitCast";
+import { adventureCastAltCostId } from "../adventure";
+import { MORPH_CAST_ALT_COST_ID } from "../morph";
 import { castRawManaCost } from "../castCost";
 import type { GameState } from "../state";
 import {
     BLUE_ARTIFACT,
+    BRAZEN_BORROWER,
     CITADEL,
     COLORLESS_BEAR,
+    CREATURES_FOR_LIFE,
+    CREATURES_ONLY,
+    EXALTED_ANGEL,
     FORGE,
     GRIZZLY_BEARS,
+    INSTANTS_AND_SORCERIES,
+    NONCREATURE_MORPH,
     STAND_DELIVER,
     WHITE_ONLY,
     board,
@@ -217,6 +226,163 @@ describe("WIRE — the library-top affordance follows the filter (issue #7205)",
             expect(
                 topCard(board([FORGE.id, CITADEL.id], BLUE_ARTIFACT.id))
                     ?.castManaCostReplaced
+            ).toBeUndefined();
+        });
+    });
+});
+
+describe("CR 601.3e — the Adventure and the face-down morph cast are announcements off the top (issue #7526)", () => {
+    const PETTY_THEFT = adventureCastAltCostId(BRAZEN_BORROWER);
+    const licensed = (state: GameState, alt: string | undefined) => {
+        const p1 = state.players[0];
+        return libraryTopAnnouncementLicensed(state, p1, p1.library[0], alt);
+    };
+
+    it("Melek's example: an instant-and-sorcery grant casts the instant Adventure, not the creature", () => {
+        withDefs(() => {
+            const state = board(
+                [INSTANTS_AND_SORCERIES.id],
+                BRAZEN_BORROWER.id
+            );
+            expect(licensed(state, PETTY_THEFT)).toBe(true);
+            expect(licensed(state, undefined)).toBe(false);
+            // The Adventure alone is enough to offer the card at all.
+            expect(castable(state)).toBe(true);
+        });
+    });
+
+    it("the reverse: a creature grant casts the creature, not the Adventure", () => {
+        withDefs(() => {
+            const state = board([CREATURES_ONLY.id], BRAZEN_BORROWER.id);
+            expect(licensed(state, undefined)).toBe(true);
+            expect(licensed(state, PETTY_THEFT)).toBe(false);
+        });
+    });
+
+    it("Garruk's Horde's example: a creature grant casts a NONCREATURE morph card face down", () => {
+        withDefs(() => {
+            const state = board([CREATURES_ONLY.id], NONCREATURE_MORPH.id);
+            expect(licensed(state, MORPH_CAST_ALT_COST_ID)).toBe(true);
+            expect(licensed(state, undefined)).toBe(false);
+            expect(castable(state)).toBe(true);
+        });
+    });
+
+    it("Mystic Forge: a COLOURED morph card cast face down is a colourless spell (CR 702.37c)", () => {
+        withDefs(() => {
+            const state = board([FORGE.id], EXALTED_ANGEL.id);
+            expect(licensed(state, MORPH_CAST_ALT_COST_ID)).toBe(true);
+            expect(licensed(state, undefined)).toBe(false);
+            expect(castable(state)).toBe(true);
+        });
+    });
+
+    it("CR 601.2b — a morph cast never rides a grant that replaces the mana cost: no cast at all", () => {
+        withDefs(() => {
+            // The face-down 2/2 is covered by the creature filter, but the
+            // grant pays life INSTEAD of the mana cost — a second alternative
+            // method beside morph — and the printed enchantment is uncovered.
+            const state = board([CREATURES_FOR_LIFE.id], NONCREATURE_MORPH.id);
+            const p1 = state.players[0];
+            expect(
+                libraryTopCastGrant(
+                    state,
+                    p1,
+                    p1.library[0],
+                    MORPH_CAST_ALT_COST_ID
+                )
+            ).toBeDefined();
+            expect(licensed(state, MORPH_CAST_ALT_COST_ID)).toBe(false);
+            expect(castable(state)).toBe(false);
+        });
+    });
+
+    it("the Adventure's own cost is what affordability is judged against", () => {
+        withDefs(() => {
+            // Petty Theft is {1}{U}; leave a single Island and one Forest.
+            const state = board(
+                [INSTANTS_AND_SORCERIES.id],
+                BRAZEN_BORROWER.id
+            );
+            const p1 = state.players[0];
+            p1.battlefield = p1.battlefield.filter(
+                (c) =>
+                    c.id !== "land-1-b" &&
+                    !c.id.startsWith("land-2-") &&
+                    c.id !== "land-0-b"
+            );
+            expect(castable(state)).toBe(true);
+            // No blue at all: the Adventure is unpayable, and the creature the
+            // grant does not cover lends it nothing.
+            p1.battlefield = p1.battlefield.filter((c) => c.id !== "land-1-a");
+            expect(castable(state)).toBe(false);
+        });
+    });
+
+    it("the face-down cast is judged against the rule's {3}, never the face-down view's empty cost", () => {
+        withDefs(() => {
+            const state = board([FORGE.id], EXALTED_ANGEL.id);
+            const p1 = state.players[0];
+            // Two lands: {3} is unpayable.
+            p1.battlefield = p1.battlefield.filter(
+                (c) => !c.id.startsWith("land-") || c.id.startsWith("land-0-")
+            );
+            expect(castable(state)).toBe(false);
+        });
+    });
+
+    it("announceCast refuses Brazen Borrower and accepts Petty Theft under the instant-and-sorcery grant", async () => {
+        await withDefsAsync(async () => {
+            const refused = makeMutationCtx("p1", [
+                gameStateSeed(
+                    board([INSTANTS_AND_SORCERIES.id], BRAZEN_BORROWER.id)
+                ),
+            ]);
+            await expect(runAnnounceCast(refused.ctx)).rejects.toThrow(
+                "No permission lets you cast that spell from your library"
+            );
+
+            const accepted = makeMutationCtx("p1", [
+                gameStateSeed(
+                    board([INSTANTS_AND_SORCERIES.id], BRAZEN_BORROWER.id)
+                ),
+            ]);
+            await runAnnounceCast(accepted.ctx, PETTY_THEFT);
+            expect(accepted.state().pendingTarget?.cardInstanceId).toBe("top");
+        });
+    });
+
+    it("announceCast casts the noncreature morph card face down under the creature grant", async () => {
+        await withDefsAsync(async () => {
+            const harness = makeMutationCtx("p1", [
+                gameStateSeed(board([CREATURES_ONLY.id], NONCREATURE_MORPH.id)),
+            ]);
+            await runAnnounceCast(harness.ctx, MORPH_CAST_ALT_COST_ID);
+            const state = harness.state();
+            // Parked on its payment: the rule's {3}, never the printed cost,
+            // and marked for the face-down commit (CR 702.37c).
+            expect(state.pendingCast).toMatchObject({
+                cardInstanceId: "top",
+                manaCost: { X: 3 },
+                morphed: true,
+            });
+        });
+    });
+
+    it("WIRE — the printed cast is withdrawn from the picker when only the Adventure is licensed", () => {
+        withDefs(() => {
+            const top = (state: GameState) =>
+                projectPublicState(state, 1, "p1").players.find(
+                    (p) => p.id === "p1"
+                )!.library.known[0]?.card;
+            const melek = top(
+                board([INSTANTS_AND_SORCERIES.id], BRAZEN_BORROWER.id)
+            );
+            expect(melek?.legalActions).toContain("cast");
+            expect(melek?.printedCostCastUnavailable).toBe(true);
+            expect(
+                top(board([CREATURES_ONLY.id], BRAZEN_BORROWER.id))
+                    ?.printedCostCastUnavailable
             ).toBeUndefined();
         });
     });

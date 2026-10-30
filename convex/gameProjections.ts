@@ -18,6 +18,7 @@ import type { ActivatedAbility, ManaCost, TextChange } from "./cards/types";
 import {
     canCastFromGraveyardByPermission,
     canPlayLandsFromGraveyard,
+    libraryTopAnnouncementLicensed,
     libraryTopCastGrant,
     isCastableLibraryTopSpell,
     isPlayableLibraryTopLand,
@@ -232,7 +233,9 @@ export type SlimLibraryCard = SlimCardInstance & {
      *  named field is. Mirrors `SlimHandCard.printedCostCastUnavailable`, whose
      *  own doc covers the OTHER reason it can be set (CR 118.9b — a covering
      *  board permission's mandatory free cast, which is hand-only by
-     *  construction). */
+     *  construction). Also true (CR 601.3e, issue #7526) when the top card's
+     *  printed cast is covered by no grant while its Adventure or face-down
+     *  morph cast is (`libraryTopAnnouncementLicensed`). */
     printedCostCastUnavailable?: true;
 };
 
@@ -1073,13 +1076,24 @@ function libraryTopAffordance(
         castable &&
         libraryTopCastGrant(state, player, top)?.manaCostReplacement !==
             undefined;
-    return withPrintedCastAvailability(
+    // CR 601.3e (issue #7526) — the PRINTED cast is one announcement among
+    // several off the top: under a Melek-shaped grant Giant Killer is castable
+    // only as Chop Down, and under a creature-only grant a noncreature morph
+    // card only face down. The picker then omits its "Pay mana cost" row,
+    // exactly as for a split card (`withPrintedCastAvailability`).
+    const printedUnlicensed =
+        castable &&
+        !libraryTopAnnouncementLicensed(state, player, top, undefined);
+    const projected = withPrintedCastAvailability(
         {
             legalActions: getLegalActions(state, player, top, allActions),
             ...(replaced ? { castManaCostReplaced: true as const } : {}),
         },
         top
     );
+    return printedUnlicensed && projected.legalActions?.includes("cast")
+        ? { ...projected, printedCostCastUnavailable: true as const }
+        : projected;
 }
 
 /** Hydrate a granted ability instance with its template data for the wire. */

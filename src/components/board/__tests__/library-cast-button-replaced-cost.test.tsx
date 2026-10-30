@@ -27,6 +27,15 @@ import {
 import { gush } from "@convex/cards/sets/mmq/blue.cards";
 import { fireball } from "@convex/cards/sets/lea/red.cards";
 import { island } from "@convex/cards/sets/lea/colorless.cards";
+import { getCardByName } from "@convex/cards";
+import { withTemporaryDefinition } from "@convex/cards/registry";
+import {
+    BRAZEN_BORROWER,
+    INSTANTS_AND_SORCERIES,
+    withDefs,
+} from "@convex/gre/__tests__/libraryTopCastFilter.fixture";
+import { adventureCastAltCostId } from "@convex/gre/adventure";
+import type { CardDefinition } from "@convex/cards/types";
 
 const noopBuffer: PendingChoiceBuffer = {
     buffer: [],
@@ -76,13 +85,39 @@ function topCard(cardId: string, replaced: boolean): CardInstance {
 /** Two untapped Islands under the viewer — enough for Gush's "return two
  *  Islands" alternative cost to be genuinely affordable, so the picker is
  *  suppressed by the CR 601.2b gate and by nothing else. */
-function players(): Player[] {
+/** Vizier of the Menagerie's shape (CR 601.3): a cast-from-top permission
+ *  with NO mana-cost replacement, so each announcement pays its own cost and
+ *  the alternative-cost rows stay legal. The real projection never shows a
+ *  castable top card without the permanent that grants it, and the picker
+ *  asks that grant per row (CR 601.3e, issue #7526). */
+const PRINTED_COST_PERMISSION: CardDefinition = {
+    ...getCardByName("Bolas's Citadel"),
+    id: "test-printed-cost-library-permission",
+    name: "Test Printed-Cost Permission",
+    castsSpellsFromTopOfLibrary: {},
+};
+
+function players(permission?: CardDefinition): Player[] {
     return [
         {
             id: "me",
             name: "me",
             life: 20,
             battlefield: [
+                ...(permission
+                    ? [
+                          {
+                              id: "permission",
+                              card: { id: permission.id },
+                              controllerId: "me",
+                              ownerId: "me",
+                              zone: "battlefield",
+                              isTapped: false,
+                              types: [...permission.types],
+                              subtypes: [],
+                          },
+                      ]
+                    : []),
                 {
                     id: "isl-1",
                     card: { id: island().id },
@@ -113,7 +148,7 @@ function players(): Player[] {
     ] as unknown as Player[];
 }
 
-function renderButton(card: CardInstance) {
+function renderButton(card: CardInstance, allPlayers: Player[] = players()) {
     const value = {
         gameId: "game-id" as never,
         playerId: "me",
@@ -124,7 +159,7 @@ function renderButton(card: CardInstance) {
         engineTurn: 1,
         stackCount: 0,
         stackItems: [],
-        allPlayers: players(),
+        allPlayers,
         showAllCards: false,
         debugAllActions: false,
         onSwitchGame: () => {},
@@ -159,11 +194,40 @@ describe("library-top cast with a REPLACED mana cost — illegal announcement ch
     });
 
     it("the SAME board still offers the picker without the flag — the gate is the replacement, not the zone", () => {
-        renderButton(topCard(gush().id, false));
-        fireEvent.click(screen.getByRole("button", { name: "Cast" }));
+        withTemporaryDefinition(PRINTED_COST_PERMISSION, () => {
+            renderButton(
+                topCard(gush().id, false),
+                players(PRINTED_COST_PERMISSION)
+            );
+            fireEvent.click(screen.getByRole("button", { name: "Cast" }));
 
-        expect(screen.getByText(/Return two Islands/)).toBeTruthy();
-        expect(announceCast).not.toHaveBeenCalled();
+            expect(screen.getByText(/Return two Islands/)).toBeTruthy();
+            expect(announceCast).not.toHaveBeenCalled();
+        });
+    });
+
+    it("CR 601.3e (issue #7526) — the flag does not hide an Adventure a NON-replacing grant licenses", () => {
+        withDefs(() => {
+            // Brazen Borrower rides Bolas's Citadel (flag set); Petty Theft
+            // rides the instant-and-sorcery grant scanned first, which keeps
+            // the mana cost — a legal announcement the picker must offer.
+            const citadel = getCardByName("Bolas's Citadel");
+            const board = players(INSTANTS_AND_SORCERIES);
+            board[0].battlefield.push({
+                ...board[0].battlefield[0],
+                id: "citadel",
+                card: { id: citadel.id },
+            });
+            renderButton(topCard(BRAZEN_BORROWER.id, true), board);
+            fireEvent.click(screen.getByRole("button", { name: "Cast" }));
+
+            fireEvent.click(screen.getByText(/Petty Theft/));
+            expect(announceCast).toHaveBeenCalledTimes(1);
+            expect(announceCast.mock.calls[0][0]).toMatchObject({
+                cardInstanceId: "top",
+                alternativeCostId: adventureCastAltCostId(BRAZEN_BORROWER),
+            });
+        });
     });
 
     it("CR 107.3b — Fireball on top under a Citadel: no X stepper, the cast dispatches with no chosenX", () => {

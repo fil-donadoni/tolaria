@@ -20,6 +20,8 @@ export const CITADEL = getCardByName("Bolas's Citadel");
 const ORNITHOPTER = getCardByName("Ornithopter");
 export const GRIZZLY_BEARS = getCardByName("Grizzly Bears");
 export const STAND_DELIVER = getCardByName("Stand // Deliver");
+export const BRAZEN_BORROWER = getCardByName("Brazen Borrower");
+export const EXALTED_ANGEL = getCardByName("Exalted Angel");
 const FOREST = getCardByName("Forest").id;
 const ISLAND = getCardByName("Island").id;
 const PLAINS = getCardByName("Plains").id;
@@ -66,7 +68,60 @@ export const WHITE_ONLY: CardDefinition = {
     castsSpellsFromTopOfLibrary: { spellFilter: { colors: "W" } },
 };
 
-const TEST_DEFS = [FORGE, BLUE_ARTIFACT, COLORLESS_BEAR, WHITE_ONLY];
+/** A Melek, Izzet Paragon-shaped permission (issue #7526): instant and
+ *  sorcery spells, printed cost — CR 601.3e's second example. */
+export const INSTANTS_AND_SORCERIES: CardDefinition = {
+    ...CITADEL,
+    id: "test-instant-sorcery-permission",
+    name: "Test Instant-and-Sorcery Permission",
+    castsSpellsFromTopOfLibrary: {
+        spellFilter: { any: [{ types: "Instant" }, { types: "Sorcery" }] },
+    },
+};
+
+/** A Garruk's Horde-shaped permission (issue #7526): creature spells, printed
+ *  cost — CR 601.3e's first example. */
+export const CREATURES_ONLY: CardDefinition = {
+    ...CITADEL,
+    id: "test-creature-permission",
+    name: "Test Creature Permission",
+    castsSpellsFromTopOfLibrary: { spellFilter: { types: "Creature" } },
+};
+
+/** The creature-only filter on a grant that REPLACES the mana cost with life
+ *  (Bolas's Citadel's payment): the CR 601.2b exclusion's discriminator. */
+export const CREATURES_FOR_LIFE: CardDefinition = {
+    ...CITADEL,
+    id: "test-creature-life-permission",
+    name: "Test Creature Life Permission",
+    castsSpellsFromTopOfLibrary: {
+        manaCostReplacement: "life-equal-to-mana-value",
+        spellFilter: { types: "Creature" },
+    },
+};
+
+/** A NONCREATURE card with morph (CR 601.3e's own example shape): Exalted
+ *  Angel retyped an enchantment. Face down it is a 2/2 creature spell. */
+export const NONCREATURE_MORPH: CardDefinition = {
+    ...EXALTED_ANGEL,
+    id: "test-noncreature-morph",
+    name: "Test Noncreature Morph",
+    types: ["Enchantment"],
+    subtypes: [],
+    power: undefined,
+    toughness: undefined,
+};
+
+const TEST_DEFS = [
+    FORGE,
+    BLUE_ARTIFACT,
+    COLORLESS_BEAR,
+    WHITE_ONLY,
+    INSTANTS_AND_SORCERIES,
+    CREATURES_ONLY,
+    CREATURES_FOR_LIFE,
+    NONCREATURE_MORPH,
+];
 
 export function withDefs<T>(fn: () => T): T {
     return TEST_DEFS.reduceRight<() => T>(

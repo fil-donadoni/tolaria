@@ -81,7 +81,13 @@ import {
     independentCastOptionsFor,
 } from "./castMode";
 import { landPlayFaces } from "./modalLandPlay";
-import { offersPrintedCast, splitCastOptionsFor } from "./splitCast";
+import {
+    isSplitCastId,
+    offersPrintedCast,
+    splitCastOptionsFor,
+} from "./splitCast";
+import { adventureCastOptionFor } from "./adventure";
+import { morphCastAlternativeCost } from "./morph";
 import { canPayAnyAdditionalCost } from "./additionalCost";
 import {
     getFlashbackCost,
@@ -422,8 +428,8 @@ function libraryTopCastGrants(player: PlayerState): LibraryTopCastGrant[] {
  *  instant half but not the creature). Colours are the subject's own
  *  (`getEffectiveColors` over its cost, CR 202.2), so a colourless split half
  *  of a coloured card is a colourless spell. The library-top announcements
- *  asked of it are split halves only today; the Adventure and morph casts
- *  that example names are issue #7526.
+ *  asked of it are {@link libraryTopCastAnnouncements}: the printed cast or a
+ *  split half, the Adventure and the face-down morph cast (issue #7526).
  *
  *  The single authority every cost site reads the replacement through
  *  ({@link libraryTopCastLifeCost}, `libraryTopCastPayment`, the legality
@@ -456,6 +462,85 @@ export function libraryTopCastGrant(
     );
 }
 
+/** CR 601.3e (issue #7526) — every announcement a cast off the top of the
+ *  library could make, as the `alternativeCostId` that says which: the
+ *  non-hand set ({@link nonHandCastAnnouncements} — the printed cast, or a
+ *  split card's two halves) plus the two casts whose SUBJECT differs from the
+ *  card in its zone, and so may be covered by a filtered permission the
+ *  printed card is not: the Adventure (CR 715.3a — "only the alternative
+ *  characteristics are evaluated") and the face-down morph cast (CR 702.37c —
+ *  "you can use a morph ability to cast a card from any zone from which you
+ *  could normally cast it"). CR 601.3e's own two examples: Melek casts Chop
+ *  Down and not Giant Killer, Garruk's Horde casts a noncreature morph card
+ *  face down.
+ *
+ *  Library-only on purpose: widening the Adventure to the OTHER non-hand zones
+ *  is CR 715.3's question for each of their permissions, not this one's. */
+function libraryTopCastAnnouncements(
+    card: CardInstanceState
+): (string | undefined)[] {
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    const adventure = adventureCastOptionFor(card);
+    const morph = morphCastAlternativeCost(def ?? undefined);
+    return [
+        ...nonHandCastAnnouncements(card),
+        ...(adventure ? [adventure.id] : []),
+        ...(morph ? [morph.id] : []),
+    ];
+}
+
+/** CR 715.3a / 702.37c (issue #7526) — the mana an Adventure or face-down
+ *  morph announcement pays off the top of the library under a permission that
+ *  keeps the mana cost: the option's own cost (the inset spell's printed cost,
+ *  the rule's {3}). `undefined` for the printed cast and a split half, which
+ *  pay the subject's printed cost. */
+function libraryTopOptionManaCost(
+    card: CardInstanceState,
+    alternativeCostId: string | undefined
+): ManaCost | undefined {
+    if (alternativeCostId === undefined) return undefined;
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    const option = [
+        adventureCastOptionFor(card),
+        morphCastAlternativeCost(def ?? undefined),
+    ].find((alt) => alt?.id === alternativeCostId);
+    return option ? (option.mana ?? {}) : undefined;
+}
+
+/** CR 601.3e / 601.2b (issue #7526) — whether the announcement
+ *  `alternativeCostId` of `card` may be cast off the top of `player`'s
+ *  library: a live grant covers its SUBJECT ({@link libraryTopCastGrant}),
+ *  and that grant does not itself replace the mana cost while the announcement
+ *  is a second alternative method of casting. CR 601.2b — "a player can't
+ *  apply two alternative methods of casting or two alternative costs to a
+ *  single spell": a morph cast "follows the rules for paying alternative
+ *  costs" (CR 702.37c) and never rides on Bolas's Citadel's life payment. The
+ *  Adventure is refused there too — the engine's existing reading (issue
+ *  #4900), the same refusal `announceCast` and the Bot already make. A split
+ *  half is exempt — CR 709.3's choice of half is how the spell is named at
+ *  all, not a price.
+ *
+ *  The one predicate the legality gate, the Bot's library-top enumeration and
+ *  the client picker ask per announcement, so none of them offers a cast the
+ *  mutation refuses. */
+export function libraryTopAnnouncementLicensed(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    alternativeCostId: string | undefined
+): boolean {
+    const grant = libraryTopCastGrant(state, player, card, alternativeCostId);
+    if (grant === undefined) return false;
+    if (
+        grant.manaCostReplacement === undefined ||
+        alternativeCostId === undefined
+    ) {
+        return true;
+    }
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    return isSplitCastId(def ?? undefined, alternativeCostId) !== undefined;
+}
+
 /** Whether `cardInstanceId` is the NONLAND card on top of `player`'s own
  *  library while `player` holds a cast-from-top permission covering it (CR
  *  601.3 — Bolas's Citadel, Mystic Forge). The mirror of
@@ -465,9 +550,10 @@ export function libraryTopCastGrant(
  *  cast source. Lands are excluded — a land is PLAYED, never cast (CR 305.9),
  *  and the land half of the same Oracle sentence rides
  *  `playsLandsFromTopOfLibrary` instead. "Covering" is per announcement (CR
- *  601.3e, issue #7205): a split card is castable when ANY half is covered,
- *  and the gate in `getLegalActions` / `announceCast` then admits only the
- *  covered halves. Recomputed from the live library on every call, so a
+ *  601.3e, issue #7205): a card is castable when ANY announcement is licensed
+ *  ({@link libraryTopAnnouncementLicensed} — a split half, the Adventure, the
+ *  face-down morph cast, issue #7526), and the gate in `getLegalActions` /
+ *  `announceCast` then admits only the licensed ones. Recomputed from the live library on every call, so a
  *  draw / shuffle / mill / put-on-top moves the affordance with the position. */
 export function isCastableLibraryTopSpell(
     state: GameState,
@@ -479,9 +565,8 @@ export function isCastableLibraryTopSpell(
         top !== undefined &&
         top.id === cardInstanceId &&
         !top.types.includes("Land") &&
-        nonHandCastAnnouncements(top).some(
-            (altCostId) =>
-                libraryTopCastGrant(state, player, top, altCostId) !== undefined
+        libraryTopCastAnnouncements(top).some((altCostId) =>
+            libraryTopAnnouncementLicensed(state, player, top, altCostId)
         )
     );
 }
@@ -935,9 +1020,13 @@ function anyCastAnnouncementLegal(
             alternativeCostId: string | undefined
         ) => boolean;
         costOpts?: { extraMana?: ManaCost };
+        /** The announcements to walk. Omitted = {@link nonHandCastAnnouncements};
+         *  the library top passes its wider set (CR 601.3e, issue #7526). */
+        announcements?: (string | undefined)[];
     }
 ): boolean {
-    return nonHandCastAnnouncements(card).some((altCostId) => {
+    const announcements = opts.announcements ?? nonHandCastAnnouncements(card);
+    return announcements.some((altCostId) => {
         const subject = castSubjectView(card, altCostId);
         return (
             (opts.timingZone === undefined ||
@@ -1502,16 +1591,23 @@ export function getLegalActions(
             hasPayableAdditionalCost(player, card) &&
             anyCastAnnouncementLegal(state, player, card, {
                 timingZone: "library",
+                // CR 601.3e (issue #7526) — the Adventure and the face-down
+                // morph cast too: each is judged against its own subject.
+                announcements: libraryTopCastAnnouncements(card),
                 // CR 118.9-analog — when the permission REPLACES the mana cost
                 // the probe runs against `{}` (exactly what `castRawManaCost`
                 // returns), because a cost INCREASE and the flash surcharge
                 // still apply on top of that empty cost at the real payment
                 // site. Otherwise the cast pays "its mana cost", which CR
-                // 709.3a makes the announced HALF's.
+                // 709.3a makes the announced HALF's — or, for an Adventure
+                // (CR 715.3a) or a morph cast (CR 702.37c — "pay {3} rather
+                // than pay its mana cost"), the option's own cost.
                 cost: (subject, altCostId) =>
                     replacesManaCost(altCostId)
                         ? {}
-                        : (getInstanceManaCost(subject) ?? {}),
+                        : (libraryTopOptionManaCost(card, altCostId) ??
+                          getInstanceManaCost(subject) ??
+                          {}),
                 costOpts: mandatoryCostOpts,
                 // CR 119.4 — a player may pay life only while their life total
                 // is at least the amount. Paying down to exactly 0 is legal
@@ -1528,10 +1624,16 @@ export function getLegalActions(
                 // number.
                 //
                 // CR 601.3e (issue #7205) — and an announcement no grant covers
-                // (a filtered permission's uncovered half) is no cast at all.
+                // (a filtered permission's uncovered half) is no cast at all;
+                // nor, CR 601.2b (issue #7526), an Adventure or morph cast
+                // riding a grant that already replaces the mana cost.
                 alsoLegal: (_subject, altCostId) =>
-                    libraryTopCastGrant(state, player, card, altCostId) !==
-                        undefined &&
+                    libraryTopAnnouncementLicensed(
+                        state,
+                        player,
+                        card,
+                        altCostId
+                    ) &&
                     (!replacesManaCost(altCostId) ||
                         player.life >=
                             libraryTopCastLifeCost(

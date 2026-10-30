@@ -22126,10 +22126,10 @@ export interface CardDefinition {
      *  the card in its zone: CR 601.3e makes the characteristics a cast would
      *  have the ones that decide whether the permission applies, so a split
      *  card off the top is covered half by half (CR 709.3a,
-     *  `libraryTopCastGrant`, `gre/rules.ts`). The Adventure and face-down
-     *  morph announcements CR 601.3e's own examples name are not yet offered
-     *  from the library (issue #7526). Omitted = every nonland spell (Bolas's
-     *  Citadel). */
+     *  `libraryTopCastGrant`, `gre/rules.ts`), and so are the Adventure and
+     *  face-down morph announcements CR 601.3e's own examples name (issue
+     *  #7526, `libraryTopAnnouncementLicensed`). Omitted = every nonland spell
+     *  (Bolas's Citadel). */
     castsSpellsFromTopOfLibrary?: {
         manaCostReplacement?: ManaCostReplacement;
         spellFilter?: SpellFilter;
