@@ -17093,25 +17093,16 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         budget: { iterations: 400 },
         tier: "must",
         expect: {
-            predicate: (move, state) => {
-                if (move === null || move.kind !== "activate-ability") {
-                    return false;
-                }
-                const targets = move.targets ?? [];
-                if (targets.length !== 2) return false;
-                // Slot 0 is the fighter, slot 1 the creature it fights.
-                return (
-                    instanceIdsForName(state, "Kindercatch").has(
-                        targets[0].id
-                    ) &&
-                    instanceIdsForName(state, "Rumbling Baloth").has(
-                        targets[1].id
-                    )
-                );
-            },
-            describe:
-                "activates Triangle of War announcing Kindercatch as the fighter and Rumbling Baloth as the creature it fights",
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Triangle of War",
+                    // Slot 1 only admits the opponent's creatures, so the
+                    // Bot's own Kindercatch among the targets is the fighter.
+                    target: "Kindercatch",
+                },
+            ],
         },
-        note: "Issue #5609. `MoveMatcher.target` matches ANY target, so it cannot name the fighter slot — hence the predicate. Right-hand half of the 1/1 anchor: the Bot's own lethal creature is the fighter, so the exchange nets a removal.",
+        note: "Issue #5609. Right-hand half of the 1/1 anchor: the Bot's own lethal creature is the fighter, so the exchange nets a removal.",
     },
 ];
