@@ -638,8 +638,9 @@ describe("Kicker gold over the hand-written catalogue", () => {
         }
         // Arctic Merfolk's "Return a creature you control to its owner's hand"
         // is a cost leg the shared cost grammar does not read (it reads a
-        // return of the SOURCE only).
-        expect(refused.sort()).toEqual(["Arctic Merfolk"]);
+        // return of the SOURCE only). Dralnu's Pet's "Discard a creature card"
+        // is a hand leg it does not read either (compiler-gap, issue #7552).
+        expect(refused.sort()).toEqual(["Arctic Merfolk", "Dralnu's Pet"]);
         expect(accepted).toBeGreaterThan(40);
     });
 });
