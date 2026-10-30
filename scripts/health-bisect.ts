@@ -12,7 +12,7 @@
  *       Exit 0: no RED stands (none, or closed GREEN); 1: the RED stands
  *       (or the last run was INFRA); 2: usage.
  *       A fresh run passing the failing files alone in a shared-worker
- *       project re-runs that project whole first (issue #7584).
+ *       project re-runs that project whole first, the failing files last.
  *   bun run health:bisect bisect --sha <sha> [--good <sha>] [--files a,b] [--projects p,q] [--dry-run]
  *       The bisect alone: the RED's failing tests (its evidence's FAIL
  *       lines, or the whole --files; inside the whole --projects when

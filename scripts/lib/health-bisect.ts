@@ -9,7 +9,7 @@
  *     the commit status may have had no room) re-run once at the RED sha in a
  *     fresh worktree, on a `lane` runner. Passing alone in a shared-worker
  *     project (`isolate: false`), they re-run inside that whole project, one
- *     worker (`freshRunSteps`, issue #7584): a cross-file leak reproduces
+ *     worker (`freshRunSteps`): a cross-file leak reproduces
  *     only beside its polluter, and the bisect then probes the same scope.
  *     A RED naming no file re-runs its
  *     failed health step instead. A RED naming neither has nothing to re-run
