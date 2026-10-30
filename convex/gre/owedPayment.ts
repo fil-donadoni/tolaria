@@ -108,6 +108,10 @@ export const CAST_KEY_CENSUS: Record<keyof PendingCast, ParkClass> = {
     // of a choice already made at announcement. The warp cost it implies is
     // ordinary MANA and parks (or not) through `manaCost` above like any other.
     warped: "non-park",
+    // CR 702.119c — an emerge reduction still to apply: a ledger entry the
+    // `sacrificeSelection` pick discharges, not a pick of its own. The victim
+    // IS the park, and it is already census-ed there.
+    emergeReductionOwed: "non-park",
     // CR 702.103a — a bestow cast-mode marker, like `evoked`/`dashed`: a
     // snapshot of a choice already made, never a payment the caster still owes.
     bestowed: "non-park",

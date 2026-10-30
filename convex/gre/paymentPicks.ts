@@ -35,6 +35,7 @@ import { manaValue } from "./constants";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { effectivePermanentView } from "./permanentView";
 import { handCardMatchesFilter } from "./alternativeCost";
+import { largestEmergeVictim } from "./emerge";
 import { liveSupertypesOf } from "./snow";
 import {
     isTapOtherSelectionComplete,
@@ -60,6 +61,14 @@ import type {
 // ────────────────────────────────────────────────────────────────────────────
 // Shared conservative primitives (used here AND by `activationCostPicks.ts`)
 // ────────────────────────────────────────────────────────────────────────────
+
+/** CR 702.119a — the emerge cost of the parked cast's card, read off the
+ *  caster's hand, where a parked cast's card stays until commit. */
+function emergeAltCostOf(cardInstanceId: string, player: PlayerState) {
+    const card = player.hand.find((c) => c.id === cardInstanceId);
+    if (!card) return undefined;
+    return tryGetDefinition((card.card as { id?: string }).id ?? "")?.emerge;
+}
 
 /** Mana value of a card instance's definition (CR 202.3), 0 when unknown. */
 export function instanceManaValue(card: CardInstanceState): number {
@@ -541,7 +550,23 @@ export function pickForOwedPayment(
                 ...sel,
                 picked: [...sel.picked],
             };
-            const submitted = completeSacrificeSelection(state, trial);
+            // CR 702.119a — an emerge victim still to pick buys a reduction
+            // by its mana value, so the fallback names the LARGEST one, the
+            // victim the Bot's tap plan was priced with (`planCastCostPicks`).
+            const emergeAlt =
+                kind === "cast:sacrificeSelection" && pc?.emergeReductionOwed
+                    ? emergeAltCostOf(pc.cardInstanceId, player)
+                    : undefined;
+            const emergeVictim = emergeAlt
+                ? largestEmergeVictim(player, emergeAlt)
+                : undefined;
+            const submitted = completeSacrificeSelection(
+                state,
+                trial,
+                emergeVictim && !trial.picked.includes(emergeVictim.id)
+                    ? player.battlefield.find((c) => c.id === emergeVictim.id)
+                    : undefined
+            );
             if (submitted === null || submitted.length === 0) return null;
             return {
                 mutation: "selectSacrifice",
