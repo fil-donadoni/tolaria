@@ -952,12 +952,6 @@ const TOKEN_ABILITY_COST_KEYS = new Set([
     "mana",
     "sacrifice",
     "discardFilter",
-    // CR 606.2 (issue #7198) — a planeswalker token's loyalty ability: CR
-    // 701.71a's Jace token ("[−1]: Surveil 1", "[−3]: Draw a card"). A signed
-    // integer, the same `ActivatedAbility.cost.loyalty` a printed
-    // planeswalker's ability carries; CR 606.3/606.6 are enforced by the one
-    // authority, `gre/loyalty.ts`, for token and card alike.
-    "loyalty",
 ]);
 function isTokenAbilityCost(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -970,15 +964,6 @@ function isTokenAbilityCost(value: unknown): boolean {
     if ("tap" in c && typeof c.tap !== "boolean") return false;
     if ("mana" in c && !isManaCost(c.mana)) return false;
     if ("sacrifice" in c && typeof c.sacrifice !== "boolean") return false;
-    // CR 606.4 — the cost is the loyalty counters the loyalty symbol shows.
-    // The only token printing one (CR 701.71a's Jace) shows the symbol alone,
-    // so another leg beside it is rejected until a real token needs one.
-    if ("loyalty" in c) {
-        if (typeof c.loyalty !== "number" || !Number.isInteger(c.loyalty)) {
-            return false;
-        }
-        if (Object.keys(c).length !== 1) return false;
-    }
     if ("discardFilter" in c) {
         const df = c.discardFilter;
         if (typeof df !== "object" || df === null || Array.isArray(df)) {
