@@ -327,3 +327,94 @@ export function lowerKickers(
     }
     return { ok: true, value: out };
 }
+
+/** An `EffectTargetRef` — `{ target: <slot> }` — anywhere in a script tree. */
+function isSlotRef(node: unknown): node is { target: number } {
+    return (
+        node !== null &&
+        typeof node === "object" &&
+        !Array.isArray(node) &&
+        typeof (node as { target?: unknown }).target === "number"
+    );
+}
+
+function collectSlots(node: unknown, out: Set<number>): void {
+    if (Array.isArray(node)) {
+        for (const child of node) collectSlots(child, out);
+        return;
+    }
+    if (isSlotRef(node)) {
+        out.add(node.target);
+        return;
+    }
+    if (node === null || typeof node !== "object") return;
+    for (const value of Object.values(node)) collectSlots(value, out);
+}
+
+function rewriteSlots(node: unknown): unknown {
+    if (Array.isArray(node)) return node.map(rewriteSlots);
+    if (isSlotRef(node)) return { ref: "$each" };
+    if (node === null || typeof node !== "object") return node;
+    return Object.fromEntries(
+        Object.entries(node).map(([key, value]) => [key, rewriteSlots(value)])
+    );
+}
+
+/**
+ * CR 702.96a / 702.96b — the spell body of a card that declares Overload.
+ *
+ * Overload changes "target" to "each" in the spell's text. The engine writes
+ * that as ONE script (`gre/overload.ts`): the ops that read the spell's target
+ * reach it through `forEach { set: "targets" }` — a set of the announced
+ * target when cast normally, of every matching object when overloaded — and
+ * never through a `{ target: n }` slot. So the ops mentioning the slot are
+ * wrapped in one sweep and each slot reference becomes `{ ref: "$each" }`.
+ *
+ * Refused (the compiler never emits what `validateEffectScript` would red):
+ * a body with no slot reference (overload changes nothing, so the card is not
+ * the shape this reads), more than one target slot (one sweep, one set), and
+ * slot-reading ops split by an op that does not read one (wrapping them would
+ * reorder the body, CR 608.2c).
+ */
+export function lowerOverloadSweep(
+    effects: readonly EffectOp[]
+): LowerSpellResult<EffectOp[]> {
+    const slots = new Set<number>();
+    const reads = effects.map((op) => {
+        const mine = new Set<number>();
+        collectSlots(op, mine);
+        for (const slot of mine) slots.add(slot);
+        return mine.size > 0;
+    });
+    if (slots.size === 0)
+        return {
+            ok: false,
+            reason: "an overload card whose body names no target has nothing to change to 'each' (CR 702.96a)",
+        };
+    if (slots.size > 1)
+        return {
+            ok: false,
+            reason: "an overload body with several target slots has no single 'each' set (CR 702.96a)",
+        };
+    const first = reads.indexOf(true);
+    const last = reads.lastIndexOf(true);
+    if (reads.slice(first, last + 1).includes(false))
+        return {
+            ok: false,
+            reason: "an overload body interleaves target-reading and other ops; one sweep would reorder them (CR 608.2c)",
+        };
+    return {
+        ok: true,
+        value: [
+            ...effects.slice(0, first),
+            {
+                op: "forEach",
+                select: { set: "targets" },
+                effects: rewriteSlots(
+                    effects.slice(first, last + 1)
+                ) as EffectOp[],
+            },
+            ...effects.slice(last + 1),
+        ],
+    };
+}

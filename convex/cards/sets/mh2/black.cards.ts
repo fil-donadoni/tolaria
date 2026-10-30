@@ -226,11 +226,6 @@ export const boneShards = defineCard(() => ({
 // `cantBeRegenerated` (ADR 0053) carries the second sentence in both modes;
 // indestructible still protects (CR 701.8 — "can't be regenerated" suppresses
 // the CR 701.19c shield only).
-//
-// The grammar has no keyword-cost line rule for CR 702.96, and an overload
-// card's body must lower to the `forEach { set: "targets" }` shape rather than
-// a slot reference, so neither line round-trips yet (issue #3274):
-// compiler-gap: Overload {2}{W}{W} (#3274)
 export const damn = defineCard(() => ({
     id: "efeae088-9ac5-4d2f-a15c-d8675a471ac5",
     name: "Damn",

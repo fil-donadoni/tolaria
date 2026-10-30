@@ -2390,6 +2390,10 @@ export type ModifierIR =
           readonly kind: "cant-be-regenerated";
           /** "They can't be regenerated." — the plural pronoun of a SWEEP. */
           readonly plural?: true;
+          /** "A creature destroyed this way can't be regenerated." — the noun
+           *  names the destroyed object, so the fold requires the destroy it
+           *  modifies to be a targeted creature. */
+          readonly noun?: "Creature";
       }
     /**
      * CR 701.6a + CR 113.7a — "If a permanent's ability is countered this way,
@@ -4157,6 +4161,17 @@ export function assembleSentences(
             // "They" is the sweep's own pronoun and, in turn, has no referent
             // behind one object. The number of the pronoun must match.
             const isSweep = previous.subject.kind === "mass";
+            if (
+                sentence.modifier.kind === "cant-be-regenerated" &&
+                sentence.modifier.noun !== undefined &&
+                (previous.subject.kind !== "target" ||
+                    previous.subject.requirement.type !==
+                        sentence.modifier.noun)
+            )
+                return {
+                    ok: false,
+                    reason: `"A ${sentence.modifier.noun.toLowerCase()} destroyed this way can't be regenerated." follows no destroy of one targeted ${sentence.modifier.noun.toLowerCase()}`,
+                };
             if (
                 isSweep !==
                 (sentence.modifier.kind === "cant-be-regenerated" &&
@@ -6136,6 +6151,17 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
             return ok({
                 role: "modifier" as const,
                 modifier: { kind: "destroy-countered-source" as const },
+            });
+        // CR 701.19c — "A creature destroyed this way" is the anaphoric noun
+        // phrase for the one object the previous destroy destroyed (Damn); the
+        // fold checks the noun against that destroy.
+        if (span === "A creature destroyed this way can't be regenerated")
+            return ok({
+                role: "modifier" as const,
+                modifier: {
+                    kind: "cant-be-regenerated" as const,
+                    noun: "Creature" as const,
+                },
             });
         // CR 701.19c — the plural pronoun of a sweep ("Destroy all green
         // creatures. They can't be regenerated."); the fold checks the number

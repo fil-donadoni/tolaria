@@ -434,6 +434,7 @@ function costParameter(head: string, span: string): RuleResult<ManaCost> {
 
 const CYCLING_HEAD = "Cycling ";
 const MADNESS_HEAD = "Madness ";
+const OVERLOAD_HEAD = "Overload ";
 const MORPH_HEAD = "Morph ";
 
 /**
@@ -461,6 +462,22 @@ export const madnessRule: Rule<SlotIR> = rule("madness", (span) => {
     const cost = costParameter(MADNESS_HEAD, span);
     if (!cost.ok) return cost;
     return ok({ kind: "madness" as const, cost: cost.value });
+});
+
+/**
+ * CR 702.96a — "Overload [cost]": the alternative cost that makes the spell
+ * affect each object instead of a target. The engine reads it off
+ * `CardDefinition.overload` (`gre/overload.ts`); the text-changing half is the
+ * spell body's `forEach { set: "targets" }` shape, written by `lower.ts`.
+ */
+export const overloadRule: Rule<SlotIR> = rule("overload", (span) => {
+    const cost = costParameter(OVERLOAD_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({
+        kind: "overload" as const,
+        cost: cost.value,
+        description: span,
+    });
 });
 
 /**
@@ -547,7 +564,7 @@ export const fadingRule: Rule<SlotIR> = rule("fading", (span) => {
 
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
- * one kicker line, or one cost-parameter keyword (cycling, madness, morph,
+ * one kicker line, or one cost-parameter keyword (cycling, madness, overload, morph,
  * fading). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
  * object, and each parameterised rule reads only its own head — and `oneOf`
@@ -560,6 +577,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     kickerRule,
     cyclingRule,
     madnessRule,
+    overloadRule,
     morphRule,
     echoRule,
     cumulativeUpkeepRule,

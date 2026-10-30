@@ -32,6 +32,7 @@ import {
     lowerAdditionalCosts,
     lowerFlashback,
     lowerKickers,
+    lowerOverloadSweep,
     lowerSpellBody,
     lowerSpellModes,
 } from "./lowerSpell";
@@ -162,6 +163,8 @@ interface Accumulator {
     alternativeCosts?: AlternativeCost[];
     /** CR 702.35a — the cost to cast the card when it is discarded. */
     madness?: ManaCost;
+    /** CR 702.96a — the card's overload alternative cost. */
+    overload?: AlternativeCost;
     /** CR 702.37e — the cost to turn the permanent face up. */
     morph?: ManaCost;
     echo?: MayPayCost;
@@ -803,6 +806,17 @@ function lowerLine(
             acc.madness = ir.cost;
             return null;
         }
+        case "overload": {
+            if (acc.overload !== undefined)
+                return "a card declares overload twice (CR 702.96a)";
+            // The id is the convention `isOverloadCastId` reads (`gre/overload.ts`).
+            acc.overload = {
+                id: "overload",
+                description: ir.description,
+                mana: ir.cost,
+            };
+            return null;
+        }
         case "morph": {
             if (acc.morph !== undefined)
                 return "a card declares morph twice (CR 702.37a)";
@@ -1300,6 +1314,35 @@ export function lowerCard(
                 fragment: card.oracleText,
             };
         definition.targetRequirement = acc.enchantRequirement;
+    }
+    if (acc.overload !== undefined) {
+        // CR 702.96a — overload is a spell's alternative cost; a permanent
+        // spell has no text of its own to change.
+        if (acc.spellEffects === undefined || !isSpellCard)
+            return {
+                ok: false,
+                reason: "an overload cost with no instant or sorcery text to change (CR 702.96a)",
+                fragment: card.oracleText,
+            };
+        if (
+            acc.spellAdditionalTargetRequirements !== undefined ||
+            acc.spellKickedTargetRequirement !== undefined ||
+            acc.spellTargetRequirement === undefined
+        )
+            return {
+                ok: false,
+                reason: "an overload spell reads exactly one printed target requirement (CR 702.96b)",
+                fragment: card.oracleText,
+            };
+        const swept = lowerOverloadSweep(acc.spellEffects);
+        if (!swept.ok)
+            return {
+                ok: false,
+                reason: swept.reason,
+                fragment: card.oracleText,
+            };
+        acc.spellEffects = swept.value;
+        definition.overload = acc.overload;
     }
     if (acc.spellEffects !== undefined) {
         definition.effects = acc.spellEffects;
