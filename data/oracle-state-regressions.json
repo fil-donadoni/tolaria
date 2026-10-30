@@ -1,41 +1,4 @@
 {
     "note": "Acknowledged `ready` -> lesser state transitions, read by `bun run check:oracle` (issue #2696). An entry lets ONE card leave the compiled pool in ONE change; once that change lands on the base branch the entry matches nothing and should be deleted. Every entry names its disposition: `trackedBy` (the issue that undoes the loss) or `intended: true` (a deliberate drop). Written by `bun run oracle:mark-regressions --acknowledge`; stale entries are pruned after merge by `oracle:prune-regressions`, never by a PR author (issue #6061).",
-    "acknowledged": [
-        {
-            "oracleId": "5c151e3b-fcf2-4adb-a60b-9eff0c360705",
-            "name": "Arcane Amphisbaena",
-            "reason": "RED-ladder revert of PR #7563 drops it from ready; the fresh pass of issue #7198 re-ships it",
-            "trackedBy": 7198
-        },
-        {
-            "oracleId": "ecdfee75-15fd-41ea-89d4-4bfc1fa4d032",
-            "name": "Keeper of the Quiet Hour",
-            "reason": "RED-ladder revert of PR #7563 drops it from ready; the fresh pass of issue #7198 re-ships it",
-            "trackedBy": 7198
-        },
-        {
-            "oracleId": "aa9547b3-e4e4-4557-9dd1-3aa9a7cb9937",
-            "name": "Mindseeker Oculus",
-            "reason": "RED-ladder revert of PR #7563 drops it from ready; the fresh pass of issue #7198 re-ships it",
-            "trackedBy": 7198
-        },
-        {
-            "oracleId": "d53ae01b-87e1-48e1-9fc3-23a734ce6622",
-            "name": "No Admittance",
-            "reason": "RED-ladder revert of PR #7563 drops it from ready; the fresh pass of issue #7198 re-ships it",
-            "trackedBy": 7198
-        },
-        {
-            "oracleId": "07617648-6490-4719-acec-7705671f7e01",
-            "name": "Protege's Awakening",
-            "reason": "RED-ladder revert of PR #7563 drops it from ready; the fresh pass of issue #7198 re-ships it",
-            "trackedBy": 7198
-        },
-        {
-            "oracleId": "7799413d-e313-4a05-ad28-f4c926c26d28",
-            "name": "Vraska's Final Mercy",
-            "reason": "RED-ladder revert of PR #7563 drops it from ready; the fresh pass of issue #7198 re-ships it",
-            "trackedBy": 7198
-        }
-    ]
+    "acknowledged": []
 }
