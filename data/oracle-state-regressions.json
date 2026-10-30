@@ -1,4 +1,95 @@
 {
     "note": "Acknowledged `ready` -> lesser state transitions, read by `bun run check:oracle` (issue #2696). An entry lets ONE card leave the compiled pool in ONE change; once that change lands on the base branch the entry matches nothing and should be deleted. Every entry names its disposition: `trackedBy` (the issue that undoes the loss) or `intended: true` (a deliberate drop). Written by `bun run oracle:mark-regressions --acknowledge`; stale entries are pruned after merge by `oracle:prune-regressions`, never by a PR author (issue #6061).",
-    "acknowledged": []
+    "acknowledged": [
+        {
+            "oracleId": "52fd9309-b849-419a-8d19-5882c00a72b4",
+            "name": "Beluna's Gatekeeper // Entry Denied",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "2dfad8c3-1973-4fc8-971d-f66cacd88070",
+            "name": "Blustersquall",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "c61374e5-a7f6-455e-a40b-a481751b536b",
+            "name": "Bushwhack",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "d75b9c82-1b49-4c3e-a1b5-aeef57d6644b",
+            "name": "Cyclonic Rift",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "86790a10-c564-44b7-a177-1e66ab9afe77",
+            "name": "Dead // Gone",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "46537bac-b1eb-4c02-ba43-6c6b16c7729c",
+            "name": "Downsize",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "99fd4b51-1698-4168-9366-a6ea2df22361",
+            "name": "Electrickery",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "33ef3d51-845d-460b-97a0-95e7591cf466",
+            "name": "Gnawing Vermin",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "11cf103c-f8a3-4892-942d-2c4472dd5716",
+            "name": "Go for Blood",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "48ddba1e-2ad7-463f-9307-d2379a800e51",
+            "name": "Mizzium Mortars",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "f4126dac-add4-4d5f-bf52-6f74c7c6aa67",
+            "name": "Pounce",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "b3c12848-528d-4005-878f-4f950a07240a",
+            "name": "Prey Upon",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "70965b80-c8ad-4718-ae20-12a4d8228898",
+            "name": "Skemfar Elderhall",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "92382bdb-84cf-4456-8ca1-8a19badae7ad",
+            "name": "Touchstone",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        },
+        {
+            "oracleId": "3567c3c8-b3c7-45b7-935b-b1fdbc973720",
+            "name": "Vandalblast",
+            "reason": "RED-ladder revert of PR #7612 drops it from ready; the fresh pass of issue #7221 re-ships it",
+            "trackedBy": 7221
+        }
+    ]
 }
