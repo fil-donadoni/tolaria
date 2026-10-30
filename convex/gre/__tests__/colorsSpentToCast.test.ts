@@ -49,7 +49,7 @@ const convergeSpell: CardDefinition = {
     rarity: "uncommon",
     manaCost: { X: "X", W: 1 },
     types: ["Sorcery"],
-    targetRequirement: { type: "Permanent", count: 1 },
+    targetRequirement: { type: "Creature", count: 1 },
     noteManaSpent: true,
     effects: CONVERGE_EXILE,
 };
