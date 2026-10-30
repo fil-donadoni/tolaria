@@ -30285,6 +30285,7 @@
         {"id":"606.6","line":"it(\"CR 606.6 — a −3 ability can't be activated with fewer than 3 loyalty\", () => {","sites":1,"status":"confirmed","ruleHash":"3c09079dabe286d9"},
         {"id":"606.6","line":"it(\"cost.loyalty — a CR 606.6 activation REPORTS, changes nothing, and is never pushed\", () => {","sites":1,"status":"baseline"},
         {"id":"606.6","line":"it(\"opens each cost EXACTLY at the loyalty CR 606.6 requires\", () => {","sites":1,"status":"baseline"},
+        {"id":"606.6","line":"it(\"refuses a granted −N the walker cannot pay, offers it once it can, and asks for its target (CR 606.6)\", () => {","sites":1,"status":"confirmed","ruleHash":"3c09079dabe286d9"},
         {"id":"606.6","line":"it(\"refuses a negative cost the creature cannot pay and allows it once it can (CR 606.6)\", () => {","sites":1,"status":"baseline"},
         {"id":"606.6","line":"it(\"the mutation rejects a `-6` the walker cannot pay (CR 606.6)\", () => {","sites":1,"status":"baseline"},
         {"id":"606.6","line":"it(\"withholds the −3 at 2 loyalty (CR 606.6), keeps the −1\", () => {","sites":1,"status":"confirmed","ruleHash":"3c09079dabe286d9"},
