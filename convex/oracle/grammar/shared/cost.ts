@@ -297,7 +297,7 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
             const magnitude = Number(loyalty[2] ?? 0);
             return ok({
                 kind: "loyalty" as const,
-                amount: loyalty[1] === "+" ? magnitude : -magnitude,
+                amount: loyalty[1] === "-" ? -magnitude : magnitude,
             });
         }
         if (span.startsWith("{")) {
