@@ -723,7 +723,8 @@ describe("Bottle of Suleiman (random-reveal coin flip, CR 705 / ADR 0023)", () =
         expect(head.result).toBe(1);
         expect(head.realized).toEqual({
             face: "WIN",
-            consequence: "Create a 5/5 flying Djinn",
+            consequence:
+                "Create a 5/5 colorless Djinn artifact creature token with flying.",
         });
         // The consequence has NOT been applied yet (reveal precedes apply).
         expect(state.players[0].battlefield.filter((c) => c.isToken)).toEqual(
@@ -765,7 +766,7 @@ describe("Bottle of Suleiman (random-reveal coin flip, CR 705 / ADR 0023)", () =
         expect(head.result).toBe(0);
         expect(head.realized).toEqual({
             face: "LOSE",
-            consequence: "Bottle of Suleiman deals 5 damage to you",
+            consequence: "This artifact deals 5 damage to you.",
         });
         expect(state.rngCounter).toBe(before + 1);
         // Damage NOT yet applied.
@@ -795,7 +796,8 @@ describe("Bottle of Suleiman (random-reveal coin flip, CR 705 / ADR 0023)", () =
             // opponent see the realized face + consequence.
             expect(head.realized).toEqual({
                 face: "WIN",
-                consequence: "Create a 5/5 flying Djinn",
+                consequence:
+                    "Create a 5/5 colorless Djinn artifact creature token with flying.",
             });
         }
     });

@@ -13860,6 +13860,16 @@
         "source": "compiled"
     },
     {
+        "name": "Crazed Firecat",
+        "scryfallId": "5ef809de-ff64-4832-95dd-2ebda5942df8",
+        "oracleId": "ba7cc6be-e575-4592-ada7-bbad3ae2225b",
+        "firstSet": "tor",
+        "firstPrintId": "5ef809de-ff64-4832-95dd-2ebda5942df8",
+        "firstPrintSet": "tor",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Crazed Skirge",
         "scryfallId": "816272de-f134-45fa-ac1f-70d35d30c7e1",
         "oracleId": "72a53d9e-0645-4024-a90f-73b05c2284c6",
@@ -69845,6 +69855,16 @@
         "firstPrintId": "ac93faba-8b40-48f4-b4eb-7c8677ed07e2",
         "firstPrintSet": "shm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Tavern Swindler",
+        "scryfallId": "47240ed3-f256-45fb-ab38-7b07e672d2ed",
+        "oracleId": "81674138-08d0-4126-9e6d-27f6e7dd2403",
+        "firstSet": "rtr",
+        "firstPrintId": "47240ed3-f256-45fb-ab38-7b07e672d2ed",
+        "firstPrintSet": "rtr",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

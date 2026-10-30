@@ -5375,6 +5375,56 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 705.2 + CR 122.1 (issue #4537) — "flip a coin until you lose a flip.
+    // Put a +1/+1 counter on this creature for each flip you won." The flips
+    // are random bits the canned smoke scenario cannot fix, so this fixture is
+    // the evidence that the series binds its wins and the counters read them.
+    {
+        rule: "coin-flip-until-loss",
+        card: {
+            oracleId: "ba7cc6be-e575-4592-ada7-bbad3ae2225b",
+            name: "Crazed Firecat",
+            manaCost: "{5}{R}{R}",
+            typeLine: "Creature — Elemental Cat",
+            oracleText:
+                "When this creature enters, flip a coin until you lose a flip. Put a +1/+1 counter on this creature for each flip you won.",
+            power: "4",
+            toughness: "4",
+            layout: "normal",
+        },
+        expected: {
+            name: "Crazed Firecat",
+            types: ["Creature"],
+            subtypes: ["Elemental", "Cat"],
+            manaCost: { X: 5, R: 2 },
+            power: 4,
+            toughness: 4,
+            oracleText:
+                "When this creature enters, flip a coin until you lose a flip. Put a +1/+1 counter on this creature for each flip you won.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "crazed-firecat-trigger",
+                    oracleText:
+                        "When this creature enters, flip a coin until you lose a flip. Put a +1/+1 counter on this creature for each flip you won.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "coinFlipSeries",
+                            untilLoss: true,
+                            bindWins: "$wins",
+                        },
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "+1/+1",
+                            target: { ref: "$source" },
+                            count: { ref: "$wins" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 107.1c + CR 705.2 (issue #3813, ADR 0144) — "Choose a number. Flip
     // a coin that many times or until you lose a flip, whichever comes first.
     // If you win all the flips, draw two cards for each flip." Exhibits the
