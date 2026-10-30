@@ -22,8 +22,10 @@ import { resolveTopOfStack, type GameState } from "../state";
 import { checkStateBasedActions } from "../sba";
 import { projectPublicState } from "../../gameProjections";
 import {
+    GRANTED_MINUS10,
     GRANTED_PLUS2,
     WALKER_STATICS,
+    bear,
     liliana,
     walkerBoard,
     walkerStaticsSource,
@@ -98,13 +100,55 @@ describe("granted loyalty ability (CR 613.1f / 606, issue #7199)", () => {
                     onBattlefield(state, idx, id)!.grantedActivatedAbilities ??
                     []
                 ).map((g) => g.abilityId);
-            expect(abilityIds("pw", 0)).toEqual([GRANTED_PLUS2]);
+            expect(abilityIds("pw", 0)).toEqual([
+                GRANTED_PLUS2,
+                GRANTED_MINUS10,
+            ]);
             expect(abilityIds("their-pw", 1)).toEqual([]);
 
             state.players[0]!.battlefield =
                 state.players[0]!.battlefield.filter((c) => c.id !== "statics");
             syncLayer6(state);
             expect(offered(state)).not.toContain(GRANTED_PLUS2);
+            // Still a live menu: the printed ability survives the source.
+            expect(offered(state)).toContain("liliana-veil-plus1");
+        });
+    });
+
+    it("refuses a granted −N the walker cannot pay, offers it once it can, and asks for its target (CR 606.6)", () => {
+        withTemporaryDefinition(WALKER_STATICS, () => {
+            const poor = walkerBoard({
+                mine: [
+                    walkerStaticsSource(),
+                    liliana("pw", "p1", 3),
+                    bear("bear"),
+                ],
+            });
+            syncLayer6(poor);
+            expect(offered(poor)).not.toContain(GRANTED_MINUS10);
+            expect(() =>
+                activateAbilityOnState(poor, {
+                    playerId: "p1",
+                    cardInstanceId: "pw",
+                    abilityId: GRANTED_MINUS10,
+                })
+            ).toThrow(/Not enough loyalty/);
+
+            const rich = walkerBoard({
+                mine: [
+                    walkerStaticsSource(),
+                    liliana("pw", "p1", 10),
+                    bear("bear"),
+                ],
+            });
+            syncLayer6(rich);
+            expect(offered(rich)).toContain(GRANTED_MINUS10);
+            activateAbilityOnState(rich, {
+                playerId: "p1",
+                cardInstanceId: "pw",
+                abilityId: GRANTED_MINUS10,
+            });
+            expect(rich.pendingTarget?.targetType).toBe("Creature");
         });
     });
 });
@@ -122,7 +166,7 @@ describe("zero-loyalty exemption (CR 704.5i, issue #7199)", () => {
             const projected = wire.players[0]!.battlefield.find(
                 (c) => c.id === "pw"
             );
-            expect(projected).toBeDefined();
+            expect(projected?.counters?.loyalty).toBe(0);
         });
     });
 
