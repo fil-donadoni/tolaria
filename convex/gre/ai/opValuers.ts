@@ -3844,6 +3844,11 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // CR 701.20a — binds the chosen NAME; the material is whatever later Op
     // reads the binding back, which is why `bind` is a required field.
     nameCard: "neutral",
+    // CR 609.3 (issue #1702) — binds a RANDOM pick of cards and moves none:
+    // the zone's owner is neither helped nor hurt until the sibling Op that
+    // reads the picks acts on them (a `moveZone` to exile, to hand), which
+    // carries its own row. `bind` is required for exactly that reason.
+    selectAtRandom: "neutral",
     // CR 205.3m (issue #3721) — `nameCard`'s twin for creature types, and
     // neutral for the identical reason: the Op hands its `player` a pick out
     // of CR 205.3m's table and takes nothing from anyone. It moves no card, no
@@ -3877,11 +3882,6 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // hand's owner (this Op's recipient) is neither helped nor hurt. Identical
     // reasoning to `lookHand` above, which it predates.
     lookRandomHand: "neutral",
-    // CR 609.3 (issue #1702) — a bind-only random pick: nothing moves, so the
-    // zone's owner is neither helped nor hurt until a LATER Op acts on the
-    // picks, and that Op carries its own sign (a `moveZone` to exile hurts, to
-    // hand helps).
-    selectAtRandom: "neutral",
     // CR 701.24 — `action: "shuffle"` is the Op's only shape: it randomizes an
     // ORDER and moves no card between zones. Its real value is informational
     // (shuffling away a stacked top is an attack, shuffling your own library
@@ -4050,6 +4050,7 @@ export const BINDING_ONLY_OPS: ReadonlySet<EffectOp["op"]> = new Set<
     "nameCard",
     "chooseCreatureType",
     "chooseLandType",
+    "selectAtRandom",
 ]);
 
 /** Sign of one Op for its recipient (issue #1888). Reads the Op's own shape for
