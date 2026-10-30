@@ -6246,6 +6246,9 @@ function optionalChosenMove(
     const frame = sentence.frames[0]!;
     if (frame.frame !== "moveZone" || frame.object.kind !== "chosen")
         return null;
+    // CR 609.3 — a pick at random has no chooser to decline it: its "you may"
+    // stays the `mayPay` gate.
+    if (frame.object.random === true) return null;
     return frame.object.count === 1 ? frame : null;
 }
 
@@ -6276,7 +6279,8 @@ function lowerOptionalChosenMove(
 /**
  * CR 400.7 — the `choice` of cards out of the controller's own hand or
  * graveyard and the `moveZone` of the picks, in that order: the two Ops the
- * chosen-card class of the moveZone frame lowers to.
+ * chosen-card class of the moveZone frame lowers to — or, for a pick "at
+ * random", the `selectAtRandom` of the picks in the `choice`'s place.
  */
 function chosenMoveOps(
     object: Extract<MoveObjectIR, { kind: "chosen" }>,
@@ -6286,6 +6290,29 @@ function chosenMoveOps(
     prompt: string,
     count: Extract<EffectOp, { op: "choice" }>["count"]
 ): EffectOp[] {
+    const move: EffectOp = {
+        op: "moveZone",
+        cards: { ref: bind },
+        player: "controller",
+        from: object.zone,
+        to: movableDestination(to),
+        ...(tapped ? { tapped: true } : {}),
+    };
+    // CR 609.3 (issue #1702) — "at random": the PRNG picks the exact count
+    // the frame admitted (never a range), out of the same pool.
+    if (object.random === true && typeof count === "number")
+        return [
+            {
+                op: "selectAtRandom",
+                zone: object.zone,
+                ...(Object.keys(object.filter).length > 0
+                    ? { filter: object.filter }
+                    : {}),
+                count,
+                bind,
+            },
+            move,
+        ];
     const choice: Extract<EffectOp, { op: "choice" }> = {
         op: "choice",
         kind:
@@ -6301,17 +6328,7 @@ function chosenMoveOps(
         prompt,
         bind,
     };
-    return [
-        choice,
-        {
-            op: "moveZone",
-            cards: { ref: bind },
-            player: "controller",
-            from: object.zone,
-            to: movableDestination(to),
-            ...(tapped ? { tapped: true } : {}),
-        },
-    ];
+    return [choice, move];
 }
 
 /**

@@ -207,13 +207,16 @@ export type MoveObjectIR =
      * CR 400.7 — "<quantity> <descriptor> from your <hand|graveyard>": the
      * controller picks the cards from their own zone as the effect resolves.
      * `count` is the printed quantity: a number ("a", "two") or a range ("up
-     * to two").
+     * to two"). `random` (CR 609.3, issue #1702) is "<quantity> <descriptor>
+     * at random from your graveyard": the PRNG picks instead of the
+     * controller, an exact count only.
      */
     | {
           readonly kind: "chosen";
           readonly zone: "hand" | "graveyard";
           readonly filter: EffectCardFilter;
           readonly count: number | { readonly min: 0; readonly max: number };
+          readonly random?: true;
       }
     /** CR 400.3 — "a Forest you control": one of the controller's permanents. */
     | { readonly kind: "own-permanent"; readonly filter: EffectCardFilter }
@@ -719,6 +722,8 @@ const LIBRARY_TOP_EXACT =
     /^the top (?:(card)|(\S+) cards) of (your|target player's|target opponent's) library$/;
 /** CR 400.7 — "<quantity> <descriptor> from <zone>". */
 const FROM_ZONE = /^(.+) from (your hand|your graveyard|a graveyard|.+)$/;
+/** CR 609.3 — the "at random" that closes a chosen card's quantity phrase. */
+const AT_RANDOM = /^(.+) at random$/;
 /** CR 400.3 — "<a|an> <descriptor> you control". */
 const OWN_PERMANENT = /^(an? .+ you control)$/;
 
@@ -959,8 +964,23 @@ function readMoveObject(
                 `"from ${zone}" is not a zone the moveZone frame picks a card from (your hand, your graveyard)`,
                 span
             );
-        const quantity = readChosenQuantity(from[1]!);
+        // CR 609.3 (issue #1702) — "two creature cards at random from your
+        // graveyard": the quantity and descriptor read as for a chosen card,
+        // the trailing "at random" hands the pick to the PRNG.
+        const randomPick = from[1]!.match(AT_RANDOM);
+        const picked = randomPick === null ? from[1]! : randomPick[1]!;
+        if (randomPick !== null && zone !== "your graveyard")
+            return fail(
+                "a card at random is picked by the moveZone frame from your graveyard only",
+                span
+            );
+        const quantity = readChosenQuantity(picked);
         if (typeof quantity === "string") return fail(quantity, span);
+        if (randomPick !== null && typeof quantity.count !== "number")
+            return fail(
+                '"up to N" is not a quantity of a pick at random — the PRNG picks an exact count',
+                span
+            );
         const descriptor = descriptorRule.run(quantity.noun, ctx);
         if (!descriptor.ok) return descriptor;
         const plural =
@@ -979,6 +999,7 @@ function readMoveObject(
             zone: zone === "your hand" ? "hand" : "graveyard",
             filter: filter.value,
             count: quantity.count,
+            ...(randomPick !== null ? { random: true as const } : {}),
         });
     }
     const subject = subjectRule.run(span, ctx);

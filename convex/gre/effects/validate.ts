@@ -4218,6 +4218,29 @@ const OP_SCHEMAS: OpSchemaTable = {
     // issue #1947 — no fields: always picks from the pile linked to
     // $source and routes to that card's own owner's hand.
     randomExileToHand: { required: {} },
+    // CR 609.3 (issue #1702) — a random pick over `choice`'s pool vocabulary,
+    // binding PICKS and moving nothing. `top` windows a library only: in any
+    // other zone there is no "top" to window.
+    selectAtRandom: {
+        required: {
+            zone: (v) =>
+                v === "hand" ||
+                v === "graveyard" ||
+                v === "library" ||
+                v === "exile",
+            count: isEffectValue,
+            bind: bindingDeclaration("picks"),
+        },
+        optional: {
+            zoneOwnerId: isPlayerRef,
+            filter: (v) => isCardFilter(v),
+            top: isEffectValue,
+        },
+        check: (entry) =>
+            entry.top !== undefined && entry.zone !== "library"
+                ? ['"top" is valid only with zone: "library"']
+                : [],
+    },
     gainLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     addPlayerCounter: {
         required: {

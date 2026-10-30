@@ -19883,6 +19883,44 @@ export type EffectOp =
      *  the ability is still activatable with nothing exiled; it simply
      *  resolves with no effect. */
     | { op: "randomExileToHand" }
+    /** CR 609.3 (issue #1702) — choose `count` cards AT RANDOM out of a zone
+     *  pool and bind them, moving NOTHING: "exile a card at random from your
+     *  graveyard" (Tersa Lightshatter), "return two creature cards at random
+     *  from your graveyard" (Moldgraf Monstrosity), "exile four of them at
+     *  random" over a looked-at library window (Orcish Librarian). A random
+     *  selection is a `choice` whose chooser is the PRNG, so the pool is read
+     *  in `choice`'s own vocabulary — `zone`, `zoneOwnerId`, `filter` — and
+     *  computed by the SAME candidate logic (`choiceCandidates`), never a
+     *  parallel copy. A thin declarative skin over `SpellContext.pickAtRandom`
+     *  (the seeded PRNG, `rngSeed`/`rngCounter` — never `Math.random`), drawn
+     *  once per pick without replacement, which is uniform over the N-subsets.
+     *
+     *  Picks `min(count, pool size)` distinct cards (CR 609.3 — "it does only
+     *  as much as possible"); an empty pool or a count that is not positive
+     *  binds nothing and the script continues, every later `{ ref }` reader
+     *  skipping (CR 608.2b). The picks binding is consumed by the existing
+     *  movers (`moveZone { cards: { ref } }`, `exile`).
+     *
+     *  Deliberately NOT here: the battlefield (a random permanent is a random
+     *  TARGET or a random object of a sweep, a different selection), the
+     *  `candidates` / `superlative` / `allControllers` / `categories` refinements
+     *  (no printed random pick needs them), and any knowledge change — the
+     *  pick reveals nothing (ADR 0026); a card that LOOKS at a library window
+     *  says so through its own look Op. */
+    | {
+          op: "selectAtRandom";
+          zone: "hand" | "graveyard" | "library" | "exile";
+          /** Owner of the zone picked from; omitted = the resolving
+           *  controller. Skipped when it cannot be resolved (CR 608.2b). */
+          zoneOwnerId?: EffectPlayerRef;
+          filter?: EffectCardFilter;
+          /** `zone: "library"` only — narrows the pool to the top `top`
+           *  cards of the library (CR 401.4 — "the top eight cards of your
+           *  library"); a shorter library uses what is there (CR 609.3). */
+          top?: EffectValue;
+          count: EffectValue;
+          bind: string;
+      }
     /** CR 117.3a / 118.4 — an optional "you may pay {cost}" decision offered to
      *  a player (issue #806), OR a bare cost-free "you may …" decision (issue
      *  #680 — `cost` omitted). Maps 1:1 onto `SpellContext.requestMayPay`,

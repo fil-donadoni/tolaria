@@ -3172,6 +3172,11 @@ const lookRandomHand: Valuer<"lookRandomHand"> = () => ZERO_OP_VALUE;
 // same ZERO_OP_VALUE rather than each guessing a number.)
 const lookHand: Valuer<"lookHand"> = () => ZERO_OP_VALUE;
 
+// CR 609.3 (issue #1702) — a random pick that only BINDS: no card moves, so
+// the value lives entirely in the Op that consumes the picks (the `moveZone`
+// or `exile` reading the binding), which its own valuer prices.
+const selectAtRandom: Valuer<"selectAtRandom"> = () => ZERO_OP_VALUE;
+
 const scryReorder: Valuer<"scryReorder"> = (op, ctx) => {
     const { amount, scaling } = ctx.value(op.count);
     return {
@@ -3350,6 +3355,7 @@ export const OP_VALUERS: {
     discard,
     discardAtRandom,
     randomExileToHand,
+    selectAtRandom,
     divideIntoPiles,
     emblem,
     extraTurn,
@@ -3871,6 +3877,11 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // hand's owner (this Op's recipient) is neither helped nor hurt. Identical
     // reasoning to `lookHand` above, which it predates.
     lookRandomHand: "neutral",
+    // CR 609.3 (issue #1702) — a bind-only random pick: nothing moves, so the
+    // zone's owner is neither helped nor hurt until a LATER Op acts on the
+    // picks, and that Op carries its own sign (a `moveZone` to exile hurts, to
+    // hand helps).
+    selectAtRandom: "neutral",
     // CR 701.24 — `action: "shuffle"` is the Op's only shape: it randomizes an
     // ORDER and moves no card between zones. Its real value is informational
     // (shuffling away a stacked top is an attack, shuffling your own library
