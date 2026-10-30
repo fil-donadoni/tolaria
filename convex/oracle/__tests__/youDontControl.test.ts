@@ -163,9 +163,11 @@ describe('"you don\'t control" descriptor qualifier (CR 102.2, issue #7221)', ()
         const outcome = compileCard(VOLCANIC_OFFERING);
         expect(outcome.state).toBe("unparsed");
         if (outcome.state !== "unparsed") return;
-        expect(outcome.gaps.map((g) => g.line)).toEqual([
-            VOLCANIC_OFFERING.oracleText.split("\n")[0],
-            "{self} deals 7 damage to target creature you don't control and 7 damage to target creature of an opponent's choice you don't control.",
+        // The descriptor itself is what refuses: "of an opponent's choice"
+        // is the span no qualifier claims.
+        expect(outcome.gaps.map((g) => g.attribution?.span)).toEqual([
+            "nonbasic land of an opponent's choice you don't control",
+            "creature you don't control and 7 damage to target creature of an opponent's choice you don't control",
         ]);
     });
 });
