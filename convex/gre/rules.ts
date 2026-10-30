@@ -64,7 +64,8 @@ import { boardManaUnits, producesUncostedMana } from "./manaAvailability";
 import type { ManaReplacementView, ManaTapOption } from "./constants";
 import { foldHybridGenericLegs, hybridGenericPipCount } from "./hybridGeneric";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
-import { matchesPermanentFilter } from "../cards/filters";
+import { matchesPermanentFilter, matchesSpellFilter } from "../cards/filters";
+import { getEffectiveColors } from "../cards/effectiveColors";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import type { CastFromZone } from "./castCost";
@@ -375,49 +376,113 @@ export function isPlayableLibraryTopLand(
 /** CR 601.3 — the SPELL twin of {@link canPlayLandsFromTopOfLibrary}:
  *  the unconditional, player-wide permission to CAST nonland spells from the
  *  top of `player`'s own library, granted by ANY permanent declaring
- *  `castsSpellsFromTopOfLibrary` on their battlefield (Bolas's Citadel).
- *  Returns the GRANT (so its `manaCostReplacement` reaches the cost sites),
- *  or `undefined` when no source grants it.
+ *  `castsSpellsFromTopOfLibrary` on their battlefield (Bolas's Citadel,
+ *  Mystic Forge). Returns the FIRST grant scanned, or `undefined` when no
+ *  source grants one — "does this player hold the permission at all".
+ *
+ *  A grant may cover only SOME spells (`spellFilter`, issue #7205), so no
+ *  site that casts a particular card may read its cost replacement here:
+ *  {@link libraryTopCastGrant} picks the grant covering THAT cast. No engine
+ *  site reads this any more; it stays as the presence check tests use.
  *
  *  Read live from the battlefield every call, so the permission ends the
- *  instant the granting source leaves play — no stale flag. When two sources
- *  grant it, the FIRST scanned wins; no printed card pairs two different
- *  replacements, and CR 601.2f would make the caster choose among them, which
- *  is a choice no shipped board can present. */
+ *  instant the granting source leaves play — no stale flag. */
 export function canCastSpellsFromTopOfLibrary(
     _state: GameState,
     player: PlayerState
-): NonNullable<CardDefinition["castsSpellsFromTopOfLibrary"]> | undefined {
+): LibraryTopCastGrant | undefined {
+    return libraryTopCastGrants(player)[0];
+}
+
+type LibraryTopCastGrant = NonNullable<
+    CardDefinition["castsSpellsFromTopOfLibrary"]
+>;
+
+/** Every `castsSpellsFromTopOfLibrary` grant on `player`'s battlefield, in
+ *  battlefield order. */
+function libraryTopCastGrants(player: PlayerState): LibraryTopCastGrant[] {
+    const grants: LibraryTopCastGrant[] = [];
     for (const card of player.battlefield) {
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) continue;
         const grant = tryGetDefinition(cardId)?.castsSpellsFromTopOfLibrary;
-        if (grant) return grant;
+        if (grant) grants.push(grant);
     }
-    return undefined;
+    return grants;
+}
+
+/** CR 601.3 / 601.3e (issue #7205) — the grant that licenses casting `card`
+ *  off the top of `player`'s library as the announcement `alternativeCostId`
+ *  names (a split half, CR 709.3a), or `undefined` when no grant covers it.
+ *
+ *  A grant's `spellFilter` is asked of the cast SUBJECT (`castSubjectView`),
+ *  not of the card in its zone: CR 601.3e — the characteristics the spell
+ *  would have "replace the object's characteristics for this determination"
+ *  (Melek's example: an instant-and-sorcery permission casts an adventurer's
+ *  instant half but not the creature). Colours are the subject's own
+ *  (`getEffectiveColors` over its cost, CR 202.2), so a colourless split half
+ *  of a coloured card is a colourless spell. The library-top announcements
+ *  asked of it are split halves only today; the Adventure and morph casts
+ *  that example names are issue #7526.
+ *
+ *  The single authority every cost site reads the replacement through
+ *  ({@link libraryTopCastLifeCost}, `libraryTopCastPayment`, the legality
+ *  gate, the wire flag, the Bot), so a permission covering only artifacts can
+ *  never lend its sibling's life payment to a creature, nor the reverse.
+ *
+ *  When two grants cover the same cast, the FIRST scanned wins. The caster
+ *  is entitled to pick which permission they cast under (Bolas's Citadel
+ *  beside Mystic Forge, an artifact on top: pay life, or pay mana); that
+ *  choice has no surface yet — a documented deviation, tracked by issue
+ *  #7525. */
+export function libraryTopCastGrant(
+    _state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    alternativeCostId?: string
+): LibraryTopCastGrant | undefined {
+    const subject = castSubjectView(card, alternativeCostId);
+    return libraryTopCastGrants(player).find(
+        (grant) =>
+            grant.spellFilter === undefined ||
+            matchesSpellFilter(
+                {
+                    types: subject.types,
+                    subtypes: subject.subtypes,
+                    colors: getEffectiveColors(subject),
+                },
+                grant.spellFilter
+            )
+    );
 }
 
 /** Whether `cardInstanceId` is the NONLAND card on top of `player`'s own
- *  library while `player` holds the cast-from-top permission (CR 601.3
- *  — Bolas's Citadel). The mirror of {@link isPlayableLibraryTopLand} for the
- *  cast half, and position-strict for the same reason: the permission names
- *  the TOP card, and the library is otherwise a hidden zone (CR 400.2), so a
- *  card two deep is never a legal cast source. Lands are excluded — a land is
- *  PLAYED, never cast (CR 305.9), and the land half of the same Oracle
- *  sentence rides `playsLandsFromTopOfLibrary` instead. Recomputed from the
- *  live library on every call, so a draw / shuffle / mill / put-on-top moves
- *  the affordance with the position. */
+ *  library while `player` holds a cast-from-top permission covering it (CR
+ *  601.3 — Bolas's Citadel, Mystic Forge). The mirror of
+ *  {@link isPlayableLibraryTopLand} for the cast half, and position-strict
+ *  for the same reason: the permission names the TOP card, and the library is
+ *  otherwise a hidden zone (CR 400.2), so a card two deep is never a legal
+ *  cast source. Lands are excluded — a land is PLAYED, never cast (CR 305.9),
+ *  and the land half of the same Oracle sentence rides
+ *  `playsLandsFromTopOfLibrary` instead. "Covering" is per announcement (CR
+ *  601.3e, issue #7205): a split card is castable when ANY half is covered,
+ *  and the gate in `getLegalActions` / `announceCast` then admits only the
+ *  covered halves. Recomputed from the live library on every call, so a
+ *  draw / shuffle / mill / put-on-top moves the affordance with the position. */
 export function isCastableLibraryTopSpell(
     state: GameState,
     player: PlayerState,
     cardInstanceId: string
 ): boolean {
-    if (!canCastSpellsFromTopOfLibrary(state, player)) return false;
     const top = player.library[0];
     return (
         top !== undefined &&
         top.id === cardInstanceId &&
-        !top.types.includes("Land")
+        !top.types.includes("Land") &&
+        nonHandCastAnnouncements(top).some(
+            (altCostId) =>
+                libraryTopCastGrant(state, player, top, altCostId) !== undefined
+        )
     );
 }
 
@@ -448,7 +513,7 @@ export function libraryTopCastLifeCost(
      *  Absent means the printed card, so nothing else moves. */
     alternativeCostId?: string
 ): number {
-    const grant = canCastSpellsFromTopOfLibrary(state, player);
+    const grant = libraryTopCastGrant(state, player, card, alternativeCostId);
     if (grant?.manaCostReplacement !== "life-equal-to-mana-value") return 0;
     return manaValue(
         getInstanceManaCost(castSubjectView(card, alternativeCostId))
@@ -1403,7 +1468,6 @@ export function getLegalActions(
     // cost, else the printed mana cost.
     const isLibraryTopCast = isCastableLibraryTopSpell(state, player, card.id);
     if (isLibraryTopCast) {
-        const grant = canCastSpellsFromTopOfLibrary(state, player);
         // CR 601.3c (issue #2146) — the conditional-flash SURCHARGE, when
         // this cast is only legal inside that permission: `announceCast` folds
         // it onto whatever cost the permission leaves the cast owing, so
@@ -1421,8 +1485,12 @@ export function getLegalActions(
                 ? { extraMana: flashSurchargeOf(card) }
                 : {}),
         };
-        const replacesManaCost =
-            grant?.manaCostReplacement === "life-equal-to-mana-value";
+        // CR 601.3e (issue #7205) — which grant licenses the cast, and so
+        // whether it replaces the mana cost, is asked per ANNOUNCEMENT: a
+        // filtered permission may cover one split half and not the other.
+        const replacesManaCost = (altCostId: string | undefined) =>
+            libraryTopCastGrant(state, player, card, altCostId)
+                ?.manaCostReplacement === "life-equal-to-mana-value";
         if (
             passesCastPhaseRestriction(state, card) &&
             // CR 118.8 / 601.2f — a spell whose additional cost is "sacrifice /
@@ -1440,8 +1508,8 @@ export function getLegalActions(
                 // still apply on top of that empty cost at the real payment
                 // site. Otherwise the cast pays "its mana cost", which CR
                 // 709.3a makes the announced HALF's.
-                cost: (subject) =>
-                    replacesManaCost
+                cost: (subject, altCostId) =>
+                    replacesManaCost(altCostId)
                         ? {}
                         : (getInstanceManaCost(subject) ?? {}),
                 costOpts: mandatoryCostOpts,
@@ -1458,10 +1526,20 @@ export function getLegalActions(
                 // the single authority the wire affordance, the Bot and all
                 // three commit sites read, so none of them can charge another
                 // number.
+                //
+                // CR 601.3e (issue #7205) — and an announcement no grant covers
+                // (a filtered permission's uncovered half) is no cast at all.
                 alsoLegal: (_subject, altCostId) =>
-                    !replacesManaCost ||
-                    player.life >=
-                        libraryTopCastLifeCost(state, player, card, altCostId),
+                    libraryTopCastGrant(state, player, card, altCostId) !==
+                        undefined &&
+                    (!replacesManaCost(altCostId) ||
+                        player.life >=
+                            libraryTopCastLifeCost(
+                                state,
+                                player,
+                                card,
+                                altCostId
+                            )),
             })
         ) {
             actions.push("cast");

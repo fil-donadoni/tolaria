@@ -99,7 +99,7 @@ import {
 import { announcementModeFacts, modeHasLegalTargets } from "./modeAnnouncement";
 import {
     getLegalActions,
-    canCastSpellsFromTopOfLibrary,
+    libraryTopCastGrant,
     isCastableLibraryTopSpell,
     libraryTopCastLifeCost,
     getLegalTargets,
@@ -4550,6 +4550,15 @@ function enumerateCastMovesFromZone(
         ) {
             continue;
         }
+        // CR 601.3e (issue #7205) — off the top of the library, a half no
+        // grant covers is no cast (a filtered permission's uncovered half);
+        // `getLegalActions` and `announceCast` refuse it the same way.
+        if (
+            castFromZone === "library" &&
+            libraryTopCastGrant(state, player, card, alt.id) === undefined
+        ) {
+            continue;
+        }
         const subject = castSubjectView(card, alt.id);
         const subjectDef = castSubjectDefinition(def ?? undefined, alt.id);
         // CR 709.3 (issue #3344) — from a NON-hand zone the half pays what
@@ -4589,10 +4598,15 @@ function enumerateCastMovesFromZone(
         // authority the gate and all three commit sites read. 0 for every other
         // cast, and a half the caster cannot pay for is dropped rather than
         // offered — `getLegalActions` refuses it too.
+        //
+        // Keyed on the ZONE, never on the whole card's `lifeInsteadOfMana`
+        // (issue #7205): a filtered grant may license the HALF under a
+        // different permission than the card, and the half's grant is what
+        // `castRawManaCost` and `announceCast` charge (CR 601.3e).
         const altPayLife =
-            lifeInsteadOfMana === undefined
-                ? 0
-                : libraryTopCastLifeCost(state, player, card, alt.id);
+            castFromZone === "library"
+                ? libraryTopCastLifeCost(state, player, card, alt.id)
+                : 0;
         if (altPayLife > player.life) continue;
         const altReq = subjectDef?.targetRequirement;
         // CR 601.2c (issue #4193) — the SUBJECT's script, paired with the
@@ -5985,7 +5999,7 @@ export function enumerateMoves(
                 // replaces the mana cost: a grant with no `manaCostReplacement`
                 // (Vizier of the Menagerie's shape) casts for the printed cost,
                 // which is exactly what `undefined` selects.
-                ...(canCastSpellsFromTopOfLibrary(state, player)
+                ...(libraryTopCastGrant(state, player, libraryTop)
                     ?.manaCostReplacement === "life-equal-to-mana-value"
                     ? { lifeInsteadOfMana: lifeCost }
                     : {}),
