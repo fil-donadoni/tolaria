@@ -369,3 +369,30 @@ describe("`If you do,` — the optional action is a cost, paid or not (CR 118.12
         ).toEqual(["mayPay", "if"]);
     });
 });
+
+// Issue #1702 — the moveZone frame's chosen card "at random": an
+// exact count from your graveyard lowers to `selectAtRandom`; every other
+// spelling is refused, never read as a player's choice.
+describe("a chosen card at random (issue #1702)", () => {
+    it("an exact count from your graveyard lowers to selectAtRandom, then the move", () => {
+        expect(
+            ops(
+                sorcery(
+                    "Probe",
+                    "{1}{B}",
+                    "Return two creature cards at random from your graveyard to your hand."
+                )
+            )
+        ).toEqual(["selectAtRandom", "moveZone"]);
+    });
+
+    it.each([
+        "Return up to two creature cards at random from your graveyard to your hand.",
+        "Return a creature card at random from your hand to the battlefield.",
+        "Return a creature card from your graveyard at random to your hand.",
+    ])("refuses %s", (text) => {
+        expect(compileCard(sorcery("Probe", "{1}{B}", text)).state).toBe(
+            "unparsed"
+        );
+    });
+});

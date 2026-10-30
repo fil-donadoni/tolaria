@@ -174,6 +174,7 @@ describe("AMOUNT_KEYS — an op-covered Op's runtime amount is card-dependent (A
             "reducedBy",
             "right",
             "take",
+            "top",
             "toughness",
         ]);
     });

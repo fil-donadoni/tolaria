@@ -310,6 +310,10 @@
         "code": "suspends-for-input",
         "reason": "Op \"scryReorder\" suspends for a look/reorder-top choice — covered by the Op's interpreter tests and the card's suspension/resume tests"
     },
+    "selectAtRandom": {
+        "code": "randomness",
+        "reason": "Op \"selectAtRandom\" binds a random subset of a zone pool and moves nothing — covered by the Op's interpreter tests"
+    },
     "setBasePT": {
         "code": "op-own-tests",
         "reason": "Op \"setBasePT\" sets base P/T (CR 613.4b) — covered by the Op's own interpreter + wire-format tests"

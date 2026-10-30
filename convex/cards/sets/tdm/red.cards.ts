@@ -9,6 +9,9 @@ import {
     spellCastTrigger,
 } from "../../abilities/triggers/spellCastTrigger";
 import { equipAbility } from "../../abilities/equipment";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
+import { graveyardSize } from "../../graveyardOrder";
 
 // Cori-Steel Cutter (TDM #103, issue #1202, parent PRD #620 — split out of
 // #699). Confirmed against Scryfall (the issue's paraphrase was inaccurate on
@@ -146,21 +149,99 @@ export const coriSteelCutter = defineCard(() => ({
     ],
 }));
 
-// TODO(issue #679 stub — Tersa Lightshatter's attack trigger needs to
-// "exile a card AT RANDOM from your graveyard": SpellContext has no
-// random-pick-from-a-zone primitive (only `discardAtRandom`, which is
-// hand-scoped and discards rather than exiles). Composing it would require a
-// new primitive, not a reuse of an existing one (gre-development.md
-// Primitive reuse checklist) — flagged rather than invented. Stop-and-issue;
-// tracked stub.
-// export const tersaLightshatter: CardDefinition = {
-//     id: "99e96b34-b1c4-4647-a38e-2cf1aedaaace",
-//     name: "Tersa Lightshatter",
-//     rarity: "rare",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Creature"],
-//     supertypes: ["Legendary"],
-//     subtypes: ["Orc", "Wizard"],
-//     power: 3,
-//     toughness: 3,
-// };
+// Tersa Lightshatter (issue #1702) — "Haste / When Tersa Lightshatter enters,
+// discard up to two cards, then draw that many cards. / Whenever Tersa
+// Lightshatter attacks, if there are seven or more cards in your graveyard,
+// exile a card at random from your graveyard. You may play that card this
+// turn."
+//
+//   * ETB — the "up to two" range pick, the discard of the picks, then one
+//     draw per discarded card (CR 121.2: "draw N" is N draws), the shape
+//     Kumiho's chapter II writes (`neo/red.cards.ts`); zero picks draws none.
+//   * Attack — the graveyard count is an intervening-if (CR 603.4), checked
+//     when the ability triggers (`condition`) and again as it resolves
+//     (`interveningIf`).
+//     The random card comes out of `selectAtRandom` (CR 609.3 — an empty pick
+//     binds nothing and every later Op skips), is exiled face up
+//     (CR 701.13a), and the impulse window is this turn's, lands included
+//     ("play", CR 701.18a).
+//
+// compiler-gap: "When {self} enters, discard up to two cards, then draw that many cards." (#2693)
+// compiler-gap: "Whenever {self} attacks, if there are seven or more cards in your graveyard, exile a card at random from your graveyard. You may play that card this turn." (#2693)
+export const tersaLightshatter = defineCard(() => ({
+    id: "99e96b34-b1c4-4647-a38e-2cf1aedaaace",
+    name: "Tersa Lightshatter",
+    rarity: "rare",
+    oracleText:
+        "Haste\nWhen Tersa Lightshatter enters, discard up to two cards, then draw that many cards.\nWhenever Tersa Lightshatter attacks, if there are seven or more cards in your graveyard, exile a card at random from your graveyard. You may play that card this turn.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Orc", "Wizard"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["haste"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "tersa-lightshatter-etb-loot",
+            oracleText:
+                "When Tersa Lightshatter enters, discard up to two cards, then draw that many cards.",
+            scope: "self",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: "controller",
+                    zone: "hand",
+                    count: { min: 0, max: 2 },
+                    prompt: "Discard up to two cards, then draw that many.",
+                    bind: "$discarded",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discarded" },
+                },
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$discarded" },
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
+        }),
+        attacksTrigger({
+            id: "tersa-lightshatter-attack-impulse",
+            oracleText:
+                "Whenever Tersa Lightshatter attacks, if there are seven or more cards in your graveyard, exile a card at random from your graveyard. You may play that card this turn.",
+            scope: "self",
+            // CR 603.4 — the same count gates the trigger (`condition`) and
+            // its resolution (`interveningIf`).
+            condition: (_event, self, state) =>
+                graveyardSize(state, self.controllerId) >= 7,
+            interveningIf: (_event, self, state) =>
+                graveyardSize(state, self.controllerId) >= 7,
+            effects: [
+                {
+                    op: "selectAtRandom",
+                    zone: "graveyard",
+                    count: 1,
+                    bind: "$exiled",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$exiled" },
+                    player: "controller",
+                    from: "graveyard",
+                    to: "exile",
+                },
+                {
+                    op: "grantCastFromExile",
+                    card: { ref: "$exiled" },
+                    player: "controller",
+                    window: "this-turn",
+                    includesLand: true,
+                },
+            ],
+        }),
+    ],
+}));

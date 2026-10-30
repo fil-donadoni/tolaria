@@ -97,3 +97,24 @@ export function creatureCardDirectlyAboveInGraveyard(
     if (idx === -1) return false;
     return graveyard[idx + 1]?.types.includes("Creature") === true;
 }
+
+/** How many cards are in `playerId`'s graveyard (CR 404.1) — the count behind
+ *  "if there are seven or more cards in your graveyard", an intervening-if
+ *  (CR 603.4) checked when the ability triggers and again as it resolves.
+ *  Structurally typed like the helpers above; an absent state or graveyard
+ *  counts 0. */
+export function graveyardSize(
+    state:
+        | {
+              players: ReadonlyArray<{
+                  id: string;
+                  graveyard?: ReadonlyArray<unknown>;
+              }>;
+          }
+        | undefined,
+    playerId: string
+): number {
+    return (
+        state?.players.find((p) => p.id === playerId)?.graveyard?.length ?? 0
+    );
+}
