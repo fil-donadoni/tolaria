@@ -7289,7 +7289,7 @@ function libraryHalf(span: string, ctx: unknown) {
  * you control"), a hand less a printed constant or its mirror, and the exiled
  * card's mana value. A clause the count cannot express is the LOWERING's.
  */
-function whereXAmount(tail: string, ctx: unknown): RuleResult<AmountIR> {
+export function whereXAmount(tail: string, ctx: unknown): RuleResult<AmountIR> {
     // CR 202.3 — the card the activation cost exiled; the site binds it.
     if (EXILED_CARD_MANA_VALUE.test(tail))
         return ok({
