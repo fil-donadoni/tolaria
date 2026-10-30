@@ -2840,6 +2840,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Arcane Amphisbaena",
+        "scryfallId": "1bf923c4-f0b7-4271-978c-fd2e79fe1cc8",
+        "oracleId": "5c151e3b-fcf2-4adb-a60b-9eff0c360705",
+        "firstSet": "fra",
+        "firstPrintId": "1bf923c4-f0b7-4271-978c-fd2e79fe1cc8",
+        "firstPrintSet": "fra",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Arcane Encyclopedia",
         "scryfallId": "0ce4702d-f65b-413e-99da-112f632a0a63",
         "oracleId": "d91ea728-2d69-42cb-bb5d-e2b058f0d7b1",
@@ -36966,6 +36976,16 @@
         "source": "compiled"
     },
     {
+        "name": "Keeper of the Quiet Hour",
+        "scryfallId": "b6331218-dbb8-44a9-8ba5-5fb1ab41c5c0",
+        "oracleId": "ecdfee75-15fd-41ea-89d4-4bfc1fa4d032",
+        "firstSet": "fra",
+        "firstPrintId": "b6331218-dbb8-44a9-8ba5-5fb1ab41c5c0",
+        "firstPrintSet": "fra",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Keepers of the Faith",
         "scryfallId": "b63a69ae-99ce-4d26-88b7-784793c43cd4",
         "oracleId": "6ddc1256-a166-464f-8136-bd111cba6327",
@@ -43441,6 +43461,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mindseeker Oculus",
+        "scryfallId": "f5324741-353a-4a70-adb2-b631b00806dd",
+        "oracleId": "aa9547b3-e4e4-4557-9dd1-3aa9a7cb9937",
+        "firstSet": "fra",
+        "firstPrintId": "f5324741-353a-4a70-adb2-b631b00806dd",
+        "firstPrintSet": "fra",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Mindstab Thrull",
         "scryfallId": "499a791f-ac4f-4a96-b59b-37043686a79a",
         "oracleId": "43abe1f3-7b92-411a-bf93-e158f949685c",
@@ -46883,6 +46913,16 @@
         "firstSet": "ori",
         "firstPrintId": "0b9b968d-b0cc-411d-9366-8358be28aef2",
         "firstPrintSet": "ori",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "No Admittance",
+        "scryfallId": "11ba4fdd-cc03-4bb6-a493-91a9785771d0",
+        "oracleId": "d53ae01b-87e1-48e1-9fc3-23a734ce6622",
+        "firstSet": "fra",
+        "firstPrintId": "11ba4fdd-cc03-4bb6-a493-91a9785771d0",
+        "firstPrintSet": "fra",
         "rarity": "common",
         "source": "compiled"
     },
@@ -52237,6 +52277,16 @@
         "firstSet": "ltr",
         "firstPrintId": "85708748-40ca-4066-a287-7a6a189ff3df",
         "firstPrintSet": "ltr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Protege's Awakening",
+        "scryfallId": "a08c7ec2-4c6a-4db2-85a7-41afe8731523",
+        "oracleId": "07617648-6490-4719-acec-7705671f7e01",
+        "firstSet": "fra",
+        "firstPrintId": "a08c7ec2-4c6a-4db2-85a7-41afe8731523",
+        "firstPrintSet": "fra",
         "rarity": "common",
         "source": "compiled"
     },
@@ -77673,6 +77723,16 @@
         "firstSet": "xln",
         "firstPrintId": "bd7550dd-dfc5-43cd-a117-1244ee3086a8",
         "firstPrintSet": "xln",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Vraska's Final Mercy",
+        "scryfallId": "992bd991-7cfb-459f-bafd-9a44f3c925c5",
+        "oracleId": "7799413d-e313-4a05-ad28-f4c926c26d28",
+        "firstSet": "fra",
+        "firstPrintId": "992bd991-7cfb-459f-bafd-9a44f3c925c5",
+        "firstPrintSet": "fra",
         "rarity": "rare",
         "source": "compiled"
     },

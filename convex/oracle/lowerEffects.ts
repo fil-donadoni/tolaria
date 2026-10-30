@@ -47,6 +47,7 @@ import {
 } from "../cards/abilities/chooseColor";
 import { PROTECTION_QUALITY_NAMES } from "../cards/abilities";
 import { landTypeChangeEffects } from "../cards/abilities/chooseLandType";
+import { empowerJaceOps } from "../cards/abilities/empowerJace";
 import type { KickedRefIR } from "./grammar/shared/condition";
 import type { PermanentSweepSelector } from "./grammar/shared/massSubject";
 import { durationSpec } from "./grammar/shared/duration";
@@ -5369,6 +5370,11 @@ function lowerFrameChain(
             // CR 614.10 — the controller's next turn does not happen.
             case "skipNextTurn":
                 ops.push({ op: "skipNextTurn", player: "controller" });
+                break;
+            // CR 701.71a — the keyword action's whole composition, the one
+            // factory a hand-written definition splices (Guard C round-trip).
+            case "empowerJace":
+                ops.push(...empowerJaceOps(frame.count));
                 break;
             // CR 725.1 — the controller takes the monarch designation.
             case "becomeMonarch":
