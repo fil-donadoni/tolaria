@@ -58406,6 +58406,14 @@
         "source": "compiled"
     },
     {
+        "name": "Sanctum Lurker",
+        "scryfallId": "2185c08f-bb4d-49d5-8b6c-c629a48bb61c",
+        "oracleId": "3ebd64d2-c178-45a2-a51f-9869754baa0f",
+        "firstSet": "fra",
+        "firstPrintId": "2185c08f-bb4d-49d5-8b6c-c629a48bb61c",
+        "firstPrintSet": "fra"
+    },
+    {
         "name": "Sand Silos",
         "scryfallId": "3f6f1fcb-d903-4a31-abab-40488569eef6",
         "oracleId": "48a830f1-8965-4f97-b3d8-ca98eab1ba33",
