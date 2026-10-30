@@ -17016,8 +17016,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         classification: {
             kind: "conditional",
             discriminant: {
-                kind: "card",
-                detail: "a 6/6 of the Bot's own to fight with, beside the 1/1",
+                kind: "other",
+                detail: "five +1/+1 counters on the Bot's creature — a 6/6 fighter instead of a 1/1",
             },
         },
         spec: {
@@ -17045,7 +17045,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         budget: { iterations: 400 },
         tier: "must",
         expect: {
-            forbidden: [{ kind: "activate-ability", card: "Triangle of War" }],
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Triangle of War",
+                    target: "Eager Cadet",
+                },
+            ],
         },
         note: "Issue #5609. The `fight` valuer priced a fixed half of a removal off the opposing creature alone, so a fighter that dies without killing anything was worth the same as one that kills. The exchange is now read per pair (lethal damage, CR 704.5g); here neither side of it is a gain for the Bot.",
     },
@@ -17058,8 +17064,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         pairOf: {
             anchor: "discriminating pair: does NOT activate Triangle of War with a 1/1 against a 4/4",
             discriminant: {
-                kind: "card",
-                detail: "a 6/6 of the Bot's own to fight with, beside the 1/1",
+                kind: "other",
+                detail: "five +1/+1 counters on the Bot's creature — a 6/6 fighter instead of a 1/1",
             },
         },
         spec: {
@@ -17070,12 +17076,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     owner: "me",
                     zone: "battlefield",
                     summoningSick: false,
-                },
-                {
-                    name: "Kindercatch",
-                    owner: "me",
-                    zone: "battlefield",
-                    summoningSick: false,
+                    counters: { "+1/+1": 5 },
                 },
                 {
                     name: "Rumbling Baloth",
@@ -17098,8 +17099,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     kind: "activate-ability",
                     card: "Triangle of War",
                     // Slot 1 only admits the opponent's creatures, so the
-                    // Bot's own Kindercatch among the targets is the fighter.
-                    target: "Kindercatch",
+                    // Bot's own Eager Cadet among the targets is the fighter;
+                    // the matcher is the anchor's forbidden one, verbatim.
+                    target: "Eager Cadet",
                 },
             ],
         },
