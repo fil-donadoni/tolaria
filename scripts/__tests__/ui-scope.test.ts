@@ -805,6 +805,58 @@ describe("uiWalkOwed — a diff owes a walk only when it can move layout (issue 
         expect(isNonDomPath("src/lib/ai/bot-view.ts")).toBe(false);
     });
 
+    it("a module whose changed lines are only type imports owes nothing, overlay name or not (issue #7608)", () => {
+        const typeOnly = [
+            `import type { CardVisualState } from "../battlefield-card";`,
+            `import type { CardVisualState } from "~/types/battlefield";`,
+            `export type { ZIndex } from "./z-index";`,
+            "",
+        ].join("\n");
+        expect(
+            owed("src/components/board/ability-menu.tsx", typeOnly)
+        ).toMatchObject({ owed: false });
+        expect(owed("src/components/x/leaf.tsx", typeOnly)).toMatchObject({
+            owed: false,
+        });
+        // A value import, or a stylesheet's lines, are not erased by the build.
+        expect(
+            owed(
+                "src/components/board/ability-menu.tsx",
+                `import { menu } from "./menu";\n`
+            )
+        ).toMatchObject({
+            owed: true,
+            rule: "an overlay / popover / dialog component",
+        });
+        expect(owed("src/index.css", typeOnly)).toMatchObject({
+            owed: true,
+            rule: "a stylesheet",
+        });
+    });
+
+    it("a deleted module owes nothing, a deleted stylesheet still does (issue #7608)", () => {
+        const Z = `<div className="z-20" />\n`;
+        const gone = (path: string) =>
+            uiWalkOwed(
+                [path],
+                () => Z,
+                () => true
+            );
+        expect(gone("src/components/board/battlefield-card.tsx")).toMatchObject(
+            { owed: false }
+        );
+        expect(gone("src/components/lobby/join-dialog.tsx")).toMatchObject({
+            owed: false,
+        });
+        expect(gone("src/index.css")).toMatchObject({
+            owed: true,
+            rule: "a stylesheet",
+        });
+        expect(
+            owed("src/components/board/battlefield-card.tsx", Z)
+        ).toMatchObject({ owed: true });
+    });
+
     it("fails closed: a file gone or unreadable stays owed", () => {
         expect(owed("src/components/x/leaf.tsx", null).owed).toBe(true);
     });

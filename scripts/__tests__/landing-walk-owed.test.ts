@@ -117,6 +117,13 @@ describe("landingWalkOwed — content rules read the changed lines (issue #7592)
         expect(owed([fresh])).toMatchObject({ owed: true, path: fresh });
     });
 
+    it("deleting a module owes nothing, though its removed lines held a z-index (issue #7608)", () => {
+        git("rm", "-q", CARD);
+        expect(owed([CARD])).toMatchObject({ owed: false });
+        commit();
+        expect(owed([CARD])).toMatchObject({ owed: false });
+    });
+
     it("a diff it cannot read stays owed (no merge-base: fail closed)", () => {
         write(CARD, WITH_Z.replace("'Cast'", "'Plot'"));
         commit();
