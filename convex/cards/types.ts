@@ -19898,7 +19898,7 @@ export type EffectOp =
      *  Picks `min(count, pool size)` distinct cards (CR 609.3 — "it does only
      *  as much as possible"); an empty pool or a count that is not positive
      *  binds nothing and the script continues, every later `{ ref }` reader
-     *  skipping (CR 608.2b). The picks binding is consumed by the existing
+     *  skipping. The picks binding is consumed by the existing
      *  picks readers (`moveZone { cards: { ref } }`, `grantCastFromExile`).
      *
      *  Deliberately NOT here: the battlefield (a random permanent is a random
@@ -19911,7 +19911,7 @@ export type EffectOp =
           op: "selectAtRandom";
           zone: "hand" | "graveyard" | "library" | "exile";
           /** Owner of the zone picked from; omitted = the resolving
-           *  controller. Skipped when it cannot be resolved (CR 608.2b). */
+           *  controller. Skipped when it cannot be resolved. */
           zoneOwnerId?: EffectPlayerRef;
           filter?: EffectCardFilter;
           /** `zone: "library"` only — narrows the pool to the top `top`

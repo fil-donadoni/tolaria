@@ -2695,13 +2695,13 @@ function boundSetCandidates(
     return { available: ids.length, candidateIds: ids };
 }
 
-/** CR 609.3 / 401.4 (issue #1702) — the eligible ids of a `selectAtRandom`
+/** Issue #1702 — the eligible ids of a `selectAtRandom`
  *  pick, through `choice`'s `choiceCandidates` so the two Ops share one
  *  eligibility rule. That function leaves an UNFILTERED hand or library as a
  *  bare count (a `choice` there needs no allow-list); a random pick needs the
  *  ids, so the whole zone is enumerated for exactly those two cases. `top`
  *  then windows a library to its first N cards: an unresolvable `top` leaves
- *  no candidate, never the whole library (CR 608.2b). */
+ *  no candidate, never the whole library. */
 function randomSelectionPool(
     ctx: SpellContext,
     op: OpOf<"selectAtRandom">,
@@ -3538,8 +3538,7 @@ export const OP_EXECUTORS: {
     // PRNG's (`pickAtRandom`), drawn once per pick WITHOUT replacement — so
     // the picked set is uniform over the N-subsets and a replay reproduces
     // it. A short pool yields what it has (CR 609.3); an empty one, or a
-    // count that is not positive, binds nothing and later refs skip (CR
-    // 608.2b).
+    // count that is not positive, binds nothing and later refs skip.
     selectAtRandom(ctx, op) {
         const ownerId = resolvePlayerRef(ctx, op.zoneOwnerId ?? "controller");
         if (ownerId === undefined) return;

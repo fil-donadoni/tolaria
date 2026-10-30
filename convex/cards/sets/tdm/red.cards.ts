@@ -164,7 +164,7 @@ export const coriSteelCutter = defineCard(() => ({
 //     The random card comes out of `selectAtRandom` (CR 609.3 — an empty pick
 //     binds nothing and every later Op skips), is exiled face up
 //     (CR 701.13a), and the impulse window is this turn's, lands included
-//     ("play", CR 305.9).
+//     ("play", CR 701.18a).
 //
 // compiler-gap: "When {self} enters, discard up to two cards, then draw that many cards." (#2693)
 // compiler-gap: "Whenever {self} attacks, if there are seven or more cards in your graveyard, exile a card at random from your graveyard. You may play that card this turn." (#2693)

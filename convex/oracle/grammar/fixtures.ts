@@ -12338,7 +12338,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 609.3 (issue #1702) — the moveZone frame's chosen card "at random":
+    // Issue #1702 — the moveZone frame's chosen card "at random":
     // "return two creature cards at random from your graveyard to the
     // battlefield" lowers to a `selectAtRandom` of the picks in the
     // `choice`'s place, then the same `moveZone` of them.

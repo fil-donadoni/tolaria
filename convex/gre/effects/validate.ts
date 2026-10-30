@@ -4218,7 +4218,7 @@ const OP_SCHEMAS: OpSchemaTable = {
     // issue #1947 — no fields: always picks from the pile linked to
     // $source and routes to that card's own owner's hand.
     randomExileToHand: { required: {} },
-    // CR 609.3 (issue #1702) — a random pick over `choice`'s pool vocabulary,
+    // Issue #1702 — a random pick over `choice`'s pool vocabulary,
     // binding PICKS and moving nothing. `top` windows a library only: in any
     // other zone there is no "top" to window.
     selectAtRandom: {

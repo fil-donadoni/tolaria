@@ -3172,7 +3172,7 @@ const lookRandomHand: Valuer<"lookRandomHand"> = () => ZERO_OP_VALUE;
 // same ZERO_OP_VALUE rather than each guessing a number.)
 const lookHand: Valuer<"lookHand"> = () => ZERO_OP_VALUE;
 
-// CR 609.3 (issue #1702) — a random pick that only BINDS: no card moves, so
+// Issue #1702 — a random pick that only BINDS: no card moves, so
 // the value lives entirely in the Op that consumes the picks (the `moveZone`
 // reading the binding), which its own valuer prices.
 const selectAtRandom: Valuer<"selectAtRandom"> = () => ZERO_OP_VALUE;
@@ -3844,7 +3844,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // CR 701.20a — binds the chosen NAME; the material is whatever later Op
     // reads the binding back, which is why `bind` is a required field.
     nameCard: "neutral",
-    // CR 609.3 (issue #1702) — binds a RANDOM pick of cards and moves none:
+    // Issue #1702 — binds a RANDOM pick of cards and moves none:
     // the zone's owner is neither helped nor hurt until the sibling Op that
     // reads the picks acts on them (a `moveZone` to exile, to hand), which
     // carries its own row. `bind` is required for exactly that reason.

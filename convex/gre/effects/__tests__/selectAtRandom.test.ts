@@ -1,4 +1,4 @@
-// `selectAtRandom` (issue #1702, CR 609.3) — choose N cards AT RANDOM out of
+// `selectAtRandom` (issue #1702) — choose N cards AT RANDOM out of
 // a zone pool read in the `choice` Op's own vocabulary (zone, zoneOwnerId,
 // filter, a library `top` window) and bind them, moving nothing. Exercised
 // through the real interpreter: the picks are observed by a following

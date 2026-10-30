@@ -293,7 +293,7 @@ describe("Tersa Lightshatter — attack impulse from a random graveyard card (CR
         expect(exiled.id).toMatch(/^gy-/);
         expect(exiled.castableFromExileBy).toBe("p1");
         expect(exiled.castableFromExileUntilTurn).toBe(state.turn);
-        // "play", not "cast" (CR 305.9) — a land exiled this way is playable.
+        // "play", not "cast" (CR 701.18a) — a land exiled this way is playable.
         expect(exiled.castableFromExileIncludesLand).toBe(true);
     });
 

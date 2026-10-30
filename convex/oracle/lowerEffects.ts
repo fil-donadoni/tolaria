@@ -5841,7 +5841,7 @@ function lowerMoveFrame(
             return lowered([move]);
         }
         case "chosen":
-            // CR 609.3 — a pick at random is an exact count: a range would
+            // Issue #1702 — a pick at random is an exact count: a range would
             // fall through to a player's choice, a different selection.
             if (object.random === true && typeof object.count !== "number")
                 return unlowerable("a pick at random reads an exact count");
@@ -6250,7 +6250,7 @@ function optionalChosenMove(
     const frame = sentence.frames[0]!;
     if (frame.frame !== "moveZone" || frame.object.kind !== "chosen")
         return null;
-    // CR 609.3 — a pick at random has no chooser to decline it: its "you may"
+    // Issue #1702 — a pick at random has no chooser to decline it: its "you may"
     // stays the `mayPay` gate.
     if (frame.object.random === true) return null;
     return frame.object.count === 1 ? frame : null;
@@ -6302,7 +6302,7 @@ function chosenMoveOps(
         to: movableDestination(to),
         ...(tapped ? { tapped: true } : {}),
     };
-    // CR 609.3 (issue #1702) — "at random": the PRNG picks the exact count
+    // Issue #1702 — "at random": the PRNG picks the exact count
     // the frame admitted (never a range — the caller refuses one), out of
     // the same pool.
     if (object.random === true && typeof count === "number")

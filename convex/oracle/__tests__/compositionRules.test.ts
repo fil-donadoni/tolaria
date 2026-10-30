@@ -370,10 +370,10 @@ describe("`If you do,` — the optional action is a cost, paid or not (CR 118.12
     });
 });
 
-// CR 609.3 (issue #1702) — the moveZone frame's chosen card "at random": an
+// Issue #1702 — the moveZone frame's chosen card "at random": an
 // exact count from your graveyard lowers to `selectAtRandom`; every other
 // spelling is refused, never read as a player's choice.
-describe("a chosen card at random (CR 609.3)", () => {
+describe("a chosen card at random (issue #1702)", () => {
     it("an exact count from your graveyard lowers to selectAtRandom, then the move", () => {
         expect(
             ops(

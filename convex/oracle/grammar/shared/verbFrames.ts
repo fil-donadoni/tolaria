@@ -207,7 +207,7 @@ export type MoveObjectIR =
      * CR 400.7 — "<quantity> <descriptor> from your <hand|graveyard>": the
      * controller picks the cards from their own zone as the effect resolves.
      * `count` is the printed quantity: a number ("a", "two") or a range ("up
-     * to two"). `random` (CR 609.3, issue #1702) is "<quantity> <descriptor>
+     * to two"). `random` (issue #1702) is "<quantity> <descriptor>
      * at random from your graveyard": the PRNG picks instead of the
      * controller, an exact count only.
      */
@@ -722,7 +722,7 @@ const LIBRARY_TOP_EXACT =
     /^the top (?:(card)|(\S+) cards) of (your|target player's|target opponent's) library$/;
 /** CR 400.7 — "<quantity> <descriptor> from <zone>". */
 const FROM_ZONE = /^(.+) from (your hand|your graveyard|a graveyard|.+)$/;
-/** CR 609.3 — the "at random" that closes a chosen card's quantity phrase. */
+/** Issue #1702 — the "at random" that closes a chosen card's quantity phrase. */
 const AT_RANDOM = /^(.+) at random$/;
 /** CR 400.3 — "<a|an> <descriptor> you control". */
 const OWN_PERMANENT = /^(an? .+ you control)$/;
@@ -964,7 +964,7 @@ function readMoveObject(
                 `"from ${zone}" is not a zone the moveZone frame picks a card from (your hand, your graveyard)`,
                 span
             );
-        // CR 609.3 (issue #1702) — "two creature cards at random from your
+        // Issue #1702 — "two creature cards at random from your
         // graveyard": the quantity and descriptor read as for a chosen card,
         // the trailing "at random" hands the pick to the PRNG.
         const randomPick = from[1]!.match(AT_RANDOM);
