@@ -716,7 +716,7 @@
         },
         {
             "kind": "grammar",
-            "key": "(card) › layout \"meld\" is not in grammar v0 (multi-faced cards)",
+            "key": "(card) › the meld keyword action (CR 701.42) is not in grammar v0",
             "issue": 3341
         },
         {

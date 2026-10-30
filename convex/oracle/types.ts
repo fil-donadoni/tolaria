@@ -43,6 +43,15 @@ export interface OracleCard {
      *  `SUPPORTED_INSET_LAYOUTS` in `compile.ts`. The corpus reducer has
      *  produced this since before any layout consumed it. */
     readonly faces?: readonly OracleFace[];
+    /** CR 712.4 — layout `"meld"` only: the combined back face of the pair
+     *  this front card belongs to. Scryfall reports each meld card as its own
+     *  row, so this is stamped at corpus level (`withMeldPairs`,
+     *  `meldPairs.ts`), never read from the row itself. */
+    readonly meldBack?: OracleFace;
+    /** CR 712.4b — layout `"meld"` only: this row IS a pair's combined back
+     *  face, which determines a melded permanent's characteristics and is
+     *  never a card of its own. Stamped by `withMeldPairs`. */
+    readonly meldResult?: boolean;
 }
 
 /**

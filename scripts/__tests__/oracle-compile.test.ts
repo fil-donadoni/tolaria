@@ -20,6 +20,10 @@ import { treeRole } from "../lib/derived-state";
 import type { CorpusCard } from "../oracle-corpus";
 import { emptyRetirementLedger } from "../lib/oracle-retirements";
 import {
+    MELD_CLAUSE_REASON,
+    MELD_RESULT_REASON,
+} from "../../convex/oracle/compile";
+import {
     compilerHash,
     compilerSourceFiles,
     parseLockfile,
@@ -128,9 +132,9 @@ const SYNTHETIC: CorpusCard[] = [
 const LAYOUT_TIE: CorpusCard[] = [
     corpusCard({
         oracleId: "00000000-0000-0000-0000-000000000005",
-        name: "Test Meld",
+        name: "Test Flip",
         typeLine: "Creature — Human Soldier",
-        layout: "meld",
+        layout: "flip",
     }),
     corpusCard({
         oracleId: "00000000-0000-0000-0000-000000000006",
@@ -217,8 +221,8 @@ describe("oracle:compile is deterministic", () => {
         expect(new Set(forward.fragments.map((f) => f.text)).size).toBe(1);
         expect(forward.fragments.map((f) => f.cards)).toEqual([1, 1]);
         expect(forward.fragments.map((f) => f.reason)).toEqual([
+            'layout "flip" is not in grammar v0 (multi-faced cards)',
             'layout "leveler" is not in grammar v0 (multi-faced cards)',
-            'layout "meld" is not in grammar v0 (multi-faced cards)',
         ]);
         expect(buildLockfile([...LAYOUT_TIE].reverse()).fragments).toEqual(
             forward.fragments
@@ -300,6 +304,64 @@ describe("oracle:compile classifies the synthetic corpus as expected", () => {
         expect(formats.modern.total).toBe(1);
         expect(formats.premodern.ready).toBe(4);
         expect(formats.premodern.unparsed).toBe(1);
+    });
+});
+
+/**
+ * CR 712.4 (issue #7581) — a meld pair is three corpus rows, so the pairing is
+ * resolved over the whole corpus before any card compiles. Without the
+ * corpus-level step every row of the trio would be refused as unpaired.
+ */
+const MELD_TRIO: CorpusCard[] = [
+    corpusCard({
+        oracleId: "00000000-0000-0000-0000-0000000000a1",
+        name: "Test Keeper",
+        oracleText:
+            "{5}: If you both own and control Test Keeper and a creature named Test Warden, exile them, then meld them into Test Colossus.",
+        layout: "meld",
+    }),
+    corpusCard({
+        oracleId: "00000000-0000-0000-0000-0000000000a2",
+        name: "Test Warden",
+        oracleText: "Vigilance\n(Melds with Test Keeper.)",
+        layout: "meld",
+    }),
+    corpusCard({
+        oracleId: "00000000-0000-0000-0000-0000000000a3",
+        name: "Test Colossus",
+        manaCost: "",
+        oracleText: "Trample",
+        power: "9",
+        toughness: "9",
+        layout: "meld",
+    }),
+];
+
+describe("oracle:compile resolves meld pairs across the corpus (CR 712.4, issue #7581)", () => {
+    const lock = buildLockfile(MELD_TRIO);
+    const fragments = indexFragments(lock);
+    const reasonsOf = (name: string): string[] =>
+        fragments
+            .of(lock.cards.find((c) => c.name === name)!)
+            .map((f) => f.reason);
+
+    it("refuses the holder's meld clause under its own key", () => {
+        expect(reasonsOf("Test Keeper")).toEqual([MELD_CLAUSE_REASON]);
+    });
+
+    it("compiles the partner with the combined back face, quarantined on Meld", () => {
+        const row = lock.cards.find((c) => c.name === "Test Warden")!;
+        expect(row.state).toBe("quarantine");
+        expect(row.definition?.backFace).toMatchObject({
+            kind: "meld",
+            name: "Test Colossus",
+            power: 9,
+            toughness: 9,
+        });
+    });
+
+    it("refuses the combined back face as a card", () => {
+        expect(reasonsOf("Test Colossus")).toEqual([MELD_RESULT_REASON]);
     });
 });
 
