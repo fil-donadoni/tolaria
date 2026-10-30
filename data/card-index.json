@@ -70810,6 +70810,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Thespian's Stage",
+        "scryfallId": "b6f27909-e5cd-44c0-91c4-21624f692fd9",
+        "oracleId": "b01e698b-608a-4fc7-8073-b01d044743ec",
+        "firstSet": "gtc",
+        "firstPrintId": "b6f27909-e5cd-44c0-91c4-21624f692fd9",
+        "firstPrintSet": "gtc"
+    },
+    {
         "name": "Thicket Basilisk",
         "scryfallId": "e92cce01-b3bd-4307-aae5-9a7c8fa386ab",
         "oracleId": "c4822813-cd81-465d-9fe8-3a4c2dcd31ef",

@@ -167,6 +167,7 @@ import * as soi from "./sets/soi/index.cards";
 import * as ncc from "./sets/ncc/index.cards";
 import * as arb from "./sets/arb/index.cards";
 import * as dmc from "./sets/dmc/index.cards";
+import * as gtc from "./sets/gtc/index.cards";
 import * as dst from "./sets/dst/index.cards";
 
 /** Set modules paired with their lowercase Set code, in catalogue order. The
@@ -321,6 +322,7 @@ const setModules: { code: string; exports: SetModuleExports }[] = [
     { code: "ncc", exports: ncc },
     { code: "arb", exports: arb },
     { code: "dmc", exports: dmc },
+    { code: "gtc", exports: gtc },
     { code: "dst", exports: dst },
 ];
 
