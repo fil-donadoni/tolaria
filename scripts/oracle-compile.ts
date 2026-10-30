@@ -51,6 +51,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { compileCard } from "../convex/oracle/compile";
+import { withMeldPairs } from "../convex/oracle/meldPairs";
 import type {
     CompiledDefinition,
     CompileState,
@@ -322,8 +323,11 @@ export function buildLockfile(
 
     const rawRows: CardRow[] = [];
 
-    for (const card of corpus) {
-        const outcome = compileCard(toOracleCard(card));
+    // CR 712.4 (issue #7581) — a meld pair spans three corpus rows, so it is
+    // resolved over the whole corpus before any one card compiles.
+    const oracleCards = withMeldPairs(corpus.map(toOracleCard));
+    for (const [index, card] of corpus.entries()) {
+        const outcome = compileCard(oracleCards[index]);
         // ADR 0105 § 7.2 — every card that reaches `ready` is played by the
         // Bot; a `frozen` one is withheld (`bot-unreachable`), an `ignored`
         // one ships and counts toward a Bot Gap. Decided BEFORE the tallies,

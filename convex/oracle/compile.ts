@@ -32,6 +32,8 @@ import type {
 import type { CardType, InsetSpellKind, SplitHalf } from "../cards/types";
 import { PERMANENT_TYPES } from "../cards/types";
 import { deriveSplitCombination } from "../cards/splitCard";
+import { MECHANICS_REGISTRY } from "../cards/mechanicsRegistry";
+import { MELD_CLAUSE, MELD_LAYOUT } from "./meldPairs";
 
 /**
  * Layouts grammar v0 reads. A multi-faced card (split, transform, adventure, …)
@@ -113,6 +115,44 @@ const MODAL_BACK_FACE_FIELDS = new Set<string>([
 ]);
 
 /**
+ * CR 712.4 / 712.8g (issue #7581) — the fields a MELD back face can carry: a
+ * modal face's list less everything a CAST or PLAYED face needs. A combined
+ * back face is never cast and never played — it exists only as a melded
+ * permanent (CR 712.4b), whose mana value is the SUM of its front faces'
+ * (CR 712.8g), so it has no mana cost, no spell script, no target and no
+ * land-entry replacement of its own. Anything else is refused, not
+ * truncated, for {@link MODAL_BACK_FACE_FIELDS}' reason.
+ */
+const MELD_BACK_FACE_FIELDS = new Set<string>([
+    "name",
+    "types",
+    "subtypes",
+    "supertypes",
+    "power",
+    "toughness",
+    "loyalty",
+    "staticAbilities",
+    "activatedAbilities",
+    "oracleText",
+]);
+
+/** CR 701.42a — the refusal of the meld ability's clause, under a key of its
+ *  own: the keyword action has no Op until issue #3341 lands one together
+ *  with the Grammar Rule that emits it (`/new-op` § Site 8, Branch A). */
+export const MELD_CLAUSE_REASON =
+    "the meld keyword action (CR 701.42) is not in grammar v0";
+
+/** CR 712.4b — why a pair's combined back face is refused as a CARD. It is
+ *  compiled onto both of its front cards instead, so its own lines rank the
+ *  grammar backlog through them. */
+export const MELD_RESULT_REASON =
+    "combined back face of a meld pair (CR 712.4b) — compiled onto its front cards, never a card";
+
+/** Why a meld card is refused when `withMeldPairs` placed it in no pair. */
+export const MELD_UNPAIRED_REASON =
+    "meld card whose pair is not resolvable from the corpus (CR 712.4a)";
+
+/**
  * CR 715 / 722 (ADR 0120 §5) — the layouts whose second face is an INSET SPELL
  * rather than a second object, mapped to the `InsetSpellKind` they lower into.
  *
@@ -121,7 +161,8 @@ const MODAL_BACK_FACE_FIELDS = new Set<string>([
  * adventurer card has only its NORMAL characteristics", so no zone ever shows
  * two faces at once and nothing outside the cast path learns anything. A split
  * card (two names and two costs in EVERY zone, CR 709), an MDFC (a back face
- * that is a permanent, CR 712.3) and meld (CR 701.42) stay refused.
+ * that is a permanent, CR 712.3) and meld (CR 712.4) each have a layout path
+ * of their own below.
  *
  * A `Record`, not a `Set`: the KIND is what the lowered `insetSpell` carries,
  * and CR 722.3 makes it load-bearing (a prepare spell can never be cast). A
@@ -184,6 +225,7 @@ export function compileCard(card: OracleCard): CompileOutcome {
     if (insetKind !== undefined) return compileInsetLayout(card, insetKind);
     if (layout === SPLIT_LAYOUT) return compileSplitLayout(card);
     if (layout === MODAL_DFC_LAYOUT) return compileModalDfcLayout(card);
+    if (layout === MELD_LAYOUT) return compileMeldLayout(card);
     if (!SUPPORTED_LAYOUTS.has(layout)) {
         return unparsed([
             {
@@ -632,4 +674,139 @@ function compileSplitLayout(card: OracleCard): CompileOutcome {
     return reasons.length > 0
         ? { state: "quarantine", definition, opsUsed, slots, reasons }
         : { state: "ready", definition, opsUsed, slots };
+}
+
+/**
+ * CR 712.4 / 712.4a / 712.4b (issue #7581) — compile a MELD layout: the front
+ * card becomes the card, the pair's combined back face its `backFace` with
+ * `kind: "meld"`.
+ *
+ * The pairing is not in the row (Scryfall reports each meld card on its own);
+ * `withMeldPairs` (`meldPairs.ts`) stamps it at corpus level before this runs.
+ * What it stamps decides the outcome:
+ *
+ * - `meldResult` — the row IS a combined back face. CR 712.4b uses it "only to
+ *   determine the characteristics of the melded permanent", so it is refused
+ *   as a card under {@link MELD_RESULT_REASON}; its lines are compiled, and
+ *   counted, on its two front cards.
+ * - `meldBack` — a front card. The front face and the back face each run the
+ *   ordinary pipeline, exactly as `compileModalDfcLayout` does, and the meld
+ *   ability's clause is refused under {@link MELD_CLAUSE_REASON} rather than
+ *   the router's generic gap, so its claim names the issue that ships it.
+ * - neither — refused under {@link MELD_UNPAIRED_REASON}: a front face compiled
+ *   alone would look complete while dropping the permanent it melds into.
+ *
+ * A front card that compiles whole is still QUARANTINED while the Meld row of
+ * the Mechanics Registry is not `implemented`: its back face is reachable
+ * only through the melded permanent issue #3341 builds.
+ */
+function compileMeldLayout(card: OracleCard): CompileOutcome {
+    if (card.meldResult === true) {
+        return unparsed([
+            {
+                line: card.typeLine,
+                fragment: card.typeLine,
+                reason: MELD_RESULT_REASON,
+            },
+        ]);
+    }
+    const back = card.meldBack;
+    if (back === undefined) {
+        return unparsed([
+            {
+                line: card.typeLine,
+                fragment: card.typeLine,
+                reason: MELD_UNPAIRED_REASON,
+            },
+        ]);
+    }
+    const front = compileCard({
+        oracleId: card.oracleId,
+        name: card.name,
+        manaCost: card.manaCost,
+        typeLine: card.typeLine,
+        oracleText: card.oracleText,
+        ...(card.power !== undefined ? { power: card.power } : {}),
+        ...(card.toughness !== undefined ? { toughness: card.toughness } : {}),
+        ...(card.loyalty !== undefined ? { loyalty: card.loyalty } : {}),
+        layout: "normal",
+    });
+    const backOutcome = compileCard(faceAsOracleCard(card, back));
+    if (front.state === "unparsed" || backOutcome.state === "unparsed") {
+        return unparsed([
+            ...(front.state === "unparsed"
+                ? front.gaps.map(refuseMeldClause)
+                : []),
+            ...(backOutcome.state === "unparsed" ? backOutcome.gaps : []),
+        ]);
+    }
+    const carried = Object.keys(backOutcome.definition).filter(
+        (k) => !MELD_BACK_FACE_FIELDS.has(k)
+    );
+    if (carried.length > 0) {
+        return unparsed([
+            {
+                line: back.oracleText,
+                fragment: back.oracleText,
+                reason: `meld back face carries ${carried.join(", ")}, which a CardBackFace cannot hold`,
+            },
+        ]);
+    }
+    const backDef = backOutcome.definition;
+    const definition: CompiledDefinition = {
+        ...front.definition,
+        backFace: {
+            kind: "meld",
+            name: backDef.name,
+            types: [...backDef.types],
+            ...(backDef.subtypes ? { subtypes: [...backDef.subtypes] } : {}),
+            ...(backDef.supertypes
+                ? { supertypes: [...backDef.supertypes] }
+                : {}),
+            ...(backDef.power !== undefined ? { power: backDef.power } : {}),
+            ...(backDef.toughness !== undefined
+                ? { toughness: backDef.toughness }
+                : {}),
+            ...(backDef.loyalty !== undefined
+                ? { loyalty: backDef.loyalty }
+                : {}),
+            ...(backDef.staticAbilities
+                ? { staticAbilities: [...backDef.staticAbilities] }
+                : {}),
+            ...(backDef.activatedAbilities
+                ? { activatedAbilities: backDef.activatedAbilities }
+                : {}),
+            oracleText: back.oracleText,
+        },
+    };
+    const opsUsed = [
+        ...new Set([...front.opsUsed, ...backOutcome.opsUsed]),
+    ].sort();
+    const slots = [...new Set([...front.slots, ...backOutcome.slots])].sort();
+    const meld = MECHANICS_REGISTRY.find((row) => row.id === "meld");
+    const reasons = [
+        ...(front.state === "quarantine" ? front.reasons : []),
+        ...(backOutcome.state === "quarantine" ? backOutcome.reasons : []),
+        ...(meld?.status === "implemented"
+            ? []
+            : [
+                  {
+                      kind: "planned-mechanic" as const,
+                      detail: 'keyword "Meld" is not implemented in the Mechanics Registry',
+                  },
+              ]),
+    ];
+    return reasons.length > 0
+        ? { state: "quarantine", definition, opsUsed, slots, reasons }
+        : { state: "ready", definition, opsUsed, slots };
+}
+
+/** CR 701.42a — a gap on the meld ability's line, re-keyed to
+ *  {@link MELD_CLAUSE_REASON}. Card-level (no attribution), so every meld
+ *  ability of the corpus — activated, triggered, attack-gated — is ONE gap
+ *  claimed by ONE issue rather than a no-slot key per wording. */
+function refuseMeldClause(gap: Gap): Gap {
+    return gap.line.includes(MELD_CLAUSE)
+        ? { line: gap.line, fragment: gap.line, reason: MELD_CLAUSE_REASON }
+        : gap;
 }
