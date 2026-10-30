@@ -2775,6 +2775,16 @@ const RULES_MODIFIERS: MechanicRow[] = [
         note: "CR 602.5: \"A player can't begin to activate an ability that's prohibited from being activated.\" The prohibition imposed from OUTSIDE the ability, by a permanent: \"Activated abilities of <permanents> can't be activated\" (Cursed Totem — creatures; Null Rod / Collector Ouphe — artifacts). A battlefield-scanned static read live, like `cast-restriction`: nothing is materialized, so the lock ends when its source leaves or loses its abilities (CR 611.3b, 613.1f). Declarative: a `PermanentFilter` over battlefield permanents (CR 109.2 — a typed description with no zone means a permanent), matched by `matchesPermanentFilter` with the source as `self`, and `exemptManaAbilities` for the \"unless they're mana abilities\" family. Mana abilities are activated abilities (CR 605.1a), so without the exemption they are locked too, intrinsic basic-land mana (CR 305.6) included. ONE predicate, two funnels: non-mana activations read it through `activationPreconditionViolation` (server mutations, the Bot's `enumerateAbilityMoves`, the client `getStackAbilities`); mana activations through the tap-option list (`getManaTapOptionsDetailed` returns none, so auto-tap, the castability census and the Bot's payment planner never commit the source) plus an explicit refusal in each tap mutation. The client reads the same predicate off `buildTriggerStateView`, whose rows carry `card` and `abilitiesSuppressedBy` for it (ADR 0074). Not yet: the chosen-name scope of Pithing Needle (sources in any zone), which waits for its card to show the axis.",
     },
     {
+        id: "damage-as-counters",
+        name: "Damage As Counters",
+        kind: "rules-modifier",
+        cr: "614.1a",
+        status: "implemented",
+        binding:
+            'CardDefinition.damageAsCounters (cards/types.ts DamageAsCounters) + cards/abilities/damageAsCounters.ts (expandDamageAsCounters, wired in cards/registry.ts) -> a "damage" replacementEffects[] entry (damageEffectKind "other") run by gre/replacements.ts applyDamageReplacements via gre/state.ts runDamageReplacement (every damage sink), placing the counters through ReplacementApplyContext.addCounters (addCounterToCard)',
+        note: 'CR 614.1a: "If a source you control would deal noncombat damage to a creature an opponent controls, put that many -1/-1 counters on that creature instead." (Soul-Scar Mage, issue #7201). The damage event is REPLACED, never dealt — unlike wither/infect (CR 702.80a / 702.90c), where damage is dealt in the form of counters — so no DAMAGE_DEALT, lifelink, deathtouch or damage tally follows. Not a prevention effect (no "prevent", CR 615.1a), so "damage can\'t be prevented" leaves it applying. The counters go through the shared counter-placement chokepoint (counter-placed replacements, COUNTER_ADDED).',
+    },
+    {
         id: "damage-life-floor",
         name: "Damage Life Floor",
         kind: "rules-modifier",
