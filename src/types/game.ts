@@ -675,6 +675,14 @@ export interface StackItem extends CardInstance {
     isCopy?: boolean;
     /** If set, this stack item is an activated ability (not a spell). */
     abilityId?: string;
+    /** The card that PRINTS the activated ability when it is not the card
+     *  the source presents — an ability granted to it (CR 113.1) or gained
+     *  through a copy effect (CR 707.9a). Mirrors `StackItem.grantedSourceCardId`
+     *  in `convex/gre/state.ts`; forwarded by `slimCard`, read by
+     *  `getStackAbilityOracleText`. */
+    grantedSourceCardId?: string;
+    /** Which list on `grantedSourceCardId`'s definition holds the ability. */
+    grantedAbilityOrigin?: GrantedAbilityOrigin;
     /** If set, this stack item is a triggered ability (CR 603). */
     triggeredAbilityId?: string;
     /** Instance id of the permanent that produced this trigger — the id on the

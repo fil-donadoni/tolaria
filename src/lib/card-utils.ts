@@ -46,6 +46,7 @@ import {
     abilityLossTimestamp,
     getEffectiveActivatedAbilities,
     grantOutrankedByAbilityLoss,
+    gainedThroughCopy,
     resolveGrantedActivatedAbility,
 } from "@convex/gre/activatedAbilities";
 import type { GrantedAbilityOrigin } from "@convex/gre/activatedAbilities";
@@ -3111,6 +3112,8 @@ export function getStackAbilityOracleText(item: {
     triggeredAbilityId?: string;
     delayedTriggerId?: string;
     delayedOracleText?: string;
+    grantedSourceCardId?: string;
+    grantedAbilityOrigin?: GrantedAbilityOrigin;
     grantedActivatedAbilities?: ReadonlyArray<{
         sourceCardId: string;
         abilityId: string;
@@ -3124,6 +3127,17 @@ export function getStackAbilityOracleText(item: {
     const kind = stackAbilityKindOf(item);
     if (kind === null) return null;
     if (kind === "activated") {
+        // CR 113.1 / 707.9a — the item names the card that prints the ability
+        // when it is not the one the source presents (a copy that gained
+        // "except it has this ability" presents the land it copied).
+        if (item.grantedSourceCardId) {
+            const tmpl = resolveGrantedActivatedAbility(
+                item.grantedSourceCardId,
+                item.abilityId!,
+                item.grantedAbilityOrigin
+            );
+            if (tmpl?.oracleText) return tmpl.oracleText;
+        }
         return getAbilityOracleText(
             item.card.id,
             item.abilityId!,
@@ -3414,6 +3428,25 @@ export function getDisplayAbilities(
             state: nativeState,
             order: paragraphOrder(a.oracleText),
         }));
+    // CR 707.9a — an ability a copy effect made part of the copiable values
+    // ("except it has this ability", Thespian's Stage): the same rows, and
+    // the same skip, the engine's `getEffectiveActivatedAbilities` offers.
+    for (const gained of instance
+        ? gainedThroughCopy(instance as unknown as CardInstanceState)
+        : []) {
+        if (gained.sourceCardId === cardId) continue;
+        const tmpl = resolveGrantedActivatedAbility(
+            gained.sourceCardId,
+            gained.abilityId,
+            "card-abilities"
+        );
+        if (!tmpl?.oracleText) continue;
+        activated.push({
+            id: tmpl.id,
+            oracleText: tmpl.oracleText,
+            state: nativeState,
+        });
+    }
     for (const grant of instance?.grantedActivatedAbilities ?? []) {
         // Issue #2943 — same shared resolver as the engine's
         // `getEffectiveActivatedAbilities`, so this list marks exactly the rows
