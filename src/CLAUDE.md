@@ -36,10 +36,9 @@ with the card in a 24px-tall container.
 `index.html`, public asset or design tokens; the shell / `components/chrome/`;
 a `*layout*` component; `components/ui/`; a dialog/modal/popover/overlay/
 portal/sheet/drawer/tooltip/dropdown/menu/toast component; a viewport/
-responsive module; or changed LINES (added/removed, never the untouched rest of
-the file, issue #7592) adding or removing a `z-index`, fixed/sticky/portal,
-scroll container or `@media`/`matchMedia`/`useViewport*`. Leaf components,
-copy, handlers, tests: not. Not owed → PR line
+responsive module; or a changed line adding/removing a `z-index`,
+scroll container or `@media`/`matchMedia`/`useViewport*`. Leaf
+components, copy, handlers, tests: not. Not owed → PR line
 `check:ui: no walk owed (<reason>)` replaces the receipt; owed + no receipt →
 `land` refuses. `--all`: the full proof, by hand only (#6143).
 
