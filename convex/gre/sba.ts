@@ -474,8 +474,7 @@ export function checkZeroToughnessSBA(state: GameState): boolean {
  *  stable because one death can cascade further SBAs.
  *
  *  A `permanent-guard` with `survivesZeroLoyalty` exempts the walkers it
- *  matches (Sanctum Lurker: "Planeswalkers you control aren't put into their
- *  owners' graveyards for having 0 loyalty"), read live per check. */
+ *  matches, read live per check. */
 export function checkZeroLoyaltySBA(state: GameState): boolean {
     let removedAny = false;
     for (;;) {
