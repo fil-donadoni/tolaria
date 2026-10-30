@@ -18,7 +18,7 @@ import type { ActivatedAbility, ManaCost, TextChange } from "./cards/types";
 import {
     canCastFromGraveyardByPermission,
     canPlayLandsFromGraveyard,
-    canCastSpellsFromTopOfLibrary,
+    libraryTopCastGrant,
     isCastableLibraryTopSpell,
     isPlayableLibraryTopLand,
     getLegalActions,
@@ -1061,10 +1061,13 @@ function libraryTopAffordance(
     // instead of offering choices `announceCast` then rejects. Read live off
     // the grant, like every other field here — the flag disappears with the
     // granting permanent. Never set on the LAND half (a land is played, not
-    // cast, CR 305.9), hence the `castable` gate.
+    // cast, CR 305.9), hence the `castable` gate. Read off the WHOLE card's
+    // grant (issue #7205): a split card's halves may sit under different
+    // grants, but its affordance opens the half picker regardless and each
+    // half is priced per announcement server-side (`libraryTopCastGrant`).
     const replaced =
         castable &&
-        canCastSpellsFromTopOfLibrary(state, player)?.manaCostReplacement !==
+        libraryTopCastGrant(state, player, top)?.manaCostReplacement !==
             undefined;
     return withPrintedCastAvailability(
         {

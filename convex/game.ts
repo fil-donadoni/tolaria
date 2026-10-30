@@ -230,6 +230,7 @@ import {
     foldFlashSurchargeCost,
     castPermissionRequiredFor,
     castTimingBaseLegal,
+    libraryTopCastGrant,
 } from "./gre/rules";
 // CR 601.2c — the single authority on "an effect says an object must be chosen
 // as a target" (Flagbearer). The mutation re-derives the narrowing per pick;
@@ -6316,6 +6317,24 @@ export const announceCast = mutation({
             : undefined;
         if (args.alternativeCostId && !chosenAltCost) {
             throw new Error("Unknown alternative cost for this spell");
+        }
+        // CR 601.3 / 601.3e (issue #7205) — off the top of the library, the
+        // ANNOUNCED spell must be one a live grant covers: `assertLegalAction`
+        // admits the card when ANY half is covered, so a filtered permission
+        // (Mystic Forge's artifact-or-colorless) must refuse the other half
+        // here, before any commit path can charge it.
+        if (
+            castFromZone === "library" &&
+            libraryTopCastGrant(
+                state,
+                player,
+                cardInHand,
+                args.alternativeCostId
+            ) === undefined
+        ) {
+            throw new Error(
+                "No permission lets you cast that spell from your library"
+            );
         }
         // CR 601.3c / 118.9b — "An effect that allows you to cast a spell may
         // require a certain alternative cost to be paid." When the ONLY thing

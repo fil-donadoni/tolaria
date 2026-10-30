@@ -263,7 +263,17 @@ export interface SpellFilter {
      *  sixth colour, so "whenever you cast a colorless spell" (Ugin, Eye of the
      *  Storms) is `excludeColors: ["W", "U", "B", "R", "G"]` — a spell with none
      *  of the five. Single value is shorthand for one colour. */
-    excludeColors?: Color | Color[];
+    excludeColors?:
+        | Color
+        | Color[]; /** OR ACROSS filter dimensions — the SPELL twin of `PermanentFilter.any`
+     *  (issue #897), same semantics: a non-empty array of full `SpellFilter`
+     *  clauses, the spell matching if it matches AT LEAST ONE, ANDed with every
+     *  other top-level field present alongside it. For a selector whose two
+     *  halves name DIFFERENT fields (issue #7205 — Mystic Forge's "artifact
+     *  spells and colorless spells": `types: "Artifact"` OR
+     *  `excludeColors: [W,U,B,R,G]`), which the OR-within-a-field arrays cannot
+     *  say. */
+    any?: SpellFilter[];
 }
 
 // --- DamageSourceFilter (applied to a damage source description) ---
@@ -676,6 +686,12 @@ export function matchesSpellFilter(
     if (filter.excludeColors !== undefined) {
         const excluded = asArray(filter.excludeColors);
         if (excluded.some((c) => spell.colors.includes(c))) return false;
+    }
+    if (
+        filter.any !== undefined &&
+        !filter.any.some((clause) => matchesSpellFilter(spell, clause))
+    ) {
+        return false;
     }
     return true;
 }

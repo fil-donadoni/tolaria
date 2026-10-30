@@ -22073,9 +22073,21 @@ export interface CardDefinition {
      *  from hand. It is a general cost-substitution vocabulary, not a
      *  card-shaped flag: see {@link ManaCostReplacement}. Omitted = the spell
      *  is cast for its normal printed mana cost (Vizier of the Menagerie's
-     *  shape). */
+     *  shape).
+     *
+     *  `spellFilter` (issue #7205) narrows WHICH spells the permission covers
+     *  — Mystic Forge's "artifact spells and colorless spells", Vizier of the
+     *  Menagerie's "creature spells". Matched against the cast SUBJECT, never
+     *  the card in its zone: CR 601.3e makes the characteristics a cast would
+     *  have the ones that decide whether the permission applies, so a split
+     *  card off the top is covered half by half (CR 709.3a,
+     *  `libraryTopCastGrant`, `gre/rules.ts`). The Adventure and face-down
+     *  morph announcements CR 601.3e's own examples name are not yet offered
+     *  from the library (issue #7526). Omitted = every nonland spell (Bolas's
+     *  Citadel). */
     castsSpellsFromTopOfLibrary?: {
         manaCostReplacement?: ManaCostReplacement;
+        spellFilter?: SpellFilter;
     };
     /** While ANY permanent with this flag is on the battlefield, no player may
      *  play a land (CR 305.1 special action prohibition) AND a land that would
