@@ -74,6 +74,16 @@ export interface LatentLens {
      *  reads its slots from. Present only on a lens attached to a real board;
      *  absent, a context-free valuation keeps the representative victim. */
     requirementUnits?(requirement: TargetRequirement): number | undefined;
+    /** The net exchange, in `boardRemoval` units, of the BEST legal pair for
+     *  a fight whose combatants are announced slots `creatureSlot` and
+     *  `otherSlot` (CR 701.14a): each pair's gain is the realised loss of
+     *  every combatant the other's damage kills (CR 704.5g, or any damage
+     *  from deathtouch, CR 702.2b), counted for the caster when the dying
+     *  creature is an opponent's and against it when the caster's own.
+     *  Negative when the best pair still costs the caster; `0` when no legal
+     *  pair exists. `undefined` when no board is attached or a slot's
+     *  requirement is unreadable — the valuer keeps its constant then. */
+    fightUnits?(creatureSlot: number, otherSlot: number): number | undefined;
     /** Issue #5014 — true for an announced slot whose board holds no legal
      *  permanent victim: the damage aimed at it can only reach a player's
      *  face, so it is a life swing and not removal. Set only by the lens an

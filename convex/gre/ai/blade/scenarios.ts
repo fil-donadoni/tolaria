@@ -2790,7 +2790,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // from: 30 of 30 pick the mode. There is no longer a tie to seed
         // around, so the seeds carry no information beyond "not a single
         // draw".
-        seeds: [0xb1ade, 1, 2, 3, 4],
+        seeds: [0xb1ade, 1, 2, 3, 5],
         tier: "must",
         expect: {
             predicate: (move) =>
@@ -17005,5 +17005,155 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: "Issue #7337. The same board with the opponent's hand empty: a held Teferi's Response has no spell to wait for, so keeping it was worth the full unit of its answer (about 112, 286 for Teferi's Response) in every rollout and always out-scored the ~16 the land is worth. `stackAnswerUnits` (latentBoard.ts) scales the held answer by the opponent's hand, so countering wins.",
+    },
+    {
+        // MUST (issue #5609), the anchor of the fight pair. Triangle of War
+        // ({2}, sacrifice: target creature you control fights target creature
+        // an opponent controls) with a lone 1/1 against a 4/4: the fight
+        // deals 1 damage to the 4/4 and 4 to the 1/1, so it costs the Bot its
+        // creature AND its artifact and kills nothing. Passing is right.
+        label: "discriminating pair: does NOT activate Triangle of War with a 1/1 against a 4/4",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a 6/6 Kindercatch of the Bot's own beside the 1/1",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Triangle of War", owner: "me", zone: "battlefield" },
+                {
+                    name: "Eager Cadet",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Rumbling Baloth",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+        },
+        bot: "me",
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Triangle of War" }],
+        },
+        note: "Issue #5609. The `fight` valuer priced a fixed half of a removal off the opposing creature alone, so a fighter that dies without killing anything was worth the same as one that kills. The exchange is now read per pair (lethal damage, CR 704.5g); here neither side of it is a gain for the Bot.",
+    },
+    {
+        // MUST (issue #5609), the right-hand half: the same board with a 6/6
+        // of the Bot's own. The 6/6 kills the 4/4 and survives its 4 damage,
+        // so the fight is a clean removal and the Bot activates with the 6/6
+        // as the fighter and the 4/4 as `other`.
+        label: "discriminating pair: activates Triangle of War with a 6/6 beside the 1/1 against a 4/4",
+        pairOf: {
+            anchor: "discriminating pair: does NOT activate Triangle of War with a 1/1 against a 4/4",
+            discriminant: {
+                kind: "card",
+                detail: "a 6/6 Kindercatch of the Bot's own beside the 1/1",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Triangle of War", owner: "me", zone: "battlefield" },
+                {
+                    name: "Eager Cadet",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Kindercatch",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Rumbling Baloth",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+        },
+        bot: "me",
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Triangle of War" }],
+        },
+        note: "Issue #5609. Right-hand half of the 1/1 anchor: a 6/6 of the Bot's own kills the 4/4 and survives, so the exchange nets a removal. The fighter itself is pinned by the next entry (a pair half can only name the anchor's forbidden matcher).",
+    },
+    {
+        // MUST (issue #5609), the right-hand half: the same board with a 6/6
+        // of the Bot's own. The 6/6 kills the 4/4 and survives its 4 damage,
+        // so the fight is a clean removal and the Bot activates with the 6/6
+        // as the fighter and the 4/4 as `other`.
+        label: "activates Triangle of War announcing the 6/6 as the fighter and the 4/4 as the creature it fights",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Triangle of War", owner: "me", zone: "battlefield" },
+                {
+                    name: "Eager Cadet",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Kindercatch",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Rumbling Baloth",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+        },
+        bot: "me",
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            predicate: (move, state) => {
+                if (move === null || move.kind !== "activate-ability") {
+                    return false;
+                }
+                const targets = move.targets ?? [];
+                if (targets.length !== 2) return false;
+                // Slot 0 is the fighter, slot 1 the creature it fights.
+                return (
+                    instanceIdsForName(state, "Kindercatch").has(
+                        targets[0].id
+                    ) &&
+                    instanceIdsForName(state, "Rumbling Baloth").has(
+                        targets[1].id
+                    )
+                );
+            },
+            describe:
+                "activates Triangle of War announcing Kindercatch as the fighter and Rumbling Baloth as the creature it fights",
+        },
+        note: "Issue #5609. `MoveMatcher.target` matches ANY target, so the pair half cannot name the fighter slot — this predicate does: the 6/6 fights, never the 1/1 (the 1/1 fighting the 4/4 loses the Bot its creature and kills nothing).",
     },
 ];

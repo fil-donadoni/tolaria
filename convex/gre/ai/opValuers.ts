@@ -89,9 +89,9 @@ const REMOVAL_COMPLETENESS = {
     edict: { num: 3, den: 4 },
     /** Stealing a permanent: denial plus a body, but revertible. */
     gainControl: { num: 15, den: 16 },
-    /** A fight (CR 701.14a): the victim dies only when the fighter's power
-     *  reaches its toughness, and the fighter takes damage back — a
-     *  conditional half of a removal, not the whole. */
+    /** A fight (CR 701.14a) the lens cannot read as a pair: the victim dies
+     *  only when the fighter's power reaches its toughness, and the fighter
+     *  takes damage back — a conditional half of a removal, not the whole. */
     fight: { num: 1, den: 2 },
 } as const;
 
@@ -2880,20 +2880,39 @@ const preventRegeneration: Valuer<"preventRegeneration"> = (op) => ({
         : ["boardRemoval"],
 });
 
-// CR 701.14a — a fight is conditional removal aimed at `other`: priced off
-// the best legal victim like `destroy`, at the `fight` completeness (the
-// victim may survive, and the fighter is damaged back).
-const fight: Valuer<"fight"> = (op, ctx) => ({
-    points: pricedFraction(
-        ctx,
-        "boardRemoval",
-        REMOVAL_COMPLETENESS.fight,
-        victimUnitsFor(op.other, ctx)
-    ),
-    tags: isAnnouncedTarget(op.other)
-        ? ["boardRemoval", "targeted"]
-        : ["boardRemoval"],
-});
+// CR 701.14a — a fight is priced by the exchange the announced pair makes:
+// the lens reads both combatants' effective P/T (`fightUnits`), so a victim
+// only counts when the fighter's damage is lethal to it and the fighter's own
+// loss is charged when the victim's is lethal back. Where the lens cannot read
+// the pair (no board, a modal card, an ability site), it falls back to the
+// `fight` completeness of the best legal victim of `other` — never a zero.
+const fight: Valuer<"fight"> = (op, ctx) => {
+    const creatureSlot = announcedSlot(op.creature);
+    const otherSlot = announcedSlot(op.other);
+    const exchange =
+        creatureSlot !== undefined && otherSlot !== undefined
+            ? ctx.latent.fightUnits?.(creatureSlot, otherSlot)
+            : undefined;
+    return {
+        points:
+            exchange !== undefined
+                ? pricedFraction(
+                      ctx,
+                      "boardRemoval",
+                      REMOVAL_COMPLETENESS.destroy,
+                      exchange
+                  )
+                : pricedFraction(
+                      ctx,
+                      "boardRemoval",
+                      REMOVAL_COMPLETENESS.fight,
+                      victimUnitsFor(op.other, ctx)
+                  ),
+        tags: isAnnouncedTarget(op.other)
+            ? ["boardRemoval", "targeted"]
+            : ["boardRemoval"],
+    };
+};
 
 // CR 614.1a — "if it would die this turn, exile it instead" (issue #1095).
 // A graveyard-denial rider, not removal in itself: it only pays off when the
@@ -3639,7 +3658,9 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     dealDamageToEach: "harmful",
     loseLife: "harmful",
     destroy: "harmful",
-    // CR 701.14a — damage to both combatants; the stake is the `other`'s life.
+    // CR 701.14a — the stake is the `other` combatant; the fighter's sign is
+    // split to neutral per slot (`SPLIT_SIGN_OPS` in `beneficence.ts`), which
+    // runs before this row, since a fighter is right on either side's board.
     fight: "harmful",
     exile: "harmful",
     exileWithAttachments: "harmful",
