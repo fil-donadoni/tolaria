@@ -5306,6 +5306,10 @@ function lowerFrameChain(
             case "becomeMonarch":
                 ops.push({ op: "becomeMonarch" });
                 break;
+            // CR 104.2b — the controller wins the game.
+            case "winGame":
+                ops.push({ op: "winGame", player: "controller" });
+                break;
             // CR 122.1 — a counter kind a player holds, added to that player.
             case "playerCounters": {
                 const player = playerRef(frame.player, walk.targets, site);
