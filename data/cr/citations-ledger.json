@@ -315,6 +315,7 @@
         {"id":"102.2","line":"// * CR 102.2 — \"any other player\" is the CASTER's complement, so Ice Cave's","sites":1,"status":"confirmed","ruleHash":"852afec2046f9914"},
         {"id":"102.2","line":"// A SINGLE-player state — \"opponent\" (CR 102.2's \"the one player who","sites":1,"status":"baseline"},
         {"id":"102.2","line":"// CR 102.2 — \"deals damage to AN OPPONENT\" names the damaged player, who","sites":1,"status":"confirmed","ruleHash":"852afec2046f9914"},
+        {"id":"102.2","line":"// CR 102.2 — \"you don't control\": every permanent has a controller, and","sites":1,"status":"confirmed","ruleHash":"852afec2046f9914"},
         {"id":"102.2","line":"// CR 102.2 — in a two-player game \"each opponent\" is the one other","sites":1,"status":"confirmed","ruleHash":"852afec2046f9914"},
         {"id":"102.2","line":"// CR 102.2 — the opponents of the head's player; the two-player","sites":1,"status":"confirmed","ruleHash":"852afec2046f9914"},
         {"id":"102.2","line":"// CR 102.2 — this engine is two-player, so \"your opponents\" is the","sites":1,"status":"confirmed","ruleHash":"852afec2046f9914"},
