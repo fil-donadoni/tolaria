@@ -48999,6 +48999,14 @@
         "source": "compiled"
     },
     {
+        "name": "Paradoxical Outcome",
+        "scryfallId": "17e50157-bf49-4c5f-9b8a-bf73484e63a5",
+        "oracleId": "2cce7250-f8f9-4c0a-87b1-ba3c5b8ed6b3",
+        "firstSet": "kld",
+        "firstPrintId": "17e50157-bf49-4c5f-9b8a-bf73484e63a5",
+        "firstPrintSet": "kld"
+    },
+    {
         "name": "Parallax Tide",
         "scryfallId": "7fe593eb-df3c-43e5-97a6-418f91e87cb3",
         "oracleId": "e36a92be-537d-4a63-858a-afaab064fbf7",
