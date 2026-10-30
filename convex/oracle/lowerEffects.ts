@@ -55,6 +55,7 @@ import {
     type ActedOnCharacteristicIR,
     type ActedOnNounIR,
     type AmountIR,
+    type CoinFlipBranchIR,
     type EffectSentenceIR,
     type LibraryRestIR,
     type SubjectIR,
@@ -4793,6 +4794,73 @@ function lowerSentenceBody(
                     then: [
                         { op: "draw", player: player.value, count: perFlip },
                     ],
+                },
+            ]);
+        }
+        case "coin-flip": {
+            // CR 705.1 — the controller flips; each printed outcome is a
+            // branch run through the same op list an `if` branch is, the
+            // unprinted one a deliberate no-op (issue #1367).
+            const branch = (
+                b: CoinFlipBranchIR | undefined
+            ): Lowered<{ consequence: string; effects: EffectOp[] }> => {
+                if (b === undefined)
+                    return lowered({
+                        consequence: "Nothing happens.",
+                        effects: [],
+                    });
+                const inner = gatedSentence(b.effect, walk, site);
+                if (!inner.ok) return inner;
+                return lowered({
+                    consequence: `${capitalise(
+                        b.clause.split(SELF_MARKER).join(site.selfName)
+                    )}.`,
+                    effects: inner.value,
+                });
+            };
+            const win = branch(sentence.win);
+            if (!win.ok) return win;
+            const loss = branch(sentence.loss);
+            if (!loss.ok) return loss;
+            return lowered([
+                { op: "coinFlip", win: win.value, loss: loss.value },
+            ]);
+        }
+        case "coin-flip-until-loss": {
+            // CR 705.2 — flip until the first lost flip; the counters are
+            // scaled by the flips won ("for each flip you won").
+            const target = objectSelector(
+                sentence.counters.subject,
+                slots,
+                site
+            );
+            if (!target.ok) return target;
+            const count = lowerAmount(sentence.counters.count, site);
+            if (!count.ok) return count;
+            if (typeof count.value !== "number")
+                return unlowerable(
+                    '"for each flip you won" scales only a printed number of counters'
+                );
+            return lowered([
+                {
+                    op: "coinFlipSeries",
+                    untilLoss: true,
+                    bindWins: "$wins",
+                },
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: sentence.counters.counter,
+                    target: target.value,
+                    count:
+                        count.value === 1
+                            ? { ref: "$wins" }
+                            : {
+                                  scaled: {
+                                      value: { ref: "$wins" },
+                                      times: count.value,
+                                  },
+                              },
                 },
             ]);
         }

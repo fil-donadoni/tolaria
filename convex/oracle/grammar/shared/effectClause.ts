@@ -516,6 +516,8 @@ export const EFFECT_SENTENCE_KINDS = [
     "redirect-next-damage",
     "draw",
     "coin-flip-series",
+    "coin-flip",
+    "coin-flip-until-loss",
     "destroy",
     "exile",
     "counter",
@@ -598,6 +600,13 @@ export const EFFECT_SENTENCE_KINDS = [
     "search-target-library",
     "upgrade-if-controls",
 ] as const;
+
+/** CR 705.1 — one outcome of a coin flip: the clause AS PRINTED (the reveal
+ *  overlay's one-liner) and the effect it reads. */
+export interface CoinFlipBranchIR {
+    readonly clause: string;
+    readonly effect: EffectSentenceIR;
+}
 
 export type EffectSentenceIR =
     /**
@@ -1202,6 +1211,24 @@ export type EffectSentenceIR =
           readonly player: PlayerRefIR;
           /** Cards drawn for each flip made. */
           readonly perFlip: number;
+      }
+    /**
+     * CR 705.1 — "Flip a coin. If you win the flip, <A>. If you lose the
+     * flip, <B>." Folded from the flip and its outcome sentences
+     * (`coinFlipSeries.ts`); an absent outcome does nothing.
+     */
+    | {
+          readonly kind: "coin-flip";
+          readonly win?: CoinFlipBranchIR;
+          readonly loss?: CoinFlipBranchIR;
+      }
+    /**
+     * CR 705.2 — "Flip a coin until you lose a flip. Put a +1/+1 counter on
+     * <subject> for each flip you won." Counters scaled by the flips won.
+     */
+    | {
+          readonly kind: "coin-flip-until-loss";
+          readonly counters: Extract<EffectSentenceIR, { kind: "counters" }>;
       }
     | {
           readonly kind: "destroy";
@@ -2526,6 +2553,18 @@ export type SentenceIR =
      */
     | { readonly role: "choose-number" }
     | { readonly role: "coin-flip-series" }
+    | { readonly role: "coin-flip" }
+    | { readonly role: "coin-flip-until-loss" }
+    | {
+          readonly role: "coin-flip-outcome";
+          readonly outcome: "win" | "loss";
+          readonly text: string;
+          readonly effect: EffectSentenceIR;
+      }
+    | {
+          readonly role: "coin-flip-won-payoff";
+          readonly counters: Extract<EffectSentenceIR, { kind: "counters" }>;
+      }
     | {
           readonly role: "coin-flip-payoff";
           readonly draw: Extract<EffectSentenceIR, { kind: "draw" }>;
@@ -3425,7 +3464,11 @@ export function assembleSentences(
         if (
             sentence.role === "choose-number" ||
             sentence.role === "coin-flip-series" ||
-            sentence.role === "coin-flip-payoff"
+            sentence.role === "coin-flip-payoff" ||
+            sentence.role === "coin-flip" ||
+            sentence.role === "coin-flip-outcome" ||
+            sentence.role === "coin-flip-until-loss" ||
+            sentence.role === "coin-flip-won-payoff"
         ) {
             if (restrictions.length > 0)
                 return {
