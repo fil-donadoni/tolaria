@@ -50341,6 +50341,7 @@
         {"id":"704.5i","line":"describe(\"0-loyalty SBA (CR 704.5i)\", () => {","sites":1,"status":"baseline"},
         {"id":"704.5i","line":"describe(\"damage → loyalty (CR 120.3 / 704.5i)\", () => {","sites":1,"status":"baseline"},
         {"id":"704.5i","line":"describe(\"loyalty prices the walker (CR 606.4 / 704.5i)\", () => {","sites":1,"status":"baseline"},
+        {"id":"704.5i","line":"it(\"Empower Jace 0 creates the 0-loyalty token, which the SBA then removes (CR 704.5i)\", () => {","sites":1,"status":"confirmed","ruleHash":"9cabfbdbdc750ad0"},
         {"id":"704.5i","line":"it(\"costs the defender the walker it lets die (CR 704.5i)\", () => {","sites":1,"status":"confirmed","ruleHash":"9cabfbdbdc750ad0"},
         {"id":"704.5i","line":"it(\"does NOT put the creature into a graveyard at 0 loyalty (CR 704.5i)\", () => {","sites":1,"status":"baseline"},
         {"id":"704.5i","line":"it(\"prices a lethal attack at the walker as the walker's whole worth (CR 704.5i)\", () => {","sites":1,"status":"confirmed","ruleHash":"9cabfbdbdc750ad0"},
