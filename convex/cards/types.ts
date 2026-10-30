@@ -13762,6 +13762,13 @@ export interface ReplacementApplyContext {
      *  Returns the number actually removed (clamped to availability). Used by
      *  Rock Hydra's damage→counter-removal replacement (CR 614.1a). */
     removeCounter: (type: string, count: number) => number;
+    /** CR 122.1 — puts `count` counters of `type` on the battlefield
+     *  permanent `permanentId` (any controller) through the shared
+     *  counter-placement mutator (`addCounterToCard`: counter-placed
+     *  replacements, keyword grant, COUNTER_ADDED). Returns the number actually
+     *  put on — 0 when the permanent is gone or a replacement rewrote the count
+     *  away. Used by the damage → counters replacement (`damageAsCounters`). */
+    addCounters: (permanentId: string, type: string, count: number) => number;
     /** Turns the source permanent face up (CR 708.9, ADR 0013): clears the
      *  face-down marker, restores the real card's characteristics, and reveals
      *  it to both players. Returns the now-revealed creature's real power and
@@ -13860,6 +13867,21 @@ export interface DamageLifeFloor {
     /** Clause only applies while the controller controls a permanent of this
      *  type ("If you control a creature, …"). Absent = unconditional. */
     whileControlling?: CardType;
+}
+
+/** Parameters of the `CardDefinition.damageAsCounters` static (CR 614.1a):
+ *  "If a source you control would deal noncombat damage to a creature an
+ *  opponent controls, put that many -1/-1 counters on that creature instead."
+ *  The damage is NOT dealt — the counters replace it whole (no lifelink, no
+ *  damage-dealt triggers, no deathtouch). Scope is fixed to the card-#1 shape
+ *  (a source the effect's controller controls → a creature an opponent
+ *  controls); the axes widen when a second card shows them. */
+export interface DamageAsCounters {
+    /** CR 122.1 — the counter put on the creature instead (`"-1/-1"`). */
+    counterType: string;
+    /** "noncombat damage" (CR 120.2a) — combat damage is left alone. Absent =
+     *  every damage event. */
+    noncombatOnly?: boolean;
 }
 
 export interface ReplacementEffect {
@@ -21969,6 +21991,13 @@ export interface CardDefinition {
      *  `"damage"` entry scoped to the source's controller and REMOVES the
      *  field — no engine read ever sees it. */
     damageLifeFloor?: DamageLifeFloor;
+    /** CR 614.1a — "If a source you control would deal noncombat damage to a
+     *  creature an opponent controls, put that many -1/-1 counters on that
+     *  creature instead." JSON-pure declaration: `expandDamageAsCounters`
+     *  (`abilities/damageAsCounters.ts`) rebuilds it at the `expandDefinition`
+     *  seam into a `replacementEffects[]` `"damage"` entry and REMOVES the
+     *  field — no engine read ever sees it. */
+    damageAsCounters?: DamageAsCounters;
     /** Continuous "plays with hand revealed" static (CR 702-adjacent — Zur's
      *  Weirding, Enduring Renewal; issue #735). While ANY permanent with this
      *  flag is on the battlefield, the affected player's hand is projected

@@ -56,6 +56,7 @@ import { turnFaceUpOnBattlefield } from "./faceDown";
 import { STATIC_EFFECT_CTX } from "./layers";
 import type { CardInstanceState, DamageRedirection, GameState } from "./state";
 import {
+    addCounterToCard,
     bumpDamageDealtToPlayer,
     emitLifeLost,
     enqueuePublicRevealNotice,
@@ -371,6 +372,11 @@ function buildApplyCtx(
             source.counters[type] = current - removed;
             if (source.counters[type] === 0) delete source.counters[type];
             return removed;
+        },
+        addCounters: (permanentId, type, count) => {
+            const card = findPermanent(state, permanentId);
+            if (!card) return 0;
+            return addCounterToCard(state, card, type, count);
         },
         turnSelfFaceUp: () => {
             turnFaceUpOnBattlefield(state, source);
