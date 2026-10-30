@@ -93,7 +93,11 @@ describe("landingWalkOwed — content rules read the changed lines (issue #7592)
         commit();
         write(CARD, multi.replace("    top-0", "    top-0\n    sticky"));
         commit();
-        expect(owed([CARD])).toMatchObject({ owed: true, path: CARD });
+        // Against the previous commit, the bare `sticky` is the ONLY changed line.
+        expect(landingWalkOwed([CARD], repo, "HEAD~1")).toMatchObject({
+            owed: true,
+            path: CARD,
+        });
     });
 
     it("REMOVING a z-index owes a walk", () => {
