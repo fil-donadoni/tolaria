@@ -21170,6 +21170,11 @@ export interface CardDefinition {
      *  named Kicker was paid (CR 702.33f — "if this creature was kicked with
      *  its {1}{U} kicker, it enters with two +1/+1 counters", the Apocalypse
      *  Volvers), off the per-id payment record the tally cannot split.
+     *  `count: "additionalCostMv"` reads the mana value of the card given up
+     *  to pay the spell's additional cost (CR 118.8 — a Kicker's discard leg,
+     *  "enters with X +1/+1 counters, where X is the discarded card's mana
+     *  value", Dralnu's Pet), off `StackItem.additionalSacrificeSnapshot`;
+     *  0 on every uncast path and when nothing was given up.
      *  `count: "sunburst"` reads how many DISTINCT COLORS of mana were spent to
      *  cast the spell (CR 702.44a — colors, not pips: `{R}{R}` is one), off the
      *  `notedManaSpent` capture the cast-commit step records when the card also
