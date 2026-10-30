@@ -1404,7 +1404,7 @@ A small, deliberately separate set of absolute expected **Picks** where competen
 _Avoid_: Invariant (an Anchor is the opposite kind of claim), regression test
 
 **Cut Experiment**:
-A paired comparison run on identical seeds: one table where an upstream **Seat** is forced to take only one colour or **Archetype**, one where it drafts normally, asserting that the Seat downstream ends with less of what was cut. The evidence that a **Bot Drafter** actually reads **Draft Signals**, where a **Pick Invariant** can only prove the read is built right. Openly an opinion in the same sense as an **Anchor Pick** — it holds for sensible weightings, not for every one — so a red one calls for a decision, not a weight fix.
+A paired comparison run on identical seeds: one table where an upstream **Seat** is forced to take only one colour or **Archetype**, one where it drafts normally, asserting that the Seat downstream ends with less of what was cut. The evidence that a **Bot Drafter** actually reads **Draft Signals**, where a **Pick Invariant** can only prove the read is built right. Openly an opinion in the same sense as an **Anchor Pick** — it holds for sensible weightings, not for every one — so a red one calls for a decision, not a weight fix. Its read-vs-blind half is retired from the gate until the weights hold it for some colour (issue #7418); the gate keeps only the harness check that the cut reaches the downstream **Seat**.
 _Avoid_: Signal test, simulation
 
 **Draft Lab**:

@@ -1,4 +1,4 @@
-// Cut Experiment (PRD #1616, ADR 0134, issue #3738) — GLOSSARY "Cut Experiment".
+// Cut Experiment (ADR 0134, issue #3738) — GLOSSARY "Cut Experiment".
 //
 // For N fixed seeds, two synthetic cube tables differ in exactly one seat: in
 // table A the seat immediately upstream of the observed seat (round-1 pass
@@ -7,7 +7,7 @@
 //
 // The OPINION half — a downstream seat that READS the Draft Signal loses more
 // of the cut colour than one drafting blind — is RETIRED from the gate (owner
-// ruling 2026-10-30, issue #7522): at the current weights it held for no
+// ruling 2026-10-30): at the current weights it held for no
 // colour (G last, flipped to 100.5 read vs 120.5 blind by a one-row cube
 // addition), and any cube addition reshuffles the seeds' packs. It returns
 // here as a gate once issue #7418's weights hold it. What stays is the
