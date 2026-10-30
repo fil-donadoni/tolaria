@@ -115,7 +115,7 @@ export const ephemerate = defineCard(() => ({
 // searcher isn't required to find any even though the search is mandatory:
 // `count: { min: 0, max: … }`, the Quirion Trailblazer shape.
 //
-// The Overload line compiles (issue #3274); the "for each creature exiled this
+// The Overload line compiles; the "for each creature exiled this
 // way…" tail has no rule yet, so the card does not round-trip (issue #7531):
 // compiler-gap: For each creature exiled this way, its controller searches their library for a basic land card (#7531)
 export const windsOfAbandon = defineCard(() => ({
