@@ -81,11 +81,6 @@
             "key": "(op) › unattach",
             "op": "unattach",
             "issue": 5185
-        },
-        {
-            "key": "(op) › winGame",
-            "op": "winGame",
-            "issue": 7550
         }
     ],
     "claims": [

@@ -6608,6 +6608,16 @@
         "firstPrintSet": "dft"
     },
     {
+        "name": "Bleak Coven Vampires",
+        "scryfallId": "9d3386e4-bbd6-4756-b29d-f55619e98d0d",
+        "oracleId": "698f3526-489e-47a1-ac10-70cca73dea10",
+        "firstSet": "som",
+        "firstPrintId": "9d3386e4-bbd6-4756-b29d-f55619e98d0d",
+        "firstPrintSet": "som",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Bleed Dry",
         "scryfallId": "3db65755-f104-4de9-bcc9-0a4a7bc66b51",
         "oracleId": "6c3faf4f-83c1-4098-98b8-bae15d59b0de",
@@ -12766,6 +12776,16 @@
         "source": "compiled"
     },
     {
+        "name": "Complex Automaton",
+        "scryfallId": "5fb3c7af-74e1-4072-953b-b3e9ccd8aa03",
+        "oracleId": "e4951b4e-ba68-495c-8062-e89250d02cf3",
+        "firstSet": "nem",
+        "firstPrintId": "5fb3c7af-74e1-4072-953b-b3e9ccd8aa03",
+        "firstPrintSet": "nem",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Complicate",
         "scryfallId": "33f69670-e494-42b8-9148-fe105ec61aa0",
         "oracleId": "fc09cbc0-2d28-44c6-b9a9-b95e9e58bb1b",
@@ -18628,6 +18648,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dragonmaster Outcast",
+        "scryfallId": "c2297a4e-3c19-4748-9150-efbd2513066a",
+        "oracleId": "b6fb79c3-cd32-4045-8177-e52841eea65b",
+        "firstSet": "wwk",
+        "firstPrintId": "c2297a4e-3c19-4748-9150-efbd2513066a",
+        "firstPrintSet": "wwk",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Dragonspeaker Shaman",
         "scryfallId": "49f5fa96-dcfb-4d29-bea9-7dd99e8c43d8",
         "oracleId": "6a29f36b-7911-4d84-a3ae-546b131d5159",
@@ -19333,6 +19363,16 @@
         "firstPrintId": "e5c54795-d555-4972-b72d-b2d2374bed9b",
         "firstPrintSet": "kld",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dundoolin Weaver",
+        "scryfallId": "2260912b-4dfb-49dd-bf95-060d44333645",
+        "oracleId": "28564d10-bfc5-4beb-b0e2-b9aa5c03f740",
+        "firstSet": "ecl",
+        "firstPrintId": "2260912b-4dfb-49dd-bf95-060d44333645",
+        "firstPrintSet": "ecl",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -21512,6 +21552,16 @@
         "firstSet": "lrw",
         "firstPrintId": "3d7ffca1-c73c-4de1-b811-bd1876ea6d6f",
         "firstPrintSet": "lrw",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Epic Struggle",
+        "scryfallId": "0dc71f6f-f831-409e-aafd-3fa82a318e72",
+        "oracleId": "6f34ee2c-6e0b-4c71-9bdd-6ac55a323849",
+        "firstSet": "jud",
+        "firstPrintId": "0dc71f6f-f831-409e-aafd-3fa82a318e72",
+        "firstPrintSet": "jud",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -35074,6 +35124,16 @@
         "source": "compiled"
     },
     {
+        "name": "Inventors' Fair",
+        "scryfallId": "275471e3-ded1-40ac-91ef-369dce5764d9",
+        "oracleId": "91d4a5fe-fd6d-4b14-a63f-61b4d0ecd9c4",
+        "firstSet": "kld",
+        "firstPrintId": "275471e3-ded1-40ac-91ef-369dce5764d9",
+        "firstPrintSet": "kld",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Invisibility",
         "scryfallId": "1858ac51-e6a7-48d7-8759-166070ca13d8",
         "oracleId": "de26b0c6-dfb7-45a8-9d7f-f8d45522d675",
@@ -38206,6 +38266,16 @@
         "source": "compiled"
     },
     {
+        "name": "Kyoshi Warrior Exemplars",
+        "scryfallId": "052c27d2-1aa4-44be-b0eb-39f413a7205d",
+        "oracleId": "4bb0596f-df1d-4977-bb8b-4d2e6648dcb3",
+        "firstSet": "tle",
+        "firstPrintId": "052c27d2-1aa4-44be-b0eb-39f413a7205d",
+        "firstPrintSet": "tle",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Kyoshi Warrior Guard",
         "scryfallId": "7a2acb28-c0e2-492b-a227-ef49e905e0fb",
         "oracleId": "18fe834f-4417-4df8-a49c-98e9bf2f87d2",
@@ -40434,6 +40504,16 @@
         "firstPrintId": "6c86c84e-9bab-4a2c-b594-7f7b4b6bba88",
         "firstPrintSet": "isd",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Lumengrid Drake",
+        "scryfallId": "f44e9820-2209-40a2-bc4f-46b440c05e9d",
+        "oracleId": "0700d889-d235-49fe-8b92-698d486b2539",
+        "firstSet": "som",
+        "firstPrintId": "f44e9820-2209-40a2-bc4f-46b440c05e9d",
+        "firstPrintSet": "som",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -48025,6 +48105,16 @@
         "source": "compiled"
     },
     {
+        "name": "Opal Lake Gatekeepers",
+        "scryfallId": "f43ac38f-5cd0-46cf-8623-d82cb8fb719b",
+        "oracleId": "a5375366-7ddc-4bd5-91c9-dc08f8beb3f6",
+        "firstSet": "dgm",
+        "firstPrintId": "f43ac38f-5cd0-46cf-8623-d82cb8fb719b",
+        "firstPrintSet": "dgm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Opalescence",
         "scryfallId": "3c0071fb-afa5-47b5-b266-2b10a4f5a98a",
         "oracleId": "59489b46-9d02-4f3c-bcd0-884e7605e9a5",
@@ -51026,6 +51116,16 @@
         "firstPrintId": "07956edf-34c1-4218-9784-ddbca13e380c",
         "firstPrintSet": "blb",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Plaza of Harmony",
+        "scryfallId": "07f2ae00-206d-4984-84eb-d10ab75d3791",
+        "oracleId": "5ff1d6d8-8cea-4a25-90d9-b575f4c99bc8",
+        "firstSet": "rna",
+        "firstPrintId": "07f2ae00-206d-4984-84eb-d10ab75d3791",
+        "firstPrintSet": "rna",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -58314,6 +58414,16 @@
         "source": "compiled"
     },
     {
+        "name": "Saruli Gatekeepers",
+        "scryfallId": "471a5b1d-e2e5-4d90-b72a-ffae81ad6602",
+        "oracleId": "509ea58a-da0a-4e9a-aafc-15f4f65a7467",
+        "firstSet": "dgm",
+        "firstPrintId": "471a5b1d-e2e5-4d90-b72a-ffae81ad6602",
+        "firstPrintSet": "dgm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Satya, Aetherflux Genius",
         "scryfallId": "3b964bbe-54cc-425c-9cc6-c877f82af7ba",
         "oracleId": "ce8af7dd-49df-4419-9776-4157efc60b0f",
@@ -59249,6 +59359,26 @@
         "firstPrintId": "9dab2ca2-0039-4eac-a7dc-68756362737d",
         "firstPrintSet": "khm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Scute Mob",
+        "scryfallId": "43e2fcc6-96d3-45f5-b4dd-e049d9ec6cec",
+        "oracleId": "f1e0eda0-4a5e-4f1f-8131-ba58a58887cf",
+        "firstSet": "zen",
+        "firstPrintId": "43e2fcc6-96d3-45f5-b4dd-e049d9ec6cec",
+        "firstPrintSet": "zen",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Scuttling Butler",
+        "scryfallId": "0edbece0-8444-4634-a47b-7c88d1b8325e",
+        "oracleId": "2b51d6e5-a4cd-4f2f-9762-6ad2cfd8b084",
+        "firstSet": "snc",
+        "firstPrintId": "0edbece0-8444-4634-a47b-7c88d1b8325e",
+        "firstPrintSet": "snc",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -68400,6 +68530,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sunspire Gatekeepers",
+        "scryfallId": "0a3bc6b9-475b-4257-a3bc-1a0b70d45f79",
+        "oracleId": "df2cc4ba-70b8-4875-8f84-9c268ab8d5f6",
+        "firstSet": "dgm",
+        "firstPrintId": "0a3bc6b9-475b-4257-a3bc-1a0b70d45f79",
+        "firstPrintSet": "dgm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Sunspire Griffin",
         "scryfallId": "1388ce6e-8199-46c1-8ee3-71266b0929bf",
         "oracleId": "0f51ab3d-aae9-4d8d-a881-e8835dcd7866",
@@ -74120,6 +74260,16 @@
         "firstSet": "5dn",
         "firstPrintId": "5cb0cc0e-f71f-456f-a6ec-6a70cf838c35",
         "firstPrintSet": "5dn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ubul Sar Gatekeepers",
+        "scryfallId": "f5b2e327-adfd-459b-8d18-faa39d88b5de",
+        "oracleId": "f4e15575-2277-4cb1-a343-e9407c050eb1",
+        "firstSet": "dgm",
+        "firstPrintId": "f5b2e327-adfd-459b-8d18-faa39d88b5de",
+        "firstPrintSet": "dgm",
         "rarity": "common",
         "source": "compiled"
     },
