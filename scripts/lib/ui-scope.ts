@@ -581,11 +581,11 @@ export function renderUiScope(scope: UiScope, base: string): string {
  *     or a style, and owed every diff that touched the config a walk.
  * Tests, markdown, scripts and server-only paths cannot reach the DOM and owe
  * nothing. Content rules read the diff's CHANGED LINES — added or removed —
- * never what an untouched part of the file already declares (owner ruling,
- * issue #7592, reversing #5459's whole-file read): a handler or a string edited
- * in a file that has a `z-index` elsewhere owes no walk, while adding or
- * removing a marker does. A new file's every line is changed. `land` and
- * `check:ui -- --scope-only` both call this.
+ * never what an untouched part of the file already declares (owner ruling:
+ * the walk is too dear to owe for content the diff never touched). A handler
+ * or a string edited in a file that has a `z-index` elsewhere owes no walk;
+ * adding or removing a marker does. A new file's every line is changed.
+ * `land` and `check:ui -- --scope-only` both call this.
  */
 export type WalkOwed =
     | { owed: true; rule: string; path: string }
