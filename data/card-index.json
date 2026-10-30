@@ -44325,6 +44325,16 @@
         "source": "compiled"
     },
     {
+        "name": "Moldgraf Monstrosity",
+        "scryfallId": "f387c86a-702f-4f86-bcb9-d2bfa46fd211",
+        "oracleId": "3c4d5392-27cf-492e-9ae1-dee330b82223",
+        "firstSet": "isd",
+        "firstPrintId": "f387c86a-702f-4f86-bcb9-d2bfa46fd211",
+        "firstPrintSet": "isd",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Mole Man, Moloid Master",
         "scryfallId": "1b406cc5-75c9-430a-83a2-de0f2a8aeae6",
         "oracleId": "34994475-b914-44f6-8ca1-c2747b6d5956",
@@ -72674,6 +72684,16 @@
         "firstSet": "wth",
         "firstPrintId": "9236a857-c4ca-4de2-a4a2-e0914d16b54b",
         "firstPrintSet": "wth",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Tomb Fortress",
+        "scryfallId": "5ffd1a43-5613-4058-9e51-fd3cc1585651",
+        "oracleId": "986f510c-e2ec-423e-a443-51a169939558",
+        "firstSet": "40k",
+        "firstPrintId": "5ffd1a43-5613-4058-9e51-fd3cc1585651",
+        "firstPrintSet": "40k",
         "rarity": "rare",
         "source": "compiled"
     },
