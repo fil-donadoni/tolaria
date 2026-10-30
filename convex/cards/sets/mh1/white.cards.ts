@@ -115,10 +115,9 @@ export const ephemerate = defineCard(() => ({
 // searcher isn't required to find any even though the search is mandatory:
 // `count: { min: 0, max: … }`, the Quirion Trailblazer shape.
 //
-// The grammar has no keyword-cost line rule for CR 702.96, and the
-// "for each creature exiled this way…" tail has no rule either, so neither
-// line round-trips yet (issue #3274):
-// compiler-gap: Overload {4}{W}{W} (#3274)
+// The Overload line compiles (issue #3274); the "for each creature exiled this
+// way…" tail has no rule yet, so the card does not round-trip (issue #7531):
+// compiler-gap: For each creature exiled this way, its controller searches their library for a basic land card (#7531)
 export const windsOfAbandon = defineCard(() => ({
     id: "3bb17913-fe4d-4acd-9b75-71f5a90f898b",
     name: "Winds of Abandon",
