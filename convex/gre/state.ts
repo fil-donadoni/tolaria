@@ -12216,6 +12216,10 @@ export function buildSpellContext(
         // stamped on scheduled delayed triggers so the fired trigger renders
         // its source card). Empty for synthetic items with no registry id.
         sourceCardId: (item.card as { id?: string }).id ?? "",
+        // CR 113.1 / 707.9a — where the resolving ability is PRINTED: a
+        // granted or copy-gained ability names its card on the stack item.
+        abilityCardId:
+            item.grantedSourceCardId ?? (item.card as { id?: string }).id ?? "",
         // CR 603 (ADR 0049, issue #865) — the event that fired this triggered
         // ability, threaded into the interpreter so `$event.<field>` refs
         // resolve at trigger sites. Undefined for spells / activated abilities /

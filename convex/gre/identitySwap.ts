@@ -52,6 +52,7 @@ import type {
     CardDefinition,
     CardType,
     CopyEffectOptions,
+    CopyGainedActivatedAbility,
     CopyExcept,
 } from "../cards/types";
 import { recomposeLayer6ForInstance } from "./layer6";
@@ -137,12 +138,34 @@ export function copyExceptOf(
             inherited?.additionalStaticAbilities,
             opts.additionalStaticAbilities
         ),
+        // CR 707.9a — a gained activated ability is an addition like a
+        // keyword; references are de-duplicated by value, not identity.
+        additionalActivatedAbilities: addedAbilities(
+            inherited?.additionalActivatedAbilities,
+            opts.additionalActivatedAbilities
+        ),
         noManaCost: opts.noManaCost || inherited?.noManaCost || undefined,
     };
     // JSON-pure, no `undefined` members, fresh arrays: the stamp is persisted
     // and never aliases a module-level `CardDefinition` array.
     const except = JSON.parse(JSON.stringify(merged)) as CopyExcept;
     return Object.keys(except).length > 0 ? except : undefined;
+}
+
+/** {@link copyExceptOf}'s union of CR 707.9a gained-ability references,
+ *  inherited first, each `sourceCardId`/`abilityId` pair kept once. */
+function addedAbilities(
+    a: CopyGainedActivatedAbility[] | undefined,
+    b: CopyGainedActivatedAbility[] | undefined
+): CopyGainedActivatedAbility[] | undefined {
+    const seen = new Set<string>();
+    const all = [...(a ?? []), ...(b ?? [])].filter((r) => {
+        const key = `${r.sourceCardId}\u0000${r.abilityId}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+    return all.length > 0 ? all : undefined;
 }
 
 /** Layer 6 (CR 613.1f) — re-seat the permanent's layer-6 BASE on the new face.

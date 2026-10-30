@@ -104,6 +104,28 @@ export function getEffectiveActivatedAbilities(
             []) {
             out.push({ ability });
         }
+        // CR 707.9a — an ability a copy effect GAINED ("except it has this
+        // ability", Thespian's Stage) is a copiable value, so it stands and
+        // falls with the native ones. It is printed on another card, so it
+        // travels with the ability-copy pointer the resolution sites already
+        // read (`"card-abilities"`). A copy of the very card that prints it
+        // already has it natively.
+        for (const gained of card.copyExcept?.additionalActivatedAbilities ??
+            []) {
+            if (gained.sourceCardId === cardId) continue;
+            const tmpl = resolveGrantedActivatedAbility(
+                gained.sourceCardId,
+                gained.abilityId,
+                "card-abilities"
+            );
+            if (tmpl) {
+                out.push({
+                    ability: tmpl,
+                    grantedSourceCardId: gained.sourceCardId,
+                    grantedAbilityOrigin: "card-abilities",
+                });
+            }
+        }
     }
     for (const grant of card.grantedActivatedAbilities ?? []) {
         if (grantOutrankedByAbilityLoss(grant.seq, strippedAt)) continue;
