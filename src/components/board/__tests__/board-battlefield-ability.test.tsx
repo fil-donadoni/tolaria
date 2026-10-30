@@ -1,8 +1,8 @@
 // Activated-ability dispatch parity (PRD #249, issue #278). The spatial board's
 // battlefield card (`BoardBattlefieldCard`, wired by `BoardBattlefield`)
 // gains the same activated-ability affordance the classic board
-// (`PlayerBattlefield` → `BattlefieldCard`) already has: a right-click context
-// menu / touch action-sheet listing the permanent's activatable abilities, both
+// (`PlayerBattlefield` → `BattlefieldCard`, since deleted) already had: a
+// right-click context menu / touch action-sheet listing the permanent's activatable abilities, both
 // driven by the shared `useBattlefieldInteraction` hook (`getActivatable` +
 // `handleActivateAbility`) and the shared `ActivatableAbilityMenu`.
 //

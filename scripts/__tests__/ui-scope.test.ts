@@ -828,6 +828,13 @@ describe("uiWalkOwed — a diff owes a walk only when it can move layout (issue 
             owed: true,
             rule: "an overlay / popover / dialog component",
         });
+        // A multi-line type import is not one erased line: stays owed.
+        expect(
+            owed(
+                "src/components/board/ability-menu.tsx",
+                `import type {\n    CardVisualState,\n} from "~/types/battlefield";\n`
+            )
+        ).toMatchObject({ owed: true });
         expect(owed("src/index.css", typeOnly)).toMatchObject({
             owed: true,
             rule: "a stylesheet",

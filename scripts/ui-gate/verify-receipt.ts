@@ -148,7 +148,12 @@ export function landingWalkOwed(
                 return null;
             }
         },
-        (p) => mergeBase !== null && !fs.existsSync(path.join(root, p))
+        // Deleted = git had it at the merge-base and the tree no longer does;
+        // a path merely missing from disk is not a deletion git records.
+        (p) =>
+            mergeBase !== null &&
+            !fs.existsSync(path.join(root, p)) &&
+            git(["cat-file", "-e", `${mergeBase}:${p}`]) !== null
     );
 }
 

@@ -124,6 +124,12 @@ describe("landingWalkOwed — content rules read the changed lines (issue #7592)
         expect(owed([CARD])).toMatchObject({ owed: false });
     });
 
+    it("a path missing from disk that git never had is not a deletion", () => {
+        expect(owed(["src/components/board/never-was.tsx"])).toMatchObject({
+            owed: true,
+        });
+    });
+
     it("a diff it cannot read stays owed (no merge-base: fail closed)", () => {
         write(CARD, WITH_Z.replace("'Cast'", "'Plot'"));
         commit();
