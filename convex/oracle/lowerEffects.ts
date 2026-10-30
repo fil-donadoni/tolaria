@@ -2909,6 +2909,25 @@ function lowerSentenceBody(
                     { op: "destroy", target: { ref: source } },
                 ]);
             }
+            // CR 613.1f + CR 611.2b — the strip re-reads the SAME announced
+            // slot the counter did (the Op resolves the countered ability's
+            // source permanent from it), filtered to the printed types.
+            if (sentence.losesAbilitiesOfCounteredSource === true) {
+                if (!("target" in target.value))
+                    return unlowerable(
+                        "the ability-loss rider needs an announced target slot"
+                    );
+                return lowered([
+                    counter,
+                    {
+                        op: "loseAllAbilitiesWhileSourceRemains",
+                        target: target.value,
+                        filter: {
+                            type: ["Artifact", "Creature", "Planeswalker"],
+                        },
+                    },
+                ]);
+            }
             if (sentence.unlessPays === undefined) return lowered([counter]);
             // CR 118.12a — "[counter] unless [its controller pays]" MEANS
             // "its controller may pay; if they don't, counter it", which is
