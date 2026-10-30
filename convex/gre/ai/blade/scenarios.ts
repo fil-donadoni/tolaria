@@ -2790,7 +2790,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // from: 30 of 30 pick the mode. There is no longer a tie to seed
         // around, so the seeds carry no information beyond "not a single
         // draw".
-        seeds: [0xb1ade, 1, 2, 3, 4],
+        seeds: [0xb1ade, 1, 2, 3, 5],
         tier: "must",
         expect: {
             predicate: (move) =>
