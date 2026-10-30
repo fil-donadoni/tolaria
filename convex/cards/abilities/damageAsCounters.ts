@@ -7,6 +7,11 @@
 // here is REPLACED: it is never dealt, so no lifelink, no deathtouch and no
 // "is dealt damage" trigger follows. The counters are put on by the
 // replacement's controller.
+//
+// divergence: CR 616.1 lets the damaged creature's controller apply a
+// prevention (protection, a prevention shield) BEFORE this replacement, so no
+// counters land; the engine runs every CR 614 damage replacement first, before
+// the CR 615 / 702.16e gates (`runDamageReplacement`). tracked-by: #2054.
 import type {
     CardDefinition,
     DamageAsCounters,

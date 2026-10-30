@@ -19,7 +19,7 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 import { applyAllCombatDamage } from "../phases";
-import { buildSpellContext } from "../state";
+import { buildSpellContext, resolveFight } from "../state";
 import type { CardInstanceState, GameState, StackItem } from "../state";
 
 const MAGE: CardDefinition = {
@@ -154,6 +154,31 @@ describe("damage as counters (CR 614.1a)", () => {
             );
             expect(perm(state, "theirs").counters).toEqual({ "-1/-1": 2 });
             expect(perm(state, "theirs").damageMarked ?? 0).toBe(0);
+        }));
+
+    it("still applies to damage that can't be redirected (not a redirection effect, CR 614.9)", () =>
+        withMage(() => {
+            const { state, item } = setup();
+            buildSpellContext(state, item).dealDamage(
+                { type: "permanent", id: "theirs" },
+                2,
+                false,
+                true
+            );
+            expect(perm(state, "theirs").counters).toEqual({ "-1/-1": 2 });
+            expect(perm(state, "theirs").damageMarked ?? 0).toBe(0);
+        }));
+
+    it("replaces a permanent source's noncombat damage too (fight, CR 701.14)", () =>
+        withMage(() => {
+            const { state } = setup();
+            resolveFight(state, "mine", "theirs");
+            // Your 4/4's damage to theirs becomes counters; theirs' damage to
+            // yours (an opponent's source) is marked as usual.
+            expect(perm(state, "theirs").counters).toEqual({ "-1/-1": 4 });
+            expect(perm(state, "theirs").damageMarked ?? 0).toBe(0);
+            expect(perm(state, "mine").damageMarked).toBe(4);
+            expect(perm(state, "mine").counters).toBeUndefined();
         }));
 
     it("leaves damage to your own creature marked", () =>
