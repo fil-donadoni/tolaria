@@ -78,7 +78,7 @@ describe("loyalty ability line (CR 606.4)", () => {
             expect(refused("-1, {1}: Draw a card.")).toBe(false);
         });
 
-        it("a loyalty cost on a non-planeswalker (CR 606.1)", () => {
+        it("a loyalty cost on a non-planeswalker (CR 606.2)", () => {
             expect(refused("+1: You gain 2 life.", oracleCard())).toBe(false);
         });
     });

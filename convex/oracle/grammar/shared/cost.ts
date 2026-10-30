@@ -287,11 +287,11 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
         if (span === "{T}") return ok({ kind: "tap" as const });
         const loyalty = span.match(LOYALTY_SYMBOL);
         if (loyalty !== null) {
-            // CR 606.1 — only a planeswalker has loyalty abilities.
+            // CR 606.2 — only a planeswalker has loyalty abilities.
             const typeLine = (ctx as Partial<ParseContext>).typeLine;
             if (!typeLine?.types.includes("Planeswalker"))
                 return fail(
-                    "a loyalty cost on a non-planeswalker (CR 606.1)",
+                    "a loyalty cost on a non-planeswalker (CR 606.2)",
                     span
                 );
             const magnitude = Number(loyalty[2] ?? 0);
