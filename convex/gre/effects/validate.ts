@@ -9747,9 +9747,10 @@ export function validateAbilityEffectScript(
         errors,
         eventTypeList(triggerEventType)
     );
-    // CR 707.10 / 601.2h (issue #7211) — an ability is activated or triggered,
-    // never cast, so "the number of colors of mana spent to cast this spell"
-    // has no referent here; the record an activation notes is ITS cost.
+    // CR 601.2 / 602.1a (issue #7211) — only a SPELL is cast; an ability is
+    // activated or triggered, so "the number of colors of mana spent to cast
+    // this spell" has no referent here; the record an activation notes is ITS
+    // activation cost.
     if (containsColorsSpentToCast(ability.effects)) {
         errors.push(
             `${label}: reads { colorsSpentToCast: true } — an ability is not cast, so it has no mana spent to cast it; only a spell-site script may read it`
