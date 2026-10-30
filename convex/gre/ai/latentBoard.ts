@@ -380,21 +380,52 @@ export function makeLatentBoardLens(
         return found;
     };
 
+    // What a fight reads off one combatant, once per permanent: its effective
+    // P/T through the layers, the damage already marked, and the two keywords
+    // that change what damage does to it.
+    const combatants = new Map<
+        string,
+        {
+            power: number;
+            toughness: number;
+            damageMarked: number;
+            deathtouch: boolean;
+            indestructible: boolean;
+        }
+    >();
+    const combatantOf = (perm: CardInstanceState) => {
+        let info = combatants.get(perm.id);
+        if (!info) {
+            const abilities = describeDamageSource(
+                state,
+                perm.id
+            ).staticAbilities;
+            info = {
+                power: getEffectivePower(state, perm),
+                toughness: getEffectiveToughness(state, perm),
+                damageMarked: perm.damageMarked ?? 0,
+                deathtouch: abilities.includes("deathtouch"),
+                indestructible: abilities.includes("indestructible"),
+            };
+            combatants.set(perm.id, info);
+        }
+        return info;
+    };
+
     // CR 704.5g / CR 702.2b — whether `from` dealing its power to `to` kills
     // it, damage already marked counted. Zero power deals no damage, so it
-    // never kills, deathtouch included.
+    // never kills, deathtouch included. CR 702.12b — an indestructible
+    // creature is not destroyed by lethal damage or by deathtouch.
     const fightKills = (from: CardInstanceState, to: CardInstanceState) => {
-        const power = getEffectivePower(state, from);
-        if (power <= 0) return false;
+        const source = combatantOf(from);
+        const target = combatantOf(to);
+        if (source.power <= 0 || target.indestructible) return false;
         const threshold = lethalDamageThreshold({
-            effectiveToughness: getEffectiveToughness(state, to),
-            damageMarked: to.damageMarked,
-            sourceHasDeathtouch: describeDamageSource(
-                state,
-                from.id
-            ).staticAbilities.includes("deathtouch"),
+            effectiveToughness: target.toughness,
+            damageMarked: target.damageMarked,
+            sourceHasDeathtouch: source.deathtouch,
         });
-        return power >= threshold;
+        return source.power >= threshold;
     };
 
     const fightMemo = new Map<string, number | undefined>();

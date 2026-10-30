@@ -167,6 +167,20 @@ describe("fight pricing reads the exchange (CR 701.14a, CR 704.5g)", () => {
         expect(free).toBeGreaterThan(against);
     });
 
+    it("an indestructible victim survives lethal damage (CR 702.12b)", () => {
+        const big = body("big66e", 6, 6);
+        const solid = body("solid44", 4, 4, ["indestructible"]);
+        const plain = latentInHand(RESTRICTED, {
+            mine: [big],
+            theirs: [victim],
+        });
+        const shielded = latentInHand(RESTRICTED, {
+            mine: [big],
+            theirs: [solid],
+        });
+        expect(plain).toBeGreaterThan(shielded);
+    });
+
     it("an unrestricted slot 0 pairs two opposing creatures when they trade well", () => {
         const small = body("small11c", 1, 1);
         const bigOpp = body("bigOpp66", 6, 6);
