@@ -45,11 +45,7 @@ export default function PrintingTile({
                     pickerRingClass(selected)
                 )}
             >
-                <CardImage
-                    card={{ id: printing.printId }}
-                    lazy
-                    promoteLayer={false}
-                />
+                <CardImage card={{ id: printing.printId }} lazy />
                 {kind !== "paper" && (
                     <span className="absolute right-1 bottom-1 rounded-sm bg-surface-base/85 px-1 text-[9px] font-semibold uppercase tracking-wide text-text-muted">
                         {kind}

@@ -31,11 +31,7 @@ export default function LimitedReviewCardGrid({
                     }
                     className="relative aspect-5/7 w-(--card-w) shrink-0"
                 >
-                    <CardImage
-                        card={{ id: card.cardId }}
-                        lazy
-                        promoteLayer={false}
-                    />
+                    <CardImage card={{ id: card.cardId }} lazy />
                     {card.count !== undefined && card.count > 1 && (
                         <span
                             data-slot="card-count"

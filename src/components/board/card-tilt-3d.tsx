@@ -3,6 +3,26 @@ import { useReducedMotion } from "motion/react";
 import { CARD_TILT } from "~/lib/board-motion";
 import { cardTiltFrame } from "~/lib/card-tilt-frame";
 
+/** Puts the card in a 3D rendering context for the tilt: perspective on the
+ *  root, `preserve-3d` + a compositor hint on the inner element. */
+function engage3D(root: HTMLElement, inner: HTMLElement) {
+    root.style.perspective = `${CARD_TILT.perspectivePx}px`;
+    inner.style.transformStyle = "preserve-3d";
+    inner.style.willChange = "transform";
+}
+
+/** Returns the card to a plain 2D element: no transform, no 3D context, no
+ *  compositor hint — the state a card at rest must be in (issue #7590). */
+function flatten(root: HTMLElement | null, inner: HTMLElement | null) {
+    if (root) root.style.perspective = "";
+    if (inner) {
+        inner.style.transition = "";
+        inner.style.transform = "";
+        inner.style.transformStyle = "";
+        inner.style.willChange = "";
+    }
+}
+
 type CardTilt3DProps = {
     children: ReactNode;
     /** Hold the card flat and ignore pointer-driven tilt (e.g. while a hand card
@@ -43,6 +63,14 @@ type CardTilt3DProps = {
  * `pointer-events-none` so it never blocks the underlying card's hover-zoom or
  * click handlers.
  *
+ * **The 3D context exists only while the card is tilted** (issue #7590). A
+ * standing `perspective` + `preserve-3d` + `will-change: transform` made every
+ * card at REST a 3D-composited layer, and Chrome rasterised it soft — measured
+ * by `check:ui`'s rasterisation probe on the card-choice picker: Blur Index
+ * 0.51–0.62 at four of five viewports flat, 0.00–0.02 with the context
+ * dropped. The first `pointermove` engages it ({@link engage3D}); the reset
+ * eases back to flat and, once the settle is over, drops it ({@link flatten}).
+ *
  * **Follows the card's visual orientation, without moving in under it**
  * (issue #2551). A tapped permanent rotates a presentational layer 90° while
  * this component stays OUTSIDE it (the tilt root must not inherit that layer's
@@ -63,22 +91,31 @@ export default function CardTilt3D({
 }: CardTilt3DProps) {
     const reduceMotion = useReducedMotion();
     const inert = reduceMotion || suppressTilt;
+    const rootRef = useRef<HTMLDivElement>(null);
     const innerRef = useRef<HTMLDivElement>(null);
     const glareRef = useRef<HTMLDivElement>(null);
+    const flattenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const cancelFlatten = useCallback(() => {
+        if (flattenTimer.current === null) return;
+        clearTimeout(flattenTimer.current);
+        flattenTimer.current = null;
+    }, []);
+
+    // A card unmounted mid-settle leaves no timer behind.
+    useEffect(() => cancelFlatten, [cancelFlatten]);
 
     // While suppressed (e.g. mid-drag) snap the inner element back to flat so
     // the rigid lift the parent applies isn't fighting a stale tilt transform.
+    // Keyed on `inert`, not `suppressTilt` alone: reduced motion switching on
+    // mid-tilt removes the handlers, so no `pointerleave` would ever flatten.
     useEffect(() => {
-        if (!suppressTilt) return;
-        const inner = innerRef.current;
-        if (inner) {
-            inner.style.transition = "none";
-            inner.style.transform =
-                "rotateX(0deg) rotateY(0deg) translateZ(0px) scale(1)";
-        }
+        if (!inert) return;
+        cancelFlatten();
+        flatten(rootRef.current, innerRef.current);
         const glare = glareRef.current;
-        if (glare) glare.style.opacity = "0";
-    }, [suppressTilt]);
+        if (glare?.style.opacity) glare.style.opacity = "0";
+    }, [inert, cancelFlatten]);
 
     const handlePointerMove = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {
@@ -87,6 +124,8 @@ export default function CardTilt3D({
             if (!inner) return;
             const rect = e.currentTarget.getBoundingClientRect();
             if (rect.width === 0 || rect.height === 0) return;
+            cancelFlatten();
+            engage3D(e.currentTarget, inner);
             // Pointer offset from the card center, normalised to -0.5..0.5.
             const px = (e.clientX - rect.left) / rect.width - 0.5;
             const py = (e.clientY - rect.top) / rect.height - 0.5;
@@ -114,7 +153,7 @@ export default function CardTilt3D({
                     `rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 55%)`;
             }
         },
-        [inert, visualRotationDeg]
+        [inert, visualRotationDeg, cancelFlatten]
     );
 
     const reset = useCallback(() => {
@@ -126,22 +165,31 @@ export default function CardTilt3D({
         }
         const glare = glareRef.current;
         if (glare) glare.style.opacity = "0";
-    }, []);
+        cancelFlatten();
+        flattenTimer.current = setTimeout(() => {
+            flattenTimer.current = null;
+            flatten(rootRef.current, innerRef.current);
+        }, CARD_TILT.flattenAfterMs);
+    }, [cancelFlatten]);
 
     return (
         <div
+            ref={rootRef}
             data-card-tilt-root
             className="relative w-full h-full card-corner"
-            style={{ perspective: `${CARD_TILT.perspectivePx}px` }}
             onPointerMove={inert ? undefined : handlePointerMove}
             onPointerLeave={inert ? undefined : reset}
+            // A cancelled touch stream may never send `pointerleave`; the
+            // card must still settle and drop its 3D context.
+            onPointerCancel={inert ? undefined : reset}
             // Suppress the native "Save image…" menu for tilt-wrapped cards
             // (hand + battlefield) at the ONE spot guaranteed to see the event.
-            // `transform-style: preserve-3d` here + the inner `overflow-hidden`/
-            // `contain: paint` art box flatten hit-testing, so the real
-            // `contextmenu` can land on the flattened box OUTSIDE the card's
-            // `CardPreview` handler subtree — a card-local `onContextMenu` then
-            // misses it intermittently and the native menu wins. This root is an
+            // `transform-style: preserve-3d` (while tilted) + the inner
+            // `overflow-hidden`/`contain: paint` art box flatten hit-testing,
+            // so the real `contextmenu` can land on the flattened box OUTSIDE
+            // the card's `CardPreview` handler subtree — a card-local
+            // `onContextMenu` then misses it intermittently and the native
+            // menu wins. This root is an
             // ANCESTOR of every candidate target inside the tilt, so the bubbling
             // `contextmenu` always reaches it. preventDefault only cancels the
             // native menu — it does NOT stopPropagation, so a battlefield card's
@@ -152,8 +200,7 @@ export default function CardTilt3D({
             <div
                 ref={innerRef}
                 data-card-tilt
-                className="relative w-full h-full will-change-transform card-corner"
-                style={{ transformStyle: "preserve-3d" }}
+                className="relative w-full h-full card-corner"
             >
                 {children}
                 {/* Glare highlight — tracks the pointer, fades on leave. Inert

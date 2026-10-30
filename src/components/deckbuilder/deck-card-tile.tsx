@@ -78,10 +78,8 @@ export interface DeckCardTileProps {
      *  It also flips the two `CardImage` choices an EDITING surface makes for
      *  reasons that stop applying here — the hold-preview comes back (reading
      *  the card is the whole point of a review surface, and no 250ms hold is
-     *  a drag any more), and the art loads lazily and unpromoted, because a
-     *  completed 8-seat table mounts hundreds of these at once inside
-     *  collapsed disclosures (see {@link CONTAINED_LAYER} in
-     *  `card-image.tsx`). */
+     *  a drag any more), and the art loads lazily, because a completed 8-seat
+     *  table mounts hundreds of these at once inside collapsed disclosures. */
     readOnly?: boolean;
     /** How many identical copies this tile stands for (issue #2584's MV rows).
      *  `undefined` or `1` renders no badge; `>1` renders a `×N` badge. The
@@ -244,20 +242,11 @@ export default function DeckCardTile({
                 card is read through the Peek Panel's Inspect CTA instead. On a
                 `readOnly` mount there is no drag to lose the gesture to and no
                 Peek Panel to read the card in, so the hold-preview is the one
-                card-reading affordance and comes back on (issue #3167).
-
-                `promoteLayer={false}` on EVERY mount (issue #6940) — it used to
-                be `!readOnly`, promoting each editable tile. A pile view
-                mounts the whole pool, and a promoted face is a GPU layer the
-                compositor evicts first under a starved budget: measured as a
-                blank slot on this tile. The tile's only ancestor motion is the
-                translate-only lift (hover / selected), which never changes the
-                raster scale, so the contained face stays sharp through it. */}
+                card-reading affordance and comes back on (issue #3167). */}
             <CardImage
                 card={{ id: printId ?? cardId }}
                 holdPreview={readOnly}
                 lazy={readOnly}
-                promoteLayer={false}
             />
             {/* A "removable" hover cue (parity with the pre-#1581 deckbuilder
                 tile), keyed off the group so it only lights the hovered card.

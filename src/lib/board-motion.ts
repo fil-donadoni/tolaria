@@ -43,6 +43,9 @@ export const SLOT_SPRING = {
  */
 export const LIFTED_CARD_Z = 50;
 
+/** Duration of the tilt's eased settle back to flat, in ms. */
+const CARD_TILT_RESET_MS = 320;
+
 /**
  * Arena-style hover tilt constants for the spatial board (PRD #249, slice #253).
  *
@@ -72,7 +75,10 @@ export const CARD_TILT = {
     /** Snappy follow while the pointer moves over the card. */
     moveTransition: "transform 60ms linear",
     /** Longer eased settle back to flat on pointer leave. */
-    resetTransition: "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
+    resetTransition: `transform ${CARD_TILT_RESET_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`,
+    /** When the settle is over and the 3D context is dropped (issue #7590):
+     *  the reset's duration plus a frame of slack. */
+    flattenAfterMs: CARD_TILT_RESET_MS + 50,
     /** Glare opacity at full hover (faded to 0 on leave). */
     glareOpacity: 0.55,
 } as const;
