@@ -585,7 +585,7 @@ export function renderUiScope(scope: UiScope, base: string): string {
  * the walk is too dear to owe for content the diff never touched). A handler
  * or a string edited in a file that has a `z-index` elsewhere owes no walk;
  * adding or removing a marker does. A new file's every line is changed.
- * Two diffs owe nothing whatever the path (issue #7608): a module whose
+ * Two diffs owe nothing whatever the path: a module whose
  * changed lines are only one-line `import type` / `export type … from`
  * statements — the build erases them, as the scope rule above already says —
  * and a DELETED module, which renders nowhere: a deletion something still
