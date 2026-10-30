@@ -8,9 +8,9 @@
 // triggered ability, CR 117.3a optional "may".) Blocked: "if it's the second
 // creature spell you cast this turn" needs a per-turn "creature spells cast"
 // counter exposed to a `TriggeredAbility.matches`/`state` predicate; no such
-// tracking exists yet (`GameState` has no per-turn spell-cast-kind counter)
-// (issue #1968).
-// tracked-by: #1968
+// tracking exists yet (`GameState` has no per-turn spell-cast-kind counter).
+// Out of scope: no ranked Target lists Vengevine (issue #1968, closed not
+// planned) — reopen that issue if one picks it up.
 // export const vengevine: CardDefinition = {
 //     id: "51eb9f05-9d5a-4196-9329-626ce4793c42",
 //     name: "Vengevine",
