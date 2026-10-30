@@ -55328,6 +55328,16 @@
         "source": "compiled"
     },
     {
+        "name": "Repurposed Enforcer",
+        "scryfallId": "35000e93-85d3-44f8-976a-5918ee4c71e0",
+        "oracleId": "b775a404-ec0a-47ff-bb9d-eae2273d945b",
+        "firstSet": "fra",
+        "firstPrintId": "35000e93-85d3-44f8-976a-5918ee4c71e0",
+        "firstPrintSet": "fra",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Reroute Systems",
         "scryfallId": "3bbdba38-2b99-4226-98e3-6d2580345d6d",
         "oracleId": "26d2762b-4346-40d0-b93d-b0dbfeb6e2bc",
@@ -63160,14 +63170,6 @@
         "firstPrintSet": "ody",
         "rarity": "rare",
         "source": "compiled"
-    },
-    {
-        "name": "Skycoach Conductor",
-        "scryfallId": "f9092a09-78a8-421c-868b-115175f4c252",
-        "oracleId": "788d3cfa-7706-4728-9c48-cf7bc963d002",
-        "firstSet": "sos",
-        "firstPrintId": "f9092a09-78a8-421c-868b-115175f4c252",
-        "firstPrintSet": "sos"
     },
     {
         "name": "Skycoach Conductor // All Aboard",
@@ -75805,14 +75807,6 @@
         "firstPrintSet": "rtr",
         "rarity": "common",
         "source": "compiled"
-    },
-    {
-        "name": "Vastlands Scavenger",
-        "scryfallId": "91db5c3d-45ab-440f-8568-a2837aee1fca",
-        "oracleId": "3a97bc8d-bd81-468e-9277-eba4fac11ee0",
-        "firstSet": "sos",
-        "firstPrintId": "91db5c3d-45ab-440f-8568-a2837aee1fca",
-        "firstPrintSet": "sos"
     },
     {
         "name": "Vastlands Scavenger // Bind to Life",
