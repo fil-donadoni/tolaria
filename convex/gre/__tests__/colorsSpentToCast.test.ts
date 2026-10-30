@@ -103,16 +103,27 @@ const inExile = (state: GameState, id: string) =>
     state.players[1].exile.some((c) => c.id === id);
 
 describe("Effect Script value: colorsSpentToCast (CR 207.2c Converge, CR 105.1)", () => {
-    it("counts distinct COLORS: {W}{U}{C} spent is two — an MV-2 target is exiled", () => {
+    it("counts distinct COLORS: {W}{W}{U} spent is two — an MV-2 target is exiled", () => {
         const state = boardWith({ defId: MV2_ID, id: "mv2" });
         const item = pushSpell(state, CONVERGE_SPELL_ID, "p1", [
             { type: "permanent", id: "mv2" },
         ]);
-        // CR 105.1 — colorless {C} is not a colour; two {W} are one colour.
-        item.notedManaSpent = { W: 2, U: 1, C: 1 };
+        // Two {W} are one colour.
+        item.notedManaSpent = { W: 2, U: 1 };
         resolveTopOfStack(state);
         expect(onBattlefield(state, "mv2")).toBe(false);
         expect(inExile(state, "mv2")).toBe(true);
+    });
+
+    it("colorless {C} is not a colour — {W}{C} is one, an MV-2 target survives", () => {
+        const state = boardWith({ defId: MV2_ID, id: "mv2" });
+        const item = pushSpell(state, CONVERGE_SPELL_ID, "p1", [
+            { type: "permanent", id: "mv2" },
+        ]);
+        // Counting {C} as a colour would read 2 and exile it.
+        item.notedManaSpent = { W: 1, C: 1 };
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "mv2")).toBe(true);
     });
 
     it("an MV-3 target survives two colours (the bound is inclusive, not loose)", () => {

@@ -8794,6 +8794,34 @@ describe("colorsSpentToCast — the Converge value's opt-in gates (CR 207.2c, is
         expect(errors.some((e) => /an ability is not cast/.test(e))).toBe(true);
     });
 
+    it("rejects a read inside a delayed trigger's body — it resolves as an ability", () => {
+        const errors = validateEffectScript(
+            host({
+                noteManaSpent: true,
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText:
+                            "At the beginning of the next end step, gain life.",
+                        effects: [
+                            {
+                                op: "gainLife",
+                                player: "controller",
+                                amount: { colorsSpentToCast: true },
+                            },
+                        ],
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(
+            errors.some((e) =>
+                /resolves as an ability, not as the spell/.test(e)
+            )
+        ).toBe(true);
+    });
+
     it("rejects a malformed shape (only the literal true is the value)", () => {
         const errors = validateEffectScript(
             host({

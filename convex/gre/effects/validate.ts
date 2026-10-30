@@ -9497,9 +9497,17 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
     // `StackItem.notedManaSpent`, which the cast-payment seam records ONLY for
     // a card declaring `noteManaSpent: true`. Without it the record is absent
     // and every converge clause reads 0 colours — a silent no-op, not an error.
-    if (!def.noteManaSpent && containsColorsSpentToCast(def.effects)) {
+    // A read inside a token's or a delayed trigger's body resolves as THAT
+    // ability, on a stack item with no record — the same silent 0.
+    const convergeSites = colorsSpentToCastSites(def.effects);
+    if (convergeSites.spell && !def.noteManaSpent) {
         errors.push(
             `${label}: reads { colorsSpentToCast: true } but does not declare noteManaSpent: true — the mana spent to cast it is never recorded, so the value always reads 0`
+        );
+    }
+    if (convergeSites.nested) {
+        errors.push(
+            `${label}: reads { colorsSpentToCast: true } inside a createToken token or delayedTrigger body — that body resolves as an ability, not as the spell, so it has no mana spent to cast it`
         );
     }
 
@@ -9600,6 +9608,42 @@ function containsColorsSpentToCast(node: unknown): boolean {
     if (node === null || typeof node !== "object") return false;
     if (isColorsSpentToCastValue(node)) return true;
     return Object.values(node).some(containsColorsSpentToCast);
+}
+
+/** Where a SPELL script reads `{ colorsSpentToCast: true }` (issue #7211):
+ *  `spell` — in a body that resolves as the spell itself; `nested` — inside a
+ *  body that resolves later as an ABILITY of its own (a `createToken` token's
+ *  abilities, a `delayedTrigger`'s effects), whose stack item carries no
+ *  record of the spell's mana. */
+function colorsSpentToCastSites(node: unknown): {
+    spell: boolean;
+    nested: boolean;
+} {
+    const found = { spell: false, nested: false };
+    const walk = (n: unknown): void => {
+        if (Array.isArray(n)) {
+            n.forEach(walk);
+            return;
+        }
+        if (n === null || typeof n !== "object") return;
+        if (isColorsSpentToCastValue(n)) {
+            found.spell = true;
+            return;
+        }
+        const obj = n as Record<string, unknown>;
+        for (const [key, value] of Object.entries(obj)) {
+            const abilityBody =
+                (obj.op === "createToken" && key === "token") ||
+                (obj.op === "delayedTrigger" && key === "effects");
+            if (abilityBody) {
+                if (containsColorsSpentToCast(value)) found.nested = true;
+            } else {
+                walk(value);
+            }
+        }
+    };
+    walk(node);
+    return found;
 }
 
 function findTargetSlotRefs(node: unknown, out: unknown[]): void {
