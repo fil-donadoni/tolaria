@@ -5110,6 +5110,16 @@ const OP_SCHEMAS: OpSchemaTable = {
             level: isClassLevel,
         },
     },
+    // CR 701.37a (issue #3217) — "Monstrosity N". `target` is an object
+    // selector (`$source` — the printed shape — an announced slot or a forEach
+    // `$each`); `count` is the N, any `EffectValue` so "Monstrosity X" (CR
+    // 701.37c) composes.
+    monstrosity: {
+        required: {
+            target: isObjectSelector,
+            count: isEffectValue,
+        },
+    },
     // CR 701.26 (issue #842) — tap/untap a permanent. `action` selects the
     // direction; `target` is an object selector (announced slot, `$source`, or
     // a forEach `$each`). No amount — a permanent is tapped or it isn't.

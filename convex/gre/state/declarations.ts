@@ -760,6 +760,16 @@ export type CardInstanceState = {
      *  rewrites only copiable values, so a copy keeps its own level and a fresh
      *  token copy has none at all. */
     classLevel?: number;
+    /** CR 701.37b (issue #3217) — the MONSTROUS designation, stamped by the
+     *  `monstrosity` Op through `becomeMonstrousOnCard` (`gre/state.ts`), its
+     *  single writer. One-way: nothing un-sets it while the permanent stays on
+     *  the battlefield ("once a permanent becomes monstrous, it stays monstrous
+     *  until it leaves the battlefield"), and the zone-change reset clears it
+     *  because the object that comes back is a new one (CR 400.7). Neither an
+     *  ability nor a copiable value (CR 701.37b), which needs no code:
+     *  `applyCopy` rewrites only copiable values, so a copy keeps its own
+     *  designation and a fresh token copy has none. */
+    monstrous?: boolean;
     /** CR 608.2h last-known information: the `counters` map this permanent had
      *  at the instant it left the battlefield. The counters themselves cease
      *  to exist on a zone change (CR 122.2) — this is the read-only memory of

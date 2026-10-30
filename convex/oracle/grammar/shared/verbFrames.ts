@@ -394,6 +394,17 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 701.37a — "Monstrosity N": if the permanent the ability is
+           * printed on isn't monstrous, put N +1/+1 counters on it and it
+           * becomes monstrous. A printed count only: "Monstrosity X" (CR
+           * 701.37c) is another form, whose X the becomes-monstrous trigger
+           * reads back.
+           */
+          readonly frame: "monstrosity";
+          readonly count: number;
+      }
+    | {
+          /**
            * CR 122.1 — "<player> gets N poison/experience counters" and
            * "you get {E}{E}" (CR 107.14: one energy counter per symbol): a
            * counter kind a PLAYER holds is added to that player.
@@ -551,6 +562,7 @@ export const VERB_FRAMES: readonly {
     { name: "empowerJace", opens: /^empower jace\b/i },
     { name: "becomeMonarch", opens: /^you become the monarch\b/i },
     { name: "winGame", opens: /^you win the game\b/i },
+    { name: "monstrosity", opens: /^monstrosity \S+$/i },
     {
         name: "playerCounters",
         // The finite verb behind a player reference, then a counter: the
@@ -641,6 +653,8 @@ const EMPOWER_JACE = /^empower jace (\S+)$/i;
 const BECOME_MONARCH = "you become the monarch";
 /** CR 104.2b — the whole sentence, nothing trailing. */
 const WIN_GAME = "you win the game";
+/** CR 701.37a — the keyword action and its count, nothing trailing. */
+const MONSTROSITY = /^monstrosity (\S+)$/;
 /**
  * CR 122.1 + CR 107.14 — "<player> gets {E}{E}" (the optional trailing space
  * is what stripping the "(two energy counters)" reminder, CR 207.2a, leaves)
@@ -1670,6 +1684,14 @@ function readMember(
                 refused: `"${member}" — only the bare "You win the game" is read`,
             };
         return { frames: [{ frame: "winGame" }], referent };
+    }
+    if (opensFrame("monstrosity", lower)) {
+        const count = readNumberWord(lower.match(MONSTROSITY)![1]!);
+        if (count === null)
+            return {
+                refused: `"${member}" — only a printed count is read ("Monstrosity X" names its X elsewhere)`,
+            };
+        return { frames: [{ frame: "monstrosity", count }], referent };
     }
     if (opensFrame("playerCounters", lower)) {
         const counters = lower.match(PLAYER_COUNTERS);

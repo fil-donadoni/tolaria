@@ -116,6 +116,7 @@ export const CARD_FIELD_LIFECYCLE = {
     tapTriggerCommitted:        { codec: "flag",    reset: ZONE },
     damageMarked:               { codec: "scalar",  reset: TURN_ZONE },
     classLevel:                 { codec: "scalar",  reset: ZONE },
+    monstrous:                  { codec: "flag",    reset: ZONE },
     // Legacy shape on expand (`loyaltyActivatedThisTurn`, issue #3339);
     // cleared at turn start, not at cleanup.
     loyaltyActivationsThisTurn: { codec: "custom",  reset: ["custom:turn"] },

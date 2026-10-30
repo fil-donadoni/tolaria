@@ -1506,6 +1506,14 @@
         "source": "compiled"
     },
     {
+        "name": "Alpha Deathclaw",
+        "scryfallId": "ca4c8b04-66af-4cb3-8003-9088d8344b20",
+        "oracleId": "0a7d0d1f-a5ac-4db9-860c-9fcbe3fd9e71",
+        "firstSet": "pip",
+        "firstPrintId": "ca4c8b04-66af-4cb3-8003-9088d8344b20",
+        "firstPrintSet": "pip"
+    },
+    {
         "name": "Alpha Kavu",
         "scryfallId": "545ed916-59fc-4c60-9260-8c2dc88e67a1",
         "oracleId": "f1a76cca-829a-4576-a560-f1af34b80b87",

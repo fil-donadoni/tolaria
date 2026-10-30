@@ -8560,6 +8560,150 @@ describe("Effect Script Op: setLevel (CR 716.2a, issue #3234)", () => {
     });
 });
 
+describe("Effect Script Op: monstrosity (CR 701.37, issue #3217)", () => {
+    // The Op's permanent test (a new Op pays the entry fee once). CR 701.37a:
+    // "If this permanent isn't monstrous, put N +1/+1 counters on it and it
+    // becomes monstrous."
+    it("CR 701.37a — puts N +1/+1 counters on a non-monstrous permanent and makes it monstrous; survives the projection (wire format)", () => {
+        const id = registerScript("test-op-monstrosity", [
+            { op: "monstrosity", target: { target: 0 }, count: 3 },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearMon",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearMon" }]);
+        resolveTopOfStack(state);
+        const grown = state.players[1].battlefield.find(
+            (c) => c.id === "bearMon"
+        )!;
+        expect(grown.monstrous).toBe(true);
+        expect(grown.counters?.["+1/+1"]).toBe(3);
+        // The client reads the slimmed instance: the designation and the
+        // counters must both cross the wire.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearMon"
+        )!;
+        expect(slim.monstrous).toBe(true);
+        expect(slim.counters?.["+1/+1"]).toBe(3);
+    });
+
+    // CR 701.37a — the "isn't monstrous" check belongs to the action: on an
+    // already-monstrous permanent it resolves and does nothing — no counters,
+    // and no PERMANENT_BECAME_MONSTROUS event to re-arm a spent trigger.
+    it("CR 701.37a — does nothing to a permanent that is already monstrous", () => {
+        const id = registerScript("test-op-monstrosity-again", [
+            { op: "monstrosity", target: { target: 0 }, count: 3 },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearMonAgain",
+            monstrous: true,
+            counters: { "+1/+1": 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearMonAgain" }]);
+        resolveTopOfStack(state);
+        const same = state.players[1].battlefield.find(
+            (c) => c.id === "bearMonAgain"
+        )!;
+        expect(same.counters?.["+1/+1"]).toBe(1);
+        expect(
+            (state.pendingEvents ?? []).some(
+                (e) => e.type === "PERMANENT_BECAME_MONSTROUS"
+            )
+        ).toBe(false);
+    });
+
+    // CR 608.2b — the permanent left the battlefield before resolution: the
+    // Op does as much as it can, which is nothing, without throwing.
+    it("CR 608.2b — skips a target that has left the battlefield", () => {
+        const id = registerScript("test-op-monstrosity-gone", [
+            { op: "monstrosity", target: { target: 0 }, count: 2 },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "never-existed" },
+        ]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+
+    // The `forEach` construct (ADR 0046) over `$each`, with a computed N (the
+    // `count` EffectValue — CR 701.37c's "Monstrosity X" shape).
+    it("makes every member of a forEach set monstrous through $each, with a computed N", () => {
+        const id = registerScript("test-op-monstrosity-foreach", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "opponent",
+                    filter: { type: "Creature" },
+                },
+                effects: [
+                    {
+                        op: "monstrosity",
+                        target: { ref: "$each" },
+                        count: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "opponent",
+                                filter: { type: "Creature" },
+                            },
+                        },
+                    },
+                ],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            id: "bearMonA",
+                        }),
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            id: "bearMonB",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.map((c) => [
+                c.monstrous,
+                c.counters?.["+1/+1"],
+            ])
+        ).toEqual([
+            [true, 2],
+            [true, 2],
+        ]);
+    });
+});
+
 describe("Effect Script Op: counters (CR 122, issue #841)", () => {
     // Adding +1/+1 counters to an announced creature target: the counters
     // persist and feed layer 7d, so the effective P/T rises. Wire-format

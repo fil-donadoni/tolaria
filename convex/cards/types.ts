@@ -4649,6 +4649,12 @@ export interface SpellContext {
      *  711.7) — it writes `CardInstanceState.classLevel`, which no
      *  counter-reading effect can see. */
     setLevel: (target: TargetSelection, level: number) => void;
+    /** CR 701.37a — "Monstrosity N": if `target` isn't monstrous, put `count`
+     *  +1/+1 counters on it and it becomes monstrous, emitting the
+     *  `PERMANENT_BECAME_MONSTROUS` event. No-op (no counters, no event) when
+     *  the target is already monstrous or has left the battlefield
+     *  (CR 608.2b). */
+    monstrosity: (target: TargetSelection, count: number) => void;
     /** Re-writes a permanent's stored modal choice (`chosenModeId`, CR 700.2c)
      *  post-ETB — the "choose a color" half of a re-choosable modal permanent
      *  (Chromatic Armor: "{X}: Put a sleight counter on this Aura and choose a
@@ -8483,6 +8489,11 @@ export interface PermanentView {
      *  field rather than `counters`. Mirrors
      *  `CardInstanceState.classLevel`. */
     classLevel?: number;
+    /** CR 701.37b (issue #3217) — true once this permanent has become
+     *  monstrous; absent otherwise. The marker "the monstrosity action and
+     *  other spells and abilities can identify". Mirrors
+     *  `CardInstanceState.monstrous`. */
+    monstrous?: boolean;
     /** Per-turn activation tally keyed by ability id (CR 602.5). Mirrors
      *  `CardInstanceState.activationsThisTurn`; the activation validator passes
      *  the raw `CardInstanceState` as `source` to `canActivate`, so this is
@@ -11307,7 +11318,8 @@ export type GameEventType =
     | "CARDS_EXILED"
     | "CARDS_PUT_INTO_LIBRARY"
     | "LIBRARY_SEARCHED"
-    | "LEVEL_GAINED";
+    | "LEVEL_GAINED"
+    | "PERMANENT_BECAME_MONSTROUS";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -12197,6 +12209,32 @@ export interface LevelGainedEvent {
     subtypes: ReadonlyArray<string>;
 }
 
+/** CR 701.37a (issue #3217) — a permanent BECAME monstrous: the `monstrosity`
+ *  Op found it not yet monstrous, put the N +1/+1 counters on it and set the
+ *  designation. The event "When this creature becomes monstrous" triggers
+ *  listen for (Alpha Deathclaw, `sets/pip/multicolor.cards.ts`). Emitted only
+ *  on the TRANSITION: an activation on an already-monstrous permanent puts no
+ *  counters on it and emits nothing (CR 701.37a's "if this permanent isn't
+ *  monstrous"), so a spent trigger is never re-armed while the permanent stays
+ *  on the battlefield. `count` is the N (or X) the permanent became monstrous
+ *  with — CR 701.37c's "the value of X as that permanent became monstrous",
+ *  readable by the trigger as `$event.count`. `types`/`subtypes` snapshot the
+ *  permanent at emit time, like `LevelGainedEvent`. */
+export interface PermanentBecameMonstrousEvent {
+    type: "PERMANENT_BECAME_MONSTROUS";
+    /** Instance id of the permanent that became monstrous. */
+    instanceId: string;
+    /** Controller of that permanent at the moment it became monstrous. */
+    controllerId: string;
+    /** The monstrosity N (or the resolved X, CR 701.37c) — the number of
+     *  +1/+1 counters the action put on it. */
+    count: number;
+    /** Card types of the permanent, snapshotted at emit time. */
+    types: ReadonlyArray<CardType>;
+    /** Card subtypes of the permanent, snapshotted at emit time. */
+    subtypes: ReadonlyArray<string>;
+}
+
 /** Target-declaration event (CR 603.2b / 115.5) emitted once PER TARGET when a
  *  spell or ability's targets are locked onto its stack object — at cast
  *  (`emitSpellCastEvent`), at activated-ability commit, and at targeted-trigger
@@ -12437,6 +12475,7 @@ export type GameEvent =
     | CounterRemovedEvent
     | CounterAddedEvent
     | LevelGainedEvent
+    | PermanentBecameMonstrousEvent
     | BecameTargetEvent
     | TokensCreatedEvent
     | CardsExiledEvent
@@ -17332,6 +17371,29 @@ export type EffectOp =
           op: "setLevel";
           target: EffectObjectSelector;
           level: number;
+      }
+    /** CR 701.37a (issue #3217) — "Monstrosity N": "If this permanent isn't
+     *  monstrous, put N +1/+1 counters on it and it becomes monstrous." A thin
+     *  declarative skin over the SpellContext primitive `monstrosity`, one
+     *  execution path (ADR 0045), which writes `CardInstanceState.monstrous`
+     *  and emits `PERMANENT_BECAME_MONSTROUS` — the event "When this creature
+     *  becomes monstrous" triggers listen for. `target` names the permanent:
+     *  the resolving source (`$source` — the printed "{cost}: Monstrosity N."
+     *  shape), an announced slot or a `forEach` `$each`. `count` is the N; an
+     *  `EffectValue` so "Monstrosity X" composes (CR 701.37c — the X rides the
+     *  event as `count`).
+     *
+     *  Deliberately NOT `if` + `counters` (the Adapt decomposition, CR
+     *  701.46a): Adapt reads state the counters already carry, while the
+     *  monstrous designation is a fact of its own that no counter count can
+     *  stand in for (a monstrous creature that lost its counters is still
+     *  monstrous, CR 701.37b), and the "becomes monstrous" event has no
+     *  producer among the existing Ops. Already monstrous, or gone (CR
+     *  608.2b): no counters, no event. */
+    | {
+          op: "monstrosity";
+          target: EffectObjectSelector;
+          count: EffectValue;
       }
     /** CR 701.26 (issue #842) — tap or untap a permanent. A thin declarative
      *  skin over the SpellContext primitives `tap` / `untap`, one execution

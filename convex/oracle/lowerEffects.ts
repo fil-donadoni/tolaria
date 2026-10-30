@@ -5384,6 +5384,19 @@ function lowerFrameChain(
             case "winGame":
                 ops.push({ op: "winGame", player: "controller" });
                 break;
+            // CR 701.37a / 701.37b — "this permanent": only permanents can
+            // become monstrous, so a spell's own text has nothing to act on.
+            case "monstrosity":
+                if (site.resolvingSpell === true)
+                    return unlowerable(
+                        "only a permanent's ability has a permanent to make monstrous"
+                    );
+                ops.push({
+                    op: "monstrosity",
+                    target: { ref: "$source" },
+                    count: frame.count,
+                });
+                break;
             // CR 122.1 — a counter kind a player holds, added to that player.
             case "playerCounters": {
                 const player = playerRef(frame.player, walk.targets, site);
