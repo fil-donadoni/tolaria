@@ -720,17 +720,9 @@ function compileMeldLayout(card: OracleCard): CompileOutcome {
             },
         ]);
     }
-    const front = compileCard({
-        oracleId: card.oracleId,
-        name: card.name,
-        manaCost: card.manaCost,
-        typeLine: card.typeLine,
-        oracleText: card.oracleText,
-        ...(card.power !== undefined ? { power: card.power } : {}),
-        ...(card.toughness !== undefined ? { toughness: card.toughness } : {}),
-        ...(card.loyalty !== undefined ? { loyalty: card.loyalty } : {}),
-        layout: "normal",
-    });
+    // The front card's own row is its front face: the same `"normal"` copy,
+    // minus the corpus-level stamps.
+    const front = compileCard(faceAsOracleCard(card, card));
     const backOutcome = compileCard(faceAsOracleCard(card, back));
     if (front.state === "unparsed" || backOutcome.state === "unparsed") {
         return unparsed([
