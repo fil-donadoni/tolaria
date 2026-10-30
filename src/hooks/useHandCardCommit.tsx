@@ -499,13 +499,25 @@ export function useHandCardCommit(
         const halfChoiceOwed =
             splitCastOptionsFor(cardInstance as unknown as CardInstanceState)
                 .length > 0;
-        if (!cardInstance.castManaCostReplaced || halfChoiceOwed) {
-            const affordableAlts = affordableAltCostsForCard(
-                cardInstance,
-                playerId,
-                allPlayers,
-                activePlayerId
-            );
+        // CR 601.3e (issue #7526) — off the library top each option is
+        // licensed by its OWN grant: Brazen Borrower may ride Bolas's Citadel
+        // while Petty Theft rides an instant-and-sorcery grant that keeps the
+        // mana cost. `affordableAltCostsForCard` already drops every row the
+        // replacing grant forbids (CR 601.2b), so a surviving row is a legal
+        // announcement the replaced-cost flag must not hide.
+        const affordableAlts = affordableAltCostsForCard(
+            cardInstance,
+            playerId,
+            allPlayers,
+            activePlayerId
+        );
+        const licensedLibraryAlt =
+            cardInstance.zone === "library" && affordableAlts.length > 0;
+        if (
+            !cardInstance.castManaCostReplaced ||
+            halfChoiceOwed ||
+            licensedLibraryAlt
+        ) {
             const printedCostAvailable =
                 !cardInstance.printedCostCastUnavailable;
             // CR 118.9b — the printed cost is not the only row the permission

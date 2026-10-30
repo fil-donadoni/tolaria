@@ -99,6 +99,8 @@ import { handCardMatchesFilter } from "@convex/gre/alternativeCost";
 // costs plus every board-granted free cast (`cast-permission`, Aluren). Shared
 // verbatim with the GRE's legality gate and `announceCast` (ADR 0074).
 import { castOptionAlternativeCosts } from "@convex/gre/castPermissions";
+// CR 601.3e (issue #7526) — the per-announcement library-top licence.
+import { libraryTopAnnouncementLicensed } from "@convex/gre/rules";
 // CR 601.2b / 118.8 — the server's own additional-cost leg affordability, reused
 // verbatim so the cast-time leg picker and `announceCast` can never disagree.
 import { payableAdditionalCostLegs } from "@convex/gre/additionalCost";
@@ -1995,10 +1997,24 @@ export function affordableAltCostsForCard(
     // `affordableAlternativeCosts` directly. Both battlefields survive the wire
     // projection, so the client evaluates the identical predicate the mutation
     // enforces (ADR 0074).
-    return castOptionAlternativeCosts(
+    const options = castOptionAlternativeCosts(
         state,
         caster as unknown as PlayerState,
         card as unknown as CardInstanceState
+    );
+    // CR 601.3e (issue #7526) — off the top of the library each option is its
+    // own announcement, licensed (or not) by the grant covering ITS subject:
+    // Garruk's Horde casts Giant Killer but not Chop Down. The same predicate
+    // the legality gate and the Bot ask, so no row is a click `announceCast`
+    // refuses.
+    if (card.zone !== "library") return options;
+    return options.filter((alt) =>
+        libraryTopAnnouncementLicensed(
+            state,
+            caster as unknown as PlayerState,
+            card as unknown as CardInstanceState,
+            alt.id
+        )
     );
 }
 

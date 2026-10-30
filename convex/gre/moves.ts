@@ -99,6 +99,7 @@ import {
 import { announcementModeFacts, modeHasLegalTargets } from "./modeAnnouncement";
 import {
     getLegalActions,
+    libraryTopAnnouncementLicensed,
     libraryTopCastGrant,
     isCastableLibraryTopSpell,
     libraryTopCastLifeCost,
@@ -3418,7 +3419,13 @@ function enumerateCastMovesFromZone(
     // it has no printed cast for the refusal to be about (`offersPrintedCast`)
     // — and each half prices its own life in the independent-options loop at
     // the bottom of this function.
+    //
+    // CR 601.3e (issue #7526) — off the library top the refusal is per
+    // announcement instead: an Adventure or morph cast licensed by a grant
+    // that keeps the mana cost owes no life at all, so the library-top caller
+    // drops each Move whose own life payment the caster cannot cover.
     if (
+        opts?.castFromZone !== "library" &&
         lifeInsteadOfMana !== undefined &&
         player.life < lifeInsteadOfMana &&
         offersPrintedCast(
@@ -4544,18 +4551,19 @@ function enumerateCastMovesFromZone(
         // branches above keep their own `lifeInsteadOfMana` guards. A SPLIT
         // half is the one exemption, for the reason `announceCast`'s own
         // exemption states: CR 709.3's choice of half is not a price at all.
+        //
+        // CR 601.3e (issues #7205, #7526) — off the top of the library both
+        // questions are asked of THIS announcement's grant, never the whole
+        // card's `lifeInsteadOfMana`: a filtered permission's uncovered half
+        // is no cast, and an Adventure (Chop Down under a Melek-shaped grant)
+        // may be licensed by a grant that keeps the mana cost while the
+        // printed card rides the Citadel. `getLegalActions` and `announceCast`
+        // answer through the same predicate.
         if (
-            lifeInsteadOfMana !== undefined &&
-            isSplitCastId(def ?? undefined, alt.id) === undefined
-        ) {
-            continue;
-        }
-        // CR 601.3e (issue #7205) — off the top of the library, a half no
-        // grant covers is no cast (a filtered permission's uncovered half);
-        // `getLegalActions` and `announceCast` refuse it the same way.
-        if (
-            castFromZone === "library" &&
-            libraryTopCastGrant(state, player, card, alt.id) === undefined
+            castFromZone === "library"
+                ? !libraryTopAnnouncementLicensed(state, player, card, alt.id)
+                : lifeInsteadOfMana !== undefined &&
+                  isSplitCastId(def ?? undefined, alt.id) === undefined
         ) {
             continue;
         }
@@ -5985,6 +5993,28 @@ export function enumerateMoves(
         getLegalActions(state, player, libraryTop).includes("cast")
     ) {
         const lifeCost = libraryTopCastLifeCost(state, player, libraryTop);
+        // CR 601.3e / 601.2b (issue #7526) — the gate admits the card when
+        // ANY announcement is licensed, so every Move is re-asked per its own
+        // announcement: Giant Killer's printed cast under a Melek-shaped
+        // grant, or a morph cast riding Bolas's Citadel, is a Move
+        // `announceCast` refuses (the #2283/#2284 freeze shape).
+        const licensed = (m: Move) =>
+            m.kind !== "cast-spell" ||
+            (libraryTopAnnouncementLicensed(
+                state,
+                player,
+                libraryTop,
+                m.alternativeCostId
+            ) &&
+                // CR 119.4 — and the announcement's OWN life payment is
+                // coverable (the whole-card refusal skips the library zone).
+                player.life >=
+                    libraryTopCastLifeCost(
+                        state,
+                        player,
+                        libraryTop,
+                        m.alternativeCostId
+                    ));
         moves.push(
             ...enumerateCastMoves(state, player, libraryTop, {
                 // CR 601.3 — the zone, stated: without it the wrapper's
@@ -6003,7 +6033,7 @@ export function enumerateMoves(
                     ?.manaCostReplacement === "life-equal-to-mana-value"
                     ? { lifeInsteadOfMana: lifeCost }
                     : {}),
-            })
+            }).filter(licensed)
         );
     }
     for (const perm of player.battlefield) {
