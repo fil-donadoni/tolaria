@@ -7,7 +7,11 @@
  *
  *  1. **Fresh run.** The RED's failing test files (its evidence names them;
  *     the commit status may have had no room) re-run once at the RED sha in a
- *     fresh worktree, on a `lane` runner. A RED naming no file re-runs its
+ *     fresh worktree, on a `lane` runner. Passing alone in a shared-worker
+ *     project (`isolate: false`), they re-run inside that whole project, one
+ *     worker (`freshRunSteps`, issue #7584): a cross-file leak reproduces
+ *     only beside its polluter, and the bisect then probes the same scope.
+ *     A RED naming no file re-runs its
  *     failed health step instead. A RED naming neither has nothing to re-run
  *     and stands.
  *  2. **Not reproduced** → the RED closes as GREEN (`flake: …`, last writer
@@ -314,6 +318,175 @@ export function failedTests(
     return lines.length > 0 ? hit : [...cmd.tests];
 }
 
+/**
+ * The vitest projects that share one module registry per worker
+ * (`isolate: false`, `vitest.config.ts`; pinned there by the ladder's tests):
+ * a file in one can fail only after another file ran first in its worker —
+ * a registration, a mutation, a setting it never restored (issue #7584).
+ */
+export const SHARED_WORKER_PROJECTS: readonly string[] = [
+    "node-engine",
+    "node-tooling",
+    "bot-node",
+];
+
+/** The `- **projects:**` line of a published body (`buildEvidence`). */
+const EVIDENCE_PROJECTS = /^- \*\*projects:\*\* (.+)$/m;
+
+/**
+ * The shared-worker projects a RED's failure ran in (issue #7584): the
+ * projects its evidence names (the header line, each FAIL line's label),
+ * else — no evidence, or no project in it — the one a file's path alone
+ * decides (a `convex/`/`scripts/` Bot file is `bot-node`'s, any other
+ * `convex/` test `node-engine`'s). Sorted, unique.
+ */
+export function sharedWorkerProjects(
+    evidence: string | null,
+    files: readonly string[]
+): string[] {
+    const named = new Set<string>();
+    if (evidence) {
+        const line = EVIDENCE_PROJECTS.exec(evidence)?.[1] ?? "";
+        for (const p of line.split(",")) named.add(p.trim());
+        for (const l of failLines(evidence))
+            if (l.project) named.add(l.project);
+    }
+    const known = [...named].filter((p) => SHARED_WORKER_PROJECTS.includes(p));
+    if (known.length > 0) return known.sort();
+    const byPath = new Set<string>();
+    for (const file of files)
+        if (/^(?:convex|scripts)\/.+\.bot\.test\.ts$/.test(file))
+            byPath.add("bot-node");
+        else if (/^convex\/.+\.test\.ts$/.test(file)) byPath.add("node-engine");
+    return [...byPath].sort();
+}
+
+/**
+ * Where a fresh run or a bisect probe looks for the RED's failing tests
+ * (issue #7584): the failing `files` alone, or every file of the shared-
+ * worker `projects` they ran in — the polluting file included, which a run
+ * of the failing files alone never loads.
+ */
+export type ProbeScope =
+    | { kind: "files" }
+    | { kind: "projects"; projects: string[] };
+
+/**
+ * A shared-worker project re-run whole, one file at a time in ONE worker
+ * (`--no-file-parallelism`): every file shares the registry the polluter
+ * leaves behind, whatever the probing machine's CPU count — the RED's run
+ * paired them by its own `maxWorkers`. The order is the sequencer's
+ * (`lib/vitest-sequencer.ts`), a pure function of the duration cache.
+ */
+export function projectCommand(
+    project: string,
+    tests: readonly FailingTest[]
+): VitestCommand {
+    return {
+        args: ["vitest", "run", "--project", project, "--no-file-parallelism"],
+        env: {},
+        tests: [...tests],
+    };
+}
+
+/** The vitest commands that look for `tests` in `scope`: `vitestCommands`'
+ *  over the files, or one `projectCommand` per project. */
+export function probeCommands(
+    tests: readonly FailingTest[],
+    scope: ProbeScope,
+    opts: { exactFiles?: boolean } = {}
+): VitestCommand[] {
+    return scope.kind === "files"
+        ? vitestCommands(tests, opts)
+        : scope.projects.map((p) => projectCommand(p, tests));
+}
+
+/** What the fresh run ran, as the evidence names it. */
+export function scopeLabel(
+    plan: Exclude<FreshRun, { kind: "none" }>,
+    scope: ProbeScope | null
+): string {
+    if (plan.kind === "step") return `\`bun run ${plan.step}\``;
+    return scope?.kind === "projects"
+        ? `the failing files alone, then the whole ${scope.projects.map((p) => `\`${p}\``).join(", ")} project(s) in one worker`
+        : "the failing files alone (no shared-worker project)";
+}
+
+/** What `freshRunSteps` acts through — the fresh run's I/O at the RED sha. */
+export interface FreshRunEffects {
+    note(line: string): void;
+    /** Runs `cmds`; the failing tests among theirs, or `infra`. */
+    runTests(cmds: readonly VitestCommand[]): TestProbe;
+    /** Runs one health step; whether it passed. */
+    runStep(step: string): boolean;
+}
+
+/** The fresh run's outcome: `scope` is where it reproduced the failure
+ *  (the bisect probes the same), or what it ran when it did not;
+ *  `elsewhere` the unreached gate that failed once the failing part passed. */
+export interface FreshOutcome {
+    outcome: ProbeOutcome;
+    scope: ProbeScope;
+    elsewhere?: string;
+}
+
+/**
+ * The fresh run of `plan` (issue #5645): the failing files alone — then,
+ * when they pass and ran in a shared-worker project (`projects`), that
+ * whole project (issue #7584: a file that only fails after another one in
+ * its worker passes alone on any machine; read as passed, the RED was
+ * closed as a flake or stood unbisected as "environment-dependent") — then
+ * every gate the RED's run never reached (`remaining`). Only all of them
+ * green is a pass.
+ */
+export function freshRunSteps(
+    input: {
+        plan: Exclude<FreshRun, { kind: "none" }>;
+        tests: readonly FailingTest[];
+        projects: readonly string[];
+        remaining: readonly string[];
+    },
+    fx: FreshRunEffects
+): FreshOutcome {
+    const { plan } = input;
+    let scope: ProbeScope = { kind: "files" };
+    if (plan.kind === "step") {
+        if (!fx.runStep(plan.step)) return { outcome: "red", scope };
+    } else {
+        const alone = fx.runTests(
+            probeCommands(
+                plan.files.map((file) => ({ file })),
+                scope,
+                { exactFiles: true }
+            )
+        );
+        if (alone === "infra") return { outcome: "infra", scope };
+        if (alone.length > 0) return { outcome: "red", scope };
+        if (input.projects.length > 0) {
+            scope = { kind: "projects", projects: [...input.projects] };
+            fx.note(
+                `the failing files pass alone — re-running ${input.projects.join(", ")} whole, one worker (issue #7584)`
+            );
+            const whole = fx.runTests(probeCommands(input.tests, scope));
+            if (whole === "infra") return { outcome: "infra", scope };
+            if (whole.length > 0) {
+                fx.note(
+                    `reproduced only beside the rest of ${input.projects.join(", ")} — a cross-file leak; the bisect probes the same scope`
+                );
+                return { outcome: "red", scope };
+            }
+        }
+    }
+    if (input.remaining.length > 0)
+        fx.note(
+            `the failing part passed — the gates its run never reached: ${input.remaining.join(", ")}`
+        );
+    for (const step of input.remaining)
+        if (!fx.runStep(step))
+            return { outcome: "red", scope, elsewhere: step };
+    return { outcome: "green", scope };
+}
+
 /** The GREEN that closes a RED its fresh run did not reproduce. */
 export function flakeVerdict(input: {
     sha: string;
@@ -345,8 +518,9 @@ export function runnerClass(
 /** What a fresh run that passed proves (issue #5858): a flake only on the
  *  RED's own runner class. On another class the same sha passing says the
  *  failure needs the RED's environment (a missing file, a secret, a tool
- *  version) — deterministic there, so the RED stands and its evidence names
- *  both machines. */
+ *  version) or its schedule (its worker count paired files no one-worker
+ *  run pairs) — so the RED stands and its evidence names both machines and
+ *  what the fresh run ran (`ran`, issue #7584), never "not a flake". */
 export type NotReproduced =
     | { kind: "flake" }
     | { kind: "environment"; line: string };
@@ -354,13 +528,14 @@ export type NotReproduced =
 export function notReproduced(input: {
     redMachine: string | undefined;
     freshMachine: string;
+    ran?: string;
 }): NotReproduced {
     const red = runnerClass(input.redMachine);
     const fresh = runnerClass(input.freshMachine);
     if (red === fresh) return { kind: "flake" };
     return {
         kind: "environment",
-        line: `${LADDER_MARK}not bisected — environment-dependent, not a flake: the RED ran on \`${input.redMachine ?? "-"}\` (${red}), the fresh run passed at the same sha on \`${input.freshMachine}\` (${fresh})`,
+        line: `${LADDER_MARK}not bisected — not reproduced on another runner class: the RED ran on \`${input.redMachine ?? "-"}\` (${red}), the fresh run passed at the same sha on \`${input.freshMachine}\` (${fresh}) — it ran ${input.ran ?? "the failing part"}`,
     };
 }
 
@@ -387,6 +562,8 @@ export function settleFreshPass(
         sha: string;
         plan: Exclude<FreshRun, { kind: "none" }>;
         freshMachine: string;
+        /** What the fresh run ran (`scopeLabel`). */
+        ran?: string;
         at: string;
         log?: string;
         dryRun: boolean;
@@ -396,6 +573,7 @@ export function settleFreshPass(
     const passed = notReproduced({
         redMachine: input.red?.machine,
         freshMachine: input.freshMachine,
+        ran: input.ran,
     });
     if (passed.kind === "environment") {
         fx.note(
