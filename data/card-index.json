@@ -55524,6 +55524,16 @@
         "source": "compiled"
     },
     {
+        "name": "Repurposed Enforcer",
+        "scryfallId": "35000e93-85d3-44f8-976a-5918ee4c71e0",
+        "oracleId": "b775a404-ec0a-47ff-bb9d-eae2273d945b",
+        "firstSet": "fra",
+        "firstPrintId": "35000e93-85d3-44f8-976a-5918ee4c71e0",
+        "firstPrintSet": "fra",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Reroute Systems",
         "scryfallId": "3bbdba38-2b99-4226-98e3-6d2580345d6d",
         "oracleId": "26d2762b-4346-40d0-b93d-b0dbfeb6e2bc",

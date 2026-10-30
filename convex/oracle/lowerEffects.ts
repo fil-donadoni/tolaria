@@ -5373,9 +5373,12 @@ function lowerFrameChain(
                 break;
             // CR 701.71a — the keyword action's whole composition, the one
             // factory a hand-written definition splices (Guard C round-trip).
-            case "empowerJace":
-                ops.push(...empowerJaceOps(frame.count));
+            case "empowerJace": {
+                const count = lowerLifeAmount(frame.count, walk, site);
+                if (!count.ok) return count;
+                ops.push(...empowerJaceOps(count.value));
                 break;
+            }
             // CR 725.1 — the controller takes the monarch designation.
             case "becomeMonarch":
                 ops.push({ op: "becomeMonarch" });
