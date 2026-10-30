@@ -48,7 +48,7 @@ import { isSplitCastId } from "./splitCast";
 import { hasRebound } from "./rebound";
 import {
     canCastFromGraveyardByPermission,
-    canCastSpellsFromTopOfLibrary,
+    libraryTopCastGrant,
     libraryTopCastLifeCost,
 } from "./rules";
 
@@ -182,7 +182,7 @@ export function libraryTopCastPayment(
     if (zone !== "library") return undefined;
     const owner = state.players.find((p) => p.id === card.ownerId);
     if (!owner) return undefined;
-    const grant = canCastSpellsFromTopOfLibrary(state, owner);
+    const grant = libraryTopCastGrant(state, owner, card, alternativeCostId);
     if (grant?.manaCostReplacement !== "life-equal-to-mana-value") {
         return undefined;
     }
@@ -294,7 +294,10 @@ export function castRawManaCost(
     // Returning `{}` here — not `undefined` — is what makes the mana half free
     // at every cost site (`normalizeManaCost`, the pool-coverage gate, the
     // auto-tap solver) without any of them learning about the permission.
-    if (libraryTopCastPayment(state, card, zone)) {
+    //
+    // Per ANNOUNCEMENT (issue #7205): a filtered grant may cover a split half
+    // the whole card does not, so the half names the grant (CR 601.3e).
+    if (libraryTopCastPayment(state, card, zone, alternativeCostId)) {
         return {};
     }
     if (zone !== "graveyard") {
