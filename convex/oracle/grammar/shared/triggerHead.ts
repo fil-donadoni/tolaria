@@ -132,7 +132,7 @@ export type TriggerHeadIR =
     /**
      * CR 603.2 + CR 603.6a + CR 508.3a — "whenever this permanent enters or
      * attacks": ONE Oracle line over the source's own entry and its own
-     * declaration as an attacker. Self only (CR 109.2).
+     * declaration as an attacker. Self only (CR 201.5).
      */
     | { readonly kind: "enters-or-attacks" }
     /**
@@ -684,7 +684,7 @@ export function headPronounReferent(
             return head.scope === "self" ? "source" : "combatant";
         case "attacks-or-blocks":
             return "combatant";
-        // CR 109.2 — both halves name the source itself.
+        // CR 201.5 — both halves name the source itself.
         case "enters-or-attacks":
         case "combat-damage-to-player":
         case "attacks-unblocked":

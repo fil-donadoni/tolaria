@@ -21,7 +21,7 @@
 // wire projection the client renders.
 
 import { describe, expect, it } from "vitest";
-import { resolveTopOfStack, type GameState } from "../state";
+import { removePermanentTo, resolveTopOfStack, type GameState } from "../state";
 import {
     affordableAlternativeCosts,
     getAlternativeCost,
@@ -273,6 +273,14 @@ describe("Impending — the instance fact across surfaces", () => {
         )!;
         expect(overlord.impended).toBe(true);
         expect(overlord.counters?.time).toBe(5);
+    });
+
+    it("CR 400.7 — returned to hand, it is a new object whose impending cost was never paid", () => {
+        const state = castAndResolve(true);
+        removePermanentTo(state, "overlord", "hand");
+        const card = state.players[0].hand.find((c) => c.id === "overlord");
+        expect(card).toBeDefined();
+        expect(card!.impended).toBeUndefined();
     });
 
     it("the wire projection shows a noncreature Enchantment with five time counters", () => {

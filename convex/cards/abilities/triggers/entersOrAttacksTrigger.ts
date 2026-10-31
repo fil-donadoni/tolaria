@@ -4,7 +4,7 @@
 // the Nameless City hand-write. Two abilities would render twice on the stack
 // and price the line twice in the Bot's valuation.
 //
-// Self only: CR 109.2 — "this permanent" is the object the ability is printed
+// Self only: CR 201.5 — "this permanent" is the object the ability is printed
 // on, so the enters half names that permanent's own entry (CR 603.6a) and the
 // attacks half its own declaration as an attacker (CR 508.3a).
 
