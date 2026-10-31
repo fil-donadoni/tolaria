@@ -640,6 +640,38 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "CR 702.96 reachability AND preference in one position: three opposing Craw Wurms, no creature of the bot's own, both cast modes affordable. `MoveMatcher` has no field for `alternativeCostId` — the only thing distinguishing an overloaded cast from a printed one of the same card — hence the `predicate` shape, the same one the dash entry uses.",
     },
     {
+        // IMPENDING reachability (CR 702.176a, issue #1970). Two Swamps cannot
+        // pay Overlord of the Balemurk's printed {3}{B}{B}; they pay its
+        // impending {1}{B} exactly. The impending cast is the ONLY way the card
+        // reaches the stack, so a bot that does not enumerate it passes —
+        // and the cast is not close: it enters (a noncreature for now), mills
+        // four and offers the Hill Giant already in the graveyard back.
+        label: "impending: casts Overlord of the Balemurk for {1}{B}",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Overlord of the Balemurk", owner: "me", zone: "hand" },
+                { name: "Hill Giant", owner: "me", zone: "graveyard" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                move.alternativeCostId === "impending",
+            describe: "casts Overlord of the Balemurk via its impending cost",
+        },
+        note: "CR 702.176a reachability: the printed cost is unaffordable, the impending cost is exactly the two Swamps. `MoveMatcher` has no field for `alternativeCostId`, hence the `predicate` shape (as for overload / dash / emerge).",
+    },
+    {
         // EMERGE reachability (CR 702.119b "emerge from artifact", issue
         // #7594). Issue #3218 taught `enumerateCastMoves` the emerge cost —
         // the victim named on the Move, the tap plan priced with the
