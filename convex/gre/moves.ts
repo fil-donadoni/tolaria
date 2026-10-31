@@ -88,6 +88,7 @@ import {
     foldKickerCosts,
     kickedTargetRequirement,
     kickerLegPermanentSlotWouldCollide,
+    kickerPermanentSlotWouldCollide,
     kickedCountOfPayments,
     kickerLifeCost,
     paidKickersAnnounceX,
@@ -3758,13 +3759,24 @@ function enumerateCastMovesFromZone(
                             if (
                                 def &&
                                 kickerPayments !== choicePayments &&
-                                !canPayKickerLegs(
-                                    state,
-                                    player,
+                                (kickerLegPermanentSlotWouldCollide(
                                     def,
                                     kickerPayments,
-                                    card.id
-                                )
+                                    additionalCostLegId
+                                ) ||
+                                    kickerPermanentSlotWouldCollide(
+                                        state,
+                                        def,
+                                        card,
+                                        kickerPayments
+                                    ) ||
+                                    !canPayKickerLegs(
+                                        state,
+                                        player,
+                                        def,
+                                        kickerPayments,
+                                        card.id
+                                    ))
                             ) {
                                 return [];
                             }

@@ -60,7 +60,7 @@ function board(spare: number): GameState {
 function wire(spare: number): { players: Player[]; card: CardInstance } {
     const view = projectPublicState(board(spare), 1, "p1");
     const players = view.players as unknown as Player[];
-    const card = players[0].hand.find((c) => c.id === "cb")!;
+    const card = players[0].hand.find((c) => c?.id === "cb")!;
     return { players, card };
 }
 
