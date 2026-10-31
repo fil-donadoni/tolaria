@@ -475,9 +475,8 @@ import {
 } from "./gre/sba";
 import {
     canTurnFaceUp,
-    getMorphCost,
     isMorphCastAlternativeCost,
-    morphTurnUpPaymentPlan,
+    turnFaceUpPayment,
 } from "./gre/morph";
 import { applyPlot } from "./gre/plot";
 import { paySpecialActionManaCost } from "./gre/specialActionPayment";
@@ -4360,6 +4359,9 @@ export const summonCompanion = mutation({
  *  with a morph ability face up. This is a special action; it doesn't use the
  *  stack. To do this, show all players what the permanent's morph cost would be
  *  if it were face up, pay that cost, then turn the permanent face up."
+ *  CR 701.40b (issue #2072) grants the same action to a MANIFESTED permanent
+ *  whose card is a creature card, for that card's mana cost — one action, one
+ *  mutation; `turnFaceUpPayment` (gre/morph.ts) picks the cost.
  *
  *  The engine's SECOND special action, and deliberately not a copy of the
  *  first: `summonCompanion` is per-player, fixed {3}, once per game and gated
@@ -4433,17 +4435,18 @@ export function applyTurnPermanentFaceUp(
         throw new Error("Can't turn that permanent face up right now");
     }
 
-    const plan = morphTurnUpPaymentPlan(state, player, permanent);
-    if (plan === null) throw new Error("Can't afford the morph cost");
-    // CR 702.37e — the morph cost is SHOWN to all players as it is paid. Read
-    // from the real card behind `faceDownOf`, never from the sentinel def
-    // (which has no mana cost at all).
-    const morphCost = normalizeManaCost(getMorphCost(permanent) ?? {});
+    const payment = turnFaceUpPayment(state, player, permanent);
+    if (payment === null) throw new Error("Can't afford the turn-up cost");
+    // CR 702.37e / 701.40b — the morph cost (or, for a manifested creature
+    // card, its mana cost) is SHOWN to all players as it is paid. Read from
+    // the real card behind `faceDownOf`, never from the sentinel def (which
+    // has no mana cost at all).
+    const turnUpCost = normalizeManaCost(payment.cost);
 
-    // CR 702.37e — pay the morph cost with no card types: a genuinely
+    // CR 702.37e / 701.40b — pay the cost with no card types: a genuinely
     // RESTRICTED unit is ineligible (a special action is not a spell cast),
     // a bare-rider one is admitted and spent last (CR 106.6, issue #3354).
-    paySpecialActionManaCost(state, player, morphCost, plan);
+    paySpecialActionManaCost(state, player, turnUpCost, payment.plan);
 
     // CR 702.37e — "then turn the permanent face up. The morph effect on it
     // ends, and it regains its normal characteristics." One primitive, shared

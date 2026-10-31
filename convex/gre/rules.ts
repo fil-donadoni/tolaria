@@ -1930,10 +1930,19 @@ function hasPayableEscapeExileCost(
     const spec = getEscapeExileSpec(state, card);
     if (!spec) return true;
     const others = player.graveyard.filter((c) => c.id !== card.id);
+    // CR 601.2f (issue #2072) — the spell's own "exile N cards from your
+    // graveyard" additional cost is owed ON TOP of the escape exile, from the
+    // same pile, so the two counts add (`buildCastExileCostChoice`, which
+    // refuses the variable-escape combination the same way).
+    const cardId = (card.card as { id?: string }).id;
+    const own = cardId
+        ? (tryGetDefinition(cardId)?.additionalCosts?.exileFromGraveyard
+              ?.count ?? 0)
+        : 0;
     if ("minCardTypes" in spec) {
-        return countDistinctCardTypes(others) >= spec.minCardTypes;
+        return own === 0 && countDistinctCardTypes(others) >= spec.minCardTypes;
     }
-    return others.length >= spec.count;
+    return others.length >= spec.count + own;
 }
 
 /** CR 702.34a / 118.5 — affordability gate for the flashback-only non-mana

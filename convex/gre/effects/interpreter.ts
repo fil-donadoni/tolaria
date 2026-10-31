@@ -5537,6 +5537,60 @@ export const OP_EXECUTORS: {
             "library-bottom"
         );
     },
+    // CR 701.62a (issue #2072) — MANIFEST DREAD: look at the top two cards,
+    // manifest one of them (CR 701.40a — face down onto the battlefield as a
+    // 2/2, through the canonical entry chokepoint), THEN put the other into the
+    // graveyard. The `hideaway` arrangement with the kept card routed to a
+    // face-down battlefield entry instead of face-down exile, and the shared
+    // `bottomLookedAtCards` tail pointed at the graveyard. CR 608.2b — a gone
+    // player or an empty library is a no-op, and a lone card is a forced
+    // manifest with no prompt (nothing to choose between, nothing binned).
+    manifestDread(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        const topIds = ctx.peekLibraryTop(playerId, 2);
+        if (topIds.length === 0) return; // empty library — no look, no suspend
+        let chosen: string | undefined = topIds[0];
+        if (topIds.length > 1) {
+            const picks = ctx.requestChoice({
+                playerId,
+                // A fixed choiceId is unique per Op position: the pipeline keys
+                // on `step:choiceId` and `step` IS this Op's checkpointed
+                // position.
+                choiceId: "manifest-dread",
+                kind: "look-distribute",
+                zone: "library",
+                candidateIds: topIds,
+                // CR 701.62a — "Manifest ONE of them": exactly one, not a may.
+                count: { min: 1, max: 1 },
+                destination: "graveyard",
+                prompt:
+                    op.prompt ??
+                    "Choose a card to manifest; the other goes into your graveyard.",
+            });
+            if (picks === undefined) return "suspend"; // enqueued — wait
+            chosen = picks[0];
+        }
+        if (chosen === undefined) return;
+        // CR 701.40a / 708.3 — turned face down BEFORE it enters, stamped as
+        // manifested so its controller may later turn it up for its mana cost
+        // (CR 701.40b, `gre/morph.ts`).
+        ctx.putFromLibraryOntoBattlefield(playerId, chosen, {
+            faceDown: "manifest",
+        });
+        // CR 701.62a — "then put the cards you looked at that were not
+        // manifested this way into your graveyard". The manifested card has
+        // already left the library, so it is never binned here.
+        bottomLookedAtCards(
+            ctx,
+            playerId,
+            topIds,
+            new Set([chosen]),
+            true,
+            [],
+            "graveyard"
+        );
+    },
     // CR 701.20a + CR 401.4 (issue #1364) — reveal a fixed top-N window ONCE,
     // keep AT MOST ONE card per category out of that single shared window, and
     // send everything unkept to `destination`. Atraxa, Grand Unifier.

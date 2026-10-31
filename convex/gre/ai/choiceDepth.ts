@@ -82,6 +82,9 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     draw: true,
     hideaway: true,
     lookDistribute: true,
+    // CR 701.62a (issue #2072) — waits on the look-distribute pick of
+    // WHICH of the two cards to manifest.
+    manifestDread: true,
     mayPay: true,
     nameCard: true,
     // CR 107.3f (issue #1701) — raises the `number-pick` nomination through

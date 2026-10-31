@@ -39,12 +39,20 @@
 //      the sentinel definition's damage/tap replacement effects.
 //
 // Megamorph (CR 702.37b) is NOT implemented — see `CardDefinition.morph`.
+//
+// The turn-up special action is not morph's alone (issue #2072): CR 701.40b
+// gives a MANIFESTED permanent the same special action, paying the real card's
+// MANA cost when that card is a creature card. One action, one Move kind, one
+// mutation — only the cost differs, so the cost is the one thing this module
+// generalizes ({@link turnFaceUpCosts}); everything downstream of "which cost,
+// and can it be paid" ({@link turnFaceUpPayment}) is shared.
 
 import type { AlternativeCost, CardDefinition, ManaCost } from "../cards/types";
 import { FACE_DOWN_CARD_ID, tryGetDefinition } from "../cards";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import type { AutoTapPlan } from "./autoTap";
 import { specialActionPaymentPlan } from "./specialActionPayment";
+import { manaValue } from "./constants";
 
 /** The `AlternativeCost.id` of the CR 702.37a face-down cast. Stable across
  *  every morph card (the cost is the rule's, not the card's), so the client's
@@ -136,25 +144,75 @@ export function getMorphCost(
     return tryGetDefinition(card.faceDownOf)?.morph;
 }
 
-/** The auto-tap plan that pays `card`'s morph cost from `player`'s pool and
- *  untapped sources, or `null` when it cannot be paid. Shared by the legality
- *  predicate below and by the authoritative `turnPermanentFaceUp` mutation
- *  (game.ts), so "the button is offered" and "the payment succeeds" are one
- *  decision rather than two that can drift. */
-export function morphTurnUpPaymentPlan(
+/** CR 701.40b (issue #2072) — the cost of turning a MANIFESTED permanent face
+ *  up: the real card's mana cost, shown to all players and paid. `undefined`
+ *  when the permanent is not face down by manifest, when its real identity is
+ *  unknown to the registry, or in the rule's parenthetical case — "If the card
+ *  representing that permanent isn't a creature card or it doesn't have a mana
+ *  cost, it can't be turned face up this way" (which also covers CR 701.40g:
+ *  a manifested instant or sorcery is never a creature card).
+ *
+ *  "Doesn't have a mana cost" is read as a LAND card: the engine stores an
+ *  absent printed cost and a printed {0} identically (`manaCost: {}` —
+ *  Ornithopter), and the printed creature cards with no mana cost are land
+ *  creatures (CR 202.1b — a land card has none), so a non-land creature card is the
+ *  exact set the rule admits. */
+export function getManifestTurnUpCost(
+    card: CardInstanceState | undefined
+): ManaCost | undefined {
+    if (!card?.faceDown || card.faceDownBy !== "manifest" || !card.faceDownOf) {
+        return undefined;
+    }
+    const def = tryGetDefinition(card.faceDownOf);
+    if (!def?.types.includes("Creature") || def.types.includes("Land")) {
+        return undefined;
+    }
+    return def.manaCost;
+}
+
+/** CR 116.2b — every cost `card` may currently be turned face up for: its
+ *  morph cost (CR 702.37e) and, when manifested, its mana cost (CR 701.40b).
+ *  CR 701.40c — a manifested card WITH morph offers both procedures. `[]` =
+ *  no turn-up special action at all (an Illusionary Mask face-down creature,
+ *  ADR 0013: its turn-up is a replacement, never a player's action). */
+export function turnFaceUpCosts(
+    card: CardInstanceState | undefined
+): ManaCost[] {
+    const morph = getMorphCost(card);
+    const manifest = getManifestTurnUpCost(card);
+    return [...(morph ? [morph] : []), ...(manifest ? [manifest] : [])];
+}
+
+/** The cost `player` pays to turn `card` face up and the auto-tap plan that
+ *  pays it, or `null` when no procedure is payable. Shared by the legality
+ *  predicate below, the authoritative `turnPermanentFaceUp` mutation
+ *  (game.ts) and the search's twin (`turnFaceUpInSearch`), so "the button is
+ *  offered", "the payment succeeds" and "the Bot pays this" are one decision.
+ *
+ *  CR 701.40c leaves the procedure to the player when both apply. The action
+ *  carries no procedure pick: the CHEAPER payable cost (by mana value) is
+ *  taken, since the two procedures end identically (the permanent is turned
+ *  face up, CR 708.8) and differ only in the mana spent — no shipped mechanic
+ *  reads which one was used (megamorph, CR 702.37b, is not implemented). */
+export function turnFaceUpPayment(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState
-): AutoTapPlan | null {
-    const cost = getMorphCost(card);
-    if (!cost) return null;
-    // CR 106.6 (issue #3354) — the plan counts a bare-rider unit the payment
-    // (`applyTurnPermanentFaceUp`) admits; see `specialActionPaymentPlan`.
-    return specialActionPaymentPlan(state, player, cost);
+): { cost: ManaCost; plan: AutoTapPlan } | null {
+    const costs = [...turnFaceUpCosts(card)].sort(
+        (a, b) => manaValue(a) - manaValue(b)
+    );
+    for (const cost of costs) {
+        // CR 106.6 (issue #3354) — the plan counts a bare-rider unit the payment
+        // (`applyTurnPermanentFaceUp`) admits; see `specialActionPaymentPlan`.
+        const plan = specialActionPaymentPlan(state, player, cost);
+        if (plan) return { cost, plan };
+    }
+    return null;
 }
 
-/** CR 702.37e / 116.2b — true iff `player` may take the `turn-face-up` special
- *  action on `card` right now.
+/** CR 702.37e / 701.40b / 116.2b — true iff `player` may take the
+ *  `turn-face-up` special action on `card` right now.
  *
  *  Deliberately WIDER than `canSummonCompanion`: CR 116.2b grants this action
  *  "any time they have priority", with no sorcery-timing and no empty-stack
@@ -174,7 +232,7 @@ export function canTurnFaceUp(
     card: CardInstanceState
 ): boolean {
     if (state.priorityPlayerId !== player.id) return false;
-    // CR 702.37e — "a face-down permanent YOU CONTROL". Control, not
+    // CR 702.37e / 701.40b — "a face-down permanent YOU CONTROL". Control, not
     // ownership (CR 108.4): a stolen face-down creature is unmorphable by its
     // new controller, who pays the cost they are shown.
     if (card.controllerId !== player.id) return false;
@@ -188,11 +246,11 @@ export function canTurnFaceUp(
     ) {
         return false;
     }
-    return morphTurnUpPaymentPlan(state, player, card) !== null;
+    return turnFaceUpPayment(state, player, card) !== null;
 }
 
 /** Every face-down permanent `player` controls that may be turned face up right
- *  now (CR 702.37e). One place the enumerator, the projection and the tests all
+ *  now (CR 702.37e / 701.40b). One place the enumerator, the projection and the tests all
  *  read, so "which permanents offer the action" is never re-derived. */
 export function turnableFaceUpPermanents(
     state: GameState,

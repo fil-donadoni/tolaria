@@ -182,6 +182,14 @@
         "firstPrintSet": "wth"
     },
     {
+        "name": "Abhorrent Oculus",
+        "scryfallId": "d2705b43-a94a-44c0-8740-82e0b296820c",
+        "oracleId": "b1a0e129-27f0-4a09-b00d-497e18777306",
+        "firstSet": "dsk",
+        "firstPrintId": "d2705b43-a94a-44c0-8740-82e0b296820c",
+        "firstPrintSet": "dsk"
+    },
+    {
         "name": "Abomination",
         "scryfallId": "a69e2cf8-5ecb-485a-92a2-b4e0a7959f1f",
         "oracleId": "2c57c4e9-0a46-45d6-92db-9203fb722b60",
@@ -5386,6 +5394,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bashful Beastie",
+        "scryfallId": "c20fa7ee-a4c2-4eb0-9467-195f3b894fa0",
+        "oracleId": "e7aeabd9-a72c-47ee-b275-b025d7142766",
+        "firstSet": "dsk",
+        "firstPrintId": "c20fa7ee-a4c2-4eb0-9467-195f3b894fa0",
+        "firstPrintSet": "dsk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Basic Conjuration",
         "scryfallId": "8be52d88-f430-4437-a0d3-590c2947c838",
         "oracleId": "547ab16c-b8d1-4357-9219-7cabde80f5ba",
@@ -8705,6 +8723,16 @@
         "firstPrintId": "fb989895-a5c7-4151-8620-ab277d826303",
         "firstPrintSet": "scg",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Break Down the Door",
+        "scryfallId": "209e9bbc-a15d-47fc-b149-6b0c57dd09ea",
+        "oracleId": "a11d8372-87fb-40a2-b638-314c6a5af03b",
+        "firstSet": "dsk",
+        "firstPrintId": "209e9bbc-a15d-47fc-b149-6b0c57dd09ea",
+        "firstPrintSet": "dsk",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -35046,6 +35074,16 @@
         "firstPrintSet": "ody"
     },
     {
+        "name": "Innocuous Rat",
+        "scryfallId": "94edbbc5-5673-4753-bfad-4432c4b7dca4",
+        "oracleId": "114725ef-ac81-4d13-9153-0a303c3ce9c4",
+        "firstSet": "dsk",
+        "firstPrintId": "94edbbc5-5673-4753-bfad-4432c4b7dca4",
+        "firstPrintSet": "dsk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Inordinate Rage",
         "scryfallId": "d0f62bdc-50a0-41a0-ac37-9b0eeb21b6aa",
         "oracleId": "50402103-14ea-49b0-8e66-d2b7f7a69a41",
@@ -41887,6 +41925,16 @@
         "firstSet": "m11",
         "firstPrintId": "a503697a-4940-4b8f-98b1-5ea9151866fa",
         "firstPrintSet": "m11",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Manifest Dread",
+        "scryfallId": "a649265b-6c32-49e7-b6cb-6086c40d26e8",
+        "oracleId": "df5a66d1-61f6-44d9-b464-3ee739e78dce",
+        "firstSet": "dsk",
+        "firstPrintId": "a649265b-6c32-49e7-b6cb-6086c40d26e8",
+        "firstPrintSet": "dsk",
         "rarity": "common",
         "source": "compiled"
     },
@@ -74798,6 +74846,16 @@
         "source": "compiled"
     },
     {
+        "name": "Twist Reality",
+        "scryfallId": "644714dd-7a0b-4d4b-9a61-8f6e505b1d22",
+        "oracleId": "55b0518e-9c87-4f0e-81c2-9c984f760be1",
+        "firstSet": "dsk",
+        "firstPrintId": "644714dd-7a0b-4d4b-9a61-8f6e505b1d22",
+        "firstPrintSet": "dsk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Twisted Experiment",
         "scryfallId": "64e37889-7dc0-476b-8b99-8f06881d352c",
         "oracleId": "4066d4df-d98f-44cd-bf25-ebb5e9d9ddeb",
@@ -75552,6 +75610,16 @@
         "source": "compiled"
     },
     {
+        "name": "Unnerving Grasp",
+        "scryfallId": "5602756d-76d2-4502-965f-36fc44596123",
+        "oracleId": "7a335332-87ff-42dc-a547-c84295dd8138",
+        "firstSet": "dsk",
+        "firstPrintId": "5602756d-76d2-4502-965f-36fc44596123",
+        "firstPrintSet": "dsk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Unraveling Mummy",
         "scryfallId": "fe3802f3-feb3-4dcd-a5ba-f493baf3d447",
         "oracleId": "ea30f395-86fc-444f-8c9e-b9876287084e",
@@ -75579,6 +75647,16 @@
         "firstPrintId": "0861a73d-8810-42f7-b20a-a6dd53586220",
         "firstPrintSet": "mir",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Unsettling Twins",
+        "scryfallId": "85da2e65-4e22-48b6-98ad-6969684d69e1",
+        "oracleId": "b0b2ca8c-cb5a-45f8-ae7c-63ad9ebb4afd",
+        "firstSet": "dsk",
+        "firstPrintId": "85da2e65-4e22-48b6-98ad-6969684d69e1",
+        "firstPrintSet": "dsk",
+        "rarity": "common",
         "source": "compiled"
     },
     {
