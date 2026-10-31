@@ -193,12 +193,13 @@ export default function CardTilt3D({
             onPointerCancel={inert ? undefined : reset}
             // Suppress the native "Save image…" menu for tilt-wrapped cards
             // (hand + battlefield) at the ONE spot guaranteed to see the event.
-            // The 3D tilt transform (while tilted) + the inner
-            // `overflow-hidden`/`contain: paint` art box flatten hit-testing,
-            // so the real `contextmenu` can land on the flattened box OUTSIDE
-            // the card's `CardPreview` handler subtree — a card-local
-            // `onContextMenu` then misses it intermittently and the native
-            // menu wins. This root is an
+            // While the tilt engaged `transform-style: preserve-3d` (until issue
+            // #7707), that context + the inner `overflow-hidden`/`contain:
+            // paint` art box flattened hit-testing, so the real `contextmenu`
+            // could land on the flattened box OUTSIDE the card's `CardPreview`
+            // handler subtree — a card-local `onContextMenu` then missed it
+            // intermittently and the native menu won. Kept as the defensive
+            // catch-all: this root is an
             // ANCESTOR of every candidate target inside the tilt, so the bubbling
             // `contextmenu` always reaches it. preventDefault only cancels the
             // native menu — it does NOT stopPropagation, so a battlefield card's
