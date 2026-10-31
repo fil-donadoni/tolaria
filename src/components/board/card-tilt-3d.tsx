@@ -78,7 +78,7 @@ type CardTilt3DProps = {
  * dropped. The first `pointermove` engages it ({@link engage3D}); the reset
  * eases back to flat and, once the settle is over, drops it ({@link flatten}).
  * The engaged context is `perspective` + `will-change` only — never
- * `preserve-3d`, whose toggling blanks tapped cards in Gecko (issue #7707).
+ * `preserve-3d`, whose toggling blanks tapped cards in Gecko ({@link engage3D}).
  *
  * **Follows the card's visual orientation, without moving in under it**
  * (issue #2551). A tapped permanent rotates a presentational layer 90° while
