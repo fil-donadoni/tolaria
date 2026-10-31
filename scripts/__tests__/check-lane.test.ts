@@ -929,6 +929,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             // data/** or scripts/lib/**.
             "check:gaps",
             "check:targets",
+            "check:cube-ratings",
             "check:test-hygiene",
             // Nor the blade registry or its artefacts (issue #5940).
             "blade-index",
@@ -1161,6 +1162,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "bot fast lane",
             "bundle",
             // The engine module is not a blade registry input (issue #5940).
+            "check:cube-ratings",
             "blade-index",
             "check:baseline-shrink",
             "check:derived-in-diff",
@@ -1189,6 +1191,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             // check:oracle, so lockfile drift is the error seen first.
             "check:gaps",
             "check:targets",
+            "check:cube-ratings",
             "check:test-hygiene",
             "search-cost",
             "eval-weights-fit",
@@ -1220,6 +1223,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "vitest(bot)",
             "check:gaps",
             "check:targets",
+            "check:cube-ratings",
             "check:test-hygiene",
             "blade-index",
             "search-cost",

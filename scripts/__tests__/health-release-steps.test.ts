@@ -75,6 +75,7 @@ beforeEach(async () => {
                 "check:all": "bun offline-ran.js",
                 "check:gaps": ok,
                 "check:targets": ok,
+                "check:cube-ratings": ok,
                 "check:test-hygiene": ok,
                 "check:issue-log-comments": ok,
                 "check:duplicate-test-blocks": ok,

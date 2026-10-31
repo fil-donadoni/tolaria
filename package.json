@@ -32,6 +32,7 @@
         "check:duplicate-test-blocks": "bun scripts/check-duplicate-test-blocks.ts",
         "check:gaps": "bun scripts/check-gaps.ts",
         "check:targets": "bun scripts/check-targets.ts",
+        "check:cube-ratings": "bun scripts/check-cube-ratings.ts",
         "check:test-hygiene": "bun scripts/check-test-hygiene.ts",
         "backlog:triage": "bun scripts/backlog-triage.ts",
         "bot:reach": "bun scripts/gate.ts job 'bun scripts/target-bot-reach.ts'",
