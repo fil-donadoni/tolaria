@@ -407,21 +407,86 @@ export function graveyardCastMechanismForMember(
     // CR 601.3 (issue #1344) — the per-card grant (Malcolm, Emry), which may
     // also waive the mana cost.
     if (card.castableFromGraveyardBy === casterId) return "grant";
+    const intrinsic = tryGetDefinition(
+        (card.card as { id?: string }).id ?? ""
+    )?.castableFromOwnGraveyard;
     // CR 702.51 (issue #1338, Hogaak) — the card's own intrinsic permission.
-    if (
-        tryGetDefinition((card.card as { id?: string }).id ?? "")
-            ?.castableFromOwnGraveyard === true
-    ) {
-        return "intrinsic";
-    }
+    if (intrinsic === true) return "intrinsic";
     // CR 601.3 (ADR 0093, issue #2244) — a graveyard play permission, whatever
     // its source (Yawgmoth's Will's turn-scoped grant, Lurrus's once-per-turn
     // static): the single resolver has already applied every gate it carries.
     if (canCastFromGraveyardByPermission(state, player, card)) {
         return "permission";
     }
+    // CR 118.9b — the intrinsic permission SCOPED to one alternative
+    // cost (Detective's Phoenix: "using its bestow ability"). Asked AFTER the
+    // broad permission on purpose: a cast Yawgmoth's Will also licenses may pay
+    // the printed cost, so it is that permission's cast, not this one's — and
+    // `requiredGraveyardAlternativeCostId` only binds a cast this branch names.
+    if (intrinsic) return "intrinsic";
     return undefined;
 }
+
+/** CR 118.9b — "An effect that allows you to cast a spell may
+ *  require a certain alternative cost to be paid." The alternative-cost id a
+ *  cast of `card` out of `player`'s graveyard MUST announce, or `undefined`
+ *  when it may announce any (or none).
+ *
+ *  Non-`undefined` only when the mechanism licensing the cast is the card's
+ *  own SCOPED intrinsic permission (`castableFromOwnGraveyard:
+ *  { requiredAlternativeCost }` — Detective's Phoenix's "You may cast this
+ *  card from your graveyard using its bestow ability"): every other mechanism
+ *  ({@link graveyardCastMechanismForMember} asks them first) lets the printed
+ *  cost be paid. The ONE predicate the legality gate, `announceCast`, the Bot's
+ *  enumeration and the client picker read, so none of them offers a cast the
+ *  mutation refuses. */
+export function requiredGraveyardAlternativeCostId(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    casterId: string = player.id
+): string | undefined {
+    if (graveyardCastMechanism(state, player, card, casterId) !== "intrinsic") {
+        return undefined;
+    }
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    const scope = def?.castableFromOwnGraveyard;
+    if (typeof scope !== "object") return undefined;
+    switch (scope.requiredAlternativeCost) {
+        // CR 702.103a — the card's own Bestow cost. A card declaring the
+        // scope without a `bestow` field is unannounceable (fail CLOSED): the
+        // sentinel names no cost `getAlternativeCost` resolves.
+        case "bestow":
+            return def?.bestow?.id ?? REQUIRED_ALT_COST_MISSING;
+    }
+}
+
+/** CR 118.9b — refuse a cast out of the graveyard that does not
+ *  announce the alternative cost its licensing permission requires
+ *  ({@link requiredGraveyardAlternativeCostId}). A no-op for every other zone
+ *  and every unscoped mechanism. Called by `announceCast` and again by
+ *  `finalizeTargetSelection`, the targeted commit. */
+export function assertGraveyardCastAnnouncementLicensed(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    zone: CastFromZone,
+    alternativeCostId: string | undefined
+): void {
+    if (zone !== "graveyard") return;
+    const required = requiredGraveyardAlternativeCostId(state, player, card);
+    if (required === undefined || alternativeCostId === required) return;
+    const name =
+        tryGetDefinition((card.card as { id?: string }).id ?? "")?.name ??
+        "This card";
+    throw new Error(
+        `${name} can be cast from your graveyard only for its ${required} cost`
+    );
+}
+
+/** The id {@link requiredGraveyardAlternativeCostId} answers for a scope
+ *  naming a cost the card does not have — matches no announcement. */
+const REQUIRED_ALT_COST_MISSING = "required-alternative-cost-missing";
 
 /** CR 601.3 — whether `casterId` currently holds a permission to cast `card`
  *  out of `zoneOwner`'s EXILE. Two shapes, both riding the card object:
