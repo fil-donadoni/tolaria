@@ -585,27 +585,27 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     const cached = expansionCache.get(base);
     if (cached) return cached;
     // ADR 0054 — chained keyword expansions. Each is a no-op unless its keyword
-    // string is present, so order is irrelevant. Exalted/Prowess (issue #699)
+    // string is present, so order is irrelevant. Exalted/Prowess
     // inject triggered abilities from a bare `staticAbilities` string.
     // ADR 0078 — `chapterAbilities[]` (CR 714) desugars here too: the same
     // no-op-unless-declared shape, injecting the entry lore counter and the
-    // chapter triggers. Hideaway N (CR 702.75, issue #783) injects its ETB
+    // chapter triggers. Hideaway N (CR 702.75) injects its ETB
     // "look at the top N, exile one face down" trigger the same way, and
-    // Annihilator N (CR 702.86, issue #2295) its declare-attackers
+    // Annihilator N (CR 702.86) its declare-attackers
     // "defending player sacrifices N permanents" trigger — one per declared
     // instance of the keyword (CR 702.86b).
-    // Cascade (CR 702.85, issue #3216) injects its "when you cast this spell"
+    // Cascade (CR 702.85) injects its "when you cast this spell"
     // trigger the same way — also one per declared instance (CR 702.85c).
-    // Firebending N (CR 702.189, issue #3235) its declare-attackers "add N {R}
+    // Firebending N (CR 702.189) its declare-attackers "add N {R}
     // that lasts until end of combat" trigger, likewise one per instance.
     // Bestow (CR 702.103, ADR 0084) injects its layer-4 type change from the
     // `bestow` COST field rather than from a keyword string — the field is the
     // declaration — so that the type line a bestowed object reads is a derived
     // continuous effect and not a stamp some cast path wrote.
-    // Issue #2698 — `expandCompiledTriggers` runs INNERMOST so a compiled
+    // `expandCompiledTriggers` runs INNERMOST so a compiled
     // card's rebuilt triggers are visible to every later expander exactly as a
     // hand-written card's are (a keyword expander must not see a different
-    // ability set depending on where the trigger came from). Issue #2700 —
+    // ability set depending on where the trigger came from).
     // `expandCompiledStatics` sits beside it, one step further in, for the same
     // reason: a later expander reading `staticEffects` must not see a different
     // set depending on whether the card was compiled or hand-written.
