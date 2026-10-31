@@ -66,7 +66,14 @@ describe("proof — on a fixture repository", () => {
         git(["add", "."]);
         git(["commit", "-q", "-m", "seed"]);
     });
-    afterEach(() => rmSync(repo, { recursive: true, force: true }));
+    afterEach(() =>
+        rmSync(repo, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
 
     it("refuses a dirty tree and runs nothing", () => {
         writeFileSync(join(repo, "wip.ts"), "x\n");
