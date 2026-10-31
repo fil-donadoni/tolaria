@@ -12981,15 +12981,15 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     // Issue #7561 — the search's cast commit stamps `notedManaSpent` from the
     // tap plan. A DISCRIMINATING PAIR on one board: two Mountains pay Vibrance's
     // evoke `{R/G}{R/G}` with `{R}{R}`, so its ETB deals 3 damage. Only the
-    // opposing threat differs — a 4-toughness Serra Angel the 3 damage cannot
-    // kill, then an MV-2 3/3 Watchwolf it can.
+    // opposing threat's toughness differs — a vanilla 3/4 Southern Elephant the
+    // 3 damage cannot kill, then an MV-2 3/3 Watchwolf it can.
     {
-        label: "discriminating pair: does NOT evoke Vibrance into a Serra Angel its 3 damage cannot kill",
+        label: "discriminating pair: does NOT evoke Vibrance into a 3/4 its 3 damage cannot kill",
         classification: {
             kind: "conditional",
             discriminant: {
                 kind: "card",
-                detail: "the opposing threat has 3 toughness (Watchwolf), not 4 (Serra Angel)",
+                detail: "the opposing 3-power threat has 3 toughness (Watchwolf), not 4 (Southern Elephant)",
             },
         },
         spec: {
@@ -12998,7 +12998,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { name: "Mountain", owner: "me", zone: "battlefield" },
                 { name: "Mountain", owner: "me", zone: "battlefield" },
                 {
-                    name: "Serra Angel",
+                    name: "Southern Elephant",
                     owner: "opp",
                     zone: "battlefield",
                     summoningSick: false,
@@ -13015,15 +13015,15 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { forbidden: [{ kind: "cast-spell", card: "Vibrance" }] },
-        note: "Issue #7561, the anchor: the evoke's 3 damage cannot kill a 4/4, so evoking throws the card away for nothing. Measured pass on 5/5 seeds with and without the fix; its right-hand half is what the fix moves.",
+        note: "Issue #7561, the anchor: the evoke's 3 damage cannot kill the 3/4, so evoking throws the card away for nothing. Measured pass on 5/5 seeds with and without the fix; its right-hand half is what the fix moves.",
     },
     {
         label: "discriminating pair: evokes Vibrance off two Mountains to kill a lethal MV-2 Watchwolf",
         pairOf: {
-            anchor: "discriminating pair: does NOT evoke Vibrance into a Serra Angel its 3 damage cannot kill",
+            anchor: "discriminating pair: does NOT evoke Vibrance into a 3/4 its 3 damage cannot kill",
             discriminant: {
                 kind: "card",
-                detail: "the opposing threat has 3 toughness (Watchwolf), not 4 (Serra Angel)",
+                detail: "the opposing 3-power threat has 3 toughness (Watchwolf), not 4 (Southern Elephant)",
             },
         },
         spec: {

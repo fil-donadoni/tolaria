@@ -185,8 +185,9 @@ const GENERIC_LEG_DRAIN_ORDER = [...MANA_COLORS].reverse();
  *  the printed mana cost at the announced X — the shortfall is drawn from the
  *  caster's pool, colours the cost names first.
  *
- *  Coarse by design: a multi-mana source's surplus counts as spent, a cost
- *  reduction can make the shortfall over-draw the pool, and an alternative
+ *  Coarse by design: a multi-mana source's surplus counts as spent; a cost
+ *  reduction, delve or life-paid Phyrexian pips can make the shortfall
+ *  over-draw the pool, and hybrid pips draw it in WUBRG order; an alternative
  *  cost passes no `printed` (its price is not the printed one), so it reads
  *  the taps alone. The reads that matter are colour presence and per-colour
  *  counts, and both come from the sources the plan really taps. */
@@ -214,14 +215,15 @@ export function searchCastManaSpent(
                 ability?.manaProduced;
         } else {
             // A plan with no index taps a single-option source, so index 0 is
-            // the option it names (`manaTapSacrificesSource`).
+            // the option it names (`manaTapSacrificesSource`). `state` carries
+            // the per-turn mana replacements (Deep Water), as on the server.
             const opt = getManaTapOptionsDetailed(
                 src,
                 player.id,
                 battlefields,
-                {
-                    requireTap: true,
-                }
+                { requireTap: true },
+                undefined,
+                state
             )[tap.manaChoiceIndex ?? 0];
             yieldMana = opt?.mana;
             if (opt?.source.kind === "activated")
