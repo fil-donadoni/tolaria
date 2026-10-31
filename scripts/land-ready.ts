@@ -46,8 +46,8 @@
  * when the worktree lacks it — never the header the base owns.
  *
  * A code-lane PR (`engine`, `skin`, `full`) owes a `bun run proof` receipt
- * for its head in the body (issue #7655, `lib/proof-receipt.ts`); its
- * refusal stands beside `land`'s, and the queue never reads it.
+ * for its head in the body (`lib/proof-receipt.ts`); its refusal stands
+ * beside `land`'s, and the queue never reads it.
  *
  * Refuses a PR that is not open or does not target the base branch — the
  * runner's `land` would refuse it anyway, an hour later, as a `land-failed`.
