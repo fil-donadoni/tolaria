@@ -813,6 +813,13 @@
             "needsSetup": false
         }
     ],
+    "Treetop Village": [
+        {
+            "label": "pointless self-animation: animates Treetop Village to block a lethal ground attacker",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Triangle of War": [
         {
             "label": "discriminating pair: activates Triangle of War with a 6/6 beside the 1/1 against a 4/4",

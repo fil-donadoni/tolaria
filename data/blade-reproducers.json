@@ -2263,6 +2263,7 @@
         "landCount": 6,
         "libraryCount": 0
     },
+    "pointless self-animation: animates Treetop Village to block a lethal ground attacker": null,
     "poison clock: Terror takes the bigger vanilla Hill Giant when the bot holds no poison (issue #5153)": {
         "cards": [
             {
