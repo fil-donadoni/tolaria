@@ -38,7 +38,7 @@ const COSTS: Record<string, NonNullable<GameState["pendingCast"]>["manaCost"]> =
         [GRIZZLY_BEARS]: { X: 1, G: 1 },
         [DARK_RITUAL]: { B: 1 },
     };
-// An exact single-colour pool per spell, so no CR 601.2g spend choice parks.
+// An exact single-colour pool per spell, so no CR 601.2h spend choice parks.
 const POOLS: Record<string, Partial<Record<"B" | "G", number>>> = {
     [GRIZZLY_BEARS]: { G: 2 },
     [DARK_RITUAL]: { B: 1 },
