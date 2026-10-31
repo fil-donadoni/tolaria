@@ -181,6 +181,7 @@ import {
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
 import { morphTurnUpPaymentPlan } from "./morph";
 import { plotInSearch } from "./plot";
+import { foretellInSearch, foretoldCastStackFlags } from "./foretell";
 import { applyCastModeCharacteristics } from "./castMode";
 import { turnFaceUpOnBattlefield } from "./faceDown";
 import { COMPANION_SUMMON_COST } from "./companion";
@@ -1543,6 +1544,13 @@ export function commitCastInSearch(
                   playerId
               )
             : undefined;
+    // CR 702.143c — read before the removal clears the designation, exactly
+    // as the server kernel (`castCommit.ts`) reads it.
+    const foretoldFlags = foretoldCastStackFlags(
+        castSource.owner,
+        move.cardInstanceId,
+        castFromZone
+    );
     const spellCard = removeFromZone(
         state,
         castSource.owner,
@@ -1609,6 +1617,8 @@ export function commitCastInSearch(
         // CR 601.2a — Cast Provenance, stamped exactly as the server kernel
         // (`castCommit.ts`) stamps it, for every zone.
         castFromZone,
+        // CR 702.143c — the foretold-spell fact, as the server kernel does.
+        ...foretoldFlags,
         // CR 702.34 / 702.138 / 702.81a / 702.88a (issue #2971) — the
         // zone-dependent stack flags, read from the SAME two helpers every real
         // commit site spreads (`gre/castCost.ts`). Flashback's `exileOnResolve`
@@ -1916,6 +1926,12 @@ export function applyMoveForSearch(
             // CR 116.2k / 702.170b — no stack item; the exile can trigger
             // "cards put into exile" watchers, so SBAs + the trigger scan run.
             plotInSearch(next, player, move.cardInstanceId);
+            checkStateBasedActions(next);
+            return next;
+
+        case "foretell":
+            // CR 116.2h / 702.143b — no stack item, like plot.
+            foretellInSearch(next, player, move.cardInstanceId);
             checkStateBasedActions(next);
             return next;
 

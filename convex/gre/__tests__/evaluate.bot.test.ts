@@ -1807,12 +1807,15 @@ describe("exiled cards with an open play permission (issue #4755)", () => {
         );
     });
 
-    it("a grant stamped but not yet open (warp lower bound) does not count", () => {
+    it("a grant stamped but not yet open (a lower turn bound) counts as latent material too (issue #2096)", () => {
+        // Foretell / plot / warp: the card is cast on a LATER turn, so it is
+        // material from the moment it is exiled — priced at zero until then,
+        // the special action that exiles it read as discarding the card.
         const notYet = withExiledBorrower({
             castableFromExileBy: "p1",
             castableFromExileFromTurn: 4,
         });
-        expect(evaluate(notYet, "p1")).toBe(
+        expect(evaluate(notYet, "p1")).toBeGreaterThan(
             evaluate(makeState({ turn: 3 }), "p1")
         );
         const open = withExiledBorrower({

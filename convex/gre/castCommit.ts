@@ -46,6 +46,7 @@ import { graveyardCastStackFlags, reboundCastStackFlags } from "./castCost";
 import type { CastFromZone } from "./castCost";
 import { manaValue } from "./constants";
 import { turnFaceDown } from "./faceDown";
+import { foretoldCastStackFlags } from "./foretell";
 import { additionalCostPaymentSnapshot } from "./kicker";
 import type { KickerPayments } from "./kicker";
 import { announcedModeFields } from "./modeSelection";
@@ -385,9 +386,21 @@ export function commitCast(
     // library top). issue #1156 — a cross-player exile grant removes from the
     // ACTUAL exile owner, not the caster.
     const castFromZone = plan.source.zone;
+    const zoneOwner = castZoneOwner(
+        state,
+        caster,
+        plan.cardInstanceId,
+        castFromZone
+    );
+    // CR 702.143c — read before the removal clears the designation.
+    const foretoldFlags = foretoldCastStackFlags(
+        zoneOwner,
+        plan.cardInstanceId,
+        castFromZone
+    );
     const spellCard = removeFromZone(
         state,
-        castZoneOwner(state, caster, plan.cardInstanceId, castFromZone),
+        zoneOwner,
         plan.cardInstanceId,
         castFromZone,
         plan.casterId
@@ -431,6 +444,8 @@ export function commitCast(
         // from, stamped for EVERY zone under either placement, so a resolving
         // "if this spell was cast from …" clause reads one fact.
         castFromZone,
+        // CR 702.143c — the spell was a foretold card, whatever it paid.
+        ...foretoldFlags,
         // CR 702.34 / 702.138 / 702.81a — the mechanism flags of an ANNOUNCED
         // graveyard cast, read from the SAME helper the search kernel spreads
         // (`gre/castCost.ts`): Flashback's `exileOnResolve`, escape. The helper
