@@ -174,6 +174,27 @@ function readRepairRecords(
     return { issues: ascending(issues), ladder: ascending(ladder) };
 }
 
+/** Every repair issue recorded on ANY RED of the standing run, open or
+ *  closed (issue #7647). `health:repair-merged` asks whether the push's own
+ *  merged PRs close one: by the time it runs, the PR it classifies has
+ *  already closed the issue, so `readRepairRecords`' open-only carry would
+ *  read the repair as stale (c30c2e69 / PR #7393 closing #7392, recorded on
+ *  an earlier RED of the run). An issue closed by anything else is matched
+ *  by no merged PR, so it still reads as stale there. Throws when the pivot
+ *  cannot be read. */
+export function readRunRepairIssues(
+    root: string,
+    opts: PivotOpts = {}
+): number[] {
+    const run = standingRedRun(root, opts);
+    if (run.length === 0) return [];
+    const store = pivotStore(root, FIX_CONTEXT, opts);
+    const issues = new Set<number>();
+    for (const sha of run)
+        for (const n of store.read(sha)?.issues ?? []) issues.add(n);
+    return [...issues].sort((a, b) => a - b);
+}
+
 /** The env var the ladder's headless fixer carries, so the `repair-issue` it
  *  runs records the issue as the ladder's own (issue #6554). */
 export const LADDER_ATTEMPT_ENV = "TOLARIA_LADDER_ATTEMPT";

@@ -36,7 +36,10 @@
 # `classify` dispatches the same `gate` when the base has landed one batch
 # (`LANDINGS_PER_BATCH`, ADR 0154) since its newest verdict with no run in
 # flight (ADR 0159 § 4, issue #6990): GREEN by event, the `50 */2` cron the
-# fallback.
+# fallback. And it dispatches it when a RED stands on the lineage, the pushed
+# tip has no verdict (a tip judged `pending` derived-stale included) and no
+# gate is in flight (issue #7647): a revert or any repair of the standing RED
+# is re-judged in minutes, the `derive:sync` push itself included.
 name: health-early
 
 on:
@@ -59,6 +62,7 @@ jobs:
         outputs:
             repair: ${{ steps.repair.outputs.repair }}
             due: ${{ steps.due.outputs.due }}
+            regate: ${{ steps.due.outputs.regate }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -72,8 +76,9 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   SHA: ${{ github.sha }}
               run: bun run health:repair-merged --sha "$SHA"
-            # Total too: a failed read answers "not due" (the cron's turn).
-            - name: Has the base landed a batch with no verdict?
+            # Total too: a failed read answers "not due" and "no re-gate"
+            # (the cron's turn).
+            - name: Has the base landed a batch with no verdict, or does a standing RED wait on this tip?
               id: due
               continue-on-error: true
               env:
@@ -82,9 +87,10 @@ jobs:
               run: bun run health:batch-due --sha "$SHA"
             # A merged repair needs the full gate on its tip at once (no
             # `land` merge step under Mergify fires it); so does a batch
-            # landed with no verdict (ADR 0159 § 4).
-            - name: Repair merged or batch due → the full health gate on the new tip
-              if: ${{ steps.repair.outputs.repair == 'true' || steps.due.outputs.due == 'true' }}
+            # landed with no verdict (ADR 0159 § 4), and an unverdicted tip
+            # under a standing RED (issue #7647).
+            - name: Repair merged, batch due or RED re-gate → the full health gate on the new tip
+              if: ${{ steps.repair.outputs.repair == 'true' || steps.due.outputs.due == 'true' || steps.due.outputs.regate == 'true' }}
               continue-on-error: true
               env:
                   GH_TOKEN: ${{ github.token }}

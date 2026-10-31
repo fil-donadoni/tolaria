@@ -17,6 +17,7 @@ import {
     publishRunMarker,
     recordPivotRepairIssue,
 } from "../lib/health-pivot";
+import { pushMergesDeclaredRepair } from "../lib/health-repair-merge";
 import { type GhRunner, machineName } from "../lib/health-verdict-store";
 import { baseHealthStatus, heldPrAction } from "../lib/pr-gate";
 
@@ -334,6 +335,58 @@ describe("repair issues on the pivot", () => {
             run: () => ({ status: 1, stdout: "", stderr: "down" }),
         } as const;
         expect(pivotRepairIssues(root, o)).toEqual([]);
+    });
+});
+
+// Issue #7647, the c30c2e69 facts: repair issue #7392 recorded on RED OLD,
+// a later tip MID went RED again (the standing RED moved), and the push of
+// PUSHED merges PR #7393 — which closed #7392 before `classify` reads it.
+describe("pushMergesDeclaredRepair — an issue this push closed (issue #7647)", () => {
+    const PUSHED = "d".repeat(40);
+    const red = () => ({
+        state: "failure",
+        context: "health",
+        description: "RED · test · omarchy",
+        created_at: clock(),
+    });
+    /** `gh` for the merged-PR lookup: PUSHED merges PR #7393 closing #7392;
+     *  any other sha merges PR #7000 closing #6999. */
+    const prs = (args: string[]) => {
+        if (args[0] === "api")
+            return args[1].includes(`/commits/${PUSHED}/`)
+                ? "7393\n"
+                : "7000\n";
+        return args[2] === "7393" ? "7392\n" : "6999\n";
+    };
+    const c30c2e69 = () => {
+        const repo = sharedRepo([PUSHED, MID, OLD], clock, new Set([7392]));
+        const o = { run: repo.run } as const;
+        repo.seed(OLD, red());
+        recordPivotRepairIssue(root, 7392, { ...o, ladder: true });
+        repo.seed(MID, red());
+        return o;
+    };
+
+    it("the push whose PR closed the earlier RED's repair issue is a repair", () => {
+        process.env.GH_REPO = "owner/name";
+        const o = c30c2e69();
+        // The open-only carry reads it as stale — the pre-#7647 answer.
+        expect(pivotRepairIssues(root, o)).toEqual([]);
+        expect(pushMergesDeclaredRepair(root, PUSHED, prs, o)).toBe(true);
+    });
+
+    it("the same issue closed by anything else still reads as stale", () => {
+        process.env.GH_REPO = "owner/name";
+        const o = c30c2e69();
+        expect(pushMergesDeclaredRepair(root, MID, prs, o)).toBe(false);
+    });
+
+    it("no RED standing: no repair, whatever the push closes", () => {
+        process.env.GH_REPO = "owner/name";
+        const repo = sharedRepo([PUSHED, OLD], clock, new Set([7392]));
+        expect(
+            pushMergesDeclaredRepair(root, PUSHED, prs, { run: repo.run })
+        ).toBe(false);
     });
 });
 
