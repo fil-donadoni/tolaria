@@ -27,7 +27,7 @@
 // button never offered is the exact bug PR #3302 review finding 4 shipped.
 
 import type { CardDefinition } from "./types";
-import { chooseableModalBackName } from "./modalDfc";
+import { chooseableMeldBackName, chooseableModalBackName } from "./modalDfc";
 import { chooseableSplitNames } from "./splitCard";
 
 /** CR 709.4a / 715.5 / 722.5 — every card name an effect may be GIVEN for
@@ -48,6 +48,24 @@ export function chooseableNamesOf(def: CardDefinition): string[] {
     // excluded here: both entries are printed names of real faces.
     const modalBack = chooseableModalBackName(def);
     return modalBack ? [def.name, modalBack] : [def.name];
+}
+
+/** CR 712.19 — the name-choice DOMAIN of `def`: {@link chooseableNamesOf}
+ *  plus a meld pair's combined back face name ("the player may choose the
+ *  name of the combined back face of a meld pair").
+ *
+ *  Kept apart from {@link chooseableNamesOf} because the two answer different
+ *  questions. This one is "which strings may a player be OFFERED / submit";
+ *  that one is "which names does this object HAVE". CR 712.4b — a meld card's
+ *  back face "fails to determine its characteristics" — means a meld card in
+ *  hand does not have the combined name, so Meddling Mage naming it must not
+ *  stop the meld card being cast. Only a melded permanent, presenting the
+ *  `#meld` twin, has it (issue #7640). Consumers: the candidate list and the
+ *  submit gate (`definitionIndex.ts` → `catalogue.ts`). */
+export function chooseableDomainNamesOf(def: CardDefinition): string[] {
+    const names = chooseableNamesOf(def);
+    const meldBack = chooseableMeldBackName(def);
+    return meldBack ? [...names, meldBack] : names;
 }
 
 /** CR 709.4a — "an object has the chosen name if ONE of its names is the

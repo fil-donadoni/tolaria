@@ -26,7 +26,7 @@
 // for `tokenDefinitionId`, and with it the registry's own load). The
 // generator imports it to write the index, the catalogue to read it.
 import type { CardDefinition } from "./types";
-import { chooseableNamesOf } from "./cardNames";
+import { chooseableDomainNamesOf } from "./cardNames";
 import { backFaceAsTokenSpec } from "./backFaceSpec";
 import { insetSpellTwinDefinition } from "./insetSpell";
 import { modalBackTwinDefinition } from "./modalDfc";
@@ -51,7 +51,7 @@ export interface DefinitionIndexLookups {
      *  full `front // back` name (CR 712.19, CR 712.8a). See
      *  {@link twinNameEntriesOf}. */
     readonly twinNames: Readonly<Record<string, readonly NameEntry[]>>;
-    /** `chooseableNamesOf(def)` wherever it is not just `[def.name]`
+    /** `chooseableDomainNamesOf(def)` wherever it is not just `[def.name]`
      *  (CR 715.5 / 709.4a / 712.19). */
     readonly chooseableNames: Readonly<Record<string, readonly string[]>>;
     /** A PRINTED nonmodal back face's content-derived token id → the id of
@@ -159,7 +159,7 @@ export function buildIndexLookups(
     for (const def of defs) {
         const twins = twinNameEntriesOf(def);
         if (twins.length > 0) twinNames[def.id] = twins;
-        const chooseable = chooseableNamesOf(def);
+        const chooseable = chooseableDomainNamesOf(def);
         if (chooseable.length !== 1 || chooseable[0] !== def.name) {
             chooseableNames[def.id] = chooseable;
         }

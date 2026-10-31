@@ -97,9 +97,11 @@ export const CARD_BACK_FACE_KINDS: Record<
     modal: { registration: "twin", contributesChooseableName: true },
     // CR 712.4 (PRD #3227 call 3) — the combined back face registers as a
     // twin under `${parentId}#meld`. CR 712.19 lets a player choose its name,
-    // but no meld twin is registered until issue #3341 ships the melded
-    // permanent, so nothing would resolve: false, and #3341 flips it.
-    meld: { registration: "twin", contributesChooseableName: false },
+    // so it joins the name-choice DOMAIN (`chooseableDomainNamesOf`,
+    // `cards/cardNames.ts`) — and only the domain: CR 712.4b keeps the face
+    // from determining a meld card's characteristics, so the OBJECT predicate
+    // (`chooseableNamesOf`) never reads this flag (issue #7640).
+    meld: { registration: "twin", contributesChooseableName: true },
 };
 
 /** CR 712.1 — the kind of `backFace`, with the documented default: absent
@@ -239,6 +241,51 @@ export function chooseableModalBackName(
         isModalDoubleFaced(def)
         ? back.name
         : undefined;
+}
+
+/** CR 712.19 — a meld pair's COMBINED back face name ("the player may choose
+ *  the name of the combined back face of a meld pair"), or `undefined` for a
+ *  card with no `"meld"` face.
+ *
+ *  A name-choice DOMAIN entry only. CR 712.4b — the back face "fails to
+ *  determine its characteristics" outside a melded permanent — means the meld
+ *  CARD does not have this name, so the object predicate
+ *  (`chooseableNamesOf`) must not read it; only the melded permanent, which
+ *  presents the `#meld` twin, is called by it. */
+export function chooseableMeldBackName(
+    def: CardDefinition
+): string | undefined {
+    const back = def.backFace;
+    if (!back || backFaceKind(back) !== "meld") return undefined;
+    return CARD_BACK_FACE_KINDS.meld.contributesChooseableName
+        ? back.name
+        : undefined;
+}
+
+/** CR 712.4b — the combined back face of `front`'s meld pair, read as a
+ *  stand-in definition for the characteristics a NAME restriction or filter
+ *  looks at (types, supertypes, subtypes), or `undefined` for a card with no
+ *  `"meld"` face. Not a registered twin and carries no cost: a filter keyed on
+ *  mana value reads none. */
+export function meldBackFaceStandIn(
+    front: CardDefinition
+): CardDefinition | undefined {
+    const back = front.backFace;
+    if (!back || backFaceKind(back) !== "meld") return undefined;
+    const rest: Partial<CardDefinition> = { ...front };
+    delete rest.manaCost;
+    delete rest.backFace;
+    return {
+        ...(rest as CardDefinition),
+        name: back.name,
+        types: back.types,
+        ...(back.subtypes
+            ? { subtypes: back.subtypes }
+            : { subtypes: undefined }),
+        ...(back.supertypes
+            ? { supertypes: back.supertypes }
+            : { supertypes: undefined }),
+    };
 }
 
 /** CR 712.12 — the faces of a modal double-faced card, in the order a face

@@ -15,7 +15,7 @@ import {
     getDefinitionSetCode,
     packedCorpusInflations,
 } from "@convex/cards/catalogue";
-import { chooseableNamesOf } from "@convex/cards/cardNames";
+import { chooseableDomainNamesOf } from "@convex/cards/cardNames";
 import {
     twinNameEntriesOf,
     type HandWrittenDefinitionIndex,
@@ -370,7 +370,7 @@ describe("equivalence with the eager hydration it replaces", () => {
             ...HAND_INDEX.entries.flatMap(
                 ([id, name]) => lookups.chooseableNames[id] ?? [name]
             ),
-            ...eager.flatMap((r) => chooseableNamesOf(r)),
+            ...eager.flatMap((r) => chooseableDomainNamesOf(r)),
         ]);
 
         const expected = new Map<string, string>();
