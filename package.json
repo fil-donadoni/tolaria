@@ -89,6 +89,7 @@
         "smoke:tier1": "bun scripts/tier1-smoke.ts",
         "land": "bun scripts/land.ts",
         "land:ready": "bun scripts/land-ready.ts",
+        "proof": "bun scripts/proof.ts",
         "base:drift": "bun scripts/base-drift.ts",
         "reverify:scope": "bun scripts/reverify-scope.ts",
         "pr:checks": "bun scripts/pr-checks.ts",

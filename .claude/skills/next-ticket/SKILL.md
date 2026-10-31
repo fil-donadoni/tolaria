@@ -171,10 +171,10 @@ The short path is keyed on the LANE, never on how simple the card reads.
   branch: `git push --force-with-lease`); exit 4: overlap — rebase by
   hand, run the regenerators it names, re-run the touched tests. Queued PRs
   it names sharing files: say so in the PR, prefer waiting for them.
-- **COMMIT BEFORE YOU BREAK ANYTHING.** Proof-of-failure = break → run →
-  revert against a committed baseline; `git checkout <file>` on uncommitted
-  work discards the implementation. **Assert the patch applied** (`grep -c`
-  the broken text) before believing a red — or a green.
+- **Proof-of-failure** =
+  `bun run proof --break <file>:<pattern> --test <path>` (issue #7655):
+  refuses a dirty tree, asserts the patch applied, red then green, prints a
+  `proof-receipt` naming the head. Re-run after the LAST commit.
 
 **Done when:** the work is committed, targeted tests pass, `base:drift`
 exited 0 on the committed head, and every new guarding test has been seen
@@ -205,7 +205,8 @@ nor wait.
 
 - **No pre-PR gate** (ADR 0136 §1): targeted runs + §4 review, then commit,
   push, open the PR (base: the base branch).
-- PR body: what changed, tests + proof-of-failure line; UI: `check:ui` walk
+- PR body: what changed, tests + a `proof` receipt per guarding test for the
+  pushed head (`land:ready` refuses a code lane without); UI: `check:ui` walk
   `owed` → receipt, `not owed` → `check:ui: no walk owed (<reason>)`.
   `check:ui` exit 5 (undecided scope): `src/CLAUDE.md` says what each mode does.
 - **`## Preset scenario`** heading over a `json` fence holding
