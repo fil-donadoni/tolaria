@@ -414,6 +414,19 @@ describe("gendered pronoun — refused neighbours", () => {
         expect(outcome.state).toBe("unparsed");
     });
 
+    it("a capitalised object 'Her' is refused, as a capitalised 'It' is", () => {
+        const text = (p: string) =>
+            compileCard(
+                creature({
+                    name: "Test Hero",
+                    typeLine: "Legendary Creature — Human Hero",
+                    oracleText: `Whenever Test Hero attacks, put a +1/+1 counter on ${p}.`,
+                })
+            ).state;
+        expect(text("It")).toBe("unparsed");
+        expect(text("Her")).toBe("unparsed");
+    });
+
     it("Big Bertha's line: an X count is refused, as it is for 'it'", () => {
         const outcome = compileCard(
             creature({
