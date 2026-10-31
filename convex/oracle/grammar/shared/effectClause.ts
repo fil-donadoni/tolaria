@@ -4464,6 +4464,9 @@ function foldLibraryRoute(
  * an exact table lookup; `targetFilterRule` and `playerRefRule` consume their
  * whole span).
  */
+/** The object pronoun, lowercase (see `subjectRule`): "it" and its gendered spellings. */
+const OBJECT_PRONOUNS: ReadonlySet<string> = new Set(["it", "him", "her"]);
+
 export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
     "subject",
     (span, ctx) => {
@@ -4499,7 +4502,13 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
         // and not the site's ("… put a +1/+1 counter on target creature you
         // control. It gains lifelink") — so that one stays unread, exactly as
         // it was before this branch existed.
-        if (probe === PRONOUN_MARKER || span === "it")
+        //
+        // "him" / "her" are the gendered spellings of that object "it"
+        // (issue #7627): same position, same referent. Read only as the WHOLE
+        // phrase, so "her" here is the object case; the possessive ("her
+        // controller") is a different word in a different position and is
+        // not read.
+        if (probe === PRONOUN_MARKER || OBJECT_PRONOUNS.has(span))
             return ok({ kind: "pronoun" as const });
         // CR 115.3 — "Another target creature …" is an ordinary target phrase
         // under an EXCLUSION the sentence alone cannot resolve (see
@@ -4965,15 +4974,29 @@ export function bindSourcePronoun(span: string): {
     readonly bound: boolean;
 } {
     const probe = uncapitalise(span);
-    return probe.startsWith(SOURCE_PRONOUN)
+    const pronoun = leadingSubjectPronoun(probe);
+    return pronoun !== null
         ? {
-              span: `${SELF_MARKER} ${probe.slice(SOURCE_PRONOUN.length)}`,
+              span: `${SELF_MARKER} ${probe.slice(pronoun.length)}`,
               bound: true,
           }
         : { span, bound: false };
 }
 
-const SOURCE_PRONOUN = "it ";
+/**
+ * The subject pronoun a sentence may open on: "it", and the gendered
+ * spellings Oracle prints for it on a named character ("When Momo enters, he
+ * deals 4 damage …", issue #7627). A gendered pronoun is the SAME pronoun —
+ * same verb agreement, same antecedent — so it binds exactly what "it" binds
+ * at the site, never the source by itself; a site that binds nothing for "it"
+ * binds nothing for "he". The trailing space keeps "her …" (a possessive) and
+ * "he's" / "it's" (a contraction no caller reads) out.
+ */
+const SUBJECT_PRONOUNS: readonly string[] = ["it ", "he ", "she "];
+
+function leadingSubjectPronoun(probe: string): string | null {
+    return SUBJECT_PRONOUNS.find((p) => probe.startsWith(p)) ?? null;
+}
 
 /**
  * The marker a bound "It" is rewritten to when its referent is whatever the
@@ -5001,9 +5024,10 @@ export function bindObjectPronoun(span: string): {
     readonly bound: boolean;
 } {
     const probe = uncapitalise(span);
-    return probe.startsWith(SOURCE_PRONOUN)
+    const pronoun = leadingSubjectPronoun(probe);
+    return pronoun !== null
         ? {
-              span: `${PRONOUN_MARKER} ${probe.slice(SOURCE_PRONOUN.length)}`,
+              span: `${PRONOUN_MARKER} ${probe.slice(pronoun.length)}`,
               bound: true,
           }
         : { span, bound: false };

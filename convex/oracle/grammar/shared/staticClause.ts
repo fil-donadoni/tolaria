@@ -1403,7 +1403,9 @@ const entersPrepared: Rule<StaticClauseIR> = pattern(
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
-const ENTERS_WITH = /^(.+) enters with (\S+) (\S+) counters? on it$/;
+/** "on it", or its gendered object spelling on a named character (issue #7627). */
+const ENTERS_WITH =
+    /^(.+) enters with (\S+) (\S+) counters? on (?:it|him|her)$/;
 
 /**
  * "<self> enters with N <kind> counters on it" — the unconditional entry
