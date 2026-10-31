@@ -41,8 +41,9 @@ export interface ProofDeps {
     git: (args: string[]) => string;
     read: (path: string) => string;
     write: (path: string, text: string) => void;
-    /** Run the test file; its exit code. */
-    runTest: (test: string) => number;
+    /** Run the test file; its exit code — null when it never exited on its
+     *  own (killed, timed out, not spawned): that is no red. */
+    runTest: (test: string) => number | null;
     log: (line: string) => void;
 }
 
@@ -94,9 +95,10 @@ export function runProof(args: ProofArgs, deps: ProofDeps): ProofResult {
             ok: false,
             refusal: `the replacement equals the pattern — the break changes nothing in ${args.file}, nothing ran`,
         };
-    deps.write(args.file, broken);
-    let brokenExit: number;
+    let brokenExit: number | null;
+    let revertFailed: string | null = null;
     try {
+        deps.write(args.file, broken);
         const reread = deps.read(args.file);
         const after = count(reread, args.pattern);
         if (reread !== broken)
@@ -109,12 +111,26 @@ export function runProof(args: ProofArgs, deps: ProofDeps): ProofResult {
         );
         brokenExit = deps.runTest(args.test);
     } finally {
-        deps.write(args.file, original);
+        // Never a throw out of `finally`: it would replace the runner's own
+        // error. A failed revert is logged here and thrown below.
+        try {
+            deps.write(args.file, original);
+        } catch (err) {
+            revertFailed = `the revert of ${args.file} failed (${(err as Error).message}) — the break is still in it: \`git checkout -- ${args.file}\``;
+            deps.log(`proof: ${revertFailed}`);
+        }
     }
-    if (deps.git(["status", "--porcelain"]).trim() !== "")
+    if (revertFailed !== null) throw new Error(revertFailed);
+    const after = deps.git(["status", "--porcelain"]).trim();
+    if (after !== "")
         return {
             ok: false,
-            refusal: `the revert left the tree dirty — \`git status\`, then \`git checkout -- ${args.file}\``,
+            refusal: `the tree is dirty after the revert (${after.split("\n").join(", ")}) — the test run wrote files, or the revert missed: \`git status\` before anything else`,
+        };
+    if (brokenExit === null)
+        return {
+            ok: false,
+            refusal: `${args.test} never exited on its own with the break applied (killed or timed out) — that is no red; re-run`,
         };
     if (brokenExit === 0)
         return {
@@ -128,7 +144,7 @@ export function runProof(args: ProofArgs, deps: ProofDeps): ProofResult {
     if (revertedExit !== 0)
         return {
             ok: false,
-            refusal: `${args.test} is red without the break too (exit ${revertedExit}) — the red proves nothing`,
+            refusal: `${args.test} is ${revertedExit === null ? "killed or timed out" : `red (exit ${revertedExit})`} without the break too — the red proves nothing`,
         };
     return {
         ok: true,
@@ -142,6 +158,9 @@ export function runProof(args: ProofArgs, deps: ProofDeps): ProofResult {
         },
     };
 }
+
+/** Under the Bash tool's 600 s cap, so the revert runs before a kill. */
+const TEST_TIMEOUT_MS = 540_000;
 
 function realDeps(cwd: string): ProofDeps {
     return {
@@ -157,7 +176,8 @@ function realDeps(cwd: string): ProofDeps {
             spawnSync("bunx", ["vitest", "run", test, "--passWithNoTests"], {
                 cwd,
                 stdio: "inherit",
-            }).status ?? 1,
+                timeout: TEST_TIMEOUT_MS,
+            }).status,
         log: console.log,
     };
 }
@@ -170,6 +190,15 @@ if (import.meta.main) {
         );
         process.exit(2);
     }
+    // A listener defers SIGINT/SIGTERM until the blocking run returns, so
+    // `runProof`'s revert runs before the exit — without one, a Ctrl-C
+    // mid-run would leave the break in the file. The killed test exits on a
+    // signal, which `runProof` refuses: no receipt follows a signal.
+    for (const sig of ["SIGINT", "SIGTERM"] as const)
+        process.on(sig, () => {
+            console.error(`✗ proof: ${sig} — the break is reverted`);
+            process.exit(130);
+        });
     try {
         const r = runProof(args, realDeps(process.cwd()));
         if (!r.ok) {

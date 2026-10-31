@@ -40,6 +40,7 @@ import {
     type LaneSentinels,
 } from "./lib/lane-sentinels";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { proofNoneOwedLine } from "./lib/proof-receipt";
 import { botTests, generalTests } from "./lib/test-reach";
 import { laneRecord } from "./lib/workflow-trends";
 import {
@@ -233,6 +234,8 @@ async function refreshPr(): Promise<void> {
         "## Preset scenario",
         "",
         "none owed — a data refresh, no card or gameplay change.",
+        "",
+        proofNoneOwedLine("a data refresh, no guarding test"),
     ].join("\n");
     const url = gh([
         "pr",

@@ -9,6 +9,7 @@ import {
     formatReceipt,
     parseReceipts,
     patternHash,
+    proofNoneOwedLine,
     proofReceiptRefusal,
     PROOF_FENCE,
     type ProofReceipt,
@@ -98,7 +99,41 @@ describe("proof — on a fixture repository", () => {
 
     it("refuses a test red without the break too", () => {
         const r = runProof(args, deps({ runTest: () => 1 }));
-        expect(!r.ok && r.refusal).toContain("red without the break");
+        expect(!r.ok && r.refusal).toContain("without the break too");
+    });
+
+    it("a test killed while broken is no red — refused, break reverted", () => {
+        const r = runProof(args, deps({ runTest: () => null }));
+        expect(!r.ok && r.refusal).toContain("never exited on its own");
+        expect(read(GUARDED)).toContain(GUARD);
+    });
+
+    it("a runner that throws still reverts the break", () => {
+        expect(() =>
+            runProof(
+                args,
+                deps({
+                    runTest: () => {
+                        throw new Error("spawn failed");
+                    },
+                })
+            )
+        ).toThrow("spawn failed");
+        expect(read(GUARDED)).toContain(GUARD);
+        expect(git(["status", "--porcelain"])).toBe("");
+    });
+
+    it("a test run that writes files is refused, the paths named", () => {
+        const r = runProof(
+            args,
+            deps({
+                runTest: (t) => {
+                    writeFileSync(join(repo, "out.snap"), "x\n");
+                    return read(GUARDED).includes(GUARD) && t === TEST ? 0 : 1;
+                },
+            })
+        );
+        expect(!r.ok && r.refusal).toContain("out.snap");
     });
 
     it("the happy path: red broken, green reverted, receipt names the head", () => {
@@ -208,5 +243,24 @@ describe("land:ready — proofReceiptRefusal", () => {
             "field `test`"
         );
         expect(refuse(receipt({ brokenExit: 0 }))).toContain("no red→green");
+        expect(refuse(receipt({ revertedExit: 1 }))).toContain("no red→green");
+    });
+
+    it("reads a CRLF body as GitHub returns it", () => {
+        expect(
+            refuse(`text\r\n\r\n${receipt().replace(/\n/g, "\r\n")}\r\n`)
+        ).toBeNull();
+    });
+
+    it("a declared `proof: none owed (<reason>)` line passes; an empty reason does not", () => {
+        expect(
+            refuse(`body\n\n${proofNoneOwedLine("a data refresh")}\n`)
+        ).toBeNull();
+        expect(refuse("proof: none owed ()")).toContain("carries none");
+        expect(refuse("proof: none owed")).toContain("carries none");
+        // A stale receipt beside the declaration is still refused.
+        expect(
+            refuse(`${proofNoneOwedLine("x")}\n\n${receipt({ head: OLD })}`)
+        ).toContain("re-run");
     });
 });

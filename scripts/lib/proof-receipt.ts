@@ -22,6 +22,16 @@ export const PROOF_COMMAND =
 /** The lanes whose PR owes a receipt; `cards` and `docs` owe none. */
 export const PROOF_LANES: readonly Lane[] = ["engine", "skin", "full"];
 
+/** A code-lane PR adding no guarding test — a refactor, a data refresh a
+ *  bot opens — declares it on its own line, reason required, as a preset
+ *  scenario's "none owed" does. */
+const NONE_OWED_RE = /^proof: none owed \((.*\S.*)\)[ \t]*\r?$/m;
+
+/** The declaration line, for a PR body a script writes. */
+export function proofNoneOwedLine(reason: string): string {
+    return `proof: none owed (${reason})`;
+}
+
 export interface ProofReceipt {
     /** The commit the proof ran on (40 hex). */
     head: string;
@@ -116,8 +126,9 @@ export function parseReceipts(body: string): {
 }
 
 /**
- * `land:ready`'s refusal: null = the PR owes no receipt or carries a valid one
- * for one of `heads`: the head `land:ready` judges first (its base-drift
+ * `land:ready`'s refusal: null = the PR owes no receipt, declares none owed
+ * (`proofNoneOwedLine`, no block beside it), or carries valid ones for one of
+ * `heads`: the head `land:ready` judges first (its base-drift
  * rebase or derived-state restore, when it made one — the head a re-run
  * names), then the one the session pushed. EVERY receipt in the
  * body must name one of them: a stale block left beside a fresh one is a
@@ -135,7 +146,9 @@ export function proofReceiptRefusal(input: {
     if (errors.length > 0)
         return `the PR body's proof-of-failure receipt is malformed (${errors.join("; ")}) — paste \`bun run proof\`'s block byte-exact: ${rerun}`;
     if (receipts.length === 0)
-        return `a \`${input.lane}\`-lane PR owes a proof-of-failure receipt and the body carries none — ${rerun}`;
+        return NONE_OWED_RE.test(input.prBody)
+            ? null
+            : `a \`${input.lane}\`-lane PR owes a proof-of-failure receipt and the body carries none — ${rerun}; no new guarding test: a \`${proofNoneOwedLine("<reason>")}\` line`;
     const stale = receipts.filter((r) => !input.heads.includes(r.head));
     if (stale.length > 0)
         return `proof-of-failure receipt(s) for ${stale.map((r) => `${r.head.slice(0, 10)} (${r.test})`).join(", ")}, not the PR's head ${head.slice(0, 10)} (amended or new commits) — re-run: ${rerun}, replacing the stale block(s)`;
