@@ -3199,6 +3199,7 @@ export interface IntrinsicPermanentTargetFilters {
     excludeInstanceIds?: ReadonlyArray<string>;
     powerFilter?: { min?: number; max?: number };
     toughnessFilter?: { min?: number; max?: number };
+    totalPowerToughnessFilter?: { min?: number; max?: number };
     mvFilter?: { min?: number; max?: number; equals?: number };
     isToken?: boolean;
     attachedToFilter?: {
@@ -3260,6 +3261,7 @@ export function intrinsicPermanentTargetViolation(
         excludeInstanceIds: shorthandArray(f.excludeInstanceIds),
         powerFilter: f.powerFilter,
         toughnessFilter: f.toughnessFilter,
+        totalPowerToughnessFilter: f.totalPowerToughnessFilter,
         mvFilter: f.mvFilter,
         isToken: f.isToken,
         attachedToFilter: f.attachedToFilter

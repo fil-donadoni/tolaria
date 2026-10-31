@@ -173,6 +173,8 @@ function satisfiesCharacteristics(
         return false;
     if (!withinRange(def.power, req.powerFilter)) return false;
     if (!withinRange(def.toughness, req.toughnessFilter)) return false;
+    if (!withinRange(def.power + def.toughness, req.totalPowerToughnessFilter))
+        return false;
     if (req.mvFilter && !withinManaValue(manaValue(def.manaCost), req.mvFilter))
         return false;
     if (
@@ -574,6 +576,7 @@ function narrows(req: TargetRequirement): boolean {
     return (
         req.powerFilter !== undefined ||
         req.toughnessFilter !== undefined ||
+        req.totalPowerToughnessFilter !== undefined ||
         req.colorFilter !== undefined ||
         req.colorFilterAny !== undefined ||
         req.subtypeFilter !== undefined ||
@@ -917,7 +920,9 @@ function requirementPose(
                           : {}),
                   },
               ];
-    const omitToughnessBoost = req.toughnessFilter?.max !== undefined;
+    const omitToughnessBoost =
+        req.toughnessFilter?.max !== undefined ||
+        req.totalPowerToughnessFilter?.max !== undefined;
     const roles = asList(req.combatRoleFilter);
     // A granted keyword rides a second copy of the body, and the combat seed
     // resolves the FIRST card of that name: the role would land on the filler.
@@ -1085,7 +1090,11 @@ function withLaterCombatants(
     for (const req of later) {
         const roles = posedRoles(creatureRequirement(req));
         if (roles.length === 0) continue;
-        if (req.toughnessFilter?.max !== undefined) ceiling = true;
+        if (
+            req.toughnessFilter?.max !== undefined ||
+            req.totalPowerToughnessFilter?.max !== undefined
+        )
+            ceiling = true;
         const reused = roles
             .flatMap((role) =>
                 declared(role).map((name, i) => ({
