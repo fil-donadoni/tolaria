@@ -110,6 +110,7 @@ export default function PauseMenuDialog({
                 onOpenChange={handleOpenChange}
                 title="Decklist"
                 subtitle={ownDeck.name}
+                size="wide"
                 showCloseButton
                 dismissable
             >
