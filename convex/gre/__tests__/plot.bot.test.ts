@@ -17,7 +17,11 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../cards";
 import { pillageTheBog } from "../../cards/sets/otj/multicolor.cards";
-import { enumerateMoves, SPECIAL_ACTION_MOVE_KINDS } from "../moves";
+import {
+    enumerateMoves,
+    onlyPassIsLegal,
+    SPECIAL_ACTION_MOVE_KINDS,
+} from "../moves";
 import { applyMoveForSearch } from "../applyMove";
 import { applyMoveInSearch, search } from "../search";
 import { legalActions } from "../legalActions";
@@ -93,6 +97,27 @@ describe("plot — the Bot sees the special action (CR 116.2k)", () => {
                     a.playerId === "p1"
             )
         ).toBe(true);
+    });
+});
+
+describe("plot — the rollout's forced-pass probe sees the plot (issue #4460)", () => {
+    it("a plot that is the only alternative to passing is not a forced pass", () => {
+        // Djinn of Fool's Fall: {4}{U} to cast, Plot {3}{U} — four Islands
+        // pay the plot and not the cast.
+        const ISLAND = getCardByName("Island").id;
+        const state = board(0);
+        const p1 = state.players[0];
+        p1.hand = [
+            own(getCardByName("Djinn of Fool's Fall").id, "djinn", "hand"),
+        ];
+        p1.battlefield = [0, 1, 2, 3].map((i) =>
+            own(ISLAND, `island${i}`, "battlefield")
+        );
+        expect(enumerateMoves(state, "p1")).toEqual([
+            { kind: "pass" },
+            { kind: "plot", cardInstanceId: "djinn" },
+        ]);
+        expect(onlyPassIsLegal(state, "p1")).toBe(false);
     });
 });
 

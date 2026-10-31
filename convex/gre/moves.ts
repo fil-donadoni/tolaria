@@ -6227,9 +6227,11 @@ export function onlyPassIsLegal(state: GameState, playerId: string): boolean {
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return false;
 
-    // Special actions: the companion summon and turning a permanent face up.
+    // Special actions: the companion summon, turning a permanent face up, and
+    // plotting a hand card (CR 702.170a).
     if (canSummonCompanion(state, player)) return false;
     if (turnableFaceUpPermanents(state, player).length > 0) return false;
+    if (plottableHandCards(state, player).length > 0) return false;
     // Hand: a land play, a cast, or a hand-source ability (Cycling).
     for (const card of player.hand) {
         if (getLegalActions(state, player, card).length > 0) return false;
