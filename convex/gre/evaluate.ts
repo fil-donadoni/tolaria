@@ -29,6 +29,7 @@ import {
     isCombatDamageImmune,
     isDamageUnpreventableThisTurn,
     sourcePreventionShieldApplies,
+    revertAnimation,
 } from "./state";
 import {
     anyCombatDamageUnpreventableStatic,
@@ -1575,7 +1576,8 @@ function landStandingAbilityValue(
  *  on issue #7705 — the valuation fix is the board term's alone).
  *
  *  A creature whose creature-ness is an animation that expires this turn
- *  (`isExpiringAnimatedBody` — reverts at cleanup, CR 514.2) is worth its
+ *  (`isExpiringAnimatedBody` — reverts at cleanup, CR 514.2, or at the end of
+ *  combat, CR 500.5a) is worth its
  *  body only while that body can still attack or block before it reverts
  *  (`expiringBodyHasCombatUse`). Outside such a window it is not lasting
  *  board material: it is valued as the permanent it reverts to (a land's
@@ -1592,9 +1594,24 @@ function fightsAsCreatureBody(
     );
 }
 
+/** The permanent an expiring animated body reverts to (`revertAnimation` on a
+ *  shallow copy — the live object is untouched), so a non-land one outside its
+ *  combat window is valued as the artifact it becomes (Jade Statue's MV-4
+ *  body), never through its animated type line. Identity for every other
+ *  permanent. */
+function revertedShape(perm: CardInstanceState): CardInstanceState {
+    if (!isExpiringAnimatedBody(perm)) return perm;
+    const shape = { ...perm };
+    revertAnimation(shape);
+    return shape;
+}
+
 /** What one permanent's REMOVAL costs its controller, on `evaluate`'s own
  *  scale — the sum of every term that permanent contributes and that its
- *  destruction takes away (issue #3398):
+ *  destruction takes away (issue #3398). One deliberate split: an expiring
+ *  animated body outside its combat window is priced here as a creature,
+ *  while the board term no longer counts it as one (`fightsAsCreatureBody`,
+ *  issue #7705):
  *
  *   - the flat board-presence weight every permanent carries;
  *   - a CREATURE's realized body (`evaluateCreature`, effective P/T through
@@ -1897,7 +1914,7 @@ function playerTerms(
             if (!isLand(perm)) {
                 terms.permanents += nonCreatureBodyValue(
                     state,
-                    perm,
+                    revertedShape(perm),
                     weights,
                     pass
                 );

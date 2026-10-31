@@ -39,7 +39,8 @@ const ZERO_TERMS: Record<keyof EvalTerms, number> = {
  *  purpose: the fit's CONTRACT is about arithmetic, and a real position would
  *  make "only the weights it loads" untestable — every real position loads
  *  most of them. The bridge to real positions is asserted by
- *  `verdicts.bot.test.ts`; the guard below runs the real corpus end to end. */
+ *  `verdicts.bot.test.ts`; `weightFit.bot.test.ts` runs the real corpus end
+ *  to end. */
 function pairLoading(
     id: string,
     loads: Partial<Record<FittableWeightKey, number>>,

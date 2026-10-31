@@ -83,7 +83,7 @@ export function predictUnblockedThreat(
     // and deal positive damage.
     //
     // Issue #7705 — a body that reverts THIS turn (an until-end-of-turn
-    // animation, CR 514.2) is transient the same way, in the other direction:
+    // animation, CR 514.2, or an until-end-of-combat one, CR 500.5a) is transient the same way, in the other direction:
     // it is gone by the turn this steady-state clock reads, so it neither
     // attacks nor blocks there. Its use this turn is the declared combat's
     // (`predictCombatOutcome`) and the board term's to price.

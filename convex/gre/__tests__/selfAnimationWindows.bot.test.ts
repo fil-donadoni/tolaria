@@ -283,3 +283,52 @@ describe("evaluate — a body that reverts this turn (CR 514.2)", () => {
         expect(evaluate(anim, "p1")).toBeGreaterThan(evaluate(plain, "p1"));
     });
 });
+
+describe("evaluate — a NON-land body that reverts this turn (CR 500.5a)", () => {
+    const STATUE = getCardByName("Jade Statue").id;
+
+    /** p1's own DECLARE_BLOCKERS with no attack declared: nothing left for
+     *  the body to do before it reverts at the end of combat. */
+    function ownBlockersStep(statueAnimated: boolean): GameState {
+        const statue = mine(STATUE, "statue");
+        const f1 = mine(FOREST, "forest-1");
+        const f2 = mine(FOREST, "forest-2");
+        const state = makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [statue, f1, f2] }),
+                makePlayer("p2", { battlefield: [theirs(BEARS, "bears")] }),
+            ],
+            combat: {
+                attackerIds: [],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        if (statueAnimated) {
+            animatePermanentAsCreature(
+                state,
+                state.players[0].battlefield[0],
+                {
+                    power: 3,
+                    toughness: 6,
+                    subtype: "Golem",
+                    duration: { phase: "end-of-combat" },
+                },
+                "p1"
+            );
+            state.players[0].battlefield[1].isTapped = true;
+            state.players[0].battlefield[2].isTapped = true;
+        }
+        return state;
+    }
+
+    it("values the animated artifact as the artifact it reverts to, the mana still spent", () => {
+        expect(evaluate(ownBlockersStep(true), "p1")).toBeLessThan(
+            evaluate(ownBlockersStep(false), "p1")
+        );
+    });
+});

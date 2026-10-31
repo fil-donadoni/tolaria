@@ -92,7 +92,11 @@
 // in a life total `ScenarioSpec` cannot yet carry (issue #2147): a finding
 // about the corpus, not about the weights.
 
-import type { EvalWeights, LatentWeights } from "../evalWeights";
+import {
+    terminalMagnitude,
+    type EvalWeights,
+    type LatentWeights,
+} from "../evalWeights";
 import { REPRESENTATIVE_VICTIM_BODY } from "../representativeVictim";
 import {
     FITTABLE_WEIGHT_KEYS,
@@ -189,9 +193,9 @@ export const FIT_NUMERAIRE: FittableWeightKey = "lifeWeight";
  * constraint and not a finding to report.
  */
 const FIT_BANDS: readonly {
-    /** The larger weight. */
+    /** The first weight of the couple. */
     a: FittableWeightKey;
-    /** The smaller one. `a − b` must stay inside `[min, max]`. */
+    /** The second one. `a − b` must stay inside `[min, max]`. */
     b: FittableWeightKey;
     min: number;
     max: number;
@@ -329,7 +333,8 @@ export type WeightFitResult = {
      *  `outcomes` a reader has to look at. */
     violated: FitPairOutcome[];
     /** Pairs left out of the descent: a terminal gap against the verdict
-     *  (`isTerminalAgainst`). A subset of `violated`. */
+     *  (`isTerminalAgainst`). In practice a subset of `violated`: the trust
+     *  region cannot close a gap of `terminalMagnitude`. */
     terminal: FitPairOutcome[];
     /** Couples that no vector can satisfy together: anti-parallel basis
      *  directions. Reported, never dropped (header, decision 4). */
@@ -551,7 +556,7 @@ export function weightsFromCoordinates(
  *  game: the leaves differ by a terminal reading (`winScore`), not by
  *  material, so no weight the fit moves reaches it. */
 export function isTerminalAgainst(pair: EvalPair, w0: EvalWeights): boolean {
-    return pair.delta <= -w0.winScore / 2;
+    return pair.delta <= -terminalMagnitude(w0);
 }
 
 /**
