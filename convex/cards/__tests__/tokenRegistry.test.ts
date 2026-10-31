@@ -507,3 +507,38 @@ describe("token CardDefinition lookup (regression — client lazy synthesis)", (
         ).toBe(true);
     });
 });
+
+// CR 702.122b (issue #1863) — "This token crews Vehicles as though its power
+// were N greater" (Shorikai, Genesis Engine's Pilot) rides the content-derived
+// id as a trailing segment, so a client / cold isolate that never ran the
+// server's registration still decodes the rider.
+describe("token crewPowerBonus round-trips through the id (CR 702.122b)", () => {
+    const riderSpec = {
+        name: "Rider Pilot 1863",
+        types: ["Creature"] as CardType[],
+        subtypes: ["Pilot"],
+        power: 1,
+        toughness: 1,
+    };
+
+    it("a spec WITH the rider mints a distinct id that decodes the bonus", () => {
+        const withRider = tokenDefinitionId({
+            ...riderSpec,
+            crewPowerBonus: 2,
+        });
+        const without = tokenDefinitionId(riderSpec);
+        expect(withRider).not.toBe(without);
+        // Never registered: this is the registry-miss decode path.
+        expect(tryGetDefinition(withRider)?.crewPowerBonus).toBe(2);
+        expect(tryGetDefinition(without)?.crewPowerBonus).toBeUndefined();
+    });
+
+    it("an id minted without the rider is unchanged — 16 segments, no bonus", () => {
+        const id = tokenDefinitionId({
+            ...riderSpec,
+            name: "Plain Pilot 1863",
+        });
+        expect(id.slice("token:".length).split("|")).toHaveLength(16);
+        expect(tryGetDefinition(id)?.crewPowerBonus).toBeUndefined();
+    });
+});

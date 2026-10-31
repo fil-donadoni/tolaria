@@ -8,10 +8,15 @@
 // the frontend-wiring regime exists to catch.
 
 import { describe, it, expect, beforeAll } from "vitest";
-import { registerTokenDefinition } from "@convex/cards";
+import {
+    registerTokenDefinition,
+    tokenDefinitionId,
+    tryGetDefinition,
+} from "@convex/cards";
 import { makeVehicle } from "@convex/cards/abilities/vehicle";
-import type { CardDefinition } from "@convex/cards/types";
+import type { CardDefinition, EffectOp, TokenSpec } from "@convex/cards/types";
 import { smugglersCopter } from "@convex/cards/sets/kld/index.cards";
+import { shorikaiGenesisEngine } from "@convex/cards/sets/nec/index.cards";
 import {
     crusade,
     grizzlyBears,
@@ -270,5 +275,69 @@ describe("the crew hint uses EFFECTIVE power (CR 613.4 layers)", () => {
         expect(
             offeredAbilityIds(vehicle, [vehicle, shrunkPilot])
         ).not.toContain(CREW_3_ID);
+    });
+});
+
+// CR 702.122b (issue #1863) — a CREATED token carrying the rider. The client
+// never ran the server's token registration, so the Pilot's definition comes
+// from DECODING its content-derived id (`maybeSynthesizeToken`); the hint must
+// still count the bonus through `buildTriggerStateView`.
+describe("Shorikai's Pilot token crews through the decoded id (CR 702.122b, issue #1863)", () => {
+    const fivePower: CardDefinition = {
+        id: "test-crew-five-power-client",
+        name: "Test Crew Five Power Client",
+        rarity: "common",
+        manaCost: { X: 5 },
+        types: ["Creature"],
+        power: 5,
+        toughness: 5,
+    };
+
+    /** Shorikai's own `createToken` spec — read off the card, never re-typed.
+     *  Its P/T are literals, so it is already the `TokenSpec` the executor
+     *  hands `createToken`. */
+    function pilotSpec(): TokenSpec {
+        for (const a of shorikaiGenesisEngine().activatedAbilities ?? []) {
+            const op = a.effects?.find(
+                (e): e is Extract<EffectOp, { op: "createToken" }> =>
+                    e.op === "createToken"
+            );
+            if (op) return op.token as TokenSpec;
+        }
+        throw new Error("Shorikai has no createToken Op");
+    }
+
+    function crewId(): string {
+        return shorikaiGenesisEngine().activatedAbilities!.find(
+            (a) => a.cost?.tapOtherFilter?.totalPower !== undefined
+        )!.id;
+    }
+
+    function tokenPerm(id: string, spec: TokenSpec): CardInstance {
+        const def = tryGetDefinition(tokenDefinitionId(spec))!;
+        return perm(id, def, { isToken: true });
+    }
+
+    beforeAll(() => registerTokenDefinition(fivePower));
+
+    it("the decoded Pilot + a 5/5 make Crew 8 affordable; a rider-less 1/1 does not", () => {
+        const shorikai = perm("shorikai", shorikaiGenesisEngine());
+        const big = perm("big", fivePower);
+        const pilot = tokenPerm("pilot", pilotSpec());
+        const plain = { ...pilotSpec() };
+        delete plain.crewPowerBonus;
+        const plainPilot = tokenPerm("plain", plain);
+
+        const view = viewOf([shorikai, big, pilot]);
+        expect(
+            view.players[0].battlefield.find((c) => c.id === "pilot")
+                ?.crewPowerBonus
+        ).toBe(2);
+        expect(offeredAbilityIds(shorikai, [shorikai, big, pilot])).toContain(
+            crewId()
+        );
+        expect(
+            offeredAbilityIds(shorikai, [shorikai, big, plainPilot])
+        ).not.toContain(crewId());
     });
 });

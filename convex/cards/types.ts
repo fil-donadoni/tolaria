@@ -3553,6 +3553,15 @@ export interface TokenSpec {
      *  damage unblocked exactly as CR 508.4 requires for a token entering
      *  attacking after blockers are locked in — no extra bookkeeping needed. */
     entersAttacking?: boolean;
+    /** CR 702.122b (issue #1863) — "This token crews Vehicles as though its
+     *  power were N greater" (Shorikai, Genesis Engine's Pilot token). Copied
+     *  onto the synthesized token `CardDefinition.crewPowerBonus`, so every
+     *  existing crew reader (`crewPowerContribution`'s callers, server and
+     *  client alike) picks it up through the ordinary definition lookup.
+     *  Folded into `tokenDefinitionId` as a trailing segment — a token WITH
+     *  the rider is a distinct definition shape — and decoded back by
+     *  `maybeSynthesizeToken` on a registry miss (cold isolate, client). */
+    crewPowerBonus?: number;
 }
 
 /** JSON-pure token specification for the `createToken` Effect Script Op
@@ -3679,6 +3688,9 @@ export interface EffectTokenSpec {
     /** CR 508.4 (issue #1195) — see {@link TokenSpec.entersAttacking}. Passed
      *  verbatim to `SpellContext.createToken`. */
     entersAttacking?: boolean;
+    /** CR 702.122b (issue #1863) — see {@link TokenSpec.crewPowerBonus}. A
+     *  positive integer; passed verbatim to `SpellContext.createToken`. */
+    crewPowerBonus?: number;
 }
 
 /** Event kinds a {@link TokenTriggeredAbility} descriptor can name — the
