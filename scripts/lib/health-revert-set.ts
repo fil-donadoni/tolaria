@@ -2,9 +2,10 @@
  * The revert set of a culprit later commits depend on (issue #6766): the
  * culprit together with the later first-parent commits its revert conflicts
  * with, reverted newest first in one worktree, so one PR carries them. A
- * RED the bisect named several culprits for has them ALL in one set (issue
- * #7446): every culprit is reverted, the dependents of each joining as
- * their conflicts name them.
+ * RED the bisect named several culprits for has every one reverted (issue
+ * #7446), each in its own PR (`revertGroups`, issue #7656) unless one's
+ * revert conflicts with another's: then the dependents of each join as
+ * their conflicts name them, in one set.
  *
  * The set grows from the conflicts themselves: a revert step that does not
  * apply names its conflicting paths, and the OLDEST later commit (newer than
@@ -165,4 +166,66 @@ export function planRevertSet(input: {
         // culprits (issue #7446).
         if (dependents.size + 1 > cap) return { kind: "cap", set: setOf() };
     }
+}
+
+/** One revert PR (issue #7656): its culprits' full shas, oldest first, and
+ *  the plan that reverts them, `applies`. */
+export interface RevertGroup<P extends RevertPlan = RevertPlan> {
+    culprits: string[];
+    plan: P & { kind: "applies" };
+}
+
+/**
+ * The culprits cut into one revert PR each (issue #7656). Each culprit is
+ * planned ALONE, oldest first; a later culprit its set already reverts — a
+ * dependent its conflicts named — joins its PR, and the set is planned
+ * again with it as a culprit (the cap bounds dependents, never culprits),
+ * until no other culprit joins; a set sharing any commit with an earlier
+ * PR's merges into it the same way. Two culprits whose reverts apply apart are
+ * two PRs: neither waits on the other's queue, and either landing alone
+ * turns its tests GREEN. A plan that does not apply (`conflict`, `cap`)
+ * comes back with the culprits it was for: the rung is spent, as one PR's
+ * was. `plan` is the I/O (`planRevertSet` in a fresh worktree).
+ */
+export function revertGroups<P extends RevertPlan>(
+    culprits: readonly string[],
+    plan: (group: readonly string[]) => P
+): { groups: RevertGroup<P>[] } | { failed: P; culprits: string[] } {
+    let left = [...culprits];
+    const groups: RevertGroup<P>[] = [];
+    while (left.length > 0) {
+        let group = [left[0]];
+        left = left.slice(1);
+        for (;;) {
+            const p = plan(group);
+            if (p.kind !== "applies") return { failed: p, culprits: group };
+            const joined = left.filter((c) => p.set.some((s) => s.full === c));
+            // A dependent an earlier PR reverts too: two PRs reverting one
+            // commit cannot both land — one PR, planned again.
+            const shared = groups.filter((g) =>
+                g.plan.set.some((s) => p.set.some((t) => t.full === s.full))
+            );
+            if (shared.length > 0) {
+                const merged = new Set([
+                    ...shared.flatMap((g) => g.culprits),
+                    ...group,
+                    ...joined,
+                ]);
+                group = culprits.filter((c) => merged.has(c));
+                left = left.filter((c) => !merged.has(c));
+                for (const g of shared) groups.splice(groups.indexOf(g), 1);
+                continue;
+            }
+            if (joined.length === 0) {
+                groups.push({
+                    culprits: group,
+                    plan: p as P & { kind: "applies" },
+                });
+                break;
+            }
+            group = [...group, ...joined];
+            left = left.filter((c) => !joined.includes(c));
+        }
+    }
+    return { groups };
 }

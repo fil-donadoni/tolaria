@@ -3,8 +3,11 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { parseCulprits } from "../lib/health-ladder";
 import {
     baseStepName,
+    bisectCulprits,
+    culpritLines,
     bisectFirstRed,
     bisectWorktreePid,
     LADDER_MARK,
@@ -37,6 +40,7 @@ import {
     evidenceFiles,
     evidenceSummary,
     withEvidenceLine,
+    type FailingTest,
 } from "../lib/health-evidence";
 import { HEALTH_SCRIPTS, splitHealthGates } from "../lib/health-step";
 import {
@@ -768,5 +772,57 @@ describe("a scheduled RED waits for its fresh run: one store write per run (issu
         );
         expect(code).toBe(1);
         expect(cleared).toBe(0);
+    });
+});
+
+describe("stacked REDs, one per suite, are bisected in one run (issue #7656)", () => {
+    // 4b51eb77 → 8aca6581 → …: three PRs each broke one suite. The early
+    // run names every failing file; the bisect groups them by their first
+    // red probe and names one culprit per group; the ladder reverts each.
+    const APP = { file: "convex/gre/__tests__/stack.test.ts", name: "s > t" };
+    const BOT = {
+        file: "convex/gre/ai/__tests__/x.bot.test.ts",
+        name: "x > y",
+    };
+    const BLADE = { file: "convex/gre/ai/blade/shard-2.spec.ts", name: "e" };
+    const commits = ["g1", "p1", "d1", "p2", "p3", "g2"];
+    /** The commit each test first goes red at (it stays red after). */
+    const breaks: Record<string, string> = {
+        [APP.file]: "p1",
+        [BOT.file]: "p2",
+        [BLADE.file]: "p3",
+    };
+    const probe = (sha: string, tests: readonly FailingTest[]) =>
+        tests.filter(
+            (t) => commits.indexOf(sha) >= commits.indexOf(breaks[t.file])
+        );
+
+    it("each failing-file group names its own culprit, oldest first", () => {
+        const report = bisectCulprits(commits, [BLADE, APP, BOT], probe);
+        expect(
+            report.found.map((f) => [f.culprit, f.tests.map((t) => t.file)])
+        ).toEqual([
+            ["p1", [APP.file]],
+            ["p2", [BOT.file]],
+            ["p3", [BLADE.file]],
+        ]);
+        expect(report.unexplained).toBeNull();
+    });
+
+    it("the evidence's culprit lines carry all three to the revert rung", () => {
+        const full = commits.map((_, i) => String(i + 1).repeat(40));
+        const report = bisectCulprits(full, [APP, BOT, BLADE], (s, tests) =>
+            probe(commits[full.indexOf(s)], tests)
+        );
+        const lines = culpritLines({
+            report,
+            total: 3,
+            good: "e".repeat(40),
+            commits: full.length,
+            subjectOf: (s) => `pr (#${7600 + full.indexOf(s)})`,
+        });
+        expect(parseCulprits(lines.join("\n")).map((c) => c.pr)).toEqual([
+            7601, 7603, 7604,
+        ]);
     });
 });

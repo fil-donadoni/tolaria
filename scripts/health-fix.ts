@@ -78,6 +78,7 @@ import {
     fixAttemptStore,
     LOOP_FIX_ATTEMPTS,
     loopFixDecision,
+    prsOf,
     type FixAttemptStore,
     type FixRung,
     type LoopFixDecision,
@@ -93,7 +94,7 @@ import {
     ownRepairPrs,
     MAX_HOPS,
     mayRedispatch,
-    revertRecordOf,
+    revertRecordsOf,
     REVERT_UNRECORDED,
     walkEpisode,
     type ForeignRepair,
@@ -842,16 +843,14 @@ function commitsSince(
  *  closing a repair issue on the pivot, and every PR a ladder record names. */
 function declaredRepairPrs(
     cwd: string,
-    episode: readonly { attempt: { pr?: number } | null }[]
+    episode: readonly { attempt: { pr?: number; prs?: number[] } | null }[]
 ): number[] {
     // Throws on an unreadable pivot: the facts then wait, never read "no
     // repair declared" and revert beside one.
     const { ladder, foreign } = readPivotRepairOrigins(cwd);
     const issues = [...ladder, ...foreign];
     const prs = new Set(
-        episode.flatMap((r) =>
-            r.attempt?.pr !== undefined ? [r.attempt.pr] : []
-        )
+        episode.flatMap((r) => (r.attempt ? prsOf(r.attempt) : []))
     );
     if (issues.length > 0)
         for (const p of listPrs(cwd, "all"))
@@ -874,7 +873,7 @@ export function readLadderFacts(cwd: string, tip: string): LadderFacts {
         sinceRed: null,
         repairPrs: [],
         episode: [],
-        revertPr: null,
+        revertPrs: [],
         foreignRepairs: [],
         escalated: null,
         now,
@@ -899,7 +898,11 @@ export function readLadderFacts(cwd: string, tip: string): LadderFacts {
             attempt: (sha) => attempts.read(sha),
             evidence: (sha) => evidence.read(sha),
         });
-        const revert = revertRecordOf(episode);
+        // One PR per culprit (issue #7656): every PR any revert record of
+        // the episode names, each read once.
+        const revertPrs = [
+            ...new Set(revertRecordsOf(episode).flatMap(prsOf)),
+        ].map((pr) => revertPrState(cwd, pr));
         // Only a moved tip asks whether the RED still stands on it (issue
         // #6766): the commits since, and the PRs that are declared repairs.
         const moved = red !== tip;
@@ -911,8 +914,7 @@ export function readLadderFacts(cwd: string, tip: string): LadderFacts {
             sinceRed: moved ? commitsSince(cwd, red, tip) : null,
             repairPrs: moved ? declaredRepairPrs(cwd, episode) : [],
             episode,
-            revertPr:
-                revert?.pr !== undefined ? revertPrState(cwd, revert.pr) : null,
+            revertPrs,
             foreignRepairs: readForeignRepairs(cwd),
             escalated: escalationIssue(cwd, red),
         };

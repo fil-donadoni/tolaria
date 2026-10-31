@@ -336,6 +336,50 @@ export function healthStepArgs(entry: string): string[] {
     return ["run", ...entry.split(/\s+/)];
 }
 
+/** `bun run test`'s chain, in `package.json` order (`test:app && test:bot &&
+ *  test:blade`; `health-step.test.ts` pins the two together). */
+export const TEST_CHAIN_SCRIPTS: readonly string[] = [
+    "test:app",
+    "test:bot",
+    "test:blade",
+];
+
+/** The step whose chain an early run runs without bail. */
+const NO_BAIL_STEP = "test";
+
+/**
+ * The shell line that runs every script of `scripts` whatever the one before
+ * it did, and exits 1 when any failed (issue #7656) — 77 when the only
+ * failures were gates that never ran (INFRA, as `bun run test` passed it). Each `bun run` echoes
+ * its `$ bun scripts/gate.ts …` start line as the `&&` chain does, so the
+ * retry (`lib/health-retry.ts`) reads every suite as started.
+ */
+export function noBailChain(scripts: readonly string[]): string {
+    for (const s of scripts)
+        if (!/^[\w:-]+$/.test(s))
+            throw new Error(`not a package script name: ${JSON.stringify(s)}`);
+    // A suite's own exit 77 (its gate never ran, `infraCause`) survives only
+    // when no suite failed: a red suite is the RED, with its files.
+    return `rc=0; for s in ${scripts.join(" ")}; do bun run "$s"; c=$?; if [ $c -eq 77 ]; then [ $rc -eq 0 ] && rc=77; elif [ $c -ne 0 ]; then rc=1; fi; done; exit $rc`;
+}
+
+/**
+ * The command of one `HEALTH_SCRIPTS` entry. `noBail` is the hosted early
+ * run's (issue #7656): its `test` step runs every suite of the chain
+ * (`noBailChain`) instead of `bun run test`'s `&&`, so the RED carries every
+ * failing file of every vitest project — stacked REDs, one per suite, are
+ * then bisected in one run instead of one per gate. Every other entry, and
+ * every self-hosted run, is `bun run <entry>` unchanged.
+ */
+export function healthStepCommand(
+    entry: string,
+    opts: { noBail?: boolean } = {}
+): { cmd: string; args: string[] } {
+    if (opts.noBail && entry === NO_BAIL_STEP)
+        return { cmd: "sh", args: ["-c", noBailChain(TEST_CHAIN_SCRIPTS)] };
+    return { cmd: "bun", args: healthStepArgs(entry) };
+}
+
 /** What a fresh step worktree runs first (the browser steps', the nightly
  *  refresh's and the audits'): its bootstrap. */
 export const WORKTREE_BOOTSTRAP = "worktree:init";

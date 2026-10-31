@@ -77,7 +77,9 @@
  * re-gates an INFRA only with `--retry-infra` and never a tip the store holds
  * a RED for. `--early` is `health-early.yml`'s run on a GitHub-hosted runner
  * after a batch of merges: the same offline gate minus the committed-corpus
- * tests, so only its RED reaches the store. A RED of either goes through the
+ * tests, so only its RED reaches the store — and its `test` step runs every
+ * suite without bail (`healthStepCommand`), so that RED names
+ * every failing file. A RED of either goes through the
  * ladder (`scripts/health-bisect.ts`): a fresh run, then the bisect.
  *
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
@@ -132,6 +134,7 @@ import {
 import {
     healthGateEnv,
     healthStepArgs,
+    healthStepCommand,
     runHealthStep,
     splitHealthGates,
     HEALTH_SCRIPTS,
@@ -1222,12 +1225,14 @@ async function main(): Promise<void> {
             browser: "not run",
         });
 
+    // The hosted early run's `test` step runs every suite without bail
+    // (issue #7656): its RED names every failing file, not the first
+    // suite's. Self-hosted runs keep `bun run test`'s `&&` chain.
     const steps: HealthStep[] = offline.map((name, i) => ({
         ordinal: i + 1,
         total: offline.length,
         name,
-        cmd: "bun",
-        args: healthStepArgs(name),
+        ...healthStepCommand(name, { noBail: mode === "early" }),
     }));
 
     let failedStep: string | undefined;
