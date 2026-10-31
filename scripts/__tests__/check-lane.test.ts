@@ -5,7 +5,7 @@ import picomatch from "picomatch";
 import {
     classifyPath,
     packageJsonClass,
-    classifyLane,
+    classifyLane as classifyLaneLive,
     renderPlan,
     renderJson,
     runPlan,
@@ -24,7 +24,10 @@ import {
     FILTER_BYTES_PER_RUN,
     BOT_FAST_LANE,
     BOT_STEP,
+    SENTINEL_STEP,
+    SENTINEL_BOT_STEP,
     type BotReachSource,
+    type SentinelSource,
     type LanePlan,
     type TreeSnapshot,
     type RunResult,
@@ -47,6 +50,7 @@ import {
     PR_RECEIPT_GUARDS,
 } from "../lib/health-step";
 import vitestSettings from "../../vitest.config";
+import type { LaneSentinels } from "../lib/lane-sentinels";
 
 /**
  * `bun run check:lane` (issue #2741, wiring execution onto the classifier
@@ -62,6 +66,51 @@ import vitestSettings from "../../vitest.config";
  * The load-bearing property is FAIL-CLOSED: a path no rule recognises must
  * yield `full`. Unknown never means skin.
  */
+
+/** A sentinel set with nothing in it (issue #7651). */
+const EMPTY_SENTINELS: LaneSentinels = {
+    $generated: "",
+    version: 1,
+    windowDays: 30,
+    through: "2026-10-31",
+    capS: 5,
+    candidates: [],
+    sentinels: [],
+    overCap: [],
+    unmeasured: [],
+};
+const NO_SENTINELS: SentinelSource = {
+    read: () => EMPTY_SENTINELS,
+    projectOf: () => null,
+};
+
+/**
+ * `classifyLane` with an EMPTY sentinel set unless a test passes one: the
+ * plans pinned below predate the set (issue #7651), and the committed
+ * `data/lane-sentinels.json` moves every week — a pin on it would restate
+ * the refresh. The sentinel tests pass their own source.
+ */
+function classifyLane(
+    ...[
+        changed,
+        present,
+        related,
+        overrides,
+        botReach,
+        scanGuards,
+        sentinels,
+    ]: Parameters<typeof classifyLaneLive>
+): ReturnType<typeof classifyLaneLive> {
+    return classifyLaneLive(
+        changed,
+        present,
+        related,
+        overrides,
+        botReach,
+        scanGuards,
+        sentinels ?? NO_SENTINELS
+    );
+}
 
 const ROOT = resolve(__dirname, "..", "..");
 
@@ -3215,5 +3264,158 @@ describe("scoped lanes admit the repo-wide scan guards by diff (issue #7012)", (
             none
         );
         expect(p.guards?.map((g) => g.file)).toContain(VH);
+    });
+});
+
+describe("every code lane runs the derived sentinel set (issue #7651)", () => {
+    const CENSUS = "convex/gre/__tests__/creatureKeywordBonus.bot.test.ts";
+    const RATINGS = "convex/limited/__tests__/pickRatings.bot.test.ts";
+    const PAIRS = "convex/gre/ai/__tests__/verdictRegistryPairs.bot.test.ts";
+    const SCAN = "src/lib/__tests__/raw-card-display-scan.test.ts";
+    const DEAR = "convex/gre/ai/__tests__/weightFit.bot.test.ts";
+    const GONE = "convex/gre/__tests__/renamed.bot.test.ts";
+    const SET: LaneSentinels = {
+        ...EMPTY_SENTINELS,
+        sentinels: [
+            { file: RATINGS, ms: 16 },
+            { file: SCAN, ms: 40 },
+            { file: PAIRS, ms: 1_101 },
+            { file: GONE, ms: 50 },
+        ],
+        overCap: [{ file: DEAR, ms: 9_004 }],
+        unmeasured: ["convex/gre/__tests__/damageLock.test.ts"],
+    };
+    const PROJECT: Record<string, "node-engine" | "dom" | "bot-node"> = {
+        [RATINGS]: "bot-node",
+        [PAIRS]: "bot-node",
+        [CENSUS]: "bot-node",
+        [SCAN]: "dom",
+    };
+    const sentinels: SentinelSource = {
+        read: () => SET,
+        projectOf: (f) => PROJECT[f] ?? null,
+    };
+    const reachNothing = (): RelatedTests => ({
+        "node-engine": [],
+        "node-tooling": [],
+        dom: [],
+    });
+    const bot = (reached: string[]): BotReachSource => ({
+        total: () => 352,
+        related: () => ({ "bot-node": reached, "bot-dom": [] }),
+        costs: () => ({ [CENSUS]: 16, [RATINGS]: 16, [PAIRS]: 1_101 }),
+        budget: () => ({ perFileMs: 5_000, totalMs: 10_000 }),
+    });
+    const plan = (
+        files: string[],
+        related: (p: string[]) => RelatedTests = reachNothing,
+        reached: string[] = []
+    ) =>
+        classifyLaneLive(
+            files,
+            undefined,
+            related,
+            undefined,
+            bot(reached),
+            () => [],
+            sentinels
+        );
+    const step = (p: LanePlan, id: string) =>
+        p.run.find((c) => c.id === id)?.command;
+    const skipOf = (p: LanePlan, id: string) =>
+        p.skip.find((s) => s.id === id)?.reason;
+
+    it("an engine diff the walk never connects to them still runs the sentinels, per suite", () => {
+        const p = plan(["scripts/gate.ts"]);
+        expect(p.lane).toBe("engine");
+        expect(step(p, SENTINEL_BOT_STEP)).toBe(
+            `TOLARIA_BOT_FAST=1 bunx vitest run --project bot-node '${RATINGS}' '${PAIRS}'`
+        );
+        expect(step(p, SENTINEL_STEP)).toBe(
+            `bunx vitest run --project dom '${SCAN}'`
+        );
+        expect(p.sentinels).toEqual([
+            { file: RATINGS, ms: 16 },
+            { file: SCAN, ms: 40 },
+            { file: PAIRS, ms: 1_101 },
+        ]);
+    });
+
+    it("a sentinel the diff also reaches runs once, in the sentinel step, and spends no bot budget", () => {
+        const p = plan(
+            ["src/lib/card-utils.ts"],
+            () => ({ ...reachNothing(), dom: [SCAN] }),
+            [CENSUS, RATINGS]
+        );
+        expect(p.lane).toBe("skin");
+        expect(step(p, BOT_STEP)).toBe(
+            `TOLARIA_BOT_FAST=1 bunx vitest run --project bot-node '${CENSUS}'`
+        );
+        expect(step(p, "vitest(related)")).toBeUndefined();
+        expect(step(p, SENTINEL_STEP)).toContain(SCAN);
+        expect(step(p, SENTINEL_BOT_STEP)).toContain(RATINGS);
+    });
+
+    it("the files over the cap, unmeasured or gone from the tree are skip lines with their cost", () => {
+        const p = plan(["convex/gre/sba.ts"]);
+        expect(skipOf(p, `${SENTINEL_STEP}:over-cap`)).toContain(
+            `${DEAR} (9.0 s)`
+        );
+        expect(skipOf(p, `${SENTINEL_STEP}:unmeasured`)).toContain(
+            "damageLock.test.ts"
+        );
+        expect(skipOf(p, `${SENTINEL_STEP}:gone`)).toContain(GONE);
+        expect(p.run.map((c) => c.command).join("\n")).not.toContain(GONE);
+    });
+
+    it("a sentinel an admitted cheap guard runs whole is not run twice", () => {
+        const sp = (files: string[]) =>
+            classifyLaneLive(
+                files,
+                undefined,
+                reachNothing,
+                undefined,
+                bot([]),
+                () => [],
+                {
+                    read: () => ({
+                        ...EMPTY_SENTINELS,
+                        sentinels: [
+                            { file: SEARCH_COST_TEST, ms: 871 },
+                            { file: RATINGS, ms: 16 },
+                        ],
+                    }),
+                    projectOf: () => "bot-node",
+                }
+            );
+        const p = sp(["convex/gre/search.ts"]);
+        expect(p.run.map((c) => c.id)).toContain("search-cost");
+        expect(step(p, SENTINEL_BOT_STEP)).not.toContain(SEARCH_COST_TEST);
+        expect(step(p, SENTINEL_BOT_STEP)).toContain(RATINGS);
+    });
+
+    it("the cards lane runs none, and says so", () => {
+        const p = plan(["convex/cards/sets/lea/red.cards.ts"]);
+        expect(p.lane).toBe("cards");
+        expect(step(p, SENTINEL_STEP)).toBeUndefined();
+        expect(step(p, SENTINEL_BOT_STEP)).toBeUndefined();
+        expect(p.sentinels).toBeUndefined();
+        expect(skipOf(p, SENTINEL_STEP)).toMatch(/runs none/);
+    });
+
+    it("the full lane names them as covered by its whole runs", () => {
+        const p = plan(["package.json"]);
+        expect(p.lane).toBe("full");
+        expect(step(p, SENTINEL_STEP)).toBeUndefined();
+        expect(skipOf(p, SENTINEL_STEP)).toMatch(/whole/);
+        expect(p.sentinels).toHaveLength(4);
+    });
+
+    it("--plan prints the set under its own heading, each file with its cost", () => {
+        const out = renderPlan(plan(["scripts/gate.ts"]), "abc1234");
+        expect(out).toContain(
+            "sentinels: 3 files, 1.2 s (data/lane-sentinels.json, issue #7651)"
+        );
+        expect(out).toContain(`       ${PAIRS} (1.1 s)`);
     });
 });

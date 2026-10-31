@@ -700,10 +700,7 @@ export function classifyLane(
             ],
             skip: [
                 ...bot.skip,
-                {
-                    id: SENTINEL_STEP,
-                    reason: "check:pr:app runs node-engine, node-tooling and dom whole and vitest(bot) the bot fast lane whole — every sentinel is in them",
-                },
+                ...sentinelNote(sentinels, FULL_LANE_SENTINELS),
             ],
             botReach: bot.reach,
             ...sentinelsField(sentinels.read()?.sentinels ?? []),
@@ -878,10 +875,7 @@ export function classifyLane(
                 id: "dom",
                 reason: "no changed code under src/** — no component, style or asset changed",
             },
-            {
-                id: SENTINEL_STEP,
-                reason: "the cards lane runs none (issue #7651): a card on exercised Ops reaches no sentinel beyond node[cards] and bot[cards]",
-            }
+            ...sentinelNote(sentinels, CARDS_LANE_SENTINELS)
         );
         appendCheapGuards(files, run, skip);
         appendDocsGuards(files, run);
@@ -1385,6 +1379,19 @@ function withoutSentinels(
             fs.filter((f) => !files.has(f)),
         ])
     ) as RelatedTests;
+}
+
+const FULL_LANE_SENTINELS =
+    "check:pr:app runs node-engine, node-tooling and dom whole and vitest(bot) the bot fast lane whole — every sentinel is in them";
+const CARDS_LANE_SENTINELS =
+    "the cards lane runs none (issue #7651): a card on exercised Ops reaches no sentinel beyond node[cards] and bot[cards]";
+
+/** The one skip line a lane that runs no sentinel step owes — only when the
+ *  set holds a sentinel to account for. */
+function sentinelNote(source: SentinelSource, reason: string): SkippedCheck[] {
+    return (source.read()?.sentinels.length ?? 0) > 0
+        ? [{ id: SENTINEL_STEP, reason }]
+        : [];
 }
 
 function sentinelsField(

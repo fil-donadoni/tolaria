@@ -78,7 +78,8 @@ jobs:
               run: bun run pr:fixup classify --lane "$RUNNER_TEMP/lane.json" --log "$RUNNER_TEMP/lane.log" --draft "$DRAFT"
             # The weekly report's record of this run: its flakes, and which
             # red dequeued the PR (issue #5651). Step ids, test file names
-            # and timings only; an empty file is a refusal.
+            # and timings only; an empty file is a refusal. Kept 31 days: the
+            # lane sentinel set (issue #7651) reads the red ones over 30.
             - name: Upload the lane JSON
               if: always()
               continue-on-error: true
@@ -87,7 +88,7 @@ jobs:
                   name: queue-lane-json
                   path: ${{ runner.temp }}/lane.json
                   if-no-files-found: ignore
-                  retention-days: 14
+                  retention-days: 31
             - name: Remove the job worktree
               if: always()
               shell: bash
