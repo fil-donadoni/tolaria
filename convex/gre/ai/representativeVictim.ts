@@ -33,6 +33,16 @@ const REPRESENTATIVE_VICTIM_POWER = 2;
 const REPRESENTATIVE_VICTIM_TOUGHNESS = 2;
 const REPRESENTATIVE_VICTIM_MANA_VALUE = 2;
 
+/** The representative victim's BODY alone — its realised loss without the
+ *  flat board-presence weight. Weight-free, so the fit can bound
+ *  `latent.boardRemoval` against it (`FIT_BANDS`, `verdicts/fit.ts`). */
+export const REPRESENTATIVE_VICTIM_BODY = creatureValueRaw(
+    REPRESENTATIVE_VICTIM_POWER,
+    REPRESENTATIVE_VICTIM_TOUGHNESS,
+    REPRESENTATIVE_VICTIM_MANA_VALUE,
+    []
+);
+
 /** The weights a representative victim's realised loss reads. */
 export type RepresentativeVictimWeights = Pick<
     EvalWeights,
@@ -46,14 +56,7 @@ export type RepresentativeVictimWeights = Pick<
 export function representativeVictimLoss(
     weights: Pick<EvalWeights, "permanentWeight">
 ): number {
-    return (
-        creatureValueRaw(
-            REPRESENTATIVE_VICTIM_POWER,
-            REPRESENTATIVE_VICTIM_TOUGHNESS,
-            REPRESENTATIVE_VICTIM_MANA_VALUE,
-            []
-        ) + weights.permanentWeight
-    );
+    return REPRESENTATIVE_VICTIM_BODY + weights.permanentWeight;
 }
 
 /** Realised board loss of a representative permanent of one NON-creature
