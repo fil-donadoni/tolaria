@@ -14774,6 +14774,14 @@
         "source": "compiled"
     },
     {
+        "name": "Cut Down",
+        "scryfallId": "753db072-5d6a-4f37-8f7d-255572ecd3bd",
+        "oracleId": "1b30210d-10e9-4703-8967-032063bb4f26",
+        "firstSet": "dmu",
+        "firstPrintId": "753db072-5d6a-4f37-8f7d-255572ecd3bd",
+        "firstPrintSet": "dmu"
+    },
+    {
         "name": "Cutthroat Contender",
         "scryfallId": "6b23b3e4-58cf-4b5d-bdcb-410a403b4987",
         "oracleId": "43192553-0db9-48ec-ae88-a2605a6608d8",
