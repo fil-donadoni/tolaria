@@ -44,7 +44,7 @@ const GENERIC_BACK: FaceDownFace = { kind: "back", src: GENERIC_CARD_BACK_SRC };
  *    entire change if one is ever added.
  *  - `cast-face-down` — an effect-granted face-down cast (CR 708.4, ADR 0013)
  *    is not a keyword and has never had helper art.
- *  - `manifest` — CR 701.40 / 701.62 (issue #2072). Printed Magic has Manifest
+ *  - `manifest` — CR 701.40 / 701.62. Printed Magic has Manifest
  *    helper cards, but none the CDN serves under a printing id censused here,
  *    so it takes the generic back like `morph`, with the same one-row upgrade.
  *  - `face-down-exile` — a CR 406.3 face-down exiled card is a card lying face

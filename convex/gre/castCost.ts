@@ -587,7 +587,7 @@ export type CastExileCostBuild =
  *  cost a cast from the GRAVEYARD owes, as the `PendingCast` picker every
  *  commit path parks on, or `undefined` when this cast owes none.
  *
- *  A spell's OWN `additionalCosts.exileFromGraveyard` (issue #2072) rides the
+ *  A spell's OWN `additionalCosts.exileFromGraveyard` rides the
  *  same slot and is owed from ANY zone; it is checked first. Behind it, three
  *  independent graveyard-cast legs share the slot (no shipped card carries
  *  more than one), checked in the precedence `announceCast` has always used:
