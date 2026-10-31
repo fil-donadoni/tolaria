@@ -23458,6 +23458,58 @@ describe("Effect Script Op: lookDistribute filter/optional/randomBottom (issue #
         );
     });
 
+    // issue #7694 — the DEFAULT prompt (no `op.prompt`) must not ask the player
+    // to order a pile the engine shuffles. Discriminating pair: the same dig
+    // with and without `randomBottom`, read off the projected choice the
+    // client renders.
+    it.each([
+        {
+            randomBottom: true,
+            expected:
+                "Choose which card(s) to put into your hand, then put the rest on the bottom of your library in a random order.",
+        },
+        {
+            randomBottom: false,
+            expected:
+                "Choose which card(s) to put into your hand, then order the rest on the bottom of your library.",
+        },
+    ])(
+        "default prompt names who orders the bottom (randomBottom: $randomBottom)",
+        ({ randomBottom, expected }) => {
+            const id = registerScript(
+                `test-op-dig-prompt-random-${randomBottom}`,
+                [
+                    {
+                        op: "lookDistribute",
+                        keepTo: "hand",
+                        player: "controller",
+                        look: 3,
+                        take: 1,
+                        randomBottom,
+                    },
+                ]
+            );
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        library: mixedLib("p1", [
+                            ["s1", NC_INSTANT_ID],
+                            ["s2", NC_INSTANT_ID],
+                            ["s3", NC_INSTANT_ID],
+                        ]),
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            refreshExpectedInput(state);
+            const head = projectPublicState(state, 1, "p1").pendingChoices![0];
+            expect(head.kind).toBe("look-distribute");
+            expect(head.prompt).toBe(expected);
+        }
+    );
+
     it("randomBottom leaves the bottomed cards UNKNOWN to the controller (no markKnown)", () => {
         const id = registerScript("test-op-dig-narset-unknown", [narsetDig]);
         const state = makeState({
