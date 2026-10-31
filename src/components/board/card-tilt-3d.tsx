@@ -3,11 +3,19 @@ import { useReducedMotion } from "motion/react";
 import { CARD_TILT } from "~/lib/board-motion";
 import { cardTiltFrame } from "~/lib/card-tilt-frame";
 
-/** Puts the card in a 3D rendering context for the tilt: perspective on the
- *  root, `preserve-3d` + a compositor hint on the inner element. */
+/** Engages the tilt: perspective on the root (what projects the inner
+ *  element's `rotateX`/`rotateY`/`translateZ`) + a compositor hint on the inner
+ *  element.
+ *
+ *  **Never `transform-style: preserve-3d`** (issue #7707). Nothing below the
+ *  inner element leaves the card's plane — the face, the tap-rotation layer and
+ *  the glare are all 2D — so preserve-3d bought no depth, and toggling it is
+ *  what made Gecko (Firefox, Zen) stop painting a tapped permanent: once the
+ *  context was dropped from the parent of the 90°-rotated tap layer, the card
+ *  stayed blank with every computed style clean. Declared attackers are tapped,
+ *  so the pointer crossing them during combat erased them from the board. */
 function engage3D(root: HTMLElement, inner: HTMLElement) {
     root.style.perspective = `${CARD_TILT.perspectivePx}px`;
-    inner.style.transformStyle = "preserve-3d";
     inner.style.willChange = "transform";
 }
 
@@ -18,7 +26,6 @@ function flatten(root: HTMLElement | null, inner: HTMLElement | null) {
     if (inner) {
         inner.style.transition = "";
         inner.style.transform = "";
-        inner.style.transformStyle = "";
         inner.style.willChange = "";
     }
 }
@@ -70,6 +77,8 @@ type CardTilt3DProps = {
  * 0.51–0.62 at four of five viewports flat, 0.00–0.02 with the context
  * dropped. The first `pointermove` engages it ({@link engage3D}); the reset
  * eases back to flat and, once the settle is over, drops it ({@link flatten}).
+ * The engaged context is `perspective` + `will-change` only — never
+ * `preserve-3d`, whose toggling blanks tapped cards in Gecko ({@link engage3D}).
  *
  * **Follows the card's visual orientation, without moving in under it**
  * (issue #2551). A tapped permanent rotates a presentational layer 90° while
@@ -184,12 +193,13 @@ export default function CardTilt3D({
             onPointerCancel={inert ? undefined : reset}
             // Suppress the native "Save image…" menu for tilt-wrapped cards
             // (hand + battlefield) at the ONE spot guaranteed to see the event.
-            // `transform-style: preserve-3d` (while tilted) + the inner
-            // `overflow-hidden`/`contain: paint` art box flatten hit-testing,
-            // so the real `contextmenu` can land on the flattened box OUTSIDE
-            // the card's `CardPreview` handler subtree — a card-local
-            // `onContextMenu` then misses it intermittently and the native
-            // menu wins. This root is an
+            // While the tilt engaged `transform-style: preserve-3d` (until issue
+            // #7707), that context + the inner `overflow-hidden`/`contain:
+            // paint` art box flattened hit-testing, so the real `contextmenu`
+            // could land on the flattened box OUTSIDE the card's `CardPreview`
+            // handler subtree — a card-local `onContextMenu` then missed it
+            // intermittently and the native menu won. Kept as the defensive
+            // catch-all: this root is an
             // ANCESTOR of every candidate target inside the tilt, so the bubbling
             // `contextmenu` always reaches it. preventDefault only cancels the
             // native menu — it does NOT stopPropagation, so a battlefield card's
