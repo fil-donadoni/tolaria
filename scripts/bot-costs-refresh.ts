@@ -19,6 +19,7 @@ import { COSTS_PATH, REFRESH_BRANCH_PREFIX } from "./lib/bot-test-costs";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { gh } from "./lib/gh";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { proofNoneOwedLine } from "./lib/proof-receipt";
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const ON_BASE = "--on-base";
@@ -99,6 +100,8 @@ function main(): void {
         "## Preset scenario",
         "",
         "none owed — a data refresh, no card or gameplay change.",
+        "",
+        proofNoneOwedLine("a data refresh, no guarding test"),
     ].join("\n");
     const url = gh([
         "pr",
