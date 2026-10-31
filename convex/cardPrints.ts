@@ -172,22 +172,44 @@ export const upsertDefinitionTokensBatch = internalMutation({
 });
 
 /**
- * Are the Token Print tables filled? `bun run prints:sync --if-empty` asks
- * before downloading the Scryfall bulk (issue #5414): empty tables make every
- * token render the placeholder, with no error anywhere else. Point reads only
- * (`.first()`), never a count.
+ * Are the Token Print tables filled, and against which definition set? `bun
+ * run prints:sync --if-stale` asks before downloading the Scryfall bulk
+ * (issue #5414, issue #7690): empty or stale tables make a token render the
+ * placeholder, with no error anywhere else. Point reads only (`.first()`),
+ * never a count.
  */
 export const populated = internalQuery({
     args: {},
     returns: v.object({
         cardPrints: v.boolean(),
         definitionTokenPrints: v.boolean(),
+        syncedDigest: v.union(v.string(), v.null()),
     }),
     handler: async (ctx) => ({
         cardPrints: (await ctx.db.query("cardPrints").first()) !== null,
         definitionTokenPrints:
             (await ctx.db.query("definitionTokenPrints").first()) !== null,
+        syncedDigest:
+            (await ctx.db.query("printsSyncState").first())
+                ?.definitionSetDigest ?? null,
     }),
+});
+
+/**
+ * Record the definition-set digest a sync just covered (issue #7690) — the
+ * last call of a successful `prints:sync`, after both upserts. One row,
+ * patched in place.
+ */
+export const recordSync = internalMutation({
+    args: { definitionSetDigest: v.string() },
+    returns: v.null(),
+    handler: async (ctx, { definitionSetDigest }) => {
+        const row = { definitionSetDigest, syncedAt: Date.now() };
+        const existing = await ctx.db.query("printsSyncState").first();
+        if (existing) await ctx.db.patch(existing._id, row);
+        else await ctx.db.insert("printsSyncState", row);
+        return null;
+    },
 });
 
 /**

@@ -64,6 +64,24 @@ describe("resolveScenarioBattlefieldCounters — real loyalty counters (CR 306.5
         expect(out).toEqual({ loyalty: 6 });
     });
 
+    it("folds any letters-only counter type onto its lowercase engine key (issue #7691)", () => {
+        // Dark Depths' state trigger reads `counters["ice"]`: a scenario
+        // typed "Ice" must seed real ice counters, not an inert "Ice" key.
+        const out = resolveScenarioBattlefieldCounters(
+            { Ice: 8 },
+            { isPlaneswalker: false }
+        );
+        expect(out).toEqual({ ice: 8 });
+    });
+
+    it("keeps non-alphabetic counter keys verbatim (+1/+1, imprint-G)", () => {
+        const out = resolveScenarioBattlefieldCounters(
+            { "+1/+1": 2, "imprint-G": 1 },
+            { isPlaneswalker: false }
+        );
+        expect(out).toEqual({ "+1/+1": 2, "imprint-G": 1 });
+    });
+
     it("treats an explicit loyalty counter as authoritative (does not add printed)", () => {
         const out = resolveScenarioBattlefieldCounters(
             { LOYALTY: 9 },
