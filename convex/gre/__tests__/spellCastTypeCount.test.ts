@@ -1,4 +1,4 @@
-// Per-card-type spell-cast-this-turn tally (CR 601.2i, CR 205.2a) —
+// Per-card-type spell-cast-this-turn tally (CR 601.2i, CR 205.2b) —
 // `PlayerState.spellTypesCastThisTurn` + `SpellCastEvent.
 // casterSpellTypeCountsThisTurn`, written at the cast choke point
 // (`emitSpellCastEvent`), and `nthSpellOfTypeThisTurn`, the reusable
@@ -27,7 +27,7 @@ function cast(state: GameState, cardId: string, casterId = "p1") {
     return casts[casts.length - 1];
 }
 
-describe("per-type spell-cast tally (CR 601.2i, CR 205.2a)", () => {
+describe("per-type spell-cast tally (CR 601.2i, CR 205.2b)", () => {
     it("counts a spell once under each of its types and snapshots the prior tally on SPELL_CAST", () => {
         const state = makeState();
         const first = cast(state, GRIZZLY_BEARS);

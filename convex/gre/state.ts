@@ -7933,7 +7933,7 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     // (cards/abilities/triggers/spellCastTrigger.ts).
     const casterSpellCountThisTurn = caster?.spellsCastThisTurn ?? 0;
     if (caster) caster.spellsCastThisTurn = casterSpellCountThisTurn + 1;
-    // The same tally split by card type (CR 205.2a): read before increment,
+    // The same tally split by card type (CR 205.2b): read before increment,
     // then each of the spell's types advances by one ("your second creature
     // spell", "your fourth noncreature spell").
     const casterSpellTypeCountsThisTurn = {
