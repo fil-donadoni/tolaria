@@ -48,9 +48,9 @@ describe("the sentinel derivation (issue #7651)", () => {
     it("counts each list once per file, joins the cost and keeps only what the tree keeps", () => {
         const got = collectCandidates(
             [[A, A, B], [A]],
-            [[C], ["docs/x.md"]],
+            [[C], ["convex/gre/sba.ts"]],
             { [A]: 16, [B]: 1_101 },
-            (f) => f !== "docs/x.md"
+            (f) => f !== "convex/gre/sba.ts"
         );
         expect(got).toEqual([
             { file: A, reds: 2, laneReds: 0, ms: 16 },

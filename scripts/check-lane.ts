@@ -703,7 +703,6 @@ export function classifyLane(
                 ...sentinelNote(sentinels, FULL_LANE_SENTINELS),
             ],
             botReach: bot.reach,
-            ...sentinelsField(sentinels.read()?.sentinels ?? []),
         };
     }
 
@@ -1255,9 +1254,8 @@ function guardsField(guards: readonly ScanGuard[]): Pick<LanePlan, "guards"> {
         : { guards: guards.map((g) => ({ file: g.file, costS: g.costS })) };
 }
 
-/** The sentinel steps' ids: the general projects, then the bot fast lane's. */
+/** The sentinel step's id. */
 export const SENTINEL_STEP = "vitest(sentinels)";
-export const SENTINEL_BOT_STEP = "vitest(sentinels:bot)";
 
 /** A file another planned step already runs whole: an admitted scan guard,
  *  or a bot file an admitted cheap guard runs (`runsBotFiles`). */
@@ -1278,7 +1276,7 @@ function alreadyRunBy(
  * A scoped code lane's sentinel set (issue #7651): the committed
  * `SENTINELS_PATH` — derived from the base's REDs and the queue's lane reds,
  * already under `laneSentinels.capS` — run WHATEVER the import graph says, in
- * one vitest run per suite (the general projects, then the bot fast lane's).
+ * one vitest run over the projects they belong to.
  * The reached-tests and bot-admission steps drop these files so none runs
  * twice, and a sentinel never spends the bot budget. Named, never dropped
  * silently: the files over the cap or unmeasured (from the file), and one no
@@ -1310,8 +1308,7 @@ function plannedSentinels(
             files: new Set(),
             admitted: [],
         };
-    const general: { file: string; project: RelatedProject }[] = [];
-    const bot: { file: string; project: BotProject }[] = [];
+    const runs: { file: string; project: RelatedProject | BotProject }[] = [];
     const admitted: { file: string; ms: number }[] = [];
     const gone: string[] = [];
     for (const s of set.sentinels) {
@@ -1321,10 +1318,8 @@ function plannedSentinels(
             continue;
         }
         admitted.push(s);
-        if (ranElsewhere(s.file, project)) continue;
-        if (project === "bot-node" || project === "bot-dom")
-            bot.push({ file: s.file, project });
-        else general.push({ file: s.file, project });
+        if (!ranElsewhere(s.file, project))
+            runs.push({ file: s.file, project });
     }
     const listed = (xs: { file: string; ms: number }[]) =>
         xs.map((x) => `${x.file} (${formatCost(x.ms)})`).join(", ");
@@ -1343,27 +1338,24 @@ function plannedSentinels(
             id: `${SENTINEL_STEP}:gone`,
             reason: `no longer a test of a lane project in this tree: ${gone.join(", ")}`,
         });
-    const step = (
-        id: string,
-        prefix: string,
-        xs: { file: string; project: string }[]
-    ): PlannedCheck[] => {
-        if (xs.length === 0) return [];
-        const projects = [...new Set(xs.map((x) => x.project))].sort();
-        return [
-            {
-                id,
-                command: `${prefix}bunx vitest run ${projects.map((p) => `--project ${p}`).join(" ")} ${xs.map((x) => shellQuote(x.file)).join(" ")}`,
-            },
-        ];
-    };
+    // ONE run over every project a sentinel is in: vitest starts once, and a
+    // bare `bunx vitest run` is what `--retry-flaky` re-runs (a set made of
+    // files that went red must get the queue's one retry). No
+    // `TOLARIA_BOT_FAST`: it only adds the heavy deny-list to the excludes,
+    // and an excluded file NAMED here would match nothing.
+    const projects = [...new Set(runs.map((x) => x.project))].sort();
     return {
-        run: [
-            ...step(SENTINEL_STEP, "", general),
-            ...step(SENTINEL_BOT_STEP, "TOLARIA_BOT_FAST=1 ", bot),
-        ],
+        run:
+            runs.length === 0
+                ? []
+                : [
+                      {
+                          id: SENTINEL_STEP,
+                          command: `bunx vitest run ${projects.map((p) => `--project ${p}`).join(" ")} ${runs.map((x) => shellQuote(x.file)).join(" ")}`,
+                      },
+                  ],
         skip,
-        files: new Set([...general, ...bot].map((x) => x.file)),
+        files: new Set(runs.map((x) => x.file)),
         admitted,
     };
 }

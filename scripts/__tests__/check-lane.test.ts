@@ -25,7 +25,6 @@ import {
     BOT_FAST_LANE,
     BOT_STEP,
     SENTINEL_STEP,
-    SENTINEL_BOT_STEP,
     type BotReachSource,
     type SentinelSource,
     type LanePlan,
@@ -3328,11 +3327,10 @@ describe("every code lane runs the derived sentinel set (issue #7651)", () => {
     it("an engine diff the walk never connects to them still runs the sentinels, per suite", () => {
         const p = plan(["scripts/gate.ts"]);
         expect(p.lane).toBe("engine");
-        expect(step(p, SENTINEL_BOT_STEP)).toBe(
-            `TOLARIA_BOT_FAST=1 bunx vitest run --project bot-node '${RATINGS}' '${PAIRS}'`
-        );
+        // One run, every project a sentinel is in, no env prefix: a bare
+        // `bunx vitest run` is what `--retry-flaky` re-runs.
         expect(step(p, SENTINEL_STEP)).toBe(
-            `bunx vitest run --project dom '${SCAN}'`
+            `bunx vitest run --project bot-node --project dom '${RATINGS}' '${SCAN}' '${PAIRS}'`
         );
         expect(p.sentinels).toEqual([
             { file: RATINGS, ms: 16 },
@@ -3353,7 +3351,7 @@ describe("every code lane runs the derived sentinel set (issue #7651)", () => {
         );
         expect(step(p, "vitest(related)")).toBeUndefined();
         expect(step(p, SENTINEL_STEP)).toContain(SCAN);
-        expect(step(p, SENTINEL_BOT_STEP)).toContain(RATINGS);
+        expect(step(p, SENTINEL_STEP)).toContain(RATINGS);
     });
 
     it("the files over the cap, unmeasured or gone from the tree are skip lines with their cost", () => {
@@ -3390,15 +3388,14 @@ describe("every code lane runs the derived sentinel set (issue #7651)", () => {
             );
         const p = sp(["convex/gre/search.ts"]);
         expect(p.run.map((c) => c.id)).toContain("search-cost");
-        expect(step(p, SENTINEL_BOT_STEP)).not.toContain(SEARCH_COST_TEST);
-        expect(step(p, SENTINEL_BOT_STEP)).toContain(RATINGS);
+        expect(step(p, SENTINEL_STEP)).not.toContain(SEARCH_COST_TEST);
+        expect(step(p, SENTINEL_STEP)).toContain(RATINGS);
     });
 
     it("the cards lane runs none, and says so", () => {
         const p = plan(["convex/cards/sets/lea/red.cards.ts"]);
         expect(p.lane).toBe("cards");
         expect(step(p, SENTINEL_STEP)).toBeUndefined();
-        expect(step(p, SENTINEL_BOT_STEP)).toBeUndefined();
         expect(p.sentinels).toBeUndefined();
         expect(skipOf(p, SENTINEL_STEP)).toMatch(/runs none/);
     });
@@ -3408,7 +3405,8 @@ describe("every code lane runs the derived sentinel set (issue #7651)", () => {
         expect(p.lane).toBe("full");
         expect(step(p, SENTINEL_STEP)).toBeUndefined();
         expect(skipOf(p, SENTINEL_STEP)).toMatch(/whole/);
-        expect(p.sentinels).toHaveLength(4);
+        // The heading lists what the plan RUNS; the skip line accounts.
+        expect(p.sentinels).toBeUndefined();
     });
 
     it("--plan prints the set under its own heading, each file with its cost", () => {

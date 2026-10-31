@@ -41,6 +41,7 @@ import {
 } from "./lib/lane-sentinels";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { botTests, generalTests } from "./lib/test-reach";
+import { laneRecord } from "./lib/workflow-trends";
 import {
     DOWNLOADS_AT_ONCE,
     QUEUE_LANE_ARTIFACT,
@@ -115,7 +116,12 @@ async function laneReds(fromDay: string): Promise<string[][]> {
         const texts = await pooled(rows, DOWNLOADS_AT_ONCE, (r) =>
             artifactText(dir, r.databaseId, QUEUE_LANE_ARTIFACT, "lane.json")
         );
-        return texts.map(laneRedFiles).filter((fs) => fs.length > 0);
+        // A stale generated artefact (`regenerable`, `pr:fixup`'s rows) is
+        // no regression: only a `red` record names sentinels.
+        return texts
+            .filter((t) => laneRecord(t).lane === "red")
+            .map(laneRedFiles)
+            .filter((fs) => fs.length > 0);
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

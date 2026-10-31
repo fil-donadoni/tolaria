@@ -48,7 +48,8 @@ jobs:
             - name: bot:costs:refresh
               run: bun run bot:costs:refresh
             - name: lane:sentinels (weekly)
-              if: github.event_name == 'workflow_dispatch' || github.event.schedule == '45 4 * * 1'
+              # Its own refresh, whatever the cost table's step did.
+              if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event.schedule == '45 4 * * 1') }}
               run: bun run lane:sentinels --pr
             - name: Remove the job worktree
               if: always()

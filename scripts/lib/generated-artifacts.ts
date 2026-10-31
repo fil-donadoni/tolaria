@@ -407,6 +407,11 @@ export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
         why: "`bot:costs` reads health's per-file walls on the gating machine; moves only in a deliberate refresh PR (issue #6943)",
     },
     {
+        pattern: "data/lane-sentinels.json",
+        kind: "not-offline",
+        why: "`lane:sentinels` reads the base's RED verdicts and the queue's lane records on GitHub; moves only in the weekly refresh PR (issue #7651)",
+    },
+    {
         pattern: "data/grammar-gaps.json",
         kind: "not-offline",
         why: "`gaps:sync` records the GitHub issues it files there",

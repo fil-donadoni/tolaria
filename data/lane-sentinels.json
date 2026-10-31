@@ -14,7 +14,7 @@
         {
             "file": "convex/gre/__tests__/creatureKeywordBonus.bot.test.ts",
             "reds": 2,
-            "laneReds": 1,
+            "laneReds": 2,
             "ms": 16
         },
         {
