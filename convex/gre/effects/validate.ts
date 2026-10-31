@@ -8337,6 +8337,13 @@ function checkOpListRefs(
     // not an instance id, and is family-indistinguishable) can never be a
     // candidate source. Same list scoping as `revealedBindings` above.
     const publicZoneBindings = new Map<string, string>();
+    // Which public ZONE a `publicZoneBindings` set sits in, recorded only
+    // where the destination is certain: an exile set read by a graveyard
+    // pick intersects with nothing (the zone-owner mismatch's silent
+    // half-effect). A move INTO a graveyard is not recorded — a CR 614.1a
+    // replacement can send it to exile instead (a mill read by an exile pick
+    // stays legal).
+    const publicZoneBindingZones = new Map<string, "graveyard" | "exile">();
     // CR 402.3 / 701.20a (issue #2150) — whose HAND this list has already
     // revealed, serialized exactly as `revealedBindings` serializes a reveal's
     // player ref. A filtered hand `count` reads characteristics of cards in a
@@ -8821,6 +8828,7 @@ function checkOpListRefs(
                 entry.bindAll,
                 JSON.stringify(entry.player ?? null)
             );
+            publicZoneBindingZones.set(entry.bindAll, "exile");
         }
         // CR 400.2 — a `moveZone` of a bound picks set into a graveyard or
         // exile makes THAT binding a public-zone set: the cards it names now
@@ -8840,6 +8848,12 @@ function checkOpListRefs(
                 (entry.cards as { ref: string }).ref,
                 JSON.stringify(entry.player ?? null)
             );
+            if (entry.to === "exile") {
+                publicZoneBindingZones.set(
+                    (entry.cards as { ref: string }).ref,
+                    "exile"
+                );
+            }
         }
 
         // CR 608.2h (issue #2384) — `captureBinding.ref` is a BARE binding
@@ -8984,6 +8998,7 @@ function checkOpListRefs(
                 entry.bind,
                 JSON.stringify(entry.zoneOwnerId ?? entry.player ?? null)
             );
+            publicZoneBindingZones.set(entry.bind, entry.zone);
         }
 
         // CR 400.2 (issue #2600) — a PUBLIC-zone `candidates` set names cards
@@ -9041,6 +9056,13 @@ function checkOpListRefs(
                 if (boundZoneOwner === undefined) {
                     errors.push(
                         `${at}: zone "${entry.zone}" candidate "${ref}" names a picks binding whose cards are not known to be in a public zone — only a mill's bindAll or an earlier graveyard/exile choice's bind can source one (a nameCard bind, for instance, stores a card NAME and would match nothing)`
+                    );
+                    continue;
+                }
+                const boundZone = publicZoneBindingZones.get(ref);
+                if (boundZone !== undefined && boundZone !== entry.zone) {
+                    errors.push(
+                        `${at}: zone "${entry.zone}" candidate "${ref}" holds cards in the ${boundZone}, not the ${entry.zone} being picked from — the two sets never intersect`
                     );
                     continue;
                 }

@@ -5486,6 +5486,25 @@ describe("validateEffectScript — choice candidates / bindOther", () => {
             expect(errors.join("\n")).not.toContain('candidate "$fromHand"');
         });
 
+        it("rejects an EXILED set read by a graveyard pick — the sets never intersect", () => {
+            const effects = exileThenPick(false).map((op) =>
+                (op as { op: string }).op === "choice"
+                    ? ({
+                          ...(op as object),
+                          kind: "choose-graveyard-card",
+                          zone: "graveyard",
+                      } as EffectOp)
+                    : op
+            );
+            const errors = validateEffectScript(host({ effects }));
+            expect(errors.join("\n")).toContain(
+                'candidate "$top" holds cards in the exile, not the graveyard being picked from'
+            );
+            expect(errors.join("\n")).toContain(
+                'candidate "$fromHand" holds cards in the exile, not the graveyard being picked from'
+            );
+        });
+
         it("rejects a random pick that never moved into a public zone", () => {
             const effects = exileThenPick(false).filter(
                 (op) => (op as { op: string }).op !== "moveZone"
