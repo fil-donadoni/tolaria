@@ -3604,7 +3604,7 @@ export const OP_EXECUTORS: {
         ctx.restrictLandPlay(playerId);
     },
     // CR 305.2 (issue #7220) — grant turn-scoped additional land plays
-    // (Explore). Skipped when the player is gone (CR 608.2b).
+    // (Explore). Skipped when the player is gone.
     grantExtraLandDrops(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;

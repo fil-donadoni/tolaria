@@ -16171,7 +16171,7 @@ export type EffectOp =
      *  static, outliving the spell that granted it. It deliberately does NOT
      *  play a land, put one onto the battlefield (CR 305.4), or lift a
      *  "can't play lands" restriction (CR 101.2). Skipped when the player
-     *  cannot be resolved (CR 608.2b). */
+     *  cannot be resolved. */
     | { op: "grantExtraLandDrops"; player: EffectPlayerRef; count: number }
     /** CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary's "you skip your
      *  draw step this turn"). A thin declarative skin over
