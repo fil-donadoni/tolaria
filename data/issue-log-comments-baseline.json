@@ -287,7 +287,6 @@
     "scripts/pr-checks.ts#58c5a9054e",
     "scripts/pr-fixup.ts#5ef8447c7d",
     "scripts/pr-fixup.ts#7c832304de",
-    "scripts/prints-sync.ts#3d53a7a5ae",
     "scripts/purge-identity-tests.ts#2498981475",
     "scripts/target-bot-reach.ts#2feb499a74",
     "scripts/ui-gate/attempt-console.ts#4edf4833a1",

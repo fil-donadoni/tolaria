@@ -1386,13 +1386,26 @@ export const SCENARIO_SPEC_KEYS = Object.keys(
 export const LOYALTY_COUNTER = "loyalty";
 
 /**
+ * The engine key for a free-text scenario counter type (issue #7691). The
+ * engine keys counters by lowercase name (`counters["ice"]`,
+ * `counters["loyalty"]`), so a key made only of letters is lower-cased. Any
+ * other key is kept verbatim: `+1/+1` has no case, and an engine-internal
+ * marker a captured position carries (Chrome Mox's `imprint-G`) is
+ * case-significant.
+ */
+export function canonicalScenarioCounterKey(type: string): string {
+    return /^[A-Za-z]+$/.test(type) ? type.toLowerCase() : type;
+}
+
+/**
  * Resolve the counters a scenario places on a BATTLEFIELD card into the engine's
  * canonical shape. Two corrections over the raw spec record:
  *
- *  1. **Loyalty key canonicalization.** The editor's counter *type* is free
- *     text, so any case variant of the loyalty key ("Loyalty", "LOYALTY") is
- *     folded onto the lowercase `loyalty` the engine reads — otherwise the
- *     value renders as an inert cosmetic counter instead of real loyalty.
+ *  1. **Counter key canonicalization** (`canonicalScenarioCounterKey`). The
+ *     editor's counter *type* is free text, so any case variant of a counter
+ *     name ("Loyalty", "Ice") is folded onto the lowercase key the engine
+ *     reads — otherwise the value is an inert counter no rule reads (issue
+ *     #7691: Dark Depths seeded `{ Ice: 8 }` read 0 ice counters).
  *  2. **Planeswalker starting loyalty (CR 306.5b).** A planeswalker placed by
  *     the scenario builder bypasses the normal ETB path (`gre/state.ts`), which
  *     is where a walker is seeded with loyalty counters equal to its printed
@@ -1409,9 +1422,7 @@ export function resolveScenarioBattlefieldCounters(
 ): Record<string, number> | undefined {
     const counters: Record<string, number> = {};
     for (const [type, n] of Object.entries(rawCounters ?? {})) {
-        const key =
-            type.toLowerCase() === LOYALTY_COUNTER ? LOYALTY_COUNTER : type;
-        counters[key] = n;
+        counters[canonicalScenarioCounterKey(type)] = n;
     }
     if (
         pw.isPlaneswalker &&

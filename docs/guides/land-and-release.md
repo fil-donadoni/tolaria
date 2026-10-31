@@ -299,25 +299,36 @@ production deploy.
 `bun run health:status` shows the last verdict at any time. `bun run health`
 runs the same gate by hand (`--branch=<name>` picks the tip).
 
-### Card Prints tables: where `prints:sync` runs (issue #5414)
+### Card Prints tables: where `prints:sync` runs (issue #5414, issue #7690)
 
-Token art resolves from the `cardPrints` and `definitionTokenPrints` tables;
-while they are empty every token renders the placeholder, with no error. Three
-places fill them, all through `bun scripts/prints-sync.ts`:
+Token art resolves from the `cardPrints` and `definitionTokenPrints` tables
+(ADR 0140 §4); a card with no rows there renders its tokens as the
+placeholder, with no error. Every automatic run uses `--if-stale`: it skips
+only when both tables have rows AND the `printsSyncState` row holds the digest
+of the CURRENT definition set (`data/card-index.json` Card IDs + rarity
+overrides). A landed card changes the digest, so the next run syncs. (Before
+issue #7690 the flag was `--if-empty`, which skipped once the tables held any
+row: 64 definitions had lost their Token Prints.) Four places run it, all
+through `bun scripts/prints-sync.ts`:
 
-- **Local deployment**: `bun run dev` runs `bun run prints:ensure`
-  (`--if-empty --warn-only`) after `catalogue:ensure`. A first start downloads
-  the Scryfall bulk and fills the tables; later starts only ask the deployment
-  and skip. A failure prints `prints-sync: FAILED` and `dev` continues. By
-  hand: `bun run prints:sync`.
+- **Local deployment, at start**: `bun run dev` runs `bun run prints:ensure`
+  (`--if-stale --warn-only`) after `catalogue:ensure`. A stale or empty
+  deployment downloads the Scryfall bulk and syncs; a fresh one costs one
+  query. A failure prints `prints-sync: FAILED` and `dev` continues.
+- **Local deployment, after a landing**: `post-merge`'s seed leg runs
+  `prints-sync --if-stale --warn-only` after fast-forwarding the primary,
+  before seeding preset scenarios, so a new card's scenario opens with its
+  token art.
 - **Production**: the push of the release branch triggers the hosting build,
   whose `buildCommand` in `vercel.json` ends with `bun run prints:sync:deploy`
-  (`--deploy --if-empty --warn-only`) right after `convex deploy`, so the
+  (`--deploy --if-stale --warn-only`) right after `convex deploy`, so the
   functions it calls exist. `--deploy` writes to the deployment
-  `CONVEX_DEPLOY_KEY` selects, `--prod` included; with no key it is an error,
-  never a local write. Once filled, every later deploy skips. Failure is loud
-  in the build log but does not red the deploy: rerun
-  `CONVEX_DEPLOY_KEY=… bun run prints:sync:deploy` by hand.
+  `CONVEX_DEPLOY_KEY` selects; with no key it is an error, never a local
+  write. Failure is loud in the build log but does not red the deploy.
+- **By hand**: `bun run prints:sync` (local) or
+  `bun scripts/prints-sync.ts --prod` (production through your Convex CLI
+  login; refuses when a deploy key is in the shell). Both sync
+  unconditionally and record the digest.
 - `--dry-run` builds the rows and writes nothing.
 
 ### The RED path: the fix loop

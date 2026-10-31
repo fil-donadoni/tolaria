@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * `bun run prints:sync [--dry-run]` — ADR 0140, issue #4116.
+ * `bun run prints:sync [--dry-run]` — ADR 0140 (Card Prints tables).
  *
  * Reads Scryfall's `default_cards` bulk and keeps every printing of every
  * oracle id with a Card Definition (`data/card-index.json`), except oversized
@@ -9,7 +9,7 @@
  *
  * The printing whose id IS the Card ID gets no `cardPrints` row, but when it
  * links a token its Token Prints go to `definitionTokenPrints`
- * (`cardPrints:upsertDefinitionTokensBatch`, issue #4120) — the row an object
+ * (`cardPrints:upsertDefinitionTokensBatch`) — the row an object
  * on its default printing resolves its tokens through.
  *
  * Two modes:
@@ -23,15 +23,20 @@
  *                                      bytes, WRITES NOTHING (no Convex call
  *                                      at all).
  *
- * Bootstrap flags (issue #5414 — empty tables make every token render the
+ * Bootstrap flags (empty or stale tables make a token render the
  * placeholder, silently):
  *
- *   --if-empty    skip (before the Scryfall download) when both tables
- *                 already have rows. `bun run prints:ensure` and the
- *                 hosting build use it, so they cost nothing once filled.
+ *   --if-stale    skip (before the Scryfall download) when both tables have
+ *                 rows AND the last successful sync recorded the CURRENT
+ *                 definition-set digest (issue #7690). `bun run
+ *                 prints:ensure`, the hosting build and `post-merge` use it,
+ *                 so a landed card gets its Token Prints and a fresh
+ *                 deployment costs one query.
  *   --deploy      write to the deployment CONVEX_DEPLOY_KEY selects instead
  *                 of the local one (`bun run prints:sync:deploy`, chained
  *                 after `convex deploy` in `vercel.json`).
+ *   --prod        write to the production deployment through the Convex CLI
+ *                 login (`seed:preset --prod`'s target) — the by-hand repair.
  *   --warn-only   a failure prints loudly and exits 0, for chains a red exit
  *                 would block for an unrelated reason (`dev`, a deploy).
  */
@@ -41,10 +46,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import {
-    emptyPrintTables,
-    emptyTablesMessage,
+    definitionSetDigest,
+    deploymentPredatesSyncState,
     parsePrintsSyncArgs,
     printsSyncTarget,
+    syncOwed,
     type PrintsPopulated,
 } from "./lib/prints-sync-run";
 import type { SeedTargetPlan } from "./lib/seed-preset-run";
@@ -76,13 +82,14 @@ function readCardIndex(): CardIndexRow[] {
     }));
 }
 
-async function buildRows(): Promise<{
+async function buildRows(
+    definitionByOracleId: ReadonlyMap<string, string>,
+    overrides: ReturnType<typeof loadRarityOverrides>
+): Promise<{
     rows: CardPrintRow[];
     definitionTokens: DefinitionTokenRow[];
     scanned: number;
 }> {
-    const definitionByOracleId = buildDefinitionIndex(readCardIndex());
-    const overrides = loadRarityOverrides();
     const rows: CardPrintRow[] = [];
     const definitionTokens: DefinitionTokenRow[] = [];
     let scanned = 0;
@@ -113,7 +120,8 @@ function runDryRun(
 function runWrite(
     plan: Required<SeedTargetPlan>,
     rows: readonly CardPrintRow[],
-    definitionTokens: readonly DefinitionTokenRow[]
+    definitionTokens: readonly DefinitionTokenRow[],
+    digest: string
 ): void {
     upsertAll(plan, "cardPrints:upsertBatch", rows, "matched rows");
     upsertAll(
@@ -122,12 +130,20 @@ function runWrite(
         definitionTokens,
         "definition token rows"
     );
+    // Recorded only after BOTH upserts succeeded (each throws on a failed
+    // batch): a half-written sync stays stale and the next run repeats it.
+    convexRun(plan, "cardPrints:recordSync", { definitionSetDigest: digest });
+    console.log(`SYNC — recorded definition-set digest ${digest.slice(0, 12)}`);
 }
 
-function readPopulated(plan: Required<SeedTargetPlan>): PrintsPopulated {
+function convexRun(
+    plan: Required<SeedTargetPlan>,
+    fn: string,
+    args: Record<string, unknown> = {}
+): string {
     const result = spawnSync(
         "npx",
-        ["convex", "run", ...plan.flags, "cardPrints:populated"],
+        ["convex", "run", ...plan.flags, fn, JSON.stringify(args)],
         { cwd: plan.cwd, encoding: "utf8", timeout: 120_000 }
     );
     if (result.error || result.status !== 0) {
@@ -139,7 +155,13 @@ function readPopulated(plan: Required<SeedTargetPlan>): PrintsPopulated {
                   )
         );
     }
-    return JSON.parse((result.stdout ?? "").trim()) as PrintsPopulated;
+    return (result.stdout ?? "").trim();
+}
+
+function readPopulated(plan: Required<SeedTargetPlan>): PrintsPopulated {
+    return JSON.parse(
+        convexRun(plan, "cardPrints:populated")
+    ) as PrintsPopulated;
 }
 
 function upsertAll(
@@ -192,27 +214,48 @@ async function sync(
     args: ReturnType<typeof parsePrintsSyncArgs>
 ): Promise<void> {
     const target = printsSyncTarget(args);
+    // Read ONCE, before the download: the rows are built from this
+    // definition set, and the digest recorded (issue #7690) is ITS digest
+    // even if a fast-forward rewrites card-index.json mid-sync.
+    const definitionByOracleId = buildDefinitionIndex(readCardIndex());
+    const overrides = loadRarityOverrides();
+    const digest = definitionSetDigest(
+        definitionByOracleId.values(),
+        overrides
+    );
     const plan = target.cwd ? (target as Required<SeedTargetPlan>) : null;
     if (!args.dryRun) {
         if (!plan) throw new Error(target.error ?? "no deployment selected");
-        if (args.ifEmpty) {
-            const empty = emptyPrintTables(readPopulated(plan));
-            if (empty.length === 0) {
-                console.log("prints-sync: tables already populated, skipping.");
+        if (args.ifStale) {
+            const populated = readPopulated(plan);
+            if (deploymentPredatesSyncState(populated)) {
+                console.warn(
+                    "prints-sync: the deployment's cardPrints functions predate issue #7690 (no syncedDigest) — skipping; redeploy the functions, then rerun"
+                );
                 return;
             }
-            console.warn(emptyTablesMessage(empty));
+            const owed = syncOwed(populated, digest);
+            if (owed.length === 0) {
+                console.log(
+                    "prints-sync: tables synced for the current definition set, skipping."
+                );
+                return;
+            }
+            console.warn(`prints-sync: sync owed — ${owed.join("; ")}`);
         }
     }
 
-    const { rows, definitionTokens, scanned } = await buildRows();
+    const { rows, definitionTokens, scanned } = await buildRows(
+        definitionByOracleId,
+        overrides
+    );
     process.stderr.write(
         `prints-sync: scanned ${scanned} Scryfall printing(s), matched ${rows.length}, ` +
             `${definitionTokens.length} definition printing(s) link a token\n`
     );
 
     if (args.dryRun) return runDryRun(rows, definitionTokens);
-    return runWrite(plan!, rows, definitionTokens);
+    return runWrite(plan!, rows, definitionTokens, digest);
 }
 
 async function main(): Promise<void> {
