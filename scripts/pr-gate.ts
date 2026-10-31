@@ -33,7 +33,7 @@ import { join } from "node:path";
 import { evidenceFiles, failingFiles } from "./lib/health-evidence";
 import { FAILED_LABEL, HELD_LABEL, READY_LABEL } from "./lib/land-labels";
 import { lastRequeueSince, type PrComment } from "./lib/land-requeue";
-import { readRunRepairIssues } from "./lib/health-pivot";
+import { readPivotRepairIssues } from "./lib/health-pivot";
 import {
     githubEvidenceStore,
     githubVerdictStore,
@@ -46,7 +46,9 @@ import {
 import {
     BASE_HEALTH_CONTEXT,
     baseHealthStatus,
+    DECLARED_REPAIR_CONTEXT,
     declaredRepairStatus,
+    declaredRepairUpdate,
     gatePrOf,
     heldPrAction,
     holdsBeforeRed,
@@ -160,16 +162,17 @@ function post(
     gh(run, args);
 }
 
-/** The state of the PR head's newest `base-health` status, if any. */
-function priorBaseHealth(
+/** The state of the PR head's newest `context` status, if any. */
+function priorStatus(
     run: GhRunner,
     repo: string,
-    sha: string
+    sha: string,
+    context: string
 ): GateState | undefined {
     const [state] = ghLines<GateState>(
         run,
         `repos/${repo}/commits/${sha}/statuses?per_page=100`,
-        `.[] | select(.context == "${BASE_HEALTH_CONTEXT}") | .state | tojson`
+        `.[] | select(.context == "${context}") | .state | tojson`
     );
     return state;
 }
@@ -239,15 +242,17 @@ function main(): number {
     const lineage = readVerdictLineage(() => githubVerdictStore({ repo, run }));
     if (lineage.error)
         console.log(`pr-gate: verdict store unreadable (${lineage.error})`);
-    // The repair issues of EVERY RED of the run, closed ones included (issue
-    // #7658, `readRunRepairIssues`): one "declared repair" for base-health,
-    // the hold and the queue priority alike. Unreadable → none, and the run
-    // reds: a repair is then held like any PR until a sweep reads it.
+    // The declared repair issues — the standing RED's, plus every still-open
+    // one an earlier RED of the run recorded (`readRepairRecords`, the set
+    // `land` and `repair-proof` read): one "declared repair" for base-health,
+    // the hold and the queue priority alike (issue #7658). Unreadable → none,
+    // and the run reds (it used to read as "none declared" silently): a
+    // repair is then held like any PR until a sweep reads it.
     let repairIssues: number[] = [];
     let failed = lineage.error ? 1 : 0;
     if (lineageBlocks(lineage.kind)) {
         try {
-            repairIssues = readRunRepairIssues(ROOT, { run });
+            repairIssues = readPivotRepairIssues(ROOT, { run });
         } catch (e) {
             failed++;
             console.error(
@@ -284,8 +289,8 @@ function main(): number {
                 }),
         ];
         const labels = (raw.labels ?? []).map((l) => l.name);
-        // Under a RED, the declared repair's priority status (issue #7658):
-        // posted after `base-health`, and it exempts the PR from the hold.
+        // Under a RED, the declared repair's priority status (issue #7658),
+        // posted after `base-health`.
         const repairStatus = declaredRepairStatus({
             lineage,
             pr: gatePrOf(raw, []),
@@ -307,7 +312,12 @@ function main(): number {
                 const s = status();
                 show(raw.number, raw.head.sha, s);
                 if (s.context === BASE_HEALTH_CONTEXT)
-                    prior = priorBaseHealth(run, repo, raw.head.sha);
+                    prior = priorStatus(
+                        run,
+                        repo,
+                        raw.head.sha,
+                        BASE_HEALTH_CONTEXT
+                    );
                 // The hold is labelled before the failure that dequeues the
                 // PR (issue #6986): a label that failed still lets the
                 // failure post, since holding the queue comes first.
@@ -317,7 +327,6 @@ function main(): number {
                         labels,
                         baseHealth: s.state,
                         trustedAuthor: posted.get(TRUSTED_AUTHOR_CONTEXT),
-                        declaredRepair: repairStatus !== null,
                     })
                 ) {
                     console.log(
@@ -340,11 +349,31 @@ function main(): number {
                 console.error(`PR #${raw.number}: ${(e as Error).message}`);
             }
         }
-        if (repairStatus !== null) {
+        // Posted for a declared repair; a stale green withdrawn. The prior is
+        // read only for a PR that is not one: one call per PR per sweep.
+        let repairUpdate: GateStatus | null = null;
+        try {
+            repairUpdate = declaredRepairUpdate({
+                next: repairStatus,
+                prior:
+                    repairStatus === null
+                        ? priorStatus(
+                              run,
+                              repo,
+                              raw.head.sha,
+                              DECLARED_REPAIR_CONTEXT
+                          )
+                        : undefined,
+            });
+        } catch (e) {
+            failed++;
+            console.error(`PR #${raw.number}: ${(e as Error).message}`);
+        }
+        if (repairUpdate !== null) {
             try {
-                show(raw.number, raw.head.sha, repairStatus);
+                show(raw.number, raw.head.sha, repairUpdate);
                 if (!dryRun)
-                    post(run, repo, raw.head.sha, repairStatus, targetUrl);
+                    post(run, repo, raw.head.sha, repairUpdate, targetUrl);
             } catch (e) {
                 failed++;
                 console.error(`PR #${raw.number}: ${(e as Error).message}`);

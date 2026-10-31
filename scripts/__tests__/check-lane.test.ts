@@ -3529,17 +3529,23 @@ describe("check-lane — a pure revert's short lane (issue #7658)", () => {
         });
     });
 
-    it("the ladder's revert prints the short lane: tsc alone, the reverted commit named", () => {
+    it("the ladder's revert prints the short lane: tsc and the diff's cheap checks, the reverted commit named", () => {
         const changed = changedOf(base);
         expect(changed.sort()).toEqual([
             "convex/gre/new.ts",
             "scripts/lib/x.ts",
         ]);
-        const reverted = pureRevertOf(base, repo, changed);
+        const reverted = pureRevertOf(base, repo);
         expect(reverted).toEqual([culprit]);
         const p = planOf(changed, reverted);
         expect(p.lane).toBe("revert");
-        expect(ids(p.run)).toEqual(["tsc[all]"]);
+        // No test: the type-check and the diff's format/lint/cr:lint.
+        expect(ids(p.run)).toEqual([
+            "format(diff)",
+            "lint(diff)",
+            "tsc[all]",
+            "cr:lint",
+        ]);
         expect(p.reverted).toEqual([culprit]);
         expect(ids(p.skip)).toContain("repair-proof");
         const out = renderPlan(p, "abc1234");
@@ -3550,30 +3556,60 @@ describe("check-lane — a pure revert's short lane (issue #7658)", () => {
 
     it("one hand edit on a culprit path loses it: the lane its paths decide", () => {
         commit("fix: tweak", { "scripts/lib/x.ts": "export const x = 9;\n" });
-        const changed = changedOf(base);
-        const reverted = pureRevertOf(base, repo, changed);
+        const reverted = pureRevertOf(base, repo);
         expect(reverted).toBeNull();
-        expect(planOf(changed, reverted).lane).toBe("engine");
+        expect(planOf(changedOf(base), reverted).lane).toBe("engine");
     });
 
     it("one hand edit on any other path loses it too", () => {
         commit("fix: also this", {
             "convex/gre/y.ts": "export const y = 4;\n",
         });
-        const changed = changedOf(base);
-        expect(pureRevertOf(base, repo, changed)).toBeNull();
+        expect(pureRevertOf(base, repo)).toBeNull();
+    });
+
+    it("a deleted path a rename would pair with an added lookalike is still judged", () => {
+        // The culprit deletes y.ts; its revert re-adds it, and a hand edit
+        // deletes z.ts, byte-identical to it: rename detection would list
+        // only y.ts (z.ts → y.ts) and never judge the deletion.
+        git("checkout", "-q", "main");
+        commit("twin", { "convex/gre/z.ts": "export const y = 3;\n" });
+        git("rm", "-q", "convex/gre/y.ts");
+        git("commit", "-q", "-m", "feat: drop y (#102)");
+        const dropY = git("rev-parse", "HEAD");
+        git("checkout", "-q", "-b", "fix/issue-7001");
+        git("revert", "--no-edit", dropY);
+        git("rm", "-q", "convex/gre/z.ts");
+        git("commit", "-q", "-m", "fix: drop the twin");
+        expect(pureRevertOf(dropY, repo)).toBeNull();
     });
 
     it("a branch naming no reverted commit is no revert, whatever its bytes", () => {
         git("reset", "-q", "--hard", base);
         commit("chore: restore by hand", {
             "scripts/lib/x.ts": "export const x = 1;\n",
+            "convex/gre/new.ts": "",
         });
-        expect(pureRevertOf(base, repo, changedOf(base))).toBeNull();
+        git("rm", "-q", "convex/gre/new.ts");
+        git("commit", "-q", "-m", "chore: drop new");
+        expect(pureRevertOf(base, repo)).toBeNull();
     });
 
-    it("a docs diff keeps the docs lane; no revert keeps the path lane", () => {
+    it("a revert of a revert — the culprit re-applied — is no pure revert", () => {
+        // The ladder's revert lands on the base; a branch then reverts IT:
+        // byte-identical to the revert's parent, i.e. the culprit's bytes.
+        const revert = git("rev-parse", "HEAD");
+        git("checkout", "-q", "main");
+        git("merge", "-q", "--ff-only", revert);
+        git("checkout", "-q", "-b", "reapply");
+        git("revert", "--no-edit", revert);
+        expect(changedOf(revert).length).toBeGreaterThan(0);
+        expect(pureRevertOf(revert, repo)).toBeNull();
+    });
+
+    it("a docs diff keeps the docs lane, a full one check:pr; no revert keeps the path lane", () => {
         expect(planOf(["docs/adr/0156.md"], [culprit]).lane).toBe("docs");
+        expect(planOf(["package.json"], [culprit]).lane).toBe("full");
         expect(planOf(["scripts/lib/x.ts"], null).lane).toBe("engine");
         expect(planOf(["scripts/lib/x.ts"], []).lane).toBe("engine");
     });

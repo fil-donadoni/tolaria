@@ -20,13 +20,13 @@
  *    declared repair issue (issue #7658): `.mergify.yml`'s priority rule
  *    reads it, so the repair jumps the queue it unblocks.
  *
- * "Declared" is one set for every reader of it here: the repair issues
- * recorded on ANY RED of the standing run, closed ones included
- * (`readRunRepairIssues`, issue #7647) — the set `health:repair-merged` and
- * the repair-tip proof (ADR 0156 Amendment V) read. A repair issue an
- * earlier RED of the run recorded is still that PR's to close; read
- * open-only, a moved RED held the very revert that repaired it (PR #7136,
- * 2 h 40 `queue:held` behind its own RED).
+ * "Declared" is one set for every reader of it here, and the one `land`
+ * and `repair-proof` read: the standing RED's repair issues plus every
+ * still-open one an earlier RED of the run recorded (`pivotRepairIssues`,
+ * issue #7139). `base-health` green on a declared repair is what keeps it
+ * out of `holdsBeforeRed` and in the queue (issue #7658); before #7139's
+ * carry a moved RED held the very revert that repaired it (PR #7136, 2 h 40
+ * `queue:held` behind its own RED).
  *
  * A RED is a hold, not a PR's red (issue #6110): `.mergify.yml` leaves a PR
  * whose `base-health` is red `ready-to-land` when the queue dequeues it, and
@@ -167,14 +167,9 @@ export function holdsBeforeRed(input: {
     labels: readonly string[];
     baseHealth: GateState;
     trustedAuthor: GateState | undefined;
-    /** The PR closes a declared repair issue (`declaredRepairStatus`): never
-     *  held by the RED it repairs (issue #7658), whatever `base-health`
-     *  read. */
-    declaredRepair?: boolean;
 }): boolean {
     const { labels } = input;
     return (
-        input.declaredRepair !== true &&
         input.baseHealth === "failure" &&
         (input.trustedAuthor === undefined ||
             input.trustedAuthor === "success") &&
@@ -434,8 +429,7 @@ export const DECLARED_REPAIR_CONTEXT = "declared-repair";
  * RED) when the PR closes one of `repairIssues`, else null — nothing posted.
  * Never on a Mergify queue PR: its body is Mergify's. Mergify's priority
  * rule reads the green, so a declared repair takes the front of the queue it
- * unblocks; the status stays on the head once the RED clears, harmless (the
- * PR still closes a repair issue).
+ * unblocks; `declaredRepairUpdate` withdraws a green that no longer holds.
  */
 export function declaredRepairStatus(input: {
     lineage: Lineage & { error?: string };
@@ -457,6 +451,27 @@ export function declaredRepairStatus(input: {
         description: clipDescription(
             `closes repair issue #${admission.repairOf} of the RED @ ${short(input.lineage.verdict?.sha)} — queue priority`
         ),
+    };
+}
+
+/**
+ * What to post as `declared-repair` (issue #7658): the green when the PR is a
+ * declared repair, a `failure` withdrawing a green the head still carries
+ * once it is not (the RED cleared, the body dropped its closing line, a new
+ * RED declared other issues) — so a stale green never keeps a priority —
+ * and nothing otherwise: an ordinary PR never wears the context.
+ */
+export function declaredRepairUpdate(input: {
+    next: GateStatus | null;
+    prior: GateState | undefined;
+}): GateStatus | null {
+    if (input.next !== null) return input.next;
+    if (input.prior !== "success") return null;
+    return {
+        context: DECLARED_REPAIR_CONTEXT,
+        state: "failure",
+        description:
+            "no longer a declared repair of a standing RED — no queue priority",
     };
 }
 

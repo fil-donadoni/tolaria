@@ -13,6 +13,7 @@ import {
     clipDescription,
     DECLARED_REPAIR_CONTEXT,
     declaredRepairStatus,
+    declaredRepairUpdate,
     gatePrOf,
     healthAdmission,
     heldPrAction,
@@ -802,32 +803,44 @@ describe("a declared repair under a RED — priority, never held (issue #7658)",
         ).toBeNull();
     });
 
-    it("a declared repair is never labelled queue:held, even on a base-health failure", () => {
+    it("a declared repair is never labelled queue:held: its base-health is green on the same set", () => {
         const ready = ["ready-to-land", "queued"];
-        const declared =
-            declaredRepairStatus({
-                lineage: lineage("red"),
-                pr: repair,
-                repairIssues: [7135],
-            }) !== null;
-        expect(declared).toBe(true);
-        expect(
+        const hold = (body: string) =>
             holdsBeforeRed({
                 labels: ready,
-                baseHealth: "failure",
+                baseHealth: baseHealthStatus({
+                    lineage: lineage("red"),
+                    pr: pr({ body }),
+                    repairIssues: [7135],
+                }).state,
                 trustedAuthor: "success",
-                declaredRepair: declared,
-            })
-        ).toBe(false);
-        // The same PR, not declared: held, as any PR under the RED.
+            });
+        expect(hold(repair.body)).toBe(false);
+        // The same PR closing no repair issue: held, as any PR under the RED.
+        expect(hold(other.body)).toBe(true);
+    });
+
+    it("a green that no longer holds is withdrawn; an ordinary PR never wears the context", () => {
+        const green = declaredRepairStatus({
+            lineage: lineage("red"),
+            pr: repair,
+            repairIssues: [7135],
+        });
+        expect(declaredRepairUpdate({ next: green, prior: undefined })).toBe(
+            green
+        );
+        const withdrawn = declaredRepairUpdate({
+            next: null,
+            prior: "success",
+        });
+        expect(withdrawn?.context).toBe(DECLARED_REPAIR_CONTEXT);
+        expect(withdrawn?.state).toBe("failure");
         expect(
-            holdsBeforeRed({
-                labels: ready,
-                baseHealth: "failure",
-                trustedAuthor: "success",
-                declaredRepair: false,
-            })
-        ).toBe(true);
+            declaredRepairUpdate({ next: null, prior: undefined })
+        ).toBeNull();
+        expect(
+            declaredRepairUpdate({ next: null, prior: "failure" })
+        ).toBeNull();
     });
 
     it("the queue admits it: base-health green on the same repair issues", () => {

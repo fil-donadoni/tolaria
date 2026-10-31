@@ -632,7 +632,7 @@ function preQueueGate(
     const all = changedPaths(ORIGIN_BASE, cwd, true);
     const present = changedPaths(ORIGIN_BASE, cwd, false);
     // A pure revert (issue #7658) plans the `revert` lane here as in the
-    // queue: `tsc` alone, and no proof receipt owed (it adds no test).
+    // queue: no tests, and no proof receipt owed (it adds no test).
     const plan = classifyLane(
         all,
         present,
@@ -641,7 +641,7 @@ function preQueueGate(
         undefined,
         undefined,
         undefined,
-        pureRevertOf(ORIGIN_BASE, cwd, all)
+        pureRevertOf(ORIGIN_BASE, cwd)
     );
     // Issue #7655 — land:ready's own refusal, not a `pr-checks` one: the
     // queue never reads the receipt. The head this run judges (its rebase or
