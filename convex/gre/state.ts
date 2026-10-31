@@ -363,6 +363,7 @@ import {
     applyTokenCreatedReplacements,
     applyTransientDamageRedirections,
     type TransientRedirectionResidual,
+    type SimultaneousDamageBatch,
     describeDamageSource,
     enterBattlefieldDestinationFor,
     getApplicableDrawReplacements,
@@ -5724,7 +5725,11 @@ export function runDamageReplacement(
      *  already had their opportunity on the event this remainder came out of.
      *  Everything from CR 615 down still runs, because the remainder lands on
      *  a recipient the primary half's prevention checks never saw. */
-    replacementsSpent: boolean = false
+    replacementsSpent: boolean = false,
+    /** CR 510.2 — the simultaneous damage instance this event belongs to
+     *  (`beginSimultaneousDamageBatch`), so a "next time" redirect spent by
+     *  one source still redirects the others dealt at the same time. */
+    batch?: SimultaneousDamageBatch
 ): {
     target: TargetSelection;
     amount: number;
@@ -5801,7 +5806,8 @@ export function runDamageReplacement(
         state,
         continuous,
         locks,
-        split
+        split,
+        batch
     );
     // CR 614.9 (issue #3810) — a recipient-keyed redirect with a points budget
     // smaller than the event splits it. The remainder still goes to the
