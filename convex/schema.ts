@@ -1589,4 +1589,15 @@ export default defineSchema({
             })
         ),
     }).index("by_cardId", ["cardId"]),
+
+    // What the last successful `prints:sync` covered (issue #7690): ONE row,
+    // the digest of the definition set (Card IDs + rarity overrides) its rows
+    // were built against. `prints:sync --if-stale` skips only when it equals
+    // the current one, so a card added after the tables were first filled
+    // still gets its Card Prints and Token Prints. Written by
+    // `cardPrints:recordSync` only, after both upserts succeed.
+    printsSyncState: defineTable({
+        definitionSetDigest: v.string(),
+        syncedAt: v.number(),
+    }),
 });
