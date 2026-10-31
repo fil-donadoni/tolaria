@@ -37,7 +37,7 @@
  * the leaves `lib/derive-sync.ts`, `lib/derived-state.ts` and
  * `lib/vitest-run-last.ts`.
  */
-import { isBaseMaintenanceSubject } from "./derive-sync";
+import { DERIVE_SYNC_PATHS, isBaseMaintenanceSubject } from "./derive-sync";
 import { TREE_ROLE_ENV } from "./derived-state";
 import { RUN_LAST_ENV } from "./vitest-run-last";
 import { evidenceTests, failLines, type FailingTest } from "./health-evidence";
@@ -816,41 +816,74 @@ export function bisectCulprits(
 }
 
 /**
- * The report with every culprit that is a base-maintenance commit
- * (`isBaseMaintenanceSubject`: `derive:sync`, `bot-replay`) replaced by the
- * PR commit of `commits` (oldest first, the bisected range) since the
- * previous maintenance commit (issue #7417). Such a commit writes derived
- * state only and its revert can never land (`check:derived-in-diff`): the
- * RED it first shows is a PR commit's derived effect. Its tests are
- * unexplained, never blamed on it, when no PR commit precedes it in the
- * range — or when several do: each probed green, so nothing tells them
- * apart, and the ladder reverts every culprit line (`parseCulprits`) — a
- * guess is worse than none. The reason lists the candidates.
+ * Whether a commit is GENERATED: a base-maintenance subject
+ * (`isBaseMaintenanceSubject`: `derive:sync`, `bot-replay`) whose diff stays
+ * within the derived paths (`DERIVE_SYNC_PATHS`, the authority `land` and
+ * `post-merge` read). `files` undefined = the diff was not read: the subject
+ * alone decides. A commit under the subject with a foreign file is source.
+ */
+export function isGeneratedCommit(
+    subject: string,
+    files?: readonly string[]
+): boolean {
+    if (!isBaseMaintenanceSubject(subject)) return false;
+    return (
+        files === undefined || files.every((f) => DERIVE_SYNC_PATHS.includes(f))
+    );
+}
+
+/** The named culprit of a candidate: itself, the PR commit that precedes a
+ *  generated one, or none. */
+export type ResolvedCulprit =
+    | { kind: "named"; sha: string; generated?: string }
+    | { kind: "none"; reason: string };
+
+/**
+ * Issue #7648: a generated commit is never the culprit. A PR commit resolves
+ * to itself; a generated one to the nearest non-generated commit before it on
+ * `commits` (the first-parent line since the last GREEN, oldest first) — the
+ * failure appeared with that merge's derived state. None before it in the
+ * range: no single culprit (the fixer's case).
+ */
+export function resolveCulprit(
+    candidate: string,
+    commits: readonly string[],
+    isGenerated: (sha: string) => boolean
+): ResolvedCulprit {
+    if (!isGenerated(candidate)) return { kind: "named", sha: candidate };
+    const at = commits.indexOf(candidate);
+    for (let i = at - 1; i >= 0; i--)
+        if (!isGenerated(commits[i]))
+            return { kind: "named", sha: commits[i], generated: candidate };
+    return {
+        kind: "none",
+        reason: "no PR commit before it since the last GREEN",
+    };
+}
+
+/**
+ * The report with every culprit that is a generated commit replaced by
+ * `resolveCulprit`'s PR merge (issues #7417, #7648). Such a commit writes
+ * derived state only and its revert can never land
+ * (`check:derived-in-diff`): the RED it first shows is a PR merge's derived
+ * effect. Its tests are unexplained, never blamed on it, when no PR commit
+ * precedes it in the range. `filesOf` supplies the diff's files, so
+ * recognition is subject AND paths (`isGeneratedCommit`).
  */
 export function attributeMaintenance(
     report: CulpritReport,
     commits: readonly string[],
-    subjectOf: (sha: string) => string | undefined
+    subjectOf: (sha: string) => string | undefined,
+    filesOf?: (sha: string) => readonly string[] | undefined
 ): CulpritReport {
-    const maintenance = (sha: string) =>
-        isBaseMaintenanceSubject(subjectOf(sha) ?? "");
+    const generated = (sha: string) =>
+        isGeneratedCommit(subjectOf(sha) ?? "", filesOf?.(sha));
     const found: CulpritFinding[] = [];
     let unexplained = report.unexplained;
     for (const f of report.found) {
-        if (!maintenance(f.culprit)) {
-            found.push(f);
-            continue;
-        }
-        const at = commits.indexOf(f.culprit);
-        let from = at;
-        while (from > 0 && !maintenance(commits[from - 1])) from--;
-        const prs = at === -1 ? [] : commits.slice(from, at);
-        if (prs.length !== 1) {
-            const via = `the first red probe was base maintenance \`${f.culprit.slice(0, 12)}\` (\`${subjectOf(f.culprit) ?? ""}\`)`;
-            const reason =
-                prs.length === 0
-                    ? `${via}, with no PR commit before it in the bisected range`
-                    : `${via}; ${prs.length} PR commits precede it since the previous maintenance commit, none named: ${prs.map((sha) => `\`${sha.slice(0, 12)}\` (${subjectOf(sha) ?? ""})`).join(", ")}`;
+        const r = resolveCulprit(f.culprit, commits, generated);
+        if (r.kind === "none") {
+            const reason = `the first red probe was generated base maintenance \`${f.culprit.slice(0, 12)}\` (\`${subjectOf(f.culprit) ?? ""}\`), ${r.reason}`;
             unexplained = {
                 tests: [...(unexplained?.tests ?? []), ...f.tests],
                 reason: unexplained
@@ -859,13 +892,14 @@ export function attributeMaintenance(
             };
             continue;
         }
-        const named = found.find((g) => g.culprit === prs[0]);
+        const named = found.find((g) => g.culprit === r.sha);
         if (named) named.tests = [...named.tests, ...f.tests];
+        else if (r.generated === undefined) found.push(f);
         else
             found.push({
-                culprit: prs[0],
+                culprit: r.sha,
                 tests: f.tests,
-                maintenance: f.culprit,
+                maintenance: r.generated,
             });
     }
     return { found, unexplained, probes: report.probes };
@@ -959,7 +993,7 @@ export function culpritLine(input: {
     const pr = input.subject ? prOfSubject(input.subject) : null;
     const who = pr !== null ? `PR #${pr}` : "a direct commit";
     const via = input.maintenance
-        ? ` · the first red probe was base maintenance \`${input.maintenance.sha.slice(0, 12)}\` (\`${input.maintenance.subject}\`), which writes only derived state — named the one PR commit since the previous maintenance commit`
+        ? ` · the first red probe was base maintenance \`${input.maintenance.sha.slice(0, 12)}\` (\`${input.maintenance.subject}\`), which writes only derived state — the failure appeared with that PR merge's derived state, so the nearest PR commit before it is named`
         : "";
     return `- **culprit:** ${who} · \`${result.culprit.slice(0, 12)}\` — bisected from GREEN \`${(input.good ?? "?").slice(0, 12)}\` over ${input.commits} commit(s), ${result.probes.length} probe(s)${via}`;
 }
