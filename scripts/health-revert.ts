@@ -5,7 +5,7 @@
  * on a branch off the base tip, and the revert goes through the queue as the
  * standing RED's declared repair. A bisect that named several culprits
  * passes `--culprit` once per culprit: one PR per culprit, each its own
- * declared repair of the RED (issue #7656) — a culprit whose revert
+ * declared repair of the RED — a culprit whose revert
  * conflicts with a later culprit shares that one's PR (`revertGroups`).
  *
  *   bun scripts/health-revert.ts --sha <red> --culprit <sha> [--culprit <sha> …] [--base <sha>] [--why <text>] [--dry-run]

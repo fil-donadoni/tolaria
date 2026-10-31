@@ -78,7 +78,7 @@
  * a RED for. `--early` is `health-early.yml`'s run on a GitHub-hosted runner
  * after a batch of merges: the same offline gate minus the committed-corpus
  * tests, so only its RED reaches the store — and its `test` step runs every
- * suite without bail (`healthStepCommand`, issue #7656), so that RED names
+ * suite without bail (`healthStepCommand`), so that RED names
  * every failing file. A RED of either goes through the
  * ladder (`scripts/health-bisect.ts`): a fresh run, then the bisect.
  *

@@ -14,9 +14,9 @@
  *      later commits depend on is reverted together with the ones its revert
  *      conflicts with, in one PR, up to `MAX_REVERT_SET` (issue #6766). A
  *      bisect that named several culprits has every one of them reverted
- *      (issue #7446) — reverting the first alone left the rest of the RED
+ *      — reverting the first alone left the rest of the RED
  *      standing with no repair in flight — each in its OWN PR, a declared
- *      repair of the RED (issue #7656): one culprit's revert never waits on
+ *      repair of the RED: one culprit's revert never waits on
  *      another's, and a culprit whose revert conflicts with a later culprit
  *      shares that culprit's PR. A culprit a revert in flight already
  *      covers — a later RED of the episode naming it again — is never
