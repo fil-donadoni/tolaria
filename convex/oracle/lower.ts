@@ -97,7 +97,9 @@ interface Accumulator {
     extraLandDrops: number;
     /** CR 401.5 — a "play with the top card of your library revealed" line. */
     revealsLibraryTop: boolean;
+    /** CR 401.5 — "You may look at the top card of your library any time". */
     looksAtLibraryTop: boolean;
+    /** CR 305.1-analog — "You may play lands from your graveyard". */
     graveyardLandPlay: boolean;
 
     /** CR 614.1a — the "instead" cost lines read (discard / sacrifice). */

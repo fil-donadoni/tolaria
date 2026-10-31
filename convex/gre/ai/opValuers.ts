@@ -172,7 +172,7 @@ const MILL_PER_CARD_VALUE = 6; // one milled card — a small library-resource s
 const GRANT_GRAVEYARD_PLAY_VALUE = 80; // broad graveyard-replay permission (board-scaling)
 const RESTRICT_CASTING_VALUE = 20; // a turn-scoped "can't cast" denial
 const RESTRICT_LAND_PLAY_VALUE = 15; // a turn-scoped "can't play lands" denial
-const EXTRA_LAND_DROP_VALUE = 15; // one more land play this turn — the mirror of the denial above, live only with a land in hand
+const EXTRA_LAND_DROP_VALUE = 15; // one more land play this turn — the mirror of the denial above (a land in hand is not checked: the hand is the planner's, not the valuer's)
 const RESTRICT_ACTIVATION_VALUE = 15; // a turn-scoped "can't activate" denial
 const GRANT_CAST_TIMING_VALUE = 8; // a "cast as though flash" self-grant (tempo)
 const GRANT_SPELL_MANA_SUBSTITUTION_VALUE = 8; // one spell's colours fixed
@@ -3010,8 +3010,13 @@ const restrictLandPlay: Valuer<"restrictLandPlay"> = () => ({
     tags: ["disruption"],
 });
 
-const grantExtraLandDrops: Valuer<"grantExtraLandDrops"> = (op) => ({
-    points: EXTRA_LAND_DROP_VALUE * op.count,
+// CR 305.2 — "you may play an additional land" is the recipient's ramp; the
+// same grant handed to an opponent is theirs, so it is signed by recipient.
+const grantExtraLandDrops: Valuer<"grantExtraLandDrops"> = (op, ctx) => ({
+    points:
+        EXTRA_LAND_DROP_VALUE *
+        op.count *
+        (ctx.isSelf(op.player, "self") ? 1 : -1),
     tags: ["ramp"],
 });
 

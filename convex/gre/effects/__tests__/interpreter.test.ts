@@ -3579,6 +3579,8 @@ describe("Effect Script Op: grantExtraLandDrops (CR 305.2 / 514.2, issue #7220)"
         getPlayer(state, "p1").landsPlayedThisTurn = 0;
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
+        // The grant landed — the "can't" is what refuses the play.
+        expect(getExtraLandDrops(state, getPlayer(state, "p1"))).toBe(1);
         expect(canPlayForest(state)).toBe(false);
     });
 
