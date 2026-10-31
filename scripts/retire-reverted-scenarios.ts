@@ -26,13 +26,17 @@ import {
 } from "./lib/scenario-retire";
 
 const CALL_TIMEOUT_MS = 180_000;
+const GH_TIMEOUT_MS = 60_000;
 
 function prBody(pr: number): string {
     const res = spawnSync(
         "gh",
         ["pr", "view", String(pr), "--json", "body", "--jq", ".body"],
-        { encoding: "utf8" }
+        // A hung `gh` must not stall `land`'s post-merge list: `|| true`
+        // only covers a failing exit.
+        { encoding: "utf8", timeout: GH_TIMEOUT_MS }
     );
+    if (res.error) throw new Error(`gh pr view ${pr}: ${res.error.message}`);
     if (res.status !== 0) {
         throw new Error(
             `gh pr view ${pr} failed: ${(res.stderr ?? "").trim()}`
@@ -47,7 +51,11 @@ function subjectIn(cwd: string): (sha: string) => string | null {
             cwd,
             encoding: "utf8",
         });
-        return res.status === 0 ? (res.stdout ?? "").trim() : null;
+        if (res.status === 0) return (res.stdout ?? "").trim();
+        console.error(
+            `retire-scenario: WARNING — reverted commit ${sha.slice(0, 12)} is not readable in ${cwd}; its PR's scenario is not retired`
+        );
+        return null;
     };
 }
 

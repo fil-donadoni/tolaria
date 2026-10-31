@@ -66,6 +66,24 @@ describe("revertedPrsOf — the PRs a landing reverts (issue #7702)", () => {
         ).toEqual([7612]);
     });
 
+    it("reads only the refs that OPEN the Reverts line — never a later `see also #N`", () => {
+        expect(
+            revertedPrsOf(
+                "Reverts #123, which broke X; see also #456",
+                subjectOf
+            )
+        ).toEqual([123]);
+        expect(
+            revertedPrsOf("Reverts the cache change from #123", subjectOf)
+        ).toEqual([]);
+        expect(
+            revertedPrsOf(
+                "Reverts PR #7612, PR #7613 and PR #7614, every commit (issue #7446)",
+                subjectOf
+            )
+        ).toEqual([7612, 7613, 7614]);
+    });
+
     it("names nothing for a PR that reverts nothing — the step is a no-op", () => {
         expect(
             revertedPrsOf(

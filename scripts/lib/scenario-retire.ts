@@ -19,18 +19,21 @@
 //    `planRevertSet` names its culprits with.
 //  - A HAND REVERT names the reverted PR on a `Reverts …` line: GitHub's
 //    revert button writes `Reverts owner/repo#N`; a hand-written body says
-//    `Reverts PR #N` or `Reverts #N`. An `issue #N` on that line is NOT a PR
-//    and is skipped (the ladder's line cites `issue #7446`).
+//    `Reverts PR #N` or `Reverts #N`. Only the refs that OPEN the line count
+//    (`REVERTS_CHAIN`): an `issue #N` or a `see also #N` later on is no PR.
 
 import { prOfSubject } from "./health-bisect";
 import { convexRunArgv } from "./seed-scenario-run";
 import { revertedCommitsOf } from "./ui-scope";
 
-/** A line of a PR body that declares what it reverts. */
-const REVERTS_LINE = /^Reverts\b.*$/gm;
-/** A PR reference on a `Reverts` line — `#N`, `PR #N`, `owner/repo#N` all end
- *  in `#N` — but never `issue #N`. */
-const PR_REF = /(?<!issue )#(\d+)\b/g;
+/** The PR refs that OPEN a `Reverts` line, as a chain — `#N`, `PR #N`,
+ *  `owner/repo#N`, joined by `,` / `and`. Only the leading chain counts: a
+ *  later `see also #456`, or prose like `Reverts the cache change from #123`,
+ *  names no PR to retire (review of issue #7702 — retiring is destructive).
+ *  The ladder's own line (`Reverts PR #A and PR #B, every commit …
+ *  (issue #7446; …)`) stops at the first word that is not a ref. */
+const REVERTS_CHAIN =
+    /^Reverts[ \t]+((?:(?:PR[ \t]+)?(?:[\w.-]+\/[\w.-]+)?#\d+\b(?:[ \t]*(?:,|and)[ \t]*)?)+)/gm;
 
 /**
  * Every PR a landing's body says it reverts, ascending, each once — empty for
@@ -50,8 +53,8 @@ export function revertedPrsOf(
         const pr = subject === null ? null : prOfSubject(subject);
         if (pr !== null) prs.add(pr);
     }
-    for (const line of prBody.match(REVERTS_LINE) ?? []) {
-        for (const m of line.matchAll(PR_REF)) prs.add(Number(m[1]));
+    for (const chain of prBody.matchAll(REVERTS_CHAIN)) {
+        for (const m of chain[1].matchAll(/#(\d+)/g)) prs.add(Number(m[1]));
     }
     return [...prs].sort((a, b) => a - b);
 }
