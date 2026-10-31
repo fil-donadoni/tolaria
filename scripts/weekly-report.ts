@@ -65,7 +65,7 @@ import {
 
 /** The artifact `queue-lane.yml` uploads its `lane.json` as. */
 export const QUEUE_LANE_ARTIFACT = "queue-lane-json";
-const QUEUE_WORKFLOW = "queue-lane.yml";
+export const QUEUE_WORKFLOW = "queue-lane.yml";
 /** The label of the queue the drain forecast counts. */
 const READY_FOR_AGENT = "ready-for-agent";
 /** The file each machine job writes and uploads. */
@@ -205,7 +205,7 @@ function issueTitles(q: string): string[] {
 
 const HISTORY_QUERY = `query($owner:String!,$name:String!,$ref:String!,$since:GitTimestamp!,$endCursor:String){repository(owner:$owner,name:$name){ref(qualifiedName:$ref){target{... on Commit{history(first:100,since:$since,after:$endCursor){pageInfo{hasNextPage endCursor} nodes{oid committedDate status{context(name:"health"){state description createdAt}}}}}}}}}`;
 
-function baseHistory(repo: string, since: string): HistoryNode[] {
+export function baseHistory(repo: string, since: string): HistoryNode[] {
     const [owner, name] = repo.split("/");
     type Page = {
         data: {
@@ -251,10 +251,10 @@ const execFileAsync = promisify(execFile);
 
 /** How many `gh run download`s run at once: ~1.2 s each, and a week of the
  *  queue's ceiling is hundreds of runs. */
-const DOWNLOADS_AT_ONCE = 8;
+export const DOWNLOADS_AT_ONCE = 8;
 
 /** `fn` over `items`, at most `n` at a time, results in `items`' order. */
-async function pooled<T, R>(
+export async function pooled<T, R>(
     items: readonly T[],
     n: number,
     fn: (item: T) => Promise<R>
@@ -276,7 +276,7 @@ async function pooled<T, R>(
 /** One file of a run's artifact, or `null` when the run has none. A
  *  completed run's artifact never changes, so a file already under `dir` is
  *  read, not downloaded again. */
-async function artifactText(
+export async function artifactText(
     dir: string,
     runId: number,
     artifact: string,
