@@ -972,6 +972,28 @@ const toughnessFilterDescriptor = defineFilter<{
     },
 });
 
+// CR 208.1 / CR 613.4c — bound on effective power + effective toughness
+// ("total power and toughness 5 or less", Cut Down, issue #1352). A negative
+// power is summed as negative (CR 107.1b).
+const totalPowerToughnessFilterDescriptor = defineFilter<{
+    min?: number;
+    max?: number;
+}>({
+    lower: (req) => req.totalPowerToughnessFilter,
+    checks: {
+        permanent: (card, value, ctx) => {
+            const total =
+                getEffectivePower(ctx.state, card) +
+                getEffectiveToughness(ctx.state, card);
+            if (value.min !== undefined && total < value.min)
+                return `Target must have total power and toughness ≥ ${value.min}`;
+            if (value.max !== undefined && total > value.max)
+                return `Target must have total power and toughness ≤ ${value.max}`;
+            return null;
+        },
+    },
+});
+
 // CR 601.2c (issue #1104) — cross-slot same-controller constraint spanning
 // two-or-more announced target slots of ONE requirement ("choose two target
 // creatures controlled by the same player", Barrin's Spite). Unlike every
@@ -1472,6 +1494,7 @@ export const PERMANENT_FILTER_KEYS = [
     "excludeInstanceIds",
     "powerFilter",
     "toughnessFilter",
+    "totalPowerToughnessFilter",
     "mvFilter",
     "sameController",
     "isToken",
@@ -1548,6 +1571,8 @@ export const REGISTRY = {
         excludeInstanceIdsDescriptor as FilterDescriptor<unknown>,
     powerFilter: powerFilterDescriptor as FilterDescriptor<unknown>,
     toughnessFilter: toughnessFilterDescriptor as FilterDescriptor<unknown>,
+    totalPowerToughnessFilter:
+        totalPowerToughnessFilterDescriptor as FilterDescriptor<unknown>,
     mvFilter: mvFilterDescriptor as FilterDescriptor<unknown>,
     spellStackKind: spellStackKindDescriptor as FilterDescriptor<unknown>,
     stackSourceTypeFilter:
@@ -1603,6 +1628,7 @@ export type PermanentFilterValues = Partial<{
     excludeInstanceIds: ReadonlyArray<string>;
     powerFilter: { min?: number; max?: number };
     toughnessFilter: { min?: number; max?: number };
+    totalPowerToughnessFilter: { min?: number; max?: number };
     mvFilter: { min?: number; max?: number; equals?: number };
     sameController: boolean;
     isToken: boolean;

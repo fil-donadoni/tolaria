@@ -1361,6 +1361,38 @@ describe("target-filter registry — checkPermanentTargetFilters (ADR 0068, #140
         ).toBe("Target must have toughness ≤ 4");
     });
 
+    // CR 208.1 / CR 613.4c (issue #1352, Cut Down) — the bound is on the SUM
+    // of effective power and toughness, not on each value alone.
+    it("totalPowerToughnessFilter: bounds the SUM of effective power and toughness, counters included", () => {
+        const fivePoints = makeCard({
+            types: ["Creature"],
+            power: 3,
+            toughness: 2,
+        });
+        // 3/3: each value ≤ 5 on its own, the sum (6) is not.
+        const sixPoints = makeCard({
+            types: ["Creature"],
+            power: 3,
+            toughness: 3,
+        });
+        // Printed 2/2 (sum 4) lifted to 3/3 by a +1/+1 counter (layer 7c).
+        const countered = makeCard({
+            types: ["Creature"],
+            power: 2,
+            toughness: 2,
+            counters: { "+1/+1": 1 },
+        });
+        const ctx = baseCtx();
+        const values = { totalPowerToughnessFilter: { max: 5 } };
+        expect(checkPermanentTargetFilters(ctx, fivePoints, values)).toBeNull();
+        expect(checkPermanentTargetFilters(ctx, sixPoints, values)).toBe(
+            "Target must have total power and toughness ≤ 5"
+        );
+        expect(checkPermanentTargetFilters(ctx, countered, values)).toBe(
+            "Target must have total power and toughness ≤ 5"
+        );
+    });
+
     it("mvFilter: accepts a permanent matching the mana-value bound, rejects one that doesn't", () => {
         const cheap = makeCard({
             types: ["Creature"],
@@ -2928,6 +2960,9 @@ describe("getLegalTargets: the OFFERED set honours EVERY PERMANENT_FILTER_KEYS e
         excludeInstanceIds: { req: { excludeInstanceIds: ["subject"] } },
         powerFilter: { req: { powerFilter: { min: 99 } } },
         toughnessFilter: { req: { toughnessFilter: { min: 99 } } },
+        totalPowerToughnessFilter: {
+            req: { totalPowerToughnessFilter: { min: 99 } },
+        },
         mvFilter: { req: { mvFilter: { equals: 99 } } },
         sameController: {
             req: { sameController: true },

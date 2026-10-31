@@ -873,6 +873,13 @@ export interface TargetRequirement {
      *  creature you control with toughness less than Stone Giant's power").
      *  Ignored for player / spell targets. */
     toughnessFilter?: { min?: number; max?: number };
+    /** Restricts legal permanent targets by the SUM of effective power and
+     *  effective toughness (CR 208.1, CR 613.4c) — "target creature with total
+     *  power and toughness 5 or less" (Cut Down, issue #1352). Both bounds
+     *  inclusive; a negative power counts as negative (CR 107.1b). Orthogonal
+     *  to `powerFilter` / `toughnessFilter`, which bound each value on its
+     *  own. Ignored for player / spell targets. */
+    totalPowerToughnessFilter?: { min?: number; max?: number };
     /** Restricts legal SPELL targets (`type: "spell"`) by the spell's card
      *  type (CR 114.1). Only stack items that are actual spells (not
      *  activated/triggered abilities) and whose `types` include at least one
