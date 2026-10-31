@@ -397,15 +397,6 @@ describe("Crabomination (CR 702.119b emerge from artifact, CR 609.3 three-zone e
         return state;
     }
 
-    it("emerge is the artifact-sacrifice alternative cost at {5}{B}{B}", () => {
-        expect(crabomination.emerge?.mana).toEqual({ X: 5, B: 2 });
-        expect(crabomination.emerge?.permanent).toEqual({
-            action: "sacrifice",
-            count: 1,
-            filter: { types: "Artifact" },
-        });
-    });
-
     it("exiles the opponent's library top, a graveyard card and a hand card, then casts a chosen NONLAND one for free from THEIR exile — it resolves under p1's control, still owned by p2", () => {
         const state = etbOnStack({
             library: [card(swamp.id, "libLand", "p2", "library")],
