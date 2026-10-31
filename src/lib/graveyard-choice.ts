@@ -18,7 +18,13 @@ export function isGraveyardChoiceActive(
     // CR 118.3 / 118.12a — a `may-pay` whose GRAVEYARD leg is being paid
     // ("sacrifice it unless you return a basic land card from your graveyard
     // to your hand") picks from the same pile, so it shares the surface.
-    if (choice.kind !== "choose-graveyard-card" && choice.kind !== "may-pay")
+    // CR 712.21a — `meld-arrange` picks which of a split melded permanent's
+    // two cards goes on top, from the same pile.
+    if (
+        choice.kind !== "choose-graveyard-card" &&
+        choice.kind !== "may-pay" &&
+        choice.kind !== "meld-arrange"
+    )
         return false;
     if (choice.playerId !== viewerId) return false;
     if (choice.zone !== "graveyard") return false;

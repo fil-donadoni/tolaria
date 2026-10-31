@@ -145,6 +145,16 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         faceDownBy: "morph",
         transformed: true,
         transformedFrom: "def-tf",
+        meldedFrom: [
+            { cardId: "def-meld-a", ownerId: "p1", instanceId: "i-meld-a" },
+            {
+                cardId: "def-meld-b",
+                ownerId: "p2",
+                instanceId: "i-meld-b",
+                imagePrintId: "print-meld-b",
+            },
+        ],
+        meldGroupId: "i-meld-group",
         transformedAtDelayedSeq: 19,
         transformCount: 2,
         pileLabel: "A",

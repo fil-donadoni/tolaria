@@ -13,7 +13,10 @@ export function isExileChoiceActive(
     viewerId: string
 ): boolean {
     if (!choice) return false;
-    if (choice.kind !== "choose-exile-card") return false;
+    // CR 712.21b — `meld-arrange` picks which of a split melded permanent's
+    // two exiled cards was exiled last, from the same pile.
+    if (choice.kind !== "choose-exile-card" && choice.kind !== "meld-arrange")
+        return false;
     if (choice.playerId !== viewerId) return false;
     if (choice.zone !== "exile") return false;
     const zoneOwner = choice.zoneOwnerId ?? choice.playerId;

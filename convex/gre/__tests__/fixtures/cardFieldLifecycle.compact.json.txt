@@ -321,6 +321,20 @@
           "splitHalfOf": "def-split",
           "transformed": true,
           "transformedFrom": "def-tf",
+          "meldedFrom": [
+            {
+              "cardId": "def-meld-a",
+              "ownerId": "p1",
+              "instanceId": "i-meld-a"
+            },
+            {
+              "cardId": "def-meld-b",
+              "ownerId": "p2",
+              "instanceId": "i-meld-b",
+              "imagePrintId": "print-meld-b"
+            }
+          ],
+          "meldGroupId": "i-meld-group",
           "createdBy": "src-11",
           "linkedTokenId": "tok-1",
           "knownTo": [
@@ -736,6 +750,20 @@
       "splitHalfOf": "def-split",
       "transformed": true,
       "transformedFrom": "def-tf",
+      "meldedFrom": [
+        {
+          "cardId": "def-meld-a",
+          "ownerId": "p1",
+          "instanceId": "i-meld-a"
+        },
+        {
+          "cardId": "def-meld-b",
+          "ownerId": "p2",
+          "instanceId": "i-meld-b",
+          "imagePrintId": "print-meld-b"
+        }
+      ],
+      "meldGroupId": "i-meld-group",
       "createdBy": "src-11",
       "linkedTokenId": "tok-1",
       "knownTo": [

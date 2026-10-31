@@ -1033,5 +1033,15 @@
         "file": "scripts/__tests__/base-drift.test.ts",
         "test": "base-drift — the coupled artefacts come from their owners > every derived path the base writes is a coupled artefact",
         "reason": "Partition check: relates the derive-sync owner's path list to the preflight's coupled set (a path the base writes that the preflight does not watch is a drift it cannot see); the list is the owner's, never a literal."
+    },
+    {
+        "file": "convex/gre/effects/__tests__/meldGroupExpansion.test.ts",
+        "test": "meld group expansion census (CR 712.21c, ADR 0161) > wraps every expanding executor with withMeldGroup",
+        "reason": "Relates two independently maintained sources (the MELD_GROUP_DISPOSITION table vs the live OP_EXECUTORS wrapping), not a literal."
+    },
+    {
+        "file": "convex/gre/effects/__tests__/meldGroupExpansion.test.ts",
+        "test": "meld group expansion census (CR 712.21c, ADR 0161) > gives every non-expanding row a reason",
+        "reason": "Census over every MELD_GROUP_DISPOSITION row: each non-expanding executor must carry a written reason."
     }
 ]

@@ -7747,6 +7747,12 @@ export interface SpellContext {
     /** CR 400.7 — owner of the exile zone currently holding `id`, or undefined
      *  when the card isn't in any exile. Mirrors `getGraveyardCardOwner`. */
     getExileCardOwner: (id: string) => string | undefined;
+    /** CR 712.21c (ADR 0161) — the OTHER card of the meld group `id` belongs
+     *  to, still lying beside it in a non-battlefield zone: the second card
+     *  an effect that found the departed melded permanent finds. Empty for a
+     *  card in no group. Read by `withMeldGroup` (`gre/effects/
+     *  interpreter.ts`), the expansion authority, through `expandMeldGroup`. */
+    meldGroupPartners: (id: string) => TargetSelection[];
 
     /** CR 111 (issue #791) — stamp the per-source exile provenance link on a
      *  card that already sits in exile: it becomes "a card exiled with

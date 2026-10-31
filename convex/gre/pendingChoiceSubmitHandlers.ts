@@ -32,7 +32,11 @@ import {
     finalizeDrawLookKeep,
     finalizeUntapPick,
 } from "./phases";
-import { checkStateBasedActions, finalizeLegendKeep } from "./sba";
+import {
+    checkStateBasedActions,
+    finalizeLegendKeep,
+    finalizeMeldArrangement,
+} from "./sba";
 import { findCardInAnyZone } from "./lookup";
 import { outsideGamePool } from "./outsideGame";
 import { tryGetDefinition } from "../cards";
@@ -680,6 +684,24 @@ export function submitLegendKeep(
         throw new Error("Card is not an eligible choice");
     }
     finalizeLegendKeep(state, args.cardInstanceIds);
+}
+
+/** `meld-arrange` (CR 712.21a / 712.21b) is always SBA-level: the
+ *  submission must be exactly one of the split melded permanent's two cards
+ *  — the one that goes on top. */
+export function submitMeldArrange(
+    state: GameState,
+    head: PendingChoice,
+    _queue: PendingChoice[],
+    args: SubmitChoiceArgs
+): void {
+    if (
+        args.cardInstanceIds.length !== 1 ||
+        !head.candidateIds?.includes(args.cardInstanceIds[0])
+    ) {
+        throw new Error("Card is not an eligible choice");
+    }
+    finalizeMeldArrangement(state, args.cardInstanceIds);
 }
 
 /** `discard-hand` is the phase-level cleanup discard when stackless during

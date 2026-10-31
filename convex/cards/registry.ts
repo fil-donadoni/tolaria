@@ -41,7 +41,12 @@ import { expandDamageLifeFloor } from "./abilities/damageLifeFloor";
 import { expandDamagePreventionCounterRemoval } from "./abilities/damagePreventionCounterRemoval";
 import { expandCompiledTriggers } from "./compiledTriggers";
 import { insetSpellTwinDefinition } from "./insetSpell";
-import { isModalDoubleFaced, modalBackTwinDefinition } from "./modalDfc";
+import {
+    isModalDoubleFaced,
+    isTokenCodecBackFace,
+    modalBackTwinDefinition,
+} from "./modalDfc";
+import { meldedManaValueCost, meldResultTwinDefinition } from "./meld";
 import { SPLIT_HALF_SIDES, splitHalfTwinDefinition } from "./splitCard";
 import { parentIdOfTwin } from "./twinId";
 import { setCardManaCostLookup } from "./manaCostLookup";
@@ -480,6 +485,16 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
         if (modalBack) {
             setRegistryEntry(modalBack.id, modalBack);
             twinIds.push(modalBack.id);
+        }
+        // CR 712.4b / 712.8g (ADR 0161) — the same seam for a MELD card's
+        // combined back face: it determines characteristics only as a
+        // melded permanent, so it is a real definition under
+        // `${parent.id}#meld`, registered here and NOWHERE else — the pair
+        // stays two cards everywhere `allCards` reaches.
+        const meldResult = meldResultTwinDefinition(def);
+        if (meldResult) {
+            setRegistryEntry(meldResult.id, meldResult);
+            twinIds.push(meldResult.id);
         }
         if (twinIds.length > 0) twinIdsByParent.set(def.id, twinIds);
     }
@@ -1035,7 +1050,7 @@ function printedBackFaceTriggers(
     for (const [id, def] of registry) {
         const backFace = def.backFace;
         if (id !== def.id || !backFace?.triggeredAbilities?.length) continue;
-        if (backFace.kind === "modal") continue;
+        if (!isTokenCodecBackFace(backFace)) continue;
         if (tokenDefinitionId(backFaceAsTokenSpec(backFace)) === cardId) {
             return backFace.triggeredAbilities;
         }
@@ -1288,7 +1303,9 @@ function isNonmodalBackFaceDefinitionId(cardId: string): boolean {
     if (printedBackFaceOwner?.(cardId) !== undefined) return true;
     for (const [id, def] of registry) {
         const backFace = def.backFace;
-        if (id !== def.id || !backFace || backFace.kind === "modal") continue;
+        if (id !== def.id || !backFace || !isTokenCodecBackFace(backFace)) {
+            continue;
+        }
         if (tokenDefinitionId(backFaceAsTokenSpec(backFace)) === cardId) {
             return true;
         }
@@ -1317,6 +1334,7 @@ export function getPermanentManaValueCost(instance: {
     transformed?: boolean;
     transformedFrom?: string;
     copiedFrom?: string;
+    meldedFrom?: readonly { cardId: string }[];
 }): ManaCost | undefined {
     if (instance.manaCostOverride) return instance.manaCostOverride;
     // A copy effect is layer 1 (CR 613.1a) and replaces the transformed
@@ -1325,6 +1343,18 @@ export function getPermanentManaValueCost(instance: {
     if (instance.copiedFrom !== undefined) {
         const id = (instance.card as { id?: string }).id;
         if (id && isNonmodalBackFaceDefinitionId(id)) return {};
+        // CR 712.8g — "If a permanent is copying a melded permanent, the
+        // mana value of the copy is 0" needs no branch: the meld twin it
+        // copies carries no mana cost (`meldResultTwinDefinition`), and the
+        // summed cost below is read off `meldedFrom`, which no copy takes.
+    } else if (instance.meldedFrom !== undefined) {
+        // CR 712.8g — a melded permanent's mana value is the SUM of its
+        // front faces' mana values.
+        return meldedManaValueCost(
+            instance.meldedFrom.map(
+                (front) => tryGetDefinition(front.cardId)?.manaCost
+            )
+        );
     } else if (instance.transformed && instance.transformedFrom) {
         const front = tryGetDefinition(instance.transformedFrom);
         if (front && !isModalDoubleFaced(front)) return front.manaCost;

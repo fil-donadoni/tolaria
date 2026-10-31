@@ -1,3 +1,4 @@
+import { applyMeldArrangement, raiseMeldArrangement } from "./meld";
 import { findPermanent } from "./lookup";
 import type { CardInstanceState, GameState } from "./state";
 import {
@@ -779,6 +780,25 @@ export function finalizeLegendKeep(
     }
 }
 
+/** Commits a `meld-arrange` PendingChoice (CR 712.21a / 712.21b): the
+ *  chosen card goes on top of its partner, then the SBA sweep re-runs and
+ *  priority returns to the active player once nothing else is pending —
+ *  the `finalizeLegendKeep` shape. */
+export function finalizeMeldArrangement(
+    state: GameState,
+    selectedIds: string[]
+): void {
+    const head = state.pendingChoices?.[0];
+    if (!head || head.kind !== "meld-arrange" || head.stackItemId !== "") {
+        return;
+    }
+    applyMeldArrangement(state, selectedIds[0]);
+    checkStateBasedActions(state);
+    if ((state.pendingChoices?.length ?? 0) === 0 && !state.gameOver) {
+        state.priorityPlayerId = state.activePlayerId;
+    }
+}
+
 /** CR 205.4a — true when the permanent currently has the World supertype.
  *  Read from the (possibly copied) card definition, mirroring the Legendary
  *  check, so a Clone copying a World permanent reads World here. */
@@ -948,6 +968,13 @@ export function checkStateBasedActions(state: GameState): void {
         if (state.gameOver) return;
         if (!acted) break;
     }
+    // CR 712.21a / 712.21b (ADR 0161) — a melded permanent that split into two
+    // cards in one player's zone during this action is arranged by its owner
+    // (or exiler) before anything else proceeds. Not an SBA: raised here, at
+    // the sweep's settle point, because this is where the engine already
+    // suspends for an SBA-level prompt; `finalizeMeldArrangement` re-runs
+    // the sweep, so the trigger scan below happens after the answer.
+    if (raiseMeldArrangement(state)) return;
     // CR 702.131b (issue #1460) — the PERMANENT form of Ascend: a continuous
     // check granting the city's blessing to any player who controls an Ascend
     // permanent and ten or more permanents. Runs AFTER the fixpoint (it depends

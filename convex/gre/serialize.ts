@@ -1331,6 +1331,9 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // point, so the batch must survive a DB round-trip (round-trips as raw JSON —
     // its StackItems already carry `card: { id }`, no fat defs).
     "pendingTriggerBatch",
+    // CR 712.21a/b (ADR 0161) — split melded permanents awaiting their
+    // `meld-arrange` prompt; plain ids, round-trips through the generic loop.
+    "pendingMeldArrangements",
     // CR 116.3 — a plain player id, set only while a special action's trigger
     // announcement is suspended (a stable save point).
     "priorityAfterTriggerAnnouncement",

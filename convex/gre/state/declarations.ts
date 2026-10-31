@@ -119,6 +119,30 @@ export type DurationTickView = {
     boundaryAlreadyCounted?: boolean;
 };
 
+/** CR 701.42a — one of the two cards a melded permanent is represented by
+ *  (`CardInstanceState.meldedFrom`): enough to put that card back into a
+ *  zone as itself (CR 712.21). */
+export type MeldedCard = {
+    /** The card's own (front-face) definition id. */
+    cardId: string;
+    /** CR 712.21a — each card goes to ITS owner's zone. */
+    ownerId: string;
+    /** The instance id the card had, and gets back, as a card. */
+    instanceId: string;
+    /** The card's cosmetic print pin, held aside while the permanent shows
+     *  the combined back face's art. */
+    imagePrintId?: string;
+};
+
+/** CR 712.21a / 712.21b — one split melded permanent's two cards, lying
+ *  together in `zoneOwnerId`'s `zone`, for `chooserId` to arrange. */
+export type PendingMeldArrangement = {
+    chooserId: string;
+    zoneOwnerId: string;
+    zone: "graveyard" | "library" | "exile";
+    cardIds: [string, string];
+};
+
 export type CardInstanceState = {
     id: string;
     /** Reference to the card definition. Production constructions write only
@@ -1026,6 +1050,22 @@ export type CardInstanceState = {
      *  712.8a) can restore it. Public to both players (unlike `faceDownOf`,
      *  no hiding is needed). Only meaningful while `transformed` is true. */
     transformedFrom?: string;
+    /** CR 701.42a / 712.4a (ADR 0161) — set only on a MELDED permanent: the
+     *  two cards this ONE object is represented by, the half whose ability
+     *  melded them first. The permanent presents that half's registered meld
+     *  twin (`${cardId}#meld`, `cards/meld.ts`) and keeps that half's
+     *  instance id; the other half's instance id waits here. As the permanent
+     *  leaves the battlefield the funnel (`removePermanentTo`) materialises
+     *  both cards again, each with its own id, owner and print pin (CR
+     *  712.21). Public: every player saw both cards meld. */
+    meldedFrom?: MeldedCard[];
+    /** CR 712.21c (ADR 0161) — the id of the melded permanent this card was
+     *  one of the two cards of, stamped on BOTH cards as that permanent left
+     *  the battlefield. An effect that finds the new object finds both cards
+     *  and acts on each: object-acting Ops expand a selection through
+     *  `expandMeldGroup` (`gre/meld.ts`), which reads this stamp. Cleared the
+     *  moment either card changes zones again (CR 400.7 — a new object). */
+    meldGroupId?: string;
     /** CR 701.27f (issue #3249) — the value of `GameState.nextDelayedSeq` at
      *  this permanent's most recent transform, stamped by
      *  `SpellContext.transform`. A delayed triggered ability `delayed-N` of
@@ -4436,6 +4476,12 @@ export type GameState = {
      *  batch is pushed onto the stack in one shot and the field is cleared.
      *  Undefined at every fully-resolved point. */
     pendingTriggerBatch?: StackItem[];
+    /** CR 712.21a / 712.21b (ADR 0161) — melded permanents that just split
+     *  into two cards landing together in one player's zone, waiting for the
+     *  arranging player's `meld-arrange` choice. Queued by
+     *  `removePermanentTo`, drained one prompt at a time by the SBA sweep;
+     *  undefined at every fully-resolved point. */
+    pendingMeldArrangements?: PendingMeldArrangement[];
     /** CR 116.3 — the player who receives priority once a SUSPENDED trigger
      *  announcement lands (CR 603.3b ordering, 603.3c mode, 603.3d targets),
      *  when the triggers were raised by a special action the NON-active player
@@ -5700,6 +5746,10 @@ export interface ExileReturnBundle {
     /** Exiled Auras that were attached to the host, in attachment order. They
      *  return attached to the restored host (CR 303.4). */
     attached: { id: string; ownerId: string }[];
+    /** CR 712.21c (ADR 0161) — the host was a MELDED permanent: the other
+     *  card it split into in exile, returned beside the host card ("finds
+     *  both cards"), each front face up as its own permanent (CR 712.14). */
+    meldPartners?: { id: string; ownerId: string }[];
     /** Counter kinds and counts noted on the host as it was exiled (CR 122),
      *  re-applied to the returned (new) object. */
     counters: Record<string, number>;

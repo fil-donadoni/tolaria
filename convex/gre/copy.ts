@@ -11,6 +11,7 @@
 // printed definition id is preserved in `copiedFrom` so the copy can be
 // reverted when it leaves the battlefield.
 
+import { meldResultParentId } from "../cards/meld";
 import { FACE_DOWN_CARD_ID, getDefinition, tryGetDefinition } from "../cards";
 import type { CopyEffectOptions, TriggeredAbility } from "../cards/types";
 import {
@@ -603,6 +604,10 @@ function lookBackLayer1(
         // unioning `retainedThroughCopy` triggers onto an object with no
         // abilities. Grants made to it (layer 6, CR 613.1f) are instance state
         // and survive the spread, exactly as for a live face-down permanent.
+    } else if (meldResultParentId(entry.defId) === printedId) {
+        // CR 712.21 (ADR 0161) — it left as a MELDED permanent, whose card in
+        // the new zone is the half that melded it. Neither a transform (CR
+        // 712.4c) nor a copy: no marker, so no `retainedThroughCopy` union.
     } else if (backFaceDefinitionIdOf(printedId) === entry.defId) {
         // CR 712.8a — it died showing its back face. Unreachable ambiguity,
         // noted rather than coded around: a double-faced permanent that was a

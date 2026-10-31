@@ -113,6 +113,8 @@ export const NON_ZONE_CANDIDATE_SOURCE: Record<
     "look-distribute": "none",
     "choose-categorized": "none",
     "legend-keep": "none",
+    // CR 712.21a/b — the two cards are zone members (graveyard/library/exile).
+    "meld-arrange": "none",
     // CR 303.4 — the permanent hosts are zone members (the battlefield read);
     // an "Enchant player" Aura's player hosts ride `candidatePlayerIds`.
     "choose-aura-host": "players",
