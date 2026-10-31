@@ -9,6 +9,7 @@ import {
 } from "@convex/cards/modalDfc";
 import { isSplitCard, splitSideOfDefinitionId } from "@convex/cards/splitCard";
 import { parentIdOfTwin } from "@convex/cards/twinId";
+import { isMeldCard } from "@convex/cards/meld";
 import {
     getArtCropImageUrl,
     getArtImageUrl,
@@ -359,6 +360,9 @@ function buildBackFaceHalf(defId: string): PreviewBackFaceHalf | null {
               ? `Loyalty ${face.loyalty}`
               : null;
     const imageId = resolveBackFaceImageId(defId);
+    // CR 712.4 (ADR 0161) — a meld card's combined back face is a Scryfall
+    // card of its OWN, single-faced: its art is that print's FRONT image.
+    const imageFace = isMeldCard(def) ? "front" : "back";
     return {
         label: BACK_FACE_HALF_LABEL,
         name: face.name,
@@ -368,12 +372,14 @@ function buildBackFaceHalf(defId: string): PreviewBackFaceHalf | null {
             .split("\n")
             .filter((p) => p.length > 0),
         statLine,
-        imageSrc: imageId ? getArtImageUrl(imageId, "back") : null,
-        imageFallbackSrc: imageId ? getArtCropImageUrl(imageId, "back") : null,
-        printedImageSrc: imageId
-            ? getPrintedCardImageUrl(imageId, "back")
+        imageSrc: imageId ? getArtImageUrl(imageId, imageFace) : null,
+        imageFallbackSrc: imageId
+            ? getArtCropImageUrl(imageId, imageFace)
             : null,
-        printedImageId: imageId ? { id: imageId, face: "back" } : null,
+        printedImageSrc: imageId
+            ? getPrintedCardImageUrl(imageId, imageFace)
+            : null,
+        printedImageId: imageId ? { id: imageId, face: imageFace } : null,
     };
 }
 

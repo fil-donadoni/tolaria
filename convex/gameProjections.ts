@@ -1286,7 +1286,11 @@ function computeChoiceExposure(
             // ("Target opponent chooses one") — `peekZoneOwner` below already
             // follows `zoneOwnerId`, so the exposed pile is the LIBRARY
             // owner's, projected into the CHOOSER's view.
-            head.kind === "choose-library-card") &&
+            head.kind === "choose-library-card" ||
+            // meld-arrange (CR 712.21a, ADR 0161) — the owner arranges the
+            // two cards of a melded permanent they just put into their
+            // library; they saw both cards go, and only those two are shown.
+            head.kind === "meld-arrange") &&
         head.zone === "library";
     // reorder-library shows `count` cards; draw-look-keep and
     // order-top show all the looked-at cards named in `candidateIds`.
@@ -1308,7 +1312,8 @@ function computeChoiceExposure(
             // choose-library-card (issue #3205) — the revealed cards were
             // found by a SEARCH, so they sit wherever they sat in the library,
             // not in a top-N window. Pinned like the two kinds above.
-            head.kind === "choose-library-card")
+            head.kind === "choose-library-card" ||
+            head.kind === "meld-arrange")
             ? head.candidateIds
             : undefined;
 

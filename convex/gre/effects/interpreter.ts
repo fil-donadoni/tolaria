@@ -2272,6 +2272,10 @@ function resolveObjectRef(
     ref: EffectObjectSelector
 ): TargetSelection | undefined {
     if ("target" in ref) return ctx.targets[ref.target];
+    // CR 712.21c (ADR 0161) — a meld-group partner `withMeldGroup` is acting
+    // on, in whatever zone the split put it.
+    const meldPartner = MELD_PARTNER_SELECTIONS.get(ctx)?.get(ref.ref);
+    if (meldPartner) return meldPartner;
     // `$event.<field>` object ref (ADR 0049, issue #865) — the firing event's
     // permanent id, re-checked for battlefield presence (CR 608.2b) exactly
     // like a snapshot. Legal only at a trigger site (validator-enforced).
@@ -7620,6 +7624,152 @@ export const OP_EXECUTORS: {
         }
     },
 };
+
+/** CR 712.21c (ADR 0161) — the Ops that ACT on an object an Effect Script
+ *  found through a reference (`resolveObjectRef`), each with how a split
+ *  melded permanent's second card reaches it:
+ *
+ *  - `"expands"` — the Op can act on a card outside the battlefield, so the
+ *    effect that finds "the new object a melded permanent becomes" finds BOTH
+ *    cards and acts on each (Flickerwisp's return, Mimic Vat's exile). The
+ *    executor is wrapped by {@link withMeldGroup}.
+ *  - a reason string — why the second card can never be in reach: the Op
+ *    acts only on a battlefield permanent (where a melded permanent is ONE
+ *    object, CR 701.42a), or on something that is not an object at all.
+ *
+ *  The domain is CENSUSED, not trusted: `meldGroupExpansion.test.ts` derives
+ *  the set of executors that call `resolveObjectRef` from `OP_EXECUTORS` and
+ *  reds when it differs from these keys, so a new object-acting Op cannot
+ *  land unadjudicated. */
+const BATTLEFIELD_ONLY =
+    "acts on a battlefield permanent only, where a melded permanent is ONE object (CR 701.42a)";
+const COPIES_ONE_OBJECT =
+    "copies one object's copiable values (CR 707.2), an action upon no card";
+
+export const MELD_GROUP_DISPOSITION: Readonly<
+    Partial<Record<EffectOp["op"], "expands" | string>>
+> = {
+    moveZone: "expands",
+    exile: "expands",
+    // Copying reads the copiable values of ONE object (CR 707.2); it takes no
+    // action upon the cards, so CR 712.21c's "same actions … upon each" has
+    // nothing to repeat.
+    becomeCopy: COPIES_ONE_OBJECT,
+    createTokenCopy: COPIES_ONE_OBJECT,
+    // Only CAPTURES the reference; the body's own Ops act — and expand — when
+    // the delayed trigger fires (Flickerwisp's return).
+    delayedTrigger:
+        "captures the reference only; the delayed body's own Ops act and expand",
+    addSubtype: BATTLEFIELD_ONLY,
+    animate: BATTLEFIELD_ONLY,
+    attach: BATTLEFIELD_ONLY,
+    counters: BATTLEFIELD_ONLY,
+    destroy: BATTLEFIELD_ONLY,
+    exileAndReturnTransformed: BATTLEFIELD_ONLY,
+    exileOnDeath: BATTLEFIELD_ONLY,
+    // Acts on a battlefield host; its own RETURN leg brings a melded host's
+    // two cards back (`ExileReturnBundle.meldPartners`, `gre/state.ts`).
+    exileWithAttachments: BATTLEFIELD_ONLY,
+    explore: BATTLEFIELD_ONLY,
+    fight: BATTLEFIELD_ONLY,
+    gainControl: BATTLEFIELD_ONLY,
+    grantAbility: BATTLEFIELD_ONLY,
+    lockDamage: BATTLEFIELD_ONLY,
+    loseAllAbilities: BATTLEFIELD_ONLY,
+    markAssignsNoCombatDamage: BATTLEFIELD_ONLY,
+    monstrosity: BATTLEFIELD_ONLY,
+    phaseOut: BATTLEFIELD_ONLY,
+    preventDamage: BATTLEFIELD_ONLY,
+    preventRegeneration: BATTLEFIELD_ONLY,
+    pump: BATTLEFIELD_ONLY,
+    regenerate: BATTLEFIELD_ONLY,
+    restrictCombat: BATTLEFIELD_ONLY,
+    returnToHandAtNextUntap: BATTLEFIELD_ONLY,
+    sacrifice: BATTLEFIELD_ONLY,
+    setBasePT: BATTLEFIELD_ONLY,
+    setCardTypes: BATTLEFIELD_ONLY,
+    setColor: BATTLEFIELD_ONLY,
+    setLevel: BATTLEFIELD_ONLY,
+    setSubtype: BATTLEFIELD_ONLY,
+    skipNextUntap: BATTLEFIELD_ONLY,
+    tapUntap: BATTLEFIELD_ONLY,
+    transform: BATTLEFIELD_ONLY,
+};
+
+/** Wraps an object-acting executor so it acts on every card of the meld
+ *  group its reference finds (CR 712.21c): the group is read BEFORE the
+ *  first action (which moves the found card, making the next lookup
+ *  stale), then the SAME Op runs once more per partner card through a
+ *  scratch binding — "the same actions are taken upon each of them". The
+ *  finding stays ONE reference and the Op's own `bind` captures the first
+ *  card only, so nothing asks its question twice (CR 712.21c's Mimic Vat
+ *  example: one choice, both cards). A target slot never expands: a
+ *  target is chosen, never "found" as the new object. An action that
+ *  suspends for a choice is not repeated. */
+function withMeldGroup<K extends EffectOp["op"]>(
+    exec: (ctx: SpellContext, op: OpOf<K>, cursor: Cursor) => OpOutcome
+): (ctx: SpellContext, op: OpOf<K>, cursor: Cursor) => OpOutcome {
+    const wrapped = (ctx: SpellContext, op: OpOf<K>, cursor: Cursor) => {
+        const ref = (op as { target?: EffectObjectSelector }).target;
+        // A `forEach` member is found one card at a time by the sweep, never
+        // as "the new object a melded permanent becomes": it does not expand
+        // (each card is its own member, so expanding would act twice).
+        const found =
+            ref !== undefined && "ref" in ref && ref.ref !== EACH_BINDING
+                ? resolveObjectRef(ctx, ref)
+                : undefined;
+        const partners =
+            found && found.type !== "permanent"
+                ? ctx.meldGroupPartners(found.id)
+                : [];
+        const outcome = exec(ctx, op, cursor);
+        if (outcome === "suspend" || partners.length === 0) return outcome;
+        // The partner is handed to the executor as a RESOLVED selection (the
+        // scratch ref short-circuits `resolveObjectRef`), so it is acted on in
+        // whatever zone it lies — never re-found through a binding, whose
+        // fallback does not search every zone.
+        const forced = new Map<string, TargetSelection>();
+        MELD_PARTNER_SELECTIONS.set(ctx, forced);
+        try {
+            for (const [i, partner] of partners.entries()) {
+                const scratch = `$meldGroup${i}`;
+                bindSnapshot(ctx, scratch, partner);
+                forced.set(scratch, partner);
+                const again = { ...op, target: { ref: scratch } } as OpOf<K>;
+                delete (again as { bind?: string }).bind;
+                if (exec(ctx, again, cursor) === "suspend") return "suspend";
+            }
+        } finally {
+            MELD_PARTNER_SELECTIONS.delete(ctx);
+        }
+        return outcome;
+    };
+    return Object.assign(wrapped, { [MELD_GROUP_WRAPPED]: exec });
+}
+
+/** The partner selections a {@link withMeldGroup} re-run is acting on, by
+ *  scratch ref, for the duration of that re-run only. */
+const MELD_PARTNER_SELECTIONS = new WeakMap<
+    SpellContext,
+    Map<string, TargetSelection>
+>();
+
+/** Marks a {@link withMeldGroup} executor and keeps the original, whose
+ *  source the census test reads. */
+export const MELD_GROUP_WRAPPED = Symbol("meldGroupWrapped");
+
+for (const [op, disposition] of Object.entries(MELD_GROUP_DISPOSITION)) {
+    if (disposition !== "expands") continue;
+    const table = OP_EXECUTORS as unknown as Record<
+        string,
+        (
+            ctx: SpellContext,
+            op: OpOf<EffectOp["op"]>,
+            cursor: Cursor
+        ) => OpOutcome
+    >;
+    table[op] = withMeldGroup(table[op]);
+}
 
 // CR 601.2b / 701.9 (issue #1945) — per-category choice from an
 // ALREADY-VISIBLE set (the chooser's own hand or battlefield), reusing

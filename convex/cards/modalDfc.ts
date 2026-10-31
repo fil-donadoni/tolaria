@@ -95,14 +95,28 @@ export const CARD_BACK_FACE_KINDS: Record<
         contributesChooseableName: false,
     },
     modal: { registration: "twin", contributesChooseableName: true },
-    // CR 712.4 (PRD #3227 call 3) — the combined back face registers as a
-    // twin under `${parentId}#meld`. CR 712.19 lets a player choose its name,
-    // so it joins the name-choice DOMAIN (`chooseableDomainNamesOf`,
-    // `cards/cardNames.ts`) — and only the domain: CR 712.4b keeps the face
-    // from determining a meld card's characteristics, so the OBJECT predicate
-    // (`chooseableNamesOf`) never reads this flag (issue #7640).
+    // CR 712.4 (ADR 0161) — the combined back face registers as a twin
+    // under `${parentId}#meld` (`cards/meld.ts`). CR 712.19 lets a player
+    // choose its name, so it joins the name-choice DOMAIN
+    // (`chooseableDomainNamesOf`, `cards/cardNames.ts`) — and only the
+    // domain: CR 712.4b keeps the face from determining a meld card's
+    // characteristics, so the OBJECT predicate (`chooseableNamesOf`) never
+    // reads this flag (issue #7640).
     meld: { registration: "twin", contributesChooseableName: true },
 };
+
+/** CR 712.2 — `true` when `backFace` is reached through the content-derived
+ *  TOKEN CODEC (`registerBackFaceDefinition`, `gre/transform.ts`) rather than
+ *  a registered twin: the nonmodal transform face, and nothing else. THE
+ *  question every "is this id a synthesized back face?" site asks, so a new
+ *  twin kind (modal, meld) can never fall into the token bucket by being
+ *  "not modal". */
+export function isTokenCodecBackFace(backFace: CardBackFace): boolean {
+    return (
+        CARD_BACK_FACE_KINDS[backFaceKind(backFace)].registration ===
+        "token-codec"
+    );
+}
 
 /** CR 712.1 — the kind of `backFace`, with the documented default: absent
  *  means `"nonmodal"`, which is what every card carrying the field meant
@@ -178,9 +192,26 @@ export function modalBackTwinDefinition(
 ): CardDefinition | undefined {
     const back = parent.backFace;
     if (!back || backFaceKind(back) !== "modal") return undefined;
+    return backFaceTwinDefinition(
+        parent,
+        back,
+        modalBackFaceDefinitionId(parent.id)
+    );
+}
+
+/** The registered twin definition of `back`, `parent`'s back face, under
+ *  `id` — the face's printed characteristics as a flat `CardDefinition`
+ *  (CR 712.8f for a modal face, CR 712.8g for a meld pair's combined back
+ *  face), shared by every `registration: "twin"` kind so the two can never
+ *  disagree about which fields a face carries. */
+export function backFaceTwinDefinition(
+    parent: CardDefinition,
+    back: CardBackFace,
+    id: string
+): CardDefinition {
     const backStaticEffects = resolveTokenStaticEffects(back.staticEffectKeys);
     return {
-        id: modalBackFaceDefinitionId(parent.id),
+        id,
         name: back.name,
         rarity: parent.rarity,
         types: [...back.types],

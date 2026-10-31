@@ -18,6 +18,7 @@ import {
     submitDiscardHand,
     submitDrawLookKeep,
     submitLegendKeep,
+    submitMeldArrange,
     submitMidResolutionPick,
     submitMulliganBottom,
     submitOptionPick,
@@ -93,6 +94,10 @@ export const PENDING_CHOICE_HANDLERS: Record<
     },
     "legend-keep": {
         submit: zoned(submitLegendKeep),
+        legalActions: zonePickActions,
+    },
+    "meld-arrange": {
+        submit: zoned(submitMeldArrange),
         legalActions: zonePickActions,
     },
     "untap-pick": {

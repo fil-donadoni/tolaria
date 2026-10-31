@@ -143,7 +143,10 @@ export default function PlayerLibrary({
     const revealedPickOwner = head?.zoneOwnerId ?? head?.playerId;
     const isRevealedLibraryPick =
         !!head &&
-        head.kind === "choose-library-card" &&
+        // CR 712.21a (ADR 0161) — the owner picks which of a split melded
+        // permanent's two cards goes on top; `libraryPeek` holds exactly
+        // those two.
+        (head.kind === "choose-library-card" || head.kind === "meld-arrange") &&
         head.zone === "library" &&
         head.playerId === playerId &&
         player.id === revealedPickOwner &&

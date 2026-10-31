@@ -111,6 +111,14 @@ export type ZonePickKind =
     // random order. A phase-level choice (stackItemId === "") raised by the
     // draw step's replacement, committed by `finalizeDrawLookKeep`.
     | "draw-look-keep"
+    // CR 712.21a / 712.21b (ADR 0161): a melded permanent left the battlefield
+    // and its two cards landed together in one player's graveyard, library
+    // or exile. The owner (graveyard, library) or the exiling player (exile)
+    // arranges them: of two cards, choosing the TOP one is the whole order.
+    // A phase-level choice (stackItemId === "") raised by the SBA sweep from
+    // `GameState.pendingMeldArrangements`, committed by
+    // `finalizeMeldArrangement`.
+    | "meld-arrange"
     // Ordered top-of-library placement (CR 701.22 Scry / 701.25 Surveil /
     // "look at the top N, put them back in any order" — Ponder). The drag
     // picker's kind: `candidateIds` are the looked-at top N (from
