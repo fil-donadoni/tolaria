@@ -15,6 +15,8 @@
 
 export const CLAIM_LABEL = "in-progress";
 export const PR_OPEN_LABEL = "pr-open";
+/** The label an abort hands an issue back with (`abort.md` branch 2). */
+export const HAND_BACK_LABEL = "ready-for-human";
 
 /** The `gh` edit that undoes a claim — label(s), assignee, never one
  *  half. Removing `pr-open` from an issue that lacks it is a no-op for `gh`. */
@@ -30,6 +32,24 @@ export function releaseEditArgs(issue: number): string[] {
         "--remove-assignee",
         "@me",
     ];
+}
+
+/**
+ * Issue #7646: releasing a claim whose issue has an OPEN PR, without handing
+ * the issue back as `ready-for-human`, parks the PR with nothing watching it
+ * (the issue #3219 shape: no role label, no claim). `null` = the release may
+ * proceed; else the refusal. `openPr` = the PR whose branch names the issue.
+ */
+export function releaseRefusal(
+    issue: number,
+    openPr: number | null,
+    addsHandBack: boolean
+): string | null {
+    if (openPr === null || addsHandBack) return null;
+    return (
+        `release refused: issue #${issue} has open PR #${openPr} — a release is ONE act with the hand-back: ` +
+        `add \`--add-label ${HAND_BACK_LABEL}\` and post the comment (abort.md), or do not release`
+    );
 }
 
 /** The announced escape from `claimRefusal` (issue #5996). */

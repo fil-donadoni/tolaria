@@ -41,6 +41,9 @@ worktree) — then read the labels back:
 gh issue edit N --remove-label in-progress --remove-label pr-open --remove-assignee @me
 ```
 
+A release with an open PR on the issue also carries `--add-label ready-for-human`
+and the hand-back comment, else `deny-guard.sh` § 6c refuses it (issue #7646).
+
 A `--remove-label in-progress` alone leaves the assignee, and the planner defers an assigned
 issue as "someone is working it" on every pass, forever — `deny-guard.sh`
 § 6b denies it. Then remove the worktree.

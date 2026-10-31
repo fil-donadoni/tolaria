@@ -47,7 +47,12 @@ import {
 } from "./orphans";
 // Type-only: the liveness verdict is the CLASSIFIER's, never re-spelled here
 // (issue #4384). The gathering of it is I/O and stays in `lib/claim-verdict.ts`.
-import type { ClaimVerdictState } from "./claim-verdict";
+import {
+    classifyParkedPr,
+    type ClaimVerdictState,
+    type OpenPrRow,
+    parkedPrCandidates,
+} from "./claim-verdict";
 import type { OrphanWorktree } from "./orphan-worktree";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -538,6 +543,11 @@ export interface BatchPlan {
      * `gh pr list --label land-failed`; the dispatcher takes `repair[0]` first.
      */
     repair?: RepairItem[];
+    /**
+     * Parked PRs whose issue the owner holds (`ready-for-human`, issue #7646):
+     * listed with the hand-back age, never a pick.
+     */
+    ownerParked?: OwnerParkedItem[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1504,6 +1514,75 @@ export function resumeItems(
             ];
         })
         .sort((a, b) => rank(a.number) - rank(b.number) || a.number - b.number);
+}
+
+/** A parked PR whose issue wears `ready-for-human` (issue #7646). */
+export interface OwnerParkedItem {
+    number: number;
+    pr: number;
+    /** Hours since the hand-back comment; `null` = no comment readable. */
+    ageHours: number | null;
+}
+
+/**
+ * Issue #7646: the open PRs no queue label covers, by `classifyParkedPr`.
+ * `resume` = the issue lost its claim with live work (no role label): a
+ * `stranded` ResumeItem on the issue's own `model:*` tier (`resolveModel`).
+ * `ownerParked` = handed back to the owner: listed with the age of the
+ * hand-back comment (`handBackAt`, ms epoch or null), never picked — whether
+ * its blocker is gone is not mechanical. `detailOf` null = unreadable, left out.
+ */
+export function parkedPrItems(
+    rows: readonly OpenPrRow[],
+    detailOf: (
+        issue: number
+    ) => { labels: string[]; body: string; open: boolean } | null,
+    handBackAt: (issue: number) => number | null,
+    config: PlanConfig,
+    skip: ReadonlySet<number> = new Set()
+): { resume: ResumeItem[]; ownerParked: OwnerParkedItem[] } {
+    const resume: ResumeItem[] = [];
+    const ownerParked: OwnerParkedItem[] = [];
+    const candidates = parkedPrCandidates(rows).sort((a, b) => a.pr - b.pr);
+    for (const c of candidates) {
+        if (skip.has(c.issue)) continue;
+        const d = detailOf(c.issue);
+        if (d === null) continue;
+        const state = classifyParkedPr(d.labels, d.open);
+        if (state === "covered") continue;
+        if (state === "owner-parked") {
+            const at = handBackAt(c.issue);
+            ownerParked.push({
+                number: c.issue,
+                pr: c.pr,
+                ageHours:
+                    at === null
+                        ? null
+                        : Math.round(
+                              ((Date.parse(config.now) - at) / 3_600_000) * 10
+                          ) / 10,
+            });
+            continue;
+        }
+        if (config.excludeHitl && isHitl(d.body)) continue;
+        resume.push({
+            number: c.issue,
+            pr: c.pr,
+            state: "stranded",
+            model: resolveModel(
+                {
+                    number: c.issue,
+                    title: "",
+                    labels: d.labels.map((name) => ({ name })),
+                    parent: null,
+                    assignees: [],
+                    updatedAt: "",
+                },
+                config
+            ).model,
+        });
+    }
+    return { resume, ownerParked };
 }
 
 /**
