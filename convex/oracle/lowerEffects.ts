@@ -3169,12 +3169,6 @@ function lowerSentenceBody(
             if (!player.ok) return player;
             return lowered([{ op: "restrictLandPlay", player: player.value }]);
         }
-        // CR 305.2 + CR 514.2 — "You may play an additional land this turn":
-        // the effect's controller, one more play until CLEANUP.
-        case "extra-land-play":
-            return lowered([
-                { op: "grantExtraLandDrops", player: "controller", count: 1 },
-            ]);
         // CR 613.1b — the effect's controller gains control of the announced
         // permanent; CR 611.2b's "for as long as you control <this>" is the
         // `while-you-control-source` condition, absent = indefinite.
@@ -5421,6 +5415,15 @@ function lowerFrameChain(
             // CR 504.1 — the controller's draw step of this turn is skipped.
             case "skipDrawStepThisTurn":
                 ops.push({ op: "skipDrawStepThisTurn", player: "controller" });
+                break;
+            // CR 305.2 + CR 514.2 — one more land play for the controller,
+            // until CLEANUP.
+            case "grantExtraLandDrops":
+                ops.push({
+                    op: "grantExtraLandDrops",
+                    player: "controller",
+                    count: 1,
+                });
                 break;
             // CR 707.2 + CR 111.1 — the controller creates the token.
             case "copyToken": {
