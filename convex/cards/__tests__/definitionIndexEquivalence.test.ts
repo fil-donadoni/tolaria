@@ -20,7 +20,7 @@ import {
     walkHandWrittenDefinitions,
 } from "../catalogue";
 import { packedCorpusLookup, packedServerCorpus } from "../compiledPool";
-import { chooseableNamesOf } from "../cardNames";
+import { chooseableDomainNamesOf, chooseableNamesOf } from "../cardNames";
 import { backFaceTriggerTokenId } from "../definitionIndex";
 import { insetSpellDefinitionId } from "../insetSpell";
 import { isModalDoubleFaced, modalBackFaceDefinitionId } from "../modalDfc";
@@ -118,7 +118,7 @@ function eagerCatalogue() {
         nameRegistry,
         backFaceOwner,
         names: population.map((c) => c.name),
-        chooseable: population.flatMap((c) => chooseableNamesOf(c)),
+        chooseable: population.flatMap((c) => chooseableDomainNamesOf(c)),
     };
 }
 

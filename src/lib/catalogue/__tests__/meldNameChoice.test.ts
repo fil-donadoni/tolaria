@@ -59,7 +59,7 @@ describe("a meld pair's combined name in the name-choice domain (CR 712.19)", ()
         const front = {
             id: FRONT_ID,
             name: FRONT,
-            types: ["Creature"],
+            types: ["Land"],
             backFace: { kind: "meld", name: COMBINED, types: ["Planeswalker"] },
         } as CardDefinition;
         withTemporaryDefinition(front, () => {
@@ -71,6 +71,21 @@ describe("a meld pair's combined name in the name-choice domain (CR 712.19)", ()
                     COMBINED
                 )
             ).toBe(true);
+        });
+        // ...and rejects on the combined face's types, not the front's.
+        const landBack = {
+            ...front,
+            types: ["Creature"],
+            backFace: { kind: "meld", name: COMBINED, types: ["Land"] },
+        } as CardDefinition;
+        withTemporaryDefinition(landBack, () => {
+            expect(
+                isLegalNamedCard(
+                    state,
+                    { ...head, nameRestriction: "no-land" } as PendingChoice,
+                    COMBINED
+                )
+            ).toBe(false);
         });
     });
 
