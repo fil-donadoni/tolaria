@@ -25,6 +25,7 @@
 // its own type, for the same reason: a resource ceiling, not an evaluation
 // choice).
 import type { Feature } from "./featureBasis";
+import { FITTED_EVAL_WEIGHTS } from "./fittedEvalWeights";
 
 /** The two fitted creature-in-hand discounts of ONE weight vector (issue
  *  #5012) — `EvalWeights.latentCreatureDiscount` and
@@ -540,51 +541,25 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
  *
  * EDIT IT BY REFITTING, NEVER BY HAND. A weight you want moved is a Verdict
  * you have not written yet: add the position and the right move, run
- * `bun run fit:weights`, paste the block it prints. Changing a number here
- * reds the guard, which is the whole point.
+ * `bun run bot:refit` (on a branch, for your tests — the PR never carries
+ * it). Changing a number by hand reds the guard, which is the whole point.
  *
  * ADDING A BLADE ENTRY ALSO OBLIGES A REFIT — the registry IS the corpus, so a
  * new `moves` entry is a new verdict and the fitted vector moves with it. The
  * guard names the command when it reds.
  *
- * Only the FITTABLE keys are listed (`verdicts/features.ts`'
- * `FITTABLE_WEIGHT_KEYS`); everything else is spread from the base, so the
- * search constants have one home.
+ * Only the FITTABLE keys are fitted (`verdicts/features.ts`'
+ * `FITTABLE_WEIGHT_KEYS`) — they live in `./fittedEvalWeights.ts`, a whole
+ * generated file the base writes after each merge (`derive:sync`, issue
+ * #7653); everything else is spread from the base, so the search constants
+ * have one home.
  */
 export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     ...FIT_BASE_EVAL_WEIGHTS,
-    lifeWeight: 8,
-    permanentWeight: 5.667907,
-    manaWeight: 13.089045,
-    tappedManaWeight: 11.589045,
-    finiteManaUseWeight: 4,
-    manaDevWeight: 14.415707,
-    colorCoverageWeight: 21.937392,
-    flexWeight: 6.975347,
-    deckingWeight: 1.5,
-    poisonWeight: 2,
-    graveyardEngineWeight: 60,
-    graveyardReachFraction: 0.159543,
-    recoverableSweepFraction: 0.8,
-    heldDifferentialFraction: 0.25,
-    latentCreatureDiscount: 0.717932,
-    latentFlashCreatureDiscount: 0.80858,
-    cannotAttackShare: 0.75,
-    cannotBlockShare: 0.75,
+    ...FITTED_EVAL_WEIGHTS,
     latent: Object.freeze({
-        damage: 19.506155,
-        cardAdvantage: 46.965929,
-        lifeSwing: 7.584858,
-        boardRemoval: 160.470483,
-        ramp: 12,
-        evasion: 40,
-        tempo: 53.653095,
-        disruption: 130,
-        recursion: 140,
-        tokens: 0.465198,
-        pump: 9.710593,
-        protection: 60,
-        recurrence: 6.241058,
+        ...FIT_BASE_EVAL_WEIGHTS.latent,
+        ...FITTED_EVAL_WEIGHTS.latent,
     }),
 });
 

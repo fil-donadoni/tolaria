@@ -42,6 +42,7 @@ import {
 } from "../../../verdictStore";
 import { createMemoryVerdictStore } from "../../../verdictStoreMemory";
 import { packVerdicts } from "../../../../scripts/lib/verdict-pack-cache";
+import { REFIT_ARTIFACT_PATHS } from "../../../../scripts/lib/bot-refit";
 import { runVerdictPromotionStep } from "../blade/verdictPromotion";
 import {
     committedVerdictCorpus,
@@ -502,5 +503,24 @@ describe("widening the lock and moving the weights are ONE change (issue #3583, 
         expect(promoted.evalWeightsSource).toBe(
             rewriteDefaultEvalWeights(source, committed)
         );
+    });
+});
+
+// Issue #7653 — the fitted weights are derived state the base writes: the
+// refit's artefact list names this fit's file first, so `derive:sync` and the
+// hand-edit refusal cover the file the fit actually rewrites.
+describe("the refit artefacts name the fit's file (issue #7653)", () => {
+    it("REFIT_ARTIFACT_PATHS[0] is the file a fit rewrites", () => {
+        // The file carries the one literal the promotion rewrites: any other
+        // path (a pin fixture, the hand-written `evalWeights.ts`) throws.
+        const source = readFileSync(
+            join(REPO, REFIT_ARTIFACT_PATHS[0]),
+            "utf8"
+        );
+        const fit = fitWeights([], FIT_BASE_EVAL_WEIGHTS);
+        expect(rewriteDefaultEvalWeights(source, fit)).toContain(
+            "export const FITTED_EVAL_WEIGHTS"
+        );
+        expect(REFIT_ARTIFACT_PATHS[0]).toBe(EVAL_WEIGHTS_PATH);
     });
 });

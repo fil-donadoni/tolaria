@@ -9,8 +9,11 @@
  * A LEAF on purpose: `land.ts` reads the subject and the paths to tell a
  * derive commit from a foreign push (`VERIFY_MERGED_TIP`), and must not drag
  * the compiler in. The path literals are pinned equal to their owners'
- * constants by `__tests__/derive-sync.test.ts`.
+ * constants by `__tests__/derive-sync.test.ts`; its one import,
+ * `./bot-refit`, is itself a leaf (no imports).
  */
+
+import { REFIT_ARTIFACT_PATHS } from "./bot-refit";
 
 /** The Oracle lockfile — its header hashes are the derived part. */
 export const LOCKFILE_PATH = "data/oracle-compiled.json";
@@ -21,6 +24,15 @@ export const LOCKFILE_PATH = "data/oracle-compiled.json";
  * `compilerHash` / `registryHash` / `poolHash` / `botHash`) and the four
  * catalogue files. The base writes them after each merge; a PR will stop
  * carrying them (issue #6248).
+ *
+ * Then the Bot's refit artefacts (issue #7653, {@link REFIT_ARTIFACT_PATHS}):
+ * the fitted eval weights and the search / census pins `bot:refit` records.
+ * Not tree-wide by content, but by CHURN — every Bot PR refits, so two of them
+ * collided on these five files in 20 of a week's 27 rebase conflicts. The
+ * same remedy: `derive:sync` refits on the base (`bot:refit --derive`, step 0
+ * of the write path), the draft refits in its own tree (`derive:regenerate`),
+ * a PR that moves one is refused (`check:derived-in-diff`) and restored by
+ * `land:ready`. Whole files, restored whole like the catalogue.
  */
 export const DERIVED_PATHS: readonly string[] = [
     LOCKFILE_PATH,
@@ -28,7 +40,14 @@ export const DERIVED_PATHS: readonly string[] = [
     "data/catalogue/packed-corpus.json",
     "data/catalogue/definition-index.json",
     "data/catalogue/search-index.json",
+    ...REFIT_ARTIFACT_PATHS,
 ];
+
+/** Whether `path` is one of the Bot's refit artefacts — the derived paths a
+ *  refit writes, named apart in a refusal so the remedy is the refit's. */
+export function isRefitArtifact(path: string): boolean {
+    return REFIT_ARTIFACT_PATHS.includes(path);
+}
 
 /** The subject of the one commit `derive:sync` pushes straight to the base
  *  — `land` tells it from a foreign push by it and by its files. */
@@ -303,6 +322,14 @@ export function verdictCurrency(input: {
  *  `derivePredicateAnswer` (`lib/health-step.ts`) reads the reason from. */
 export function derivedStaleLine(why: string): string {
     return `derive:sync: this tree is derived-stale — ${why}`;
+}
+
+/** The reason `--settled` gives a tree whose refit artefacts lag it (issue
+ *  #7653): `bot:refit --check` red on `failed` (its step ids). Stale, never
+ *  late — the base's tests read these files, so health waits on the derive
+ *  commit within the grace, exactly as on a stale catalogue. */
+export function refitStaleReason(failed: readonly string[]): string {
+    return `the Bot refit artefacts lag the tree (\`bot:refit --check\` red: ${failed.length > 0 ? failed.join(", ") : "no step named"}) — derive:sync refits them after the merge`;
 }
 
 /** The mark `--settled`'s late line carries — what `derivePredicateAnswer`

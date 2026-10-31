@@ -98,6 +98,7 @@ import { failingFiles } from "./lib/health-evidence";
 import { laneFlakeOf, planLaneRetry, type LaneFlake } from "./lib/health-retry";
 import { matchesBotGlob } from "./lib/bot-globs";
 import { TREE_ROLE_ENV } from "./lib/derived-state";
+import { REFIT_ARTIFACT_PATHS } from "./lib/bot-refit";
 import {
     LANE_FORCE_ENV,
     LANE_VERDICT_DIR,
@@ -1138,11 +1139,14 @@ export const CHEAP_GUARDS: readonly {
     // data/catalogue/* after each merge, so a PR diff that still moves them
     // is red — a path-and-line check over `git diff --name-only` and two
     // `git show`s of the header, ~0.3 s, no corpus. Admitted by the derived
-    // paths alone; `diffOnly`: on the base tip there is no diff.
+    // paths alone — the Bot refit artefacts among them (issue #7653);
+    // `diffOnly`: on the base tip there is no diff.
     {
         id: "check:derived-in-diff",
-        admits: /^data\/(oracle-compiled\.json$|catalogue\/)/,
-        lacks: "no derived path changed — the lockfile and data/catalogue/* did not move, so the PR carries no derived state",
+        admits: new RegExp(
+            `^(data/(oracle-compiled\\.json$|catalogue/)|(${REFIT_ARTIFACT_PATHS.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})$)`
+        ),
+        lacks: "no derived path changed — the lockfile, data/catalogue/* and the Bot refit artefacts did not move, so the PR carries no derived state",
         diffOnly: true,
     },
     // Issue #6170: ~1 s (`git ls-files` + a read of ~5k sources). Any source

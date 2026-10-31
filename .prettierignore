@@ -86,3 +86,10 @@ data/blade-reproducers.json
 /AGENTS.md
 /convex/AGENTS.md
 /src/AGENTS.md
+# The Bot's refit artefacts (issue #7653): `bot:refit --derive` writes them on
+# the base and in the queue's draft, never followed by a format step.
+convex/gre/ai/fittedEvalWeights.ts
+convex/gre/__tests__/fixtures/searchCost.pins.json
+convex/gre/__tests__/fixtures/searchForcedPass.pins.json
+convex/gre/__tests__/fixtures/searchLeafScore.snapshot.json
+convex/gre/__tests__/__snapshots__/evaluateManaCensus.bot.test.ts.snap

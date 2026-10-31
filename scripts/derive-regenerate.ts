@@ -11,7 +11,12 @@
  *   1. the lockfile's header hashes are rewritten to the tree's own, ROWS
  *      KEPT — regenerating the rows too would regenerate a wrong row away, and
  *      `check:oracle` judges rows per row;
- *   2. `data/catalogue/*` is re-packed from the tree.
+ *   2. `data/catalogue/*` is re-packed from the tree;
+ *   3. the Bot's refit artefacts are re-fitted and re-recorded
+ *      (`bot:refit --derive`, issue #7653): a PR no longer carries them, so a
+ *      draft that changes Bot code would otherwise test the merge-base's
+ *      weights and pins against its own search. ~30 s at load 25 — the price
+ *      of a lane that never conflicts on them.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -56,7 +61,13 @@ function main(): void {
         [join(ROOT, "scripts", "catalogue-artifact.ts")],
         { cwd: ROOT, stdio: "inherit" }
     );
-    process.exit(pack.status ?? 1);
+    if (pack.status !== 0) process.exit(pack.status ?? 1);
+    const refit = spawnSync(
+        "bun",
+        [join(ROOT, "scripts", "bot-refit.ts"), "--derive"],
+        { cwd: ROOT, stdio: "inherit" }
+    );
+    process.exit(refit.status ?? 1);
 }
 
 if (import.meta.main) main();

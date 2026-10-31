@@ -26,6 +26,11 @@ data/blade-reproducers.json merge=regenerated
 AGENTS.md merge=regenerated
 convex/AGENTS.md merge=regenerated
 src/AGENTS.md merge=regenerated
+convex/gre/ai/fittedEvalWeights.ts merge=regenerated
+convex/gre/__tests__/fixtures/searchCost.pins.json merge=regenerated
+convex/gre/__tests__/fixtures/searchForcedPass.pins.json merge=regenerated
+convex/gre/__tests__/fixtures/searchLeafScore.snapshot.json merge=regenerated
+convex/gre/__tests__/__snapshots__/evaluateManaCensus.bot.test.ts.snap merge=regenerated
 
 # Committed artifacts that are NOT re-derivable — so out of the class above —
 # but whose conflicts are still never a real disagreement (issue #3768). Each
