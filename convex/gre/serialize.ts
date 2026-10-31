@@ -603,6 +603,7 @@ type CompactPlayer = {
     hasDrawnFromEmpty?: boolean;
     landsPlayedThisTurn?: number;
     spellsCastThisTurn?: number;
+    spellTypesCastThisTurn?: PlayerState["spellTypesCastThisTurn"];
     spellsWarpedThisTurn?: number;
     spellsCastThisGame?: number;
     lastDrawnCardId?: string;
@@ -666,6 +667,12 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     }
     if (player.spellsCastThisTurn) {
         out.spellsCastThisTurn = player.spellsCastThisTurn;
+    }
+    if (
+        player.spellTypesCastThisTurn &&
+        Object.keys(player.spellTypesCastThisTurn).length > 0
+    ) {
+        out.spellTypesCastThisTurn = { ...player.spellTypesCastThisTurn };
     }
     // CR 702.185c (issue #1268) — "a spell was warped this turn". Persisted
     // alongside the cast tally above: both are per-turn facts a save inside the
@@ -781,6 +788,9 @@ function expandPlayer(player: CompactPlayer, ctx?: ExpandCtx): PlayerState {
     }
     if (player.spellsCastThisTurn !== undefined) {
         result.spellsCastThisTurn = player.spellsCastThisTurn;
+    }
+    if (player.spellTypesCastThisTurn !== undefined) {
+        result.spellTypesCastThisTurn = { ...player.spellTypesCastThisTurn };
     }
     if (player.spellsWarpedThisTurn !== undefined) {
         result.spellsWarpedThisTurn = player.spellsWarpedThisTurn;

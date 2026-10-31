@@ -2013,6 +2013,17 @@ export type PlayerState = {
      *  turn" (CR 701.50, Ledger Shredder) needs the per-caster tally, not the
      *  table-wide one. */
     spellsCastThisTurn?: number;
+    /** Per-card-type split of `spellsCastThisTurn` (CR 601.2i, CR 205.2a):
+     *  for each card type, how many spells THIS PLAYER has cast this turn
+     *  that had that type. A spell counts once under EACH of its types (an
+     *  artifact creature spell is both a creature spell and an artifact
+     *  spell), so the values need not sum to `spellsCastThisTurn`; a
+     *  "non-<type> spell" count is `spellsCastThisTurn` minus the type's
+     *  entry. Keyed by type rather than one scalar per type so "your second
+     *  creature spell" and "your fourth noncreature spell" read one record.
+     *  Written and reset beside `spellsCastThisTurn`; the prior value rides
+     *  `SpellCastEvent.casterSpellTypeCountsThisTurn`. */
+    spellTypesCastThisTurn?: Partial<Record<CardType, number>>;
     /** CR 702.185c — how many spells THIS PLAYER has WARPED during the current
      *  turn ("a spell was warped this turn" means "a spell was cast for its
      *  warp cost this turn"). Incremented at the one cast choke point

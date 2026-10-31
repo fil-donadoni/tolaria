@@ -3690,6 +3690,8 @@ function advanceTurn(state: GameState): void {
     // `state.spellsCastThisTurn` reset below (connive/Ledger Shredder's
     // "second spell each turn" needs this scoped to the caster).
     for (const p of state.players) p.spellsCastThisTurn = 0;
+    // CR 601.2i — the per-type split of that tally resets with it.
+    for (const p of state.players) p.spellTypesCastThisTurn = undefined;
     // CR 702.185c (issue #1268) — "a spell was warped THIS TURN": the tally
     // resets with its cast sibling above and for the same reason.
     for (const p of state.players) p.spellsWarpedThisTurn = 0;
