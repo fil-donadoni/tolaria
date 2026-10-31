@@ -11,6 +11,7 @@ import { Stat } from "../Stat";
 import { Stats } from "../Stats";
 import { DailyBars } from "./DailyBars";
 import { DataTable } from "./DataTable";
+import { TestFiles } from "./TestFiles";
 
 /** Amendment I's band: 5–10 % failed is the expected, above it the flow
  *  pays for it. */
@@ -80,6 +81,10 @@ export function LandingsPanel({ trends }: { trends: Trends }) {
                         {
                             header: "cause",
                             cell: (e) => LANDING_CAUSE_LABEL[e.cause],
+                        },
+                        {
+                            header: "failing tests",
+                            cell: (e) => <TestFiles files={e.tests} />,
                         },
                     ]}
                     rows={recent}

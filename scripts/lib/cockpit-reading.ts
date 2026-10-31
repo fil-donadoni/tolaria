@@ -43,6 +43,6 @@ export function parseCockpitReading(text: string): CockpitReading | null {
     if (typeof raw !== "object" || raw === null) return null;
     const r = raw as Partial<CockpitReading>;
     if (r.version !== 1 || typeof r.readAt !== "string") return null;
-    if (r.trends !== null && r.trends?.version !== 2) return null;
+    if (r.trends !== null && r.trends?.version !== 3) return null;
     return r as CockpitReading;
 }

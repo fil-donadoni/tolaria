@@ -11,6 +11,7 @@ import { Section } from "../Section";
 import { Stat } from "../Stat";
 import { Stats } from "../Stats";
 import { DataTable } from "./DataTable";
+import { TestFiles } from "./TestFiles";
 
 const targetTone = (met: boolean | null): Tone =>
     met === null ? "neutral" : met ? "good" : "bad";
@@ -72,6 +73,19 @@ export function RedPanel({ trends }: { trends: Trends }) {
                         {
                             header: "owner needed",
                             cell: (e) => (e.ownerFree ? "no" : "yes"),
+                        },
+                        {
+                            header: "failing tests",
+                            cell: (e) => <TestFiles files={e.tests} />,
+                        },
+                        {
+                            header: "sentinel",
+                            cell: (e) =>
+                                e.sentinel === null
+                                    ? "n/a"
+                                    : e.sentinel
+                                      ? "yes"
+                                      : "no",
                         },
                     ]}
                     rows={trends.redEpisodes}

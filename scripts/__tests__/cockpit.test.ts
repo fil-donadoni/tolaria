@@ -129,7 +129,7 @@ describe("parseCockpitReading — a reading this page can render, or none", () =
 
     it("takes a reading of its version, with or without trends", () => {
         expect(parseCockpitReading(JSON.stringify(reading))).toEqual(reading);
-        const withTrends = { ...reading, trends: { version: 2 } };
+        const withTrends = { ...reading, trends: { version: 3 } };
         expect(parseCockpitReading(JSON.stringify(withTrends))).toEqual(
             withTrends
         );
@@ -142,6 +142,12 @@ describe("parseCockpitReading — a reading this page can render, or none", () =
         expect(
             parseCockpitReading(
                 JSON.stringify({ ...reading, trends: { version: 1 } })
+            )
+        ).toBeNull();
+        // Before issue #7650's failing-test columns: the page would throw.
+        expect(
+            parseCockpitReading(
+                JSON.stringify({ ...reading, trends: { version: 2 } })
             )
         ).toBeNull();
         expect(parseCockpitReading("{not json")).toBeNull();
