@@ -1402,6 +1402,26 @@ describe("one revert PR per culprit, none reverted twice (issue #7656)", () => {
         ).toMatchObject({ kind: "stop", why: /#7702 cannot land/ });
     });
 
+    it("a newer record never resets the queue clock of an older one", () => {
+        const old = new Date(NOW - REVERT_QUEUE_MAX_MS - 60_000).toISOString();
+        const episode: EpisodeRed[] = [
+            { sha: RED, attempt: inFlight([7702], RED), culprits: [A, B] },
+            {
+                sha: OLD_RED,
+                attempt: { ...inFlight([7701]), at: old },
+                culprits: [A],
+            },
+        ];
+        expect(
+            ladderRung(
+                facts({
+                    episode,
+                    revertPrs: [pr(7702, "open"), pr(7701, "open")],
+                })
+            )
+        ).toMatchObject({ kind: "stop", why: /past/ });
+    });
+
     it("the record of an earlier RED keeps its PRs a declared repair: revertRecordsOf reads them all", () => {
         const episode: EpisodeRed[] = [
             { sha: RED, attempt: inFlight([7702], RED), culprits: [B] },
@@ -1465,6 +1485,16 @@ describe("revertGroups — the culprits cut into one revert PR each (issue #7656
             ["c"],
         ]);
         expect(p.calls).toEqual([["a"], ["a", "b"], ["c"]]);
+    });
+
+    it("a dependent two culprits' reverts both need: one PR for both", () => {
+        // `x` is no culprit, but `a`'s and `c`'s reverts both conflict on it.
+        const p = planner({ a: ["x"], c: ["x"] });
+        const cut = revertGroups(["a", "b", "c"], p.plan);
+        expect("groups" in cut && cut.groups.map((g) => g.culprits)).toEqual([
+            ["b"],
+            ["a", "c"],
+        ]);
     });
 
     it("a revert that does not apply spends the rung, naming its culprits", () => {

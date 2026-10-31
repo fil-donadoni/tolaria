@@ -289,16 +289,17 @@ function main(): number {
         } catch {
             evidence = null;
         }
-        for (const g of groups) {
+        for (const g of groups)
             prs.push(openRevertPr(root, { red, why, evidence, ...g }, say));
-            // Recorded after each PR: a run killed between two leaves the
-            // ladder the ones it made, and a retry finds them by branch.
-            record("attempting", {
-                pr: prs[0],
-                prs: [...prs],
-                note: `revert ${groups.flatMap((x) => x.culprits.map((c) => c.sha)).join(" ")}`,
-            });
-        }
+        // Recorded once every PR is open: a record naming PRs says every
+        // culprit of the RED is covered (`culpritsBeingReverted`), so a run
+        // killed between two leaves the `attempting` with none — stale, a
+        // stop — never a culprit silently uncovered.
+        record("attempting", {
+            pr: prs[0],
+            prs: [...prs],
+            note: `revert ${groups.flatMap((x) => x.culprits.map((c) => c.sha)).join(" ")}`,
+        });
         return 0;
     } catch (e) {
         // Not the revert itself: an API error, a refused push — retried
@@ -307,7 +308,10 @@ function main(): number {
         const note = (e as Error).message;
         console.error(`health-revert: ${note}`);
         try {
+            // The PRs this try opened stay named; a retry reuses them by
+            // their issue's title and branch.
             record("stuck", {
+                ...(prs.length > 0 ? { pr: prs[0], prs: [...prs] } : {}),
                 note: `${TRANSIENT_NOTE}${note}`.slice(0, 100),
             });
         } catch {

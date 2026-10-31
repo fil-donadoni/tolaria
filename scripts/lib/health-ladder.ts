@@ -379,7 +379,16 @@ function revertInFlight(facts: LadderFacts, revert: FixAttempt): Rung {
             kind: "stop",
             why: `the RED stands after the revert PR ${prRefs(prs)} landed — the failure cannot be isolated`,
         };
-    if (olderThan(revert, REVERT_QUEUE_MAX_MS, facts.now))
+    // The oldest revert in flight bounds the wait: a newer record (a culprit
+    // added beside it) never resets the clock of the PRs before it.
+    const inFlight = revertRecordsOf(facts.episode).filter(
+        (a) => a.outcome !== "stuck"
+    );
+    if (
+        [revert, ...inFlight].some((a) =>
+            olderThan(a, REVERT_QUEUE_MAX_MS, facts.now)
+        )
+    )
         return {
             kind: "stop",
             why: `the revert PR ${prRefs(open)} has waited in the queue past ${REVERT_QUEUE_MAX_MS / 3_600_000} h — something holds it`,

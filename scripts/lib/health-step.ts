@@ -349,7 +349,8 @@ const NO_BAIL_STEP = "test";
 
 /**
  * The shell line that runs every script of `scripts` whatever the one before
- * it did, and exits 1 when any failed (issue #7656). Each `bun run` echoes
+ * it did, and exits 1 when any failed (issue #7656) — 77 when the only
+ * failures were gates that never ran (INFRA, as `bun run test` passed it). Each `bun run` echoes
  * its `$ bun scripts/gate.ts …` start line as the `&&` chain does, so the
  * retry (`lib/health-retry.ts`) reads every suite as started.
  */
@@ -357,7 +358,9 @@ export function noBailChain(scripts: readonly string[]): string {
     for (const s of scripts)
         if (!/^[\w:-]+$/.test(s))
             throw new Error(`not a package script name: ${JSON.stringify(s)}`);
-    return `rc=0; for s in ${scripts.join(" ")}; do bun run "$s" || rc=1; done; exit $rc`;
+    // A suite's own exit 77 (its gate never ran, `infraCause`) survives only
+    // when no suite failed: a red suite is the RED, with its files.
+    return `rc=0; for s in ${scripts.join(" ")}; do bun run "$s"; c=$?; if [ $c -eq 77 ]; then [ $rc -eq 0 ] && rc=77; elif [ $c -ne 0 ]; then rc=1; fi; done; exit $rc`;
 }
 
 /**

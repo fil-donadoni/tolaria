@@ -180,7 +180,8 @@ export interface RevertGroup<P extends RevertPlan = RevertPlan> {
  * planned ALONE, oldest first; a later culprit its set already reverts — a
  * dependent its conflicts named — joins its PR, and the set is planned
  * again with it as a culprit (the cap bounds dependents, never culprits),
- * until no other culprit joins. Two culprits whose reverts apply apart are
+ * until no other culprit joins; a set sharing any commit with an earlier
+ * PR's merges into it the same way. Two culprits whose reverts apply apart are
  * two PRs: neither waits on the other's queue, and either landing alone
  * turns its tests GREEN. A plan that does not apply (`conflict`, `cap`)
  * comes back with the culprits it was for: the rung is spent, as one PR's
@@ -199,6 +200,22 @@ export function revertGroups<P extends RevertPlan>(
             const p = plan(group);
             if (p.kind !== "applies") return { failed: p, culprits: group };
             const joined = left.filter((c) => p.set.some((s) => s.full === c));
+            // A dependent an earlier PR reverts too: two PRs reverting one
+            // commit cannot both land — one PR, planned again.
+            const shared = groups.filter((g) =>
+                g.plan.set.some((s) => p.set.some((t) => t.full === s.full))
+            );
+            if (shared.length > 0) {
+                const merged = new Set([
+                    ...shared.flatMap((g) => g.culprits),
+                    ...group,
+                    ...joined,
+                ]);
+                group = culprits.filter((c) => merged.has(c));
+                left = left.filter((c) => !merged.has(c));
+                for (const g of shared) groups.splice(groups.indexOf(g), 1);
+                continue;
+            }
             if (joined.length === 0) {
                 groups.push({
                     culprits: group,

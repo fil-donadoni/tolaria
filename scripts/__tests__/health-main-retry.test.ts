@@ -460,7 +460,10 @@ describe("the hosted early run runs every suite without bail (issue #7656)", () 
 
     /** Runs the early chain against a stub `bun` that fails the scripts in
      *  `failing`, and returns its exit code and the scripts it ran. */
-    function runChain(failing: readonly string[]): {
+    function runChain(
+        failing: readonly string[],
+        infra: readonly string[] = []
+    ): {
         status: number | null;
         ran: string[];
     } {
@@ -470,7 +473,7 @@ describe("the hosted early run runs every suite without bail (issue #7656)", () 
             const stub = join(dir, "bun");
             writeFileSync(
                 stub,
-                `#!/bin/sh\necho "$2" >> "${log}"\ncase " ${failing.join(" ")} " in *" $2 "*) exit 1;; esac\nexit 0\n`
+                `#!/bin/sh\necho "$2" >> "${log}"\ncase " ${failing.join(" ")} " in *" $2 "*) exit 1;; esac\ncase " ${infra.join(" ")} " in *" $2 "*) exit 77;; esac\nexit 0\n`
             );
             chmodSync(stub, 0o755);
             const { cmd, args } = healthStepCommand("test", { noBail: true });
@@ -492,6 +495,12 @@ describe("the hosted early run runs every suite without bail (issue #7656)", () 
             ran: ["test:app", "test:bot", "test:blade"],
         });
         expect(runChain(["test:bot", "test:blade"]).status).toBe(1);
+    });
+
+    it("a gate that never ran stays INFRA (77) unless a suite failed", () => {
+        expect(runChain([], ["test:bot"]).status).toBe(77);
+        expect(runChain(["test:blade"], ["test:app"]).status).toBe(1);
+        expect(runChain(["test:app"], ["test:bot"]).status).toBe(1);
     });
 
     it("every suite green: the step passes", () => {
