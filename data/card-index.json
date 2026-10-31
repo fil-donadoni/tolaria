@@ -17318,6 +17318,14 @@
         "source": "compiled"
     },
     {
+        "name": "Detective's Phoenix",
+        "scryfallId": "e2a01edd-dbc0-4ed4-b827-9b608290e9a1",
+        "oracleId": "52c3fe55-74ee-44cb-b62b-dc6c5dfdc33e",
+        "firstSet": "mh3",
+        "firstPrintId": "e2a01edd-dbc0-4ed4-b827-9b608290e9a1",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Detonate",
         "scryfallId": "ffd7eb90-ae95-49df-898a-9510187bce1c",
         "oracleId": "daa90a75-c600-41bd-9311-ec21cf51480b",
