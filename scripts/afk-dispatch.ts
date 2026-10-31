@@ -51,6 +51,7 @@ import {
     type OpenPrRow,
 } from "./lib/claim-verdict";
 import {
+    parseAreaModels,
     repairItems,
     type PlanConfig,
     type RepairItem,
@@ -491,6 +492,9 @@ function repairsUnderHold(
             batchCap: slots.free.length,
             staleClaimHours: DEFAULTS.staleClaimHours,
             defaultImplModel: DEFAULTS.defaultImplModel,
+            areaModels: parseAreaModels(
+                JSON.parse(readFileSync(CONFIG_PATH, "utf8"))
+            ),
             now: new Date(now).toISOString(),
             excludeHitl: true,
         };
@@ -691,13 +695,16 @@ async function main(): Promise<void> {
     // verdicts read too — read only once a slot is free. Unreadable → the run
     // fails: the claims need it.
     let dispatchConfig = parseAfkDispatchConfig(null);
+    // Area routing (issue #7654): an unreadable or malformed table degrades
+    // to the default tier, loudly — it never fails the pick.
+    let areaModels: Record<string, string> | undefined;
     try {
-        dispatchConfig = parseAfkDispatchConfig(
-            JSON.parse(readFileSync(CONFIG_PATH, "utf8"))
-        );
+        const doc = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
+        dispatchConfig = parseAfkDispatchConfig(doc);
+        areaModels = parseAreaModels(doc);
     } catch (err) {
         say(
-            `config unreadable (${(err as Error).message.split("\n")[0]}) — default queue limits`
+            `config unreadable (${(err as Error).message.split("\n")[0]}) — queue limits ${dispatchConfig.queueMax}/${dispatchConfig.failedMax}, NO area model routing (default tier)`
         );
     }
     const prRows = fetchOpenPrRows(shChecked);
@@ -720,6 +727,7 @@ async function main(): Promise<void> {
         batchCap: slots.free.length,
         staleClaimHours: DEFAULTS.staleClaimHours,
         defaultImplModel: DEFAULTS.defaultImplModel,
+        areaModels,
         now: new Date(now).toISOString(),
         excludeHitl: true,
     };

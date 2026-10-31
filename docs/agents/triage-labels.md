@@ -111,8 +111,20 @@ issue is parented to its band's umbrella). A script that COPIES an issue
 **This section is the single authority on model routing, for filing AND for
 pickup.** `model:opus` and `model:fable` decide whether `/next-ticket` may run
 an issue on the session's tier and where its review is routed; `resolveModel` in `scripts/lib/queue-plan.ts` reads the label
-and nothing else. An unlabelled issue runs on the default tier (Sonnet). There
+first. An unlabelled issue runs on the default tier (Sonnet). There
 is deliberately no `model:sonnet` label — absence IS the default.
+
+**The area rule** (issue #7654, owner decision 2026-10-31): an issue with NO
+`model:*` label whose `area:*` label appears in `tolaria.config.json`
+`modelRouting.areas` routes to that tier — today `area:game-bot`,
+`area:limited-bot` and `area:mechanics` → opus (six of that week's eight
+culprit PRs were Bot/engine, three implemented on Sonnet). A `model:*` label
+always wins (`model:fable` on `area:game-bot` → fable); several routed areas
+→ the most capable; every other area keeps the default. `queue:plan` names
+the routing label in the batch entry's `modelRoutedBy`. The table is
+configuration, not a filing criterion: a filer never adds `model:opus` to an
+issue only because its area already routes there, and the criterion below
+stays the test for every other area.
 
 No skill restates the criterion below in its own words. A second prose copy is
 drift by construction: `/next-ticket` § 1 once carried an area-based list

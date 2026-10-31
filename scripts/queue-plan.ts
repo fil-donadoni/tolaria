@@ -54,6 +54,7 @@ import {
     buildPlanRecord,
     lineageRefusal,
     redRefusal,
+    parseAreaModels,
     planBatch,
     planFilename,
     inFlightSet,
@@ -65,7 +66,7 @@ import {
     type QueueIssue,
     type QueuePort,
 } from "./lib/queue-plan";
-import { ORIGIN_BASE } from "./lib/branches";
+import { CONFIG_PATH, ORIGIN_BASE } from "./lib/branches";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { infraNotice, type InfraRecord } from "./lib/health-verdict";
 import {
@@ -867,6 +868,10 @@ function main(): void {
         batchCap: arg("cap", DEFAULTS.cap),
         staleClaimHours: arg("stale-hours", DEFAULTS.staleClaimHours),
         defaultImplModel: DEFAULTS.defaultImplModel,
+        // Area routing (issue #7654): unlabelled Bot/engine issues → opus.
+        areaModels: parseAreaModels(
+            JSON.parse(readFileSync(CONFIG_PATH, "utf8"))
+        ),
         now: new Date().toISOString(),
         inferredTargetFiles: inferredTargetFiles(),
         // Opt-in, and only the AFK driver passes it (#3088): an interactive
