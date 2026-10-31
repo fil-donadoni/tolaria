@@ -123,6 +123,7 @@ export default function GreHandCard({
     } = game;
     const activateAbility = useMutation(api.game.activateAbility);
     const activateManaAbility = useMutation(api.game.activateManaAbility);
+    const plotCard = useMutation(api.game.plotCard);
     const bufferCtx = usePendingChoiceBuffer();
 
     // Mid-resolution hand pick (CR 608.2, ADR 0007). When the active choice
@@ -238,9 +239,15 @@ export default function GreHandCard({
     // SAME predicate the options below are built from, in the plain Priority
     // window only (a payment / may-pay window offers mana abilities but must
     // not ring the hand).
+    // CR 116.2k / 702.170a — the plot special action, offered from the
+    // server's `canPlot` answer inside the same Priority window as the card's
+    // other actions (ADR 0074: the mutation re-validates).
+    const plotOffered =
+        card.canPlot === true && actionWindowOpen && !isHandChoice;
     const actionable = cardHasLegalAction(actionWindowOpen && !isHandChoice, {
         legalActions: legal,
         activatableAbilityCount: handAbilities.length,
+        canPlot: plotOffered,
     });
 
     const {
@@ -299,6 +306,12 @@ export default function GreHandCard({
             console.error(extractMutationErrorMessage(err))
         );
     };
+    const plotThisCard = () => {
+        if (hasPendingGameIntent()) return;
+        void trackGameIntent(
+            plotCard({ gameId, playerId, cardInstanceId: card.id })
+        ).catch((err) => console.error(extractMutationErrorMessage(err)));
+    };
     // CR 712.12 / 712.11c (ADR 0122 §2) — a card in hand can offer MORE THAN
     // ONE primary action. A modal double-faced card offers a cast of its front
     // face and a play of its land back face, and the two windows are
@@ -356,17 +369,27 @@ export default function GreHandCard({
                 : "Play land",
             onSelect: () => onPlayClick(face),
         })),
+        // CR 116.2k — a special action, not a cast: listed beside the cast so
+        // a card offering both routes through the menu, which names each.
+        ...(plotOffered ? [{ label: "Plot", onSelect: plotThisCard }] : []),
     ];
     const primaryAvailable = primaryActions.length > 0;
     const optionCount = handAbilities.length + primaryActions.length;
     const useMenu = !isHandChoice && optionCount > 1;
     const cyclingOnlyClick =
         !useMenu && handAbilities.length === 1 && !primaryAvailable;
+    // The one option is the plot: the click takes it, exactly as a
+    // Cycling-only card's click cycles.
+    const plotOnlyClick =
+        !useMenu && plotOffered && primaryActions.length === 1;
     // CR 712.12 — the drag/swipe and tap-stage gestures commit "the" primary
     // action, so they are armed only while there IS one. A modal double-faced
     // card offering both a cast and a land play routes through the menu, which
     // names each face; see `commit` above.
-    const gestureEnabled = commitEnabled && primaryActions.length <= 1;
+    // The plot entry is not a commit: the gesture still means "cast" when the
+    // card's only cast/play option is one, and the menu lists the plot.
+    const gestureEnabled =
+        commitEnabled && primaryActions.length - (plotOffered ? 1 : 0) <= 1;
 
     // Touch-vs-desktop tap detection for the menu (mirrors
     // `useAbilityCardClick` on the battlefield): touchstart flags the next
@@ -525,6 +548,10 @@ export default function GreHandCard({
         }
         if (cyclingOnlyClick) {
             activateHandAbility(handAbilities[0].id, e.ctrlKey || e.metaKey);
+            return;
+        }
+        if (plotOnlyClick) {
+            plotThisCard();
             return;
         }
         if (!commitEnabled) return;

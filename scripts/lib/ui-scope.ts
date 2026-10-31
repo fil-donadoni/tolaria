@@ -182,6 +182,13 @@ export function isNonDomPath(path: string): boolean {
  *  ship the card data every screen renders. */
 const GLOB_LOADED_DATA_DIRS = ["data/catalogue/", "data/full-catalogue/"];
 
+/** The REGENERATED card-catalogue artefacts (`catalogue:pack` /
+ *  `derive:regenerate`), rewritten by every PR that adds or graduates a card.
+ *  Owner ruling (issue #3219): they place on no surface — the data changes
+ *  which cards exist, never a layout, and the UI that renders a new card's
+ *  affordance is a `src/` file the diff places on its own. */
+const REGENERATED_CATALOGUE_DIR = "data/catalogue/";
+
 /**
  * A path only the server or tooling reads: `convex/**` or `data/**`, minus
  * `convex/_generated/**` (the frontend imports `api` from it) and the
@@ -413,6 +420,7 @@ export function computeUiScope({
             if (typeOnlyReachable(path)) continue;
             if (staffOnlyReachable(path)) continue;
             if (isServerOnlyPath(path)) continue;
+            if (path.startsWith(REGENERATED_CATALOGUE_DIR)) continue;
             if (placedThroughImporters(path, graph)) continue;
             doubts.push(
                 `${path} is in no surface's closure and no rule places it`

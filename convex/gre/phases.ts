@@ -2791,6 +2791,10 @@ function revokeExilePlayGrant(card: CardInstanceState): void {
     // impulse sweep is revoking here.
     delete card.castableFromExileFromTurn;
     delete card.warpExiled;
+    // CR 702.170d — the timing rider rides the revoked window. The PLOTTED
+    // designation does not: it is a marker on the exiled card, not part of
+    // any grant, and lasts while the card stays exiled (CR 702.170c).
+    delete card.castableFromExileSorceryTiming;
     // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides
     // the same turn-scoped window; expires together.
     delete card.castFromExileWithoutPayingManaCost;

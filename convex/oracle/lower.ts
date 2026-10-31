@@ -167,6 +167,8 @@ interface Accumulator {
     alternativeCosts?: AlternativeCost[];
     /** CR 702.35a — the cost to cast the card when it is discarded. */
     madness?: ManaCost;
+    /** CR 702.170a — the cost of the plot special action. */
+    plot?: ManaCost;
     /** CR 702.96a — the card's overload alternative cost. */
     overload?: AlternativeCost;
     /** CR 702.37e — the cost to turn the permanent face up. */
@@ -813,6 +815,12 @@ function lowerLine(
             acc.madness = ir.cost;
             return null;
         }
+        case "plot": {
+            if (acc.plot !== undefined)
+                return "a card declares plot twice (CR 702.170a)";
+            acc.plot = ir.cost;
+            return null;
+        }
         case "overload": {
             if (acc.overload !== undefined)
                 return "a card declares overload twice (CR 702.96a)";
@@ -1378,6 +1386,7 @@ export function lowerCard(
     if (acc.alternativeCosts !== undefined)
         definition.alternativeCosts = acc.alternativeCosts;
     if (acc.madness !== undefined) definition.madness = acc.madness;
+    if (acc.plot !== undefined) definition.plot = acc.plot;
     if (acc.morph !== undefined) definition.morph = acc.morph;
     if (acc.echo !== undefined) definition.echo = acc.echo;
     if (acc.cumulativeUpkeep !== undefined)

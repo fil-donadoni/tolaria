@@ -117,6 +117,7 @@ import {
     declaredAttackTargets,
 } from "./applyMove";
 import { applyTapPlanInSearch } from "./searchTapPlan";
+import { plotInSearch } from "./plot";
 import { castNeedsSorceryWindow } from "./rules";
 // CR 602.2a / 602.5 (issue #1920) — the shared shape of an activated ability's
 // stack item and the shared activation tally, so the search's push is the same
@@ -997,6 +998,14 @@ export function applyMoveInSearch(
             summonCompanionInSearch(state, player);
             state.passCount = 0;
             checkStateBasedActions(state);
+            return;
+
+        case "plot":
+            // CR 116.2k / 702.170b — no stack item: resets the pass cycle and
+            // keeps priority with the actor, like every special action.
+            plotInSearch(state, player, move.cardInstanceId);
+            checkStateBasedActionsAfterSpecialAction(state, playerId);
+            SBA_SETTLED.add(state);
             return;
 
         case "turn-face-up":

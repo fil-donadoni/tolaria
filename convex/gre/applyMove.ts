@@ -180,6 +180,7 @@ import {
 } from "./state";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
 import { morphTurnUpPaymentPlan } from "./morph";
+import { plotInSearch } from "./plot";
 import { applyCastModeCharacteristics } from "./castMode";
 import { turnFaceUpOnBattlefield } from "./faceDown";
 import { COMPANION_SUMMON_COST } from "./companion";
@@ -1891,6 +1892,13 @@ export function applyMoveForSearch(
 
         case "summon-companion":
             summonCompanionInSearch(next, player);
+            return next;
+
+        case "plot":
+            // CR 116.2k / 702.170b — no stack item; the exile can trigger
+            // "cards put into exile" watchers, so SBAs + the trigger scan run.
+            plotInSearch(next, player, move.cardInstanceId);
+            checkStateBasedActions(next);
             return next;
 
         case "turn-face-up":

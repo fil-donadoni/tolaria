@@ -72,6 +72,7 @@ vi.mock("@convex/_generated/api", () => {
         "selectSacrifice",
         "activateAbility",
         "activateManaAbility",
+        "plotCard",
         "playCard",
         "announceCast",
     ];
