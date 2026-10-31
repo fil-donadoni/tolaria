@@ -26882,6 +26882,16 @@
         "firstPrintSet": "hob"
     },
     {
+        "name": "Gandalf, Spark Starter",
+        "scryfallId": "7c5c6f1c-35cf-4172-b5a1-b73222b0723b",
+        "oracleId": "cd1a9d87-4c91-4456-8d88-19e0d6e0b200",
+        "firstSet": "hob",
+        "firstPrintId": "7c5c6f1c-35cf-4172-b5a1-b73222b0723b",
+        "firstPrintSet": "hob",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Gang of Devils",
         "scryfallId": "0430b9fa-3bc6-4183-ad5b-d70ad401fa97",
         "oracleId": "62110234-690b-4498-8076-26ba910f9f92",
@@ -44211,6 +44221,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mockingbird, Bobbi Morse",
+        "scryfallId": "be9c81fe-c94b-485e-b736-bd313865d709",
+        "oracleId": "d34affa9-3629-49e1-b1e4-4742aff6eafc",
+        "firstSet": "msc",
+        "firstPrintId": "be9c81fe-c94b-485e-b736-bd313865d709",
+        "firstPrintSet": "msc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Mogg Alarm",
         "scryfallId": "f246e128-0a43-478a-a232-51020fab76d5",
         "oracleId": "1c2117d5-4600-489c-be5b-dc0ed69b30ca",
@@ -44494,6 +44514,16 @@
         "firstPrintId": "032e072a-0630-472b-9106-5df554dff785",
         "firstPrintSet": "tsp",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Momo, Rambunctious Rascal",
+        "scryfallId": "6eebedac-4b53-4b4f-a96b-a5a804b90a83",
+        "oracleId": "8854222e-590f-4fc0-b5d7-bf3d986b8507",
+        "firstSet": "tle",
+        "firstPrintId": "6eebedac-4b53-4b4f-a96b-a5a804b90a83",
+        "firstPrintSet": "tle",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -63264,14 +63294,6 @@
         "source": "compiled"
     },
     {
-        "name": "Skycoach Conductor",
-        "scryfallId": "f9092a09-78a8-421c-868b-115175f4c252",
-        "oracleId": "788d3cfa-7706-4728-9c48-cf7bc963d002",
-        "firstSet": "sos",
-        "firstPrintId": "f9092a09-78a8-421c-868b-115175f4c252",
-        "firstPrintSet": "sos"
-    },
-    {
         "name": "Skycoach Conductor // All Aboard",
         "scryfallId": "4ecbca71-9a1d-44c5-b709-d6f565941d5e",
         "oracleId": "788d3cfa-7706-4728-9c48-cf7bc963d002",
@@ -71206,6 +71228,16 @@
         "source": "compiled"
     },
     {
+        "name": "The Wasp, Janet Van Dyne",
+        "scryfallId": "cd009478-6df9-4ebc-b0a4-0c50da82ad11",
+        "oracleId": "8d35c7c8-1342-40b7-82ec-2f7973ee8af8",
+        "firstSet": "msc",
+        "firstPrintId": "cd009478-6df9-4ebc-b0a4-0c50da82ad11",
+        "firstPrintSet": "msc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "The Wasp, Winsome Avenger",
         "scryfallId": "ce5fb436-fcc6-426f-a33b-a8ba904df0ff",
         "oracleId": "4b706959-ea38-4808-870a-7c35d83f7ab2",
@@ -75933,14 +75965,6 @@
         "firstPrintSet": "rtr",
         "rarity": "common",
         "source": "compiled"
-    },
-    {
-        "name": "Vastlands Scavenger",
-        "scryfallId": "91db5c3d-45ab-440f-8568-a2837aee1fca",
-        "oracleId": "3a97bc8d-bd81-468e-9277-eba4fac11ee0",
-        "firstSet": "sos",
-        "firstPrintId": "91db5c3d-45ab-440f-8568-a2837aee1fca",
-        "firstPrintSet": "sos"
     },
     {
         "name": "Vastlands Scavenger // Bind to Life",
