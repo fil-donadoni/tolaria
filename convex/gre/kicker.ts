@@ -94,7 +94,7 @@ export type KickerPayments = Record<string, number>;
  *    issue #962) and any future renderer read the same answer instead of
  *    each branching on `multi`. `repeated` present ⟺ `allowsMulti`, asserted
  *    in `additionalCostKeywords.test.ts` so the two cannot drift.
- *  - `paidPerExtraMode` — CR 702.120a (issue #2267): is the payment count
+ *  - `paidPerExtraMode` — CR 702.120a: is the payment count
  *    DERIVED from the announced mode list ("for each mode you choose beyond
  *    the first … you pay an additional [cost]") rather than chosen by the
  *    caster? Escalate is. Such an entry is never a toggle: the caster names
