@@ -26,7 +26,9 @@ import { MECHANICS_REGISTRY } from "../mechanicsRegistry";
 import {
     ADDITIONAL_COST_KEYWORDS,
     additionalCostKeywordOf,
+    isPaidPerExtraMode,
 } from "../../gre/kicker";
+import { maxModeCount } from "../../gre/modeSelection";
 import type { AdditionalCostKeyword } from "../types";
 import { getAllCards } from "../index";
 
@@ -174,6 +176,29 @@ describe("shipped kickers[] entries obey their keyword's table row (ADR 0085)", 
         expect(
             offenders.map((o) => `${o.card.id}:${o.entry.id} (${o.keyword})`)
         ).toEqual([]);
+    });
+
+    // CR 702.120a (issue #2267) — a per-extra-mode entry (escalate) is paid
+    // "for each mode you choose beyond the first", so it only means anything
+    // on a spell whose announce-time mode list can name MORE than one mode.
+    // Declared anywhere else it is a cost that can never be owed — the shape
+    // a mis-authored card would pass every other gate with.
+    it("a per-extra-mode entry sits on a mode list that can exceed one mode (CR 702.120a)", () => {
+        const offenders = shippedEntries.filter(
+            (e) =>
+                isPaidPerExtraMode(e.entry) &&
+                !(
+                    (e.card.modes?.length ?? 0) > 1 &&
+                    maxModeCount(e.card.modeSelection) > 1
+                )
+        );
+        expect(
+            offenders.map((o) => `${o.card.id}:${o.entry.id} (${o.keyword})`)
+        ).toEqual([]);
+        // Not vacuous: the catalogue ships one.
+        expect(shippedEntries.some((e) => isPaidPerExtraMode(e.entry))).toBe(
+            true
+        );
     });
 
     // ADR 0085 § Decision 4, delivered by issue #2079: both directions of the
