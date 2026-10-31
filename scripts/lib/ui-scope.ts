@@ -40,8 +40,6 @@
  *     deployment serves, and never pushes Convex functions (ADR 0131
  *     amendment, issue #5074). A module the frontend DOES import is in a
  *     closure and was placed above;
- *   - in no closure at all, and a REGENERATED catalogue artefact
- *     (`data/catalogue/**`) → contributes nothing (owner ruling, issue #3219);
  *   - in no closure at all, but reachable ONLY from a STAFF-ONLY route entry
  *     (`isStaffOnlyRouteEntry`: the admin pages, `/admin/draft-lab`) →
  *     contributes nothing: staff tooling is out of `check:ui`'s scope, so no
