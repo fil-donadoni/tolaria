@@ -1,5 +1,22 @@
+import { spawnSync } from "node:child_process";
+import {
+    chmodSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
-import type { HealthStep, StepResult } from "../lib/health-step";
+import { failingFiles } from "../lib/health-evidence";
+import {
+    healthStepCommand,
+    noBailChain,
+    TEST_CHAIN_SCRIPTS,
+    type HealthStep,
+    type StepResult,
+} from "../lib/health-step";
 import {
     failedVitestProjects,
     planLaneRetry,
@@ -8,7 +25,11 @@ import {
     retryNote,
     runStepWithRetry,
 } from "../lib/health-retry";
-import { decodeStatus, encodeDescription } from "../lib/health-verdict-store";
+import {
+    decodeStatus,
+    DESCRIPTION_MAX,
+    encodeDescription,
+} from "../lib/health-verdict-store";
 
 /**
  * Health re-runs a failed vitest project once before writing RED (issue
@@ -405,5 +426,143 @@ describe("planLaneRetry — the queue lane's one re-run (issue #5640)", () => {
         expect(
             planLaneRetry(CMD, FAIL + "\n⎯⎯⎯ Unhandled Errors ⎯⎯⎯\n")
         ).toBeNull();
+    });
+});
+
+describe("the hosted early run runs every suite without bail (issue #7656)", () => {
+    const BLADE_CMD =
+        "$ bun scripts/gate.ts light 'BLADE_TIER=must vitest run --config vitest.blade.config.ts'";
+
+    it("only an early run's `test` step leaves the `&&` chain", () => {
+        expect(healthStepCommand("test")).toEqual({
+            cmd: "bun",
+            args: ["run", "test"],
+        });
+        expect(healthStepCommand("check:all", { noBail: true })).toEqual({
+            cmd: "bun",
+            args: ["run", "check:all"],
+        });
+        const early = healthStepCommand("test", { noBail: true });
+        expect(early.cmd).toBe("sh");
+        expect(early.args).toEqual(["-c", noBailChain(TEST_CHAIN_SCRIPTS)]);
+    });
+
+    it("the chain is `bun run test`'s, in its order", () => {
+        const pkg = JSON.parse(
+            readFileSync(join(__dirname, "..", "..", "package.json"), "utf8")
+        ) as { scripts: Record<string, string> };
+        expect(
+            [...pkg.scripts.test.matchAll(/bun run (test:[\w-]+)/g)].map(
+                (m) => m[1]
+            )
+        ).toEqual([...TEST_CHAIN_SCRIPTS]);
+    });
+
+    /** Runs the early chain against a stub `bun` that fails the scripts in
+     *  `failing`, and returns its exit code and the scripts it ran. */
+    function runChain(failing: readonly string[]): {
+        status: number | null;
+        ran: string[];
+    } {
+        const dir = mkdtempSync(join(tmpdir(), "no-bail-"));
+        try {
+            const log = join(dir, "ran");
+            const stub = join(dir, "bun");
+            writeFileSync(
+                stub,
+                `#!/bin/sh\necho "$2" >> "${log}"\ncase " ${failing.join(" ")} " in *" $2 "*) exit 1;; esac\nexit 0\n`
+            );
+            chmodSync(stub, 0o755);
+            const { cmd, args } = healthStepCommand("test", { noBail: true });
+            const r = spawnSync(cmd, args, {
+                env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+                encoding: "utf8",
+                timeout: 10_000,
+            });
+            const ran = readFileSync(log, "utf8").split("\n").filter(Boolean);
+            return { status: r.status, ran };
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    }
+
+    it("a red first suite does not stop the next ones, and the step fails", () => {
+        expect(runChain(["test:app"])).toEqual({
+            status: 1,
+            ran: ["test:app", "test:bot", "test:blade"],
+        });
+        expect(runChain(["test:bot", "test:blade"]).status).toBe(1);
+    });
+
+    it("every suite green: the step passes", () => {
+        expect(runChain([])).toEqual({
+            status: 0,
+            ran: ["test:app", "test:bot", "test:blade"],
+        });
+    });
+
+    it("the evidence and the retry read every suite's failures", async () => {
+        const output = [
+            APP_CMD,
+            " FAIL  |node-engine| convex/gre/__tests__/stack.test.ts > stack > pops",
+            BOT_CMD,
+            " FAIL  |bot-node| convex/gre/ai/__tests__/x.bot.test.ts > x > y",
+            BLADE_CMD,
+        ].join("\n");
+        expect(failingFiles(output)).toEqual([
+            "convex/gre/__tests__/stack.test.ts",
+            "convex/gre/ai/__tests__/x.bot.test.ts",
+        ]);
+        // Every suite started: the retry owes no chain script after it.
+        expect(retryDecision("test", output)).toEqual({
+            plan: { projects: ["bot-node", "node-engine"], remaining: [] },
+        });
+    });
+});
+
+describe("the verdict description names how many failing files it cut (issue #7656)", () => {
+    const SHA = "a".repeat(40);
+    const back = (description: string) =>
+        decodeStatus({
+            sha: SHA,
+            state: "failure",
+            description,
+            targetUrl: null,
+            createdAt: null,
+        });
+    const red = (tests: string[]) =>
+        encodeDescription({
+            sha: SHA,
+            status: "red",
+            step: "test",
+            machine: "github-hosted/runner-1",
+            failure: "assertion",
+            tests,
+        });
+
+    it("files past the limit: whole paths that fit, then `more: N`", () => {
+        const tests = Array.from(
+            { length: 9 },
+            (_, i) => `scripts/__tests__/suite-${i}.test.ts`
+        );
+        const d = red(tests);
+        expect(d.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+        const v = back(d);
+        expect(v?.tests?.length).toBeGreaterThan(0);
+        expect(v?.tests).toEqual(tests.slice(0, v?.tests?.length));
+        expect((v?.tests?.length ?? 0) + (v?.testsMore ?? 0)).toBe(9);
+    });
+
+    it("no path fits: `more: N` alone", () => {
+        const d = red([`${"x/".repeat(60)}a.test.ts`, "b.test.ts"]);
+        expect(d.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+        expect(back(d)).toMatchObject({ testsMore: 2 });
+        expect(back(d)?.tests).toBeUndefined();
+    });
+
+    it("every path fits: no `more` field", () => {
+        const d = red(["a.test.ts", "b.test.ts"]);
+        expect(back(d)?.tests).toEqual(["a.test.ts", "b.test.ts"]);
+        expect(back(d)?.testsMore).toBeUndefined();
     });
 });
