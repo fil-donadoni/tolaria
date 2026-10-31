@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
     declaredRepairAmong,
-    MAX_COMMITS_SINCE_RED,
+    MAX_PR_COMMITS_SINCE_RED,
+    redStepOf,
     repairProofCommands,
     repairProofNote,
     repairProofPlan,
+    repairProofProjectCommands,
+    resolveMovedFiles,
     runRepairProof,
     tipMergesDeclaredRepair,
+    type ProofPlan,
     type RepairProofPlan,
 } from "../lib/health-repair-proof";
 import { HEALTH_SCRIPTS, splitHealthGates } from "../lib/health-step";
@@ -30,16 +34,34 @@ const AFTER_TEST = OFFLINE.slice(OFFLINE.indexOf("test") + 1);
 const STEPS_BEFORE_TEST = OFFLINE.filter(
     (s) => s !== "worktree:init" && s !== "test"
 );
+const NO_CORPUS = () => [];
 
-const proofOf = (plan: RepairProofPlan) => {
+const proofOf = (plan: RepairProofPlan): ProofPlan => {
     if (plan.kind !== "proof") throw new Error(`not a proof: ${plan.reason}`);
     return plan;
 };
+const reasonOf = (plan: RepairProofPlan): string =>
+    plan.kind === "full" ? plan.reason : "";
+
+/** A published evidence body's header lines (`buildEvidence`). */
+const evidenceOf = (
+    files: readonly string[],
+    opts: { projects?: readonly string[]; failLines?: readonly string[] } = {}
+) =>
+    [
+        "<!-- tolaria-health-evidence sha=aaaa -->",
+        "## Health RED · `aaaa` · test",
+        "",
+        `- **projects:** ${(opts.projects ?? []).join(", ") || "none named"}`,
+        `- **files:** ${files.map((f) => `\`${f}\``).join(", ")}`,
+        "",
+        "### Failures",
+        "",
+        ...(opts.failLines ?? []),
+    ].join("\n");
 
 describe("repairProofPlan — the RED's record decides what the repair tip owes (issue #7657)", () => {
     it("RED at `test` in test:app → the failing files + test:bot, test:blade + every step after `test`", () => {
-        // `test` is the last offline step today; a step after it would be
-        // owed too — pinned with a synthetic order below.
         const plan = proofOf(
             repairProofPlan({
                 reds: [
@@ -51,12 +73,16 @@ describe("repairProofPlan — the RED's record decides what the repair tip owes 
                     },
                 ],
                 offline: OFFLINE,
-                corpusTests: [],
+                corpusTests: NO_CORPUS,
             })
         );
         expect(plan).toEqual({
             kind: "proof",
             files: ["scripts/__tests__/x.test.ts"],
+            tests: [{ file: "scripts/__tests__/x.test.ts" }],
+            // No evidence, a `scripts/` non-Bot file: no shared-worker
+            // project decided by path.
+            projects: [],
             step: "test",
             unreached: ["test:bot", "test:blade", ...AFTER_TEST],
             corpus: false,
@@ -84,12 +110,13 @@ describe("repairProofPlan — the RED's record decides what the repair tip owes 
                     },
                 ],
                 offline,
-                corpusTests: [],
+                corpusTests: NO_CORPUS,
             })
         );
         // A retry note is stripped; files in test:bot leave only test:blade
-        // of the chain unreached.
+        // of the chain unreached; a Bot file ran in `bot-node`, re-run whole.
         expect(plan.step).toBe("test");
+        expect(plan.projects).toEqual(["bot-node"]);
         expect(plan.unreached).toEqual([
             "test:blade",
             "check:gaps",
@@ -101,35 +128,33 @@ describe("repairProofPlan — the RED's record decides what the repair tip owes 
     });
 
     it("RED at the last step, last tier → the files only", () => {
+        const file = "convex/gre/ai/blade/__tests__/blade.shard-2.spec.ts";
         const plan = proofOf(
             repairProofPlan({
                 reds: [
                     {
                         sha: "a".repeat(40),
                         step: "test",
-                        evidenceFiles: [
-                            "convex/gre/ai/blade/__tests__/blade.shard-2.spec.ts",
-                        ],
+                        evidence: evidenceOf([file]),
                     },
                 ],
                 offline: ["worktree:init", "check:all", "test"],
-                corpusTests: [],
+                corpusTests: NO_CORPUS,
             })
         );
         expect(plan.unreached).toEqual([]);
-        expect(plan.files).toEqual([
-            "convex/gre/ai/blade/__tests__/blade.shard-2.spec.ts",
-        ]);
+        expect(plan.files).toEqual([file]);
+        expect(plan.projects).toEqual([]);
     });
 
     it("a RED with no failing test file (a step failure) → the full gate, fail closed", () => {
         const plan = repairProofPlan({
             reds: [{ sha: "a".repeat(40), step: "check:all" }],
             offline: OFFLINE,
-            corpusTests: [],
+            corpusTests: NO_CORPUS,
         });
         expect(plan.kind).toBe("full");
-        expect((plan as { reason: string }).reason).toMatch(
+        expect(reasonOf(plan)).toMatch(
             /names no failing test file \(a step failure\)/
         );
     });
@@ -140,30 +165,119 @@ describe("repairProofPlan — the RED's record decides what the repair tip owes 
                 repairProofPlan({
                     reds: [{ sha: "a".repeat(40), step, tests: ["x.test.ts"] }],
                     offline: OFFLINE,
-                    corpusTests: [],
+                    corpusTests: NO_CORPUS,
                 }).kind
             ).toBe("full");
         expect(
-            repairProofPlan({ reds: [], offline: OFFLINE, corpusTests: [] })
+            repairProofPlan({
+                reds: [],
+                offline: OFFLINE,
+                corpusTests: NO_CORPUS,
+            })
         ).toEqual({ kind: "full", reason: "no RED stands" });
     });
 
-    it("the evidence's files win over the description's cut list", () => {
+    it("the evidence's files win over the description's cut list; a cut list with no evidence, or unreadable evidence, is the full gate", () => {
+        const red = {
+            sha: "a".repeat(40),
+            step: "test",
+            tests: ["a.test.ts"],
+            testsMore: 2,
+        };
+        const plan = proofOf(
+            repairProofPlan({
+                reds: [
+                    {
+                        ...red,
+                        evidence: evidenceOf([
+                            "a.test.ts",
+                            "b.test.ts",
+                            "c.test.ts",
+                        ]),
+                    },
+                ],
+                offline: OFFLINE,
+                corpusTests: NO_CORPUS,
+            })
+        );
+        expect(plan.files).toEqual(["a.test.ts", "b.test.ts", "c.test.ts"]);
+        const cut = repairProofPlan({
+            reds: [{ ...red, evidence: null }],
+            offline: OFFLINE,
+            corpusTests: NO_CORPUS,
+        });
+        expect(cut.kind).toBe("full");
+        expect(reasonOf(cut)).toMatch(/2 more failing file/);
+        const unreadable = repairProofPlan({
+            reds: [{ ...red, testsMore: 0, evidenceUnreadable: true }],
+            offline: OFFLINE,
+            corpusTests: NO_CORPUS,
+        });
+        expect(unreadable.kind).toBe("full");
+        expect(reasonOf(unreadable)).toMatch(/could not read/);
+        // No `more`, no evidence: the description's list is whole.
+        expect(
+            repairProofPlan({
+                reds: [{ ...red, testsMore: undefined, evidence: null }],
+                offline: OFFLINE,
+                corpusTests: NO_CORPUS,
+            }).kind
+        ).toBe("proof");
+    });
+
+    it("a RED a repair proof itself wrote → the full gate: the trust never chains", () => {
+        const plan = repairProofPlan({
+            reds: [
+                {
+                    sha: "a".repeat(40),
+                    step: "test",
+                    tests: ["x.test.ts"],
+                    proof: "repair",
+                },
+            ],
+            offline: OFFLINE,
+            corpusTests: NO_CORPUS,
+        });
+        expect(plan.kind).toBe("full");
+        expect(reasonOf(plan)).toMatch(/written by a repair proof/);
+    });
+
+    it("the evidence's projects and named tests ride the plan: the shared-worker re-run (issue #7584)", () => {
+        const file = "convex/gre/__tests__/y.test.ts";
         const plan = proofOf(
             repairProofPlan({
                 reds: [
                     {
                         sha: "a".repeat(40),
                         step: "test",
-                        tests: ["a.test.ts"],
-                        evidenceFiles: ["a.test.ts", "b.test.ts", "c.test.ts"],
+                        evidence: evidenceOf([file], {
+                            projects: ["node-engine"],
+                            failLines: [
+                                ` FAIL  |node-engine| ${file} > suite > case`,
+                            ],
+                        }),
                     },
                 ],
                 offline: OFFLINE,
-                corpusTests: [],
+                corpusTests: NO_CORPUS,
             })
         );
-        expect(plan.files).toEqual(["a.test.ts", "b.test.ts", "c.test.ts"]);
+        expect(plan.projects).toEqual(["node-engine"]);
+        expect(plan.tests).toEqual([{ file, name: "suite > case" }]);
+        expect(
+            repairProofProjectCommands(plan).map((c) => [c.args, c.env])
+        ).toEqual([
+            [
+                [
+                    "vitest",
+                    "run",
+                    "--project",
+                    "node-engine",
+                    "--no-file-parallelism",
+                ],
+                { TOLARIA_VITEST_RUN_LAST: file },
+            ],
+        ]);
     });
 
     it("stacked REDs (issue #7139): the files are the union, the unreached steps the union in the run's order, the earliest step names the run", () => {
@@ -185,7 +299,7 @@ describe("repairProofPlan — the RED's record decides what the repair tip owes 
                     },
                 ],
                 offline,
-                corpusTests: [],
+                corpusTests: NO_CORPUS,
             })
         );
         expect(plan.files).toEqual([
@@ -209,18 +323,22 @@ describe("repairProofPlan — the RED's record decides what the repair tip owes 
                     },
                 ],
                 offline,
-                corpusTests: [],
+                corpusTests: NO_CORPUS,
             }).kind
         ).toBe("full");
     });
 
-    it("a RED a GitHub-hosted run wrote skipped the corpus tests: they join the files", () => {
+    it("a RED a GitHub-hosted run wrote skipped the corpus tests: they join the files — and the scan is asked only then", () => {
         const red = {
             sha: "a".repeat(40),
             step: "test",
             tests: ["scripts/__tests__/x.test.ts"],
         };
-        const corpusTests = ["convex/gre/ai/__tests__/corpus.bot.test.ts"];
+        let scans = 0;
+        const corpusTests = () => {
+            scans += 1;
+            return ["convex/gre/ai/__tests__/corpus.bot.test.ts"];
+        };
         const hosted = proofOf(
             repairProofPlan({
                 reds: [{ ...red, machine: `${HOSTED_MACHINE_PREFIX}runner` }],
@@ -233,6 +351,11 @@ describe("repairProofPlan — the RED's record decides what the repair tip owes 
             "convex/gre/ai/__tests__/corpus.bot.test.ts",
             "scripts/__tests__/x.test.ts",
         ]);
+        expect(hosted.tests.map((t) => t.file)).toEqual([
+            "scripts/__tests__/x.test.ts",
+            "convex/gre/ai/__tests__/corpus.bot.test.ts",
+        ]);
+        expect(scans).toBe(1);
         const own = proofOf(
             repairProofPlan({
                 reds: [{ ...red, machine: "macbook" }],
@@ -242,6 +365,7 @@ describe("repairProofPlan — the RED's record decides what the repair tip owes 
         );
         expect(own.corpus).toBe(false);
         expect(own.files).toEqual(["scripts/__tests__/x.test.ts"]);
+        expect(scans).toBe(1);
     });
 
     it("steps the RED's run passed are not in the plan", () => {
@@ -251,7 +375,7 @@ describe("repairProofPlan — the RED's record decides what the repair tip owes 
                     { sha: "a".repeat(40), step: "test", tests: ["x.test.ts"] },
                 ],
                 offline: OFFLINE,
-                corpusTests: [],
+                corpusTests: NO_CORPUS,
             })
         );
         for (const passed of STEPS_BEFORE_TEST)
@@ -262,10 +386,13 @@ describe("repairProofPlan — the RED's record decides what the repair tip owes 
 });
 
 describe("repairProofNote — the GREEN's description (issue #7657)", () => {
-    const base = {
-        kind: "proof" as const,
+    const base: ProofPlan = {
+        kind: "proof",
         files: ["x.test.ts"],
+        tests: [{ file: "x.test.ts" }],
+        projects: [],
         step: "test",
+        unreached: [],
         corpus: false,
     };
     it("names the failing files and the unreached steps, the mark first", () => {
@@ -296,6 +423,7 @@ describe("repairProofNote — the GREEN's description (issue #7657)", () => {
             sha,
             status: "green",
             step,
+            proof: "repair",
             machine: "github-hosted/some-runner-1234",
         });
         expect(description.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
@@ -307,6 +435,7 @@ describe("repairProofNote — the GREEN's description (issue #7657)", () => {
             createdAt: null,
         });
         expect(back?.step).toBe(step);
+        expect(back?.proof).toBe("repair");
         expect(isRepairProofGreen(back)).toBe(true);
         expect(isRepairProofGreen({ status: "green" })).toBe(false);
         expect(
@@ -318,15 +447,48 @@ describe("repairProofNote — the GREEN's description (issue #7657)", () => {
         expect(isRepairProofGreen({ status: "red", step })).toBe(false);
         expect(isRepairProofGreen(null)).toBe(false);
     });
+
+    it("a proof-written RED keeps its `proof` mark on the store before a long file list", () => {
+        const sha = "c".repeat(40);
+        const description = encodeDescription({
+            sha,
+            status: "red",
+            step: "test",
+            machine: "macbook",
+            proof: "repair",
+            failure: "assertion",
+            tests: Array.from(
+                { length: 12 },
+                (_, i) =>
+                    `convex/gre/__tests__/someLongTestFileName${i}.test.ts`
+            ),
+        });
+        expect(description.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+        const back = decodeStatus({
+            sha,
+            state: "failure",
+            description,
+            targetUrl: null,
+            createdAt: null,
+        });
+        expect(back?.proof).toBe("repair");
+        expect(back?.testsMore).toBeGreaterThan(0);
+        expect(isRepairProofGreen(back)).toBe(false);
+    });
 });
 
 describe("runRepairProof — the flake path's order on the repair tip (issue #7657)", () => {
-    const plan = {
-        kind: "proof" as const,
+    const plan: ProofPlan = {
+        kind: "proof",
         files: [
             "scripts/__tests__/x.test.ts",
             "convex/gre/ai/blade/__tests__/blade.shard-1.spec.ts",
         ],
+        tests: [
+            { file: "scripts/__tests__/x.test.ts" },
+            { file: "convex/gre/ai/blade/__tests__/blade.shard-1.spec.ts" },
+        ],
+        projects: [],
         step: "test",
         unreached: ["test:bot", "check:gaps"],
         corpus: false,
@@ -358,6 +520,33 @@ describe("runRepairProof — the flake path's order on the repair tip (issue #76
         ]);
     });
 
+    it("files that pass alone in a shared-worker project are re-run with that project whole before any unreached step (issue #7584); red there is RED at the files' step", async () => {
+        const leaky: ProofPlan = {
+            ...plan,
+            files: ["convex/gre/__tests__/y.test.ts"],
+            tests: [{ file: "convex/gre/__tests__/y.test.ts", name: "s > c" }],
+            projects: ["node-engine"],
+        };
+        const ran: string[] = [];
+        const out = await runRepairProof(leaky, {
+            note: () => {},
+            runFiles: (cmds) => {
+                ran.push(...cmds.map((c) => c.args.join(" ")));
+                // The file passes alone, the project whole fails.
+                return !cmds.some((c) => c.args.includes("--project"));
+            },
+            runStep: (step) => {
+                ran.push(`step ${step}`);
+                return true;
+            },
+        });
+        expect(out).toEqual({ outcome: "red", step: "test", ran: "test" });
+        expect(ran).toEqual([
+            "vitest run convex/gre/__tests__/y.test.ts",
+            "vitest run --project node-engine --no-file-parallelism",
+        ]);
+    });
+
     it("a failing file is RED at the RED's step, and no unreached step runs", async () => {
         const steps: string[] = [];
         const out = await runRepairProof(plan, {
@@ -368,11 +557,11 @@ describe("runRepairProof — the flake path's order on the repair tip (issue #76
                 return true;
             },
         });
-        expect(out).toEqual({ outcome: "red", step: "test" });
+        expect(out).toEqual({ outcome: "red", step: "test", ran: "test" });
         expect(steps).toEqual([]);
     });
 
-    it("a failing unreached step is RED at that step, the ones after it not run", async () => {
+    it("a failing unreached chain tier is RED at step `test` (what the ladder's fresh run reads), naming the tier it ran; a failing guard at its own name", async () => {
         const steps: string[] = [];
         const out = await runRepairProof(plan, {
             note: () => {},
@@ -382,14 +571,23 @@ describe("runRepairProof — the flake path's order on the repair tip (issue #76
                 return s !== "test:bot";
             },
         });
-        expect(out).toEqual({ outcome: "red", step: "test:bot" });
+        expect(out).toEqual({ outcome: "red", step: "test", ran: "test:bot" });
         expect(steps).toEqual(["test:bot"]);
+        expect(
+            await runRepairProof(plan, {
+                note: () => {},
+                runFiles: () => true,
+                runStep: (s) => s !== "check:gaps",
+            })
+        ).toEqual({ outcome: "red", step: "check:gaps", ran: "check:gaps" });
+        expect(redStepOf("test:blade")).toBe("test");
+        expect(redStepOf("check:targets")).toBe("check:targets");
     });
 
-    it("no file left (a revert dropped them all) runs the unreached steps alone", async () => {
+    it("no file left (every one deleted by the repair) runs the unreached steps alone", async () => {
         let files = 0;
         const out = await runRepairProof(
-            { ...plan, files: [] },
+            { ...plan, files: [], tests: [] },
             {
                 note: () => {},
                 runFiles: () => {
@@ -401,6 +599,26 @@ describe("runRepairProof — the flake path's order on the repair tip (issue #76
         );
         expect(out).toEqual({ outcome: "green" });
         expect(files).toBe(0);
+    });
+});
+
+describe("resolveMovedFiles — the failing files as the tip holds them (issue #7657)", () => {
+    it("present runs at its path, renamed at the new one, deleted is dropped, anything else is unknown (the full gate)", () => {
+        const r = resolveMovedFiles(
+            ["a.test.ts", "old/b.test.ts", "c.test.ts", "d.test.ts"],
+            (f) => f === "a.test.ts",
+            {
+                renamed: new Map([["old/b.test.ts", "new/b.test.ts"]]),
+                deleted: new Set(["c.test.ts"]),
+            }
+        );
+        expect(r.files).toEqual(["a.test.ts", "new/b.test.ts"]);
+        expect(r.deleted).toEqual(["c.test.ts"]);
+        expect(r.unknown).toEqual(["d.test.ts"]);
+        expect([...r.mapped]).toEqual([
+            ["a.test.ts", "a.test.ts"],
+            ["old/b.test.ts", "new/b.test.ts"],
+        ]);
     });
 });
 
@@ -422,19 +640,24 @@ describe("declaredRepairAmong — the commit since the RED that merges a declare
         ).toEqual({ sha: "b".repeat(40), pr: 41 });
     });
 
-    it("null with no repair declared, with no closing PR, or past the run's cap", () => {
+    it("null with no repair declared, with no closing PR, or past the run's cap of PR commits (generated commits not counted)", () => {
         expect(
             declaredRepairAmong({ commits, repairIssues: [], closedBy })
         ).toBeNull();
         expect(
             declaredRepairAmong({ commits, repairIssues: [99], closedBy })
         ).toBeNull();
+        const pr = (i: number) => ({
+            sha: String(i).padStart(40, "0"),
+            pr: 42,
+        });
+        const generated = (i: number) => ({
+            sha: String(i).padStart(40, "9"),
+            pr: null,
+        });
         const long = Array.from(
-            { length: MAX_COMMITS_SINCE_RED + 1 },
-            (_, i) => ({
-                sha: String(i).padStart(40, "0"),
-                pr: 42,
-            })
+            { length: MAX_PR_COMMITS_SINCE_RED + 1 },
+            (_, i) => pr(i)
         );
         expect(
             declaredRepairAmong({
@@ -443,6 +666,21 @@ describe("declaredRepairAmong — the commit since the RED that merges a declare
                 closedBy: () => [7],
             })
         ).toBeNull();
+        const padded = [
+            ...Array.from({ length: MAX_PR_COMMITS_SINCE_RED }, (_, i) =>
+                generated(i)
+            ),
+            ...Array.from({ length: MAX_PR_COMMITS_SINCE_RED }, (_, i) =>
+                pr(i)
+            ),
+        ];
+        expect(
+            declaredRepairAmong({
+                commits: padded,
+                repairIssues: [7],
+                closedBy: () => [7],
+            })
+        ).toEqual(pr(0));
     });
 });
 

@@ -772,40 +772,56 @@ repair** of the standing RED is judged by the RED's own evidence, in
   standing RED whose PR closes one of the repair issues recorded on ANY RED of
   the run — the pivot's `health-fix` statuses, closed issues included (issue
   #7647: the merge itself closed it). A tip that does not descend from the
-  RED, more than `MAX_COMMITS_SINCE_RED` commits since it, or any fact that
-  cannot be read, is not a repair tip: the full gate runs.
+  RED, more than `MAX_PR_COMMITS_SINCE_RED` PR commits since it (generated
+  commits not counted), a run on a branch other than the configured base, or
+  any fact that cannot be read, is not a repair tip: the full gate runs.
 - **Plan** (`repairProofPlan`, pure over the RED's record): the RED's failing
-  files (its published evidence's, else the description's), then every health
-  step the RED's run never reached — `test`'s chain after the failing tier
-  (`remainingGates`), the steps after the failed one. Over every RED of the
-  run (stacked REDs, issue #7139): files and steps are the union. A RED
-  naming no failing file (a step failure: `check:all`, a crash), or at a step
-  the run does not know, is the **full gate** — fail closed. A RED a
-  GitHub-hosted run wrote skipped the committed-corpus tests (issue #5675):
-  those files join the proof.
+  files (its published evidence's, else the description's — a description
+  that cut its list, `more: N`, with no evidence to read is the full gate; so
+  is evidence the run could not read), then every health step the RED's run
+  never reached — `test`'s chain after the failing tier (`remainingGates`),
+  the steps after the failed one. Over every RED of the run (stacked REDs,
+  issue #7139): files and steps are the union. A RED naming no failing file
+  (a step failure: `check:all`, a crash), at a step the run does not know, or
+  **written by a repair proof itself** (its `proof: repair` field — the trust
+  never chains: that run passed nothing a second proof could lean on), is
+  the **full gate** — fail closed. A RED a GitHub-hosted run wrote skipped
+  the committed-corpus tests (issue #5675): those files join the proof. A
+  failing file the repair renamed runs at its new path, one it deleted (a
+  revert of the culprit that added it) is dropped, one missing for no reason
+  the diff explains is the full gate (`resolveMovedFiles`).
 - **Run** (`runRepairProof`, the flake path's order): the files as whole files
-  at their own paths, the default config's and the blade's apart, then each
-  unreached step by name; the first failure is RED at that step with the
-  usual evidence (the ladder then climbs it as any RED); all green is GREEN.
+  at their own paths, the default config's and the blade's apart; when they
+  pass alone and ran in a shared-worker project (`isolate: false`,
+  `sharedWorkerProjects`), that project whole in one worker with the failing
+  tests last — a cross-file leak reproduces only beside its polluter (issue
+  #7584), and a repair that did not fix the polluter must not pass on the
+  files alone; then each unreached step by name. The first failure is RED
+  with the usual evidence, at the `HEALTH_SCRIPTS` entry (`test` for a chain
+  tier, so the ladder's fresh run reads it) and marked `proof: repair`; the
+  ladder then climbs it as any RED. All green is GREEN.
 - **Verdict:** GREEN, with `repair: failing files + N unreached steps green`
-  as its step — the same vocabulary as rung 2's `flake: …`, **no new verdict
-  state**. The lineage reads it as GREEN: picks and landings resume, the
-  episode ends. `gateSkipReason` and `browserStepsOwed` do not read it as the
-  full gate: the next batch gate (ADR 0154's cadence, the cron, the
-  heartbeat) gates the tip whole, once, and its full GREEN replaces the proof
-  on the store; a RED it finds bisects from the proven tip (the bisect's good
-  bound is the last GREEN). `release` refuses it (`releaseDecision`): ADR
-  0116's "the release branch moves only to a full-gate GREEN on the exact
-  tip" is unchanged, so the release gate runs the tip whole.
+  as its step and `proof: repair` beside it — the same vocabulary as rung 2's
+  `flake: …`, **no new verdict state**. The lineage reads it as GREEN: picks
+  and landings resume, the episode ends. `gateSkipReason` and
+  `browserStepsOwed` do not read it as the full gate: the next batch gate
+  (ADR 0154's cadence, the cron, the heartbeat) gates the tip whole, once,
+  and its full GREEN replaces the proof on the store. **The bisect's good
+  bound walks past it** (`lastGreenOf`): a test the proof never ran may have
+  gone red at the proof tip itself, so a later RED is bisected from the last
+  FULL GREEN with the proof tip inside the range — a few more probes, the
+  right culprit. `release` refuses it (`releaseDecision`): ADR 0116's "the
+  release branch moves only to a full-gate GREEN on the exact tip" is
+  unchanged, so the release gate runs the tip whole.
 - **Never** under `--release`, nor in a hosted early run (it writes no
   GREEN), nor under `--full` (the by-hand full gate on a repair tip).
 
-The steps the RED's run passed on the RED tip are trusted on the repair tip.
-What that trusts: a declared repair touches the culprit's files; a step that
-passed on the RED tip and fails on the repair tip would be a defect of the
-repair itself, which the batch gate finds within one cadence and the ladder
-bisects over the few commits since the proof. Accepted for the ~30 min per
-episode it returns.
+The steps the RED's run passed on the RED tip are trusted on the repair tip —
+one hop, never two. What that trusts: a step that passed on the RED tip and
+fails on the repair tip is a defect of the repair itself (or of a `--red-ok`
+landing beside it), which the batch gate finds within one cadence and the
+ladder bisects from the last full GREEN, the proof tip among the probes.
+Accepted for the ~30 min per episode it returns.
 
 ## What would change the answer
 

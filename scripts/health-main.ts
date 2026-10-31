@@ -176,19 +176,17 @@ import {
 } from "./lib/health-verdict";
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
 import { readDeploymentSkew } from "./lib/deployment-skew";
-import {
-    buildEvidence,
-    evidenceFiles,
-    evidenceSummary,
-} from "./lib/health-evidence";
+import { buildEvidence, evidenceSummary } from "./lib/health-evidence";
 import {
     corpusTestFiles,
+    fileMovesBetween,
     repairProofCommands,
     repairProofNote,
     repairProofPlan,
+    resolveMovedFiles,
     runRepairProof,
     tipMergesDeclaredRepair,
-    type RepairProofPlan,
+    type ProofPlan,
 } from "./lib/health-repair-proof";
 import {
     evidenceStore,
@@ -759,7 +757,10 @@ function finishRed(
     failedStep: string,
     halves: Pick<LastRun, "offline" | "browser">,
     failed: FailedOutput,
-    retry?: RetryFields
+    retry?: RetryFields,
+    /** A RED a repair proof run found (issue #7657): marked on the store, so
+     *  the next repair's proof never trusts the steps this run skipped. */
+    proof?: "repair"
 ): never {
     const ev = publishEvidence(ctx, failedStep, failed, retry);
     const tests = ev.tests;
@@ -777,6 +778,7 @@ function finishRed(
         evidence: ev.pointer,
         ...retry,
         ...halves,
+        ...(proof ? { proof } : {}),
     });
     publishVerdict(ctx, {
         sha: ctx.tip,
@@ -787,6 +789,7 @@ function finishRed(
         log: ev.pointer,
         failure: ev.failure,
         ...(tests.length > 0 ? { tests } : {}),
+        ...(proof ? { proof } : {}),
     });
     const lineage = readVerdictLineage(() =>
         verdictStore(ctx.root, { branch: ctx.branch })
@@ -914,8 +917,12 @@ function finishGreen(
         sha: ctx.tip,
         status: "green",
         // The proof's note is the verdict's step (the flake path's shape):
-        // `isRepairProofGreen` reads it on the store.
-        ...(proof ? { step: proof } : note ? { step: note } : {}),
+        // `isRepairProofGreen` reads it on the store, and the `proof` field.
+        ...(proof
+            ? { step: proof, proof: "repair" as const }
+            : note
+              ? { step: note }
+              : {}),
         log: ctx.logPath,
     });
     // The health gate IS the authoritative green record now (ADR 0110) —
@@ -1091,32 +1098,37 @@ function deploymentSkew(ctx: RunCtx): string | null {
     }
 }
 
-/** The failing files a RED's published evidence names; none when nothing was
- *  published or the pivot could not be read (the verdict's own `tests`
- *  then stand in — `repairProofPlan`). */
-function readEvidenceFiles(root: string, sha: string): string[] {
+/** A RED's published evidence body: null when none was published,
+ *  `unreadable` when the pivot could not be read — the plan then falls to
+ *  the full gate rather than trust a cut file list (`repairProofPlan`). */
+function readEvidence(
+    root: string,
+    sha: string
+): { body: string | null; unreadable: boolean } {
     try {
-        const body = evidenceStore(root).read(sha);
-        return body === null ? [] : evidenceFiles(body);
+        return { body: evidenceStore(root).read(sha), unreadable: false };
     } catch (err) {
         console.error(
             `health-main: the RED evidence of ${sha.slice(0, 8)} could not be read — ${String(err)}`
         );
-        return [];
+        return { body: null, unreadable: true };
     }
 }
-
-type ProofPlan = Extract<RepairProofPlan, { kind: "proof" }>;
 
 /**
  * The repair proof this run owes instead of the full gate (issue #7657), or
  * null: no RED stands, the tip merges no declared repair of it, the RED's
- * evidence cannot stand in (`repairProofPlan`'s `full`), or a fact could not
- * be read — every one of them the full gate, said on the terminal. Files the
- * tip does not have (a revert that dropped a test the culprit added) are left
- * out, as the ladder's fresh run leaves them out.
+ * evidence cannot stand in (`repairProofPlan`'s `full`), a failing file is
+ * missing from the tip for no reason its diff explains, or a fact could not
+ * be read — every one of them the full gate, said on the terminal. A failing
+ * file the repair renamed runs at its new path; one it deleted (a revert of
+ * the culprit that added it) is dropped, as the ladder's fresh run drops it.
  */
 function repairProofFor(ctx: RunCtx, wt: string): ProofPlan | null {
+    // The pivot's repair issues are read on the configured base's lineage
+    // (`readRunRepairIssues`): a run on another branch would pair that
+    // branch's RED with the base's repairs.
+    if (ctx.branch !== BASE_BRANCH) return null;
     const lineage = readVerdictLineage(() =>
         verdictStore(ctx.root, { branch: ctx.branch })
     );
@@ -1141,28 +1153,63 @@ function repairProofFor(ctx: RunCtx, wt: string): ProofPlan | null {
             : `\`${repair.sha.slice(0, 12)}\``;
     const head = `health-main: ${ctx.tip.slice(0, 8)} merges ${who}, a declared repair of the RED @ ${red.sha.slice(0, 8)}`;
     const plan = repairProofPlan({
-        reds: (lineage.reds ?? [red]).map((v) => ({
-            sha: v.sha,
-            step: v.step,
-            tests: v.tests,
-            machine: v.machine,
-            evidenceFiles: readEvidenceFiles(ctx.root, v.sha),
-        })),
+        reds: (lineage.reds ?? [red]).map((v) => {
+            const evidence = readEvidence(ctx.root, v.sha);
+            return {
+                sha: v.sha,
+                step: v.step,
+                tests: v.tests,
+                testsMore: v.testsMore,
+                machine: v.machine,
+                proof: v.proof,
+                evidence: evidence.body,
+                evidenceUnreadable: evidence.unreadable,
+            };
+        }),
         offline: splitHealthGates(HEALTH_SCRIPTS).offline,
-        corpusTests: corpusTestFiles(wt, (line) =>
-            console.error(`health-main: ${line}`)
-        ),
+        corpusTests: () =>
+            corpusTestFiles(wt, (line) =>
+                console.error(`health-main: ${line}`)
+            ),
     });
     if (plan.kind === "full") {
         console.log(`${head} — but ${plan.reason}`);
         return null;
     }
-    const files = plan.files.filter((f) => existsSync(join(wt, f)));
-    const dropped = plan.files.length - files.length;
+    let resolved: ReturnType<typeof resolveMovedFiles>;
+    try {
+        resolved = resolveMovedFiles(
+            plan.files,
+            (f) => existsSync(join(wt, f)),
+            fileMovesBetween(ctx.root, red.sha, ctx.tip)
+        );
+    } catch (err) {
+        console.log(
+            `${head} — but the files' moves could not be read (${String(err)}); the full gate runs`
+        );
+        return null;
+    }
+    if (resolved.unknown.length > 0) {
+        console.log(
+            `${head} — but ${resolved.unknown.join(", ")} ${resolved.unknown.length === 1 ? "is" : "are"} not in this tree and neither renamed nor deleted since the RED; the full gate runs`
+        );
+        return null;
+    }
+    const renamed = resolved.files.filter((f) => !plan.files.includes(f));
     console.log(
-        `${head} — proving it by the RED's evidence (issue #7657): ${files.length} failing file(s)${plan.corpus ? " incl. the corpus tests a hosted run skipped" : ""}${dropped > 0 ? ` (${dropped} not in this tree)` : ""}, then ${plan.unreached.length} unreached step(s)${plan.unreached.length > 0 ? `: ${plan.unreached.join(", ")}` : ""}`
+        `${head} — proving it by the RED's evidence (issue #7657): ${resolved.files.length} failing file(s)${plan.corpus ? " incl. the corpus tests a hosted run skipped" : ""}${renamed.length > 0 ? ` (${renamed.length} renamed since the RED)` : ""}${resolved.deleted.length > 0 ? ` (${resolved.deleted.length} deleted since the RED, not run)` : ""}${plan.projects.length > 0 ? `, then ${plan.projects.join(", ")} whole` : ""}, then ${plan.unreached.length} unreached step(s)${plan.unreached.length > 0 ? `: ${plan.unreached.join(", ")}` : ""}`
     );
-    return { ...plan, files };
+    return {
+        ...plan,
+        files: resolved.files,
+        // A whole-project re-run puts the failing tests last by file: a
+        // deleted file is dropped there too, a renamed one found by its new
+        // path.
+        tests: plan.tests.flatMap((t) => {
+            const at = resolved.mapped.get(t.file);
+            return at === undefined ? [] : [{ ...t, file: at }];
+        }),
+    };
 }
 
 /** What the repair proof's failed step left, as the main loop reads it. */
@@ -1228,7 +1275,7 @@ async function runProofSteps(
         };
         return false;
     };
-    await runRepairProof(plan, {
+    const outcome = await runRepairProof(plan, {
         note: (line) => console.log(`health-main: ${line}`),
         runFiles: async (cmds) => {
             for (const c of cmds)
@@ -1241,7 +1288,14 @@ async function runProofSteps(
             return exec(step, cmd, args);
         },
     });
-    return failure;
+    if (outcome.outcome === "green" || failure === null) return null;
+    // The verdict's step is the `HEALTH_SCRIPTS` entry (`test` for a chain
+    // tier): the ladder's fresh run reads it; the log line names the tier.
+    if (outcome.step !== outcome.ran)
+        console.log(
+            `health-main: ${outcome.ran} failed — recorded at step ${outcome.step}`
+        );
+    return { ...(failure as ProofFailure), failedStep: outcome.step };
 }
 
 async function main(): Promise<void> {
@@ -1440,8 +1494,10 @@ async function main(): Promise<void> {
     let failedCause: InfraCause | null = null;
     let retry: RetryFields | undefined;
     let pending: string | null = null;
-    // The repair proof's note once it passed (issue #7657).
+    // The repair proof's note once it passed (issue #7657); a RED it found
+    // is marked as its own, so no later proof trusts that run.
     let proof: string | undefined;
+    let proofRed = false;
     // Never under `--release` (ADR 0116), never in an early run (no GREEN
     // of its reaches the store), never under `--full`.
     const mayProve =
@@ -1512,7 +1568,10 @@ async function main(): Promise<void> {
                 if (plan !== null) {
                     const failed = await runProofSteps(wt, env, logPath, plan);
                     if (failed === null) proof = repairProofNote(plan);
-                    else ({ failedStep, failedOutput, failedCause } = failed);
+                    else {
+                        ({ failedStep, failedOutput, failedCause } = failed);
+                        proofRed = true;
+                    }
                     break;
                 }
             }
@@ -1534,7 +1593,8 @@ async function main(): Promise<void> {
             failedStep,
             { offline: "red", browser: "not run" },
             failedOutput,
-            retry
+            retry,
+            proofRed ? "repair" : undefined
         );
 
     if (!release) {

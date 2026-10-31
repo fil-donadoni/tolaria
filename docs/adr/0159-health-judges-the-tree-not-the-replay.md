@@ -175,7 +175,8 @@ run wrote adds the corpus tests it skipped.
 What this changes here: § 4's batch gate (dispatched by event, the cron the
 fallback) still runs on the base after such a GREEN and, reading it as not
 yet the full gate (`gateSkipReason`), gates the tip whole once; a RED it
-finds bisects from the proven tip. The deployment predicate and the derived
+finds is bisected from the last FULL GREEN, the proof tip inside the range
+(`lastGreenOf` walks past a repair proof's GREEN). The deployment predicate and the derived
 judgement (`pending` / RED at `derive:sync`) run before the proof and are
 unchanged: a derived-stale repair tip waits or is RED exactly as any tip.
 `release` is unchanged (ADR 0116): a repair-proof GREEN never promotes on

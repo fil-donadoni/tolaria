@@ -843,13 +843,16 @@ seconds.
 proven by the RED's own evidence, not the full gate: a first-parent commit
 since the standing RED whose PR closes one of the run's repair issues
 (`health-fix`, closed ones included) makes `health-main` run the RED's
-failing files, then every step the RED's run never reached (`test`'s later
+failing files (then, passing alone, their shared-worker project whole —
+issue #7584), then every step the RED's run never reached (`test`'s later
 suites, the steps after the failed one; a hosted RED adds the corpus tests it
 skipped), and write GREEN with `repair: failing files + N unreached steps
-green` as its step. A RED naming no failing file (a step failure) owes the
-full gate. The lineage reads it as GREEN; the next batch gate and `release`
-do not read it as the full gate and gate the tip whole (`bun run health
---full` does so by hand). `scripts/lib/health-repair-proof.ts`.
+green` as its step. A RED naming no failing file (a step failure), one a
+proof itself wrote, or one whose file list was cut with no evidence to read
+owes the full gate. The lineage reads it as GREEN; the next batch gate and
+`release` do not read it as the full gate and gate the tip whole (`bun run
+health --full` does so by hand), and a later RED is bisected from the last
+full GREEN, the proof tip inside the range. `scripts/lib/health-repair-proof.ts`.
 
 **The early run** fills the two hours between: after a merge batch a free
 hosted runner runs the same offline gate on the new tip, so fewer PRs

@@ -73,6 +73,11 @@ export interface Verdict {
     failure?: string;
     /** AMBER only: the RED sha the repair landed against. */
     repairOf?: string;
+    /** Written by a repair proof run (issue #7657): a GREEN earned on the
+     *  RED's evidence (its `step` carries `REPAIR_PROOF_MARK` too), or a RED
+     *  that run found — whose own run proved nothing a second proof could
+     *  trust (`repairProofPlan` falls to the full gate on it). */
+    proof?: "repair";
     /** `infra` only: what to do (`INFRA_REMEDY`). */
     reason?: string;
     /** The `health-fix` context only: the `/health-fix` issues recorded
@@ -144,7 +149,9 @@ export function isRepairProofGreen(
     v: { status: string; step?: string } | null | undefined
 ): boolean {
     return (
-        v?.status === "green" && (v.step ?? "").startsWith(REPAIR_PROOF_MARK)
+        v?.status === "green" &&
+        ((v.step ?? "").startsWith(REPAIR_PROOF_MARK) ||
+            (v as { proof?: string }).proof === "repair")
     );
 }
 
@@ -262,6 +269,9 @@ export function encodeDescription(v: Verdict): string {
             out += SEP + extra;
     };
     if (v.repairOf) fit(`repair-of: ${v.repairOf}`);
+    // Before the failure and the tests: a proof-written RED must never lose
+    // the mark to a long file list (the next proof would trust it).
+    if (v.proof) fit(`proof: ${v.proof}`);
     if (v.failure) fit(`failure: ${v.failure}`);
     out += testsField(out.length, v.tests ?? []);
     if (v.issues && v.issues.length > 0) fit(`issues: ${v.issues.join(",")}`);
@@ -316,6 +326,7 @@ export function decodeStatus(input: {
         if (m[1] === MORE_FIELD && /^\d+$/.test(m[2]))
             v.testsMore = Number(m[2]);
         if (m[1] === "repair-of") v.repairOf = m[2];
+        if (m[1] === "proof" && m[2] === "repair") v.proof = "repair";
         const numbers = () =>
             m[2]
                 .split(",")
