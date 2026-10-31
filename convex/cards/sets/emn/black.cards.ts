@@ -11,6 +11,8 @@ import { defineCard } from "../../types";
 // `keyword: "escalate"`, whose count the engine writes from the announced mode
 // list ("for each mode you choose beyond the first") — the caster never names
 // it. Modes resolve in printed order (CR 608.2c).
+// hand-tail: "Escalate—Discard a card." (#2267)
+// hand-tail: "Choose one or more —" three-mode bullet list with a reveal-and-choose mode (#2267)
 export const collectiveBrutality = defineCard(() => ({
     id: "cb94a02f-4660-45b6-8a39-941b710cf8f3",
     name: "Collective Brutality",
