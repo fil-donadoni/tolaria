@@ -466,7 +466,7 @@ export const spiritLink = defineCard(() => ({
 // delayed end-of-combat destroy + next-end-step counter.)
 //
 // Composed entirely from shared primitives: `combatPairKill` (becomes-blocked
-// → deferred (tracked-by: #2785) destroy) with `combatant: "enchanted"` and a toughness-≤3 gate;
+// → delayed end-of-combat destroy) with `combatant: "enchanted"` and a toughness-≤3 gate;
 // the `onDestroyed` hook (fired only when the destroy actually hit a graveyard)
 // schedules the next-end-step +1/+1 counter on the aura's host — that scheduling
 // IS the "destroyed this way" marker, so no persisted flag is needed.

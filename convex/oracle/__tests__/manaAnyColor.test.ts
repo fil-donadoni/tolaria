@@ -184,7 +184,7 @@ describe("refusals — every neighbour that restricts or counts the offered set"
     // other leg on it is free mana, repeatable, unbounded. Two printed shapes
     // reach it through this production; both must stay refused. Pentad Prism
     // is the hand-written proof of the first: it declares itself
-    // `useStack: true` precisely to avoid it (issue #2785).
+    // `useStack: true` precisely to avoid it (issue #3989).
     it.each([
         [
             "a counter-removal leg (Gemstone Array — the counter would never be removed)",

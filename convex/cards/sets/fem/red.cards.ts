@@ -65,12 +65,10 @@ export const goblinGrenade = defineCard(() => ({
     types: ["Sorcery"],
     additionalCosts: { sacrificeFilter: { subtypes: ["Goblin"] } },
     targetRequirement: { type: "any", count: 1 },
-    // CR 119.3 — 5 damage to any target. The marker that stood here deferred
-    // this migration (issue #2785) because the generated smoke sweep asserts
-    // the damaged target SURVIVES and the filler creature was toughness 5, so
-    // 5 damage killed it. `FILLER_CARD_DEFINITION` has been toughness 8 since
-    // issue #690: the sweep now genuinely covers this script rather than
-    // failing on it. Retired by the behavioural gold harness (issue #2703).
+    // CR 120.3 — 5 damage to any target. The generated smoke sweep asserts the damaged
+    // target SURVIVES; `FILLER_CARD_DEFINITION` has been toughness 8 since issue #690,
+    // so the sweep genuinely covers this script. Retired by the behavioural gold
+    // harness (issue #2703).
     effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
 }));
 

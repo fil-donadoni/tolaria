@@ -137,27 +137,8 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 //   Snowfall, plus the "CU matters" enchantments Musician, Mystic Might, Mystic
 //   Remora and Reality Twist (#726).
 //
-// DEFERRED (remain commented stubs, owned by a later cluster) (tracked-by: #2785):
-//   • Zur's Weirding cluster — Zur's Weirding itself and Dreams of the Dead
-//     (grants cumulative upkeep on reanimation).
-//   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips
-//     — Clairvoyance, Enervate, Force Void, Infuse, Portent, Ray of Erasure,
-//     Updraft: ACTIVE (#660 — the `next-upkeep` delayed-trigger timing shipped;
-//     the cantrips schedule it via `scheduleNextUpkeepDraw`).
-//   • ACTIVE (#730) — until-end-of-turn control gain + "tap it when you lose
-//     control": Ray of Command, Magus of the Unseen. Uses the new
-//     `gainControlUntilEndOfTurn` primitive (duration-scoped control change +
-//     tap-on-loss rider, reverted at cleanup by `tickAllDurations`); haste is
-//     now honoured by combat.
-//   • Specialized primitives still missing — Mistfolk (counter a spell that
-//     targets this creature — no "spell targeting source" target filter),
-//     Phantasmal Mount (linked leaves-the-battlefield sacrifices — no delayed
-//     "leaves the battlefield this turn" trigger timing), Essence Vortex (pay
-//     LIFE in a may-pay choice), Merieke Ri
-//     Berit (conditional control + destroy-on-untap), Balduvian Conjurer
-//     (animate a snow land),
-//     Balduvian Shaman / Sleight-of-Mind-style colour-word text change that
-//     also grants cumulative upkeep.
+// Cards of this set not defined in this file are owned by the Oracle compiler (ADR 0137): their
+// compile state and Grammar Gaps (gaps:sync) decide the work.
 //
 // COMPLETED (#654) — buildable-now Blue cards using shipped primitives only:
 //   • Krovikan Sorcerer / Mesmeric Trance — colour-filtered chosen-discard
@@ -165,7 +146,7 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 //     `choice(zone: "hand", filter: { excludeColor/color })` + `discard` +
 //     an `if { picksNonEmpty }` gate on the draw.
 //   • Shyft — upkeep `may` → `requestOptionChoice` colour → indefinite layer-5
-//     `setColorOverride` (single-colour reading; multicolour deferred) (tracked-by: #2785).
+//     `setColorOverride`; the choice offers every colour subset (`colorSetChoiceModes`).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Arnjlot's Ascent — {U}{U} Enchantment with cumulative upkeep {U} (CR 702.24)
@@ -866,10 +847,9 @@ export const iceberg = defineCard(() => ({
 // (keyed to itself); each upkeep it is sacrificed unless {3} is paid; when it
 // leaves, the exiled card returns to the battlefield under its owner's control.
 //
-// SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): the printed upkeep cost is "any
-// player pays {3}" — political. `makeUpkeepPayOrElse` prompts the controller
-// (the player who wants to keep it). In a duel the controller is the only
-// player with an incentive to pay, so this matches play in practice.
+// Out of scope: the printed upkeep cost is "any player pays {3}" — political.
+// `makeUpkeepPayOrElse` prompts the controller only (the player who wants to keep it). In a
+// 2-player engine the controller is the only player with an incentive to pay, so play is equivalent.
 export const icyPrison = defineCard(() => ({
     id: "39a7e496-8d2e-49db-b298-475d9017537a",
     name: "Icy Prison",
@@ -2135,8 +2115,8 @@ export const snowfall = defineCard(() => ({
 // merges eligible restricted mana exactly as the cast path already did
 // (`spendablePoolForAbility` / `payManaCostForAbility`, `gre/state.ts`), keyed
 // on the effective card types of the ability's SOURCE permanent. All three
-// activation entry points (direct, targeted, and the deferred (tracked-by: #2785)
-// `pendingActivation` auto-commit) go through it, so the mana is spendable
+// activation entry points (direct, targeted, and the `pendingActivation`
+// auto-commit) go through it, so the mana is spendable
 // wherever an artifact's ability can be activated — and nowhere else: every
 // pre-existing restriction returns false at the ability path, and
 // `artifact-ability` returns false at every spell-cast site.
@@ -2308,7 +2288,7 @@ export const windSpirit = defineCard(() => ({
 //    ice/black.cards.ts) — offer {2} first (creature untouched), then {1} (prevent).
 //    Outcomes are collected across the loop and applied ONCE after it, because
 //    the resolveStep re-runs on every may-pay resume (Stench of Evil pattern) —
-//    the deferred (tracked-by: #2785) apply keeps `preventAllCombatDamageToAndBy` / the delayed
+//    the single post-loop apply keeps `preventAllCombatDamageToAndBy` / the delayed
 //    destroy from firing on each replay.
 //  • Leaves: `preventAllCombatDamageToAndBy` (CR 615) for the {1} branch; one
 //    `next-end-of-combat` delayed destroy per unpaid creature (CR 603.7 /
@@ -2512,7 +2492,7 @@ export const wrathOfMaritLage = defineCard(() => ({
 //     "if a player would draw" (all-players) scope; the outcome is
 //     `reveal-others-may-pay-life`. Now honored at the turn-based DRAW STEP AND
 //     at DSL `draw` Op effect draws (the unified suspend-capable seam) — the
-//     `drawRevealReplacement`/`draw-reveal-pay` divergence (tracked-by: #2785) is retired.
+//     `drawRevealReplacement`/`draw-reveal-pay` gap is retired.
 export const zursWeirding = defineCard(() => ({
     id: "e1f8531f-19ca-48a2-baf2-c5dc6f18d79c",
     name: "Zur's Weirding",

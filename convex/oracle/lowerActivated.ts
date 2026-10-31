@@ -561,7 +561,7 @@ export function lowerManaAbility(input: {
     // including {B} — while the LIFE is never deducted, i.e. free, repeatable,
     // unbounded. Same for a counter-removal leg (the shape the hand-written
     // Pentad Prism declares `useStack: true` to avoid, tracked-by issue
-    // #2785), and for the exile / random-discard legs the cost sub-grammar can
+    // #3989), and for the exile / random-discard legs the cost sub-grammar can
     // emit but no corpus card prints on this route today. So route C admits
     // the legs its mutation pays and refuses the rest — fail CLOSED, and
     // by construction, rather than one leg at a time.

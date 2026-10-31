@@ -963,7 +963,7 @@ export const cloudCover = defineCard(() => ({
 //   * layer 4 (type/subtype) — `subtype-add` grants "Zombie". "In addition to
 //     their other creature types" is exactly what `subtype-add` means (as
 //     opposed to `subtype-set`, the Conspiracy-style replacement).
-//   * layer 5 (colour) — see the DIVERGENCE (tracked-by: #2785) note below.
+//   * layer 5 (colour) — see the DIVERGENCE (tracked-by: #3169) note below.
 //   * layer 7c (P/T modification) — `pt-buff` +1/+1. NOT `pt-cda`: this is a
 //     relative modification that stacks with other anthems, not a
 //     characteristic-defining set.
@@ -979,7 +979,7 @@ export const cloudCover = defineCard(() => ({
 // only ADDS "Zombie" — a Goblin stays a Goblin, so the three effects cannot
 // de-select each other regardless of application order.
 //
-// DIVERGENCE (tracked-by: #2785) (CR 613.1e / 105.2c) — "are black" is a colour SET (it replaces
+// DIVERGENCE (tracked-by: #3169) (CR 613.1e / 105.3) — "are black" is a colour SET (it replaces
 // every other colour derivation), but the engine's only shipped layer-5 static
 // is `color-grant`, which UNIONS the colour with the permanent's printed
 // colours instead of replacing them. A mono-red Goblin correctly becomes black
@@ -1159,7 +1159,7 @@ export const hullBreach = defineCard(() => ({
 //     copy effect, `putFromHandOntoBattlefield`), not only a spell resolving —
 //     `entersWith.asEnters`'s `name` kind (ADR 0100 D3, #2467). `filter:
 //     { excludeType: "Land" }` is "nonland card name" enforced EXACTLY, closing
-//     what the prior `resolveSteps` shape could only approximate (tracked-by: #2785) (its single
+//     what the prior `resolveSteps` shape could only enforce loosely (its single
 //     `nameRestriction: "no-basic-land"` rejected a basic land name but still
 //     admitted a nonbasic one) — `applyNameCardSubmit`
 //     (`convex/gre/pendingChoiceSubmit.ts`) checks the FULL filter, fail-closed,

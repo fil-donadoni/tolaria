@@ -343,7 +343,7 @@ export const demonicHordes = defineCard(() => ({
 
 // Demonic Tutor — "Search your library for a card, then shuffle and put that
 // card on top." (CR 701.23 for search, CR 701.24 for shuffle). Modern oracle
-// simplifies (tracked-by: #2785) to "Search your library for a card, put it into your hand, then
+// text (ADR 0004) is "Search your library for a card, put it into your hand, then
 // shuffle." Effect Script: search-library choice (count=1), then move the
 // picked card into the caster's hand, then shuffle.
 export const demonicTutor = defineCard(() => ({
@@ -412,7 +412,7 @@ export const drainLife = defineCard(() => ({
     // (CR 120.1) + gain X life (CR 118.3), both via the chosen-cost `{ X: true }`
     // value member — a thin skin over getX(). The oracle's life-gain sub-cap
     // ("not more than the target's toughness / life total …") was already
-    // unmodelled in the closure (same simplification (tracked-by: #2785) as Soul Burn); the migration
+    // unmodelled in the closure (same simplification (tracked-by: #974) as Soul Burn); the migration
     // preserves that behaviour exactly (gain X).
     effects: [
         { op: "dealDamage", amount: { X: true }, to: { target: 0 } },

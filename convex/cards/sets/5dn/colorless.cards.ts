@@ -43,7 +43,7 @@ export const crucibleOfWorlds = defineCard(() => ({
 // CR 702.44b keeps every non-cast entry path (reanimation, blink, a token
 // copy) at zero counters, which is exactly what those sites pass.
 //
-// SIMPLIFICATION (tracked-by: #2785) (flagged, CR 605.1a): "Remove a charge counter from this
+// DIVERGENCE (tracked-by: #3989) (flagged, CR 605.1a): "Remove a charge counter from this
 // artifact: Add one mana of any color" is a mana ability and by CR 605.3a
 // should not use the stack. It is declared `useStack: true` here for the same
 // reason Jeweled Amulet's noted-mana ability is (`sets/ice/colorless.cards.ts`): the

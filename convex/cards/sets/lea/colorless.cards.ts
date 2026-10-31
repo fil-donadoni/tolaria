@@ -411,8 +411,7 @@ export const crystalRod = defineCard(() =>
 // Cyclopean Tomb — "{2}, {T}: Put a mire counter on target non-Swamp land.
 // That land is a Swamp for as long as it has a mire counter on it.
 // When this is put into a graveyard from the battlefield, remove all mire
-// counters and each land that had one becomes a Forest." (Simplified (tracked-by: #2785) from
-// the modern Oracle text for LEA scope.)
+// counters and each land that had one becomes a Forest." (Implements the modern Oracle text.)
 // CR 305.7 conditional subtype-set (mire counter > 0), CR 603.10 LTB.
 export const cyclopeanTomb = defineCard(() => ({
     id: "894c5cf2-8ae2-427a-bcbc-67df0bdfee9d",
@@ -681,7 +680,7 @@ export const howlingMine = defineCard(() => ({
 // hand, and casts it face down as a 2/2 creature spell paying no mana cost
 // (CR 708.2). It resolves into a face-down permanent (built in #122).
 //
-// Eligibility simplification (tracked-by: #2785): the card reads "creature card whose mana cost
+// Eligibility simplification (tracked-by: #974): the card reads "creature card whose mana cost
 // could be paid by some amount of, or all of, the mana you spent on {X}". The
 // {X} is colourless/generic mana; a strict colour-pip match would make nearly
 // no creature eligible, defeating the card's intent. We approximate with the

@@ -25,8 +25,9 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { payOrSacrificeUpkeepTrigger } from "../leg/index.cards";
 
 // ═════════════════════════════════════════════════════════════════════════════
-// BLUE free tranche (#412) — 13 of the 15 DRK Blue cards. Two (Leviathan, Tangle
-// Kelp) need an unbuilt engine capability and are deferred (tracked-by: #2785) in the footer below.
+// BLUE free tranche (#412) — 13 of the 15 DRK Blue cards.
+// Cards of this set not defined in this file are owned by the Oracle compiler (ADR 0137): their
+// compile state and Grammar Gaps (gaps:sync) decide the work.
 // Modern Scryfall oracle text (ADR 0004); stats validated against DRK.json.
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -811,8 +812,8 @@ export const waterWurm = defineCard(() => ({
 //     this — `isToken: false` on the requirement below, wired through the
 //     single target-filter authority (`gre/targetFilters.ts`, ADR 0068) so a
 //     token creature is now correctly ILLEGAL as a copy target, both
-//     offered (`getLegalTargets`) and accepted (`selectTarget`). Previously a
-//     documented DIVERGENCE (tracked-by: #2785) ("TargetRequirement has no token filter field").
+//     offered (`getLegalTargets`) and accepted (`selectTarget`). Before #1195 the
+//     requirement had no token filter field.
 //
 //   • Enchantment-leaves → exile token (`leftTrigger` scope:self) — the token
 //     is still on the battlefield at this point, so it is located by

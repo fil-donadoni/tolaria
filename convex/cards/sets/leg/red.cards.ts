@@ -43,54 +43,13 @@ export const gravitySphere = defineCard(() => ({
 //     the foot of this file (#386).
 //   • C5 named counters + upkeep cycle — Primordial Ooze (+1/+1 counters each
 //     upkeep, pay {X} or take X damage).
-//   • World rule (C2) — Gravity Sphere ("all creatures lose flying"), Land's
-//     Edge, Storm World. These carry the World supertype; like every other
-//     World-supertype LEG card they are deferred (tracked-by: #2785) to the world-rule cluster so
-//     the supertype and its SBA ship together (mirrors the blue/black tranches).
+//   • World rule (C2, shipped) — Gravity Sphere ("all creatures lose flying") carries the
+//     World supertype; the world rule is a global SBA in sba.ts.
 //
 // Out of scope for the whole set (per #369): Tempest Efreet (ante, ADR 0010).
 //
-// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here) (tracked-by: #2785):
-//   • Backdraft — "half the damage dealt by one of those sorcery spells this
-//     turn" needs a per-spell damage tally; no such surface exists. (Its
-//     "copy that spell" clause is now expressible via the `copyResolvingSpell`
-//     / `copyStackItem` primitives shipped with Chain Lightning — only the
-//     per-spell damage tally remains unbuilt.)
-//   • Blazing Effigy — death damage = 3 + "damage dealt to this by other
-//     sources named Blazing Effigy this turn"; no per-source-name damage tally.
-//   • Crevasse — "creatures with mountainwalk can be blocked as though they
-//     didn't have mountainwalk" — buildable with the `landwalk-negation` static
-//     (Great Wall / Undertow, #484), `subtypes: ["Mountain"]`. Deferred to its
-//     tranche.
-//   • Crimson Manticore — "{R}, {T}: deal 1 damage to target attacking OR
-//     blocking creature" is NOT blocked: `combatRoleFilter` is array-capable
-//     and D'Avenant Archer (leg/white.cards.ts) already ships the exact
-//     `["attacking", "blocking"]` form in this same set. Deferred to its
-//     tranche for authoring only — owned by #2124.
-//   • Disharmony — "untap target attacking creature, remove it from combat,
-//     gain control of it until end of turn"; no "until end of turn" control-
-//     change condition (only controls-source / source-tapped-power conditions).
-//   • Falling Star — a physical-dexterity flip card; not implementable.
-//   • Feint — "tap all creatures blocking target attacker; prevent all combat
-//     damage by that creature and each creature blocking it" needs a per-attacker
-//     blocker-set combat-damage prevention with no primitive.
-//   • Firestorm Phoenix — its dies-replacement ("return to hand; until that
-//     player's next turn play with it revealed and can't play it") needs a
-//     can't-play + revealed-in-hand restriction with no primitive.
-//   • Pyrotechnics — "4 damage divided AS YOU CHOOSE among any number of
-//     targets" is NOT blocked: the `dealDamageDividedAsChosen` Op with
-//     `targetRequirement.divideAsChosen` ships, and Pyrokinesis (all/red.cards.ts)
-//     writes the identical wording. Deferred to its tranche for authoring only
-//     — owned by #2124.
-//   • Quarum Trench Gnomes — "{T}: target Plains produces colorless mana
-//     instead of white (indefinitely)" needs a continuous tap-for-mana
-//     replacement; no mana-production override static.
-//   • Wall of Dust — "whenever this blocks a creature, that creature can't
-//     attack during its controller's next turn" needs an other-creature
-//     cross-turn attack-lock: `restrictCombat` writes booleans that CLEANUP
-//     clears every turn, and `DurationSpec` has no "during that player's next
-//     turn" span (tracked-by: #2131; same gap flagged for Demonic Torment in
-//     black).
+// Cards of this set not defined in this file are owned by the Oracle compiler (ADR 0137): their
+// compile state and Grammar Gaps (gaps:sync) decide the work.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // --- Burn / copy spells (CR 119 damage, CR 707.12 "copy this spell") -------
