@@ -510,7 +510,17 @@ describe("widening the lock and moving the weights are ONE change (issue #3583, 
 // refit's artefact list names this fit's file first, so `derive:sync` and the
 // hand-edit refusal cover the file the fit actually rewrites.
 describe("the refit artefacts name the fit's file (issue #7653)", () => {
-    it("REFIT_ARTIFACT_PATHS[0] is EVAL_WEIGHTS_PATH", () => {
+    it("REFIT_ARTIFACT_PATHS[0] is the file a fit rewrites", () => {
+        // The file carries the one literal the promotion rewrites: any other
+        // path (a pin fixture, the hand-written `evalWeights.ts`) throws.
+        const source = readFileSync(
+            join(REPO, REFIT_ARTIFACT_PATHS[0]),
+            "utf8"
+        );
+        const fit = fitWeights([], FIT_BASE_EVAL_WEIGHTS);
+        expect(rewriteDefaultEvalWeights(source, fit)).toContain(
+            "export const FITTED_EVAL_WEIGHTS"
+        );
         expect(REFIT_ARTIFACT_PATHS[0]).toBe(EVAL_WEIGHTS_PATH);
     });
 });
