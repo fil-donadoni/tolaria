@@ -33,7 +33,9 @@ const ID_LINE = /^(\s*)id:\s*(?:"([^"]+)"|([A-Za-z0-9_$]+)\s*,)/;
 const STRING_CONST = /^(?:export\s+)?const\s+([A-Za-z0-9_$]+)\s*=\s*"([^"]+)"/;
 
 export interface SourceCard {
-    readonly name: string;
+    /** `null` when the anchor's `name:` cannot be read — a red whatever the
+     *  card (fail-closed: it could be on the cube list). */
+    readonly name: string | null;
     /** `null` when the definition's `id:` cannot be read — a red for a cube
      *  card (fail-closed), never a silent skip. */
     readonly id: string | null;
@@ -47,17 +49,19 @@ export interface SourceCard {
  * sits deeper, and a factory call (`makeTriome({ … })`, `defineSplitCard`)
  * shifts the definition's without changing that order.
  */
-export function scanSourceCards(
-    lines: readonly string[],
-    file: string
-): SourceCard[] {
+export function scanSourceCards(lines: string[], file: string): SourceCard[] {
     const consts = new Map<string, string>();
     for (const line of lines) {
         const m = STRING_CONST.exec(line);
         if (m !== null) consts.set(m[1], m[2]);
     }
-    const cards: SourceCard[] = [];
-    for (const anchor of scanCardAnchors(lines).anchors) {
+    const scan = scanCardAnchors(lines);
+    const cards: SourceCard[] = scan.anchorsWithoutName.map((line) => ({
+        name: null,
+        id: null,
+        at: `${file}:${line}`,
+    }));
+    for (const anchor of scan.anchors) {
         let end = anchor.line;
         while (end < lines.length && !CARD_ANCHOR.test(lines[end])) end++;
         let best: RegExpExecArray | null = null;
@@ -73,19 +77,29 @@ export function scanSourceCards(
     return cards;
 }
 
-/** One red line per cube card no id of which is rated; empty = green. */
+/**
+ * One red line per unnamed anchor and per cube card with an unrated id;
+ * empty = green. EVERY id of a cube name must be rated: the pool keeps one
+ * canonical id per name, and the guard does not guess which.
+ */
 export function missingCubeRatings(
     cards: readonly SourceCard[],
     cubeNames: readonly string[],
     ratings: Readonly<Record<string, number>>
 ): string[] {
     const onCube = new Set(cubeNames);
+    const reds: string[] = [];
     const byName = new Map<string, SourceCard[]>();
     for (const card of cards) {
+        if (card.name === null) {
+            reds.push(
+                `${card.at}: a \`defineCard(\` anchor whose \`name:\` could not be read — the guard cannot tell whether it is on the Vintage Cube list`
+            );
+            continue;
+        }
         if (!onCube.has(card.name)) continue;
         byName.set(card.name, [...(byName.get(card.name) ?? []), card]);
     }
-    const reds: string[] = [];
     for (const [name, defs] of byName) {
         const unresolved = defs.find((d) => d.id === null);
         if (unresolved !== undefined) {
@@ -94,10 +108,12 @@ export function missingCubeRatings(
             );
             continue;
         }
-        if (defs.some((d) => ratings[d.id!] !== undefined)) continue;
-        reds.push(
-            `${defs[0].at}: \`${name}\` is on the Vintage Cube list but ${RATINGS_PATH} has no rating for "${defs[0].id}" — add one (pickRatings.bot.test.ts reds on the lane)`
-        );
+        for (const def of defs) {
+            if (ratings[def.id!] !== undefined) continue;
+            reds.push(
+                `${def.at}: \`${name}\` is on the Vintage Cube list but ${RATINGS_PATH} has no rating for "${def.id}" — add one (pickRatings.bot.test.ts reds on the lane)`
+            );
+        }
     }
     return reds;
 }

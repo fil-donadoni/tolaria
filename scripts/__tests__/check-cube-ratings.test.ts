@@ -93,6 +93,25 @@ describe("missingCubeRatings — reds a cube card with no Pick Rating", () => {
         expect(reds[0]).toContain('"mage-id"');
     });
 
+    it("reds an anchor whose name could not be read, on the list or not (fail-closed)", () => {
+        expect(
+            missingCubeRatings([{ name: null, id: null, at: "x.ts:9" }], [], {})
+        ).toHaveLength(1);
+    });
+
+    it("reds every unrated id of a cube name, not only the first", () => {
+        const reds = missingCubeRatings(
+            [
+                { name: "Soul-Scar Mage", id: "a", at: "x.ts:1" },
+                { name: "Soul-Scar Mage", id: "b", at: "y.ts:1" },
+            ],
+            ["Soul-Scar Mage"],
+            { a: 3 }
+        );
+        expect(reds).toHaveLength(1);
+        expect(reds[0]).toContain('"b"');
+    });
+
     it("reds a cube card whose id could not be read (fail-closed)", () => {
         const reds = missingCubeRatings(
             [{ name: "Soul-Scar Mage", id: null, at: "x.ts:1" }],
