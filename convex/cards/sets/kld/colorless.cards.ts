@@ -81,11 +81,6 @@ export const concealedCourtyard = defineCard(() =>
 // would trigger twice where CR 509.1 fires "whenever this blocks" once. Blocking
 // multiple attackers requires an outside effect none of the current pool
 // provides, so this is out of scope rather than a tracked gap.
-// Shorikai, Genesis Engine (the second Vehicle #777 names) is NOT shipped here:
-// its Pilot token carries CR 702.122b's "crews Vehicles as though its power were
-// 2 greater" as a TOKEN characteristic, which needs `crewPowerBonus` threaded
-// through TokenSpec / `tokenDefinitionId` / the client token decoder.
-// tracked-by: #1863
 export const smugglersCopter = defineCard(() =>
     makeVehicle({
         id: "7832abb5-5107-4603-904e-491b221bd3e3",

@@ -8924,3 +8924,36 @@ describe("colorsSpentToCast — the Converge value's opt-in gates (CR 207.2c, is
         expect(errors.length).toBeGreaterThan(0);
     });
 });
+
+// CR 702.122b (issue #1863) — a `createToken` spec's crew-power rider
+// (Shorikai, Genesis Engine's Pilot) is a positive integer; the closed
+// allow-list in `isEffectTokenSpec` fails closed on anything else.
+describe("validateEffectScript — createToken token.crewPowerBonus (CR 702.122b, issue #1863)", () => {
+    const pilotWith = (crewPowerBonus: unknown) =>
+        validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "createToken",
+                        token: {
+                            name: "Pilot",
+                            types: ["Creature"] as CardType[],
+                            subtypes: ["Pilot"],
+                            power: 1,
+                            toughness: 1,
+                            crewPowerBonus,
+                        },
+                        controller: "controller",
+                    } as EffectOp,
+                ],
+            })
+        );
+
+    it("accepts a positive integer bonus", () => {
+        expect(pilotWith(2)).toEqual([]);
+    });
+
+    it.each([0, -1, 1.5, "2", null])("rejects %j", (bad) => {
+        expect(pilotWith(bad).length).toBeGreaterThan(0);
+    });
+});

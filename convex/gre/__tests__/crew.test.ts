@@ -37,8 +37,11 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import { refreshExpectedInput } from "../expectedInput";
-import { registerTokenDefinition } from "../../cards";
+import { registerTokenDefinition, tryGetDefinition } from "../../cards";
 import { makeVehicle } from "../../cards/abilities/vehicle";
+import { shorikaiGenesisEngine } from "../../cards/sets/nec/index.cards";
+import type { EffectOp } from "../../cards/types";
+import { pushSpell } from "../../cards/__tests__/setup.helper";
 
 /** Hands priority back to p1 after a resolution (the engine passes it to the
  *  non-active player once an item resolves) so a second activation is legal. */
@@ -765,5 +768,126 @@ describe("targeted totalPower activation (CR 602.1 / 118.8 / 702.122a)", () => {
                 .map((c) => c.id)
                 .sort()
         ).toEqual(["b1", "b2"]);
+    });
+});
+
+// ===========================================================================
+// CR 702.122b (issue #1863) — the rider on a CREATED token. Shorikai, Genesis
+// Engine's `createToken` Op (pulled off the real card, never re-typed) makes a
+// 1/1 Pilot that "crews Vehicles as though its power were 2 greater"; the
+// token's synthesized definition must carry the bonus so the REAL crew-cost
+// commit counts it: Pilot (1 + 2) + a 5-power creature = Crew 8.
+// ===========================================================================
+const FIVE_POWER_ID = "test-crew-five-power";
+registerTokenDefinition({
+    id: FIVE_POWER_ID,
+    name: "Test Crew Five Power",
+    rarity: "common",
+    manaCost: { X: 5 },
+    types: ["Creature"],
+    power: 5,
+    toughness: 5,
+});
+
+function shorikaiPilotOp(): Extract<EffectOp, { op: "createToken" }> {
+    for (const a of shorikaiGenesisEngine().activatedAbilities ?? []) {
+        const op = a.effects?.find((e) => e.op === "createToken");
+        if (op) return op as Extract<EffectOp, { op: "createToken" }>;
+    }
+    throw new Error("Shorikai has no createToken Op");
+}
+
+const PILOT_SCRIPT_ID = "test-crew-shorikai-pilot-script";
+const PLAIN_PILOT_SCRIPT_ID = "test-crew-plain-pilot-script";
+{
+    const op = shorikaiPilotOp();
+    const plainToken = { ...op.token };
+    delete plainToken.crewPowerBonus;
+    for (const [id, token] of [
+        [PILOT_SCRIPT_ID, op.token],
+        [PLAIN_PILOT_SCRIPT_ID, plainToken],
+    ] as const) {
+        registerTokenDefinition({
+            id,
+            name: id,
+            rarity: "common",
+            manaCost: { X: 1 },
+            types: ["Sorcery"],
+            effects: [{ ...op, token }],
+        });
+    }
+}
+
+/** Shorikai + a 5/5 under p1, then the Pilot created by resolving the
+ *  `createToken` Op through the interpreter. */
+function shorikaiBoard(scriptId: string): GameState {
+    const shorikai = makeInstance(shorikaiGenesisEngine().id, {
+        id: "shorikai",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const big = makeInstance(FIVE_POWER_ID, {
+        id: "big",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1", { battlefield: [shorikai, big] }),
+            makePlayer("p2"),
+        ],
+    });
+    pushSpell(state, scriptId, "p1");
+    resolveTopOfStack(state);
+    restorePriorityToP1(state);
+    return state;
+}
+
+function shorikaiCrewAbilityId(): string {
+    const crew = shorikaiGenesisEngine().activatedAbilities?.find(
+        (a) => a.cost?.tapOtherFilter?.totalPower !== undefined
+    );
+    if (!crew) throw new Error("Shorikai has no crew ability");
+    return crew.id;
+}
+
+describe("crewPowerBonus on a created token (CR 702.122b, issue #1863)", () => {
+    it("Shorikai's Pilot token + a 5-power creature pay Crew 8", () => {
+        const state = shorikaiBoard(PILOT_SCRIPT_ID);
+        const pilot = state.players[0].battlefield.find((c) => c.isToken)!;
+        expect(tryGetDefinition(pilot.card.id as string)?.crewPowerBonus).toBe(
+            2
+        );
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "shorikai",
+            abilityId: shorikaiCrewAbilityId(),
+        });
+        for (const id of [pilot.id, "big"]) {
+            selectActivationCostOnState(state, {
+                playerId: "p1",
+                cardInstanceId: id,
+            });
+        }
+        expect(state.pendingActivation).toBeUndefined();
+        resolveTopOfStack(state);
+        const shorikai = state.players[0].battlefield.find(
+            (c) => c.id === "shorikai"
+        )!;
+        expect(isCreature(shorikai)).toBe(true);
+    });
+
+    it("the same 1/1 token WITHOUT the rider can't reach Crew 8 (CR 602.5b)", () => {
+        const state = shorikaiBoard(PLAIN_PILOT_SCRIPT_ID);
+        expect(
+            state.players[0].battlefield.filter((c) => c.isToken)
+        ).toHaveLength(1);
+        expect(() =>
+            activateAbilityOnState(state, {
+                playerId: "p1",
+                cardInstanceId: "shorikai",
+                abilityId: shorikaiCrewAbilityId(),
+            })
+        ).toThrow(/Not enough untapped permanents/);
     });
 });

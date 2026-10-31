@@ -942,6 +942,15 @@ export function tokenDefinitionId(spec: TokenSpec): string {
             ? encodeURIComponent(JSON.stringify(spec.entersWith.asEnters))
             : "",
     ];
+    // 17th segment (index 16, issue #1863, CR 702.122b) — the token's "crews
+    // Vehicles as though its power were N greater" rider (Shorikai's Pilot
+    // token). A characteristic of the shared definition, so a token WITH the
+    // rider is a distinct shape from one without. A bare number like
+    // `power`/`loyalty`. Appended ONLY when present — unlike the segments
+    // above — so every token id minted without the rider stays byte-identical
+    // (persisted states, scenario specs) and a 16-segment id decodes as "no
+    // bonus".
+    if (spec.crewPowerBonus !== undefined) parts.push(spec.crewPowerBonus);
     return `token:${parts.join("|")}`;
 }
 
@@ -1127,6 +1136,11 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         // 14-segment ids).
         triggeredAbilitiesRaw,
     ] = parts;
+    // CR 702.122b (issue #1863) — the crew-power rider (see
+    // `tokenDefinitionId`): the trailing 17th segment (index 16; the 16th is
+    // the as-enters choices, not rebuilt here). Absent for every token without
+    // it (back-compat with pre-#1863 16-segment ids).
+    const crewPowerBonusRaw = parts[16];
     const types = typesRaw.split(",").filter(Boolean) as CardType[];
     const subtypes = subtypesRaw.split(",").filter(Boolean);
     const supertypes = supertypesRaw.split(",").filter(Boolean) as
@@ -1179,6 +1193,11 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         loyaltyRaw === undefined || loyaltyRaw === ""
             ? undefined
             : Number(loyaltyRaw);
+    // CR 702.122b (issue #1863) — a bare number, mirroring `loyaltyRaw`.
+    const crewPowerBonus =
+        crewPowerBonusRaw === undefined || crewPowerBonusRaw === ""
+            ? undefined
+            : Number(crewPowerBonusRaw);
     // Rebuild the token's triggered abilities encoded in the id (CR 707.2,
     // issue #2364; review of #2426). `matches` is a REQUIRED closure and can
     // never ride the id string as data — but when the encoded descriptor
@@ -1252,6 +1271,9 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         power,
         toughness,
         ...(loyalty !== undefined && !Number.isNaN(loyalty) ? { loyalty } : {}),
+        ...(crewPowerBonus !== undefined && !Number.isNaN(crewPowerBonus)
+            ? { crewPowerBonus }
+            : {}),
         ...(staticAbilities.length > 0 ? { staticAbilities } : {}),
         ...(imagePrintId ? { imagePrintId } : {}),
         ...(imagePrintFace ? { imagePrintFace } : {}),
