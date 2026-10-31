@@ -2376,7 +2376,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Plot",
         kind: "keyword-ability",
         cr: "702.170",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/gre/plot.ts",
+        note: "Special-action capability (engine infra, NOT an Effect Script Op, issue #3219). CR 702.170a/b / 116.2k: the plot cost is `CardDefinition.plot` (compiled from a `Plot {cost}` keyword line); the special action is the `plot` Move kind (a member of `SPECIAL_ACTION_MOVE_KINDS`, gre/moves.ts), gated by `canPlot` (own main phase, empty stack, priority, affordable — gre/plot.ts) and committed by `applyPlot` (the `plotCard` mutation, convex/game.ts) / `plotInSearch` (the Bot's sandboxes); the hand card's `canPlot` projection drives the client's Plot menu entry. CR 702.170c/d: `becomePlotted` stamps the PLOTTED designation (`CardInstanceState.plotted`, independent of the plot ability) plus the owner's cast permission on the GENERAL exile-cast record — `castableFromExileBy` (owner), the lower turn bound `castableFromExileFromTurn` (turn + 1: \"any turn after the turn in which it became plotted\"), the free-cast waiver `castFromExileWithoutPayingManaCost` (an alternative cost, CR 118.9) and the general timing rider `castableFromExileSorceryTiming` (read by `castNeedsSorceryWindow`, gre/rules.ts). Every exile-cast consumer (getLegalActions, the payment path, the exile projection, the Bot's exile enumeration) reads that record unchanged. The same record is the spine Foretell (CR 702.143) and Suspend reuse. 702.170e/f: no shipped card refers to plotting or lets plot function outside the hand. Used by Pillage the Bog (OTJ).",
     },
     // 702.171 Saddle
     {

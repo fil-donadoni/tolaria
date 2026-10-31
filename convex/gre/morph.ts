@@ -43,17 +43,8 @@
 import type { AlternativeCost, CardDefinition, ManaCost } from "../cards/types";
 import { FACE_DOWN_CARD_ID, tryGetDefinition } from "../cards";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
-import {
-    getManaSubstitutions,
-    normalizeManaCost,
-    spendablePoolWithRiders,
-} from "./state";
-import {
-    buildAutoTapSources,
-    solveSmartAutoTap,
-    type AutoTapPlan,
-} from "./autoTap";
-import { manaGateBattlefields } from "./constants";
+import type { AutoTapPlan } from "./autoTap";
+import { specialActionPaymentPlan } from "./specialActionPayment";
 
 /** The `AlternativeCost.id` of the CR 702.37a face-down cast. Stable across
  *  every morph card (the cost is the rule's, not the card's), so the client's
@@ -157,23 +148,9 @@ export function morphTurnUpPaymentPlan(
 ): AutoTapPlan | null {
     const cost = getMorphCost(card);
     if (!cost) return null;
-    const subs = getManaSubstitutions(state, player.id);
-    const sources = buildAutoTapSources(
-        player.battlefield,
-        manaGateBattlefields(state),
-        undefined,
-        state
-    );
-    // CR 106.6 (issue #3354) — the payment (`applyTurnPermanentFaceUp`) admits
-    // a bare-rider unit, so the PLAN must count it or "the button is offered"
-    // and "the payment succeeds" — this function's whole reason to exist —
-    // drift apart the moment Arena of Glory's {R}{R} is floating.
-    return solveSmartAutoTap(
-        spendablePoolWithRiders(player),
-        normalizeManaCost(cost),
-        subs,
-        sources
-    );
+    // CR 106.6 (issue #3354) — the plan counts a bare-rider unit the payment
+    // (`applyTurnPermanentFaceUp`) admits; see `specialActionPaymentPlan`.
+    return specialActionPaymentPlan(state, player, cost);
 }
 
 /** CR 702.37e / 116.2b — true iff `player` may take the `turn-face-up` special

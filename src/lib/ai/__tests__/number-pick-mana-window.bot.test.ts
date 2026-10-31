@@ -121,6 +121,7 @@ function serverMutations(ctx: Parameters<typeof runMutation>[1]): {
         playCard: reject,
         summonCompanion: reject,
         turnPermanentFaceUp: reject,
+        plotCard: reject,
         announceCast: reject,
         selectTarget: reject,
         selectTargets: reject,
