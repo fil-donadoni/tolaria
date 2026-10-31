@@ -7933,6 +7933,19 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     // (cards/abilities/triggers/spellCastTrigger.ts).
     const casterSpellCountThisTurn = caster?.spellsCastThisTurn ?? 0;
     if (caster) caster.spellsCastThisTurn = casterSpellCountThisTurn + 1;
+    // The same tally split by card type (CR 205.2a): read before increment,
+    // then each of the spell's types advances by one ("your second creature
+    // spell", "your fourth noncreature spell").
+    const casterSpellTypeCountsThisTurn = {
+        ...caster?.spellTypesCastThisTurn,
+    };
+    if (caster) {
+        const next = { ...casterSpellTypeCountsThisTurn };
+        for (const type of new Set(item.types)) {
+            next[type] = (next[type] ?? 0) + 1;
+        }
+        caster.spellTypesCastThisTurn = next;
+    }
     // Lifetime per-player tally (issue #790) — same choke point, never reset.
     // Powers "the caster's first spell of the GAME" (Once Upon a Time), which
     // the per-turn counter above can't answer since it resets every turn.
@@ -7959,6 +7972,7 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
         spellColors: colors,
         priorSpellCount,
         casterSpellCountThisTurn,
+        casterSpellTypeCountsThisTurn,
     };
     // CR 702.33d (issue #1097) — "a player kicks a spell" rides the SAME cast
     // choke point, one event per KICK (a Multikicker paid N times is N kicks).

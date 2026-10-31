@@ -1342,6 +1342,8 @@ export const IGNORED_MOVER_PLAYER_KEYS = [
     // every cast" shape, so it belongs on the same ignore list for the same
     // reason: counting it would make every cast "provably" non-dominated.
     "spellsCastThisGame",
+    // The per-type split of spellsCastThisTurn — moves on every cast with it.
+    "spellTypesCastThisTurn",
     "qualifyingActionThisTurn",
 ] as const;
 
