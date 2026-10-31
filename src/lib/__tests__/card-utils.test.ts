@@ -134,6 +134,7 @@ import {
     karakas,
 } from "@convex/cards/sets/leg/index.cards";
 import { miracleWorker } from "@convex/cards/sets/drk/index.cards";
+import { cutDown } from "@convex/cards/sets/dmu/index.cards";
 import { holyStrength } from "@convex/cards/sets/lea/white.cards";
 import {
     pendingTargetFiltersFromRequirement,
@@ -508,6 +509,37 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613 / 701.26 / 702, issu
                 { power: 6 } // "plain" creature repurposed as the power-6 pass case
             );
 
+        expect(
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1",
+                undefined
+            )
+        ).toBe(false);
+        expect(
+            matchesPermanentTargetFilters(
+                plainClient,
+                pendingTarget,
+                players,
+                "p1",
+                undefined
+            )
+        ).toBe(true);
+    });
+
+    // CR 208.1 / CR 613.4c (issue #1352) — Cut Down's "total power and
+    // toughness 5 or less" reaches the client through the real projection: a
+    // 3/3 (each value under 5, the SUM 6) is not ringed, a 3/2 is.
+    it("totalPowerToughnessFilter (Cut Down): rejects a creature whose power+toughness sum exceeds the bound, accepts one at it, through the real wire projection", () => {
+        const { players, pendingTarget, legendaryClient, plainClient } =
+            projectScenario(
+                cutDown().targetRequirement!,
+                { power: 3, toughness: 3 },
+                { power: 3, toughness: 2 }
+            );
+        expect(pendingTarget.totalPowerToughnessFilter).toEqual({ max: 5 });
         expect(
             matchesPermanentTargetFilters(
                 legendaryClient,
