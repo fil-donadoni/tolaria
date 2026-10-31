@@ -238,6 +238,8 @@ export const CARD_FIELD_LIFECYCLE = {
     castableFromExileFromTurn:  { codec: "defined", reset: ["custom:turn"] },
     castableFromExileSorceryTiming: { codec: "flag", reset: ["custom:turn"] },
     plotted:                    { codec: "flag",    reset: NONE },
+    foretold:                   { codec: "flag",    reset: ZONE_STACK },
+    grantedForetellCost:        { codec: "defined", reset: NONE },
     warpExiled:                 { codec: "flag",    reset: ["custom:turn"] },
     warped:                     { codec: "flag",    reset: ZONE_STACK },
     transformedAtDelayedSeq:    { codec: "defined", reset: ZONE },

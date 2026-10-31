@@ -301,6 +301,11 @@ export type SlotIR =
      */
     | { readonly kind: "plot"; readonly cost: ManaCost }
     /**
+     * CR 702.143a — a "Foretell [cost]" line: the cost a foretold card is cast
+     * for from exile, lowered onto `CardDefinition.foretell`.
+     */
+    | { readonly kind: "foretell"; readonly cost: ManaCost }
+    /**
      * CR 702.96a — an "Overload [cost]" line: the alternative cost that turns
      * every "target" of the spell into "each", lowered onto
      * `CardDefinition.overload`. `description` is the printed line, as the
