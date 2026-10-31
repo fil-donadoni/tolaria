@@ -1509,16 +1509,6 @@ function nonCreatureBodyValue(
             ) * weights.latentCreatureDiscount
         );
     return (
-        evaluateCreature(
-            state,
-            asEventualCreature(perm),
-            weights.latent,
-            pass,
-            weights
-        ) *
-        weights.latentCreatureDiscount ** turns
-    );
-    return (
         withEngineRead(perm, (open) =>
             cardValue(
                 state,
