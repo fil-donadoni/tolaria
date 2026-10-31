@@ -18,10 +18,17 @@
 // drives the registered handlers against the in-memory ctx, exactly like
 // `limitedPairingMatch.test.ts`.
 import { describe, it, expect } from "vitest";
+import { ConvexError } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import type { GameState } from "../gre/state";
-import { finalizeGameOver } from "../game";
+import { createGame, createSoloGame, finalizeGameOver } from "../game";
+import {
+    createManualGame,
+    createManualSoloGame,
+    joinManualGame,
+} from "../gameManual";
+import { ACTIVE_GAME_MESSAGE } from "../gameSeats";
 import { myActiveGame } from "../gameReads";
 import { leaveGame } from "../gameTable";
 import {
@@ -256,4 +263,54 @@ describe("the banner's offered action is one the server accepts (issue #3336)", 
         expect(db.tables.games).toHaveLength(0);
         expect(db.tables.matches).toHaveLength(0);
     });
+});
+
+// A production deployment strips a plain `Error`'s message to "Server Error"
+// on its way to the client and keeps only a `ConvexError`'s `data` (issue
+// #7703: the setup flow showed an opaque toast while the server was saying
+// exactly why). So the single-active-Match rejection is asserted as a
+// `ConvexError` carrying the message, at every create/join that raises it.
+describe("the active-Match rejection survives production redaction (issue #7703)", () => {
+    const ARENA_DECK = { name: "Deck", format: "vintage", cards: [] };
+    const TABLETOP_DECK = {
+        name: "Deck",
+        format: "manual",
+        cards: [{ name: "Island", quantity: 1 }],
+    };
+    const cases: [string, unknown, Record<string, unknown>][] = [
+        ["createGame", createGame, { name: "g", deck: ARENA_DECK }],
+        ["createSoloGame", createSoloGame, { name: "g", deck: ARENA_DECK }],
+        [
+            "createManualGame",
+            createManualGame,
+            { name: "g", deck: TABLETOP_DECK },
+        ],
+        [
+            "createManualSoloGame",
+            createManualSoloGame,
+            { name: "g", deck: TABLETOP_DECK },
+        ],
+        [
+            "joinManualGame",
+            joinManualGame,
+            { gameId: "game1", deck: TABLETOP_DECK },
+        ],
+    ];
+
+    for (const [name, mutation, args] of cases) {
+        it(`${name} rejects with ConvexError(ACTIVE_GAME_MESSAGE)`, async () => {
+            const db = world("playing", "playing");
+            const run = (
+                mutation as Handler<Record<string, unknown>, unknown>
+            )._handler(db.ctx as never, args);
+            const error = await run.then(
+                () => null,
+                (e: unknown) => e
+            );
+            expect(error).toBeInstanceOf(ConvexError);
+            expect((error as ConvexError<string>).data).toBe(
+                ACTIVE_GAME_MESSAGE
+            );
+        });
+    }
 });

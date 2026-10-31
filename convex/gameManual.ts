@@ -87,7 +87,7 @@ export const createManualSoloGame = mutation({
         if (args.deck2) assertTabletopDeck(args.deck2);
         const user = await getCurrentUser(ctx);
         if (await findActiveMatchForUser(ctx, user._id))
-            throw new Error(ACTIVE_GAME_MESSAGE);
+            throw new ConvexError(ACTIVE_GAME_MESSAGE);
 
         const deck2 = args.deck2 ?? args.deck;
 
@@ -179,7 +179,7 @@ export const createManualGame = mutation({
         assertTabletopDeck(args.deck);
         const user = await getCurrentUser(ctx);
         if (await findActiveMatchForUser(ctx, user._id))
-            throw new Error(ACTIVE_GAME_MESSAGE);
+            throw new ConvexError(ACTIVE_GAME_MESSAGE);
 
         const now = Date.now();
         const player: PlayerInput = {
@@ -236,7 +236,7 @@ export const joinManualGame = mutation({
         assertTabletopDeck(args.deck);
         const user = await getCurrentUser(ctx);
         if (await findActiveMatchForUser(ctx, user._id))
-            throw new Error(ACTIVE_GAME_MESSAGE);
+            throw new ConvexError(ACTIVE_GAME_MESSAGE);
 
         const game = await ctx.db.get(args.gameId);
         if (!game) throw new Error("Game not found");
