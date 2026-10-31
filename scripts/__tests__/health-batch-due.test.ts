@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
     LANDINGS_PER_BATCH,
     batchDue,
+    LADDER_RUN_TITLE,
+    healthGateRunsPending,
     healthRunsPending,
     landingsIn,
     pushOwesBatchRun,
@@ -225,5 +227,26 @@ describe("pushOwesRedRegate — total", () => {
                 inFlight: () => false,
             })
         ).toBe(false);
+    });
+});
+
+describe("healthGateRunsPending — only a GATE in flight holds the re-gate (issue #7647)", () => {
+    const lists = (queued: string[], running: string[]) => (args: string[]) =>
+        JSON.stringify(
+            (args.includes("queued") ? queued : running).map((t) => ({
+                displayTitle: t,
+            }))
+        );
+    it("a ladder run, queued or running, is not a gate in flight", () => {
+        expect(
+            healthGateRunsPending(lists([LADDER_RUN_TITLE], [LADDER_RUN_TITLE]))
+        ).toBe(false);
+        expect(healthGateRunsPending(lists([], []))).toBe(false);
+    });
+    it("a gate run — or a run older than the run-name — is", () => {
+        expect(
+            healthGateRunsPending(lists([], [LADDER_RUN_TITLE, "health gate"]))
+        ).toBe(true);
+        expect(healthGateRunsPending(lists(["health"], []))).toBe(true);
     });
 });

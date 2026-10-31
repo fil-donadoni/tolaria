@@ -151,6 +151,44 @@ export function healthGateInFlight(root: string, now?: number): boolean {
     );
 }
 
+/** `health.yml`'s `run-name` for a ladder run: what the re-gate's probe
+ *  must not count as a gate. */
+export const LADDER_RUN_TITLE = "health ladder";
+
+/**
+ * The re-gate's in-flight probe (issue #7647): a queued or running
+ * `health.yml` run that is a GATE — any title but `LADDER_RUN_TITLE`, so a
+ * run older than the `run-name` counts. Two facts `healthGateInFlight` reads
+ * are wrong here: a RED ladder (up to 180 min, dispatched right after the
+ * RED) is not the gate the tip waits for, and the pivot run marker of a run
+ * that ended PENDING (derived-stale, ADR 0157) is never settled, so it reads
+ * "in flight" for `RUN_IN_FLIGHT_MAX_MS` — exactly over the `derive:sync`
+ * push that must re-gate. A dispatch beside a gate already running costs no
+ * double proof: health.yml's `health-gate` group runs one and keeps the
+ * newest pending.
+ */
+export function healthGateRunsPending(
+    run: (args: string[]) => string = gh
+): boolean {
+    for (const status of ["queued", "in_progress"]) {
+        const out = run([
+            "run",
+            "list",
+            "--workflow",
+            "health.yml",
+            "--status",
+            status,
+            "--limit",
+            "20",
+            "--json",
+            "displayTitle",
+        ]);
+        const runs = JSON.parse(out) as Array<{ displayTitle?: string }>;
+        if (runs.some((r) => r.displayTitle !== LADDER_RUN_TITLE)) return true;
+    }
+    return false;
+}
+
 /** A tip verdict that settles nothing: none, or an INFRA (a run that proved
  *  nothing). GREEN, RED and AMBER are judgements the ladder and the cron own. */
 const SETTLED: ReadonlySet<string> = new Set<VerdictStatus>([
@@ -187,7 +225,6 @@ export function pushOwesRedRegate(
         readonly lineage?: () => LineageKind;
         readonly tipStatus?: (sha: string) => string | null;
         readonly inFlight?: () => boolean;
-        readonly now?: number;
     } = {}
 ): boolean {
     try {
@@ -199,9 +236,7 @@ export function pushOwesRedRegate(
             deps.tipStatus ??
             ((s) => verdictStore(root).read(s)?.status ?? null)
         )(sha);
-        const inFlight = (
-            deps.inFlight ?? (() => healthGateInFlight(root, deps.now))
-        )();
+        const inFlight = (deps.inFlight ?? (() => healthGateRunsPending()))();
         return redTipOwesGate({ lineage, tipStatus, inFlight });
     } catch {
         return false;

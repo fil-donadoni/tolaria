@@ -15,6 +15,7 @@ import {
     pivotRepairOrigins,
     pivotRunInFlight,
     publishRunMarker,
+    readRunRepairIssues,
     recordPivotRepairIssue,
 } from "../lib/health-pivot";
 import { pushMergesDeclaredRepair } from "../lib/health-repair-merge";
@@ -368,7 +369,6 @@ describe("pushMergesDeclaredRepair — an issue this push closed (issue #7647)",
     };
 
     it("the push whose PR closed the earlier RED's repair issue is a repair", () => {
-        process.env.GH_REPO = "owner/name";
         const o = c30c2e69();
         // The open-only carry reads it as stale — the pre-#7647 answer.
         expect(pivotRepairIssues(root, o)).toEqual([]);
@@ -376,13 +376,13 @@ describe("pushMergesDeclaredRepair — an issue this push closed (issue #7647)",
     });
 
     it("the same issue closed by anything else still reads as stale", () => {
-        process.env.GH_REPO = "owner/name";
         const o = c30c2e69();
+        // Recorded and closed — read, yet matched by no PR this push merges.
+        expect(readRunRepairIssues(root, o)).toEqual([7392]);
         expect(pushMergesDeclaredRepair(root, MID, prs, o)).toBe(false);
     });
 
     it("no RED standing: no repair, whatever the push closes", () => {
-        process.env.GH_REPO = "owner/name";
         const repo = sharedRepo([PUSHED, OLD], clock, new Set([7392]));
         expect(
             pushMergesDeclaredRepair(root, PUSHED, prs, { run: repo.run })
