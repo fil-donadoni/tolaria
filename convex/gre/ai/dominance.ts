@@ -1249,6 +1249,7 @@ function applyProbeChoice(
         case "play-land":
         case "summon-companion":
         case "turn-face-up":
+        case "plot":
         case "cast-spell":
         case "activate-ability":
         case "activate-granted-ability":
@@ -1705,6 +1706,7 @@ export function isProbeEligibleMove(
         case "play-land":
         case "summon-companion":
         case "turn-face-up":
+        case "plot":
         case "activate-granted-ability":
         case "submit-target":
         case "declare-attackers":

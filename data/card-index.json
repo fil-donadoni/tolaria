@@ -16834,6 +16834,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Demonic Ruckus",
+        "scryfallId": "5b491d11-d00a-4541-8389-2785a455eeee",
+        "oracleId": "a861ee41-a2c6-4530-9974-82f55ce712b1",
+        "firstSet": "otj",
+        "firstPrintId": "5b491d11-d00a-4541-8389-2785a455eeee",
+        "firstPrintSet": "otj",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Demonic Taskmaster",
         "scryfallId": "fb5d6266-30a7-4360-84bc-22b52fb782b3",
         "oracleId": "162e45f5-edb8-4a13-acdc-8980ce5ba8ac",
@@ -18180,6 +18190,16 @@
         "firstSet": "pcy",
         "firstPrintId": "ec9f72b2-e3d0-4b24-9a73-b95d54695fa4",
         "firstPrintSet": "pcy",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Djinn of Fool's Fall",
+        "scryfallId": "48bfc6af-c651-485e-a1cc-f9d00aeaf812",
+        "oracleId": "7dbb540f-ee96-4115-b6ef-28ffc73da8b7",
+        "firstSet": "otj",
+        "firstPrintId": "48bfc6af-c651-485e-a1cc-f9d00aeaf812",
+        "firstPrintSet": "otj",
         "rarity": "common",
         "source": "compiled"
     },
@@ -35314,6 +35334,16 @@
         "source": "compiled"
     },
     {
+        "name": "Irascible Wolverine",
+        "scryfallId": "324c0af5-7cdf-4c71-84cc-6349f10e0d66",
+        "oracleId": "445cd4bd-ba7c-42a2-a794-42aed823d0d3",
+        "firstSet": "otj",
+        "firstPrintId": "324c0af5-7cdf-4c71-84cc-6349f10e0d66",
+        "firstPrintSet": "otj",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Iridescent Blademaster",
         "scryfallId": "3fee189f-539f-48fa-b217-4b2599375364",
         "oracleId": "5e1fd76b-46c8-41b5-87b3-e078f7a47535",
@@ -50827,6 +50857,14 @@
         "source": "compiled"
     },
     {
+        "name": "Pillage the Bog",
+        "scryfallId": "fa3b415f-7901-4ab4-84fe-60b90d40ac90",
+        "oracleId": "91740570-1a97-4513-8af9-b32c363daf15",
+        "firstSet": "otj",
+        "firstPrintId": "fa3b415f-7901-4ab4-84fe-60b90d40ac90",
+        "firstPrintSet": "otj"
+    },
+    {
         "name": "Pillar of Light",
         "scryfallId": "018ff99e-a23d-4440-8c5c-cfb4942f1906",
         "oracleId": "643c1ee3-a653-4a6c-b705-a61f3b67e38c",
@@ -63838,6 +63876,16 @@
         "source": "compiled"
     },
     {
+        "name": "Slickshot Lockpicker",
+        "scryfallId": "109a9464-ce30-4747-874e-3bbf75913081",
+        "oracleId": "e6e4ad3c-079d-429b-9f29-b9e42a1a236f",
+        "firstSet": "otj",
+        "firstPrintId": "109a9464-ce30-4747-874e-3bbf75913081",
+        "firstPrintSet": "otj",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Slimebind",
         "scryfallId": "b6263410-20c5-43b4-8183-3c02c10d07fb",
         "oracleId": "87aa2cbe-841c-40ff-9b1c-b259b4cc631e",
@@ -65900,6 +65948,16 @@
         "firstSet": "nem",
         "firstPrintId": "e4a9bb47-3855-425d-924c-09dbde74735b",
         "firstPrintSet": "nem",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Spinewoods Paladin",
+        "scryfallId": "1b2b432d-9e73-4ab2-a098-546d406df6c0",
+        "oracleId": "d2aa9649-8394-48ca-bee6-a044e5a86b38",
+        "firstSet": "otj",
+        "firstPrintId": "1b2b432d-9e73-4ab2-a098-546d406df6c0",
+        "firstPrintSet": "otj",
         "rarity": "common",
         "source": "compiled"
     },

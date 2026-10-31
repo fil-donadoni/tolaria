@@ -75,6 +75,10 @@ describe("cardHasLegalAction", () => {
         expect(cardHasLegalAction(true, { canSummon: true })).toBe(true);
         expect(cardHasLegalAction(true, { canTurnFaceUp: true })).toBe(true);
     });
+    it("the plot special action on a hand card (CR 702.170a)", () => {
+        expect(cardHasLegalAction(true, { canPlot: true })).toBe(true);
+        expect(cardHasLegalAction(false, { canPlot: true })).toBe(false);
+    });
 
     it("flashback from the graveyard (CR 702.34)", () => {
         const card = { legalActions: ["cast"], castKind: "flashback" };

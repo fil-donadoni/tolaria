@@ -31,6 +31,7 @@ import { PLACEHOLDER_CARD_ID } from "./gre/constants";
 import { canSummonCompanion } from "./gre/companion";
 import { outsideGamePool } from "./gre/outsideGame";
 import { canTurnFaceUp } from "./gre/morph";
+import { canPlot } from "./gre/plot";
 import { isRequiredAttacker } from "./gre/combat";
 import { isFaceDownExile } from "./gre/faceDown";
 import { exileCastPermitted } from "./gre/castCost";
@@ -97,6 +98,11 @@ export type SlimHandCard = SlimCardInstance & {
      *  the whole cast menu. One flag for both, because the picker's question
      *  is the same one and a second field is a second thing to forget. */
     printedCostCastUnavailable?: true;
+    /** CR 116.2k / 702.170a (issue #3219) — true when the viewer may take the
+     *  PLOT special action on this own-hand card right now (`canPlot`,
+     *  `gre/plot.ts` — the predicate the `plotCard` mutation and the Bot's
+     *  enumerator read). Absent (never `false`) otherwise. */
+    canPlot?: true;
 };
 
 /** Exile card in projected state: slim, plus `legalActions` when the viewer may
@@ -1700,6 +1706,9 @@ export function projectPublicState(
                                 ) ?? undefined
                             ))
                             ? { printedCostCastUnavailable: true as const }
+                            : {}),
+                        ...(canPlot(state, player, card)
+                            ? { canPlot: true as const }
                             : {}),
                     };
                 }),
