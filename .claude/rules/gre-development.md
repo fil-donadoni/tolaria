@@ -43,10 +43,11 @@ Tests in `convex/gre/__tests__/`, each naming its CR section.
 
 ## Proof-of-failure (mandatory for every new guarding test)
 
-**A test you have never seen fail is not evidence.** Break the guarded code,
-watch red, revert, state what you broke — for every test meant to catch
-something. SURFACE assertions traverse `projectPublicState` /
-`buildTriggerStateView`; a hand-built view does not count.
+**A test you have never seen fail is not evidence.** `bun run proof` breaks
+the code, sees red, reverts, prints the receipt `land:ready` wants — for every
+test meant to catch something. SURFACE assertions traverse
+`projectPublicState` / `buildTriggerStateView`; a hand-built view does not
+count.
 
 ## Card testing convention (resolve() cards and new Ops)
 

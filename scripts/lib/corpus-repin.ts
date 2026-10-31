@@ -24,6 +24,7 @@ import type {
 } from "./oracle-state-regressions";
 import type { ChangedRetiredRow } from "./retirement-ack";
 import { claimId, type MissingClaim } from "./targets";
+import { proofNoneOwedLine } from "./proof-receipt";
 
 /** Every re-pin PR's branch starts with this; an open PR on one stops the
  *  next run (two re-pins in flight would conflict on every generated file). */
@@ -337,6 +338,8 @@ export function repinPrBody(
         "## Preset scenario",
         "",
         "None owed: data-only re-pin, no `convex/{cards/sets,gre}/**` change.",
+        "",
+        proofNoneOwedLine("data-only re-pin, no guarding test"),
         "",
         "## Bot reachability",
         "",

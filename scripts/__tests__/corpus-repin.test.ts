@@ -21,6 +21,7 @@ import {
     retirementRefusal,
     retirementSection,
 } from "../lib/retirement-ack";
+import { proofReceiptRefusal } from "../lib/proof-receipt";
 import { claimId } from "../lib/targets";
 
 // Issue #6387: the weekly corpus re-pin settles, unattended, the three things
@@ -224,6 +225,15 @@ describe("the bodies", () => {
         const body = repinPrBody(facts, 6400, retired, 1);
         expect(body).toContain("## Preset scenario");
         expect(body).toContain("check:ui: no walk owed");
+        // `land:ready` refuses an `engine`-lane PR without a proof receipt or
+        // this declaration (issue #7655).
+        expect(
+            proofReceiptRefusal({
+                lane: "engine",
+                prBody: body,
+                heads: ["0".repeat(40)],
+            })
+        ).toBeNull();
         expect(
             retirementRefusal(
                 [

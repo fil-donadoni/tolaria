@@ -45,6 +45,10 @@
  * rows per row — with the corpus cache, copied from the primary checkout
  * when the worktree lacks it — never the header the base owns.
  *
+ * A code-lane PR (`engine`, `skin`, `full`) owes a `bun run proof` receipt
+ * for its head in the body (`lib/proof-receipt.ts`); its refusal stands
+ * beside `land`'s, and the queue never reads it.
+ *
  * Refuses a PR that is not open or does not target the base branch — the
  * runner's `land` would refuse it anyway, an hour later, as a `land-failed`.
  * The decisions are `lib/land-runner.ts` and `lib/claim-labels.ts`; this file
@@ -122,6 +126,7 @@ import {
 } from "./lib/pr-gate";
 import { isCheapStep, preQueueSteps } from "./lib/pre-queue-steps";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { proofReceiptRefusal } from "./lib/proof-receipt";
 import {
     PR_CHECK_NAMES,
     runPrCheck,
@@ -614,6 +619,7 @@ function ensureCorpusForDraft(cwd: string): void {
 function preQueueGate(
     pr: number,
     headOid: string,
+    pushedHead: string,
     prBody: string,
     role: TreeRole
 ): void {
@@ -630,6 +636,15 @@ function preQueueGate(
         undefined,
         contentClasses(all, ORIGIN_BASE, cwd)
     );
+    // Issue #7655 — land:ready's own refusal, not a `pr-checks` one: the
+    // queue never reads the receipt. The head this run judges (its rebase or
+    // restore, when it made one), or the one the session pushed.
+    const proof = proofReceiptRefusal({
+        lane: plan.lane,
+        prBody,
+        heads: [headOid, pushedHead],
+    });
+    if (proof !== null) refusals.push(`land:ready: refusing — ${proof}`);
     const t0 = Date.now();
     const { failed, failedAll, result } = runPreQueue({
         skipCostly: refusals.length > 0,
@@ -814,7 +829,7 @@ function main(): void {
         view.headRefOid,
         view.headRefName
     );
-    preQueueGate(pr, head, view.body, role);
+    preQueueGate(pr, head, view.headRefOid, view.body, role);
     if (issue !== null) {
         const body = bodyWithClosingRef(
             view.body,
