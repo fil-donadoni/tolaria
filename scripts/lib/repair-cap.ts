@@ -150,7 +150,6 @@ export function cappedRepairPrs(
  * the queue never labelled `land-failed`. Unreadable → none capped.
  */
 export function cappedUiReceiptPrs(
-    slug: string,
     list: () => readonly {
         number: number;
         labels: readonly { name: string }[];

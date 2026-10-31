@@ -346,7 +346,7 @@ function repairDispatchables(
     // `ui-receipt` is its own class (issue #7649): counted from the check:ui
     // failure comments, so a PR never labelled `land-failed` is capped too.
     const failedCapped = cappedRepairPrs(slug, prs);
-    const uiCapped = cappedUiReceiptPrs(slug);
+    const uiCapped = cappedUiReceiptPrs();
     escalateCappedRepairs(failedCapped, uiCapped);
     const capped = new Set([...failedCapped.keys(), ...uiCapped.keys()]);
     return repairItems(

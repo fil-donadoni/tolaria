@@ -945,7 +945,7 @@ function main(): void {
         // planner only stops offering the PR.
         new Set([
             ...cappedRepairPrs("{owner}/{repo}", failedPrs).keys(),
-            ...cappedUiReceiptPrs("{owner}/{repo}").keys(),
+            ...cappedUiReceiptPrs().keys(),
         ])
     );
     const repaired = new Set(plan.repair.map((r) => r.number));

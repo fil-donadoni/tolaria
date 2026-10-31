@@ -126,11 +126,11 @@ describe("repair cap — ui-receipt class (issue #7649)", () => {
                 },
             ];
         const two = ["65476a56e", "287a2a0bd"];
-        expect([...cappedUiReceiptPrs("o/r", list(two))]).toEqual([]);
-        expect([
-            ...cappedUiReceiptPrs("o/r", list([...two, "354e7a7a5"])),
-        ]).toEqual([[7510, 3]]);
-        expect([...cappedUiReceiptPrs("o/r", list(PR_7510_HEADS))]).toEqual([
+        expect([...cappedUiReceiptPrs(list(two))]).toEqual([]);
+        expect([...cappedUiReceiptPrs(list([...two, "354e7a7a5"]))]).toEqual([
+            [7510, 3],
+        ]);
+        expect([...cappedUiReceiptPrs(list(PR_7510_HEADS))]).toEqual([
             [7510, 8],
         ]);
         // already handed to its human: not re-escalated
@@ -144,7 +144,7 @@ describe("repair cap — ui-receipt class (issue #7649)", () => {
 
     it("an unreadable list caps nothing", () => {
         expect([
-            ...cappedUiReceiptPrs("o/r", () => {
+            ...cappedUiReceiptPrs(() => {
                 throw new Error("rate limit");
             }),
         ]).toEqual([]);
