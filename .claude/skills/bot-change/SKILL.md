@@ -231,11 +231,8 @@ No pre-PR lane gate (ADR 0136 §1). In order:
   after issue #6149) and **`bun run test:blade`** — no `land` runs blade, an
   `engine`-lane one no bot test (ADR 0154 §3).
 - **A blade `moves` entry or a weight change runs `bun run bot:refit`
-  locally** (issue #6690): re-fits, re-records every derived pin; `--check`
-  names laggards. **The PR never carries the result** (issue #7653): the
-  fitted weights and the pins are derived state the base writes
-  (`derive:sync`), the draft refits in its tree, `land:ready` restores them,
-  `check:derived-in-diff` refuses a diff that moves one.
+  locally** (issue #6690); `--check` names laggards. The PR never carries
+  its output: base-owned (ADR 0157 Amendment II).
 - Never `check:pr` / `check:guards`: `check:pr` holds `check:guards` — both
   suites ran twice.
 
