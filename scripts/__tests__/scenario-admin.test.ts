@@ -25,8 +25,8 @@ import {
     formatScenarioRow,
     identityPayload,
     projectScenarioListing,
+    scenarioIdLookup,
     selectAdminIdentity,
-    selectScenariosByLabel,
 } from "../lib/scenario-cli";
 
 const IDENTITY = identityPayload("u1");
@@ -132,34 +132,26 @@ describe("projectScenarioListing (issue #3331)", () => {
     });
 });
 
-describe("selectScenariosByLabel (issue #3331)", () => {
-    const rows = [
-        { _id: "a", label: "keep me" },
-        { _id: "b", label: "kill me" },
-        { _id: "c", label: "kill me" },
-    ];
-
-    it("returns EVERY row carrying the label, not just the first", () => {
-        // Labels are not unique by schema — `selectScenarioUpsert` only picks
-        // one row to patch, so a row inserted before that path existed can
-        // still share a label. Deleting one of two is a silent half-success.
-        expect(selectScenariosByLabel(rows, "kill me")).toEqual(["b", "c"]);
+describe("scenarioIdLookup — label → ids without the full-table list (issue #7702)", () => {
+    it("resolves through the label-index query, never `listDebugScenarios`", () => {
+        // The full-table listing scans up to 500 full specs and exceeds the
+        // 1 s query limit under machine load — the escape hatch failed exactly
+        // when sessions were busy.
+        const lookup = scenarioIdLookup("kill me");
+        expect(lookup?.fn).toBe("debugScenarios:debugScenarioIdsByLabel");
+        expect(lookup?.fn).not.toContain("listDebugScenarios");
+        expect(lookup?.payload).toEqual({ label: "kill me" });
     });
 
-    it("returns nothing for an unknown label — a typo removes nothing", () => {
-        expect(selectScenariosByLabel(rows, "kil me")).toEqual([]);
+    it("trims the label, as every write path stores it trimmed", () => {
+        expect(scenarioIdLookup("  kill me  ")?.payload).toEqual({
+            label: "kill me",
+        });
     });
 
-    it("refuses an empty or whitespace label instead of matching everything", () => {
-        expect(selectScenariosByLabel(rows, "")).toEqual([]);
-        expect(selectScenariosByLabel(rows, "   ")).toEqual([]);
-    });
-
-    it("trims both sides, so a padded spelling still finds the seeded row", () => {
-        expect(selectScenariosByLabel(rows, "  kill me  ")).toEqual(["b", "c"]);
-        expect(
-            selectScenariosByLabel([{ _id: "d", label: " padded " }], "padded")
-        ).toEqual(["d"]);
+    it("looks nothing up for an empty or whitespace label", () => {
+        expect(scenarioIdLookup("")).toBeNull();
+        expect(scenarioIdLookup("   ")).toBeNull();
     });
 });
 
