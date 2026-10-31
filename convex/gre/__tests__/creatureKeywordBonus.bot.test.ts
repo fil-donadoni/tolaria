@@ -88,6 +88,7 @@ const NOT_A_BODY_KEYWORD = new Set([
     "companion",
     "squad",
     "offspring",
+    "escalate",
     "warp",
     "plot",
     "ninjutsu",
