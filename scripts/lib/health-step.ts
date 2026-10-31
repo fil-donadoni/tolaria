@@ -336,6 +336,47 @@ export function healthStepArgs(entry: string): string[] {
     return ["run", ...entry.split(/\s+/)];
 }
 
+/** `bun run test`'s chain, in `package.json` order (`test:app && test:bot &&
+ *  test:blade`; `health-step.test.ts` pins the two together). */
+export const TEST_CHAIN_SCRIPTS: readonly string[] = [
+    "test:app",
+    "test:bot",
+    "test:blade",
+];
+
+/** The step whose chain an early run runs without bail. */
+const NO_BAIL_STEP = "test";
+
+/**
+ * The shell line that runs every script of `scripts` whatever the one before
+ * it did, and exits 1 when any failed (issue #7656). Each `bun run` echoes
+ * its `$ bun scripts/gate.ts …` start line as the `&&` chain does, so the
+ * retry (`lib/health-retry.ts`) reads every suite as started.
+ */
+export function noBailChain(scripts: readonly string[]): string {
+    for (const s of scripts)
+        if (!/^[\w:-]+$/.test(s))
+            throw new Error(`not a package script name: ${JSON.stringify(s)}`);
+    return `rc=0; for s in ${scripts.join(" ")}; do bun run "$s" || rc=1; done; exit $rc`;
+}
+
+/**
+ * The command of one `HEALTH_SCRIPTS` entry. `noBail` is the hosted early
+ * run's (issue #7656): its `test` step runs every suite of the chain
+ * (`noBailChain`) instead of `bun run test`'s `&&`, so the RED carries every
+ * failing file of every vitest project — stacked REDs, one per suite, are
+ * then bisected in one run instead of one per gate. Every other entry, and
+ * every self-hosted run, is `bun run <entry>` unchanged.
+ */
+export function healthStepCommand(
+    entry: string,
+    opts: { noBail?: boolean } = {}
+): { cmd: string; args: string[] } {
+    if (opts.noBail && entry === NO_BAIL_STEP)
+        return { cmd: "sh", args: ["-c", noBailChain(TEST_CHAIN_SCRIPTS)] };
+    return { cmd: "bun", args: healthStepArgs(entry) };
+}
+
 /** What a fresh step worktree runs first (the browser steps', the nightly
  *  refresh's and the audits'): its bootstrap. */
 export const WORKTREE_BOOTSTRAP = "worktree:init";
