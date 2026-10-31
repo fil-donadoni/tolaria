@@ -10,7 +10,7 @@
  * after each merge, from `housekeeping`'s throwaway worktree at
  * `origin/<base>`:
  *
- *   0. the BOT REFIT (issue #7653): `bot:refit --derive` re-fits the eval
+ *   0. the BOT REFIT: `bot:refit --derive` re-fits the eval
  *      weights and re-records the search / census pins (`REFIT_ARTIFACT_PATHS`,
  *      derived paths since the PR stopped carrying them). First, so the drift
  *      sweep below plays on the weights the tip will hold. A refit that fails

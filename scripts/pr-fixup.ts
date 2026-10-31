@@ -5,7 +5,7 @@
 //
 //   classify --lane <lane.json> [--log <lane.log>] [--pr <N> | --draft <branch>] [--ref <base>]
 //       Reads the JSON `check:lane --json --retry-flaky` wrote. Prints the fix
-//       keys (`oracle`, `blade-index`, `derived`, `format`) when EVERY failed step is one
+//       keys (`oracle`, `blade-index`, `format`) when EVERY failed step is one
 //       a regeneration cures, nothing and exit 1 otherwise. With `--pr N` it
 //       also dispatches `pr-fixup.yml` for that PR (`gh workflow run`); with
 //       `--draft <branch>` (the queue's lane, issue #5955) the PR is the one
