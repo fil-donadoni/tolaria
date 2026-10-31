@@ -12,11 +12,20 @@
 # no sealed run and stop quietly with a stale table. 04:30 UTC: after the
 # night's health runs, before anyone lands. A schedule fires from the DEFAULT
 # branch only: it starts once a release carries this file there.
+#
+# The WEEKLY run (Monday 04:45 UTC, and every dispatch) also refreshes the
+# lane's sentinel set (issue #7651): `bun run lane:sentinels --pr` re-derives
+# `data/lane-sentinels.json` from the base's RED verdicts and the red
+# `queue-lane` runs of the last 30 days, joined with the cost table above,
+# and opens its own data PR the same way — quiet when one is open or the set
+# is unchanged. It reads GitHub through the runner's `gh`, like the PR it
+# opens.
 name: bot-costs-refresh
 
 on:
     schedule:
         - cron: "30 4 * * *"
+        - cron: "45 4 * * 1"
     workflow_dispatch:
 
 permissions:
@@ -24,7 +33,7 @@ permissions:
 
 jobs:
     refresh:
-        name: daily bot cost table refresh
+        name: daily bot cost table refresh, weekly lane sentinels
         runs-on: [self-hosted, maint, "host:macbook"]
         # Seconds of reading and one `land:ready` pre-queue check.
         timeout-minutes: 30
@@ -38,6 +47,10 @@ jobs:
             - uses: ./.github/actions/job-setup
             - name: bot:costs:refresh
               run: bun run bot:costs:refresh
+            - name: lane:sentinels (weekly)
+              # Its own refresh, whatever the cost table's step did.
+              if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event.schedule == '45 4 * * 1') }}
+              run: bun run lane:sentinels --pr
             - name: Remove the job worktree
               if: always()
               shell: bash

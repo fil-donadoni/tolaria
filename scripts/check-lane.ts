@@ -121,6 +121,11 @@ import {
     type BotBudget,
 } from "./lib/bot-test-costs";
 import {
+    readLaneSentinels,
+    SENTINELS_PATH,
+    type LaneSentinels,
+} from "./lib/lane-sentinels";
+import {
     botRelatedTests,
     botTests,
     reachIndex,
@@ -128,6 +133,7 @@ import {
     type BotProject,
     type BotRelatedTests,
     type ReachIndex,
+    type RelatedProject,
     type RelatedTests,
 } from "./lib/test-reach";
 
@@ -161,6 +167,16 @@ const defaultBotReach: BotReachSource = {
     related: (paths) => botRelatedTests(botIndex(), paths),
     costs: () => readBotTestCosts(REPO_ROOT),
     budget: () => readBotBudget(REPO_ROOT),
+};
+
+/** The sentinel set (issue #7651) and each file's project, from the two
+ *  indexes the scoped lanes build anyway. */
+const defaultSentinels: SentinelSource = {
+    read: () => readLaneSentinels(REPO_ROOT),
+    projectOf: (file) =>
+        (memoisedIndex ??= reachIndex(REPO_ROOT)).tests.get(file) ??
+        botIndex().tests.get(file) ??
+        null,
 };
 
 /** The `*.guard.test` files and their declarations (issue #7012). */
@@ -536,6 +552,22 @@ export interface LanePlan {
      * its declared cost (issue #7012) — `--plan` prints them.
      */
     guards?: { file: string; costS: number }[];
+    /**
+     * The sentinel set the plan runs (issue #7651): the files that recently
+     * produced a base RED or a lane red, each with its measured cost —
+     * `--plan` prints them under their own heading.
+     */
+    sentinels?: { file: string; ms: number }[];
+}
+
+/** What a lane asks of the sentinel set (issue #7651), injectable for the
+ *  reason `related` is. */
+export interface SentinelSource {
+    /** `SENTINELS_PATH`, or `null` when absent. */
+    read(): LaneSentinels | null;
+    /** The file's vitest project in THIS tree, or `null` (deleted, renamed,
+     *  or in no lane project). */
+    projectOf(file: string): RelatedProject | BotProject | null;
 }
 
 /** What a lane asks of the bot walk: the `full` lane's bot half (issue
@@ -629,7 +661,12 @@ export function classifyLane(
      * declarations (issue #7012), injectable for the reason `related` is.
      * Read only by the scoped code lanes.
      */
-    scanGuards: () => readonly ScanGuard[] = defaultScanGuards
+    scanGuards: () => readonly ScanGuard[] = defaultScanGuards,
+    /**
+     * The sentinel set (issue #7651), injectable for the reason `related`
+     * is. Read by every code lane; run by the scoped ones.
+     */
+    sentinels: SentinelSource = defaultSentinels
 ): LanePlan {
     const files = [...changedPaths];
     const merged = new Map([...ledgerCompanionOverrides(files), ...overrides]);
@@ -661,7 +698,10 @@ export function classifyLane(
                     command: cheapGuardCommand(guard),
                 })),
             ],
-            skip: bot.skip,
+            skip: [
+                ...bot.skip,
+                ...sentinelNote(sentinels, FULL_LANE_SENTINELS),
+            ],
             botReach: bot.reach,
         };
     }
@@ -739,16 +779,17 @@ export function classifyLane(
         // either, so it is never planned: that class is
         // `src-test-env-split.test.ts`'s, and it runs in health.
         const guards = admittedScanGuards(files, scanGuards(), skip);
+        const sent = plannedSentinels(sentinels, alreadyRunBy(files, guards));
         pushRelated(
-            withoutFiles(related(files), guards),
+            withoutSentinels(withoutFiles(related(files), guards), sent.files),
             ["node-engine", "node-tooling", "dom"],
             run,
             skip
         );
         appendScanGuards(guards, run);
-        const bot = admittedBotTests(files, botReach, () => false);
-        run.push(...bot.run);
-        skip.push(...bot.skip);
+        const bot = admittedBotTests(files, botReach, (f) => sent.files.has(f));
+        run.push(...bot.run, ...sent.run);
+        skip.push(...bot.skip, ...sent.skip);
         skip.push(
             {
                 id: "tsc[convex,node]",
@@ -778,6 +819,7 @@ export function classifyLane(
             skip,
             botReach: bot.reach,
             ...guardsField(guards),
+            ...sentinelsField(sent.admitted),
         };
     }
 
@@ -831,7 +873,8 @@ export function classifyLane(
             {
                 id: "dom",
                 reason: "no changed code under src/** — no component, style or asset changed",
-            }
+            },
+            ...sentinelNote(sentinels, CARDS_LANE_SENTINELS)
         );
         appendCheapGuards(files, run, skip);
         appendDocsGuards(files, run);
@@ -883,16 +926,21 @@ export function classifyLane(
             command: "bunx vitest run --project node-tooling",
         });
     const guards = admittedScanGuards(files, scanGuards(), skip);
+    const ranWhole = alreadyRunBy(files, guards);
+    const sent = plannedSentinels(
+        sentinels,
+        (f, p) => ranWhole(f, p) || (toolingWhole && p === "node-tooling")
+    );
     pushRelated(
-        withoutFiles(reach, guards),
+        withoutSentinels(withoutFiles(reach, guards), sent.files),
         mixed ? [...scoped, "dom"] : scoped,
         run,
         skip
     );
     appendScanGuards(guards, run);
-    const bot = admittedBotTests(files, botReach, () => false);
-    run.push(...bot.run);
-    skip.push(...bot.skip);
+    const bot = admittedBotTests(files, botReach, (f) => sent.files.has(f));
+    run.push(...bot.run, ...sent.run);
+    skip.push(...bot.skip, ...sent.skip);
     if (!mixed)
         skip.push({
             id: "dom",
@@ -913,6 +961,7 @@ export function classifyLane(
         skip,
         botReach: bot.reach,
         ...guardsField(guards),
+        ...sentinelsField(sent.admitted),
     };
 }
 
@@ -1203,6 +1252,144 @@ function guardsField(guards: readonly ScanGuard[]): Pick<LanePlan, "guards"> {
     return guards.length === 0
         ? {}
         : { guards: guards.map((g) => ({ file: g.file, costS: g.costS })) };
+}
+
+/** The sentinel step's id. */
+export const SENTINEL_STEP = "vitest(sentinels)";
+
+/** A file another planned step already runs whole: an admitted scan guard,
+ *  or a bot file an admitted cheap guard runs (`runsBotFiles`). */
+function alreadyRunBy(
+    files: string[],
+    guards: readonly ScanGuard[]
+): (file: string, project: RelatedProject | BotProject) => boolean {
+    const whole = new Set([
+        ...guards.map((g) => g.file),
+        ...CHEAP_GUARDS.filter((g) =>
+            files.some((p) => g.admits.test(p))
+        ).flatMap((g) => g.runsBotFiles ?? []),
+    ]);
+    return (file) => whole.has(file);
+}
+
+/**
+ * A scoped code lane's sentinel set (issue #7651): the committed
+ * `SENTINELS_PATH` — derived from the base's REDs and the queue's lane reds,
+ * already under `laneSentinels.capS` — run WHATEVER the import graph says, in
+ * one vitest run over the projects they belong to.
+ * The reached-tests and bot-admission steps drop these files so none runs
+ * twice, and a sentinel never spends the bot budget. Named, never dropped
+ * silently: the files over the cap or unmeasured (from the file), and one no
+ * longer in a lane project of this tree.
+ */
+function plannedSentinels(
+    source: SentinelSource,
+    ranElsewhere: (
+        file: string,
+        project: RelatedProject | BotProject
+    ) => boolean
+): {
+    run: PlannedCheck[];
+    skip: SkippedCheck[];
+    files: Set<string>;
+    admitted: { file: string; ms: number }[];
+} {
+    const set = source.read();
+    const skip: SkippedCheck[] = [];
+    if (set === null)
+        return {
+            run: [],
+            skip: [
+                {
+                    id: SENTINEL_STEP,
+                    reason: `no ${SENTINELS_PATH} in the tree (\`bun run lane:sentinels\`)`,
+                },
+            ],
+            files: new Set(),
+            admitted: [],
+        };
+    const runs: { file: string; project: RelatedProject | BotProject }[] = [];
+    const admitted: { file: string; ms: number }[] = [];
+    const gone: string[] = [];
+    for (const s of set.sentinels) {
+        const project = source.projectOf(s.file);
+        if (project === null) {
+            gone.push(s.file);
+            continue;
+        }
+        admitted.push(s);
+        if (!ranElsewhere(s.file, project))
+            runs.push({ file: s.file, project });
+    }
+    const listed = (xs: { file: string; ms: number }[]) =>
+        xs.map((x) => `${x.file} (${formatCost(x.ms)})`).join(", ");
+    if (set.overCap.length > 0)
+        skip.push({
+            id: `${SENTINEL_STEP}:over-cap`,
+            reason: `health's — past laneSentinels.capS (${set.capS} s) once the cheaper sentinels were in: ${listed(set.overCap)}`,
+        });
+    if (set.unmeasured.length > 0)
+        skip.push({
+            id: `${SENTINEL_STEP}:unmeasured`,
+            reason: `health's until measured — no row in ${COSTS_PATH}: ${set.unmeasured.join(", ")}`,
+        });
+    if (gone.length > 0)
+        skip.push({
+            id: `${SENTINEL_STEP}:gone`,
+            reason: `no longer a test of a lane project in this tree: ${gone.join(", ")}`,
+        });
+    // ONE run over every project a sentinel is in: vitest starts once, and a
+    // bare `bunx vitest run` is what `--retry-flaky` re-runs (a set made of
+    // files that went red must get the queue's one retry). No
+    // `TOLARIA_BOT_FAST`: it only adds the heavy deny-list to the excludes,
+    // and an excluded file NAMED here would match nothing.
+    const projects = [...new Set(runs.map((x) => x.project))].sort();
+    return {
+        run:
+            runs.length === 0
+                ? []
+                : [
+                      {
+                          id: SENTINEL_STEP,
+                          command: `bunx vitest run ${projects.map((p) => `--project ${p}`).join(" ")} ${runs.map((x) => shellQuote(x.file)).join(" ")}`,
+                      },
+                  ],
+        skip,
+        files: new Set(runs.map((x) => x.file)),
+        admitted,
+    };
+}
+
+/** The reached tests minus the files the sentinel step runs. */
+function withoutSentinels(
+    reach: RelatedTests,
+    files: ReadonlySet<string>
+): RelatedTests {
+    return Object.fromEntries(
+        Object.entries(reach).map(([p, fs]) => [
+            p,
+            fs.filter((f) => !files.has(f)),
+        ])
+    ) as RelatedTests;
+}
+
+const FULL_LANE_SENTINELS =
+    "check:pr:app runs node-engine, node-tooling and dom whole and vitest(bot) the bot fast lane whole — every sentinel is in them";
+const CARDS_LANE_SENTINELS =
+    "the cards lane runs none (issue #7651): a card on exercised Ops reaches no sentinel beyond node[cards] and bot[cards]";
+
+/** The one skip line a lane that runs no sentinel step owes — only when the
+ *  set holds a sentinel to account for. */
+function sentinelNote(source: SentinelSource, reason: string): SkippedCheck[] {
+    return (source.read()?.sentinels.length ?? 0) > 0
+        ? [{ id: SENTINEL_STEP, reason }]
+        : [];
+}
+
+function sentinelsField(
+    sentinels: readonly { file: string; ms: number }[]
+): Pick<LanePlan, "sentinels"> {
+    return sentinels.length === 0 ? {} : { sentinels: [...sentinels] };
 }
 
 /** Where the drift-guard census lives: hooks, skills, the gate scripts. */
@@ -1566,6 +1753,14 @@ export function renderPlan(plan: LanePlan, head: string): string {
         lines.push(
             `guards: ${plan.guards.map((g) => `${g.file} (${g.costS} s)`).join(", ")}`
         );
+    if (plan.sentinels) {
+        const ms = plan.sentinels.reduce((n, s) => n + s.ms, 0);
+        lines.push(
+            `sentinels: ${plan.sentinels.length} files, ${formatCost(ms)} (${SENTINELS_PATH}, issue #7651)`
+        );
+        for (const s of plan.sentinels)
+            lines.push(`       ${s.file} (${formatCost(s.ms)})`);
+    }
     if (plan.skip.length > 0) {
         const width = Math.max(...plan.skip.map((s) => s.id.length));
         plan.skip.forEach((s, i) => {
