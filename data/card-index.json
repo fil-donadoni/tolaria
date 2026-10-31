@@ -21830,6 +21830,14 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Escape to the Wilds",
+        "scryfallId": "3e26c10b-179f-4a6e-bc8d-3ec1d6783fb9",
+        "oracleId": "45a8c126-5396-4736-a37e-460a50706a98",
+        "firstSet": "eld",
+        "firstPrintId": "3e26c10b-179f-4a6e-bc8d-3ec1d6783fb9",
+        "firstPrintSet": "eld"
+    },
+    {
         "name": "Escape Tunnel",
         "scryfallId": "93ddde4f-d35e-4128-8f43-d0eadbd715de",
         "oracleId": "0056fc91-4398-471c-b561-7ff99750ac8a",
