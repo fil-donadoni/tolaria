@@ -51,6 +51,7 @@ import {
     type OpenPrRow,
 } from "./lib/claim-verdict";
 import {
+    parseAreaModels,
     repairItems,
     type PlanConfig,
     type RepairItem,
@@ -491,6 +492,9 @@ function repairsUnderHold(
             batchCap: slots.free.length,
             staleClaimHours: DEFAULTS.staleClaimHours,
             defaultImplModel: DEFAULTS.defaultImplModel,
+            areaModels: parseAreaModels(
+                JSON.parse(readFileSync(CONFIG_PATH, "utf8"))
+            ),
             now: new Date(now).toISOString(),
             excludeHitl: true,
         };
@@ -720,6 +724,9 @@ async function main(): Promise<void> {
         batchCap: slots.free.length,
         staleClaimHours: DEFAULTS.staleClaimHours,
         defaultImplModel: DEFAULTS.defaultImplModel,
+        areaModels: parseAreaModels(
+            JSON.parse(readFileSync(CONFIG_PATH, "utf8"))
+        ),
         now: new Date(now).toISOString(),
         excludeHitl: true,
     };

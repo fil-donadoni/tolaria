@@ -280,6 +280,11 @@ export interface PlanConfig {
     batchCap: number;
     staleClaimHours: number;
     defaultImplModel: string;
+    /** `area:*` label → tier for an issue with no `model:*` label (issue
+     *  #7654): `tolaria.config.json` `modelRouting.areas`, parsed by
+     *  `parseAreaModels`. A `model:*` label always wins; an area absent here
+     *  keeps `defaultImplModel`. */
+    areaModels?: Record<string, string>;
     /** Injected, never read from the clock — the planner must be reproducible. */
     now: string;
     /** Shared files where every issue merely ADDS an entry. Excluded from the
@@ -412,6 +417,9 @@ export interface PlannedIssue {
     model: string;
     /** Several `model:*` labels — the most capable won; the loop should say so. */
     modelAmbiguity?: string[];
+    /** The `area:*` label that routed `model` (issue #7654) — absent when a
+     *  `model:*` label or the default decided it. */
+    modelRoutedBy?: string;
     hitl: boolean;
     /** The board's `Priority`, when the maintainer set one. Echoed so the plan
      *  says WHY an issue jumped the queue — an unexplained reordering reads as
@@ -824,21 +832,66 @@ function lintAction(blocking: Finding[]): SkipAction {
 // Model routing
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** The most capable of several tiers, by `MODEL_RANK`. */
+const strongest = (tiers: string[]): string =>
+    [...tiers].sort((a, b) => MODEL_RANK.indexOf(a) - MODEL_RANK.indexOf(b))[
+        tiers.length - 1
+    ];
+
+/**
+ * `tolaria.config.json` `modelRouting.areas` (issue #7654): `area:*` label →
+ * tier. Absent block → no area routing; a malformed one throws — a table that
+ * silently routed nothing would put Bot work back on the default tier, the
+ * incident it exists for.
+ */
+export function parseAreaModels(doc: unknown): Record<string, string> {
+    const routing = (doc as { modelRouting?: unknown } | null)?.modelRouting;
+    if (routing === undefined) return {};
+    const areas = (routing as { areas?: unknown } | null)?.areas;
+    if (!areas || typeof areas !== "object" || Array.isArray(areas))
+        throw new Error(
+            "tolaria.config.json: modelRouting.areas must be an object"
+        );
+    const out: Record<string, string> = {};
+    for (const [label, tier] of Object.entries(areas)) {
+        if (!label.startsWith("area:"))
+            throw new Error(
+                `tolaria.config.json: modelRouting.areas key ${JSON.stringify(label)} is not an area:* label`
+            );
+        if (typeof tier !== "string" || !MODEL_RANK.includes(tier))
+            throw new Error(
+                `tolaria.config.json: modelRouting.areas[${JSON.stringify(label)}] must be one of ${MODEL_RANK.join(", ")}`
+            );
+        out[label] = tier;
+    }
+    return out;
+}
+
+/**
+ * The implement tier: a `model:*` label wins (several → the most capable,
+ * reported as ambiguity); else an `area:*` label routed by
+ * `config.areaModels` (several → the most capable, `routedBy` naming it);
+ * else `config.defaultImplModel`.
+ */
 export function resolveModel(
     issue: QueueIssue,
     config: PlanConfig
-): { model: string; ambiguity?: string[] } {
+): { model: string; ambiguity?: string[]; routedBy?: string } {
     const declared = labelNames(issue)
         .filter((n) => n.startsWith("model:"))
         .map((n) => n.slice("model:".length));
 
-    if (declared.length === 0) return { model: config.defaultImplModel };
     if (declared.length === 1) return { model: declared[0] };
+    if (declared.length > 1)
+        return { model: strongest(declared), ambiguity: declared };
 
-    const best = [...declared].sort(
-        (a, b) => MODEL_RANK.indexOf(a) - MODEL_RANK.indexOf(b)
-    )[declared.length - 1];
-    return { model: best, ambiguity: declared };
+    const routed = labelNames(issue).filter(
+        (n) => config.areaModels?.[n] !== undefined
+    );
+    if (routed.length === 0) return { model: config.defaultImplModel };
+    const model = strongest(routed.map((n) => config.areaModels![n]));
+    const routedBy = routed.find((n) => config.areaModels![n] === model)!;
+    return { model, routedBy };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1310,7 +1363,7 @@ export function planBatch(
             }
         }
 
-        const { model, ambiguity } = resolveModel(issue, config);
+        const { model, ambiguity, routedBy } = resolveModel(issue, config);
         const competed = competedBand(issue);
         const movedBand =
             competed !== null &&
@@ -1324,6 +1377,7 @@ export function planBatch(
             type: hasLabel(issue, "bug") ? "fix" : "feat",
             model,
             ...(ambiguity ? { modelAmbiguity: ambiguity } : {}),
+            ...(routedBy ? { modelRoutedBy: routedBy } : {}),
             hitl: isHitl(detail.body),
             ...(port.priority[issue.number]
                 ? { priority: port.priority[issue.number] }

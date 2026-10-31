@@ -4,7 +4,9 @@ import * as os from "os";
 import * as path from "path";
 import {
     planBatch,
+    parseAreaModels,
     parseTargetFiles,
+    resolveModel,
     pathsOverlap,
     normalizePath,
     isAppendOnlyPath,
@@ -1494,6 +1496,65 @@ describe("queue planner — model routing (issue #2181)", () => {
 
         expect(plan.batch[0].model).toBe("opus");
         expect(plan.batch[0].modelAmbiguity).toEqual(["sonnet", "opus"]);
+    });
+
+    it("routes an unlabelled issue by its area, and lets a model label win (issue #7654)", () => {
+        const routed: PlanConfig = {
+            ...CONFIG,
+            areaModels: parseAreaModels(
+                JSON.parse(
+                    fs.readFileSync(
+                        path.resolve(
+                            __dirname,
+                            "..",
+                            "..",
+                            "tolaria.config.json"
+                        ),
+                        "utf8"
+                    )
+                )
+            ),
+        };
+        const at = (labels: string[]) =>
+            resolveModel(issue(1, { labels }), routed);
+
+        expect(at(["area:game-bot"])).toEqual({
+            model: "opus",
+            routedBy: "area:game-bot",
+        });
+        expect(at(["area:limited-bot"]).model).toBe("opus");
+        expect(at(["area:mechanics"]).model).toBe("opus");
+        expect(at(["area:cards"])).toEqual({ model: "sonnet" });
+        expect(at(["area:game-bot", "model:fable"])).toEqual({
+            model: "fable",
+        });
+        expect(at(["area:game-bot", "model:sonnet", "model:opus"])).toEqual({
+            model: "opus",
+            ambiguity: ["sonnet", "opus"],
+        });
+    });
+
+    it("names the routing area in the plan's batch entry", () => {
+        const plan = planBatch(
+            [issue(100, { labels: ["ready-for-agent", "area:game-bot"] })],
+            { ...CONFIG, areaModels: { "area:game-bot": "opus" } },
+            makePort({ 100: { body: body({ targetFiles: ["src/a.ts"] }) } })
+        );
+        expect(plan.batch[0].model).toBe("opus");
+        expect(plan.batch[0].modelRoutedBy).toBe("area:game-bot");
+    });
+
+    it("refuses a malformed area table rather than route nothing", () => {
+        expect(parseAreaModels({})).toEqual({});
+        expect(() =>
+            parseAreaModels({ modelRouting: { areas: { "area:x": "gpt" } } })
+        ).toThrow(/must be one of/);
+        expect(() =>
+            parseAreaModels({ modelRouting: { areas: { bot: "opus" } } })
+        ).toThrow(/not an area/);
+        expect(() => parseAreaModels({ modelRouting: {} })).toThrow(
+            /must be an object/
+        );
     });
 
     it("marks a bug as a fix and everything else as a feat", () => {
