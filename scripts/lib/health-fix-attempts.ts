@@ -44,6 +44,9 @@ export interface FixAttempt {
     /** ISO time the record was written. */
     at?: string;
     pr?: number;
+    /** A revert record's PRs, one per culprit (issue #7656), `pr` the first
+     *  of them; absent reads `[pr]`. */
+    prs?: number[];
     /** A `landed` record whose class guard was filed for the owner instead
      *  of landed (issue #6552): the `ready-for-human` issue's number. The
      *  ladder reads it exactly as `landed`. */
@@ -74,12 +77,19 @@ const SEP = " · ";
 
 const RUNG_SEGMENT = /^(fix|revert|stop) (\d+)$/;
 
-/** `LANDED · machine · fix 2 · PR #N · guard #M · note`, cut to the 140-character cap.
+/** Every PR a record names: `prs`, else `pr`, else none. */
+export function prsOf(a: Pick<FixAttempt, "pr" | "prs">): number[] {
+    if (a.prs !== undefined && a.prs.length > 0) return [...a.prs];
+    return a.pr !== undefined ? [a.pr] : [];
+}
+
+/** `LANDED · machine · fix 2 · PR #N[,#P…] · guard #M · note`, cut to the 140-character cap.
  *  The rung segment is written only when the record names one. */
 export function encodeFixDescription(a: FixAttempt): string {
     const parts = [a.outcome.toUpperCase(), a.machine ?? "-"];
     if (a.rung !== undefined) parts.push(`${a.rung} ${a.attempt ?? 1}`);
-    if (a.pr !== undefined) parts.push(`PR #${a.pr}`);
+    const prs = prsOf(a);
+    if (prs.length > 0) parts.push(`PR ${prs.map((n) => `#${n}`).join(",")}`);
     if (a.classGuard !== undefined) parts.push(`guard #${a.classGuard}`);
     if (a.note) parts.push(a.note.replace(/\s+/g, " "));
     const out = parts.join(SEP);
@@ -106,9 +116,11 @@ export function decodeFixStatus(input: {
         a.attempt = Number(rung[2]);
         rest.shift();
     }
-    const pr = rest.length > 0 ? /^PR #(\d+)$/.exec(rest[0]) : null;
+    const pr = rest.length > 0 ? /^PR (#\d+(?:,#\d+)*)$/.exec(rest[0]) : null;
     if (pr) {
-        a.pr = Number(pr[1]);
+        const prs = pr[1].split(",").map((n) => Number(n.slice(1)));
+        a.pr = prs[0];
+        if (prs.length > 1) a.prs = prs;
         rest.shift();
     }
     const guard = rest.length > 0 ? /^guard #(\d+)$/.exec(rest[0]) : null;

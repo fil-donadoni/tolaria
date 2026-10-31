@@ -72,7 +72,7 @@ function facts(over: Partial<LadderFacts> = {}): LadderFacts {
         sinceRed: null,
         repairPrs: [],
         episode: [{ sha: RED, attempt: null, culprits: [CULPRIT] }],
-        revertPr: null,
+        revertPrs: [],
         foreignRepairs: [],
         escalated: null,
         now: NOW,
@@ -256,11 +256,13 @@ describe("ladderRung — a bisected RED is the lineage verdict of later tips (is
                     sinceRed: [
                         { sha: TIP, pr: 7014, message: "Revert (#7014)" },
                     ],
-                    revertPr: {
-                        number: 7014,
-                        state: "merged",
-                        landFailed: false,
-                    },
+                    revertPrs: [
+                        {
+                            number: 7014,
+                            state: "merged",
+                            landFailed: false,
+                        },
+                    ],
                 })
             ).kind
         ).toBe("wait");
@@ -622,11 +624,13 @@ describe("ladderRung — the revert, whenever a repair did not hold", () => {
                         outcome: "attempting",
                         pr: 5900,
                     }),
-                    revertPr: {
-                        number: 5900,
-                        state: "open",
-                        landFailed: false,
-                    },
+                    revertPrs: [
+                        {
+                            number: 5900,
+                            state: "open",
+                            landFailed: false,
+                        },
+                    ],
                 })
             ).kind
         ).toBe("wait");
@@ -692,7 +696,9 @@ describe("ladderRung — rung 6, stop", () => {
             ladderRung(
                 facts({
                     episode: reverting,
-                    revertPr: { number: 5900, state: "open", landFailed: true },
+                    revertPrs: [
+                        { number: 5900, state: "open", landFailed: true },
+                    ],
                 })
             ).kind
         ).toBe("stop");
@@ -703,11 +709,13 @@ describe("ladderRung — rung 6, stop", () => {
             ladderRung(
                 facts({
                     episode: reverting,
-                    revertPr: {
-                        number: 5900,
-                        state: "closed",
-                        landFailed: false,
-                    },
+                    revertPrs: [
+                        {
+                            number: 5900,
+                            state: "closed",
+                            landFailed: false,
+                        },
+                    ],
                 })
             ).kind
         ).toBe("stop");
@@ -725,11 +733,13 @@ describe("ladderRung — rung 6, stop", () => {
             ladderRung(
                 facts({
                     episode,
-                    revertPr: {
-                        number: 5900,
-                        state: "merged",
-                        landFailed: false,
-                    },
+                    revertPrs: [
+                        {
+                            number: 5900,
+                            state: "merged",
+                            landFailed: false,
+                        },
+                    ],
                 })
             )
         ).toMatchObject({
@@ -1027,11 +1037,13 @@ describe("review fixes — the bounds no rung can escape", () => {
                         pr: 5900,
                         at: old,
                     }),
-                    revertPr: {
-                        number: 5900,
-                        state: "open",
-                        landFailed: false,
-                    },
+                    revertPrs: [
+                        {
+                            number: 5900,
+                            state: "open",
+                            landFailed: false,
+                        },
+                    ],
                 })
             ).kind
         ).toBe("stop");
