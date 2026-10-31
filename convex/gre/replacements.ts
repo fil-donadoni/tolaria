@@ -683,11 +683,18 @@ export function applyTransientDamageRedirections(
             SHIELD_DAMAGE_EFFECT_KIND["from-source-to-permanent-redirect"]
         )
     ) {
-        const spent = batch.spentRedirects.find((sh) =>
-            nextTimeRedirectMatches(sh, current)
-        );
-        if (spent !== undefined)
+        // A chain (A's shield → B, B's shield → a player) re-reads the batch
+        // after each hop; each spent shield applies at most once per event
+        // (CR 614.5).
+        const applied = new Set<NextTimeRedirectShield>();
+        for (;;) {
+            const spent = batch.spentRedirects.find(
+                (sh) => !applied.has(sh) && nextTimeRedirectMatches(sh, current)
+            );
+            if (spent === undefined) break;
+            applied.add(spent);
             current = redirectToShieldDestination(state, spent, current);
+        }
     }
     const shields = state.damageRedirections;
     if (!shields || shields.length === 0) return current;

@@ -334,6 +334,62 @@ describe("Mirrorwood Treefolk ({3}{G} 2/4 — one-shot damage redirect, CR 614/1
         expect(state.players[1].life).toBe(8);
     });
 
+    it("a CHAIN of spent shields (A → B, B → player) redirects every simultaneous source all the way (CR 510.2 / 614.5)", () => {
+        const mwtA = makeInstance(mirrorwoodTreefolk.id, {
+            id: "mwtA",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const mwtB = makeInstance(mirrorwoodTreefolk.id, {
+            id: "mwtB",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const wurmA = makeInstance(crawWurm.id, {
+            id: "wurmA",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const wurmB = makeInstance(crawWurm.id, {
+            id: "wurmB",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [mwtA, mwtB] }),
+                makePlayer("p2", { battlefield: [wurmA, wurmB], life: 20 }),
+            ],
+        });
+        activateAndPickTarget(state, "mwtA", { type: "permanent", id: "mwtB" });
+        activateAndPickTarget(state, "mwtB", { type: "player", id: "p2" });
+        state.combat = {
+            confirmed: true,
+            attackerIds: ["wurmA", "wurmB"],
+            blockerAssignments: { mwtA: ["wurmA", "wurmB"] },
+            blockedAttackerIds: ["wurmA", "wurmB"],
+            blockersConfirmed: true,
+            damageConfirmed: false,
+        } as GameState["combat"];
+
+        applyAllCombatDamage(state, {
+            wurmA: { mwtA: 6 },
+            wurmB: { mwtA: 6 },
+            mwtA: { wurmA: 2 },
+        });
+
+        const field = state.players[0].battlefield;
+        expect(
+            field.find((c) => c.id === "mwtA")?.damageMarked
+        ).toBeUndefined();
+        expect(
+            field.find((c) => c.id === "mwtB")?.damageMarked
+        ).toBeUndefined();
+        expect(state.players[1].life).toBe(8);
+    });
+
     it("holds through the real damage pipeline and survives the wire projection (CR 614)", () => {
         const mwt = makeInstance(mirrorwoodTreefolk.id, {
             id: "mwt",
