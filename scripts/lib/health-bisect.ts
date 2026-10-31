@@ -883,7 +883,7 @@ export function attributeMaintenance(
     for (const f of report.found) {
         const r = resolveCulprit(f.culprit, commits, generated);
         if (r.kind === "none") {
-            const reason = `the first red probe was generated \`${f.culprit.slice(0, 12)}\` (\`${subjectOf(f.culprit) ?? ""}\`), ${r.reason}`;
+            const reason = `the first red probe was generated base maintenance \`${f.culprit.slice(0, 12)}\` (\`${subjectOf(f.culprit) ?? ""}\`), ${r.reason}`;
             unexplained = {
                 tests: [...(unexplained?.tests ?? []), ...f.tests],
                 reason: unexplained
