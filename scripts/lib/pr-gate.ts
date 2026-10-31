@@ -16,18 +16,6 @@
  *    `queue_conditions` on its draft while a PR is queued, and a draft that
  *    fails one dequeues the PR for good — no GREEN requeues it.
  *
- *  - `declared-repair` — posted only under a RED, green, on a PR closing a
- *    declared repair issue (issue #7658): `.mergify.yml`'s priority rule
- *    reads it, so the repair jumps the queue it unblocks.
- *
- * "Declared" is one set for every reader of it here, and the one `land`
- * and `repair-proof` read: the standing RED's repair issues plus every
- * still-open one an earlier RED of the run recorded (`pivotRepairIssues`,
- * issue #7139). `base-health` green on a declared repair is what keeps it
- * out of `holdsBeforeRed` and in the queue (issue #7658); before #7139's
- * carry a moved RED held the very revert that repaired it (PR #7136, 2 h 40
- * `queue:held` behind its own RED).
- *
  * A RED is a hold, not a PR's red (issue #6110): `.mergify.yml` leaves a PR
  * whose `base-health` is red `ready-to-land` when the queue dequeues it, and
  * `needsRequeue` is the GREEN that puts it back.
@@ -421,7 +409,15 @@ export function baseHealthStatus(input: {
     );
 }
 
-/** The status `.mergify.yml`'s "a declared repair" priority rule reads. */
+/**
+ * `declared-repair` — posted only under a RED, green, on a PR closing a
+ * declared repair issue: `.mergify.yml`'s priority rule reads it, so the
+ * repair jumps the queue it unblocks (issue #7658). "Declared" is the one
+ * set `land` and `repair-proof` read too: the standing RED's repair issues
+ * plus every still-open one an earlier RED of the run recorded
+ * (`pivotRepairIssues`). `base-health` green on it is what keeps a repair
+ * out of `holdsBeforeRed` and in the queue.
+ */
 export const DECLARED_REPAIR_CONTEXT = "declared-repair";
 
 /**
