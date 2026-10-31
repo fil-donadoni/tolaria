@@ -20260,6 +20260,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ecstatic Electromancer",
+        "scryfallId": "55a98076-80a8-4aaa-a539-554d338f86ce",
+        "oracleId": "2ad9f28c-94a9-4884-9e3b-42341adfaa5d",
+        "firstSet": "clu",
+        "firstPrintId": "55a98076-80a8-4aaa-a539-554d338f86ce",
+        "firstPrintSet": "clu",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Eerie Gravestone",
         "scryfallId": "7675e91f-dba7-4e64-a7ff-1dd56665a4cc",
         "oracleId": "cbf5bd0a-20ef-4dce-9f70-13339d438ff7",
@@ -30056,6 +30066,16 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Grave Titan",
+        "scryfallId": "5fa6d385-6b8e-45ad-83dc-b477799c05a5",
+        "oracleId": "f3abd4d1-a975-4e85-8684-aa0fce029670",
+        "firstSet": "m11",
+        "firstPrintId": "5fa6d385-6b8e-45ad-83dc-b477799c05a5",
+        "firstPrintSet": "m11",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Gravebind",
         "scryfallId": "4782fd4f-2474-4d0d-8301-e0b52af93746",
         "oracleId": "0ce01e24-42db-42db-9ba2-38f653383991",
@@ -31172,6 +31192,16 @@
         "firstSet": "dgm",
         "firstPrintId": "85d3c012-f356-424d-a960-60e95f395134",
         "firstPrintSet": "dgm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Haazda Vigilante",
+        "scryfallId": "5277fe72-dc33-4d19-a439-63b5344c6034",
+        "oracleId": "4b707ef4-2c17-41e7-8dac-583791a98055",
+        "firstSet": "mkm",
+        "firstPrintId": "5277fe72-dc33-4d19-a439-63b5344c6034",
+        "firstPrintSet": "mkm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -34807,6 +34837,16 @@
         "firstPrintId": "721a42f4-5884-418f-b1f9-7cb651559ad0",
         "firstPrintSet": "m15",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Inferno Titan",
+        "scryfallId": "f1e4a028-6462-4373-9864-a8adfc78d52b",
+        "oracleId": "0ce47c8b-1e1f-463f-94f0-35ca00be89e6",
+        "firstSet": "m11",
+        "firstPrintId": "f1e4a028-6462-4373-9864-a8adfc78d52b",
+        "firstPrintSet": "m11",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -40257,6 +40297,16 @@
         "firstSet": "tmp",
         "firstPrintId": "ee7ba92d-d327-4b1c-be40-708c5abb27df",
         "firstPrintSet": "tmp"
+    },
+    {
+        "name": "Loch Dragon",
+        "scryfallId": "9a99088e-7162-4e65-867f-bca1c7400ce3",
+        "oracleId": "e40d47cf-6232-41ec-8865-d12a335dfcee",
+        "firstSet": "eld",
+        "firstPrintId": "9a99088e-7162-4e65-867f-bca1c7400ce3",
+        "firstPrintSet": "eld",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Loch Korrigan",
@@ -49267,6 +49317,44 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Overlord of the Balemurk",
+        "scryfallId": "9b911653-7b96-4cf3-a907-13c5c53a14f7",
+        "oracleId": "652e87af-7cf0-407f-9fb7-1a630fb8dd47",
+        "firstSet": "dsk",
+        "firstPrintId": "9b911653-7b96-4cf3-a907-13c5c53a14f7",
+        "firstPrintSet": "dsk"
+    },
+    {
+        "name": "Overlord of the Boilerbilges",
+        "scryfallId": "d58d3545-043a-457a-8324-facc3c2363ec",
+        "oracleId": "c2db05e0-879b-43e4-9009-37a95fd848dc",
+        "firstSet": "dsk",
+        "firstPrintId": "d58d3545-043a-457a-8324-facc3c2363ec",
+        "firstPrintSet": "dsk",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Overlord of the Floodpits",
+        "scryfallId": "5fca5de8-9cda-4370-9f72-4462f8cfd696",
+        "oracleId": "31196f0b-33ee-4981-ac97-24226e8b405f",
+        "firstSet": "dsk",
+        "firstPrintId": "5fca5de8-9cda-4370-9f72-4462f8cfd696",
+        "firstPrintSet": "dsk",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Overlord of the Mistmoors",
+        "scryfallId": "6bcafc2e-cef6-412d-8c5d-1658c3337292",
+        "oracleId": "7e64b1dc-a238-4bff-98ff-2bea44340568",
+        "firstSet": "dsk",
+        "firstPrintId": "6bcafc2e-cef6-412d-8c5d-1658c3337292",
+        "firstPrintSet": "dsk",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Overrule",
         "scryfallId": "22b83a31-f974-4a49-b9ee-92f7767f11e0",
         "oracleId": "fa43d688-99de-4774-ac2d-2d01866eef58",
@@ -52239,6 +52327,16 @@
         "source": "compiled"
     },
     {
+        "name": "Primeval Herald",
+        "scryfallId": "fbb0a91b-246b-4c1f-9b98-2ad6ff1ba124",
+        "oracleId": "495348d7-bc11-4209-8b0f-72db2e6c6993",
+        "firstSet": "j22",
+        "firstPrintId": "fbb0a91b-246b-4c1f-9b98-2ad6ff1ba124",
+        "firstPrintSet": "j22",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Primeval Shambler",
         "scryfallId": "5d6ed1fb-2f7d-4a21-bbf3-660cad631975",
         "oracleId": "7a2722c6-04a0-4790-be45-dafb7832bb41",
@@ -52246,6 +52344,16 @@
         "firstPrintId": "5d6ed1fb-2f7d-4a21-bbf3-660cad631975",
         "firstPrintSet": "mmq",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Primeval Titan",
+        "scryfallId": "feee9327-b937-46ba-a2aa-6c015ab6cdd5",
+        "oracleId": "ae83ef2c-960f-4c5b-97cc-52465c687c18",
+        "firstSet": "m11",
+        "firstPrintId": "feee9327-b937-46ba-a2aa-6c015ab6cdd5",
+        "firstPrintSet": "m11",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -81485,6 +81593,16 @@
         "firstSet": "ice",
         "firstPrintId": "1d512f5c-0327-4d49-8a26-672574a49102",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Wreck Remover",
+        "scryfallId": "e3151960-cc0c-47b5-b476-295d7a17ae14",
+        "oracleId": "89c89499-23a8-412d-9406-1a7ffc88c64d",
+        "firstSet": "dft",
+        "firstPrintId": "e3151960-cc0c-47b5-b476-295d7a17ae14",
+        "firstPrintSet": "dft",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Wrecking Ball",

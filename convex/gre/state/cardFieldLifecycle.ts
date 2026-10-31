@@ -240,6 +240,7 @@ export const CARD_FIELD_LIFECYCLE = {
     plotted:                    { codec: "flag",    reset: NONE },
     warpExiled:                 { codec: "flag",    reset: ["custom:turn"] },
     warped:                     { codec: "flag",    reset: ZONE_STACK },
+    impended:                   { codec: "flag",    reset: ZONE_STACK },
     transformedAtDelayedSeq:    { codec: "defined", reset: ZONE },
     transformCount:             { codec: "defined", reset: ZONE },
     castFromExileNotAsAdventure: { codec: "flag",   reset: ["custom:turn"] },
