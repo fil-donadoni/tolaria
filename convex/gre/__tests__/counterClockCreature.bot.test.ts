@@ -10,7 +10,7 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import { counterClockTurns } from "../ai/counterClockCreature";
+import { isCounterClockCreature } from "../ai/counterClockCreature";
 import { permanentRealisedValue } from "../evaluate";
 import { syncLayers2to5 } from "../layers2to5";
 import type { CardInstanceState, GameState } from "../state";
@@ -43,19 +43,19 @@ function board(overlord: Partial<CardInstanceState>): {
 }
 
 describe("counter-clock creature valuation (CR 702.176a)", () => {
-    it("reads the clock off an impending permanent, and nothing off a creature", () => {
+    it("an impending permanent is on the clock; a creature, or one whose last counter is gone, is not", () => {
         expect(
-            counterClockTurns(
+            isCounterClockCreature(
                 board({ impended: true, counters: { time: 5 } }).perm
             )
-        ).toBe(5);
-        expect(counterClockTurns(board({}).perm)).toBeNull();
+        ).toBe(true);
+        expect(isCounterClockCreature(board({}).perm)).toBe(false);
         // Last counter gone: a creature again, off the clock.
         expect(
-            counterClockTurns(
+            isCounterClockCreature(
                 board({ impended: true, counters: { time: 0 } }).perm
             )
-        ).toBeNull();
+        ).toBe(false);
     });
 
     it("prices the impending Overlord well above its non-creature face, and below the creature", () => {

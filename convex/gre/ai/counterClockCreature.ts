@@ -16,16 +16,14 @@ import type { CardInstanceState } from "../state";
 /** CR 702.176a — the counter type Impending counts down. */
 const TIME_COUNTER = "time";
 
-/** How many of its controller's turns `perm` is from being a creature, or
- *  `null` when it is not on a counter clock (already a creature, or a
- *  non-creature that never becomes one). */
-export function counterClockTurns(perm: CardInstanceState): number | null {
-    if (isCreature(perm) || perm.impended !== true) return null;
-    const remaining = perm.counters?.[TIME_COUNTER] ?? 0;
-    if (remaining <= 0) return null;
+/** Whether `perm` is on a counter clock: not a creature now, a creature card
+ *  printed, its impending cost paid and a time counter still on it. The
+ *  valuation does not read HOW MANY counters remain — see `evaluate.ts`. */
+export function isCounterClockCreature(perm: CardInstanceState): boolean {
+    if (isCreature(perm) || perm.impended !== true) return false;
+    if ((perm.counters?.[TIME_COUNTER] ?? 0) <= 0) return false;
     const def = tryGetDefinition(String(perm.card.id ?? ""));
-    if (!def?.types.includes("Creature")) return null;
-    return remaining;
+    return def?.types.includes("Creature") === true;
 }
 
 /** The view of `perm` as the creature it will be: its printed card types

@@ -59,7 +59,7 @@ import { isDeferrableStackAbility } from "./ai/abilityTiming";
 import { loyaltyRealizationRatio } from "./ai/loyaltyValue";
 import {
     asEventualCreature,
-    counterClockTurns,
+    isCounterClockCreature,
 } from "./ai/counterClockCreature";
 import { pendingBattlefieldReturns } from "./ai/pendingReturn";
 import {
@@ -1498,7 +1498,7 @@ function nonCreatureBodyValue(
     // the cast has already paid what the hand discount stands for — the mana
     // and the entry — so the permanent must not read below the card it was;
     // the hard cast (a creature now, undiscounted) still outranks it.
-    if (counterClockTurns(perm) !== null)
+    if (isCounterClockCreature(perm))
         return (
             evaluateCreature(
                 state,

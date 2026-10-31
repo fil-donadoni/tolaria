@@ -250,16 +250,15 @@ describe("Impending — the end-step countdown (CR 702.176a, CR 603.4)", () => {
         expect(state.stack).toHaveLength(0);
     });
 
-    it("the LAST counter makes it a creature, able to attack (CR 302.6)", () => {
+    it("the LAST counter makes it a creature, eligible to attack", () => {
         const state = castAndResolve(true);
         const overlord = onBattlefield(state)!;
         overlord.counters = { ...overlord.counters, time: 1 };
         throughEndStep(state, "p1");
         expect(overlord.counters?.time ?? 0).toBe(0);
         expect(overlord.types).toContain("Creature");
-        // It has been under p1's control continuously since it entered turns
-        // ago: summoning sickness is about control, not about when it became
-        // a creature.
+        // Summoning sickness is staged by hand here (the untap step is not
+        // driven): the claim is only that the type line no longer bars it.
         overlord.isSummoningSick = undefined;
         expect(validateAttackerEligibility(overlord).eligible).toBe(true);
     });
