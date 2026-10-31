@@ -380,6 +380,16 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 305.2 + CR 514.2 — "you may play an additional land this
+           * turn": one more land play for the controller until the turn
+           * ends. "Up to two additional lands", "on each of your turns" (the
+           * Exploration static) and another player differ from the frame's
+           * whole spelling and stay refused.
+           */
+          readonly frame: "grantExtraLandDrops";
+      }
+    | {
+          /**
            * CR 725.1 — "you become the monarch": the controller takes the
            * designation. Only the bare "you" subject is read; "target
            * opponent becomes the monarch" earns the wider subject when a
@@ -579,6 +589,10 @@ export const VERB_FRAMES: readonly {
     {
         name: "skipDrawStepThisTurn",
         opens: /^you skip your draw step this turn$/i,
+    },
+    {
+        name: "grantExtraLandDrops",
+        opens: /^you may play an additional land this turn$/i,
     },
     {
         name: "copyToken",
@@ -1719,6 +1733,8 @@ function readMember(
     }
     if (opensFrame("skipDrawStepThisTurn", lower))
         return { frames: [{ frame: "skipDrawStepThisTurn" }], referent };
+    if (opensFrame("grantExtraLandDrops", lower))
+        return { frames: [{ frame: "grantExtraLandDrops" }], referent };
     if (opensFrame("becomeMonarch", lower)) {
         if (lower !== BECOME_MONARCH)
             return {

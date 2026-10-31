@@ -6415,6 +6415,12 @@ export interface SpellContext {
      *  cannot lift it. Does NOT stop lands being put onto the battlefield
      *  (CR 305.4). Idempotent. */
     restrictLandPlay: (playerId: string) => void;
+    /** CR 305.2 / 514.2 — grants `playerId` `count` additional land plays for
+     *  the remainder of this turn (Explore). Appends to
+     *  `state.extraLandDropsThisTurn`, read by `getExtraLandDrops` beside the
+     *  battlefield `extraLandDrops` scan; additive, cleared at CLEANUP. Does
+     *  NOT lift a "can't play lands" restriction (CR 101.2). */
+    grantExtraLandDrops: (playerId: string, count: number) => void;
     /** CR 504.1 (issue #1097 — Elfhame Sanctuary's "you skip your draw step
      *  this turn") — marks `playerId` to skip their OWN draw step the next
      *  time it is reached this turn. A one-shot flag armed at whatever step
@@ -16161,6 +16167,18 @@ export type EffectOp =
      *  is not a land-drop allowance of zero. Skipped when the player cannot be
      *  resolved (CR 608.2b). */
     | { op: "restrictLandPlay"; player: EffectPlayerRef }
+    /** CR 305.2 / 514.2 (issue #7220 — Explore's "You may play an additional
+     *  land this turn"). A thin declarative skin over
+     *  `SpellContext.grantExtraLandDrops`, one execution path (ADR 0045):
+     *  `player` gets `count` more land plays for the rest of this turn,
+     *  appended to `state.extraLandDropsThisTurn` and read by the one
+     *  land-drop counter `getExtraLandDrops` beside the battlefield
+     *  `extraLandDrops` static (Exploration) — the floating twin of that
+     *  static, outliving the spell that granted it. It deliberately does NOT
+     *  play a land, put one onto the battlefield (CR 305.4), or lift a
+     *  "can't play lands" restriction (CR 101.2). Skipped when the player
+     *  cannot be resolved. */
+    | { op: "grantExtraLandDrops"; player: EffectPlayerRef; count: number }
     /** CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary's "you skip your
      *  draw step this turn"). A thin declarative skin over
      *  `SpellContext.skipDrawStepThisTurn`, one execution path (ADR 0045):

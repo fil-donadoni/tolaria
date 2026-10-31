@@ -3607,6 +3607,13 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.restrictLandPlay(playerId);
     },
+    // CR 305.2 (issue #7220) — grant turn-scoped additional land plays
+    // (Explore). Skipped when the player is gone.
+    grantExtraLandDrops(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.grantExtraLandDrops(playerId, op.count);
+    },
     // CR 504.1 (issue #1097 — Elfhame Sanctuary) — arm a one-shot "skip your
     // draw step this turn" flag on `player`, consumed the next time
     // `drawStep` (`gre/phases.ts`) reaches them. Skipped when the player is

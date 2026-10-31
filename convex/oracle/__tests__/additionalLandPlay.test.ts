@@ -115,13 +115,62 @@ describe("additional land play — the compiled definition in the real engine", 
             const player = makePlayer("p1", {
                 battlefield: [makeInstance(ID, { id: "exploration" })],
             });
-            expect(getExtraLandDrops(player)).toBe(1);
+            expect(getExtraLandDrops({}, player)).toBe(1);
         });
     });
 
     it("control: without the permanent the allowance is not raised", () => {
         withExploration(() => {
-            expect(getExtraLandDrops(makePlayer("p1"))).toBe(0);
+            expect(getExtraLandDrops({}, makePlayer("p1"))).toBe(0);
         });
+    });
+});
+
+// "You may play an additional land this turn." — the ONE-SHOT twin, a spell
+// effect sentence lowered to the `grantExtraLandDrops` Op (CR 305.2 / 514.2,
+// issue #7220).
+
+const EXPLORE_TEXT = "You may play an additional land this turn.\nDraw a card.";
+
+function sorcery(oracleText: string, name = "Probe Sorcery") {
+    return oracleCard({
+        name,
+        manaCost: "{1}{G}",
+        typeLine: "Sorcery",
+        oracleText,
+        power: undefined,
+        toughness: undefined,
+    });
+}
+
+describe("additional land play this turn — golden fixture (CR 305.2)", () => {
+    it("Explore: one more land play, then a draw", () => {
+        expect(sortKeys(compiled(sorcery(EXPLORE_TEXT, "Explore")))).toEqual(
+            sortKeys({
+                name: "Explore",
+                types: ["Sorcery"],
+                manaCost: { X: 1, G: 1 },
+                oracleText: EXPLORE_TEXT,
+                effects: [
+                    {
+                        op: "grantExtraLandDrops",
+                        player: "controller",
+                        count: 1,
+                    },
+                    { op: "draw", player: "controller", count: 1 },
+                ],
+            })
+        );
+    });
+});
+
+describe("additional land play this turn — refusals (fail-closed)", () => {
+    it.each([
+        "You may play up to two additional lands this turn.",
+        "Each player may play an additional land this turn.",
+        "Target player may play an additional land this turn.",
+        "You may play an additional land this turn and an additional land next turn.",
+    ])("refuses %s", (text) => {
+        expect(compileCard(sorcery(text)).state).toBe("unparsed");
     });
 });

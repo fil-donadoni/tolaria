@@ -5752,6 +5752,16 @@
         "source": "compiled"
     },
     {
+        "name": "Beanstalk Wurm // Plant Beans",
+        "scryfallId": "19f20c0a-22be-4a9c-96ce-4047f7a2d424",
+        "oracleId": "a2192c80-c48f-44e2-807c-2f9ee1aa1152",
+        "firstSet": "woe",
+        "firstPrintId": "19f20c0a-22be-4a9c-96ce-4047f7a2d424",
+        "firstPrintSet": "woe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Bear Cub",
         "scryfallId": "d71abb70-bee5-4823-83dc-db0707023b37",
         "oracleId": "ed206651-3d9b-4546-8d45-0682817192fd",
@@ -6088,6 +6098,16 @@
         "firstSet": "ths",
         "firstPrintId": "295f9eb0-5a75-4f86-aca9-3f76b0213c41",
         "firstPrintSet": "ths",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Beorn, Reluctant Host // Till and Tend",
+        "scryfallId": "804589b7-3ef9-473d-97cc-c61a2d41f70d",
+        "oracleId": "288da486-393c-4995-ad02-c5093a71970d",
+        "firstSet": "hob",
+        "firstPrintId": "804589b7-3ef9-473d-97cc-c61a2d41f70d",
+        "firstPrintSet": "hob",
         "rarity": "common",
         "source": "compiled"
     },
@@ -21472,6 +21492,16 @@
         "source": "compiled"
     },
     {
+        "name": "Enter the Unknown",
+        "scryfallId": "96acf94b-75bb-4f0e-92be-978ce5920710",
+        "oracleId": "4b031bb3-4bbc-4158-8485-b3fc42c6bd50",
+        "firstSet": "rix",
+        "firstPrintId": "96acf94b-75bb-4f0e-92be-978ce5920710",
+        "firstPrintSet": "rix",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Enthusiastic Mechanaut",
         "scryfallId": "ac00521f-1b7d-478d-afe8-6761ea512d8d",
         "oracleId": "c9722086-23e8-43dc-8a8c-541ff6962318",
@@ -22356,6 +22386,16 @@
         "firstSet": "usg",
         "firstPrintId": "2f09e451-0246-45a2-8bfd-07d3c65ddfe6",
         "firstPrintSet": "usg"
+    },
+    {
+        "name": "Explore",
+        "scryfallId": "d8f81e8a-e309-4bac-81de-326756cd8901",
+        "oracleId": "b8f566ea-8283-4afa-9ac8-737e26419283",
+        "firstSet": "wwk",
+        "firstPrintId": "d8f81e8a-e309-4bac-81de-326756cd8901",
+        "firstPrintSet": "wwk",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Explosive Apparatus",
@@ -58904,6 +58944,16 @@
         "source": "compiled"
     },
     {
+        "name": "Scale the Heights",
+        "scryfallId": "e781d6ad-950e-49bf-9645-e2354086ae49",
+        "oracleId": "13d5b664-db13-406e-9956-3d9fe4177d33",
+        "firstSet": "znr",
+        "firstPrintId": "e781d6ad-950e-49bf-9645-e2354086ae49",
+        "firstPrintSet": "znr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Scalebane's Elite",
         "scryfallId": "b3bff610-783a-46b7-bd15-061da41027bb",
         "oracleId": "c04dc6fe-06fc-4e5b-87da-6b8b262a214f",
@@ -65485,6 +65535,16 @@
         "firstPrintId": "af6e46b8-62ed-4bca-ba38-a821f225b59f",
         "firstPrintSet": "fdn",
         "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Sphinx of Jwar Isle",
+        "scryfallId": "a0d13a9c-8757-46f4-be83-eb9917a5bbe3",
+        "oracleId": "3951f13e-f6dd-4d67-a088-23925baaf99b",
+        "firstSet": "zen",
+        "firstPrintId": "a0d13a9c-8757-46f4-be83-eb9917a5bbe3",
+        "firstPrintSet": "zen",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -72176,6 +72236,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tidal Barracuda",
+        "scryfallId": "aacdf4c2-9bc8-400a-8ffc-d6597d8d7da9",
+        "oracleId": "edfc0a46-414e-467d-9f27-e42d08ec127a",
+        "firstSet": "c20",
+        "firstPrintId": "aacdf4c2-9bc8-400a-8ffc-d6597d8d7da9",
+        "firstPrintSet": "c20",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Tidal Courier",
         "scryfallId": "80b7cd5d-e81a-4729-b5d3-45587756413a",
         "oracleId": "b0a0c17b-87c8-4610-adca-5e7f5ced49f6",
@@ -75334,6 +75404,16 @@
         "firstPrintId": "00cd61eb-a526-46db-8675-334663e0d63a",
         "firstPrintSet": "dst",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Urban Evolution",
+        "scryfallId": "9fcd6fac-2cde-4a89-b484-b910be2dcecf",
+        "oracleId": "c715e525-fc3a-4cab-94a0-04e0a22a5013",
+        "firstSet": "gtc",
+        "firstPrintId": "9fcd6fac-2cde-4a89-b484-b910be2dcecf",
+        "firstPrintSet": "gtc",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

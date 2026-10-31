@@ -190,10 +190,19 @@ export {
     type CardFilterValues,
 } from "./targetFilters";
 
-/** Reads extra land drops granted by permanents on the player's battlefield
- *  (CR 305.2 — Fastbond). Scans card definitions for `extraLandDrops`. */
-export function getExtraLandDrops(player: PlayerState): number {
+/** Reads the extra land drops `player` has this turn (CR 305.2): the
+ *  continuous ones granted by permanents on their battlefield (Fastbond,
+ *  Exploration — `extraLandDrops` on the definition) plus the turn-scoped
+ *  ones a resolved effect granted (Explore — `state.extraLandDropsThisTurn`,
+ *  the `grantExtraLandDrops` Op). */
+export function getExtraLandDrops(
+    state: Pick<GameState, "extraLandDropsThisTurn">,
+    player: PlayerState
+): number {
     let extra = 0;
+    for (const grant of state.extraLandDropsThisTurn ?? []) {
+        if (grant.playerId === player.id) extra += grant.count;
+    }
     for (const card of player.battlefield) {
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) continue;
@@ -1258,7 +1267,7 @@ export function getLegalActions(
             // would be an untestable change. Left, and named here so the next
             // cross-player permission does not have to rediscover them.
             const landsPlayed = caster.landsPlayedThisTurn ?? 0;
-            const extraDrops = getExtraLandDrops(caster);
+            const extraDrops = getExtraLandDrops(state, caster);
             const maxDrops = LAND_DROPS_PER_TURN + extraDrops;
             if (
                 !landPlayLockActive(state) &&

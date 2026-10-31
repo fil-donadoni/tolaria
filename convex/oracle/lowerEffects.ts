@@ -5416,6 +5416,15 @@ function lowerFrameChain(
             case "skipDrawStepThisTurn":
                 ops.push({ op: "skipDrawStepThisTurn", player: "controller" });
                 break;
+            // CR 305.2 + CR 514.2 — one more land play for the controller,
+            // until CLEANUP.
+            case "grantExtraLandDrops":
+                ops.push({
+                    op: "grantExtraLandDrops",
+                    player: "controller",
+                    count: 1,
+                });
+                break;
             // CR 707.2 + CR 111.1 — the controller creates the token.
             case "copyToken": {
                 const source = objectSelector(frame.source, walk.targets, site);

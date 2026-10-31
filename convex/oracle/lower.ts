@@ -97,6 +97,10 @@ interface Accumulator {
     extraLandDrops: number;
     /** CR 401.5 — a "play with the top card of your library revealed" line. */
     revealsLibraryTop: boolean;
+    /** CR 401.5 — "You may look at the top card of your library any time". */
+    looksAtLibraryTop: boolean;
+    /** CR 305.1-analog — "You may play lands from your graveyard". */
+    graveyardLandPlay: boolean;
 
     /** CR 614.1a — the "instead" cost lines read (discard / sacrifice). */
     asEntersCosts: AsEntersCost[];
@@ -609,6 +613,9 @@ function lowerLine(
                 acc.extraLandDrops += out.extraLandDrops;
             if (out.revealsLibraryTop !== undefined)
                 acc.revealsLibraryTop = true;
+            if (out.looksAtLibraryTop !== undefined)
+                acc.looksAtLibraryTop = true;
+            if (out.graveyardLandPlay === true) acc.graveyardLandPlay = true;
 
             if (out.asEntersCost !== undefined)
                 acc.asEntersCosts.push(out.asEntersCost);
@@ -911,6 +918,8 @@ export function lowerCard(
         damageLifeFloor: undefined,
         extraLandDrops: 0,
         revealsLibraryTop: false,
+        looksAtLibraryTop: false,
+        graveyardLandPlay: false,
 
         asEntersCosts: [],
         asEntersCreatureTypeLines: [],
@@ -1170,6 +1179,12 @@ export function lowerCard(
     if (acc.extraLandDrops > 0) definition.extraLandDrops = acc.extraLandDrops;
     // CR 401.5 — the reveal scope is a flat field read live off the battlefield.
     if (acc.revealsLibraryTop) definition.revealsLibraryTop = "controller";
+    // CR 401.5 — the private look scope, the same flat live-read field.
+    if (acc.looksAtLibraryTop) definition.looksAtLibraryTop = "controller";
+    // CR 305.1-analog — the unlimited land row of the graveyard play
+    // permission record (ADR 0093); no gate, no cast half.
+    if (acc.graveyardLandPlay)
+        definition.graveyardPlayPermission = { actions: ["play-land"] };
     if (
         acc.entersWithCounters.length > 0 ||
         acc.asEntersCreatureTypeLines.length > 0 ||

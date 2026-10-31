@@ -152,7 +152,7 @@ describe("Icetill Explorer (extra land drop; play-lands-from-graveyard permissio
             ownerId: "p1",
         });
         const player = makePlayer("p1", { battlefield: [icetill] });
-        expect(getExtraLandDrops(player)).toBe(1);
+        expect(getExtraLandDrops({}, player)).toBe(1);
     });
 
     it("Landfall — a land YOU control entering mills exactly 1 card", () => {
