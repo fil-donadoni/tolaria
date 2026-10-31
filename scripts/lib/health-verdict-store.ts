@@ -7,7 +7,7 @@
  * could not know was broken. Every reader now goes through ONE interface,
  * `VerdictStore`, a commit status on the gated sha, `context=health` — state
  * success / failure / error / pending for GREEN / RED / infra / AMBER, the
- * description `STATUS · step · machine[ · tests: …][ · log: …]`, the target
+ * description `STATUS · step · machine[ · tests: …][ · more: N][ · log: …]`, the target
  * URL the log when it is one. Read back with one GraphQL call over the base
  * branch's history. (A second, local-file backend lived here until issue
  * #5655: with the pass and the workflows on GitHub, one machine's files no
@@ -65,6 +65,9 @@ export interface Verdict {
     at?: string;
     /** RED only: the failing test FILES — what a repair's lane must run. */
     tests?: string[];
+    /** RED only: how many more failing test files the description had no
+     *  room for (issue #7656) — the published evidence names them all. */
+    testsMore?: number;
     /** RED only: what KIND of failure it was (`FailureKind`, issue #5589) —
      *  so a RED naming no test says why instead of saying nothing. */
     failure?: string;
@@ -239,19 +242,35 @@ export function encodeDescription(v: Verdict): string {
     };
     if (v.repairOf) fit(`repair-of: ${v.repairOf}`);
     if (v.failure) fit(`failure: ${v.failure}`);
-    const tests: string[] = [];
-    for (const t of v.tests ?? []) {
-        const next = `tests: ${[...tests, t].join(",")}`;
-        if (out.length + SEP.length + next.length > DESCRIPTION_MAX) break;
-        tests.push(t);
-    }
-    if (tests.length > 0) out += `${SEP}tests: ${tests.join(",")}`;
+    out += testsField(out.length, v.tests ?? []);
     if (v.issues && v.issues.length > 0) fit(`issues: ${v.issues.join(",")}`);
     if (v.ladderIssues && v.ladderIssues.length > 0)
         fit(`ladder-issues: ${v.ladderIssues.join(",")}`);
     if (v.log && !isUrl(v.log)) fit(`log: ${v.log}`);
     return out;
 }
+
+/**
+ * The failing tests' part of a description already `used` characters long
+ * (issue #7656): the longest prefix of whole paths that fits, then — when
+ * any is left out — `more: N`, room for which is reserved, so a reader is
+ * told the list is cut and by how much (the evidence names every file). A
+ * hosted early run reports every suite's failing files, more than 140
+ * characters ever held; the old encoder dropped the rest silently.
+ */
+function testsField(used: number, tests: readonly string[]): string {
+    const at = (k: number) =>
+        (k > 0 ? `${SEP}tests: ${tests.slice(0, k).join(",")}` : "") +
+        (k < tests.length ? `${SEP}${MORE_FIELD}: ${tests.length - k}` : "");
+    for (let k = tests.length; k > 0; k--)
+        if (used + at(k).length <= DESCRIPTION_MAX) return at(k);
+    return tests.length > 0 && used + at(0).length <= DESCRIPTION_MAX
+        ? at(0)
+        : "";
+}
+
+/** The description field naming how many failing tests had no room. */
+const MORE_FIELD = "more";
 
 /** Inverse of `encodeDescription`; `state` decides the status. */
 export function decodeStatus(input: {
@@ -273,6 +292,8 @@ export function decodeStatus(input: {
         const m = /^([a-z-]+): (.*)$/.exec(field);
         if (!m) continue;
         if (m[1] === "tests") v.tests = m[2].split(",").filter(Boolean);
+        if (m[1] === MORE_FIELD && /^\d+$/.test(m[2]))
+            v.testsMore = Number(m[2]);
         if (m[1] === "repair-of") v.repairOf = m[2];
         const numbers = () =>
             m[2]

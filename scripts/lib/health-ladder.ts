@@ -14,8 +14,13 @@
  *      later commits depend on is reverted together with the ones its revert
  *      conflicts with, in one PR, up to `MAX_REVERT_SET` (issue #6766). A
  *      bisect that named several culprits has every one of them reverted
- *      in that same PR: reverting the first alone left the rest of the RED
- *      standing with no repair in flight.
+ *      — reverting the first alone left the rest of the RED
+ *      standing with no repair in flight — each in its OWN PR, a declared
+ *      repair of the RED: one culprit's revert never waits on
+ *      another's, and a culprit whose revert conflicts with a later culprit
+ *      shares that culprit's PR. A culprit a revert in flight already
+ *      covers — a later RED of the episode naming it again — is never
+ *      reverted twice; only the culprits it adds are.
  *   5. **Fix forward** — only what a revert cannot handle: the revert does
  *      not apply (a later PR depends on the culprit), or the bisect named
  *      no single culprit. The headless fixer (`health:fix --headless`), at
@@ -36,7 +41,7 @@
  * `scripts/health-fix.ts ladder` and `scripts/health-revert.ts` are the I/O.
  */
 import { LADDER_MARK } from "./health-bisect";
-import type { FixAttempt } from "./health-fix-attempts";
+import { prsOf, type FixAttempt } from "./health-fix-attempts";
 import { RUNNER_ROLES } from "./github-runner";
 import type {
     ReadyRegression,
@@ -160,8 +165,9 @@ export type Rung =
     /** The ladder already stopped on this RED: held, quietly (one email). */
     | { kind: "hold"; why: string }
     | { kind: "fix"; attempt: number; why: string }
-    /** Every culprit the RED's bisect named and the tip still contains,
-     *  oldest first: one PR reverts them all (issue #7446). */
+    /** Every culprit the RED's bisect named, the tip still contains and no
+     *  revert in flight covers, oldest first: one revert PR per culprit
+     *  (issue #7656). */
     | { kind: "revert"; culprits: Culprit[]; attempt: number; why: string }
     | { kind: "stop"; why: string };
 
@@ -184,8 +190,9 @@ export interface LadderFacts {
     repairPrs: readonly number[];
     /** The REDs since the last GREEN, NEWEST first; [0] is the standing one. */
     episode: readonly EpisodeRed[];
-    /** The PR of the episode's revert record, when it names one. */
-    revertPr: RevertPr | null;
+    /** The live state of every PR the episode's revert records name — one
+     *  per culprit (issue #7656) — newest record first. */
+    revertPrs: readonly RevertPr[];
     /** Repairs declared on the pivot by someone other than the ladder. */
     foreignRepairs: readonly ForeignRepair[];
     /** An open escalation issue for the standing RED, by number. */
@@ -215,12 +222,38 @@ function episodeCulprits(episode: readonly EpisodeRed[]): Culprit[] {
     return [];
 }
 
-/** The episode's culprits the tip still contains: a later first-parent
- *  commit reverting one (a hand revert) leaves it out of the revert, which
- *  would otherwise be empty and fail (issue #7446). */
+/** One culprit as two evidence lines may name it: the same sha (either
+ *  abbreviation), or the same PR. */
+function sameCulprit(a: Culprit, b: Culprit): boolean {
+    return (
+        a.sha.startsWith(b.sha) ||
+        b.sha.startsWith(a.sha) ||
+        (a.pr !== null && a.pr === b.pr)
+    );
+}
+
+/** The culprits a revert in flight covers (issue #7656): those of every RED
+ *  of the episode whose revert record is not `stuck` — its PRs are made, or
+ *  being made. */
+function culpritsBeingReverted(episode: readonly EpisodeRed[]): Culprit[] {
+    return episode
+        .filter(
+            (r) => r.attempt?.rung === "revert" && r.attempt.outcome !== "stuck"
+        )
+        .flatMap((r) => r.culprits);
+}
+
+/** The episode's culprits to revert now: a later first-parent commit
+ *  reverting one (a hand revert) leaves it out of the revert, which would
+ *  otherwise be empty and fail (issue #7446); so does a revert in flight
+ *  that covers it — a group whose culprit is already being reverted is
+ *  never reverted twice (issue #7656). */
 function culpritsToRevert(facts: LadderFacts): Culprit[] {
+    const inFlight = culpritsBeingReverted(facts.episode);
     return episodeCulprits(facts.episode).filter(
-        (c) => !(facts.sinceRed ?? []).some((s) => revertsCulprit(s.message, c))
+        (c) =>
+            !(facts.sinceRed ?? []).some((s) => revertsCulprit(s.message, c)) &&
+            !inFlight.some((b) => sameCulprit(b, c))
     );
 }
 
@@ -306,6 +339,67 @@ export function lineageHold(facts: LadderFacts): string | null {
     if (reverts.every((r) => r !== undefined))
         return `${[...new Set(reverts.map((r) => commitRef(r!)))].join(", ")} ${reverts.length > 1 ? "revert the culprits" : "reverts the culprit"} ${culpritsRef(culprits)}`;
     return null;
+}
+
+/** `#7701, #7702` — the PRs a text names. */
+const prRefs = (prs: readonly RevertPr[]) =>
+    prs.map((p) => `#${p.number}`).join(", ");
+
+/**
+ * The rung while the episode's newest revert record is in flight (its PRs
+ * made, or being made). One PR per culprit (issue #7656): any that cannot
+ * land stops the ladder; a culprit no revert covers yet — a later RED of
+ * the episode named one more — is reverted beside them, never one covered
+ * already; every PR landed and the RED standing stops; else the ladder
+ * waits on the queue.
+ */
+function revertInFlight(facts: LadderFacts, revert: FixAttempt): Rung {
+    if (prsOf(revert).length === 0)
+        return stale(revert, facts.now)
+            ? { kind: "stop", why: "a revert started and never opened its PR" }
+            : { kind: "wait", why: "a revert is being made" };
+    const prs = facts.revertPrs;
+    const failed = prs.find((p) => p.state === "closed" || p.landFailed);
+    if (failed !== undefined)
+        return {
+            kind: "stop",
+            why: `the revert PR #${failed.number} cannot land (${failed.state === "closed" ? "closed unmerged" : "land-failed"})`,
+        };
+    const fresh = culpritsToRevert(facts);
+    if (fresh.length > 0)
+        return {
+            kind: "revert",
+            culprits: fresh,
+            attempt: 1,
+            why: `${culpritsRef(fresh)} ${fresh.length > 1 ? "are" : "is"} a culprit of ${short(facts.red ?? "")} no revert in flight covers — reverted beside PR ${prRefs(prs)}, one PR per culprit`,
+        };
+    const open = prs.filter((p) => p.state === "open");
+    if (prs.length > 0 && open.length === 0)
+        return {
+            kind: "stop",
+            why: `the RED stands after the revert PR ${prRefs(prs)} landed — the failure cannot be isolated`,
+        };
+    // The oldest revert in flight bounds the wait: a newer record (a culprit
+    // added beside it) never resets the clock of the PRs before it.
+    const inFlight = revertRecordsOf(facts.episode).filter(
+        (a) => a.outcome !== "stuck"
+    );
+    if (
+        [revert, ...inFlight].some((a) =>
+            olderThan(a, REVERT_QUEUE_MAX_MS, facts.now)
+        )
+    )
+        return {
+            kind: "stop",
+            why: `the revert PR ${prRefs(open)} has waited in the queue past ${REVERT_QUEUE_MAX_MS / 3_600_000} h — something holds it`,
+        };
+    const queued =
+        open.length > 0
+            ? prRefs(open)
+            : prsOf(revert)
+                  .map((n) => `#${n}`)
+                  .join(", ");
+    return { kind: "wait", why: `the revert PR ${queued} in the queue` };
 }
 
 /** Revert the culprit, or stop: no culprit to revert, or the revert was
@@ -416,35 +510,7 @@ export function ladderRung(facts: LadderFacts): Rung {
                 why: `the revert of the culprit needs more than ${MAX_REVERT_SET} commits reverted together: ${revert.note.slice(CAP_NOTE.length)}`,
             };
         if (revert.outcome === "stuck") revertSpent = true;
-        else {
-            const pr = facts.revertPr;
-            if (pr === null)
-                return stale(revert, facts.now)
-                    ? {
-                          kind: "stop",
-                          why: "a revert started and never opened its PR",
-                      }
-                    : { kind: "wait", why: "a revert is being made" };
-            if (pr.state === "merged")
-                return {
-                    kind: "stop",
-                    why: `the RED stands after the revert PR #${pr.number} landed — the failure cannot be isolated`,
-                };
-            if (pr.state === "closed" || pr.landFailed)
-                return {
-                    kind: "stop",
-                    why: `the revert PR #${pr.number} cannot land (${pr.state === "closed" ? "closed unmerged" : "land-failed"})`,
-                };
-            if (olderThan(revert, REVERT_QUEUE_MAX_MS, facts.now))
-                return {
-                    kind: "stop",
-                    why: `the revert PR #${pr.number} has waited in the queue past ${REVERT_QUEUE_MAX_MS / 3_600_000} h — something holds it`,
-                };
-            return {
-                kind: "wait",
-                why: `the revert PR #${pr.number} is in the queue`,
-            };
-        }
+        else return revertInFlight(facts, revert);
     }
 
     // A repair an interactive session declared, its PR in flight: the ladder
@@ -501,7 +567,7 @@ export function ladderRung(facts: LadderFacts): Rung {
             attempt: 1,
             why:
                 culprits.length > 1
-                    ? `revert all ${culprits.length} culprits of ${short(red)} first, in one PR — their issues' fresh passes land them again with the fix`
+                    ? `revert all ${culprits.length} culprits of ${short(red)} first, one PR per culprit — their issues' fresh passes land them again with the fix`
                     : `revert the culprit of ${short(red)} first — its issue's fresh pass lands it again with the fix`,
         };
 
@@ -553,7 +619,15 @@ export function walkEpisode(
     return { episode, standingEvidence };
 }
 
-/** The episode's revert record, when one was made. */
+/** Every revert record of the episode, newest first — one per RED it was
+ *  made on; each names its PRs (`prsOf`, issue #7656). */
+export function revertRecordsOf(episode: readonly EpisodeRed[]): FixAttempt[] {
+    return episode.flatMap((r) =>
+        r.attempt?.rung === "revert" ? [r.attempt] : []
+    );
+}
+
+/** The episode's newest revert record, when one was made. */
 export function revertRecordOf(
     episode: readonly EpisodeRed[]
 ): FixAttempt | null {

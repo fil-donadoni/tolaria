@@ -5,6 +5,7 @@ import {
     encodeFixDescription,
     FIX_CONTEXT,
     githubFixAttemptStore,
+    prsOf,
     type FixAttempt,
 } from "../lib/health-fix-attempts";
 import { githubVerdictStore, type GhRunner } from "../lib/health-verdict-store";
@@ -16,6 +17,7 @@ import {
     mayRedispatch,
     REVERT_QUEUE_MAX_MS,
     revertRecordOf,
+    revertRecordsOf,
     TRANSIENT_NOTE,
     walkEpisode,
     escalationBody,
@@ -37,6 +39,7 @@ import {
     type LadderFacts,
 } from "../lib/health-ladder";
 import { FIX_CONTEXT as REPAIR_ISSUES_CONTEXT } from "../lib/health-pivot";
+import { revertGroups, type RevertPlan } from "../lib/health-revert-set";
 import { isAdoptableWorktree, issueOfBranch } from "../lib/issue-worktree";
 import type { CardRow } from "../lib/oracle-lockfile";
 import {
@@ -72,7 +75,7 @@ function facts(over: Partial<LadderFacts> = {}): LadderFacts {
         sinceRed: null,
         repairPrs: [],
         episode: [{ sha: RED, attempt: null, culprits: [CULPRIT] }],
-        revertPr: null,
+        revertPrs: [],
         foreignRepairs: [],
         escalated: null,
         now: NOW,
@@ -256,11 +259,13 @@ describe("ladderRung — a bisected RED is the lineage verdict of later tips (is
                     sinceRed: [
                         { sha: TIP, pr: 7014, message: "Revert (#7014)" },
                     ],
-                    revertPr: {
-                        number: 7014,
-                        state: "merged",
-                        landFailed: false,
-                    },
+                    revertPrs: [
+                        {
+                            number: 7014,
+                            state: "merged",
+                            landFailed: false,
+                        },
+                    ],
                 })
             ).kind
         ).toBe("wait");
@@ -622,11 +627,13 @@ describe("ladderRung — the revert, whenever a repair did not hold", () => {
                         outcome: "attempting",
                         pr: 5900,
                     }),
-                    revertPr: {
-                        number: 5900,
-                        state: "open",
-                        landFailed: false,
-                    },
+                    revertPrs: [
+                        {
+                            number: 5900,
+                            state: "open",
+                            landFailed: false,
+                        },
+                    ],
                 })
             ).kind
         ).toBe("wait");
@@ -692,7 +699,9 @@ describe("ladderRung — rung 6, stop", () => {
             ladderRung(
                 facts({
                     episode: reverting,
-                    revertPr: { number: 5900, state: "open", landFailed: true },
+                    revertPrs: [
+                        { number: 5900, state: "open", landFailed: true },
+                    ],
                 })
             ).kind
         ).toBe("stop");
@@ -703,11 +712,13 @@ describe("ladderRung — rung 6, stop", () => {
             ladderRung(
                 facts({
                     episode: reverting,
-                    revertPr: {
-                        number: 5900,
-                        state: "closed",
-                        landFailed: false,
-                    },
+                    revertPrs: [
+                        {
+                            number: 5900,
+                            state: "closed",
+                            landFailed: false,
+                        },
+                    ],
                 })
             ).kind
         ).toBe("stop");
@@ -725,11 +736,13 @@ describe("ladderRung — rung 6, stop", () => {
             ladderRung(
                 facts({
                     episode,
-                    revertPr: {
-                        number: 5900,
-                        state: "merged",
-                        landFailed: false,
-                    },
+                    revertPrs: [
+                        {
+                            number: 5900,
+                            state: "merged",
+                            landFailed: false,
+                        },
+                    ],
                 })
             )
         ).toMatchObject({
@@ -1027,11 +1040,13 @@ describe("review fixes — the bounds no rung can escape", () => {
                         pr: 5900,
                         at: old,
                     }),
-                    revertPr: {
-                        number: 5900,
-                        state: "open",
-                        landFailed: false,
-                    },
+                    revertPrs: [
+                        {
+                            number: 5900,
+                            state: "open",
+                            landFailed: false,
+                        },
+                    ],
                 })
             ).kind
         ).toBe("stop");
@@ -1252,5 +1267,241 @@ describe("revertAcknowledgements — a revert of a card-shipping PR passes check
                 culpritIssues: [3992],
             })
         ).toEqual([]);
+    });
+});
+
+describe("one revert PR per culprit, none reverted twice (issue #7656)", () => {
+    const A = { sha: "a1a1a1a1a1a1", pr: 7601 };
+    const B = { sha: "b2b2b2b2b2b2", pr: 7602 };
+    const C = { sha: "c3c3c3c3c3c3", pr: 7603 };
+    const pr = (number: number, state: "open" | "merged" | "closed") => ({
+        number,
+        state,
+        landFailed: false,
+    });
+    const inFlight = (prs: number[], sha = OLD_RED): FixAttempt => ({
+        sha,
+        rung: "revert",
+        outcome: "attempting",
+        attempt: 1,
+        at: RECENT,
+        pr: prs[0],
+        prs,
+    });
+
+    it("the revert record names every PR, and reads back", () => {
+        const a = inFlight([7701, 7702, 7703], RED);
+        const desc = encodeFixDescription({ ...a, machine: "lane-1" });
+        expect(desc).toContain("PR #7701,#7702,#7703");
+        expect(
+            decodeFixStatus({
+                sha: RED,
+                state: "pending",
+                description: desc,
+                createdAt: null,
+            })
+        ).toMatchObject({ pr: 7701, prs: [7701, 7702, 7703] });
+        // One PR: the old form, read as before.
+        const one = encodeFixDescription({ ...a, prs: undefined, pr: 7701 });
+        expect(one).toContain("PR #7701");
+        expect(
+            decodeFixStatus({
+                sha: RED,
+                state: "pending",
+                description: one,
+                createdAt: null,
+            })?.prs
+        ).toBeUndefined();
+    });
+
+    it("a later RED naming a culprit already being reverted reverts only the new one", () => {
+        // RED @ OLD_RED: A's revert PR #7701 is in the queue. The tip moved
+        // on and went RED again @ RED: its bisect names A and B.
+        const episode: EpisodeRed[] = [
+            { sha: RED, attempt: null, culprits: [A, B] },
+            { sha: OLD_RED, attempt: inFlight([7701]), culprits: [A] },
+        ];
+        expect(
+            ladderRung(facts({ episode, revertPrs: [pr(7701, "open")] }))
+        ).toMatchObject({ kind: "revert", culprits: [B], attempt: 1 });
+    });
+
+    it("every culprit covered by a revert in flight: the ladder waits on them", () => {
+        const episode: EpisodeRed[] = [
+            { sha: RED, attempt: inFlight([7702], RED), culprits: [A, B] },
+            { sha: OLD_RED, attempt: inFlight([7701]), culprits: [A] },
+        ];
+        expect(
+            ladderRung(
+                facts({
+                    episode,
+                    revertPrs: [pr(7702, "open"), pr(7701, "open")],
+                })
+            )
+        ).toMatchObject({ kind: "wait", why: /#7702, #7701 in the queue/ });
+        // Same culprit named by PR only (another abbreviation): covered.
+        const byPr: EpisodeRed[] = [
+            {
+                sha: RED,
+                attempt: null,
+                culprits: [{ sha: "a1a1a1a1", pr: 7601 }],
+            },
+            { sha: OLD_RED, attempt: inFlight([7701]), culprits: [A] },
+        ];
+        expect(
+            ladderRung(facts({ episode: byPr, revertPrs: [pr(7701, "open")] }))
+                .kind
+        ).toBe("wait");
+    });
+
+    it("one PR landed, one in the queue: wait; all landed and the RED stands: stop", () => {
+        const episode: EpisodeRed[] = [
+            {
+                sha: RED,
+                attempt: inFlight([7701, 7702], RED),
+                culprits: [A, B],
+            },
+        ];
+        expect(
+            ladderRung(
+                facts({
+                    episode,
+                    revertPrs: [pr(7701, "merged"), pr(7702, "open")],
+                })
+            )
+        ).toMatchObject({ kind: "wait", why: /#7702 in the queue/ });
+        expect(
+            ladderRung(
+                facts({
+                    episode,
+                    revertPrs: [pr(7701, "merged"), pr(7702, "merged")],
+                })
+            )
+        ).toMatchObject({ kind: "stop", why: /#7701, #7702 landed/ });
+    });
+
+    it("any one of the PRs that cannot land stops the ladder, whatever the others", () => {
+        const episode: EpisodeRed[] = [
+            {
+                sha: RED,
+                attempt: inFlight([7701, 7702, 7703], RED),
+                culprits: [A, B, C],
+            },
+        ];
+        expect(
+            ladderRung(
+                facts({
+                    episode,
+                    revertPrs: [
+                        pr(7701, "merged"),
+                        { ...pr(7702, "open"), landFailed: true },
+                        pr(7703, "open"),
+                    ],
+                })
+            )
+        ).toMatchObject({ kind: "stop", why: /#7702 cannot land/ });
+    });
+
+    it("a newer record never resets the queue clock of an older one", () => {
+        const old = new Date(NOW - REVERT_QUEUE_MAX_MS - 60_000).toISOString();
+        const episode: EpisodeRed[] = [
+            { sha: RED, attempt: inFlight([7702], RED), culprits: [A, B] },
+            {
+                sha: OLD_RED,
+                attempt: { ...inFlight([7701]), at: old },
+                culprits: [A],
+            },
+        ];
+        expect(
+            ladderRung(
+                facts({
+                    episode,
+                    revertPrs: [pr(7702, "open"), pr(7701, "open")],
+                })
+            )
+        ).toMatchObject({ kind: "stop", why: /past/ });
+    });
+
+    it("the record of an earlier RED keeps its PRs a declared repair: revertRecordsOf reads them all", () => {
+        const episode: EpisodeRed[] = [
+            { sha: RED, attempt: inFlight([7702], RED), culprits: [B] },
+            { sha: OLD_RED, attempt: inFlight([7701]), culprits: [A] },
+        ];
+        expect(revertRecordsOf(episode).flatMap(prsOf)).toEqual([7702, 7701]);
+    });
+});
+
+describe("revertGroups — the culprits cut into one revert PR each (issue #7656)", () => {
+    const commit = (full: string) => ({
+        sha: full.slice(0, 12),
+        pr: null,
+        full,
+        subject: full,
+    });
+    /** A planner whose set for a group adds `deps[c]` beside each culprit. */
+    function planner(
+        deps: Record<string, string[]> = {},
+        fail?: string
+    ): {
+        calls: string[][];
+        plan: (g: readonly string[]) => RevertPlan;
+    } {
+        const calls: string[][] = [];
+        return {
+            calls,
+            plan: (g) => {
+                calls.push([...g]);
+                if (fail !== undefined && g.includes(fail))
+                    return {
+                        kind: "conflict",
+                        set: g.map(commit),
+                        paths: ["x"],
+                    };
+                const all = [
+                    ...new Set(g.flatMap((c) => [c, ...(deps[c] ?? [])])),
+                ];
+                return { kind: "applies", set: all.reverse().map(commit) };
+            },
+        };
+    }
+
+    it("culprits whose reverts apply apart: one PR each, oldest first", () => {
+        const p = planner();
+        const cut = revertGroups(["a", "b", "c"], p.plan);
+        expect("groups" in cut && cut.groups.map((g) => g.culprits)).toEqual([
+            ["a"],
+            ["b"],
+            ["c"],
+        ]);
+        expect(p.calls).toEqual([["a"], ["b"], ["c"]]);
+    });
+
+    it("a culprit another's revert depends on joins that PR, planned again as a culprit", () => {
+        // `a`'s revert conflicts with `b`, a later culprit: one PR for both.
+        const p = planner({ a: ["b"] });
+        const cut = revertGroups(["a", "b", "c"], p.plan);
+        expect("groups" in cut && cut.groups.map((g) => g.culprits)).toEqual([
+            ["a", "b"],
+            ["c"],
+        ]);
+        expect(p.calls).toEqual([["a"], ["a", "b"], ["c"]]);
+    });
+
+    it("a dependent two culprits' reverts both need: one PR for both", () => {
+        // `x` is no culprit, but `a`'s and `c`'s reverts both conflict on it.
+        const p = planner({ a: ["x"], c: ["x"] });
+        const cut = revertGroups(["a", "b", "c"], p.plan);
+        expect("groups" in cut && cut.groups.map((g) => g.culprits)).toEqual([
+            ["b"],
+            ["a", "c"],
+        ]);
+    });
+
+    it("a revert that does not apply spends the rung, naming its culprits", () => {
+        const cut = revertGroups(["a", "b"], planner({}, "b").plan);
+        expect(cut).toMatchObject({
+            failed: { kind: "conflict" },
+            culprits: ["b"],
+        });
     });
 });
