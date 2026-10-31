@@ -485,7 +485,12 @@ describe("the hosted early run runs every suite without bail (issue #7656)", () 
             const ran = readFileSync(log, "utf8").split("\n").filter(Boolean);
             return { status: r.status, ran };
         } finally {
-            rmSync(dir, { recursive: true, force: true });
+            rmSync(dir, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         }
     }
 
