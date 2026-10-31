@@ -38438,6 +38438,7 @@
         {"id":"614.1a","line":"// discarded — only its landing zone changed, CR 614.1a), but the","sites":1,"status":"baseline"},
         {"id":"614.1a","line":"// draw. If you do, <body>.\" — the optional draw-skip frame (CR 614.1a, issue","sites":1,"status":"confirmed","ruleHash":"ca07410f64122ff2"},
         {"id":"614.1a","line":"// graveyard.\" — the as-enters sacrifice (CR 614.1a + CR 701.21a, issue #5705).","sites":1,"status":"confirmed","ruleHash":"ca07410f64122ff2"},
+        {"id":"614.1a","line":"// half-effect). A move INTO a graveyard is not recorded — a CR 614.1a","sites":1,"status":"confirmed","ruleHash":"ca07410f64122ff2"},
         {"id":"614.1a","line":"// instead.\" after ONE announced creature target (CR 614.1a, CR 608.2h);","sites":1,"status":"confirmed","ruleHash":"ca07410f64122ff2"},
         {"id":"614.1a","line":"// lock, CR 614.1a death replacement.) Was the two-part gap 6 of","sites":1,"status":"baseline"},
         {"id":"614.1a","line":"// only thing that tells `chooseResolution` an optional CR 614.1a","sites":1,"status":"baseline"},
