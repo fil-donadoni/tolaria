@@ -11570,7 +11570,11 @@ export interface PermanentLeftEvent {
      *  BEFORE the counter strip, from the pre-batch state when the departure
      *  is a state-based action (CR 704.8 — see `checkCounterAnnihilationSBA`'s
      *  placement in `sba.ts`). Omitted when it had no counters; optional so
-     *  older serialized events deserialize as "no counters". */
+     *  older serialized events deserialize as "no counters". Populated only on
+     *  a graveyard or exile departure: the hand/library branch of
+     *  `removePermanentTo` strips counters through the CR 400.7 reset before
+     *  the snapshot, so a bounce or tuck carries none — a reader needing those
+     *  must move the snapshot first. */
     countersBeforeLeave?: Readonly<Record<string, number>>;
     /** Host id the leaving Aura was attached to (CR 303.4b). Read by
      *  Animate Dead's LTB-trigger to identify the reanimated creature to
