@@ -404,17 +404,19 @@ describe("value model — latent vs realized faces (issue #4758)", () => {
     });
 
     it("a creature's latent script value is bounded like a non-creature's (issue #1508's cap)", () => {
-        const oracle = getCardByName("Thassa's Oracle");
+        // A conditional win no longer reaches the cap (issue #5045), so the
+        // specimen is a creature whose real ability scripts exceed it.
+        const archon = getCardByName("Archon of Cruelty");
         const body =
             DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount *
             creatureValueRaw(
-                oracle.power ?? 0,
-                oracle.toughness ?? 0,
-                manaValue(oracle.manaCost),
-                oracle.staticAbilities ?? []
+                archon.power ?? 0,
+                archon.toughness ?? 0,
+                manaValue(archon.manaCost),
+                archon.staticAbilities ?? []
             );
-        expect(dslAbilityScriptValue(oracle)).toBeGreaterThan(300);
-        expect(cardValueById(oracle.id)).toBeCloseTo(body + 300);
+        expect(dslAbilityScriptValue(archon)).toBeGreaterThan(300);
+        expect(cardValueById(archon.id)).toBeCloseTo(body + 300);
     });
 });
 

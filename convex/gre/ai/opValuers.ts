@@ -1424,6 +1424,20 @@ function contingentBindingWeight(op: EffectOp, scope: ScriptScope): number {
         : 1;
 }
 
+/** A gated "you win the game" (CR 104.2b) is the one `then`-branch Op the
+ *  "assume the effect happens" reading must not assume: its value is the
+ *  `WIN_GAME_VALUE` sentinel, so assuming it prices every card carrying it at
+ *  the latent cap, an ETB-borne one spends that cap on entering, and the card
+ *  is never cast while the predicate is false (issue #5045). The win needs no
+ *  latent proxy — when the predicate holds, the search resolves the real
+ *  `if` through the GRE and `evaluate` scores the resulting `gameOver`. The
+ *  rest of the branch keeps the default certain reading. Only the `if`
+ *  construct is covered: a win gated by a triggered ability's own
+ *  `condition` is read on the trigger path, not here. */
+function withoutConditionalWin(branch: readonly EffectOp[]): EffectOp[] {
+    return branch.filter((o) => o.op !== "winGame");
+}
+
 /** issue #4470 — does `predicate` read as "this `coinFlipSeries` landed at
  *  ZERO losses" (CR 705.2's "if you win all the flips"), and if so, at what
  *  probability? Matches on OP SHAPE plus a scope-tracked binding NAME, never a
@@ -3475,8 +3489,12 @@ export function valueOp(
             // whose `$picked` was bound at the top level, so a branch that
             // dropped the scope would leave the card that surfaced the bug
             // still priced as removal.
-            const branch = valueEffectScript(op.then, ctx, scope);
-            // Issue #4470 — the ONE exception to "assume the effect happens":
+            const branch = valueEffectScript(
+                withoutConditionalWin(op.then),
+                ctx,
+                scope
+            );
+            // Issue #4470 — the probability exception to "assume the effect happens":
             // a branch gated on a `coinFlipSeries` landing at zero losses is
             // not certain, it is `0.5 ** count` (CR 705.1), and pricing it as
             // certain is what made Squee's Revenge's static hand-value beat
