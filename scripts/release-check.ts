@@ -1,6 +1,6 @@
 /**
  * `bun scripts/release-check.ts <issue> [--hand-back]` — the release site's
- * check (issue #7646), called by `deny-guard.sh` § 6b: a claim release on an
+ * check (issue #7646), called by `deny-guard.sh` § 6c: a claim release on an
  * issue with an open PR must also hand the issue back (`ready-for-human`).
  * Exit 2 + the refusal on stderr; a failed `gh` read fails OPEN (a release is
  * never blocked by infra).

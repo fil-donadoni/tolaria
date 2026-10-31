@@ -224,9 +224,6 @@ export function openPrFiles(): {
     return { byIssue, files };
 }
 
-/** Open PRs the land-runner labelled `land-failed` (issue #5469) — the
- *  `repair` list's source. A failed read is an empty list: a repair pick
- *  missed this time is picked next time, and the batch is still sound. */
 /** When the issue's last comment (the hand-back) was posted, ms epoch. */
 function handBackTime(issue: number): number | null {
     try {
@@ -240,6 +237,9 @@ function handBackTime(issue: number): number | null {
     }
 }
 
+/** Open PRs the land-runner labelled `land-failed` (issue #5469) — the
+ *  `repair` list's source. A failed read is an empty list: a repair pick
+ *  missed this time is picked next time, and the batch is still sound. */
 function landFailedPrs(): { number: number; headRefName: string }[] {
     try {
         return JSON.parse(

@@ -962,11 +962,13 @@ fi
 # parked with no role label and no watcher (issue #3219). The release must
 # carry `--add-label ready-for-human`, or the issue has no open PR.
 if seg_has "$RELEASE_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_CLAIM=1' "$RELEASE_INVOKE"; then
-    rel_issue=$(printf '%s\n' "$segments" | grep -E "$RELEASE_INVOKE" | grep -oE 'gh[[:space:]]+issue[[:space:]]+edit[[:space:]]+[0-9]+' | head -1 | grep -oE '[0-9]+$' || true)
+    rel_issue=$(printf '%s\n' "$segments" | grep -E "$RELEASE_INVOKE" | sed -E 's/.*gh[[:space:]]+issue[[:space:]]+edit[[:space:]]+//' | grep -oE '(^|[[:space:]])[0-9]+([[:space:]]|$)' | head -1 | tr -d '[:space:]' || true)
     if [ -n "$rel_issue" ]; then
         hand_back=""
         seg_has '--add-label(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?ready-for-human' "$RELEASE_INVOKE" && hand_back="--hand-back"
-        if ! refusal=$(bun scripts/release-check.ts "$rel_issue" $hand_back 2>&1); then
+        refusal=$(bun "${CLAUDE_PROJECT_DIR:-.}/scripts/release-check.ts" "$rel_issue" $hand_back 2>&1) && rc=0 || rc=$?
+        # Only the check's own refusal (exit 2) denies; infra errors fail open.
+        if [ "$rc" -eq 2 ]; then
             deny "BLOCKED: $refusal"
         fi
     fi
