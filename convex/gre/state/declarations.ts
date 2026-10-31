@@ -5063,6 +5063,15 @@ export type GameState = {
      *  battlefield is not playing one). Cleared at CLEANUP (CR 514.2), not at
      *  END_OF_COMBAT, so it survives into the postcombat main phase. */
     cannotPlayLandsThisTurn?: string[];
+    /** CR 305.2 / 514.2 — turn-scoped additional land plays granted by a
+     *  resolved effect ("You may play an additional land this turn" —
+     *  Explore), one entry per grant: `count` more plays for `playerId`.
+     *  Written by `SpellContext.grantExtraLandDrops` (the `grantExtraLandDrops`
+     *  Op), read only by `getExtraLandDrops` (`gre/rules.ts`) beside the
+     *  battlefield `extraLandDrops` scan, so every land-play gate inherits it.
+     *  Additive: two grants are two plays (CR 305.2 counts every effect).
+     *  Cleared at CLEANUP (CR 514.2). */
+    extraLandDropsThisTurn?: { playerId: string; count: number }[];
     /** CR 504.1 (issue #1097 — Elfhame Sanctuary's "you skip your draw step
      *  this turn"). Player ids that skip their OWN draw step the next time
      *  it is reached this turn. Armed by `SpellContext.skipDrawStepThisTurn`

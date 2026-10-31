@@ -13925,7 +13925,8 @@ export function buildSpellContext(
             // CR 305.2 — one land per turn, plus any extra-drop grants (e.g.
             // Fastbond) the controlled player has. Refuse if already spent
             // ("if able").
-            const maxDrops = LAND_DROPS_PER_TURN + getExtraLandDrops(player);
+            const maxDrops =
+                LAND_DROPS_PER_TURN + getExtraLandDrops(state, player);
             if ((player.landsPlayedThisTurn ?? 0) >= maxDrops) return false;
             // Route through the canonical land-play transition for the source
             // zone: each records the land drop (CR 305.2), sets the
@@ -16456,6 +16457,15 @@ export function buildSpellContext(
             const list = state.cannotPlayLandsThisTurn ?? [];
             if (!list.includes(playerId)) list.push(playerId);
             state.cannotPlayLandsThisTurn = list;
+        },
+
+        grantExtraLandDrops(playerId: string, count: number): void {
+            // CR 305.2 — "continuous effects may increase this number": one
+            // entry per grant, so two resolved Explores are two more plays.
+            // Cleared at CLEANUP (CR 514.2).
+            const list = state.extraLandDropsThisTurn ?? [];
+            list.push({ playerId, count });
+            state.extraLandDropsThisTurn = list;
         },
 
         skipDrawStepThisTurn(playerId: string): void {
@@ -19304,7 +19314,8 @@ export function buildSpellContext(
             // CR 305.2a/305.2b — a land played during the resolution of a spell
             // or ability counts against the per-turn drop, so it is playable
             // only while a drop remains (plus any extra-drop grants).
-            const maxDrops = LAND_DROPS_PER_TURN + getExtraLandDrops(owner);
+            const maxDrops =
+                LAND_DROPS_PER_TURN + getExtraLandDrops(state, owner);
             return (owner.landsPlayedThisTurn ?? 0) < maxDrops;
         },
         getChosenCardIsLand(playerId, cardInstanceId, sourceZone) {

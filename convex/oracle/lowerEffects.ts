@@ -3169,6 +3169,12 @@ function lowerSentenceBody(
             if (!player.ok) return player;
             return lowered([{ op: "restrictLandPlay", player: player.value }]);
         }
+        // CR 305.2 + CR 514.2 — "You may play an additional land this turn":
+        // the effect's controller, one more play until CLEANUP.
+        case "extra-land-play":
+            return lowered([
+                { op: "grantExtraLandDrops", player: "controller", count: 1 },
+            ]);
         // CR 613.1b — the effect's controller gains control of the announced
         // permanent; CR 611.2b's "for as long as you control <this>" is the
         // `while-you-control-source` condition, absent = indefinite.

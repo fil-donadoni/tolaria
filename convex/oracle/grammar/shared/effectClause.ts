@@ -534,6 +534,7 @@ export const EFFECT_SENTENCE_KINDS = [
     "prevent-regeneration",
     "prevent-regeneration-damaged",
     "land-play-lock",
+    "extra-land-play",
     "player-lock",
     "gain-control",
     "exchange-control",
@@ -1411,6 +1412,11 @@ export type EffectSentenceIR =
      * turn": a turn-scoped per-player land-play lock, on the announced player.
      */
     | { readonly kind: "land-play-lock"; readonly player: "target" }
+    /**
+     * CR 305.2 + CR 514.2 — "You may play an additional land this turn": one
+     * more land play for the effect's controller, for the rest of the turn.
+     */
+    | { readonly kind: "extra-land-play" }
     /**
      * CR 101.2 + CR 601.2 / 602.2 — a turn-scoped lock on what a player may
      * cast or activate. `casting` is `"all"` (every spell) or the printed
@@ -5891,6 +5897,14 @@ const OPPONENTS_CANT_CAST = "Your opponents can't cast spells this turn";
  */
 const DEFENDING_PLAYER_CANT_CAST =
     "Defending player can't cast spells this turn";
+/**
+ * CR 305.2 — the controller's turn-scoped additional land play, whole. "Up to
+ * two additional lands", "on each of your turns" (the Exploration static) and
+ * "Each player may play …" name another count, lifetime or player and differ
+ * from the exact match.
+ */
+const YOU_MAY_PLAY_ADDITIONAL_LAND =
+    "You may play an additional land this turn";
 /** CR 305.1 + CR 101.2 — a targeted player's turn-scoped land-play lock, whole. */
 const TARGET_PLAYER_CANT_PLAY_LANDS =
     "Target player can't play lands this turn";
@@ -8658,6 +8672,12 @@ function effectSentence(
         return ok({
             kind: "land-play-lock" as const,
             player: "target" as const,
+        } satisfies EffectSentenceIR);
+
+    // ── additional land play (CR 305.2) ────────────────────────────────────
+    if (span === YOU_MAY_PLAY_ADDITIONAL_LAND)
+        return ok({
+            kind: "extra-land-play" as const,
         } satisfies EffectSentenceIR);
 
     // ── regenerate (CR 701.19a) ────────────────────────────────────────────

@@ -49,6 +49,7 @@ import {
     numberChoiceRange,
     isManaPaymentChoiceWindow,
     phaseInUntapCycleBundles,
+    getPlayer,
 } from "../../state";
 import type {
     CardInstanceState,
@@ -78,7 +79,12 @@ import {
     checkStateBasedActions,
 } from "../../sba";
 import { collectTriggers, placeTriggersOnStack } from "../../triggers";
-import { getLegalActions, raiseTriggerTargetSelection } from "../../rules";
+import {
+    getExtraLandDrops,
+    getLegalActions,
+    raiseTriggerTargetSelection,
+} from "../../rules";
+import { forest } from "../../../cards/sets/lea/colorless.cards";
 import type { Color, TargetSelection } from "../../../cards/types";
 import {
     finalizeTargetSelection,
@@ -3483,6 +3489,112 @@ describe("Effect Script Op: restrictLandPlay (CR 305.1 / 101.2, issue #2145)", (
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
         expect(state.cannotPlayLandsThisTurn).toEqual(["p1"]);
+    });
+});
+
+// New Op (issue #7220 — Explore) → full per-Op regime: the grant lands on
+// state, two grants stack, the land-play gate reads it (and yields to a
+// "can't", CR 101.2), and it survives serialization and the wire projection.
+describe("Effect Script Op: grantExtraLandDrops (CR 305.2 / 514.2, issue #7220)", () => {
+    /** p1 has already played its land this turn and holds a Forest. */
+    function spentDrop() {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(forest().id, {
+                            id: "forest-in-hand",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        getPlayer(state, "p1").landsPlayedThisTurn = 1;
+        return state;
+    }
+    const canPlayForest = (state: GameState) =>
+        getLegalActions(
+            state,
+            getPlayer(state, "p1"),
+            getPlayer(state, "p1").hand[0]
+        ).includes("play");
+
+    it("grants the controller one more land play this turn", () => {
+        const id = registerScript("test-op-extra-land-ctrl", [
+            { op: "grantExtraLandDrops", player: "controller", count: 1 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.extraLandDropsThisTurn).toEqual([
+            { playerId: "p1", count: 1 },
+        ]);
+    });
+
+    it("names the opponent when the script says so", () => {
+        const id = registerScript("test-op-extra-land-opp", [
+            { op: "grantExtraLandDrops", player: "opponent", count: 2 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.extraLandDropsThisTurn).toEqual([
+            { playerId: "p2", count: 2 },
+        ]);
+    });
+
+    it("is additive — two resolutions are two more plays (CR 305.2)", () => {
+        const id = registerScript("test-op-extra-land-add", [
+            { op: "grantExtraLandDrops", player: "controller", count: 1 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(getExtraLandDrops(state, getPlayer(state, "p1"))).toBe(2);
+    });
+
+    it("re-opens the land play once the drop is spent", () => {
+        const id = registerScript("test-op-extra-land-legal", [
+            { op: "grantExtraLandDrops", player: "controller", count: 1 },
+        ]);
+        const state = spentDrop();
+        expect(canPlayForest(state)).toBe(false);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(canPlayForest(state)).toBe(true);
+    });
+
+    it("never lifts a can't-play-lands restriction (CR 101.2)", () => {
+        const id = registerScript("test-op-extra-land-cant", [
+            { op: "restrictLandPlay", player: "controller" },
+            { op: "grantExtraLandDrops", player: "controller", count: 1 },
+        ]);
+        const state = spentDrop();
+        getPlayer(state, "p1").landsPlayedThisTurn = 0;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(canPlayForest(state)).toBe(false);
+    });
+
+    it("survives serialization and the wire projection", () => {
+        const id = registerScript("test-op-extra-land-wire", [
+            { op: "grantExtraLandDrops", player: "controller", count: 1 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(expandState(compactState(state)).extraLandDropsThisTurn).toEqual(
+            [{ playerId: "p1", count: 1 }]
+        );
+        expect(
+            projectPublicState(state, 1, "p1").extraLandDropsThisTurn
+        ).toEqual([{ playerId: "p1", count: 1 }]);
     });
 });
 

@@ -1410,6 +1410,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "cannotCastSpellsThisTurn",
     "cannotActivateAbilitiesThisTurn",
     "cannotPlayLandsThisTurn",
+    "extraLandDropsThisTurn",
     "combatDamageRedirectToPermanent",
     "gazeOfPainActiveThisTurn",
     "landManaReplacedToBlueThisTurn",
