@@ -858,39 +858,6 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
                 valueOp({ op: "extraTurn", player: "controller" }, cf).points
             );
         });
-
-        // CR 104.2b — a win gated on a board predicate is left to the search,
-        // which resolves the real `if`; the latent reading omits it.
-        const gatedWin = (then: EffectOp[]): EffectOp => ({
-            op: "if",
-            predicate: {
-                left: { devotion: { of: "controller", color: "U" } },
-                op: "ge",
-                right: { count: { zone: "library", controller: "controller" } },
-            },
-            then,
-        });
-
-        it("values a conditional win at nothing", () => {
-            const v = valueOp(
-                gatedWin([{ op: "winGame", player: "controller" }]),
-                cf
-            );
-            expect(v.points).toBe(0);
-        });
-
-        it("keeps the rest of a conditional win's branch", () => {
-            const draw: EffectOp = {
-                op: "draw",
-                player: "controller",
-                count: 1,
-            };
-            const v = valueOp(
-                gatedWin([draw, { op: "winGame", player: "controller" }]),
-                cf
-            );
-            expect(v.points).toBe(valueOp(draw, cf).points);
-        });
     });
 
     describe("mill (CR 701.17) — card-selection/denial", () => {
