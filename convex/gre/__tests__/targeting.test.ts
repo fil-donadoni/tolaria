@@ -1393,6 +1393,32 @@ describe("target-filter registry — checkPermanentTargetFilters (ADR 0068, #140
         );
     });
 
+    // CR 107.1b — a negative power is summed as negative: a -2/7 totals 5.
+    // Also pins the `min` bound at its edge.
+    it("totalPowerToughnessFilter: sums a negative power as negative and holds the min bound inclusive", () => {
+        const shrunk = makeCard({
+            types: ["Creature"],
+            power: -2,
+            toughness: 7,
+        });
+        const ctx = baseCtx();
+        expect(
+            checkPermanentTargetFilters(ctx, shrunk, {
+                totalPowerToughnessFilter: { max: 5 },
+            })
+        ).toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, shrunk, {
+                totalPowerToughnessFilter: { min: 5 },
+            })
+        ).toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, shrunk, {
+                totalPowerToughnessFilter: { min: 6 },
+            })
+        ).toBe("Target must have total power and toughness ≥ 6");
+    });
+
     it("mvFilter: accepts a permanent matching the mana-value bound, rejects one that doesn't", () => {
         const cheap = makeCard({
             types: ["Creature"],

@@ -51,7 +51,7 @@ export const sheoldredTheApocalypse = defineCard(() => ({
 // toughness 5 or less." (CR 701.8 destroy; the target bound is the SUM of
 // effective power and toughness — `totalPowerToughnessFilter`, CR 208.1 /
 // CR 613.4c, issue #1352.)
-// compiler-gap: "Destroy target creature with total power and toughness 5 or less." (#1352)
+// hand-tail: "Destroy target creature with total power and toughness 5 or less." (#1352)
 export const cutDown = defineCard(() => ({
     id: "753db072-5d6a-4f37-8f7d-255572ecd3bd",
     name: "Cut Down",

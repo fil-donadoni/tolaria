@@ -2005,6 +2005,7 @@
         {"id":"107.1b","line":"// CR 107.1b / 107.3f (issue #1701) — the nomination floor, read off the","sites":1,"status":"baseline"},
         {"id":"107.1b","line":"// CR 107.1b / 107.3f (issue #1701) — the numeric nomination (\"pay any","sites":1,"status":"baseline"},
         {"id":"107.1b","line":"// CR 107.1b / 107.3f (issue #1701) — the numeric nomination. Without a","sites":1,"status":"baseline"},
+        {"id":"107.1b","line":"// CR 107.1b — a negative power is summed as negative: a -2/7 totals 5.","sites":1,"status":"confirmed","ruleHash":"2893138601c9fc62"},
         {"id":"107.1b","line":"// CR 107.1b — a signed difference; the consuming Op clamps it.","sites":1,"status":"confirmed","ruleHash":"2893138601c9fc62"},
         {"id":"107.1b","line":"// CR 107.1b — the mirror subtraction; equally clamped by the Op.","sites":1,"status":"confirmed","ruleHash":"2893138601c9fc62"},
         {"id":"107.1b","line":"// CR 107.1b — the mirror: a printed constant less \"their\" hand, where","sites":1,"status":"confirmed","ruleHash":"2893138601c9fc62"},
