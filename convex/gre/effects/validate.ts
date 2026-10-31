@@ -1311,6 +1311,7 @@ function isEffectTokenSpec(value: unknown): boolean {
         "backFace",
         "entersTapped",
         "entersAttacking",
+        "crewPowerBonus",
     ]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
     if (typeof s.name !== "string" || s.name.length === 0) return false;
@@ -1372,6 +1373,9 @@ function isEffectTokenSpec(value: unknown): boolean {
     // attacking" token entry flags.
     if ("entersTapped" in s && !isBoolean(s.entersTapped)) return false;
     if ("entersAttacking" in s && !isBoolean(s.entersAttacking)) return false;
+    // CR 702.122b (issue #1863) — the Pilot token's crew-power rider; a
+    // positive integer, fail closed on anything else.
+    if ("crewPowerBonus" in s && !isPositiveInt(s.crewPowerBonus)) return false;
     return true;
 }
 

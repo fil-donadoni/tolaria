@@ -20193,6 +20193,11 @@ export function createTokenPermanents(
         ...(spec.supertypes ? { supertypes: [...spec.supertypes] } : {}),
         power: spec.power,
         toughness: spec.toughness,
+        // CR 702.122b (issue #1863) — the crew-power rider rides the def, the
+        // same field a printed Pilot declares, so every crew reader sees it.
+        ...(spec.crewPowerBonus !== undefined
+            ? { crewPowerBonus: spec.crewPowerBonus }
+            : {}),
         ...(spec.staticAbilities
             ? { staticAbilities: [...spec.staticAbilities] }
             : {}),

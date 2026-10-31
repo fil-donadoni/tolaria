@@ -62030,6 +62030,14 @@
         "source": "compiled"
     },
     {
+        "name": "Shorikai, Genesis Engine",
+        "scryfallId": "969ac7dd-f3aa-4888-9ff0-d16a31b5e7a9",
+        "oracleId": "e2962883-6daf-4a84-af73-917afc73092c",
+        "firstSet": "nec",
+        "firstPrintId": "969ac7dd-f3aa-4888-9ff0-d16a31b5e7a9",
+        "firstPrintSet": "nec"
+    },
+    {
         "name": "Show and Tell",
         "scryfallId": "4b851c17-55ed-4671-b471-dc7b34944432",
         "oracleId": "b83a3ba0-249e-4c39-bbf0-cb005413f7d2",
