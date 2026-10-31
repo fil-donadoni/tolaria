@@ -171,12 +171,12 @@ would score exiling your own permanents as removal, inverting the sign (PRD
 
 - No shipped card exposes meld until the next slice. `meld.test.ts` is the
   capability test, run with a test-only pair registered through the real seam.
-- CR 712.19 (a player may choose the combined back face's name) waits for
-  issue #7640. `chooseableNamesOf` is both the name-choice domain and
-  the object-name predicate, and CR 712.4b denies a meld card in hand the back
-  face's name, so the domain has to widen without widening the predicate.
-  `CARD_BACK_FACE_KINDS.meld.contributesChooseableName` stays `false` until
-  then.
+- CR 712.19 (a player may choose the combined back face's name) shipped
+  beside this ADR in issue #7640: the name-choice DOMAIN
+  (`chooseableDomainNamesOf`) widens while the object-name predicate
+  (`chooseableNamesOf`) does not, because CR 712.4b denies a meld card in hand
+  the back face's name. `CARD_BACK_FACE_KINDS.meld.contributesChooseableName`
+  is `true`.
 - Flip cards are now the last inhabitant of ADR 0041's out-of-scope layout
   bucket.
 
