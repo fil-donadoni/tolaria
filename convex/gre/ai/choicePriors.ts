@@ -385,6 +385,7 @@ export function heuristicChoicePrior(
         case "look-distribute":
         case "choose-categorized":
         case "legend-keep":
+        case "meld-arrange":
         case "choose-aura-host":
         case "mulligan-bottom":
         case "trigger-order":

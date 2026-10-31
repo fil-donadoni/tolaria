@@ -44,12 +44,14 @@ const PRINT_FIELDS: ReadonlySet<string> = new Set([
 ]);
 
 /** The ADR 0140 §6 closed list, plus the one census row that exists to keep
- *  the field OUT of a behavioural comparison. */
+ *  the field OUT of a behavioural comparison, plus meld (ADR 0161): a melded
+ *  permanent holds its two cards' print pins aside, the copy role's shape. */
 type Role =
     | "deck setup"
     | "token creation"
     | "copy"
     | "full text"
+    | "meld"
     | "serialisation"
     | "cosmetic-key exclusion";
 
@@ -100,6 +102,12 @@ const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
         count: 10,
         role: "copy",
         reason: "a copy effect shows the copied object's art (or its CR 707.9 token-frame pin), remembers the copier's own print and restores it on revert; a face-down source lends none (CR 708.5).",
+    },
+    {
+        file: "meld.ts",
+        count: 11,
+        role: "meld",
+        reason: "a melded permanent shows its combined back face's art (CR 712.8g), so each card's print pin is held aside in `meldedFrom` as the two meld and put back on the card it belongs to as the permanent splits (CR 712.21).",
     },
     {
         file: "fullText.ts",

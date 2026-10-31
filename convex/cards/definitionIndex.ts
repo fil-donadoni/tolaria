@@ -29,7 +29,7 @@ import type { CardDefinition } from "./types";
 import { chooseableDomainNamesOf } from "./cardNames";
 import { backFaceAsTokenSpec } from "./backFaceSpec";
 import { insetSpellTwinDefinition } from "./insetSpell";
-import { modalBackTwinDefinition } from "./modalDfc";
+import { isTokenCodecBackFace, modalBackTwinDefinition } from "./modalDfc";
 import {
     SPLIT_HALF_SIDES,
     SPLIT_NAME_SEPARATOR,
@@ -145,7 +145,7 @@ export function backFaceTriggerTokenId(
 ): string | undefined {
     const backFace = def.backFace;
     if (!backFace?.triggeredAbilities?.length) return undefined;
-    if (backFace.kind === "modal") return undefined;
+    if (!isTokenCodecBackFace(backFace)) return undefined;
     return tokenDefinitionId(backFaceAsTokenSpec(backFace));
 }
 

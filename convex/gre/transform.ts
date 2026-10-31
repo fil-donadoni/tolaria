@@ -38,6 +38,7 @@
  * the swapped `card.card.id` (no name/art) the moment a permanent transforms.
  */
 
+import { isMeldCard } from "../cards/meld";
 import {
     registerTokenDefinition,
     tokenDefinitionId,
@@ -82,6 +83,10 @@ export function backFaceDefinitionIdOf(frontId: string): string | undefined {
     const frontDef = tryGetDefinition(frontId);
     const backFace = frontDef?.backFace;
     if (!backFace) return undefined;
+    // CR 712.4c — a meld card is never transformed, so it never presents a
+    // back face by transforming; its combined back face is reached only by
+    // melding (`cards/meld.ts`).
+    if (isMeldCard(frontDef ?? undefined)) return undefined;
     return isModalDoubleFaced(frontDef ?? undefined)
         ? modalBackFaceDefinitionId(frontId)
         : nonmodalBackFaceDefinitionId(backFace);
@@ -191,8 +196,12 @@ export function stampBackFaceForEntry(
     if (card.transformed) return false; // already showing its back face
     const frontId = (card.card as { id?: string }).id;
     if (!frontId) return false;
-    const backFace = tryGetDefinition(frontId)?.backFace;
+    const frontDef = tryGetDefinition(frontId);
+    const backFace = frontDef?.backFace;
     if (!backFace) return false; // CR 712 — nothing to transform into.
+    // CR 712.4c — "meld cards cannot be transformed … Any instructions to do
+    // so are ignored": the card enters front face up (CR 712.14).
+    if (isMeldCard(frontDef ?? undefined)) return false;
     const backId = registerBackFaceDefinition(backFace);
     card.transformedFrom = frontId;
     card.card = { id: backId };
@@ -339,6 +348,9 @@ export function transformPermanent(
         const frontDef = tryGetDefinition(frontId);
         const backFace = frontDef?.backFace;
         if (!backFace) return; // CR 712 — nothing to transform into.
+        // CR 712.4c — "meld cards cannot be transformed or converted. Any
+        // instructions to do so are ignored."
+        if (isMeldCard(frontDef ?? undefined)) return;
         // CR 712.10 — "if a spell or ability instructs a player to transform a
         // permanent, and the face that permanent would transform into is an
         // instant or sorcery card face … nothing happens." No printed NONMODAL

@@ -1220,6 +1220,15 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "choose-aura-host":
             return candidates.slice(0, min).map((c) => c.id);
 
+        // Split melded permanent (CR 712.21a/b): which of its two cards goes
+        // on top of the graveyard / library, or counts as exiled last.
+        // Minimal-legal default (ADR 0016) — the first card in scan order.
+        // Neither order changes material; it only matters to a "top card of
+        // your graveyard" or "last card exiled" reader, for which no
+        // generator exists, so this is never a search decision.
+        case "meld-arrange":
+            return candidates.slice(0, min).map((c) => c.id);
+
         // Intuition (CR 701.20a, issue #3205) — the bot is the OPPONENT being
         // asked which of the revealed library cards its opponent gets to keep.
         // `readChoiceZone` sourced the candidates from `libraryPeek` (the

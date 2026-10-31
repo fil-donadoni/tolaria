@@ -71,6 +71,14 @@ import {
     getPermanentManaValueCost,
 } from "../cards/registry";
 import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
+import {
+    expandMeldGroup,
+    leaveMeldGroup,
+    meldGroupPartners,
+    queueMeldArrangement,
+    splitMeldedPermanent,
+    stampMeldedPermanent,
+} from "./meld";
 import { hasFlashback } from "./flashback";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
@@ -394,6 +402,8 @@ export type {
     GrantedAttackRequirement,
     DurationTickView,
     CardInstanceState,
+    MeldedCard,
+    PendingMeldArrangement,
     PreventionEffect,
     TargetPreventionShield,
     PlayerDamagePreventionShield,
@@ -6935,12 +6945,24 @@ export function removePermanentTo(
     let graveyardRedirectCounters: Record<string, number> | undefined;
     let redirectedToLibrary = false;
     if (toZone === "graveyard") {
-        const { destination, tagCounters } = graveyardDestinationFor(
+        let { destination, tagCounters } = graveyardDestinationFor(
             state,
             cardId,
             initial.card.ownerId,
             "battlefield"
         );
+        // CR 712.21d — a melded permanent is two cards, possibly of two
+        // owners: a graveyard replacement applying to EITHER card's graveyard
+        // applies to the event, and moves both cards.
+        const other = initial.card.meldedFrom?.[1];
+        if (destination === "graveyard" && other) {
+            ({ destination, tagCounters } = graveyardDestinationFor(
+                state,
+                other.instanceId,
+                other.ownerId,
+                "battlefield"
+            ));
+        }
         toZone = destination;
         graveyardRedirectCounters = tagCounters;
         redirectedToLibrary = destination === "library";
@@ -7236,6 +7258,12 @@ export function removePermanentTo(
         // pushing one entry per upkeep.)
         purgeContinuousEffectsForInstance(state, creature.id);
     }
+    // CR 712.21 (ADR 0161) — "If a melded permanent leaves the battlefield,
+    // one permanent leaves the battlefield and two cards are put into the
+    // appropriate zone." AFTER the LKI snapshots (the leave events below
+    // describe ONE object) and after the reset ladder (whose zone-change
+    // scope would otherwise strip the `meldGroupId` the split stamps).
+    const meldPartner = splitMeldedPermanent(state, creature, toZone);
     // CR 122.2 / 400.7 — counters on a permanent cease to exist the moment it
     // leaves the battlefield; the card in the graveyard/exile is a NEW object
     // with no counters. The live map is stripped on EVERY departure (the
@@ -7279,10 +7307,36 @@ export function removePermanentTo(
     // this orientation holding here AND at `moveCard` — the two together are
     // the whole guarantee.
     (owner[toZone] as CardInstanceState[]).push(creature);
+    // CR 712.21a — the melded permanent's other card goes to ITS owner's zone
+    // of the same name, beside the first.
+    if (meldPartner) {
+        (
+            getPlayer(state, meldPartner.ownerId)[toZone] as CardInstanceState[]
+        ).push(meldPartner);
+        applyZoneCharacteristics(meldPartner);
+        if (toZone === "hand") {
+            grantKnowledgeToAll(state, meldPartner.ownerId, [meldPartner.id]);
+        }
+        // A library the departure is about to shuffle has no order to
+        // arrange (the redirect below).
+        if (!redirectedToLibrary) {
+            queueMeldArrangement(
+                state,
+                creature,
+                meldPartner,
+                toZone,
+                causerControllerId
+            );
+        }
+    }
     // issue #3242 — a tuck, or a CR 614 redirect to the library (Blightsteel
-    // Colossus), puts this card into a library from the battlefield.
+    // Colossus), puts this card into a library from the battlefield. CR
+    // 712.21e — a melded permanent is TWO cards put there.
     if (toZone === "library") {
-        emitCardsPutIntoLibrary(state, [libraryEntry(creature, "battlefield")]);
+        emitCardsPutIntoLibrary(state, [
+            libraryEntry(creature, "battlefield"),
+            ...(meldPartner ? [libraryEntry(meldPartner, "battlefield")] : []),
+        ]);
     }
     // CR 113.6c — the battlefield-departure twin of the `moveCard` call: a
     // static ability that functions only OUTSIDE the battlefield switches on
@@ -7315,6 +7369,14 @@ export function removePermanentTo(
     // here always ends in a shuffle.
     if (redirectedToLibrary) {
         shuffleAfterGraveyardBoundLibraryRedirect(state, owner);
+        // CR 712.21d — the redirect moved BOTH cards; a partner owned by
+        // another player went into, and is shuffled into, THAT library.
+        if (meldPartner && meldPartner.ownerId !== owner.id) {
+            shuffleAfterGraveyardBoundLibraryRedirect(
+                state,
+                getPlayer(state, meldPartner.ownerId)
+            );
+        }
     }
     // CR 700.4 — a creature "dies" when it's put into a graveyard from the
     // battlefield. Queued on `pendingEvents` so the caller can scan for
@@ -7646,12 +7708,19 @@ export function exileWithAttachments(
         }
     }
     const movedHost = removePermanentTo(state, targetId, "exile");
-    if (movedHost && movedHost.zone === "exile") {
+    // CR 712.21 / 712.21e — a melded host is two cards exiled.
+    const meldPartners =
+        movedHost && movedHost.zone === "exile"
+            ? meldGroupPartners(state, movedHost.id)
+            : [];
+    for (const card of movedHost?.zone === "exile"
+        ? [movedHost, ...meldPartners]
+        : []) {
         exiledEntries.push({
-            cardInstanceId: movedHost.id,
-            cardId: (movedHost.card as { id?: string }).id,
+            cardInstanceId: card.id,
+            cardId: (card.card as { id?: string }).id,
             fromZone: "battlefield",
-            ownerId: movedHost.ownerId,
+            ownerId: card.ownerId,
         });
     }
     emitCardsExiled(state, exiledEntries);
@@ -7661,6 +7730,14 @@ export function exileWithAttachments(
         hostId: targetId,
         hostOwnerId,
         attached,
+        ...(meldPartners.length > 0
+            ? {
+                  meldPartners: meldPartners.map((c) => ({
+                      id: c.id,
+                      ownerId: c.ownerId,
+                  })),
+              }
+            : {}),
         counters,
         returnTapped: opts.returnTapped,
     };
@@ -7694,6 +7771,16 @@ export function returnExiledForSource(
         const [hostCard] = ownerExile.splice(idx, 1);
         putReanimatedOnBattlefield(state, hostCard, bundle.hostOwnerId);
         if (bundle.returnTapped) hostCard.isTapped = true;
+        // CR 712.21c — the return finds both cards of a melded host; each
+        // comes back under its owner's control as its own permanent.
+        for (const p of bundle.meldPartners ?? []) {
+            const exile = getPlayer(state, p.ownerId).exile;
+            const at = exile.findIndex((c) => c.id === p.id);
+            if (at === -1) continue;
+            const [partnerCard] = exile.splice(at, 1);
+            putReanimatedOnBattlefield(state, partnerCard, p.ownerId);
+            if (bundle.returnTapped) partnerCard.isTapped = true;
+        }
         // CR 122 — re-apply the noted counters to the new object, MERGING them
         // onto whatever the entry itself already placed rather than
         // overwriting (issue #1693). `putReanimatedOnBattlefield` above ran the
@@ -8439,14 +8526,16 @@ export function emitCardsExiledFromBattlefield(
     moved: CardInstanceState | null
 ): void {
     if (!moved || moved.zone !== "exile") return;
-    emitCardsExiled(state, [
-        {
-            cardInstanceId: moved.id,
-            cardId: (moved.card as { id?: string }).id,
-            fromZone: "battlefield",
-            ownerId: moved.ownerId,
-        },
-    ]);
+    // CR 712.21e — a melded permanent exiled is ONE object but TWO cards.
+    emitCardsExiled(
+        state,
+        [moved, ...meldGroupPartners(state, moved.id)].map((card) => ({
+            cardInstanceId: card.id,
+            cardId: (card.card as { id?: string }).id,
+            fromZone: "battlefield" as const,
+            ownerId: card.ownerId,
+        }))
+    );
 }
 
 /** Emits a LIFE_LOST event for a player whose life total just dropped (CR
@@ -10167,6 +10256,62 @@ function putReanimatedOnBattlefield(
         return true;
     }
     return false;
+}
+
+/** CR 701.42a / 712.4a (ADR 0161) — "exile them, then meld them": the
+ *  engine half of the meld keyword action. Exiles `holderId` (the permanent
+ *  whose ability melds) and `partnerId` from the battlefield, then — when
+ *  the two exiled objects are a meld pair (CR 701.42b: two non-token cards
+ *  declaring the same combined back face) — puts them onto the battlefield
+ *  under `controllerId` as ONE melded permanent with their back faces up and
+ *  combined (CR 712.14c), presenting the holder's meld twin and keeping the
+ *  holder's instance id.
+ *
+ *  Atomic by construction: the exile has already happened when the meld
+ *  fails, and CR 701.42c leaves the objects where they are — in exile (a
+ *  token there then ceases to exist, CR 704.5d). Returns the melded
+ *  permanent, or `null` when nothing was melded. */
+export function meldPermanents(
+    state: GameState,
+    holderId: string,
+    partnerId: string,
+    controllerId: string
+): CardInstanceState | null {
+    // CR 701.42a "exile them" is ONE simultaneous exile: one CARDS_EXILED
+    // event naming both cards (issue #1558's one-event-per-occurrence rule).
+    const exiled = [holderId, partnerId]
+        .map((id) =>
+            removePermanentTo(state, id, "exile", undefined, controllerId)
+        )
+        .filter((c): c is CardInstanceState => c?.zone === "exile");
+    emitCardsExiled(
+        state,
+        exiled.map((card) => ({
+            cardInstanceId: card.id,
+            cardId: (card.card as { id?: string }).id,
+            fromZone: "battlefield" as const,
+            ownerId: card.ownerId,
+        }))
+    );
+    const inExile = (id: string) => {
+        for (const p of state.players) {
+            const card = p.exile.find((c) => c.id === id);
+            if (card) return { player: p, card };
+        }
+        return undefined;
+    };
+    const holder = inExile(holderId);
+    const partner = inExile(partnerId);
+    if (!holder || !partner) return null;
+    if (!stampMeldedPermanent(state, holder.card, partner.card)) return null;
+    holder.player.exile = holder.player.exile.filter((c) => c.id !== holderId);
+    partner.player.exile = partner.player.exile.filter(
+        (c) => c.id !== partnerId
+    );
+    holder.card.controllerId = controllerId;
+    return putReanimatedOnBattlefield(state, holder.card, controllerId)
+        ? holder.card
+        : null;
 }
 
 /** CR 614.1a / 400.7 (issue #3814) — a discard replacement's "put it onto the
@@ -13655,7 +13800,15 @@ export function buildSpellContext(
         exile(target: TargetSelection): void {
             if (target.type === "player")
                 throw new Error("Cannot exile a player");
-            const moved = removePermanentTo(state, target.id, "exile");
+            // CR 712.21b — the exiling player orders a melded permanent's
+            // two cards: the controller of the resolving spell or ability.
+            const moved = removePermanentTo(
+                state,
+                target.id,
+                "exile",
+                undefined,
+                item.castById
+            );
             emitCardsExiledFromBattlefield(state, moved);
         },
         // CR 400.7: to return a permanent to its owner's hand. Routed through
@@ -13705,6 +13858,29 @@ export function buildSpellContext(
                     : Math.max(0, positionFromTop - 1);
             owner.library.splice(insertAt, 0, card);
             grantKnowledgeToAll(state, moved.ownerId, [card.id]);
+            // CR 712.21 — a melded permanent is two cards put there: its
+            // other card goes to the same position of ITS owner's library,
+            // directly below the first when they share one (the owner then
+            // arranges the pair, CR 712.21a).
+            for (const partner of meldGroupPartners(state, moved.id)) {
+                const partnerOwner = getPlayer(state, partner.ownerId);
+                const at = partnerOwner.library.findIndex(
+                    (c) => c.id === partner.id
+                );
+                if (at === -1) continue;
+                partnerOwner.library.splice(at, 1);
+                const below =
+                    partnerOwner === owner
+                        ? owner.library.findIndex((c) => c.id === card.id) + 1
+                        : positionFromTop === "bottom"
+                          ? partnerOwner.library.length
+                          : Math.min(
+                                partnerOwner.library.length,
+                                Math.max(0, positionFromTop - 1)
+                            );
+                partnerOwner.library.splice(below, 0, partner);
+                grantKnowledgeToAll(state, partner.ownerId, [partner.id]);
+            }
         },
         withCardsPutIntoLibraryBatch<T>(run: () => T): T {
             return withCardsPutIntoLibraryBatch(state, run);
@@ -18932,6 +19108,14 @@ export function buildSpellContext(
             }
             return undefined;
         },
+        // CR 712.21c (ADR 0161) — the group partners of a split melded
+        // permanent's card, as the selections an Op acts on.
+        meldGroupPartners(id: string): TargetSelection[] {
+            return expandMeldGroup(state, {
+                type: "graveyard-card",
+                id,
+            }).slice(1);
+        },
         // CR 111 (issue #791) — stamp the per-source exile provenance link on an
         // already-exiled card. Scans every owner's exile (CR 400.7 — the card
         // may sit in an opponent's exile), no-op if not found.
@@ -20764,6 +20948,10 @@ export function moveCard(
 
     const [card] = sourceZone.splice(cardIndex, 1);
     card.zone = to;
+    // CR 400.7 / 712.21c (ADR 0161) — a card of a split melded permanent that
+    // moves on is a new object, no longer one of the two cards an effect
+    // that found the departed permanent finds.
+    leaveMeldGroup(card);
     // CR 400.7 — the general zone-mover is the FIRST of the two graveyard-exit
     // chokepoints: every `SpellContext.moveZone`, `exileCardFromGraveyard`
     // (eternalize / embalm / a cast's exile cost) and graveyard land play

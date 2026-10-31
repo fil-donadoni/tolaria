@@ -220,6 +220,10 @@ export const CARD_FIELD_LIFECYCLE = {
     splitHalfOf:                { codec: "scalar",  reset: ["custom:stack"] },
     transformed:                { codec: "flag",    reset: NONE },
     transformedFrom:            { codec: "scalar",  reset: NONE },
+    // Ended by the departure-side split in `removePermanentTo` (CR 712.21).
+    meldedFrom:                 { codec: "list",    reset: NONE },
+    // Also cleared by `moveCard` as either card leaves its zone (CR 400.7).
+    meldGroupId:                { codec: "scalar",  reset: ZONE_STACK },
     createdBy:                  { codec: "scalar",  reset: NONE },
     linkedTokenId:              { codec: "scalar",  reset: NONE },
     knownTo:                    { codec: "custom",  reset: NONE },

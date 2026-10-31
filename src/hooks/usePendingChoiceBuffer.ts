@@ -30,6 +30,9 @@ export const CLIENT_BUFFERED_KINDS: ReadonlySet<PendingChoiceKind> =
         // Legend rule keep-one (CR 704.5j, #378) — battlefield pick of exactly
         // one same-name legendary to keep.
         "legend-keep",
+        // Split melded permanent (CR 712.21a/b) — graveyard / library / exile
+        // pick of exactly one of its two cards: the one on top.
+        "meld-arrange",
         // Non-cast Aura host (CR 303.4f) — battlefield pick of exactly one
         // legal host for a reanimated Aura (Replenish, Living Death).
         "choose-aura-host",
