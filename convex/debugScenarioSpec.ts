@@ -1521,6 +1521,43 @@ export function resolveScenarioGolden(golden: boolean | undefined): boolean {
     return golden ?? true;
 }
 
+// ---- Retire on revert (issue #7702) ----------------------------------------
+//
+// A merged PR's preset scenario is seeded post-merge by `seedScenarioDirect`;
+// when that PR is reverted its cards leave the catalogue and the row would
+// throw on load. `retireScenariosByLabel` deletes it after the revert lands.
+
+/** The structural subset of a row the retire decision reads. */
+export type RetirableScenarioRow<Id> = {
+    _id: Id;
+    userId?: unknown;
+};
+
+/**
+ * Pure retire decision (issue #7702). Which same-label rows the post-merge
+ * retire of a reverted PR deletes, and which it keeps.
+ *
+ * THE GOLDEN QUESTION, decided here rather than left to chance. A seeded row
+ * is golden BY DEFAULT (`resolveScenarioGolden`), so "skip golden" would skip
+ * exactly the row the retire exists to remove. The axis that does separate
+ * them is PROVENANCE: `seedScenarioDirect` writes an OWNERLESS row (no
+ * `userId`), while a row an admin saved in the panel carries its author.
+ * Ownerless rows are retired, golden or not; an authored row that happens to
+ * share the label is KEPT and reported by the caller as a named warning — a
+ * human curated it, and a revert has no business deleting it silently.
+ */
+export function selectRetirableScenarioIds<Id>(
+    rows: readonly RetirableScenarioRow<Id>[]
+): { retire: Id[]; kept: Id[] } {
+    const retire: Id[] = [];
+    const kept: Id[] = [];
+    for (const row of rows) {
+        if (row.userId === undefined) retire.push(row._id);
+        else kept.push(row._id);
+    }
+    return { retire, kept };
+}
+
 // ---- Tolerant load helpers -------------------------------------------------
 
 function isRecord(value: unknown): value is Record<string, unknown> {

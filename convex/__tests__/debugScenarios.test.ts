@@ -26,6 +26,7 @@ import {
     type PrunableScenarioRow,
     type ScenarioSpec,
     type UpsertableScenarioRow,
+    selectRetirableScenarioIds,
 } from "../debugScenarioSpec";
 import { getCardByName } from "../cards";
 
@@ -860,6 +861,34 @@ describe("selectScenarioUpsert — insert-vs-patch decision for seedScenarioDire
     it("inserts against an empty pool (first-ever direct write)", () => {
         expect(selectScenarioUpsert([], "First Scenario")).toEqual({
             action: "insert",
+        });
+    });
+});
+
+describe("selectRetirableScenarioIds — retire a reverted PR's seed (issue #7702)", () => {
+    it("retires a SEEDED (ownerless) row even though the seed made it golden", () => {
+        // `resolveScenarioGolden` defaults a seeded row to golden, so a
+        // skip-golden rule would skip exactly the row the retire exists for.
+        expect(
+            selectRetirableScenarioIds([
+                { _id: "seeded", golden: true } as { _id: string },
+            ])
+        ).toEqual({ retire: ["seeded"], kept: [] });
+    });
+
+    it("KEEPS an admin-authored row sharing the label — never deleted silently", () => {
+        expect(
+            selectRetirableScenarioIds([
+                { _id: "seeded" },
+                { _id: "authored", userId: "u1" },
+            ])
+        ).toEqual({ retire: ["seeded"], kept: ["authored"] });
+    });
+
+    it("is a no-op on no rows — re-running after the row is gone", () => {
+        expect(selectRetirableScenarioIds([])).toEqual({
+            retire: [],
+            kept: [],
         });
     });
 });

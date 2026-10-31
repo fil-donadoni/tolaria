@@ -387,6 +387,10 @@ const BOT_AUDIT_SUGGESTION_REL = "scripts/lib/bot-audit-suggestion.ts";
 /** `telemetryIngestStep`'s hard wall, seconds — its budget is 5 s. */
 const TELEMETRY_INGEST_WALL_S = 30;
 const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
+const RETIRE_REVERTED_SCENARIOS = resolve(
+    __dirname,
+    "retire-reverted-scenarios.ts"
+);
 
 // Computed the same way scripts/__tests__/gate.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -1075,6 +1079,23 @@ export function seedScenarioStep(primaryCheckout: string, pr: number): string {
 }
 
 /**
+ * Retire every preset scenario the PR(s) this landing REVERTS had seeded
+ * (issue #7702). A revert declares "None owed", so the seed above writes
+ * nothing for it and, without this, the reverted PR's row outlives the cards
+ * it names and throws `Card not found by name` on load. Same position, same
+ * contract as the seed: primary checkout, after the fast-forward (the retire
+ * pushes the merged tree, which is what carries its mutation), non-gating,
+ * re-entry safe (a row already gone is a no-op). A landing that reverts
+ * nothing is a no-op too — `scripts/retire-reverted-scenarios.ts`.
+ */
+export function retireRevertedScenariosStep(
+    primaryCheckout: string,
+    pr: number
+): string {
+    return `(cd ${shQuote(primaryCheckout)} && bun ${shQuote(RETIRE_REVERTED_SCENARIOS)} ${pr} || true)`;
+}
+
+/**
  * What `land` does AFTER the merge has landed — extracted as ONE named list so
  * the recovery path can run exactly it (issue #4159).
  *
@@ -1097,6 +1118,8 @@ export function seedScenarioStep(primaryCheckout: string, pr: number): string {
  *  - the fast-forward is `--ff-only` and guarded on the primary checkout being
  *    on the base branch;
  *  - the seed is upsert-by-label (`lib/seed-scenario-run.ts` constraint 2);
+ *  - the revert retire deletes by label, and a row already gone is a no-op
+ *    (issue #7702);
  *  - telemetry ingest re-reads its inputs;
  *  - the ref cleanup and the teardown are all `|| true` and already no-ops
  *    once they have run.
@@ -1134,6 +1157,9 @@ export function postMergeHousekeepingSteps(
         // dev` watcher that may be seconds behind or not running at all.
         primaryBranchFastForwardStep(opts.primaryCheckout),
         seedScenarioStep(opts.primaryCheckout, opts.pr),
+        // A revert's landing undoes the reverted PRs' seeds (issue #7702),
+        // after the fast-forward for the same reason the seed is.
+        retireRevertedScenariosStep(opts.primaryCheckout, opts.pr),
     ];
     // The GitHub-bound steps — `gaps:sync`, grammar residue, the claim
     // release, the umbrella detach — are NOT here (ADR 0154 §5, issue #5457):

@@ -1352,7 +1352,14 @@ export default defineSchema({
         prompt: v.optional(v.string()),
         schemaVersion: v.optional(v.number()),
         createdAt: v.number(),
-    }).index("by_user", ["userId"]),
+    })
+        .index("by_user", ["userId"])
+        // Label → id without scanning the table (issue #7702): the
+        // `scenario:rm` escape hatch and the post-merge retire of a reverted
+        // PR's scenario both resolve a label, and a scan of full specs blows
+        // the 1 s query limit under machine load. Every write path trims the
+        // label, so an exact `eq` on the trimmed label finds the row.
+        .index("by_label", ["label"]),
 
     // Verdicts given in a real game (issue #3402, PRD #3397, ADR 0124 §1).
     //
