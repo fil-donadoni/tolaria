@@ -3944,14 +3944,24 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     zone: "battlefield",
                     summoningSick: true,
                 },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
             ],
-            phase: "BEGINNING_OF_COMBAT",
+            phase: "DECLARE_ATTACKERS",
             activePlayer: "opp",
             priority: "me",
             turn: 3,
             landCount: 2,
             libraryCount: 20,
         },
+        // Issue #7705 — the opponent's turn is a window only once an attack
+        // the body could block is declared (CR 509.1); before it the
+        // animation defers to this very step (CR 117.3a).
+        setup: [{ kind: "declare-attackers", haltForDefenderResponse: true }],
         bot: "me",
         budget: { iterations: 200 },
         seeds: [0xb1ade, 1, 2, 3, 4],
@@ -3967,7 +3977,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "the animation is enumerated with no rollout-policy penalty: the flag survives the opponent's turn and a sick body can still block",
         },
-        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Control of the sick-body entry: the flag outlives the controller's turn, and there the body can block.",
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Control of the sick-body entry: the flag outlives the controller's turn, and there the body can block. Moved from BEGINNING_OF_COMBAT to the defender's declare-attackers window by issue #7705: on the opponent's turn the animation is a window only after an attack the body could block (Grizzly Bears, CR 509.1) is declared — before it the defender gets priority again in that step (CR 117.3a) and the animation is deferrable.",
     },
     {
         label: "manland animation: declines a tapped Mishra's Factory on its own turn",
@@ -16799,6 +16809,216 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             forbidden: [{ kind: "activate-ability", card: "Mishra's Factory" }],
         },
         note: "Issue #3490, the 'mana was the seat's only answer' half. The Mountain pays either the animation or Bolt, never both; killing the attacker outright beats trading the land for a block. Measured at authoring: casts Bolt on all five seeds. Asserted as forbidden-animate, not as an exact cast, so a different good answer cannot redden it.",
+    },
+    {
+        label: "pointless self-animation: does NOT animate Treetop Village facing a lone flyer it cannot block",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the lethal attacker having flying, which the animated body (no flying, no reach) cannot block, in place of a ground attacker",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Treetop Village", owner: "me", zone: "battlefield" },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 5,
+            libraryCount: 20,
+            life: { me: 4, opp: 20 },
+        },
+        // `opp` sends the attack; the walk stops at the DEFENDER's first
+        // priority window, the last one before blockers lock (CR 509.1).
+        setup: [{ kind: "declare-attackers", haltForDefenderResponse: true }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Treetop Village" }],
+        },
+        note: "Issue #7705 (a). Serra Angel's 4 flying power is lethal into 4 life, and the 3/3 trample Ape the {1}{G} buys cannot block it (CR 702.9b, enforced as a restriction at CR 509.1b), so the activation only spends the seat's open mana and exposes the land. Measured RED on the pre-fix engine on all five seeds at 400 iterations, settled by `mean-reward`: the leaf scored the body as lasting `creatures` material (+343) though it reverts at cleanup (CR 514.2) and cannot fight in this window. Green after the expiring-body valuation (the body is valued as the land it reverts to) and the allowed-windows guardrail.",
+    },
+    {
+        label: "pointless self-animation: animates Treetop Village to block a lethal ground attacker",
+        pairOf: {
+            anchor: "pointless self-animation: does NOT animate Treetop Village facing a lone flyer it cannot block",
+            discriminant: {
+                kind: "other",
+                detail: "the lethal attacker having flying, which the animated body (no flying, no reach) cannot block, in place of a ground attacker",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Treetop Village", owner: "me", zone: "battlefield" },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 5,
+            libraryCount: 20,
+            life: { me: 4, opp: 20 },
+        },
+        // `opp` sends the attack; the walk stops at the DEFENDER's first
+        // priority window, the last one before blockers lock (CR 509.1).
+        setup: [{ kind: "declare-attackers", haltForDefenderResponse: true }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Treetop Village" }],
+        },
+        note: "Issue #7705 (a), right-hand half: the same board with a blockable lethal attacker. Craw Wurm's 6 power is lethal into 4 life and only the animated 3/3 can block it (CR 509.1), so the opponent's declare-attackers window with a body that can legally block a declared attacker stays an allowed window and the expiring body keeps its creature value there. Measured at authoring: animates on all five seeds (`mean-reward`).",
+    },
+    {
+        label: "pointless self-animation: does NOT animate Treetop Village in response to a discard spell",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the spell on the stack being one a creature body changes nothing about",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Treetop Village", owner: "me", zone: "battlefield" },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Llanowar Elves", owner: "me", zone: "hand" },
+                { name: "Giant Growth", owner: "me", zone: "hand" },
+                { name: "Mind Rot", owner: "opp", zone: "hand" },
+                {
+                    name: "Swamp",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 3,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
+            priority: "opp",
+            turn: 5,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "cast", card: "Mind Rot", by: "opp", target: "me" }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Treetop Village" }],
+        },
+        note: "Issue #7705 (b). Mind Rot on the stack aimed at the Bot: being a creature changes nothing about a discard, and on the opponent's turn the body is useful only once an attack it could block is declared (CR 509.1) — so the stack does not lift the pointless reading. Measured RED on the pre-fix engine on all five seeds (`material-tiebreak`: the animation tied `pass` on mean reward and won the margin noise); green after, held by `hold-trick` through the allowed-windows guardrail.",
+    },
+    {
+        label: "pointless self-animation: does NOT animate Treetop Village in the opponent's precombat main",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the opponent's turn before attackers are declared",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Treetop Village", owner: "me", zone: "battlefield" },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Treetop Village" }],
+        },
+        note: "Issue #7705 (c). No attack is declared yet: the defender gets priority again in the declare-attackers step (CR 117.3a) and can animate then, knowing what attacks; the deterrence value of animating early is deliberately not credited. Already passing on the pre-fix engine (`last-window-deferral` / `material-tiebreak`), so NOT discriminating: it pins the window the rewritten guardrail now names pointless.",
+    },
+    {
+        label: "pointless self-animation: does NOT animate Treetop Village in its own upkeep",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the beginning phase, deferrable to the precombat main with the same attack",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Treetop Village", owner: "me", zone: "battlefield" },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "UPKEEP",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Treetop Village" }],
+        },
+        note: "Issue #7705, own-turn half of the arbitrary-window symptom. The body must be a creature when attackers are declared (CR 508.1a), and the precombat main buys exactly that attack, so animating in the upkeep only exposes the land for longer. Measured RED on the pre-fix engine on all five seeds (`material-tiebreak`); green after.",
     },
     {
         // Issue #5516 — the Bot as the FLIPPER of a coin-flip Random Reveal

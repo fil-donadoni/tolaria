@@ -374,6 +374,22 @@ export function isCreature(card: CardInstanceState): boolean {
     return card.types.includes("Creature");
 }
 
+/** Whether `card` is a creature only through an animation that expires THIS
+ *  turn (issue #7705): an until-end-of-turn effect ends at cleanup (CR 514.2),
+ *  an until-end-of-combat one at the end of the combat phase (CR 500.5a). Read off
+ *  the animation record's own duration — the layer system's, never a card
+ *  name — so an indefinite animation (CR 611.2b, Earthbend) or one lasting
+ *  into a later turn is lasting material and stays outside this reading. */
+export function isExpiringAnimatedBody(card: CardInstanceState): boolean {
+    const duration = card.animation?.duration;
+    return (
+        card.animation?.addedCreatureType === true &&
+        !!duration &&
+        !duration.skip &&
+        (duration.phase === "end-of-turn" || duration.phase === "end-of-combat")
+    );
+}
+
 /** CR 302.1 — a creature's activated ability with the tap or untap symbol in
  *  its activation cost can't be activated unless the creature has been under
  *  its controller's control continuously since the start of that controller's
