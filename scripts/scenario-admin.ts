@@ -9,7 +9,7 @@
 // the whole mechanism — the deployment needs no ungated door of its own, and
 // these commands call the same `listDebugScenarios` / `deleteDebugScenario`
 // the admin panel calls (`rm` resolves the label through the admin-gated
-// `debugScenarioIdsByLabel` index lookup, issue #7702).
+// `debugScenarioIdsByLabel` index lookup).
 //
 // Issue #3331 originally added a pair of ungated `internal*` functions here
 // because it read the `Forbidden` as "the CLI cannot reach admin functions"

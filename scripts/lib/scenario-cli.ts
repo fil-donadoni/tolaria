@@ -4,7 +4,7 @@
 // These live on the SCRIPT side, not in `convex/debugScenarioSpec.ts`, because
 // nothing on the server calls them: `ls` reads whole rows back from the
 // existing admin query `listDebugScenarios` and does its own projecting; `rm`
-// resolves ids through the label index (`scenarioIdLookup`, issue #7702). `debugScenarioSpec.ts` carries the decisions the MUTATIONS act on
+// resolves ids through the label index (`scenarioIdLookup`). `debugScenarioSpec.ts` carries the decisions the MUTATIONS act on
 // (`selectScenarioUpsert`, `selectEphemeralIdsToPrune`); putting a CLI-only
 // concern there would make the server module grow logic no server path reaches.
 

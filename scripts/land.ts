@@ -1119,7 +1119,7 @@ export function retireRevertedScenariosStep(
  *    on the base branch;
  *  - the seed is upsert-by-label (`lib/seed-scenario-run.ts` constraint 2);
  *  - the revert retire deletes by label, and a row already gone is a no-op
- *    (issue #7702);
+ *    (`retireRevertedScenariosStep`);
  *  - telemetry ingest re-reads its inputs;
  *  - the ref cleanup and the teardown are all `|| true` and already no-ops
  *    once they have run.
