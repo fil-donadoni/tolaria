@@ -12338,6 +12338,32 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #4758 — the passivity guard for Flametongue Kavu: a Serra Angel to kill is worth more than the potential spent, so the Bot casts. Green before and after the change.",
     },
+    // Issue #5045 — a conditional alternate win (CR 104.2b) is not latent
+    // worth. Thassa's Oracle's ETB ends on "if X >= library size, you win the
+    // game"; the latent reader valued that `if` as certain, so the card in
+    // hand carried the whole `MAX_LATENT_SCRIPT_VALUE` its ETB spends on
+    // entering and casting it always read as a loss. The win, when the
+    // predicate holds, is seen by the search itself (the real GRE resolves the
+    // trigger; `evaluate` scores `gameOver`), so the latent reading omits it.
+    {
+        label: "Conditional win not latent: casts Thassa's Oracle on an empty board with a full library",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [{ name: "Thassa's Oracle", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Thassa's Oracle" }],
+        },
+        note: "Issue #5045 — With 20 cards in library and devotion 2 the ETB only orders the top two cards, so the cast is a 1/3 body plus card selection. Before the change the latent reader priced the `if`'s `winGame` branch as certain (capped at `MAX_LATENT_SCRIPT_VALUE`), the hand outvalued every cast and the Bot passed. Proof of failure: valuing the conditional `winGame` again turns this entry red. The win itself stays pinned by \"alternate win: casts Thassa's Oracle when its trigger wins on the spot\".",
+    },
     // Issue #4895 — blade coverage for the cards the issue #4758 review named.
     {
         label: "opponent's choice: casts Ravenous Rats into a two-card hand",
