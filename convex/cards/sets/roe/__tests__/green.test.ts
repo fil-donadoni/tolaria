@@ -14,7 +14,6 @@ import { tryAutoCommitPendingCast } from "../../../../game";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import type { CardInstanceState } from "../../../../gre/state";
-import type { ManaCost } from "../../../types";
 
 const VENGEVINE = "51eb9f05-9d5a-4196-9329-626ce4793c42";
 const GRIZZLY_BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // {1}{G} Creature
@@ -34,10 +33,11 @@ function card(
     });
 }
 
-const COSTS: Record<string, ManaCost> = {
-    [GRIZZLY_BEARS]: { X: 1, G: 1 },
-    [DARK_RITUAL]: { B: 1 },
-};
+const COSTS: Record<string, NonNullable<GameState["pendingCast"]>["manaCost"]> =
+    {
+        [GRIZZLY_BEARS]: { X: 1, G: 1 },
+        [DARK_RITUAL]: { B: 1 },
+    };
 // An exact single-colour pool per spell, so no CR 601.2g spend choice parks.
 const POOLS: Record<string, Partial<Record<"B" | "G", number>>> = {
     [GRIZZLY_BEARS]: { G: 2 },
