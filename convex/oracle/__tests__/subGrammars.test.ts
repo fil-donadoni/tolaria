@@ -128,6 +128,11 @@ describe("descriptor sub-grammar (CR 109.1, CR 115.1)", () => {
         expect(accept(descriptorRule, "creature an opponent controls")).toEqual(
             { types: ["Creature"], controller: "opponent" }
         );
+        // Two players (ADR 0010): the one who isn't you is your opponent.
+        expect(accept(descriptorRule, "creature you don't control")).toEqual({
+            types: ["Creature"],
+            controller: "opponent",
+        });
         expect(accept(descriptorRule, "creature with flying")).toEqual({
             types: ["Creature"],
             requireAbility: "flying",
@@ -144,9 +149,9 @@ describe("descriptor sub-grammar (CR 109.1, CR 115.1)", () => {
         ).toEqual({ types: ["Creature"], mvFilter: { min: 3 } });
         // The whole point of the sub-grammar: a qualifier it cannot read must
         // fail the phrase, never leave the noun it modified standing alone.
-        expect(refuses(descriptorRule, "creature you don't control")).toBe(
-            true
-        );
+        expect(
+            refuses(descriptorRule, "creature of an opponent's choice")
+        ).toBe(true);
         expect(
             refuses(descriptorRule, "creature with a +1/+1 counter on it")
         ).toBe(true);
