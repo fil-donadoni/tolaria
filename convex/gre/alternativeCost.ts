@@ -175,6 +175,17 @@ export function handCardMatchesFilter(
     const cardId = card.card.id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     if (!def) return false;
+    return definitionMatchesFilter(def, filter, zone);
+}
+
+/** {@link handCardMatchesFilter} for a definition already in hand — the door
+ *  a name choice uses for a definition no registry id resolves (a meld pair's
+ *  combined back face, CR 712.19, issue #7640). */
+export function definitionMatchesFilter(
+    def: CardDefinition,
+    filter: EffectCardFilter,
+    zone: "hand" | "graveyard" = "hand"
+): boolean {
     // CR 113.6c — a static ability that functions outside the battlefield
     // overrides the printed type line for a card sitting in hand (Grist, the
     // Hunger Tide is a creature card there, so it pays a "discard a creature
@@ -333,7 +344,7 @@ export function handCardMatchesFilter(
     // function fell straight through to `return true`.
     if (
         filter.any !== undefined &&
-        !filter.any.some((clause) => handCardMatchesFilter(card, clause, zone))
+        !filter.any.some((clause) => definitionMatchesFilter(def, clause, zone))
     )
         return false;
     return true;

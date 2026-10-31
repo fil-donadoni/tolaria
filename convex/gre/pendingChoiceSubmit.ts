@@ -23,13 +23,21 @@ import {
     type GameState,
     type PendingChoice,
 } from "./state";
-import { handCardMatchesFilter } from "./alternativeCost";
+import {
+    definitionMatchesFilter,
+    handCardMatchesFilter,
+} from "./alternativeCost";
 import { writeTaggedNumber } from "./numberBinding";
 import { hasName as isChooseableName } from "../cards/cardNames";
+import { meldBackFaceStandIn } from "../cards/modalDfc";
 import type { CardDefinition, EffectCardFilter } from "../cards/types";
 import { finalizeAsEnters } from "./asEnters";
 import { checkStateBasedActions } from "./sba";
-import { lookupCardNameInIndex, tryGetCardByName } from "../cards";
+import {
+    lookupCardNameInIndex,
+    tryGetCardByName,
+    tryGetDefinition,
+} from "../cards";
 import { finalizeLandEntry } from "./playLand";
 import {
     commitChoiceAnswer,
@@ -343,6 +351,19 @@ function violatesNameRestriction(
     );
 }
 
+function nameRestrictionError(head: PendingChoice): string {
+    return head.nameRestriction === "no-land"
+        ? "Choose a nonland card name"
+        : "Choose a card name other than a basic land card name";
+}
+
+/** CR 712.4b — the stand-in for the combined back face of the meld pair whose
+ *  front card is `frontId`. */
+function meldBackStandInOf(frontId: string): CardDefinition | null {
+    const front = tryGetDefinition(frontId);
+    return (front && meldBackFaceStandIn(front)) ?? null;
+}
+
 /** CR 614.1c — the filter an as-enters `{ kind: "name", filter }` head declares
  *  (Meddling Mage's "choose a nonland card name"), or `undefined` when the head
  *  is unfiltered or is an ordinary mid-resolution `name-card`.
@@ -424,6 +445,19 @@ function resolveNameChoice(
     }
     const filter = asEntersNameFilter(state, head);
     let def: CardDefinition | null = null;
+    if (indexed.kind === "meld-back") {
+        // CR 712.19 — choosable, though it names no card (CR 712.4b): the
+        // restriction and filter read the combined face's own types.
+        def = meldBackStandInOf(indexed.id);
+        if (!def) return { error: "Not a recognized card name" };
+        if (violatesNameRestriction(head, def)) {
+            return { error: nameRestrictionError(head) };
+        }
+        if (filter !== undefined && !definitionMatchesFilter(def, filter)) {
+            return { error: "Not a legal card name for this choice" };
+        }
+        return { canonical: indexed.name };
+    }
     if (
         indexed.kind === "twin" ||
         head.nameRestriction !== undefined ||
@@ -456,12 +490,7 @@ function resolveNameChoice(
     // is derived from the head's own restriction, so Cabal Therapy does not
     // tell the player the basic-land rule it is not enforcing.
     if (def !== null && violatesNameRestriction(head, def)) {
-        return {
-            error:
-                head.nameRestriction === "no-land"
-                    ? "Choose a nonland card name"
-                    : "Choose a card name other than a basic land card name",
-        };
+        return { error: nameRestrictionError(head) };
     }
     // CR 614.1c — the as-enters `name` kind may DECLARE a filter narrowing the
     // legal name space (Meddling Mage's "choose a nonland card name"); a name

@@ -598,11 +598,33 @@ export type IndexedCardName =
     | { readonly kind: "unknown" }
     | { readonly kind: "twin" }
     | {
+          /** CR 712.19 — a meld pair's combined back face name: choosable,
+           *  but it names no card (CR 712.4b), so it resolves to no
+           *  definition. `id` is the FRONT card that declares it. */
+          readonly kind: "meld-back";
+          readonly id: string;
+          readonly name: string;
+      }
+    | {
           readonly kind: "printed";
           readonly id: string;
           readonly name: string;
           readonly chooseable: boolean;
       };
+
+/** CR 712.19 — the choice-domain name `name` is, when it is no card's lookup
+ *  key: a meld pair's combined back face name, which `chooseableById` holds
+ *  beside its front card's names but `nameIndex` deliberately does not (it
+ *  would resolve a LOOKUP — a deck row, a scenario spec — to the front card).
+ *  A scan, run only on a name the index does not know. */
+function meldBackNameIn(name: string): IndexedCardName | undefined {
+    const key = name.toLowerCase();
+    for (const [id, names] of chooseableById) {
+        const hit = names.find((n) => n.toLowerCase() === key);
+        if (hit !== undefined) return { kind: "meld-back", id, name: hit };
+    }
+    return undefined;
+}
 
 /** Name-a-card validation's lookup: resolves a name through the name index
  *  and the index's choosable names, building no definition and so opening no
@@ -610,7 +632,7 @@ export type IndexedCardName =
  *  `hasName(def, def.name)` give, for a printed card. */
 export const lookupCardNameInIndex = (name: string): IndexedCardName => {
     const id = nameIndex.get(name.toLowerCase());
-    if (id === undefined) return { kind: "unknown" };
+    if (id === undefined) return meldBackNameIn(name) ?? { kind: "unknown" };
     if (isTwinDefinitionId(id)) return { kind: "twin" };
     const printed = handWrittenEntryById.get(id)?.[1] ?? compiledNameOf(id);
     if (printed === undefined) return { kind: "unknown" };
