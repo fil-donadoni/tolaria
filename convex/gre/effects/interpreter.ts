@@ -4521,20 +4521,29 @@ export const OP_EXECUTORS: {
                 // set before the move, and a line set AFTER it arrives too late
                 // for `emitPermanentEntered` — the event then announced a
                 // creature that was never on the battlefield as one.
+                //
+                // CR 122.6 / 614.1c (issue #1372) — `entersWithCounters` ("with a
+                // -1/-1 counter on it", Persist) rides the same way, for the
+                // same reason: a trailing `counters` Op lands after the entry
+                // event, so the permanent would be announced without them.
+                const entersAs =
+                    "entersAs" in op && op.entersAs ? op.entersAs : undefined;
+                const entryCounters =
+                    "entersWithCounters" in op && op.entersWithCounters
+                        ? op.entersWithCounters
+                        : undefined;
                 const entered = ctx.returnToBattlefield(
                     owner,
                     target.id,
                     recoveredZone,
                     controllerId,
-                    ("entersAs" in op && op.entersAs) ||
-                        attachToId !== undefined
+                    entersAs || attachToId !== undefined || entryCounters
                         ? {
-                              ...("entersAs" in op && op.entersAs
-                                  ? { entersAs: op.entersAs }
-                                  : {}),
+                              ...(entersAs ? { entersAs } : {}),
                               ...(attachToId !== undefined
                                   ? { attachTo: attachToId }
                                   : {}),
+                              ...(entryCounters ? { entryCounters } : {}),
                           }
                         : undefined
                 );

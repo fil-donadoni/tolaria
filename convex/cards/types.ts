@@ -4942,13 +4942,22 @@ export interface SpellContext {
      *
      *  `opts.attachTo` (CR 303.4f) is the battlefield permanent id an Aura
      *  enters attached to; the effect specifies the host, so no host prompt is
-     *  raised. An illegal or absent host leaves the Aura in its zone (CR 303.4g). */
+     *  raised. An illegal or absent host leaves the Aura in its zone (CR 303.4g).
+     *
+     *  `opts.entryCounters` (CR 122.6 / 614.1c, issue #1372) are counters the
+     *  permanent is given AS it enters ("with a -1/-1 counter on it" —
+     *  Persist), placed inside the entry funnel before the ETB notification
+     *  and carried across an as-enters park (CR 614.12a). */
     returnToBattlefield: (
         playerId: string,
         cardInstanceId: string,
         fromZone: "graveyard" | "exile",
         controllerId?: string,
-        opts?: { entersAs?: EntryTypeLine; attachTo?: string }
+        opts?: {
+            entersAs?: EntryTypeLine;
+            attachTo?: string;
+            entryCounters?: Readonly<Record<string, number>>;
+        }
     ) => boolean;
     /** CR 400.7 / 614-batch (issue #1094) — the SIMULTANEOUS twin of
      *  `returnToBattlefield`: returns a whole set of graveyard (or, with
@@ -11550,6 +11559,19 @@ export interface PermanentLeftEvent {
     subtypes?: ReadonlyArray<string>;
     /** Whether the leaving permanent was an Aura (CR 303.4). */
     wasAura: boolean;
+    /** The counters the permanent had at the moment it left the battlefield
+     *  (CR 603.10a last known information; CR 122.2 — the counters themselves
+     *  cease to exist with the zone change, so the card in the new zone is a
+     *  new object with none). Same shape as the permanent's own `counters`
+     *  map. Read by Persist's intervening-if ("if it had no -1/-1 counters on
+     *  it", CR 702.79a), which cannot read the card in the graveyard: that
+     *  object never had a counter, so the condition would always hold and the
+     *  permanent would return forever. Captured in the departure funnel
+     *  BEFORE the counter strip, from the pre-batch state when the departure
+     *  is a state-based action (CR 704.8 — see `checkCounterAnnihilationSBA`'s
+     *  placement in `sba.ts`). Omitted when it had no counters; optional so
+     *  older serialized events deserialize as "no counters". */
+    countersBeforeLeave?: Readonly<Record<string, number>>;
     /** Host id the leaving Aura was attached to (CR 303.4b). Read by
      *  Animate Dead's LTB-trigger to identify the reanimated creature to
      *  sacrifice. Undefined for non-Aura permanents or unattached Auras. */
@@ -17058,6 +17080,27 @@ export type EffectOp =
            *  helpers, so CR 400.7 still restores the PRINTED type line when the
            *  permanent later leaves. */
           entersAs?: EntryTypeLine;
+          /** CR 122.6 / 614.1c (issue #1372) — counters the returning
+           *  permanent is given AS it enters: "return it to the battlefield
+           *  under its owner's control with a -1/-1 counter on it" (Persist,
+           *  CR 702.79a). Keyed like the permanent's own `counters` map
+           *  (`{ "-1/-1": 1 }`). Valid only with `target` and
+           *  `to: "battlefield"` (validator-enforced).
+           *
+           *  A trailing `counters` Op CANNOT express this: it places the
+           *  counter AFTER the entry, so the PERMANENT_ENTERED event and every
+           *  "whenever a creature enters" watcher would see a Woodfall Primus
+           *  return as a 6/6 that only then shrinks — the shape
+           *  `entersWithCounters.test.ts` (issue #1693) forbids. And
+           *  `CardDefinition.entersWith.counters` is a static declaration
+           *  applied on EVERY entry, so it cannot say "only when returned by
+           *  this effect". Threaded to `returnToBattlefield`'s
+           *  `opts.entryCounters`, the same entry-funnel slot a discard
+           *  replacement's "put it onto the battlefield with two +1/+1
+           *  counters" uses (issue #3814): placed after the CR 400.7
+           *  entry-side reset, before `emitPermanentEntered`, from the effect
+           *  rather than an ability of the entering permanent (`fromCreatingEffect`). */
+          entersWithCounters?: Readonly<Record<string, number>>;
           /** CR 303.4f — the host a returning AURA enters attached to, for
            *  "return this card from your graveyard to the battlefield attached
            *  to that creature". CR 303.4f's host choice applies only when the
