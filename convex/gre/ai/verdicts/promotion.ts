@@ -69,9 +69,11 @@ import {
 import { sha256Hex } from "./sha256";
 import type { Verdict, VerdictAttestation, VerdictResolution } from "./types";
 
-/** Where the committed `DEFAULT_EVAL_WEIGHTS` literal lives, relative to the
- *  repo root — the file a promotion rewrites beside the lock. */
-export const EVAL_WEIGHTS_PATH = "convex/gre/ai/evalWeights.ts";
+/** Where the committed fitted literal (`FITTED_EVAL_WEIGHTS`, spread into
+ *  `DEFAULT_EVAL_WEIGHTS`) lives, relative to the repo root — the file a
+ *  promotion rewrites beside the lock, and a derived path the base writes
+ *  (`derive:sync`, issue #7653). */
+export const EVAL_WEIGHTS_PATH = "convex/gre/ai/fittedEvalWeights.ts";
 
 /** The environment variables the promotion script hands its engine step's
  *  input and output file paths through (`verdict-promotion.spec.ts`). */

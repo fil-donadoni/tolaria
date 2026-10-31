@@ -1,13 +1,14 @@
 #!/usr/bin/env bun
-// `bun run bot:refit [--check]` — re-fit the Bot's weights and regenerate every
+// `bun run bot:refit [--check | --derive]` — re-fit the Bot's weights and regenerate every
 // pin that derives from them, in one step (issue #6690, ADR 0158 §3).
 // The plan and its rationale: `scripts/lib/bot-refit.ts`.
 import { spawnSync } from "node:child_process";
 import { refitPlan } from "./lib/bot-refit";
+import { corpusExcluded } from "./lib/corpus-exclusion";
 
 function main(): number {
     const args = process.argv.slice(2);
-    const plan = refitPlan(args);
+    const plan = refitPlan(args, { corpusExcluded: corpusExcluded() });
     // `--check` reports EVERY lagging guard in one run; a refit stops at the
     // first failed step, since the next one reads what that step wrote.
     const keepGoing = args.includes("--check");

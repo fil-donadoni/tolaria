@@ -1,3 +1,4 @@
+import { REFIT_ARTIFACT_PATHS } from "./bot-refit";
 import { CORPUS_CACHE_REL } from "./corpus-cache";
 import { LEDGER_PATH } from "./cr-ledger-path";
 
@@ -140,6 +141,18 @@ export interface RegeneratedArtifact {
     readonly requiresCorpus: boolean;
 }
 
+/** One row per refit artefact (issue #7653): `bot:refit --derive` writes
+ *  them all — the fitted weights, then the pins recorded over them. */
+const REFIT_ARTIFACTS: readonly RegeneratedArtifact[] =
+    REFIT_ARTIFACT_PATHS.map((path) => ({
+        path,
+        script: "bot:refit",
+        args: ["--derive"],
+        wholeFileState:
+            "the whole file (the Weight Fit's vector, or a figure recorded over it)",
+        requiresCorpus: false,
+    }));
+
 export const REGENERATED_ARTIFACTS: readonly RegeneratedArtifact[] = [
     {
         path: "data/oracle-compiled.json",
@@ -227,6 +240,11 @@ export const REGENERATED_ARTIFACTS: readonly RegeneratedArtifact[] = [
         wholeFileState: "the whole file (mirror of src/CLAUDE.md)",
         requiresCorpus: false,
     },
+    // Issue #7653 — the Bot's refit artefacts: every Bot PR refits, so two
+    // of them always collided here (20 of a week's 27 rebase conflicts). The
+    // base writes them (`derive:sync`), so a conflict takes the base's bytes
+    // (`BASE_OWNED_PATHS`) and the draft refits in its own tree.
+    ...REFIT_ARTIFACTS,
 ] as const;
 
 // The gitignored Card Corpus cache, repo-relative — defined beside the cache's
@@ -619,9 +637,10 @@ export function planResolution(input: {
 
 /**
  * The derived paths the BASE writes after each merge (ADR 0157 § Option 1b,
- * issue #6248) and a PR never carries: `derive:sync`'s five less the
- * lockfile, whose rows ARE the PR's. Restated from `lib/derive-sync.ts`
- * (a leaf this module must not drag the compiler through); pinned equal by
+ * issue #6248) and a PR never carries: `derive:sync`'s paths less the
+ * lockfile, whose rows ARE the PR's — the catalogue and the Bot's refit
+ * artefacts (issue #7653). Restated from `lib/derive-sync.ts` (a leaf this
+ * module must not drag the compiler through); pinned equal by
  * `generated-artifact-merge.test.ts`.
  */
 export const BASE_OWNED_LOCKFILE = "data/oracle-compiled.json";
@@ -630,6 +649,7 @@ export const BASE_OWNED_PATHS: readonly string[] = [
     "data/catalogue/packed-corpus.json",
     "data/catalogue/definition-index.json",
     "data/catalogue/search-index.json",
+    ...REFIT_ARTIFACT_PATHS,
 ];
 
 function dedupe(paths: readonly string[]): string[] {

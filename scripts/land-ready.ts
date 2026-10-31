@@ -362,19 +362,33 @@ export interface RestoreGit {
 
 /**
  * Put the derived state the PR carries back to the merge-base (ADR 0157
- * § Option 1b, issue #6248) and commit it: the catalogue files checked out
- * whole, the lockfile's header hashes rewritten over the PR's rows. Returns
- * what was carried (empty = no commit made). The push is the caller's.
+ * § Option 1b, issue #6248) and commit it: the catalogue files and the Bot
+ * refit artefacts checked out whole, the lockfile's header hashes rewritten
+ * over the PR's rows. Returns what was carried (empty = no commit made). The
+ * push is the caller's. `commit: false` stages the restore and leaves the
+ * commit to the caller — `derive:restore`, the queue fixup's `derived` row
+ * (issue #7653), which commits every regeneration as one.
  */
 export function restoreDerivedState(
     cwd: string,
     base: string,
     git: RestoreGit,
-    log: (line: string) => void
+    log: (line: string) => void,
+    opts: { readonly commit?: boolean } = {}
 ): DerivedCarried {
     const mergeBase = git.run(["merge-base", base, "HEAD"]).trim();
     const changed = git
-        .run(["diff", "--name-only", mergeBase, "HEAD", "--", ...DERIVED_PATHS])
+        // `--diff-filter=a`: a derived path the PR adds has no merge-base
+        // bytes — its first ones are the PR's (issue #7653).
+        .run([
+            "diff",
+            "--name-only",
+            "--diff-filter=a",
+            mergeBase,
+            "HEAD",
+            "--",
+            ...DERIVED_PATHS,
+        ])
         .split("\n")
         .filter((p) => p !== "");
     const carried = derivedCarried({
@@ -414,13 +428,14 @@ export function restoreDerivedState(
         );
         git.run(["add", "--", LOCKFILE_PATH]);
     }
+    if (opts.commit === false) return carried;
     // `--no-verify`: the bytes are the merge-base's, not a human's, and the
     // pre-commit hook would lint a 20 MB generated file.
     git.run(["commit", "-q", "--no-verify", "-m", RESTORE_COMMIT_SUBJECT]);
     return carried;
 }
 
-const REAL_RESTORE_GIT: RestoreGit = {
+export const REAL_RESTORE_GIT: RestoreGit = {
     run: (args) => git(args),
     show: (ref, path) => {
         const r = spawnSync("git", ["show", `${ref}:${path}`], {
