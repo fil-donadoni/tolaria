@@ -12976,7 +12976,80 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
         expect: { moves: [{ kind: "cast-spell", card: "Wistfulness" }] },
-        note: 'Issue #4934: the evoke cost `{G/U}{G/U}` is two HYBRID pips. `planManaPayment` ignored the `"G/U"` key (an empty plan) and `searchPayableOwnAlternativeCosts` failed closed on a hybrid leg, so the Bot could not evoke the ECL trio at all; the printed `{3}{G/U}{G/U}` cast was offered on three Forests with the hybrid pips unpaid. Two Forests pay the evoke (`{G}{G}` spent, so the ETB exiles Sol Ring). STRETCH, measured: the move is now ENUMERATED with a two-land tap plan (pinned by `own-alternative-cost-cast.bot.test.ts`), but the search passes on 5/5 seeds — whether trading the card for the exile is worth it is a valuation question, not this issue\'s.',
+        note: 'Issue #4934: the evoke cost `{G/U}{G/U}` is two HYBRID pips. `planManaPayment` ignored the `"G/U"` key (an empty plan) and `searchPayableOwnAlternativeCosts` failed closed on a hybrid leg, so the Bot could not evoke the ECL trio at all; the printed `{3}{G/U}{G/U}` cast was offered on three Forests with the hybrid pips unpaid. Two Forests pay the evoke (`{G}{G}` spent, so the ETB exiles Sol Ring). STRETCH, measured: the move is now ENUMERATED with a two-land tap plan (pinned by `own-alternative-cost-cast.bot.test.ts`), but the search passes on 5/5 seeds — whether trading the card for the exile is worth it is a valuation question, not this issue\'s. Issue #7561: until then the in-tree cast also carried no `notedManaSpent`, so the `{G}{G}` ETB never fired inside the search at all; it fires now and the search still passes 5/5, so what remains is the valuation question alone.',
+    },
+    // Issue #7561 — the search's cast commit stamps `notedManaSpent` from the
+    // tap plan. A DISCRIMINATING PAIR on one board: two Mountains pay Vibrance's
+    // evoke `{R/G}{R/G}` with `{R}{R}`, so its ETB deals 3 damage. Only the
+    // opposing threat differs — a 4-toughness Serra Angel the 3 damage cannot
+    // kill, then an MV-2 3/3 Watchwolf it can.
+    {
+        label: "discriminating pair: does NOT evoke Vibrance into a Serra Angel its 3 damage cannot kill",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the opposing threat has 3 toughness (Watchwolf), not 4 (Serra Angel)",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Vibrance", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 3, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Vibrance" }] },
+        note: "Issue #7561, the anchor: the evoke's 3 damage cannot kill a 4/4, so evoking throws the card away for nothing. Measured pass on 5/5 seeds with and without the fix; its right-hand half is what the fix moves.",
+    },
+    {
+        label: "discriminating pair: evokes Vibrance off two Mountains to kill a lethal MV-2 Watchwolf",
+        pairOf: {
+            anchor: "discriminating pair: does NOT evoke Vibrance into a Serra Angel its 3 damage cannot kill",
+            discriminant: {
+                kind: "card",
+                detail: "the opposing threat has 3 toughness (Watchwolf), not 4 (Serra Angel)",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Vibrance", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Watchwolf",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 3, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Vibrance" }] },
+        note: "Issue #7561: at 3 life the 3/3 Watchwolf is lethal next turn, and the evoke paid `{R}{R}` is the only answer. The search paid mana through the coarse tap plan, which recorded no per-colour spend, so the cast reached the stack with no `notedManaSpent`, the ETB condition read 0 red and never fired, and the evoke looked like throwing a card away: pass on 5/5 seeds. `searchCastManaSpent` (`gre/searchTapPlan.ts`) rebuilds the record from the tap plan; cast on 5/5. The Converge entry the issue names (Prismatic Ending) needs the card itself, issue #7246.",
     },
     // Issue #4217 (founding case of PRD #4754) — Snapcaster Mage. A
     // DISCRIMINATING PAIR on one board: the only difference is whether the
