@@ -877,7 +877,7 @@ describe("crewPowerBonus on a created token (CR 702.122b, issue #1863)", () => {
         expect(isCreature(shorikai)).toBe(true);
     });
 
-    it("the same 1/1 token WITHOUT the rider can't reach Crew 8 (CR 602.5b)", () => {
+    it("the same 1/1 token WITHOUT the rider can't reach Crew 8 (CR 601.2h)", () => {
         const state = shorikaiBoard(PLAIN_PILOT_SCRIPT_ID);
         expect(
             state.players[0].battlefield.filter((c) => c.isToken)
