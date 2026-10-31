@@ -127,6 +127,8 @@ export const listScopeCardRatings = query({
             name: v.string(),
             dbRating: v.union(v.number(), v.null()),
             seedRating: v.union(v.number(), v.null()),
+            fallbackRating: v.number(),
+            isFallback: v.boolean(),
         })
     ),
     handler: async (ctx, { scope }): Promise<ScopeCardRating[]> => {

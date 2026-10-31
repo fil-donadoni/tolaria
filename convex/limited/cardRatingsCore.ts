@@ -26,7 +26,7 @@
 // A ctx-owning read/write path belongs in `cardRatings.ts`; a pure
 // layering/enumeration helper belongs here. Both halves still share the one
 // `cardRatings` table and the one `(scope, cardId)` key discipline.
-import { getPickRating } from "./pickRatings";
+import { getPickRating, getScopeMedianRating } from "./pickRatings";
 import { getBoosterConfig } from "./registry";
 import { buildCubePool, isCubeSource } from "./cube";
 import { resolveCardName } from "../cards";
@@ -125,6 +125,11 @@ export interface ScopeCard {
 export interface ScopeCardRating extends ScopeCard {
     dbRating: number | null;
     seedRating: number | null;
+    /** The scope's median hand rating (issue #7652) — what the reader serves
+     *  for this card while it has neither layer. */
+    fallbackRating: number;
+    /** `true` when neither layer rates the card: "manual rating missing". */
+    isFallback: boolean;
 }
 
 /** Enumerates the distinct cards of a scope — a Draftable Set's Booster
@@ -182,11 +187,18 @@ export function buildScopeCardRatings(
     getDbRating: GetDbRating
 ): ScopeCardRating[] {
     const normalizedScope = scope.toLowerCase();
-    return cards.map((card) => ({
-        ...card,
-        dbRating: getDbRating(normalizedScope, card.cardId),
-        seedRating: getPickRating(normalizedScope, card.cardId),
-    }));
+    const fallbackRating = getScopeMedianRating(normalizedScope);
+    return cards.map((card) => {
+        const dbRating = getDbRating(normalizedScope, card.cardId);
+        const seedRating = getPickRating(normalizedScope, card.cardId);
+        return {
+            ...card,
+            dbRating,
+            seedRating,
+            fallbackRating,
+            isFallback: dbRating === null && seedRating === null,
+        };
+    });
 }
 
 /** One `cardRatings` row as `listScopeCardRatingsForReplay`

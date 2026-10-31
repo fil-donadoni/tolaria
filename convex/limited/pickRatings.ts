@@ -186,3 +186,48 @@ export function validateCubePickRatingFile(
 
     return { valid: errors.length === 0, errors };
 }
+
+/** What the fallback reads for a scope with no hand ratings at all (an empty
+ *  or absent file): the midpoint of the `[PICK_RATING_MIN, PICK_RATING_MAX]`
+ *  scale — "neither a bomb nor filler". Issue #7652. */
+export const PICK_RATING_EMPTY_SCOPE_FALLBACK =
+    (PICK_RATING_MIN + PICK_RATING_MAX) / 2;
+
+/** A Pick Rating read that says whether the value is the scope's fallback. */
+export interface PickRatingReading {
+    rating: number;
+    /** `true` when no hand rating exists and `rating` is the scope median. */
+    fallback: boolean;
+}
+
+/** The median of a scope's hand ratings (the checked-in file's values), or
+ *  `PICK_RATING_EMPTY_SCOPE_FALLBACK` when the scope has none. Even count →
+ *  mean of the two middle values. */
+export function getScopeMedianRating(setCode: string): number {
+    const file = getPickRatingFile(setCode);
+    const values = file
+        ? Object.values(file.ratings)
+              .filter(isValidRating)
+              .sort((a, b) => a - b)
+        : [];
+    if (values.length === 0) return PICK_RATING_EMPTY_SCOPE_FALLBACK;
+    const mid = Math.floor(values.length / 2);
+    return values.length % 2 === 1
+        ? values[mid]
+        : (values[mid - 1] + values[mid]) / 2;
+}
+
+/** Reads a card's Pick Rating, never `null` (issue #7652): a hand rating
+ *  reads as itself with `fallback: false`; an unrated card reads the scope's
+ *  median with `fallback: true`, so a pool card missing its hand value
+ *  is never an error and never goes unnoticed (the Admin panel marks it).
+ *  Not yet consulted by the Bot's pick path (`resolveEventPickRating` still
+ *  yields `null` → Pick Heuristic); wiring it there is a Bot change. */
+export function readPickRating(
+    setCode: string,
+    cardId: string
+): PickRatingReading {
+    const rating = getPickRating(setCode, cardId);
+    if (rating !== null) return { rating, fallback: false };
+    return { rating: getScopeMedianRating(setCode), fallback: true };
+}

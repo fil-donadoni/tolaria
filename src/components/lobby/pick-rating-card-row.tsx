@@ -74,11 +74,13 @@ export default function PickRatingCardRow({
             <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-sm text-text">{card.name}</span>
                 <span className="text-[11px] text-text-muted">
-                    {effectiveRating === null
-                        ? "Unrated (Pick Heuristic only)"
-                        : isOverride
-                          ? `Override: ${effectiveRating}`
-                          : `Seed default: ${effectiveRating}`}
+                    {card.isFallback
+                        ? `Manual rating missing (median fallback: ${card.fallbackRating})`
+                        : effectiveRating === null
+                          ? "Unrated (Pick Heuristic only)"
+                          : isOverride
+                            ? `Override: ${effectiveRating}`
+                            : `Seed default: ${effectiveRating}`}
                 </span>
             </div>
             <Input
