@@ -414,7 +414,8 @@ const SENTINELS_FILE = join(
     "lane-sentinels.json"
 );
 
-/** `SENTINELS_FILE`'s files, or `null` while it does not exist. */
+/** `SENTINELS_FILE`'s files, or `null` while it does not exist — the set
+ *  as this checkout holds it now, so a past RED is judged by today's set. */
 function laneSentinels(): string[] | null {
     let text: string;
     try {

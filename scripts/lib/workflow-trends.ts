@@ -950,7 +950,7 @@ export function parseSentinels(text: string | null): string[] | null {
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface Trends {
-    version: 2;
+    version: 3;
     window: TrendWindow;
     throughput: Throughput;
     drain: DrainForecast;
@@ -974,7 +974,7 @@ export function weeklyTrends(f: TrendFacts): Trends {
     const episodes = landingEpisodes(f);
     const reds = redEpisodes(f);
     return {
-        version: 2,
+        version: 3,
         window: f.window,
         throughput: tp,
         drain: drainForecast(f, tp),
