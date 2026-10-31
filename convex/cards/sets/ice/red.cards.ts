@@ -38,35 +38,8 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // `scheduleDelayedTrigger`, and the combat read getters (`getIsAttacking`,
 // `getBlockersByAttacker`, attack/block-restriction static effects).
 //
-// DEFERRED (remain commented stubs, owned by a later cluster) (tracked-by: #2785):
-//   • Cumulative upkeep — Brand of Ill Omen (ADR 0042 cluster).
-//   • Snow-matters — Avalanche (destroy snow lands), Barbarian Guides (snow
-//     landwalk grant), Glacial Crevasses / Goblin Ski Patrol / Karplusan Giant
-//     (snow Mountain cost / requirement), Melting (un-snow lands) (no snow
-//     supertype filter / snow-evasion plumbing yet — snow cluster).
-//   • Divided-as-you-choose damage / counters — Fire Covenant, Fiery Justice,
-//     Meteor Shower, Spoils of War: SHIPPED (#664). `dealDamageDividedAsChosen`
-//     / `distributeCountersAsChosen` + the `divideAsChosen` target requirement
-//     implement player-chosen ≥1-each division (CR 601.2d / 120.4), plus the
-//     pay-X-life additional cost (Fire Covenant) and cast-time graveyard-derived
-//     X (Spoils of War).
-//   • Next-upkeep delayed cantrip — Flare, Panic ("draw a card at the beginning
-//     of the next turn's upkeep"): ACTIVE (#660 — the `next-upkeep` timing
-//     shipped).
-//   • Count-of-declared-attackers attack restrictions — Errantry ("can only
-//     attack alone"), Orcish Conscripts ("can't attack/block unless two other
-//     creatures attack/block"): ACTIVE (#729). The `declared-attack-restriction`
-//     / `declared-block-restriction` static-effect kinds read the COMPLETE
-//     declared set and are evaluated at attacker/blocker confirmation
-//     (`validateDeclaredAttackers` / `validateDeclaredBlockers`), the mirror of
-//     the menace `validateMinimumBlockers` check.
-//   • Other specialized interactions — Chaos Moon (parity mana substitution),
-//     Earthlink (dies→sac-land), Ghostly Flame (colourless-damage-source
-//     static), Melee / Monsoon (choose-blocks / Island-count end-step),
-//     Orcish Farmer (land-type change), Mountain Titan (cast-trigger counter
-//     grant). Curse of Marit Lage (Island untap-lock) is IMPLEMENTED below as
-//     the Wrath-of-Marit-Lage twin. Each remaining card needs a primitive not
-//     yet built; flagged for its capability cluster.
+// Cards of this set not defined in this file are owned by the Oracle compiler (ADR 0137): their
+// compile state and Grammar Gaps (gaps:sync) decide the work.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Aggression — {2}{R} Aura on a non-Wall creature. Grants first strike + trample

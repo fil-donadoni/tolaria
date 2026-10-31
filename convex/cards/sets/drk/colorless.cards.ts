@@ -20,9 +20,9 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 // (Dark Sphere half-from-source + Scarecrow flying-source-all), and the
 // `manaAmount`-from-counters read (City of Shadows). Costs/types/subtypes/P/T
 // validated against MTGJSON data/json/DRK.json; modern Scryfall oracle text is
-// authoritative (ADR 0004). Two cards are deferred (tracked-by: #2785) at the foot of this section
-// (Runesword, War Barge) — they need a "note a creature, destroy it if THIS
-// leaves the battlefield this turn" delayed-self-LTB mechanism the engine lacks.
+// authoritative (ADR 0004).
+// Cards of this set not defined in this file are owned by the Oracle compiler (ADR 0137): their
+// compile state and Grammar Gaps (gaps:sync) decide the work.
 // ═════════════════════════════════════════════════════════════════════════════
 
 // Barl's Cage — "{3}: Target creature doesn't untap during its controller's next
@@ -469,7 +469,7 @@ export const towerOfCoireall = defineCard(() => ({
 // City of Shadows — "{T}, Exile a creature you control: Put a storage counter on
 // this land.\n{T}: Add {C} for each storage counter on this land." (CR 605
 // activated abilities. The first's "Exile a creature you control" is modeled as
-// a creature TARGET you control (benign timing simplification (tracked-by: #2785), flagged: the cost
+// a creature TARGET you control (timing differs, tracked-by: #7632: the cost
 // union has no exile-a-permanent cost). The second is a mana ability whose
 // colorless output is computed from the source's storage counters via
 // `manaAmount`, CR 106.1 / 605.1a.)
@@ -626,71 +626,6 @@ export const safeHaven = defineCard(() => ({
         }),
     ],
 }));
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Deferred (tracked-by: #2785) — these four DRK White cards each need a genuinely new engine
-// capability that the free tranche does NOT ship. They are intentionally NOT
-// registered yet (no exported CardDefinition) to keep the card pool honest; the
-// definitions land with their mechanic. Flagged in the PR. TODO(#411):
-//
-//   • Brainwash (Aura) — "Enchanted creature can't attack unless its controller
-//     pays {3}." The ATTACK TAX itself now ships end to end (the
-//     `attack-mana-tax` static, its payment prompt and its UI — Propaganda /
-//     Windborn Muse / Elephant Grass, #733/#1053), so the "no cost primitive"
-//     claim recorded here is stale. What is still missing is one axis: the tax
-//     is DIRECTED — the collector skips every source the ATTACKING player
-//     controls before the per-attacker predicate runs — so an aura on your own
-//     creature can never tax that creature's attack. tracked-by: #2128.
-//
-//   • Blood of the Martyr (Instant) — "Until end of turn, if damage would be
-//     dealt to any creature, you may have that damage dealt to you instead."
-//     Needs a turn-wide, ANY-creature, OPTIONAL damage-redirection shield. The
-//     shipped redirect shields are one-shot and bound to a specific target
-//     instance; none covers "every creature, repeatedly, may-redirect".
-//
-//   • Festival (Instant) — "Cast this spell only during an opponent's upkeep.
-//     Creatures can't attack this turn." Needs (a) a CAST-TIMING restriction
-//     ("only during an opponent's upkeep" — no casting-timing mechanism exists)
-//     and (b) a turn-scoped GLOBAL "creatures can't attack" flag.
-//
-//   • Cleansing (Sorcery) — "For each land, destroy that land unless any player
-//     pays 1 life." Needs a per-land loop offering EVERY player (APNAP) the
-//     option to PAY LIFE to save it. `requestMayPay` pays mana for a single
-//     player; there is no life-payment option primitive and no any-player loop.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Deferred — two DRK BLUE cards (#412) each need an unbuilt engine capability
-// that the free tranche does NOT ship. Intentionally NOT registered (no exported
-// CardDefinition) to keep the pool honest; flagged in the PR. TODO(#412):
-//
-//   • Leviathan (Creature) — "Trample\nThis creature enters tapped and doesn't
-//     untap during your untap step.\nAt the beginning of your upkeep, you may
-//     sacrifice two Islands. If you do, untap this creature.\nThis creature
-//     can't attack unless you sacrifice two Islands. (This cost is paid as
-//     attackers are declared.)" Every clause but the last is free-tranche
-//     (entersTapped + `does-not-untap` keyword + may-pay-to-untap upkeep
-//     trigger — the Island Fish Jasconius template). The last clause is an
-//     ATTACK COST: sacrificing two Islands as a cost paid WHEN attackers are
-//     declared. The attack-cost seam now exists — the `attack-sacrifice-tax`
-//     static charges a sacrifice at declare-attackers (Flooded Woodlands,
-//     #733) — so the "no cost-payment plumbing" claim recorded here is stale.
-//     It is not yet PARAMETRIC, which is what this card needs on both axes:
-//     the sacrificed permanent is hardcoded to a land filter at the payment
-//     site (Leviathan wants Islands specifically) and the per-attacker count is
-//     fixed at one (Leviathan wants two). tracked-by: #2129.
-//
-//   • Tangle Kelp (Aura) — "Enchant creature\nWhen this Aura enters, tap
-//     enchanted creature.\nEnchanted creature doesn't untap during its
-//     controller's untap step if it attacked during its controller's last
-//     turn." The ETB tap is free-tranche, but the untap-prevention is
-//     CONDITIONAL on "attacked during its controller's LAST turn" — a
-//     cross-turn attack history that the engine does not persist
-//     (`hasAttackedThisTurn` is cleared at every CLEANUP) — AND it must be a
-//     conditional, host-scoped untap restriction re-evaluated each untap step
-//     (the `does-not-untap` keyword is unconditional; `keyword-grant` applies
-//     once at attach, not per-step). Both are unbuilt (tracked-by: #2785); defer the whole card.
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C3 — Mana-production lookup / replacement (#420). Three cards that read or

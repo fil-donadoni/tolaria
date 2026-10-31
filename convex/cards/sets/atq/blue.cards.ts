@@ -15,15 +15,13 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // Hurkyl's Recall — {1}{U} Instant. "Return all artifacts target player owns
 // to their hand." Targets a player, then bounces every artifact that player
 // owns (CR 400.7). `returnToHand` already routes each card to its OWNER's
-// hand. Implementation note / divergence (tracked-by: #2785): `getBattlefieldIds(playerId, …)`
+// hand. Implementation note / divergence (tracked-by: #7630): `getBattlefieldIds(playerId, …)`
 // enumerates artifacts on the TARGET PLAYER'S battlefield (i.e. those they
 // control). For artifacts the target player owns but does NOT control (e.g.
 // one stolen by an opponent via a control-change effect), this misses them,
 // and it would wrongly bounce an artifact the target controls but another
-// player owns. The current card pool has no artifact control-theft, so in
-// practice owner == controller for artifacts; a strict owner-scoped
-// enumeration would need a new engine query and is deferred (no engine change
-// in this tranche).
+// player owns. A strict owner-scoped enumeration would need a new engine
+// query (tracked-by: #7630).
 export const hurkylsRecall = defineCard(() => ({
     id: "f32373dd-06d8-45d1-8777-3b1411bcb30a",
     rarity: "rare",
@@ -33,7 +31,7 @@ export const hurkylsRecall = defineCard(() => ({
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
     // Migrated resolve()→effects[] (ADR 0045): forEach over the target
-    // player's battlefield artifacts, moveZone each to hand. Same divergence (tracked-by: #2785)
+    // player's battlefield artifacts, moveZone each to hand. Same divergence (tracked-by: #7630)
     // as before (scopes to CONTROLLED artifacts via `controller: { target: 0
     // }`, not strictly OWNED — see the header note above).
     effects: [

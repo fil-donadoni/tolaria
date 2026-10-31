@@ -162,33 +162,8 @@ function makeScarab(args: {
 // counter-removal prevention), Justice (upkeep pay-or-sac + red-damage
 // reflect), Seraph (Krovikan-Vampire-style next-end-step reanimate).
 //
-// DEFERRED (remain commented stubs, owned by a later cluster) (tracked-by: #2785):
-//   • Cumulative upkeep — Cold Snap, Energy Storm (ADR 0042 cluster).
-//   • Restricted-mana CU support — Adarkar Unicorn (CU mana cluster).
-//   • Snow-gated combat eligibility — Arctic Foxes (block restriction keyed on
-//     "defending player controls a snow land"), Kjeldoran Guard (snow-land
-//     activation gate) — owned by the Snow cluster.
-//   • Power-conditional block restriction with a per-block cost — Hipparion
-//     ("can't block power 3+ unless you pay {1}"): ACTIVE (#729). The
-//     `block-restriction.bypassCost` field carries the {1}; the engine auto-pays
-//     it at block confirmation (`collectBlockBypassCharges`).
-//   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips —
-//     Blessed Wine, Heal, Lightning Blow, Formation: ACTIVE (#660 — the
-//     `next-upkeep` delayed-trigger timing shipped; see `nextUpkeepDrawTrigger`).
-//   • Specialized interactions still missing a primitive — Arenson's Aura,
-//     Battle Cry, Drought, Enduring Renewal, General Jarkeld.
-//   • Sacred Boon — ACTIVE (#734). "+0/+1 counter for each 1 damage prevented
-//     this way" reads back the shield's prevented total via the tagged
-//     `preventNextNDamageToTarget` + `consumePreventionTally` seam.
-//   • Prismatic Ward — ACTIVE (#734). Colour-keyed ALL-damage prevention on the
-//     Aura's HOST via a `replacementEffects[]` damage shield reading the stored
-//     `chosenModeId` colour (runs at every damage site, not just combat).
-//   • Kjeldoran Elite Guard — "+2/+2 until that creature leaves the battlefield
-//     this turn, then sacrifice this" needs a per-turn linked-trigger watching a
-//     specific instance leave; not modelled (#653 flagged, deferred).
-//   • Kjeldoran Royal Guard — "all combat damage to you from unblocked
-//     creatures is dealt to this creature instead" needs a global combat-damage
-//     redirect shield; not modelled (#653 flagged, deferred).
+// Cards of this set not defined in this file are owned by the Oracle compiler (ADR 0137): their
+// compile state and Grammar Gaps (gaps:sync) decide the work.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Adarkar Unicorn — {T}: Add {U} or {C}{U}, restricted to cumulative-upkeep
@@ -1862,12 +1837,10 @@ export const sacredBoon = defineCard(() => ({
 // `damagedBySources` — the Sengir/Krovikan Vampire check — composed with a
 // next-end-step delayed reanimation, CR 603.7c, exactly like Krovikan Vampire.)
 //
-// SIMPLIFICATION (flagged, no engine change — identical to Krovikan Vampire) (tracked-by: #2785):
-// the "Sacrifice the creature when you lose control of this creature" clause
-// requires per-permanent control-loss tracking the engine doesn't model yet.
-// The reanimation (the card's main effect) is faithful; the
-// sacrifice-on-loss-of-control clause — only reachable via a control-change
-// effect on Seraph, which the current pool barely exercises — is deferred.
+// Identical to Krovikan Vampire: the "Sacrifice the creature when you lose control of this
+// creature" clause needs per-permanent control-loss tracking; it is not modelled, tracked-by: #7631.
+// The reanimation (the card's main effect) is faithful; the clause is only reachable via a
+// control-change effect on Seraph.
 const SERAPH_ID = "ab675291-3189-43f3-b11b-0724eca8b941";
 export const seraph = defineCard(() => ({
     id: SERAPH_ID,

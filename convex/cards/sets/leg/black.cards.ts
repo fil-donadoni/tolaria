@@ -28,40 +28,8 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 //   • Wall of Shadows → C6 (can't-be-the-target-of Wall-only spells/abilities).
 //   • Lesser Werewolf → C5 (-0/-1 counters on a combatant).
 //
-// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here) (tracked-by: #2785):
-//   • Transmutation — "switch power and toughness" has no swap primitive.
-//   • Glyph of Doom — "at the next end of combat, destroy all creatures blocked
-//     by that Wall this turn". The deferred-end-of-combat destroy now exists
-//     (#486); it still needs per-combat "blocked by that Wall" set tracking,
-//     so it stays deferred for that aggregation piece.
-//   • Imprison — counters a {T} activation of the enchanted creature and removes
-//     it from combat for {1}; no activate-an-ability "may pay to counter"
-//     replacement.
-//   • Chains of Mephistopheles — a draw replacement with a per-step exemption;
-//     no draw-replacement primitive of this shape.
-//   • Giant Slug — "{5}: at the beginning of your next upkeep, gain landwalk
-//     of a chosen type" needs a delayed cross-turn keyword grant.
-//   • Shimian Night Stalker — continuous combat-damage redirection from a chosen
-//     attacker; no such redirection primitive.
-//   • Underworld Dreams — "whenever an opponent draws a card" needs a card-drawn
-//     trigger that doesn't exist yet.
-//   • Quagmire — "creatures with swampwalk can be blocked as though they didn't
-//     have swampwalk" — buildable with the `landwalk-negation` static (Great
-//     Wall / Undertow, #484), `subtypes: ["Swamp"]`. Deferred to its tranche.
-//   • Demonic Torment, Evil Eye of Orms-by-Gore — emit can't-attack restrictions
-//     onto OTHER creatures. UNBLOCKED by the `global-attack-restriction` static
-//     shipped with Moat / Akron Legionnaire (#481): a battlefield-scanned
-//     `forbids(attacker, source, state, ctx)` predicate can now lock attacks by
-//     creatures other than the source. (These two cards remain unimplemented
-//     for unrelated reasons — Demonic Torment is an Aura whose lock is scoped to
-//     its host, Evil Eye gates on its own untapped/blocked state — but the
-//     other-creature attack-lock primitive they were waiting on now exists.)
-//   • Wall of Putrid Flesh — its "prevent all damage dealt to this by enchanted
-//     creatures" clause is UNBLOCKED by the continuous, source-filtered
-//     `combat-damage-prevention` static shipped with Enchanted Being / Wall of
-//     Vapor (#485): reuse the `isEnchantedByAura` source filter. (Remains
-//     unimplemented only because its other clauses/stats are out of this
-//     batch's scope — the prevention primitive it waited on now exists.)
+// Cards of this set not defined in this file are owned by the Oracle compiler (ADR 0137): their
+// compile state and Grammar Gaps (gaps:sync) decide the work.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // --- World enchantments with an upkeep trigger (CR 205.4a / 704.5m) --------
@@ -664,8 +632,7 @@ export const moldDemon = defineCard(() => ({
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// C7 deferred (tracked-by: #2785) — need a primitive not yet built; each lands when its primitive
-// ships:
+// C7 residue — each lands when its primitive ships:
 //   • Takklemaggot — an Aura that relocates itself when its host dies, or
 //     returns as a non-Aura enchantment with rewritten text; not the
 //     pay-or-sacrifice pattern, and blocked on CR 613 continuous-effect
@@ -768,7 +735,7 @@ export const spiritShackle = defineCard(() => ({
 //     board-derived cost primitive its "{X}{X}, {T}" activation needs DOES now
 //     exist (`cost.manaEqualToCounterCount`, board-fixed and never prompted —
 //     Chromatic Armor). The one residual gap is that {X}{X} is TWICE the pin
-//     count and that descriptor has no multiplier. Deferred (tracked-by: #2785) until it does,
+//     count and that descriptor has no multiplier. Deferred (tracked-by: #2225) until it does,
 //     rather than shipping a wrong cost.
 //   • Takklemaggot (tracked-by: #2228) — an Aura that, when its host dies,
 //     returns either attached to a creature chosen by the DYING CREATURE'S

@@ -56,30 +56,8 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 //   • Flow of Maggots — cumulative upkeep {1} (ADR 0042 template) + Walls-only
 //     block restriction.
 //
-// STILL DEFERRED (remain commented stubs, owned by a later cluster) (tracked-by: #2785):
-//   • Cumulative upkeep — Infernal Darkness (mana-color-replacement clause).
-//   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips —
-//     Gravebind, Krovikan Fetish, Mind Ravel, Touch of Death: ACTIVE (#660 —
-//     the `next-upkeep` delayed-trigger timing shipped).
-//   • Snow-land-counting effects — Drift of the Dead (P/T = snow lands),
-//     Gangrenous Zombies, Icequake, Withering Wisps; snow swampwalk
-//     (Legions of Lim-Dûl) (no supertype filter / snow-evasion keyword yet —
-//     snow cluster).
-//   • CARD_DISCARDED trigger — Necropotence's "whenever you discard a card,
-//     exile that card from your graveyard": ACTIVE (#667 — the CARD_DISCARDED
-//     event + `discardTrigger` factory shipped; Necropotence is composed from
-//     skip-draw + pay-life face-down exile + next-end-step return + the new
-//     discard→exile trigger).
-//   • Ashen Ghoul — graveyard-SOURCE activated ability (the engine only resolves
-//     activated abilities whose source is on the battlefield; the
-//     "creatures-above-in-graveyard" test itself ships, but activate-from-
-//     graveyard does not).
-//   • Cloak of Confusion / Gaze of Pain (assign-no-combat-damage redirect — the
-//     mark ships, but the "if you do, defender discards" combat-replacement
-//     rider does not), Hecatomb / Stench of Evil (tap-Swamp / pay-per-land),
-//     Seizures (becomes-tapped pay-or-damage on the host's controller),
-//     Oath of Lim-Dûl (lose-life trigger), Pox (fractional sacrifice). Each
-//     needs a primitive not yet built; flagged for its capability cluster.
+// Cards of this set not defined in this file are owned by the Oracle compiler (ADR 0137): their
+// compile state and Grammar Gaps (gaps:sync) decide the work.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Abyssal Specter — flying 2/3; "Whenever this creature deals damage to a
@@ -1275,10 +1253,9 @@ export const infernalDenizen = defineCard(() => ({
             // is COVERED (the card's ACTIVATED ability migrated), this UPKEEP
             // trigger also reads APNAP order (`ctx.apNapOrder()`) to pick the
             // opponent who chooses, then drives an opponent choose-permanents +
-            // a per-pick gainControl. `apNapOrder` is an unimplemented (tracked-by: #2785) backlog
-            // Op and the choice-picked gainControl target is not expressible.
-            // Blocked on: the apNapOrder Op + a choice-picked object selector —
-            // stays resolve().
+            // a per-pick gainControl. The choice-picked gainControl target is not yet an
+            // Op selector, so the card stays on resolve() until the Oracle compiler
+            // covers its text (ADR 0114 retires the hand-written twin).
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
@@ -1604,12 +1581,9 @@ export const krovikanFetish = defineCard(() => ({
 // that turn's end step and reanimates the card under the Vampire's controller
 // via `returnToBattlefield(..., "graveyard")`.
 //
-// SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): the "sacrifice it when you lose
-// control of this creature" linkage requires per-permanent control-loss
-// tracking the engine doesn't model yet. The reanimation (the card's main
-// effect) is faithful; the sacrifice-on-loss-of-control clause — only reachable
-// via a control-change effect on the Vampire, which the current pool barely
-// exercises — is documented as deferred.
+// The "sacrifice it when you lose control of this creature" linkage needs per-permanent
+// control-loss tracking; it is not modelled, tracked-by: #7631. The reanimation (the card's main
+// effect) is faithful; the clause is only reachable via a control-change effect on the Vampire.
 const KROVIKAN_VAMPIRE_ID = "717c5dda-8e38-4c76-b241-685198402284";
 export const krovikanVampire = defineCard(() => ({
     id: KROVIKAN_VAMPIRE_ID,

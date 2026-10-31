@@ -75,44 +75,8 @@ export const ladyOrca = defineCard(() => ({
 //   • Control-change-to-opponent upkeep penalty + named anthem (cluster-shaped):
 //     Rohgahh of Kher Keep.
 //
-// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here) (tracked-by: #2785):
-//   • Axelrod Gunnarson — "whenever a creature dealt damage by Axelrod this
-//     turn dies, ..." needs a per-source combat-damage tally keyed to the
-//     dealer; no such surface exists (same gap flagged for Blazing Effigy).
-//   • Gosta Dirk / Lord Magnus / Ur-Drago — each carries a landwalk-suppression
-//     static ("creatures with islandwalk/forestwalk/plainswalk/swampwalk can be
-//     blocked as though they didn't have it"). The `landwalk-negation` static
-//     (Great Wall / Undertow, #484) now expresses the suppression half with a
-//     multi-subtype `subtypes` array; these creatures are buildable once their
-//     remaining halves (keyword grant + P/T) are wired in a follow-up.
-//   • Hazezon Tamar — delayed X 1/1 Sand Warrior tokens at the next upkeep plus
-//     a leaves-the-battlefield "exile all Sand Warriors" sweep keyed by token
-//     name across both players; the cross-board named-token tracking has no
-//     primitive.
-//   • Johan — "attacking doesn't cause creatures you control to tap this combat"
-//     is a combat-tap replacement with no primitive.
-//   • Lady Caleria / Tor Wauki — "{T}: deal N damage to target attacking OR
-//     blocking creature" is NOT blocked: `combatRoleFilter` is array-capable
-//     and D'Avenant Archer (leg/white.cards.ts) ships the `["attacking", "blocking"]`
-//     form. The one-role-at-a-time claim recorded here is stale; both cards
-//     are deferred for authoring only.
-//   • Lady Evangela — "prevent all combat damage that would be dealt BY target
-//     creature this turn" is NOT blocked: the source-scoped one-shot shield
-//     ships as `preventDamage` with `mode: "all-from-source"` and
-//     `combatOnly: true` (#1955), which is exactly a by-only combat shield.
-//     The "only `preventAllCombatDamageToAndBy` exists" claim recorded here is
-//     stale; deferred for authoring only.
-//   • Nebuchadnezzar — "name a card, reveal X cards at random from target
-//     player's hand, then discard all with the chosen name". The name-a-card
-//     half now exists (`requestNameCard`, #489 — Petra Sphinx); what's still
-//     missing is a random-reveal-N-from-hand primitive (pick X hand cards at
-//     random and reveal them). Unblocked on the naming side; deferred on the
-//     random-hand-reveal side.
-//   • Ramses Overdark — "destroy target enchanted creature"; no
-//     enchanted-permanent target filter on `TargetRequirement`.
-//   • Stangg — creates a linked legendary token twin with a sacrifice-the-pair
-//     LTB linkage (token leaves → sacrifice Stangg, Stangg leaves → exile
-//     token); no token-linkage primitive.
+// Cards of this set not defined in this file are owned by the Oracle compiler (ADR 0137): their
+// compile state and Grammar Gaps (gaps:sync) decide the work.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // --- Vanilla / keyword multicolor creatures (CR 110.1, 702 — pure data) ----
@@ -775,27 +739,6 @@ export const bartelRuneaxe = defineCard(() => ({
         },
     ],
 }));
-
-// ─────────────────────────────────────────────────────────────────────────────
-// C6 deferred (need an unbuilt primitive — left for a future batch) (tracked-by: #2785):
-//   • Tetsuo Umezawa — its "{U}{B}{B}{R}, {T}: Destroy target tapped or blocking
-//     creature" needs a disjunctive "tapped OR blocking" target filter across
-//     two different axes (tappedFilter vs combatRoleFilter, today combined as
-//     AND). This is NOT the Crimson Manticore case, which is a disjunction
-//     WITHIN `combatRoleFilter` and has shipped as its array form — Tetsuo needs
-//     a disjunction ACROSS two filter axes, which still has no primitive.
-//     Its can't-be-target-of-Aura-spells static IS expressible
-//     here (identical to Bartel Runeaxe), but shipping a Tetsuo whose flagship
-//     removal ability can't be cast would be partial — defer the whole card.
-//   • Wall of Shadows — "Prevent all damage that would be dealt to this by
-//     creatures it's blocking" is a CONTINUOUS, blocking-pair-scoped combat
-//     prevention (only a turn-scoped `combatDamageImmunity` exists, no
-//     per-blocking-pair continuous prevention static — same gap flagged for Wall
-//     of Vapor / Feint). Its "can't be the target of spells/abilities that can
-//     target only Walls" clause is also not expressible (no card in the pool
-//     carries a "Walls only" target restriction, so there is nothing to match
-//     against). Defer until the continuous combat-prevention primitive lands.
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C7 — Upkeep "pay-or-sacrifice" maintenance cost (#383)

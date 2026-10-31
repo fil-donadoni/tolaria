@@ -711,7 +711,7 @@ const THEIR_OWNERS_HAND = "their owner's hand";
  * announced player is the sweep's whole scope, so the zone is "their hand";
  * the sweep is scoped by the announced player's battlefield (the selector has
  * no owner axis), the same reading the hand-written card carries
- * (tracked-by: #2785).
+ * (tracked-by: #7630).
  */
 const TARGET_PLAYER_OWNS = / target player owns$/;
 const THEIR_HAND = "their hand";

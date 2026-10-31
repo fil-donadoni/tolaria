@@ -205,8 +205,7 @@ export const arcumsWeathervane = defineCard(() => ({
 //
 // The attack-requirement seam shipped (`setMustAttackThisTurn` +
 // `hasAttackedThisTurn` + `next-end-step` delayed destroy — the Nettling Imp
-// pattern, lea/black.cards.ts). The DEFERRED (tracked-by: #2785) note above is stale: those primitives
-// now exist. The activation window "before attackers are declared" is
+// pattern, lea/black.cards.ts). The activation window "before attackers are declared" is
 // `activationPhaseRestriction` (all steps up to BEGINNING_OF_COMBAT). The
 // target uses the `controller: "active"` filter (CR 102.1) — the creature the
 // ACTIVE player controls, independent of who activates.
@@ -664,8 +663,9 @@ export const goblinLyre = defineCard(() => ({
 // Op has no such guard and would surface the payment prompt even with
 // nothing to untap — the pre-existing per-card test
 // ("declining the target … resolves as a no-op — no may-pay") catches
-// exactly this divergence (tracked-by: #2785). Blocked on: a target-slot-resolved predicate
-// (planned — no issue filed yet).
+// exactly this behaviour. The bare-Op shape waits on a target-slot-resolved predicate, so
+// the Talisman stays on resolve() until the Oracle compiler covers its text (ADR 0114
+// retires the hand-written twin).
 function makeTalisman(args: {
     id: string;
     name: string;
@@ -744,9 +744,9 @@ export const hematiteTalisman = defineCard(() =>
 // the cast pipeline accepts it only when the spell being cast is that exiled
 // card.
 //
-// SIMPLIFICATION (tracked-by: #2785) (flagged, CR 605.1a): as with Jeweled Amulet, the "add the
-// noted mana" ability is a mana ability that this engine models as
-// `useStack: true` (the mana-ability path can't produce stored/variable mana).
+// CR 605.1a: as with Jeweled Amulet, the "add the noted mana" ability is a mana ability that
+// this engine models as `useStack: true`; the mana-ability path can't yet produce
+// stored/variable mana (tracked-by: #3989).
 export const iceCauldron = defineCard(() => ({
     id: "1a3e095a-7056-4df3-bf7d-9c217d591446",
     name: "Ice Cauldron",
@@ -1288,12 +1288,10 @@ export const shieldOfTheAges = defineCard(() => ({
 // Snow Fortress — Defender Wall with two self-pumps and a {3} ping (CR 702.3
 // defender; CR 605 activated abilities; CR 613 layer 7c buffs; CR 120.1 damage).
 //
-// SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): the printed ping targets a
-// non-flying creature "that's attacking you". The engine's combat-role filter
-// can express "attacking" and "without flying" but not the "attacking YOU"
-// (the controller is the defending player) refinement. In a duel every
-// attacker is attacking Snow Fortress's controller, so the narrower filter
-// matches play exactly.
+// Out of scope: the printed ping targets a non-flying creature "that's attacking you". The
+// combat-role filter expresses "attacking" and "without flying" but not "attacking YOU".
+// In a 2-player engine every attacker is attacking Snow Fortress's controller, so the
+// filter matches play exactly.
 export const snowFortress = defineCard(() => ({
     id: "1c480e07-fb26-4760-865f-47985f7447bb",
     name: "Snow Fortress",
@@ -1612,10 +1610,8 @@ export const timeBomb = defineCard(() => ({
     ],
 }));
 // Urza's Bauble ships as an active CardDefinition below (issue #674): the
-// next-upkeep cantrip is buildable via the shared `nextUpkeepDrawTrigger`, and
-// the "look at a card at random in target player's hand" clause is purely
-// informational (no game-state change, no decision derives from it — unlike
-// Wand of Ith), so it is intentionally not modelled (tracked-by: #2785). See the def for the note.
+// next-upkeep cantrip uses the shared `nextUpkeepDrawTrigger`, and the "look at a card at
+// random in target player's hand" clause is the `lookRandomHand` Op. See the def for the note.
 // Vexing Arcanix — {3}, {T}: Target player names a card, reveals their top card;
 // hit → hand, miss → graveyard + 2 damage to them (CR 605 activated ability;
 // CR 201.4 name-a-card via `requestNameCard` made by the TARGET player; CR 701.20

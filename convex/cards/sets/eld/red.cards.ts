@@ -6,7 +6,7 @@
 import { defineCard, type SpellContext } from "../../types";
 
 // Robber of the Rich — {1}{R} Creature — Human Archer Rogue, 2/2, reach,
-// haste (Vintage Cube FREE: ETB/dies/attack triggers, issue #679). "Reach,
+// haste (Vintage Cube FREE: ETB/dies/attack triggers). "Reach,
 // haste. Whenever this creature attacks, if defending player has more cards
 // in hand than you, exile the top card of their library. During any turn you
 // attacked with a Rogue, you may cast that card and you may spend mana as
@@ -19,7 +19,7 @@ import { defineCard, type SpellContext } from "../../types";
 // is FACE UP (CR 406.3, issue #3001) — the defending player watches their own
 // card leave and may examine it.
 //
-// SIMPLIFICATIONS (flagged, stacked on the above) (tracked-by: #2785):
+// SIMPLIFICATIONS (flagged, stacked on the above) (tracked-by: #974):
 //   - "During any turn you attacked with a Rogue" — matching every other
 //     shipped impulse card, the cast-permission window is not auto-revoked
 //     on a timer (no such primitive exists); the permission persists while

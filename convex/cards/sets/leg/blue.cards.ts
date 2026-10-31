@@ -18,9 +18,9 @@ import { getEffectiveColors } from "../../effectiveColors";
 // Wall of Vapor — {3}{U} 0/1 Wall, Defender. "Prevent all damage that would be
 // dealt to this creature by creatures it's blocking." Source filter: the
 // damage source is a creature this Wall is currently blocking (CR 509.1).
-// Simplification (tracked-by: #2785): the Oracle says "all damage", but a creature only deals
-// damage to a creature blocking it during the combat-damage step, so the
-// combat-damage-prevention static covers the practical case (CR 615).
+// Gap (tracked-by: #974): non-combat damage from a blocked creature is not prevented. The Oracle
+// says "all damage", but a creature only deals damage to a creature blocking it during the
+// combat-damage step, so the combat-damage-prevention static covers the practical case (CR 615).
 export const wallOfVapor = defineCard(() => ({
     id: "6a6c0a27-d410-4ded-a842-70e1656ea21e",
     rarity: "common",
@@ -58,7 +58,7 @@ export const wallOfVapor = defineCard(() => ({
 //     Venarian Gold (sleep counters).
 //   • C6 shroud / can't-be-targeted — SHIPPED below (Spectral Cloak,
 //     Anti-Magic Aura, Bartel Runeaxe). Tetsuo Umezawa and Wall of Shadows are
-//     deferred (tracked-by: #2785) — see the C6 section footer for the per-card reasons.
+//     not defined in this set file (Oracle compiler, ADR 0137).
 //   • C8 cast-tax counter-unless-pay — Nether Void and In the Eye of Chaos
 //     (both World) SHIPPED in the C8 section at the foot of this file (#385).
 //     Invoke Prejudice (counter an opponent's off-color creature spell unless
@@ -765,7 +765,8 @@ export const energyTap = defineCard(() => ({
 
 // Reset — "Untap all lands you control." Cast only during an opponent's turn
 // after their upkeep step (CR 117.1b — opponent-turn restriction; the
-// post-upkeep window is approximated (tracked-by: #2785) by excluding the opponent's UPKEEP).
+// post-upkeep window is the opponent's turn minus its UPKEEP step; cleanup-step priority
+// (CR 514.3a) is unobservable, so it is out of scope).
 export const reset = defineCard(() => ({
     id: "1c829d83-d5b8-4be7-80f7-55b42f52b309",
     rarity: "uncommon",
