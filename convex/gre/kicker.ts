@@ -921,7 +921,7 @@ export function canPayKickerLegs(
     if (legs.length === 0) return true;
     if (player.life < kickerLifeCost(cardDef, payments)) return false;
     if (!canAffordCostLegsPermanents(state, player.id, legs)) return false;
-    // CR 118.9 hand leg — EVERY leg's requirements together must be coverable
+    // CR 118.8 / 601.2h — the hand legs: EVERY leg's requirements together must be coverable
     // from DISTINCT hand cards: one card cannot pay two legs, and the combined
     // picker (`buildCastHandCostChoice`) demands them all at once. Checking
     // leg-by-leg passed a Multikicker or escalate cost paid N times with one
