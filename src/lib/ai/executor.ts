@@ -57,6 +57,9 @@ export type MoveMutations = {
     /** CR 116.2k / 702.170a — the plot special action. Per hand card; the
      *  plot cost is solved and paid server-side in this one call. */
     plotCard: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
+    /** CR 116.2h / 702.143a — the foretell special action. Per hand card; the
+     *  {2} is solved and paid server-side in this one call. */
+    foretellCard: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
     announceCast: (
         a: GP & {
             cardInstanceId: string;
@@ -534,6 +537,14 @@ export async function executeMove(
         // CR 116.2k / 702.170a — the plot special action, same one-call shape.
         case "plot":
             await mutations.plotCard({
+                ...base,
+                cardInstanceId: move.cardInstanceId,
+            });
+            return;
+
+        // CR 116.2h / 702.143a — the foretell special action, same shape.
+        case "foretell":
+            await mutations.foretellCard({
                 ...base,
                 cardInstanceId: move.cardInstanceId,
             });

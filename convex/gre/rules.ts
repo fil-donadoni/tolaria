@@ -96,6 +96,7 @@ import {
     type FlashbackAdditionalCost,
 } from "./flashback";
 import { getMadnessCost, isMadnessCastable } from "./madness";
+import { getForetellCost, isForetellCast } from "./foretell";
 import {
     countDistinctCardTypes,
     getEscapeExileSpec,
@@ -1556,6 +1557,38 @@ export function getLegalActions(
                 // half. `{}` is the waived cost, never a short-circuit: cost
                 // increases still fold onto it inside `canPotentiallyPayCost`.
                 cost: () => ({}),
+            })
+        ) {
+            actions.push("cast");
+        }
+        return actions;
+    }
+
+    // CR 702.143a — a FORETOLD card in this player's own exile, cast "after
+    // the current turn has ended" (the lower turn bound `makeForetold` set on
+    // the general exile-cast record, read through `exileCastPermitted`) for
+    // its foretell cost "rather than paying that spell's mana cost". The
+    // timing is the card's own: only the special action is restricted to its
+    // player's turn, so a foretold instant is castable in the opponent's turn
+    // (`timingZone: "exile"` runs the ordinary per-type gate). This branch
+    // fully owns the "cast" decision for the foretold card.
+    const foretoldCost = getForetellCost(card);
+    if (
+        !types.includes("Land") &&
+        foretoldCost !== undefined &&
+        isForetellCast(card) &&
+        player.exile.some((c) => c.id === card.id) &&
+        exileCastPermitted(state, card, caster.id)
+    ) {
+        if (
+            passesCastPhaseRestriction(state, card) &&
+            hasPayableAdditionalCost(caster, card) &&
+            anyCastAnnouncementLegal(state, caster, card, {
+                timingZone: "exile",
+                // CR 702.143a — the foretell cost is printed on the card (or
+                // given by an effect, CR 702.143d), the same cost whichever
+                // half is announced, like madness.
+                cost: () => foretoldCost,
             })
         ) {
             actions.push("cast");

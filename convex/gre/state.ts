@@ -3996,6 +3996,11 @@ function finalizeSpellResolution(
         if (item.warped) {
             scheduleWarpExile(state, item);
         }
+        // CR 702.143c — "foretold" names a CARD in exile or a SPELL that was
+        // one; the permanent this spell becomes is neither. Left standing, the
+        // marker would follow the card to every later zone and price an
+        // unrelated exile cast at its foretell cost (`isForetellCast`).
+        delete item.foretold;
         // CR 106.4 / 202.3 — spent-mana-color tracking (issue #900): snapshot
         // the ephemeral cast-commit `notedManaSpent` (present only when
         // `CardDefinition.noteManaSpent` is set) onto a PERSISTENT permanent
@@ -8575,7 +8580,22 @@ export type GameOutcome = NonNullable<GameState["gameOver"]>;
 export function endGame(state: GameState, outcome: GameOutcome): boolean {
     if (state.gameOver) return false;
     state.gameOver = outcome;
+    revealForetoldCards(state);
     return true;
+}
+
+/** CR 702.143f — "at the end of each game, all face-down foretold cards must
+ *  be revealed to all players": every foretold card still in exile becomes
+ *  known to every player. Persistent knowledge (`knownTo`), not a transient
+ *  reveal, so the final board shows them. Foretold cards only: any other
+ *  face-down exile (Necropotence, hideaway) stays hidden. */
+export function revealForetoldCards(state: GameState): void {
+    const everyone = state.players.map((p) => p.id);
+    for (const player of state.players) {
+        for (const card of player.exile) {
+            if (card.foretold) card.knownTo = [...everyone];
+        }
+    }
 }
 
 /** Single choke point for a NON-damage life loss (CR 119.3): a "lose life"
@@ -21114,6 +21134,10 @@ export function moveCard(
         // designation leave exile with the card.
         delete card.castableFromExileSorceryTiming;
         delete card.plotted;
+        // CR 702.143c / 400.7 — the foretold designation (and any foretell
+        // cost an effect gave it, CR 702.143d) leaves exile with the card.
+        delete card.foretold;
+        delete card.grantedForetellCost;
         delete card.castFromExileWithoutPayingManaCost;
         // CR 715.3d — the SEVENTH sibling, cleared in the SAME permission
         // window as the six above. Left standing it is durable and
@@ -21454,6 +21478,11 @@ export function removeFromZone(
     // designation are consumed with the permission they ride.
     delete card.castableFromExileSorceryTiming;
     delete card.plotted;
+    // CR 702.143c — the foretold designation is consumed with the permission
+    // it rides; the Cast Commit kernel reads it BEFORE this removal and
+    // carries it onto the stack item (a spell that was a foretold card).
+    delete card.foretold;
+    delete card.grantedForetellCost;
     // CR 601.3 (issue #1156) — the free-cast waiver (Dauthi Voidwalker) rides
     // the SAME permission window as `castableFromExileBy`; consumed together.
     delete card.castFromExileWithoutPayingManaCost;

@@ -41,6 +41,13 @@
             "needsSetup": true
         }
     ],
+    "Behold the Multiverse": [
+        {
+            "label": "foretell: banks a foretell card with spare mana and nothing else to do",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Blue Elemental Blast": [
         {
             "label": "charter: picks the modal mode that survives a lethal red spell",

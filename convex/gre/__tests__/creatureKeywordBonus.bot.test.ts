@@ -90,6 +90,7 @@ const NOT_A_BODY_KEYWORD = new Set([
     "offspring",
     "warp",
     "plot",
+    "foretell",
     "ninjutsu",
     "ravenous",
     "hideaway",

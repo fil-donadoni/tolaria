@@ -374,6 +374,10 @@ export interface CardInstance {
      *  own-hand card right now. Mirrors `SlimHandCard.canPlot` in
      *  `convex/gameProjections.ts`. */
     canPlot?: true;
+    /** CR 116.2h / 702.143a — the foretell special action is available on
+     *  this own-hand card right now. Mirrors `SlimHandCard.canForetell` in
+     *  `convex/gameProjections.ts`. */
+    canForetell?: true;
     /** Two basic land types chosen as a permanent entered and stored for the
      *  rest of the game (CR 603.6b / 614.12 — Illusionary Terrain). Forwarded by
      *  `slimCard` (the projection only strips `card`/`knownTo`); read by the
@@ -542,6 +546,10 @@ export interface CardInstance {
     /** CR 702.170a/c — the PLOTTED designation on a card in exile (public, the
      *  card is exiled face up). Mirrors `CardInstanceState.plotted`. */
     plotted?: boolean;
+    /** CR 702.143a/c — the FORETOLD designation on a (face-down) exiled card;
+     *  public, its identity is not. Drives the exile Cast button's "Foretell"
+     *  label. Mirrors `CardInstanceState.foretold`. */
+    foretold?: boolean;
     /** CR 601.2f (issue #2383) — an OBJECT-SCOPED cost increase riding
      *  `castableFromExileBy`: "A spell cast this way costs {2} more to cast"
      *  (Elite Spellbinder). Crosses the wire via `slimCard` (which strips only

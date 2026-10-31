@@ -17196,4 +17196,74 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5609. `MoveMatcher.target` matches ANY target, so the pair half cannot name the fighter slot — this predicate does: the 6/6 fights, never the 1/1 (the 1/1 fighting the 4/4 loses the Bot its creature and kills nothing).",
     },
+    {
+        // DISCRIMINATING PAIR, half 1 (issue #2096). Foretell (CR 702.143a):
+        // Behold the Multiverse ({3}{U}, Foretell {1}{U}) in hand, exactly two
+        // untapped Islands and nothing else to spend them on. Foretelling
+        // banks the card for a {1}{U} cast on any later turn — the opponent's
+        // included, it is an instant — while passing lets the {2} empty. The
+        // two lines reach outcome-equal rollout leaves (the foretold card is
+        // latent material in `evaluate`'s hand term exactly as the hand card
+        // was; the cheaper later cast lies past the horizon), so before this
+        // issue `pass` took the tie on every seed: the Bot never foretold.
+        // `free-development` takes the foretell on the tie.
+        label: "foretell: banks a foretell card with spare mana and nothing else to do",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a castable instant held open on the same mana",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Behold the Multiverse", owner: "me", zone: "hand" },
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "foretell", card: "Behold the Multiverse" }],
+        },
+        note: "Issue #2096 — the foretell special action is `free-development`'s shape: deploying and deferring reach the same rollout leaves and the {2} would otherwise empty. Pair half 2 holds a Counterspell on the same Islands.",
+    },
+    {
+        // DISCRIMINATING PAIR, half 2 (issue #2096). The same board plus a
+        // Counterspell in hand: the two Islands are now holding a castable
+        // counter open, and foretelling taps them out of it. The rollout washes
+        // that out too (the lands untap next turn), so the `free-development`
+        // arm for foretell is gated on the mover's `flexibility` term reading
+        // the same after the {2} is tapped (`foretellKeepsHeldOptions`) —
+        // here it does not, and the Bot holds.
+        label: "foretell: keeps the mana open for a held Counterspell instead of foretelling",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a castable instant held open on the same mana",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Behold the Multiverse", owner: "me", zone: "hand" },
+                { name: "Counterspell", owner: "me", zone: "hand" },
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "pass" }] },
+        note: "Issue #2096 — pair half 2: the {2} is an option held open (Counterspell), so the foretell is not free and is not taken.",
+    },
 ];
