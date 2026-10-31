@@ -35,6 +35,16 @@ export const raugrinTriome = defineCard(() =>
     })
 );
 
+export const abilityFirst = defineCard(() => ({
+    triggeredAbilities: [
+        {
+            id: "ability-first-trigger",
+        },
+    ],
+    id: "ability-first-id",
+    name: "Ability First",
+}));
+
 export const lifeDeath = defineCard(() =>
     defineSplitCard({
         id: "split-id",
@@ -51,13 +61,14 @@ export const lifeDeath = defineCard(() =>
 `.split("\n");
 
 describe("scanSourceCards — the definition's own id, never an ability's", () => {
-    it("reads a literal, a same-file constant, a factory call and a split card", () => {
+    it("reads a literal, a same-file constant, a factory call, an id after an ability and a split card", () => {
         expect(
             scanSourceCards(SET_FILE, "red.cards.ts").map((c) => [c.name, c.id])
         ).toEqual([
             ["Soul-Scar Mage", "mage-id"],
             ["Parallax Wave", "wave-id"],
             ["Raugrin Triome", "triome-id"],
+            ["Ability First", "ability-first-id"],
             ["Life // Death", "split-id"],
         ]);
     });
