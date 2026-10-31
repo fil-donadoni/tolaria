@@ -13,6 +13,7 @@
 // `search.ts` or `applyMove.ts`, so the dominance probe (which `moves.ts`
 // imports at runtime) can share it without closing an import cycle.
 
+import type { ManaCost } from "../cards/types";
 import type { GameState } from "./state";
 import {
     canPayRemoveCounterCost,
@@ -20,6 +21,7 @@ import {
     payRemoveCounterCost,
 } from "./state";
 import {
+    getManaTapOptionsDetailed,
     manaGateBattlefields,
     manaTapCounterCost,
     manaTapExertsSource,
@@ -27,8 +29,11 @@ import {
     mayBeSacrificedForMana,
     mayExertForMana,
     mayRemoveCountersForMana,
+    stackManaValue,
 } from "./constants";
+import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { payExertActivationCost } from "./exert";
+import { MANA_COLORS } from "./manaColors";
 
 /** One entry of a Move's `tapPlan` (`gre/moves.ts`). */
 export type SearchTapPlanEntry = {
@@ -153,5 +158,126 @@ export function applyTapPlanInSearch(
     // depend on that).
     for (const id of sacrificed) {
         moveCard(player, id, "battlefield", "graveyard");
+    }
+}
+
+/** The order a GENERIC mana leg drains the scratch pool in
+ *  {@link searchCastManaSpent}: colourless first, then the colours in reverse
+ *  WUBRG — deterministic, and never the reason a colour goes missing. */
+const GENERIC_LEG_DRAIN_ORDER = [...MANA_COLORS].reverse();
+
+/** CR 601.2h / 702.44a — the per-colour record of the mana a SEARCH cast
+ *  spends, for the `StackItem.notedManaSpent` a `noteManaSpent` card reads
+ *  back (Converge's `colorsSpentToCast`, Sunburst's counters, an "if {R}{R}
+ *  was spent" condition). The real path takes a pool delta around
+ *  `payCastManaCost`; this model never drains the pool, so the record is
+ *  rebuilt from the Move's tap plan instead.
+ *
+ *  MUST be called BEFORE `applyTapPlanInSearch`: a sacrificed source has left
+ *  the battlefield after it, and a depletion land's option list has changed.
+ *
+ *  Each entry is walked in plan order through a scratch pool, as the server
+ *  walks the taps: the activation's own mana leg (Arena of Glory's `{R}`,
+ *  Farrelite Priest's `{1}`) is paid out of what the earlier taps produced,
+ *  then the option's yield is added. What the scratch pool holds at the end is
+ *  what the spell was paid with. A plan's FLOATING-pool sources leave no
+ *  entry (`gre/moves.ts`), so when the taps produced less than `printed` —
+ *  the printed mana cost at the announced X — the shortfall is drawn from the
+ *  caster's pool, colours the cost names first.
+ *
+ *  Coarse by design: a multi-mana source's surplus counts as spent, a cost
+ *  reduction can make the shortfall over-draw the pool, and an alternative
+ *  cost passes no `printed` (its price is not the printed one), so it reads
+ *  the taps alone. The reads that matter are colour presence and per-colour
+ *  counts, and both come from the sources the plan really taps. */
+export function searchCastManaSpent(
+    state: GameState,
+    playerId: string,
+    tapPlan: readonly SearchTapPlanEntry[],
+    printed?: { manaCost: ManaCost | undefined; chosenX?: number }
+): Record<string, number> {
+    const spent: Record<string, number> = {};
+    const player = state.players.find((p) => p.id === playerId);
+    if (!player) return spent;
+    const battlefields = manaGateBattlefields(state);
+    for (const tap of tapPlan) {
+        const src = player.battlefield.find((c) => c.id === tap.cardInstanceId);
+        if (!src) continue;
+        let yieldMana: ManaCost | undefined;
+        let abilityId = tap.abilityId;
+        if (abilityId) {
+            const ability = getEffectiveActivatedAbilities(src).find(
+                (a) => a.ability.id === abilityId
+            )?.ability;
+            yieldMana =
+                ability?.manaChoices?.[tap.manaChoiceIndex ?? 0] ??
+                ability?.manaProduced;
+        } else {
+            // A plan with no index taps a single-option source, so index 0 is
+            // the option it names (`manaTapSacrificesSource`).
+            const opt = getManaTapOptionsDetailed(
+                src,
+                player.id,
+                battlefields,
+                {
+                    requireTap: true,
+                }
+            )[tap.manaChoiceIndex ?? 0];
+            yieldMana = opt?.mana;
+            if (opt?.source.kind === "activated")
+                abilityId = opt.source.abilityId;
+        }
+        const leg = abilityId
+            ? getEffectiveActivatedAbilities(src).find(
+                  (a) => a.ability.id === abilityId
+              )?.ability.cost.mana
+            : undefined;
+        if (leg) drainManaLeg(spent, leg);
+        for (const color of MANA_COLORS) {
+            const n = yieldMana?.[color] ?? 0;
+            if (n > 0) spent[color] = (spent[color] ?? 0) + n;
+        }
+    }
+    if (printed) {
+        let shortfall =
+            stackManaValue(printed.manaCost, printed.chosenX) -
+            MANA_COLORS.reduce((sum, c) => sum + (spent[c] ?? 0), 0);
+        const pool = { ...player.manaPool } as Record<string, number>;
+        const draw = (color: string, wanted: number) => {
+            const n = Math.min(wanted, pool[color] ?? 0, shortfall);
+            if (n <= 0) return;
+            pool[color] -= n;
+            spent[color] = (spent[color] ?? 0) + n;
+            shortfall -= n;
+        };
+        for (const color of MANA_COLORS) {
+            const pips = printed.manaCost?.[color];
+            if (typeof pips === "number")
+                draw(color, pips - (spent[color] ?? 0));
+        }
+        for (const color of MANA_COLORS) draw(color, Infinity);
+    }
+    return spent;
+}
+
+/** Pay one mana ability's own mana leg out of the scratch pool
+ *  {@link searchCastManaSpent} keeps: coloured pips from their colour, the
+ *  generic part from {@link GENERIC_LEG_DRAIN_ORDER}. Best-effort — whatever
+ *  the scratch pool cannot cover simply goes unpaid. */
+function drainManaLeg(pool: Record<string, number>, leg: ManaCost): void {
+    const take = (color: string, wanted: number): number => {
+        const n = Math.min(wanted, pool[color] ?? 0);
+        if (n > 0) pool[color] -= n;
+        if (pool[color] === 0) delete pool[color];
+        return Math.max(n, 0);
+    };
+    for (const color of MANA_COLORS) {
+        const pips = leg[color];
+        if (typeof pips === "number") take(color, pips);
+    }
+    let generic = (leg.generic ?? 0) + (typeof leg.X === "number" ? leg.X : 0);
+    for (const color of GENERIC_LEG_DRAIN_ORDER) {
+        if (generic <= 0) break;
+        generic -= take(color, generic);
     }
 }

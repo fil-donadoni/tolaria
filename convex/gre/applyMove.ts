@@ -151,7 +151,7 @@ import {
 } from "./sacrificeChoice";
 import { captureNinjutsuAttackTarget } from "./ninjutsu";
 import { payExertActivationCost } from "./exert";
-import { applyTapPlanInSearch } from "./searchTapPlan";
+import { applyTapPlanInSearch, searchCastManaSpent } from "./searchTapPlan";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
 import {
@@ -1362,6 +1362,23 @@ export function commitCastInSearch(
     if (preCastSpell) {
         applyDelveExileForSearch(state, player, preCastSpell, move.chosenX);
     }
+    // CR 601.2h / 702.44a — a `noteManaSpent` card records the colours it
+    // was paid with (Converge, Sunburst, "if {R}{R} was spent"), stamped on
+    // the stack item below. Read BEFORE the taps: a sacrificed source has left
+    // the battlefield after them.
+    const castDef = preCastSpell
+        ? tryGetDefinition((preCastSpell.card as { id?: string }).id ?? "")
+        : undefined;
+    const notedManaSpent = castDef?.noteManaSpent
+        ? searchCastManaSpent(
+              state,
+              playerId,
+              move.tapPlan,
+              move.alternativeCostId === undefined
+                  ? { manaCost: castDef.manaCost, chosenX: move.chosenX }
+                  : undefined
+          )
+        : undefined;
     applyTapPlanInSearch(state, playerId, move.tapPlan);
     // CR 609.4b / 118.14 (issue #2890) — a one-shot "for one spell this turn,
     // you may spend mana as though it were mana of any type" grant (North Star)
@@ -1569,6 +1586,7 @@ export function commitCastInSearch(
             move.kickerPayments
         ),
         ...(move.buybackPaid ? { buybackPaid: move.buybackPaid } : {}),
+        ...(notedManaSpent ? { notedManaSpent } : {}),
         // CR 118.8 / 608.2h — the additional-cost victim snapshot the cost
         // payment above collected, stamped exactly as `tryCommitCast` stamps
         // it, so a spell reading the victim back at resolve
