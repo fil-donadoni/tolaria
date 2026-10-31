@@ -16,6 +16,7 @@ import {
     parseFixes,
     queuedPrOfDraft,
     readLaneVerdict,
+    restoreLast,
     type PrFacts,
 } from "../pr-fixup";
 
@@ -39,6 +40,26 @@ describe("classifyLane", () => {
                 ])
             )
         ).toEqual(["oracle"]);
+    });
+
+    // Issue #7653: a PR that carries derived state after its hand-off — a
+    // Bot refit artefact, a catalogue file, a header hash — is cured by the
+    // restore `land:ready` makes, never by a pass.
+    it("a check:derived-in-diff red is the `derived` fix, run after every other regeneration", () => {
+        expect(
+            classifyLane(
+                lane([
+                    { id: "tsc[convex]", status: "pass" },
+                    { id: "check:derived-in-diff", status: "fail" },
+                ])
+            )
+        ).toEqual(["derived"]);
+        expect(FIXES.derived.script).toBe("derive:restore");
+        expect(restoreLast(["derived", "format", "oracle"])).toEqual([
+            "format",
+            "oracle",
+            "derived",
+        ]);
     });
 
     // The lane runs the drift test as its own `blade-index` guard (issue

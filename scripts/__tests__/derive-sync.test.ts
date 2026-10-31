@@ -40,6 +40,7 @@ import { BASE_BRANCH } from "../lib/branches";
 import { CATALOGUE_DIR, SOURCE_HASH_FILE } from "../lib/catalogue-merge";
 import { commitOnScratchIndex } from "../lib/commit-tree";
 import { DEFINITION_INDEX_PATH } from "../lib/definition-index";
+import { REFIT_ARTIFACT_PATHS } from "../lib/bot-refit";
 import {
     BOT_REGRESSION_LABELS,
     BOT_REPLAY_COMMIT_SUBJECT,
@@ -60,8 +61,10 @@ import {
     derivedLateLine,
     derivedLateTitle,
     derivedStaleLine,
+    isRefitArtifact,
     pushDerivedCommit,
     pushOutcome,
+    refitStaleReason,
     renderBotRegressionIssue,
     renderDerivedLateIssue,
     runDriftSweep,
@@ -720,7 +723,7 @@ describe("--settled — a late Bot state is reported on a GREEN verdict, never p
     });
 });
 
-describe("derive-sync.ts — the five derived paths are their owners' (ADR 0157)", () => {
+describe("derive-sync.ts — the derived paths are their owners' (ADR 0157, issue #7653)", () => {
     it("pins the leaf's literals to the constants the generators write", () => {
         expect(LOCKFILE_PATH).toBe(CHECK_GAPS_LOCKFILE_PATH);
         expect([...DERIVED_PATHS]).toEqual([
@@ -729,7 +732,18 @@ describe("derive-sync.ts — the five derived paths are their owners' (ADR 0157)
             PACKED_CORPUS_PATH,
             DEFINITION_INDEX_PATH,
             SEARCH_INDEX_PATH,
+            ...REFIT_ARTIFACT_PATHS,
         ]);
+    });
+
+    it("the Bot refit artefacts are derived paths the refit writes, named apart in a refusal", () => {
+        for (const path of REFIT_ARTIFACT_PATHS) {
+            expect(DERIVED_PATHS).toContain(path);
+            expect(isRefitArtifact(path)).toBe(true);
+        }
+        expect(isRefitArtifact(LOCKFILE_PATH)).toBe(false);
+        expect(refitStaleReason(["pins-guard"])).toContain("pins-guard");
+        expect(refitStaleReason([])).toContain("derive:sync refits them");
     });
 });
 

@@ -10,6 +10,12 @@
  * after each merge, from `housekeeping`'s throwaway worktree at
  * `origin/<base>`:
  *
+ *   0. the BOT REFIT (issue #7653): `bot:refit --derive` re-fits the eval
+ *      weights and re-records the search / census pins (`REFIT_ARTIFACT_PATHS`,
+ *      derived paths since the PR stopped carrying them). First, so the drift
+ *      sweep below plays on the weights the tip will hold. A refit that fails
+ *      is put back to HEAD and said — the header and catalogue still land;
+ *      `--settled` reports the lag until a run refits;
  *   1. the DRIFT SWEEP (ADR 0158 § 2b, issue #6687): the tip's misses —
  *      `ready` rows whose Bot verdict was not played on the definition the
  *      tip compiles (`staleVerdicts`, `check-oracle-lockfile.ts`) — counted
@@ -43,12 +49,15 @@
  * pushed tip and fast-forwards the primary checkout (the local Convex
  * deployment) only on 0, so the deployment never serves a catalogue that
  * disagrees with its source; a stale tip leaves it on the previous fresh
- * one. `--dry-run` regenerates (the drift sweep included) and prints the
- * plan, commits nothing.
+ * one. `--dry-run` regenerates (the refit and the drift sweep included) and
+ * prints the plan, commits nothing; `--check` is the same run with a verdict:
+ * exit 1 when any derived path — the refit artefacts among them — is stale.
  *
  * `--settled` is health's question (ADR 0158 § 2b, ADR 0159): `--fresh` —
  * the same exit and stale line, so health waits on it within the grace and
- * reds past it — AND whether a maintenance job is LATE with the Bot state:
+ * reds past it, plus `bot:refit --check` on the refit artefacts (issue
+ * #7653: the base's tests read them, so a lag is stale, not late) — AND
+ * whether a maintenance job is LATE with the Bot state:
  * a stale row (the drift sweep's), the header's Bot hash not the tree's
  * (the replay's) unless this Bot's regression issue is open. Lateness is
  * exit 0 with a `derived state is late` line health carries onto its GREEN
@@ -103,6 +112,7 @@ import { GIT_NET_TIMEOUT_MS } from "./gaps-sync";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { CATALOGUE_DIR, SOURCE_HASH_FILE } from "./lib/catalogue-merge";
 import { DEFINITION_INDEX_PATH } from "./lib/definition-index";
+import { REFIT_ARTIFACT_PATHS, refitPlan } from "./lib/bot-refit";
 import {
     BOT_REGRESSION_LABELS,
     BOT_REPLAY_COMMIT_SUBJECT,
@@ -123,6 +133,7 @@ import {
     derivedLateTitle,
     derivedStaleLine,
     pushDerivedCommit,
+    refitStaleReason,
     renderBotRegressionIssue,
     renderDerivedLateIssue,
     runDriftSweep,
@@ -381,6 +392,50 @@ function openLateIssues(): { number: number; title: string }[] {
     }
 }
 
+/** A refit's wall: the fit and the pins measured ~30 s at load 25 (issue
+ *  #7653); a cold worktree pays its module graph once. */
+const REFIT_WALL_MS = 10 * 60_000;
+
+/** `bot:refit --check`'s steps on this tree, quiet: the ids of the red ones
+ *  (empty = the refit artefacts are what the tree fits and records). The
+ *  hosted lane's missing reader key skips the weight guard inside the test
+ *  itself (issue #5675), as it does everywhere. */
+function refitLag(): string[] {
+    const failed: string[] = [];
+    for (const step of refitPlan(["--check"])) {
+        const [cmd, ...rest] = step.argv;
+        const r = spawnSync(cmd!, rest, {
+            cwd: ROOT,
+            stdio: "ignore",
+            env: { ...process.env, ...step.env },
+            timeout: REFIT_WALL_MS,
+        });
+        if (r.status !== 0) failed.push(step.id);
+    }
+    return failed;
+}
+
+/** Step 0 of the write path (issue #7653): re-fit the weights and re-record
+ *  the pins on this tree. A refit that fails leaves no half-written file
+ *  behind — the paths go back to HEAD — and the run goes on: the header and
+ *  catalogue commit must still land, and `--settled` reports the lag. */
+function refit(): void {
+    // `--derive` drops the fit itself where the Verdict Lock's pack cannot
+    // be read (`refitPlan`, issue #5675).
+    if (
+        generate(
+            "bot:refit --derive",
+            ["scripts/bot-refit.ts", "--derive"],
+            REFIT_WALL_MS
+        )
+    )
+        return;
+    complain(
+        `the refit failed — ${REFIT_ARTIFACT_PATHS.length} refit artefact(s) put back to HEAD; the next run refits`
+    );
+    git(["checkout", "-q", "HEAD", "--", ...REFIT_ARTIFACT_PATHS]);
+}
+
 /** `--settled` (ADR 0159): fresh or stale as `--fresh` (exit 1 on stale),
  *  then the Bot state — current (exit 0), or LATE: the late line on stdout,
  *  exit 0, and past the grace the late issue filed once (`--no-file` keeps a
@@ -389,6 +444,11 @@ function settled(noFile: boolean): number {
     const f = freshness();
     if (!f.fresh) {
         console.error(derivedStaleLine(f.why));
+        return 1;
+    }
+    const lagging = refitLag();
+    if (lagging.length > 0) {
+        console.error(derivedStaleLine(refitStaleReason(lagging)));
         return 1;
     }
     const c = currency();
@@ -557,8 +617,9 @@ function driftSweep(head: string): DriftSweepResult {
     });
 }
 
-/** Regenerate on HEAD, commit what changed, push once. Exit code. */
-function write(dryRun: boolean): number {
+/** Regenerate on HEAD, commit what changed, push once. Exit code. `check`
+ *  is a dry run whose exit is 1 on a stale tip. */
+function write(dryRun: boolean, check = false): number {
     const head = git(["rev-parse", "HEAD"]).stdout.trim();
     // Issue #6765 — the write path is the BASE's: it commits on HEAD and
     // pushes to the base, so on any other HEAD it would land that HEAD's own
@@ -588,6 +649,7 @@ function write(dryRun: boolean): number {
         }
     }
     if (!ensureCorpus()) return 1;
+    refit();
     const swept = driftSweep(head);
     if (
         !swept.ok ||
@@ -606,7 +668,7 @@ function write(dryRun: boolean): number {
     say(
         `${head.slice(0, 10)} is derived-stale: ${plan.paths.join(", ")}${dryRun ? " — dry run, nothing committed" : ""}`
     );
-    if (dryRun) return 0;
+    if (dryRun) return check ? 1 : 0;
     return commitAndPush(head, plan.paths, DERIVE_SYNC_COMMIT_SUBJECT).code;
 }
 
@@ -1202,5 +1264,6 @@ if (import.meta.main) {
     if (argv.includes("--replay-bot")) {
         process.exit(replayBot(argv.includes("--dry-run")));
     }
+    if (argv.includes("--check")) process.exit(write(true, true));
     process.exit(write(argv.includes("--dry-run")));
 }

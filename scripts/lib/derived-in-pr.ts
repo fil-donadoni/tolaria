@@ -21,6 +21,7 @@ import {
     DERIVED_PATHS,
     LOCKFILE_PATH,
     isBaseMaintenanceSubject,
+    isRefitArtifact,
 } from "./derive-sync";
 import type { TreeRole } from "./derived-state";
 
@@ -34,7 +35,8 @@ export const HEADER_HASH_KEYS = [
 ] as const;
 export type HeaderHashKey = (typeof HEADER_HASH_KEYS)[number];
 
-/** The derived paths restored WHOLE: every one but the lockfile. */
+/** The derived paths restored WHOLE: every one but the lockfile — the
+ *  catalogue files and the Bot's refit artefacts (issue #7653). */
 export const CATALOGUE_DERIVED_PATHS: readonly string[] = DERIVED_PATHS.filter(
     (p) => p !== LOCKFILE_PATH
 );
@@ -162,7 +164,11 @@ export function derivedCarried(input: {
 export function derivedInDiffProblems(c: DerivedCarried): string[] {
     const out: string[] = [];
     for (const p of c.catalogue)
-        out.push(`${p} changed — the base writes it after the merge`);
+        out.push(
+            isRefitArtifact(p)
+                ? `${p} changed — a Bot refit artefact: the base refits after the merge (\`derive:sync\`, issue #7653), a PR carries Bot code only`
+                : `${p} changed — the base writes it after the merge`
+        );
     if (c.headerKeys.length > 0)
         out.push(
             `${LOCKFILE_PATH} header ${c.headerKeys.join(", ")} changed — the base writes the header hashes; the PR owns the rows`
@@ -172,4 +178,4 @@ export function derivedInDiffProblems(c: DerivedCarried): string[] {
 
 /** The one-line remedy printed under the guard's red. */
 export const DERIVED_IN_DIFF_REMEDY =
-    "bun run land:ready <PR#> restores them to the merge-base at hand-off; by hand: `git checkout <merge-base> -- data/catalogue/` and the header hashes from `git show <merge-base>:data/oracle-compiled.json`, then regenerate locally when you keep working (ADR 0157)";
+    "bun run land:ready <PR#> restores them to the merge-base at hand-off; by hand: `git checkout <merge-base> -- <path>` for each file named (the catalogue, the Bot refit artefacts) and the header hashes from `git show <merge-base>:data/oracle-compiled.json`, then regenerate locally when you keep working (ADR 0157)";

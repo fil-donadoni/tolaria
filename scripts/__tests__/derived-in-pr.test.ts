@@ -5,9 +5,16 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { REFIT_ARTIFACT_PATHS } from "../lib/bot-refit";
 import { DERIVE_SYNC_COMMIT_SUBJECT, LOCKFILE_PATH } from "../lib/derive-sync";
 import {
     CATALOGUE_DERIVED_PATHS,
@@ -171,6 +178,26 @@ describe("derivedCarried — what a diff carries of the derived state", () => {
         expect(problems).toHaveLength(2);
         expect(problems[0]).toContain(CATALOGUE_DERIVED_PATHS[1]!);
         expect(problems[1]).toContain("poolHash");
+    });
+
+    it("a moved Bot refit artefact is a problem line naming the file and the rule (issue #7653)", () => {
+        for (const path of REFIT_ARTIFACT_PATHS) {
+            const c = derivedCarried({
+                changed: [path, "convex/gre/search.ts"],
+                lockfile: rowsOnly,
+            });
+            expect(c).toEqual({ catalogue: [path], headerKeys: [] });
+            const [line] = derivedInDiffProblems(c);
+            expect(line).toContain(path);
+            expect(line).toContain("a Bot refit artefact");
+            expect(line).toContain("derive:sync");
+        }
+        // A catalogue file keeps its own line: the rule named is the base's write.
+        const [catalogue] = derivedInDiffProblems({
+            catalogue: [CATALOGUE_DERIVED_PATHS[0]!],
+            headerKeys: [],
+        });
+        expect(catalogue).not.toContain("refit");
     });
 
     it("the lockfile texts are not read when the lockfile is not in the diff", () => {
@@ -428,6 +455,31 @@ describe("land:ready restoreDerivedState — the hand-off puts the derived state
                 }
             ).status
         ).toBe(0);
+    });
+
+    it("restores a Bot refit artefact whole; `commit: false` stages it and leaves the commit to the caller (issue #7653)", () => {
+        const weights = REFIT_ARTIFACT_PATHS[0]!;
+        write(weights, "fitted v2\n");
+        write("convex/gre/search.ts", "bot code\n");
+        commit("feat(bot): a search change, refitted locally");
+        const before = git("rev-parse", "HEAD").trim();
+        const carried = restoreDerivedState(
+            repo,
+            "base",
+            restoreGit,
+            () => undefined,
+            { commit: false }
+        );
+        expect(carried).toEqual({ catalogue: [weights], headerKeys: [] });
+        expect(git("rev-parse", "HEAD").trim()).toBe(before);
+        expect(git("diff", "--cached", "--name-only").trim()).toBe(weights);
+        expect(readFileSync(join(repo, weights), "utf8")).toBe(
+            `${weights} v1\n`
+        );
+        git("commit", "-q", "-m", "fixup");
+        expect(git("diff", "--name-only", "base", "HEAD").trim()).toBe(
+            "convex/gre/search.ts"
+        );
     });
 
     it("a PR carrying nothing gets no commit", () => {

@@ -5,7 +5,7 @@
 //
 //   classify --lane <lane.json> [--log <lane.log>] [--pr <N> | --draft <branch>] [--ref <base>]
 //       Reads the JSON `check:lane --json --retry-flaky` wrote. Prints the fix
-//       keys (`oracle`, `blade-index`, `format`) when EVERY failed step is one
+//       keys (`oracle`, `blade-index`, `derived`, `format`) when EVERY failed step is one
 //       a regeneration cures, nothing and exit 1 otherwise. With `--pr N` it
 //       also dispatches `pr-fixup.yml` for that PR (`gh workflow run`); with
 //       `--draft <branch>` (the queue's lane, issue #5955) the PR is the one
@@ -45,7 +45,7 @@ import { BLADE_INDEX_DRIFT_TEST } from "./lib/blade-card-index";
 import { REGENERATED_ARTIFACTS } from "./lib/generated-artifacts";
 import { FAILED_LABEL, READY_LABEL } from "./lib/land-labels";
 
-export type FixKey = "oracle" | "blade-index" | "format";
+export type FixKey = "oracle" | "blade-index" | "derived" | "format";
 
 export interface FixRow {
     /** The lane step ids whose failure this row cures. */
@@ -84,6 +84,15 @@ export const FIXES: Readonly<Record<FixKey, FixRow>> = {
         stepIds: ["blade-index", "vitest(bot)"],
         onlyFiles: [BLADE_INDEX_DRIFT_TEST],
         script: "blade:card-index",
+        args: [],
+    },
+    // Issue #7653 — a PR that carries derived state (a catalogue file, the
+    // lockfile's header hashes, a Bot refit artefact) after its hand-off: the
+    // cure is the restore `land:ready` makes, the draft then regenerates them
+    // in its own tree (`derive:regenerate`) like every draft.
+    derived: {
+        stepIds: ["check:derived-in-diff"],
+        script: "derive:restore",
         args: [],
     },
     format: {
@@ -278,6 +287,16 @@ export function fixupPushedLine(
     return `pr:fixup: PR #${pr} fixed (${fixes.join(", ")}) and pushed`;
 }
 export const FIXUP_PUSHED_RE = /^pr:fixup: PR #\d+ fixed \(.*\) and pushed$/m;
+
+/** The order the fixup runs `fixes` in: `derived` last, so no other
+ *  regeneration (`oracle`'s compile rewrites the lockfile's header hashes)
+ *  undoes the restore it makes (issue #7653). */
+export function restoreLast(fixes: readonly FixKey[]): FixKey[] {
+    return [
+        ...fixes.filter((k) => k !== "derived"),
+        ...fixes.filter((k) => k === "derived"),
+    ];
+}
 
 /** `oracle,format` → the keys; null on anything not in the table. */
 export function parseFixes(raw: string): FixKey[] | null {
@@ -593,7 +612,7 @@ function runMain(argv: string[]): void {
         `HEAD:refs/heads/${facts.headRefName}`,
     ];
 
-    for (const key of fixes) {
+    for (const key of restoreLast(fixes)) {
         const row = FIXES[key];
         const r = run("bun", ["run", row.script, ...row.args]);
         if (!r.ok)
