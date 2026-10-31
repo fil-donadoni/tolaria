@@ -775,6 +775,13 @@ export function castNeedsSorceryWindow(
     alternativeCostId?: string
 ): boolean {
     if (isCastTimingSorcerySpeedLocked(casterId, state)) return true;
+    // CR 702.170d — an exile grant whose window is "during their main phase
+    // while the stack is empty" (a plotted card) licenses a cast in that window
+    // only, even for an instant: the permission's timing binds before any
+    // instant speed or flash the card itself has.
+    if (castFromZone === "exile" && card.castableFromExileSorceryTiming) {
+        return true;
+    }
     // CR 715.3b — the object whose TYPES and keywords decide instant speed is
     // the announced subject, not necessarily the printed card. Identity for
     // every cast this engine had before Adventure.

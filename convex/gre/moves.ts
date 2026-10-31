@@ -212,6 +212,7 @@ import {
 import { landPlayFaces, type PlayLandFace } from "./modalLandPlay";
 import { isSplitCastId, offersPrintedCast } from "./splitCast";
 import { morphCastAlternativeCost, turnableFaceUpPermanents } from "./morph";
+import { plottableHandCards } from "./plot";
 import { hasRetrace } from "./retrace";
 import { flashbackExileEligibleCount } from "./flashback";
 import { hasEscape } from "./escape";
@@ -456,6 +457,18 @@ export type Move =
           cardInstanceId: string;
       }
     | {
+          /** CR 116.2k / 702.170a — the `plot` special action: exile a card
+           *  with plot from your hand by paying its plot cost, during your
+           *  main phase with the stack empty; it becomes plotted (castable
+           *  free from exile on a later turn, CR 702.170d). Per-CARD (hence
+           *  `cardInstanceId`), sorcery-timed, repeatable. No tap plan, like
+           *  `turn-face-up`: the cost is solved and paid server-side in one
+           *  shot (`canPlot` / `plotPaymentPlan`, gre/plot.ts, and the
+           *  `plotCard` mutation in game.ts). */
+          kind: "plot";
+          cardInstanceId: string;
+      }
+    | {
           kind: "cast-spell";
           cardInstanceId: string;
           /** CR 601.3 (issue #2971) — the zone this cast comes FROM. Absent
@@ -684,7 +697,7 @@ export type Move =
  *  a cost that differs per permanent (CR 116.2b). Each keeps its own predicate;
  *  only the "no stack, no response, keeps priority" consequence is common.
  *
- *  The remaining CR 116.2 actions (suspend, foretell, plot, the planar die,
+ *  The remaining CR 116.2 actions (suspend, foretell, the planar die,
  *  unlock, the two effect-granted forms) are not modelled — none has a shipped
  *  card that reaches them. */
 export const SPECIAL_ACTION_MOVE_KINDS: ReadonlySet<Move["kind"]> = new Set([
@@ -694,6 +707,8 @@ export const SPECIAL_ACTION_MOVE_KINDS: ReadonlySet<Move["kind"]> = new Set([
     "summon-companion",
     // CR 116.2b / 702.37e — turning a face-down permanent face up.
     "turn-face-up",
+    // CR 116.2k / 702.170a — exiling a card with plot from hand.
+    "plot",
 ]);
 
 /** CR 712.12 — one `play-land` Move per FACE of `card` that is a land, in
@@ -5851,6 +5866,12 @@ export function enumerateMoves(
     // server would reject.
     for (const faceDown of turnableFaceUpPermanents(state, player)) {
         moves.push({ kind: "turn-face-up", cardInstanceId: faceDown.id });
+    }
+    // CR 116.2k / 702.170a — the plot special action, one Move per card in
+    // hand with an affordable plot cost, gated by the same `canPlot` the
+    // `plotCard` mutation and the hand card's wire affordance read.
+    for (const card of plottableHandCards(state, player)) {
+        moves.push({ kind: "plot", cardInstanceId: card.id });
     }
     for (const card of player.hand) {
         const actions = getLegalActions(state, player, card);

@@ -37,6 +37,7 @@ function engineMutations(state: GameState): MoveMutations {
         },
         summonCompanion: reject,
         turnPermanentFaceUp: reject,
+        plotCard: reject,
         announceCast: reject,
         selectTarget: reject,
         selectTargets: reject,

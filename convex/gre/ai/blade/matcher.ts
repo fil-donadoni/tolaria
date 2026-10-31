@@ -98,6 +98,7 @@ export function movingCardIds(move: Move): string[] {
         case "cast-spell":
         case "activate-ability":
         case "turn-face-up":
+        case "plot":
             return [move.cardInstanceId];
         case "declare-attackers":
             return move.attackerIds;

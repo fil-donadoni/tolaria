@@ -478,6 +478,8 @@ import {
     isMorphCastAlternativeCost,
     morphTurnUpPaymentPlan,
 } from "./gre/morph";
+import { applyPlot } from "./gre/plot";
+import { paySpecialActionManaCost } from "./gre/specialActionPayment";
 import { isOverloadAlternativeCost } from "./gre/overload";
 import {
     applyEmergeReduction,
@@ -4437,36 +4439,10 @@ export function applyTurnPermanentFaceUp(
     // (which has no mana cost at all).
     const morphCost = normalizeManaCost(getMorphCost(permanent) ?? {});
 
-    // Tap the planned lands and add their mana (CR 605.1a), mirroring
-    // `summonCompanion`'s auto-tap-and-commit sequence.
-    const subs = getManaSubstitutions(state, player.id);
-    const sources = buildAutoTapSources(
-        player.battlefield,
-        manaGateBattlefields(state),
-        undefined,
-        state
-    );
-    const tappedIds = new Set(plan.map((step) => step.cardId));
-    for (const src of player.battlefield) {
-        if (tappedIds.has(src.id)) src.isTapped = true;
-    }
-    const produced = replaceProducedManaColor(
-        state,
-        player.id,
-        manaFromPlan(sources, plan)
-    );
-    for (const color of MANA_COLORS) {
-        const amount = produced[color];
-        if (amount) {
-            player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
-        }
-    }
     // CR 702.37e — pay the morph cost with no card types: a genuinely
     // RESTRICTED unit is ineligible (a special action is not a spell cast),
     // a bare-rider one is admitted and spent last (CR 106.6, issue #3354).
-    // Same reasoning `summonCompanion` records for its {3}.
-    payManaCostForSpell(player, morphCost, [], subs);
-    commitLandsForCost(player, morphCost);
+    paySpecialActionManaCost(state, player, morphCost, plan);
 
     // CR 702.37e — "then turn the permanent face up. The morph effect on it
     // ends, and it regains its normal characteristics." One primitive, shared
@@ -4479,6 +4455,38 @@ export function applyTurnPermanentFaceUp(
     // priority stays with the player who took it (CR 117.3c).
     checkStateBasedActionsAfterSpecialAction(state, playerId);
 }
+
+/** CR 116.2k / 702.170a (issue #3219) — the `plot` special action: exile a
+ *  card with plot from hand, paying its plot cost, during the caller's main
+ *  phase with the stack empty; it becomes plotted (CR 702.170d). The whole
+ *  transition is `applyPlot` (`gre/plot.ts`); this adds auth, the clone and
+ *  the save. No stack item; priority stays with the caller (CR 116.3). */
+export const plotCard = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+        assertNoPendingChoices(state);
+        applyPlot(state, args.playerId, args.cardInstanceId);
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+    },
+});
 
 export { payLoyaltyCost };
 

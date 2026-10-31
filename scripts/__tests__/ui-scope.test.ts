@@ -213,10 +213,14 @@ describe("computeUiScope — scoped", () => {
         });
     });
 
-    it.each([
-        "data/catalogue/catalogue-abc.json",
-        "data/full-catalogue/full-catalogue-abc.json.gz",
-    ])(
+    it("an unplaced regenerated catalogue artefact owes no browser time (owner ruling, issue #3219)", () => {
+        expect(scopeOf("data/catalogue/packed-corpus.json")).toEqual({
+            kind: "scoped",
+            surfaces: [],
+        });
+    });
+
+    it.each(["data/full-catalogue/full-catalogue-abc.json.gz"])(
         "%s is loaded by the client through import.meta.glob — never server-only (issue #5074 review)",
         (artifact) => {
             expect(scopeOf(artifact)).toEqual({

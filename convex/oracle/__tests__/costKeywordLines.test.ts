@@ -169,6 +169,55 @@ describe("Madness [cost] (CR 702.35a)", () => {
     });
 });
 
+describe("Plot [cost] (CR 702.170a)", () => {
+    it("Djinn of Fool's Fall: the cost lands on `plot`", () => {
+        expect(
+            compiled(
+                oracleCard({
+                    name: "Djinn of Fool's Fall",
+                    manaCost: "{4}{U}",
+                    typeLine: "Creature — Djinn",
+                    power: "4",
+                    toughness: "3",
+                    oracleText:
+                        "Flying\nPlot {3}{U} (You may pay {3}{U} and exile this card from your hand. Cast it as a sorcery on a later turn without paying its mana cost. Plot only as a sorcery.)",
+                })
+            )
+        ).toEqual({
+            name: "Djinn of Fool's Fall",
+            types: ["Creature"],
+            subtypes: ["Djinn"],
+            manaCost: { X: 4, U: 1 },
+            power: 4,
+            toughness: 3,
+            oracleText:
+                "Flying\nPlot {3}{U} (You may pay {3}{U} and exile this card from your hand. Cast it as a sorcery on a later turn without paying its mana cost. Plot only as a sorcery.)",
+            staticAbilities: ["flying"],
+            plot: { X: 3, U: 1 },
+        });
+    });
+
+    it("a card declaring plot twice is refused whole", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Double Plot",
+                manaCost: "{1}{R}",
+                typeLine: "Sorcery",
+                oracleText: "Draw a card.\nPlot {1}{R}\nPlot {2}{R}",
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
+    it.each([
+        ["a variable cost", "Plot {X}"],
+        ["a hybrid pip", "Plot {B/G}"],
+        ["a non-mana cost", "Plot—Discard a card."],
+    ])("REFUSES %s", (_why, line) => {
+        expect(readLine(line).ok).toBe(false);
+    });
+});
+
 describe("Morph [cost] (CR 702.37a, 702.37e)", () => {
     it("Exalted Angel: the turn-up cost lands on `morph`", () => {
         const def = compiled(

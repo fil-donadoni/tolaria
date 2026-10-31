@@ -54,6 +54,9 @@ export type MoveMutations = {
     turnPermanentFaceUp: (
         a: GP & { cardInstanceId: string }
     ) => Promise<unknown>;
+    /** CR 116.2k / 702.170a — the plot special action. Per hand card; the
+     *  plot cost is solved and paid server-side in this one call. */
+    plotCard: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
     announceCast: (
         a: GP & {
             cardInstanceId: string;
@@ -523,6 +526,14 @@ export async function executeMove(
         // (`turnPermanentFaceUp`, game.ts), exactly like the companion's {3}.
         case "turn-face-up":
             await mutations.turnPermanentFaceUp({
+                ...base,
+                cardInstanceId: move.cardInstanceId,
+            });
+            return;
+
+        // CR 116.2k / 702.170a — the plot special action, same one-call shape.
+        case "plot":
+            await mutations.plotCard({
                 ...base,
                 cardInstanceId: move.cardInstanceId,
             });

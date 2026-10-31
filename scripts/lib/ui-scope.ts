@@ -40,6 +40,8 @@
  *     deployment serves, and never pushes Convex functions (ADR 0131
  *     amendment, issue #5074). A module the frontend DOES import is in a
  *     closure and was placed above;
+ *   - in no closure at all, and a REGENERATED catalogue artefact
+ *     (`data/catalogue/**`) → contributes nothing (owner ruling, issue #3219);
  *   - in no closure at all, but reachable ONLY from a STAFF-ONLY route entry
  *     (`isStaffOnlyRouteEntry`: the admin pages, `/admin/draft-lab`) →
  *     contributes nothing: staff tooling is out of `check:ui`'s scope, so no
@@ -181,6 +183,13 @@ export function isNonDomPath(path: string): boolean {
  *  eager): the import graph follows no glob, so they sit in no closure yet
  *  ship the card data every screen renders. */
 const GLOB_LOADED_DATA_DIRS = ["data/catalogue/", "data/full-catalogue/"];
+
+/** The REGENERATED card-catalogue artefacts (`catalogue:pack` /
+ *  `derive:regenerate`), rewritten by every PR that adds or graduates a card.
+ *  Owner ruling (issue #3219): they place on no surface — the data changes
+ *  which cards exist, never a layout, and the UI that renders a new card's
+ *  affordance is a `src/` file the diff places on its own. */
+const REGENERATED_CATALOGUE_DIR = "data/catalogue/";
 
 /**
  * A path only the server or tooling reads: `convex/**` or `data/**`, minus
@@ -413,6 +422,7 @@ export function computeUiScope({
             if (typeOnlyReachable(path)) continue;
             if (staffOnlyReachable(path)) continue;
             if (isServerOnlyPath(path)) continue;
+            if (path.startsWith(REGENERATED_CATALOGUE_DIR)) continue;
             if (placedThroughImporters(path, graph)) continue;
             doubts.push(
                 `${path} is in no surface's closure and no rule places it`

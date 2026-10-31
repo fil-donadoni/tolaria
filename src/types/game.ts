@@ -370,6 +370,10 @@ export interface CardInstance {
      *  on it. Mirrors `SlimHandCard.printedCostCastUnavailable` in
      *  `convex/gameProjections.ts`. */
     printedCostCastUnavailable?: true;
+    /** CR 116.2k / 702.170a — the plot special action is available on this
+     *  own-hand card right now. Mirrors `SlimHandCard.canPlot` in
+     *  `convex/gameProjections.ts`. */
+    canPlot?: true;
     /** Two basic land types chosen as a permanent entered and stored for the
      *  rest of the game (CR 603.6b / 614.12 — Illusionary Terrain). Forwarded by
      *  `slimCard` (the projection only strips `card`/`knownTo`); read by the
@@ -530,6 +534,14 @@ export interface CardInstance {
      *  (`exileCastPermission`, `convex/gre/castCost.ts`) with it so a button
      *  disabled by a closed window says so instead of blaming the mana. */
     castableFromExileFromTurn?: number;
+    /** CR 702.170d — the cast-from-exile grant licenses a cast only in the
+     *  grantee's main phase with an empty stack (a plotted card). Crosses the
+     *  wire via `slimCard`; read by `ExileCastButton` for its disabled reason.
+     *  Mirrors `CardInstanceState.castableFromExileSorceryTiming`. */
+    castableFromExileSorceryTiming?: boolean;
+    /** CR 702.170a/c — the PLOTTED designation on a card in exile (public, the
+     *  card is exiled face up). Mirrors `CardInstanceState.plotted`. */
+    plotted?: boolean;
     /** CR 601.2f (issue #2383) — an OBJECT-SCOPED cost increase riding
      *  `castableFromExileBy`: "A spell cast this way costs {2} more to cast"
      *  (Elite Spellbinder). Crosses the wire via `slimCard` (which strips only
