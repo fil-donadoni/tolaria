@@ -28,15 +28,22 @@ merge_queue:
     # Mergify's own comment on a dequeued PR carries the failing check.
     status_comments: outcomes
 
-# FIFO by default; two kinds of PR jump the line (issue #6938). The RED
+# FIFO by default; three kinds of PR jump the line (issue #6938). The RED
 # ladder's revert (its title is `Revert PR #N: …`) restores a GREEN base
-# that every other landing waits on, and `queue:priority` is the owner's
-# by-hand promotion. A high-priority PR may interrupt a running draft's
-# check: the interrupted PR is re-checked behind it.
+# that every other landing waits on; so does any declared repair of the
+# standing RED — a fix-forward or a hand revert closing a repair issue —
+# which `pr-gate` marks with a green `declared-repair` status (issue #7658);
+# and `queue:priority` is the owner's by-hand promotion. A high-priority PR
+# may interrupt a running draft's check: the interrupted PR is re-checked
+# behind it.
 priority_rules:
     - name: the RED ladder's revert
       conditions:
           - title~=^Revert PR #
+      priority: high
+    - name: a declared repair of the standing RED
+      conditions:
+          - check-success=declared-repair
       priority: high
     - name: owner promotion
       conditions:

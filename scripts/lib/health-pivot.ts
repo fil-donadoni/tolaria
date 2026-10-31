@@ -236,6 +236,16 @@ export function recordPivotRepairIssue(
     }
 }
 
+/** `pivotRepairIssues`, throwing when the pivot cannot be read — for a
+ *  caller that must tell an outage from "no repair declared" (`pr-gate`,
+ *  issue #7658). */
+export function readPivotRepairIssues(
+    root: string,
+    opts: PivotOpts = {}
+): number[] {
+    return readRepairRecords(root, opts).issues;
+}
+
 /** The repair issues the pivot holds for the standing RED (carried ones
  *  included, `readRepairRecords`); [] when none. */
 export function pivotRepairIssues(

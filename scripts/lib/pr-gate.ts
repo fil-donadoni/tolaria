@@ -409,6 +409,68 @@ export function baseHealthStatus(input: {
     );
 }
 
+/**
+ * `declared-repair` — posted only under a RED, green, on a PR closing a
+ * declared repair issue: `.mergify.yml`'s priority rule reads it, so the
+ * repair jumps the queue it unblocks (issue #7658). "Declared" is the one
+ * set `land` and `repair-proof` read too: the standing RED's repair issues
+ * plus every still-open one an earlier RED of the run recorded
+ * (`pivotRepairIssues`). `base-health` green on it is what keeps a repair
+ * out of `holdsBeforeRed` and in the queue.
+ */
+export const DECLARED_REPAIR_CONTEXT = "declared-repair";
+
+/**
+ * `declared-repair` for one PR (issue #7658): green under a RED (or second
+ * RED) when the PR closes one of `repairIssues`, else null — nothing posted.
+ * Never on a Mergify queue PR: its body is Mergify's. Mergify's priority
+ * rule reads the green, so a declared repair takes the front of the queue it
+ * unblocks; `declaredRepairUpdate` withdraws a green that no longer holds.
+ */
+export function declaredRepairStatus(input: {
+    lineage: Lineage & { error?: string };
+    pr: Pick<GatePr, "author" | "body" | "headRef" | "headRepo" | "baseRepo">;
+    repairIssues: readonly number[];
+}): GateStatus | null {
+    if (isMergifyQueuePr(input.pr)) return null;
+    const red = lineageBlocks(input.lineage.kind);
+    if (!red) return null;
+    const admission = healthAdmission({
+        red,
+        prBody: input.pr.body,
+        repairIssues: input.repairIssues,
+    });
+    if (!admission.admit || admission.repairOf === null) return null;
+    return {
+        context: DECLARED_REPAIR_CONTEXT,
+        state: "success",
+        description: clipDescription(
+            `closes repair issue #${admission.repairOf} of the RED @ ${short(input.lineage.verdict?.sha)} — queue priority`
+        ),
+    };
+}
+
+/**
+ * What to post as `declared-repair` (issue #7658): the green when the PR is a
+ * declared repair, a `failure` withdrawing a green the head still carries
+ * once it is not (the RED cleared, the body dropped its closing line, a new
+ * RED declared other issues) — so a stale green never keeps a priority —
+ * and nothing otherwise: an ordinary PR never wears the context.
+ */
+export function declaredRepairUpdate(input: {
+    next: GateStatus | null;
+    prior: GateState | undefined;
+}): GateStatus | null {
+    if (input.next !== null) return input.next;
+    if (input.prior !== "success") return null;
+    return {
+        context: DECLARED_REPAIR_CONTEXT,
+        state: "failure",
+        description:
+            "no longer a declared repair of a standing RED — no queue priority",
+    };
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // A PR's own red under a base RED (issue #6652)
 // ─────────────────────────────────────────────────────────────────────────

@@ -1,5 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { spawnSync } from "node:child_process";
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import picomatch from "picomatch";
 import {
@@ -42,6 +51,10 @@ import {
 } from "../lib/scan-guards";
 import { derivedProblems, TREE_ROLE_ENV, treeRole } from "../lib/derived-state";
 import { ORIGIN_BASE } from "../lib/branches";
+import {
+    pureRevertOf,
+    revertedCommitsInMessages,
+} from "../lib/revert-restores";
 import {
     HEALTH_ONLY_GUARDS,
     HEALTH_SCRIPTS,
@@ -99,6 +112,7 @@ function classifyLane(
         botReach,
         scanGuards,
         sentinels,
+        pureRevert,
     ]: Parameters<typeof classifyLaneLive>
 ): ReturnType<typeof classifyLaneLive> {
     return classifyLaneLive(
@@ -108,7 +122,8 @@ function classifyLane(
         overrides,
         botReach,
         scanGuards,
-        sentinels ?? NO_SENTINELS
+        sentinels ?? NO_SENTINELS,
+        pureRevert
     );
 }
 
@@ -3427,5 +3442,185 @@ describe("every code lane runs the derived sentinel set (issue #7651)", () => {
             "sentinels: 3 files, 1.2 s (data/lane-sentinels.json, issue #7651)"
         );
         expect(out).toContain(`       ${PAIRS} (1.1 s)`);
+    });
+});
+
+/**
+ * The `revert` lane (issue #7658, ADR 0156 Amendment VI): a pure revert —
+ * every changed path byte-identical to the parent of the commit it reverts,
+ * the predicate the `check:ui` exemption uses (Amendment II) — runs `tsc`
+ * alone; `repair-proof` is the PR's check. On real git fixtures: the ladder's
+ * `git revert` and the same branch with one hand edit.
+ */
+describe("check-lane — a pure revert's short lane (issue #7658)", () => {
+    const none = (): RelatedTests => ({
+        "node-engine": [],
+        "node-tooling": [],
+        dom: [],
+    });
+    const noBot: BotReachSource = {
+        total: () => 0,
+        related: () => ({ "bot-node": [], "bot-dom": [] }),
+        costs: () => ({}),
+        budget: () => ({ perFileMs: 5_000, totalMs: 10_000 }),
+    };
+    /** `--plan` over a fixture: the lane `check:lane`'s `main` would print. */
+    const planOf = (changed: string[], reverted: string[] | null) =>
+        classifyLane(
+            changed,
+            changed,
+            none,
+            undefined,
+            noBot,
+            () => [],
+            NO_SENTINELS,
+            reverted
+        );
+
+    let repo: string;
+    const git = (...args: string[]): string => {
+        const r = spawnSync("git", args, { cwd: repo, encoding: "utf8" });
+        if (r.status !== 0)
+            throw new Error(`git ${args.join(" ")}: ${r.stderr.trim()}`);
+        return r.stdout.trim();
+    };
+    const commit = (subject: string, files: Record<string, string>) => {
+        for (const [path, text] of Object.entries(files)) {
+            mkdirSync(join(repo, path, ".."), { recursive: true });
+            writeFileSync(join(repo, path), text);
+        }
+        git("add", "-A");
+        git("commit", "-q", "-m", subject);
+        return git("rev-parse", "HEAD");
+    };
+    const changedOf = (base: string) =>
+        git("diff", "--name-only", `${base}...HEAD`)
+            .split("\n")
+            .filter(Boolean);
+
+    let culprit: string;
+    let base: string;
+    beforeEach(() => {
+        repo = mkdtempSync(join(tmpdir(), "lane-revert-"));
+        git("init", "-q", "-b", "main");
+        git("config", "user.email", "t@example.com");
+        git("config", "user.name", "t");
+        git("config", "commit.gpgsign", "false");
+        commit("base", {
+            "scripts/lib/x.ts": "export const x = 1;\n",
+            "convex/gre/y.ts": "export const y = 1;\n",
+        });
+        culprit = commit("feat: x and y (#100)", {
+            "scripts/lib/x.ts": "export const x = 2;\n",
+            "convex/gre/new.ts": "export const n = 2;\n",
+        });
+        base = commit("later: unrelated (#101)", {
+            "convex/gre/y.ts": "export const y = 3;\n",
+        });
+        git("checkout", "-q", "-b", "fix/issue-7000");
+        git("revert", "--no-edit", culprit);
+    });
+    afterEach(() => {
+        rmSync(repo, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
+    });
+
+    it("the ladder's revert prints the short lane: tsc and the diff's cheap checks, the reverted commit named", () => {
+        const changed = changedOf(base);
+        expect(changed.sort()).toEqual([
+            "convex/gre/new.ts",
+            "scripts/lib/x.ts",
+        ]);
+        const reverted = pureRevertOf(base, repo);
+        expect(reverted).toEqual([culprit]);
+        const p = planOf(changed, reverted);
+        expect(p.lane).toBe("revert");
+        // No test: the type-check and the diff's format/lint/cr:lint.
+        expect(ids(p.run)).toEqual([
+            "format(diff)",
+            "lint(diff)",
+            "tsc[all]",
+            "cr:lint",
+        ]);
+        expect(p.reverted).toEqual([culprit]);
+        expect(ids(p.skip)).toContain("repair-proof");
+        const out = renderPlan(p, "abc1234");
+        expect(out).toMatch(/^lane: {2}revert /);
+        expect(out).toContain(`reverts: ${culprit}`);
+        expect(out).toMatch(/by its paths it would be engine/);
+    });
+
+    it("one hand edit on a culprit path loses it: the lane its paths decide", () => {
+        commit("fix: tweak", { "scripts/lib/x.ts": "export const x = 9;\n" });
+        const reverted = pureRevertOf(base, repo);
+        expect(reverted).toBeNull();
+        expect(planOf(changedOf(base), reverted).lane).toBe("engine");
+    });
+
+    it("one hand edit on any other path loses it too", () => {
+        commit("fix: also this", {
+            "convex/gre/y.ts": "export const y = 4;\n",
+        });
+        expect(pureRevertOf(base, repo)).toBeNull();
+    });
+
+    it("a deleted path a rename would pair with an added lookalike is still judged", () => {
+        // The culprit deletes y.ts; its revert re-adds it, and a hand edit
+        // deletes z.ts, byte-identical to it: rename detection would list
+        // only y.ts (z.ts → y.ts) and never judge the deletion.
+        git("checkout", "-q", "main");
+        commit("twin", { "convex/gre/z.ts": "export const y = 3;\n" });
+        git("rm", "-q", "convex/gre/y.ts");
+        git("commit", "-q", "-m", "feat: drop y (#102)");
+        const dropY = git("rev-parse", "HEAD");
+        git("checkout", "-q", "-b", "fix/issue-7001");
+        git("revert", "--no-edit", dropY);
+        git("rm", "-q", "convex/gre/z.ts");
+        git("commit", "-q", "-m", "fix: drop the twin");
+        expect(pureRevertOf(dropY, repo)).toBeNull();
+    });
+
+    it("a branch naming no reverted commit is no revert, whatever its bytes", () => {
+        git("reset", "-q", "--hard", base);
+        commit("chore: restore by hand", {
+            "scripts/lib/x.ts": "export const x = 1;\n",
+            "convex/gre/new.ts": "",
+        });
+        git("rm", "-q", "convex/gre/new.ts");
+        git("commit", "-q", "-m", "chore: drop new");
+        expect(pureRevertOf(base, repo)).toBeNull();
+    });
+
+    it("a revert of a revert — the culprit re-applied — is no pure revert", () => {
+        // The ladder's revert lands on the base; a branch then reverts IT:
+        // byte-identical to the revert's parent, i.e. the culprit's bytes.
+        const revert = git("rev-parse", "HEAD");
+        git("checkout", "-q", "main");
+        git("merge", "-q", "--ff-only", revert);
+        git("checkout", "-q", "-b", "reapply");
+        git("revert", "--no-edit", revert);
+        expect(changedOf(revert).length).toBeGreaterThan(0);
+        expect(pureRevertOf(revert, repo)).toBeNull();
+    });
+
+    it("a docs diff keeps the docs lane, a full one check:pr; no revert keeps the path lane", () => {
+        expect(planOf(["docs/adr/0156.md"], [culprit]).lane).toBe("docs");
+        expect(planOf(["package.json"], [culprit]).lane).toBe("full");
+        expect(planOf(["scripts/lib/x.ts"], null).lane).toBe("engine");
+        expect(planOf(["scripts/lib/x.ts"], []).lane).toBe("engine");
+    });
+
+    it("reads every `This reverts commit` line of a revert set, once", () => {
+        const a = "a".repeat(40);
+        const b = "b".repeat(40);
+        const log = `Revert "x"\n\nThis reverts commit ${a}.\n\nRevert "y"\n\nThis reverts commit ${b}.\nThis reverts commit ${a}.\n`;
+        expect(revertedCommitsInMessages(log)).toEqual([a, b]);
+        expect(
+            revertedCommitsInMessages("mentions This reverts commit abc")
+        ).toEqual([]);
     });
 });

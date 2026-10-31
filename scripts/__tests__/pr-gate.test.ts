@@ -11,6 +11,9 @@ import {
     BASE_HEALTH_CONTEXT,
     baseHealthStatus,
     clipDescription,
+    DECLARED_REPAIR_CONTEXT,
+    declaredRepairStatus,
+    declaredRepairUpdate,
     gatePrOf,
     healthAdmission,
     heldPrAction,
@@ -743,5 +746,109 @@ describe("a PR's own red under a base RED (issue #6652)", () => {
             },
         });
         expect(read).toBe(0);
+    });
+});
+
+/**
+ * A declared repair is never held by the RED it repairs, and jumps the queue
+ * (issue #7658): `declared-repair` is green on it under a RED — the status
+ * `.mergify.yml`'s priority rule reads — and `holdsBeforeRed` never labels
+ * it `queue:held`, whatever `base-health` read. PR #7136 (a ladder revert)
+ * sat `queue:held` 2 h 40 behind its own RED.
+ */
+describe("a declared repair under a RED — priority, never held (issue #7658)", () => {
+    const repair = pr({ body: "Reverts PR #7093.\n\nCloses #7135" });
+    const other = pr({ body: "Closes #12" });
+
+    it("is green on `declared-repair` under a RED and a second RED, naming its issue", () => {
+        for (const kind of ["red", "second-red"] as const) {
+            const s = declaredRepairStatus({
+                lineage: lineage(kind),
+                pr: repair,
+                repairIssues: [7135],
+            });
+            expect(s?.context).toBe(DECLARED_REPAIR_CONTEXT);
+            expect(s?.state).toBe("success");
+            expect(s?.description).toMatch(/#7135/);
+        }
+    });
+
+    it("posts nothing off RED, for a PR closing no repair issue, or on a Mergify draft", () => {
+        for (const kind of ["green", "amber", "none"] as const)
+            expect(
+                declaredRepairStatus({
+                    lineage: lineage(kind),
+                    pr: repair,
+                    repairIssues: [7135],
+                })
+            ).toBeNull();
+        expect(
+            declaredRepairStatus({
+                lineage: lineage("red"),
+                pr: other,
+                repairIssues: [7135],
+            })
+        ).toBeNull();
+        const draft = pr({
+            ...repair,
+            author: "mergify[bot]",
+            headRef: "mergify/merge-queue/1dcc8ee081",
+        });
+        expect(
+            declaredRepairStatus({
+                lineage: lineage("red"),
+                pr: draft,
+                repairIssues: [7135],
+            })
+        ).toBeNull();
+    });
+
+    it("a declared repair is never labelled queue:held: its base-health is green on the same set", () => {
+        const ready = ["ready-to-land", "queued"];
+        const hold = (body: string) =>
+            holdsBeforeRed({
+                labels: ready,
+                baseHealth: baseHealthStatus({
+                    lineage: lineage("red"),
+                    pr: pr({ body }),
+                    repairIssues: [7135],
+                }).state,
+                trustedAuthor: "success",
+            });
+        expect(hold(repair.body)).toBe(false);
+        // The same PR closing no repair issue: held, as any PR under the RED.
+        expect(hold(other.body)).toBe(true);
+    });
+
+    it("a green that no longer holds is withdrawn; an ordinary PR never wears the context", () => {
+        const green = declaredRepairStatus({
+            lineage: lineage("red"),
+            pr: repair,
+            repairIssues: [7135],
+        });
+        expect(declaredRepairUpdate({ next: green, prior: undefined })).toBe(
+            green
+        );
+        const withdrawn = declaredRepairUpdate({
+            next: null,
+            prior: "success",
+        });
+        expect(withdrawn?.context).toBe(DECLARED_REPAIR_CONTEXT);
+        expect(withdrawn?.state).toBe("failure");
+        expect(
+            declaredRepairUpdate({ next: null, prior: undefined })
+        ).toBeNull();
+        expect(
+            declaredRepairUpdate({ next: null, prior: "failure" })
+        ).toBeNull();
+    });
+
+    it("the queue admits it: base-health green on the same repair issues", () => {
+        const s = baseHealthStatus({
+            lineage: lineage("red"),
+            pr: repair,
+            repairIssues: [7135],
+        });
+        expect(s.state).toBe("success");
     });
 });
