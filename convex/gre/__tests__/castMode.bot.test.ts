@@ -52,6 +52,7 @@ const FOREST = getCardByName("Forest").id;
 const PLAINS = getCardByName("Plains").id;
 const MOUNTAIN = getCardByName("Mountain").id;
 const ISLAND = getCardByName("Island").id;
+const SWAMP = getCardByName("Swamp").id;
 
 /** Every characteristic a cast mode can change. Deliberately WIDER than the
  *  boolean markers (PR #3056 review finding 6): `applyBestowCharacteristics`
@@ -66,6 +67,7 @@ function modeMarkersOf(card: CardInstanceState) {
         faceDown: card.faceDown === true,
         dashed: card.dashed === true,
         warped: card.warped === true,
+        impended: card.impended === true,
         evoked: card.evoked === true,
         overloaded: card.overloaded === true,
         // CR 715.3b — the Adventure's mark IS the retained front id
@@ -95,6 +97,7 @@ const CLEARED_MARKERS = {
     faceDown: undefined,
     dashed: undefined,
     warped: undefined,
+    impended: undefined,
     evoked: undefined,
     overloaded: undefined,
     adventureOf: undefined,
@@ -225,6 +228,18 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
         enumerated: true,
         assertStamped: (m) => {
             expect(m.warped).toBe(true);
+        },
+    },
+    // CR 702.176a — the marker the entry time counters, the layer-4 "not a
+    // creature" removal and the end-step countdown all read. Unstamped, the
+    // tree prices an impending cast as the full 5/5 bought for two mana.
+    impending: {
+        card: "Overlord of the Balemurk",
+        land: SWAMP,
+        landCount: 2,
+        enumerated: true,
+        assertStamped: (m) => {
+            expect(m.impended).toBe(true);
         },
     },
     // CR 702.74a — the marker `evokeTrigger` reads to sacrifice the permanent
@@ -408,6 +423,8 @@ function altCostIdFor(def: CardDefinition, mode: CastMode): string {
             return def.dash?.id ?? "";
         case "warp":
             return def.warp?.id ?? "";
+        case "impending":
+            return def.impending?.id ?? "";
         case "evoke":
             return def.evoke?.id ?? "";
         case "overload":

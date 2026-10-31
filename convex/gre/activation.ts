@@ -1761,6 +1761,7 @@ export function tryAutoCommitPendingCast(
             evoked: pending.evoked,
             dashed: pending.dashed,
             warped: pending.warped,
+            impended: pending.impended,
             overloaded: pending.overloaded,
             bestowed: pending.bestowed,
             morphed: pending.morphed,

@@ -51,6 +51,7 @@ import { becameTargetTrigger } from "./abilities/triggers/becameTargetTrigger";
 import { turnedFaceUpTrigger } from "./abilities/triggers/turnedFaceUpTrigger";
 import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
 import { attacksOrBlocksTrigger } from "./abilities/triggers/attacksOrBlocksTrigger";
+import { entersOrAttacksTrigger } from "./abilities/triggers/entersOrAttacksTrigger";
 import { damageDealtTrigger } from "./abilities/triggers/damageDealtTrigger";
 import { damageTakenTrigger } from "./abilities/triggers/damageTakenTrigger";
 import { diedTrigger } from "./abilities/triggers/diedTrigger";
@@ -283,6 +284,11 @@ export type CompiledTriggerHead =
      * creature and naming it `$event.combatant`.
      */
     | { readonly kind: "attacks-or-blocks"; readonly scope: PermanentScope }
+    /**
+     * CR 603.2 / 603.6a / 508.3a — "whenever this permanent enters or
+     * attacks": ONE Oracle line over the source's own entry and attack.
+     */
+    | { readonly kind: "enters-or-attacks" }
     /** CR 119.3 / 510.1 — "whenever this creature deals combat damage to a player". */
     | { readonly kind: "combat-damage-to-player" }
     /**
@@ -641,6 +647,8 @@ export function resolveCompiledTrigger(
             });
         case "attacks-or-blocks":
             return attacksOrBlocksTrigger({ ...common, scope: head.scope });
+        case "enters-or-attacks":
+            return entersOrAttacksTrigger(common);
         case "combat-damage-to-player":
             // CR 510.1 — combat damage only, dealt BY this permanent, to a
             // player. `relation: "any"` because "a player" is symmetric: in a

@@ -221,6 +221,9 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     // CR 508.3a / 509.3a — the source watches OTHER creatures declare; nothing
     // in either event moves it.
     "attacks-or-blocks": () => true,
+    // CR 603.6a / 508.3a — the source entered or attacked and is on the
+    // battlefield as the trigger is put on the stack.
+    "enters-or-attacks": () => true,
     "combat-damage-to-player": () => true,
     // CR 120.3 — the source is the DAMAGE dealer or recipient, and it is still
     // on the battlefield when the trigger is put on the stack.

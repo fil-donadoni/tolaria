@@ -5,26 +5,77 @@
 
 import { defineCard, type GameEvent } from "../../types";
 import { enduringReturnTrigger } from "../../abilities/enduringReturn";
+import { entersOrAttacksTrigger } from "../../abilities/triggers/entersOrAttacksTrigger";
 
-// Overlord of the Balemurk — {3}{B}{B} Enchantment Creature. "Impending 5 —
-// {1}{B} (If you cast this spell for its impending cost, it enters with five
-// time counters and isn't a creature until the last is removed. At the
-// beginning of your end step, remove a time counter from it.) Whenever this
-// permanent enters or attacks, mill four cards, then you may return a
-// non-Avatar creature card or a planeswalker card from your graveyard to your
-// hand." Blocked: keyword **Impending** (CR 702.176) is `status: "planned"`
-// (issue #1970).
-// tracked-by: #1970
-// export const overlordOfTheBalemurk: CardDefinition = {
-//     id: "9b911653-7b96-4cf3-a907-13c5c53a14f7",
-//     name: "Overlord of the Balemurk",
-//     rarity: "mythic",
-//     manaCost: { X: 3, B: 2 },
-//     types: ["Enchantment", "Creature"],
-//     subtypes: ["Avatar", "Horror"],
-//     power: 5,
-//     toughness: 5,
-// };
+// Overlord of the Balemurk — {3}{B}{B} Enchantment Creature — Avatar Horror,
+// 5/5 (issue #1970, Vintage Cube).
+//
+// "Impending 5—{1}{B}" is the keyword string plus its cost field: CR 702.176a's
+// four abilities (the alternative cost, the five time counters, "not a
+// creature" while one remains, the end-step countdown) are expanded at the
+// `getDefinition` seam from them (`abilities/impending.ts`).
+//
+// "Whenever this permanent enters or attacks" is ONE Oracle line over two
+// events (CR 603.2), so ONE ability (`entersOrAttacksTrigger`). It fires on
+// entry whichever cost was paid — an impending Overlord still enters — while
+// the attacks half needs it to be a creature again (CR 508.1a).
+//
+// "A non-Avatar creature card or a planeswalker card" is one filter: a card of
+// either type that is not an Avatar. Exact over the printed card pool — no
+// card in the Oracle corpus is a creature AND a planeswalker AND an Avatar, the
+// only shape on which the two readings could differ.
+// compiler-gap: "then you may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand" (#COMPILERGAP)
+export const overlordOfTheBalemurk = defineCard(() => ({
+    id: "9b911653-7b96-4cf3-a907-13c5c53a14f7",
+    name: "Overlord of the Balemurk",
+    rarity: "mythic",
+    oracleText:
+        "Impending 5—{1}{B} (If you cast this spell for its impending cost, it enters with five time counters and isn't a creature until the last is removed. At the beginning of your end step, remove a time counter from it.)\nWhenever this permanent enters or attacks, mill four cards, then you may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand.",
+    manaCost: { X: 3, B: 2 },
+    types: ["Enchantment", "Creature"],
+    subtypes: ["Avatar", "Horror"],
+    power: 5,
+    toughness: 5,
+    staticAbilities: ["impending 5"],
+    impending: {
+        id: "impending",
+        description: "Impending 5—{1}{B}",
+        mana: { X: 1, B: 1 },
+    },
+    triggeredAbilities: [
+        entersOrAttacksTrigger({
+            id: "overlord-of-the-balemurk-trigger",
+            oracleText:
+                "Whenever this permanent enters or attacks, mill four cards, then you may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand.",
+            effects: [
+                // CR 701.17a — mill four.
+                { op: "mill", player: "controller", count: 4 },
+                // CR 608.2c — "then you may return": the pick reads the
+                // graveyard AFTER the mill, so a milled card is eligible.
+                {
+                    op: "choice",
+                    kind: "choose-graveyard-card",
+                    player: "controller",
+                    zone: "graveyard",
+                    filter: {
+                        type: ["Creature", "Planeswalker"],
+                        excludeSubtype: "Avatar",
+                    },
+                    count: { min: 0, max: 1 },
+                    prompt: "You may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand.",
+                    bind: "$picked",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "graveyard",
+                    to: "hand",
+                },
+            ],
+        }),
+    ],
+}));
 
 // Enduring Tenacity — {2}{B}{B} Enchantment Creature — Snake Glimmer, 4/3
 // (issue #2085, the DSK "Enduring" cycle; the shared dies-trigger and its

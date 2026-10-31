@@ -88,6 +88,7 @@ export type CastMode =
     | "morph"
     | "dash"
     | "warp"
+    | "impending"
     | "evoke"
     | "overload"
     | "adventure"
@@ -171,6 +172,17 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
         subject: (def) => def,
         stamp: (_state, item) => {
             item.warped = true;
+        },
+    },
+    // CR 702.176a — the `impended` marker three of Impending's four abilities
+    // read (`convex/cards/abilities/impending.ts`). Without it the tree prices
+    // an impending cast as the full creature bought at the discount — no time
+    // counters, never "not a creature".
+    impending: {
+        idOf: (def) => def?.impending?.id,
+        subject: (def) => def,
+        stamp: (_state, item) => {
+            item.impended = true;
         },
     },
     // CR 702.74a — "When this permanent enters, if its evoke cost was paid, its

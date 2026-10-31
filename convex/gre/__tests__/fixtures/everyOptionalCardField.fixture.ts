@@ -230,6 +230,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         overloaded: true,
         dashed: true,
         warped: true,
+        impended: true,
         warpExiled: true,
         enterAttackingTarget: "p2",
         bestowed: true,

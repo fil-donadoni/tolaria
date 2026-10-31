@@ -29,6 +29,11 @@ import { expandFirebending } from "./abilities/firebending";
 import { BESTOW_STATIC_EFFECT_KINDS, expandBestow } from "./abilities/bestow";
 import { expandEchoCumulativeUpkeep } from "./abilities/echoCumulativeUpkeep";
 import { expandFadingVanishing } from "./abilities/fadingVanishing";
+import {
+    expandImpending,
+    IMPENDING_STATIC_EFFECT_KINDS,
+    parseImpending,
+} from "./abilities/impending";
 import { expandHideaway } from "./abilities/hideaway";
 import { expandKeywordTriggers } from "./abilities/keywordTriggers";
 import { expandChapterAbilities } from "./abilities/sagas";
@@ -189,7 +194,9 @@ const LAYER_2_5_STATIC_KINDS = new Set<string>([
  *     is the kind of the `StaticEffect` it rebuilds into, so it answers the
  *     question directly;
  *   - `bestow` (CR 702.103b, ADR 0084), whose layer-4 type change is injected
- *     by `expandBestow` at that same post-index seam. */
+ *     by `expandBestow` at that same post-index seam;
+ *   - an `"impending N"` keyword (CR 702.176a), whose layer-4 "not a
+ *     creature" removal `expandImpending` injects at the same seam. */
 const declaresStaticKind = (
     def: CardDefinition,
     kinds: ReadonlySet<string>
@@ -204,7 +211,9 @@ const declaresStaticKind = (
     // so they do not exist on the raw entry this index reads either. The
     // `bestow` field is what says they will.
     (def.bestow !== undefined &&
-        BESTOW_STATIC_EFFECT_KINDS.some((kind) => kinds.has(kind)));
+        BESTOW_STATIC_EFFECT_KINDS.some((kind) => kinds.has(kind))) ||
+    (parseImpending(def.staticAbilities) !== null &&
+        IMPENDING_STATIC_EFFECT_KINDS.some((kind) => kinds.has(kind)));
 
 /** CR 611.3d (issue #3726) — does any of `def`'s static effects declare
  *  `lingersAfterSourceLeaves`? The FIELD twin of `declaresStaticKind` above:
@@ -600,34 +609,39 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // `expandCompiledStatics` sits beside it, one step further in, for the same
     // reason: a later expander reading `staticEffects` must not see a different
     // set depending on whether the card was compiled or hand-written.
-    const expanded = expandEchoCumulativeUpkeep(
-        expandBestow(
-            expandCascade(
-                expandFirebending(
-                    expandAnnihilator(
-                        expandHideaway(
-                            expandKeywordTriggers(
-                                expandFadingVanishing(
-                                    // CR 716.2 (issue #3234) — the Class level bars sit
-                                    // beside `expandChapterAbilities`: both desugar a
-                                    // printed TEXT BOX SECTION declared as data, and
-                                    // both must run before any expander that reads the
-                                    // ability arrays they inject into.
-                                    expandClassLevelBars(
-                                        expandChapterAbilities(
-                                            expandCompiledTriggers(
-                                                expandCompiledStatics(
-                                                    // CR 614.1a — the compiled
-                                                    // "shuffle it into its owner's
-                                                    // library instead" flag, rebuilt
-                                                    // innermost beside the other
-                                                    // compiled descriptors.
-                                                    expandShuffleFromAnywhere(
-                                                        expandDamagePreventionCounterRemoval(
-                                                            expandControllerDamagePrevention(
-                                                                expandDamageLifeFloor(
-                                                                    expandDamageAsCounters(
-                                                                        base
+    // Impending (CR 702.176) expands from its `"impending N"` keyword string
+    // into the entry time counters, the layer-4 "not a creature" removal and
+    // the end-step countdown trigger — Bestow's and Vanishing's shapes, joined.
+    const expanded = expandImpending(
+        expandEchoCumulativeUpkeep(
+            expandBestow(
+                expandCascade(
+                    expandFirebending(
+                        expandAnnihilator(
+                            expandHideaway(
+                                expandKeywordTriggers(
+                                    expandFadingVanishing(
+                                        // CR 716.2 (issue #3234) — the Class level bars sit
+                                        // beside `expandChapterAbilities`: both desugar a
+                                        // printed TEXT BOX SECTION declared as data, and
+                                        // both must run before any expander that reads the
+                                        // ability arrays they inject into.
+                                        expandClassLevelBars(
+                                            expandChapterAbilities(
+                                                expandCompiledTriggers(
+                                                    expandCompiledStatics(
+                                                        // CR 614.1a — the compiled
+                                                        // "shuffle it into its owner's
+                                                        // library instead" flag, rebuilt
+                                                        // innermost beside the other
+                                                        // compiled descriptors.
+                                                        expandShuffleFromAnywhere(
+                                                            expandDamagePreventionCounterRemoval(
+                                                                expandControllerDamagePrevention(
+                                                                    expandDamageLifeFloor(
+                                                                        expandDamageAsCounters(
+                                                                            base
+                                                                        )
                                                                     )
                                                                 )
                                                             )

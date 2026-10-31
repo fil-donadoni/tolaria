@@ -317,6 +317,18 @@ export type SlotIR =
      */
     | { readonly kind: "morph"; readonly cost: ManaCost }
     /**
+     * CR 702.176a — an "Impending N—[cost]" line: the alternative cost,
+     * lowered onto `CardDefinition.impending`, and the `"impending N"`
+     * keyword string the `getDefinition` seam expands into the keyword's
+     * other three abilities. `description` is the printed line.
+     */
+    | {
+          readonly kind: "impending";
+          readonly count: number;
+          readonly cost: ManaCost;
+          readonly description: string;
+      }
+    /**
      * CR 702.30a — an "Echo [cost]" line, lowered onto `CardDefinition.echo`
      * (ADR 0155): the `getDefinition` expander derives the upkeep trigger.
      */
