@@ -496,6 +496,20 @@ describe("bisectFirstRed — the first red commit after the last GREEN", () => {
         ).toBe("p3");
         expect(lastGreenOf(["p1"], () => null)).toBeNull();
     });
+    it("walks past a repair proof's GREEN: a test the proof never ran may have gone red at that tip (issue #7657)", () => {
+        const store: Record<string, Verdict> = {
+            p2: {
+                sha: "p2",
+                status: "green",
+                step: "repair: failing files + 2 unreached steps green",
+            },
+            p3: { sha: "p3", status: "red" },
+            p4: { sha: "p4", status: "green" },
+        };
+        expect(
+            lastGreenOf(["p1", "p2", "p3", "p4"], (s) => store[s] ?? null)
+        ).toBe("p4");
+    });
 });
 
 describe("the culprit in the evidence", () => {

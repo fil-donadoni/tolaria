@@ -131,6 +131,20 @@ describe("release — loopDecision", () => {
         });
     });
 
+    it("a repair-proof GREEN on the tip does not promote on its own: refused, not repairable (ADR 0116, issue #7657)", () => {
+        const d = loopDecision(
+            gated({ sha: tip, status: "green", proof: "repair" })
+        );
+        expect(d.kind).toBe("stop");
+        expect((d as { reason: string }).reason).toMatch(
+            /repair proof .* not the full gate/
+        );
+        // A refusal that is no RED: the fixer is never spawned for it.
+        expect(
+            releaseDecision(tip, { sha: tip, status: "green", proof: "repair" })
+        ).toMatchObject({ kind: "refuse", red: false });
+    });
+
     it("hands a RED tip to the fixer when there are rounds left and a terminal", () => {
         const decision = releaseDecision(tip, red);
         expect(loopDecision(gated(red))).toEqual({
@@ -337,6 +351,20 @@ describe("release — reconcileRecord (store vs local last.json)", () => {
             expect(
                 reconcileRecord(tip, { sha: tip, status }, redByHuawei)?.status
             ).toBe("red");
+    });
+
+    it("a stored repair-proof GREEN (its step marked) is read as such, and refused (issue #7657)", () => {
+        const rec = reconcileRecord(tip, null, {
+            sha: tip,
+            status: "green",
+            step: "repair: failing files + 2 unreached steps green",
+            machine: "macbook",
+        });
+        expect(rec).toMatchObject({ status: "green", proof: "repair" });
+        expect(releaseDecision(tip, rec)).toMatchObject({
+            kind: "refuse",
+            red: false,
+        });
     });
 
     it("a stored GREEN stands in for a missing local record", () => {

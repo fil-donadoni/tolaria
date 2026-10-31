@@ -49,6 +49,7 @@ import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import { netEnv } from "./lib/gh";
 import type { HealthStatus } from "./lib/health-verdict";
 import {
+    isRepairProofGreen,
     machineName,
     verdictStore,
     type Verdict,
@@ -85,6 +86,10 @@ export interface HealthRecord {
     log?: string;
     /** The machine that wrote the verdict, when the store says (issue #5466). */
     machine?: string;
+    /** `green` only (issue #7657): earned by a repair proof — the RED's
+     *  failing files and the steps its run never reached on a declared
+     *  repair's tip — not the full gate. Never promoted (ADR 0116). */
+    proof?: "repair";
 }
 
 export type ReleaseDecision =
@@ -100,7 +105,9 @@ export type ReleaseDecision =
  * release iff the last health record is GREEN and is about the sha we are
  * about to promote. A green record on an OLDER tip is not evidence about
  * this one; a `running` record means another health run has the sha and
- * this invocation must not race it.
+ * this invocation must not race it. A GREEN a repair proof earned (issue
+ * #7657) is GREEN for the lineage, not the full gate on the exact tip that
+ * ADR 0116 requires: refused, not repairable — the gate runs it whole.
  */
 export function releaseDecision(
     tip: string,
@@ -128,6 +135,13 @@ export function releaseDecision(
             // and must not be raced. Nor is INFRA (issue #4938): the tree was
             // never shown wrong, so there is nothing for a fixer to fix.
             red: last.status === "red",
+        };
+    }
+    if (last.proof === "repair") {
+        return {
+            kind: "refuse",
+            reason: `health GREEN @ ${tip.slice(0, 8)} is a repair proof (the RED's failing files and the steps its run never reached), not the full gate — release gates the tip whole (ADR 0116, issue #7657)`,
+            red: false,
         };
     }
     return { kind: "release", sha: tip };
@@ -160,6 +174,7 @@ function recordOf(v: Verdict): HealthRecord {
         failedStep: v.step,
         log: v.log,
         machine: v.machine,
+        ...(isRepairProofGreen(v) ? { proof: "repair" as const } : {}),
     };
 }
 

@@ -43,6 +43,7 @@ import { RUN_LAST_ENV } from "./vitest-run-last";
 import { evidenceTests, failLines, type FailingTest } from "./health-evidence";
 import {
     HOSTED_MACHINE_PREFIX,
+    isRepairProofGreen,
     type Verdict,
     type WriteOutcome,
 } from "./health-verdict-store";
@@ -658,12 +659,19 @@ export function flakyIssueBody(input: {
     ].join("\n");
 }
 
-/** The first ancestor (newest first) the store holds a GREEN for, or null. */
+/** The first ancestor (newest first) the store holds a FULL GREEN for, or
+ *  null. A repair proof's GREEN (issue #7657, `isRepairProofGreen`) is walked
+ *  past: it ran the earlier RED's failing files and unreached steps only, so
+ *  a test it never ran may have gone red AT that tip — it must stay inside
+ *  the range, never be its good bound. */
 export function lastGreenOf(
     ancestors: readonly string[],
     read: (sha: string) => Verdict | null
 ): string | null {
-    for (const sha of ancestors) if (read(sha)?.status === "green") return sha;
+    for (const sha of ancestors) {
+        const v = read(sha);
+        if (v?.status === "green" && !isRepairProofGreen(v)) return sha;
+    }
     return null;
 }
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted, amended four times (Amendment I, the gap review, same day; Amendment II, the revert's receipt, 2026-10-21; Amendment III, a PR's own red under a RED, 2026-10-27; Amendment IV, the heartbeat, 2026-10-29) — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.
+accepted, amended five times (Amendment I, the gap review, same day; Amendment II, the revert's receipt, 2026-10-21; Amendment III, a PR's own red under a RED, 2026-10-27; Amendment IV, the heartbeat, 2026-10-29; Amendment V, a declared repair's tip is GREEN on the RED's evidence, 2026-10-31) — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.
 accetta l'ADR e apri il PRD"), written at the owner's request as the LAST
 iteration of the workflow discussion ("arrivare a una soluzione che mi
 permetta di concentrarmi sul prodotto"). The repository stays **personal and
@@ -571,7 +571,7 @@ because the old loop stopped on RED. Zero reverts. The ladder:
    an unisolable failure stops the flow — one email, one `ready-for-human`
    issue with the evidence, the queue held, no new passes.
 
-_Rungs 4–5 are reordered by [ADR 0158](0158-the-bot-play-sweep-leaves-the-pr-and-a-red-is-reverted-first.md) § 3: a named culprit is reverted first, fix-forward is the reopened issue's pass._
+_Rungs 4–5 are reordered by [ADR 0158](0158-the-bot-play-sweep-leaves-the-pr-and-a-red-is-reverted-first.md) § 3: a named culprit is reverted first, fix-forward is the reopened issue's pass. A declared repair's tip is proven by the RED's own evidence, not by a full gate — Amendment V below._
 
 Target, read on the cockpit: at least 80 % of RED episodes back to green
 without the owner, p90 under 6 h.
@@ -753,6 +753,75 @@ clocks only: the job still runs on a runner, through the workflow; the timer
 only decides **when** to ask. The alternative — a long-lived job on a `maint`
 runner — was rejected: a runner restart or an offline runner kills it, and it
 holds a `maint` slot permanently.
+
+## Amendment V (2026-10-31, issue #7657) — a declared repair's tip is GREEN on the RED's own evidence
+
+The 15 RED episodes of 2026-10-24 → 10-31 (PRD issue #7645) spent about 8 h
+in full gates that re-proved files a revert had restored: even the best
+episode (1.0 h) spent 30 min proving a tip whose only novelty was the
+culprit's absence. The ladder's first half already answers in minutes (RED
+15–40 min after the merge, the culprit in 60–90 s, the revert PR in 2–3 min);
+the full gate was the last of the three places the hours went.
+
+**Rule — rung 2 on the repair tip.** A base tip that merges a **declared
+repair** of the standing RED is judged by the RED's own evidence, in
+`health-main` after the worktree's bootstrap and the derived-state judgement
+(`scripts/lib/health-repair-proof.ts`):
+
+- **Detection** (`tipMergesDeclaredRepair`): a first-parent commit since the
+  standing RED whose PR closes one of the repair issues recorded on ANY RED of
+  the run — the pivot's `health-fix` statuses, closed issues included (issue
+  #7647: the merge itself closed it). A tip that does not descend from the
+  RED, more than `MAX_PR_COMMITS_SINCE_RED` PR commits since it (generated
+  commits not counted), a run on a branch other than the configured base, or
+  any fact that cannot be read, is not a repair tip: the full gate runs.
+- **Plan** (`repairProofPlan`, pure over the RED's record): the RED's failing
+  files (its published evidence's, else the description's — a description
+  that cut its list, `more: N`, with no evidence to read is the full gate; so
+  is evidence the run could not read), then every health step the RED's run
+  never reached — `test`'s chain after the failing tier (`remainingGates`),
+  the steps after the failed one. Over every RED of the run (stacked REDs,
+  issue #7139): files and steps are the union. A RED naming no failing file
+  (a step failure: `check:all`, a crash), at a step the run does not know, or
+  **written by a repair proof itself** (its `proof: repair` field — the trust
+  never chains: that run passed nothing a second proof could lean on), is
+  the **full gate** — fail closed. A RED a GitHub-hosted run wrote skipped
+  the committed-corpus tests (issue #5675): those files join the proof. A
+  failing file the repair renamed runs at its new path, one it deleted (a
+  revert of the culprit that added it) is dropped, one missing for no reason
+  the diff explains is the full gate (`resolveMovedFiles`).
+- **Run** (`runRepairProof`, the flake path's order): the files as whole files
+  at their own paths, the default config's and the blade's apart; when they
+  pass alone and ran in a shared-worker project (`isolate: false`,
+  `sharedWorkerProjects`), that project whole in one worker with the failing
+  tests last — a cross-file leak reproduces only beside its polluter (issue
+  #7584), and a repair that did not fix the polluter must not pass on the
+  files alone; then each unreached step by name. The first failure is RED
+  with the usual evidence, at the `HEALTH_SCRIPTS` entry (`test` for a chain
+  tier, so the ladder's fresh run reads it) and marked `proof: repair`; the
+  ladder then climbs it as any RED. All green is GREEN.
+- **Verdict:** GREEN, with `repair: failing files + N unreached steps green`
+  as its step and `proof: repair` beside it — the same vocabulary as rung 2's
+  `flake: …`, **no new verdict state**. The lineage reads it as GREEN: picks
+  and landings resume, the episode ends. `gateSkipReason` and
+  `browserStepsOwed` do not read it as the full gate: the next batch gate
+  (ADR 0154's cadence, the cron, the heartbeat) gates the tip whole, once,
+  and its full GREEN replaces the proof on the store. **The bisect's good
+  bound walks past it** (`lastGreenOf`): a test the proof never ran may have
+  gone red at the proof tip itself, so a later RED is bisected from the last
+  FULL GREEN with the proof tip inside the range — a few more probes, the
+  right culprit. `release` refuses it (`releaseDecision`): ADR 0116's "the
+  release branch moves only to a full-gate GREEN on the exact tip" is
+  unchanged, so the release gate runs the tip whole.
+- **Never** under `--release`, nor in a hosted early run (it writes no
+  GREEN), nor under `--full` (the by-hand full gate on a repair tip).
+
+The steps the RED's run passed on the RED tip are trusted on the repair tip —
+one hop, never two. What that trusts: a step that passed on the RED tip and
+fails on the repair tip is a defect of the repair itself (or of a `--red-ok`
+landing beside it), which the batch gate finds within one cadence and the
+ladder bisects from the last full GREEN, the proof tip among the probes.
+Accepted for the ~30 min per episode it returns.
 
 ## What would change the answer
 
