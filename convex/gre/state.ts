@@ -19206,8 +19206,8 @@ export function buildSpellContext(
             // in the parameter's type at all — a hand card has no public
             // identity to disclose (CR 402.1), so the question is
             // unrepresentable rather than a branch returning `undefined`.
-            // CR 400.7 — an exiled card sits in its OWNER's exile, which a
-            // cast during resolution may reach across players.
+            // CR 400.1 — exile is ONE shared zone, kept here as a pile per
+            // owner, so a cast during resolution may reach any player's pile.
             const owner = castZoneOwner(
                 state,
                 getPlayer(state, playerId),
@@ -19238,8 +19238,9 @@ export function buildSpellContext(
             // at all. An `includesLand` grant (Hideaway) checks this AFTER
             // the offer was already accepted — the presence-channel fix — so
             // a false there means the accept silently fails instead.
-            // CR 400.7 — the card may sit in another player's exile (a cast
-            // during resolution from an opponent's exile, `castZoneOwner`).
+            // CR 400.1 — exile is shared: the card may sit in another
+            // player's pile (a cast during resolution from an opponent's
+            // exile, `castZoneOwner`).
             const owner = castZoneOwner(
                 state,
                 getPlayer(state, playerId),
@@ -19314,8 +19315,9 @@ export function buildSpellContext(
             // or the opponent reads land-ness off whether an offer appeared
             // at all (the presence channel `OFFER_PROMPT`'s byte-identical
             // wording does not close).
-            // CR 400.7 — the card may sit in another player's exile (a cast
-            // during resolution from an opponent's exile, `castZoneOwner`).
+            // CR 400.1 — exile is shared: the card may sit in another
+            // player's pile (a cast during resolution from an opponent's
+            // exile, `castZoneOwner`).
             const owner = castZoneOwner(
                 state,
                 getPlayer(state, playerId),
@@ -19495,7 +19497,7 @@ export function buildSpellContext(
             const free = opts?.free ?? false;
 
             const owner = getPlayer(state, controllerId);
-            // CR 400.7 — an exiled card sits in its OWNER's exile: a cast
+            // CR 400.1 — exile is shared, kept as a pile per owner: a cast
             // during resolution may take it from an opponent's (Crabomination);
             // mana and sacrifices still come from `owner`, the caster.
             // `commitCast` removes it from the same zone owner.
@@ -19746,7 +19748,7 @@ export function castZoneOwner(
 }
 
 /** `findOwnedCastSource`, widened to a card sitting in ANOTHER player's exile
- *  (CR 400.7 — an exiled card stays in its owner's exile, `castZoneOwner`):
+ *  (CR 400.1 — exile is shared, kept as a pile per owner, `castZoneOwner`):
  *  the cast-during-resolution getters read a chosen card's definition and
  *  cost modifiers wherever it sits, and Crabomination's free cast picks from
  *  the opponent's exile. The caster's own zones are searched first. */
