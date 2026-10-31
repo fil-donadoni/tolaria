@@ -9,7 +9,7 @@
  * issues); the PR that closes one of them is the repair.
  */
 import { spawnSync } from "node:child_process";
-import { pivotRepairIssues } from "./health-pivot";
+import { readRunRepairIssues, type PivotOpts } from "./health-pivot";
 import { originRepo } from "./health-verdict-store";
 
 /** True when a PR merged by the push closes one of the declared repair
@@ -63,14 +63,18 @@ function ghOut(args: string[]): string {
 }
 
 /** Total: any unreadable fact answers false — the ordinary serial batching
- *  then applies, which is only slower, never wrong. */
+ *  then applies, which is only slower, never wrong. The declared repairs are
+ *  every issue recorded on any RED of the standing run, closed ones included
+ *  (`readRunRepairIssues`, issue #7647): the PR this push merges is what
+ *  closed it. */
 export function pushMergesDeclaredRepair(
     root: string,
     sha: string,
-    run?: (args: string[]) => string
+    run?: (args: string[]) => string,
+    pivot: PivotOpts = {}
 ): boolean {
     try {
-        const repairs = pivotRepairIssues(root);
+        const repairs = readRunRepairIssues(root, pivot);
         if (repairs.length === 0) return false;
         return mergesDeclaredRepair(repairs, issuesClosedBy(root, sha, run));
     } catch {

@@ -38,7 +38,13 @@ export function healthRunsPending(
     }
     return false;
 }
-import { originRepo, verdictStore } from "./health-verdict-store";
+import {
+    lineageBlocks,
+    originRepo,
+    verdictStore,
+    type LineageKind,
+    type VerdictStatus,
+} from "./health-verdict-store";
 
 /** Landings per batch health run (ADR 0154: 20 landings / 8 h; the clock
  *  half is health.yml's two-hourly schedule). */
@@ -127,15 +133,111 @@ export function pushOwesBatchRun(
                       )(latest, sha)
                   );
         const inFlight = (
-            deps.inFlight ??
-            (() =>
-                pivotRunInFlight(
-                    root,
-                    deps.now ?? Date.now(),
-                    RUN_IN_FLIGHT_MAX_MS
-                ) !== null || healthRunsPending())
+            deps.inFlight ?? (() => healthGateInFlight(root, deps.now))
         )();
         return batchDue({ landingsSinceVerdict: landings, inFlight });
+    } catch {
+        return false;
+    }
+}
+
+/** A health gate in flight: a pivot run marker OR a queued / running
+ *  `health.yml` run (the marker appears only after the gate's job setup and
+ *  admission wait). Throws when either cannot be read. */
+export function healthGateInFlight(root: string, now?: number): boolean {
+    return (
+        pivotRunInFlight(root, now ?? Date.now(), RUN_IN_FLIGHT_MAX_MS) !==
+            null || healthRunsPending()
+    );
+}
+
+/** `health.yml`'s `run-name` for a ladder run: what the re-gate's probe
+ *  must not count as a gate. */
+export const LADDER_RUN_TITLE = "health ladder";
+
+/**
+ * The re-gate's in-flight probe (issue #7647): a queued or running
+ * `health.yml` run that is a GATE — any title but `LADDER_RUN_TITLE`, so a
+ * run older than the `run-name` counts. Two facts `healthGateInFlight` reads
+ * are wrong here: a RED ladder (up to 180 min, dispatched right after the
+ * RED) is not the gate the tip waits for, and the pivot run marker of a run
+ * that ended PENDING (derived-stale, ADR 0157) is never settled, so it reads
+ * "in flight" for `RUN_IN_FLIGHT_MAX_MS` — exactly over the `derive:sync`
+ * push that must re-gate. A dispatch beside a gate already running costs no
+ * double proof: health.yml's `health-gate` group runs one and keeps the
+ * newest pending.
+ */
+export function healthGateRunsPending(
+    run: (args: string[]) => string = gh
+): boolean {
+    for (const status of ["queued", "in_progress"]) {
+        const out = run([
+            "run",
+            "list",
+            "--workflow",
+            "health.yml",
+            "--status",
+            status,
+            "--limit",
+            "20",
+            "--json",
+            "displayTitle",
+        ]);
+        const runs = JSON.parse(out) as Array<{ displayTitle?: string }>;
+        if (runs.some((r) => r.displayTitle !== LADDER_RUN_TITLE)) return true;
+    }
+    return false;
+}
+
+/** A tip verdict that settles nothing: none, or an INFRA (a run that proved
+ *  nothing). GREEN, RED and AMBER are judgements the ladder and the cron own. */
+const SETTLED: ReadonlySet<string> = new Set<VerdictStatus>([
+    "green",
+    "red",
+    "amber",
+]);
+
+/**
+ * The third `classify` predicate (issue #7647), pure: a RED stands on the
+ * lineage and the pushed tip has no settled verdict, with no gate in flight
+ * → dispatch the full gate on the tip now, so a repair (a revert, or any
+ * commit that clears the culprit) is GREEN in minutes rather than at the
+ * next cron. A tip `health-main` judged `pending` (derived-stale within the
+ * grace, ADR 0157) writes nothing to the store, so it reads as unverdicted
+ * — the `derive:sync` push that follows re-asks on its own tip.
+ */
+export function redTipOwesGate(input: {
+    readonly lineage: LineageKind;
+    /** The pushed tip's own verdict status, null when none. */
+    readonly tipStatus: string | null;
+    readonly inFlight: boolean;
+}): boolean {
+    if (!lineageBlocks(input.lineage)) return false;
+    if (input.tipStatus !== null && SETTLED.has(input.tipStatus)) return false;
+    return !input.inFlight;
+}
+
+/** Total: any unreadable fact answers "no" — the cron's turn. */
+export function pushOwesRedRegate(
+    root: string,
+    sha: string,
+    deps: {
+        readonly lineage?: () => LineageKind;
+        readonly tipStatus?: (sha: string) => string | null;
+        readonly inFlight?: () => boolean;
+    } = {}
+): boolean {
+    try {
+        const lineage = (
+            deps.lineage ?? (() => verdictStore(root).lineage().kind)
+        )();
+        if (!lineageBlocks(lineage)) return false;
+        const tipStatus = (
+            deps.tipStatus ??
+            ((s) => verdictStore(root).read(s)?.status ?? null)
+        )(sha);
+        const inFlight = (deps.inFlight ?? (() => healthGateRunsPending()))();
+        return redTipOwesGate({ lineage, tipStatus, inFlight });
     } catch {
         return false;
     }

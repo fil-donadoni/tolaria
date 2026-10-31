@@ -5,9 +5,13 @@ import { describe, expect, it } from "vitest";
 import {
     LANDINGS_PER_BATCH,
     batchDue,
+    LADDER_RUN_TITLE,
+    healthGateRunsPending,
     healthRunsPending,
     landingsIn,
     pushOwesBatchRun,
+    pushOwesRedRegate,
+    redTipOwesGate,
     subjectsBetween,
 } from "../lib/health-batch-due";
 
@@ -159,5 +163,90 @@ describe("subjectsBetween — the compare endpoint's first lines", () => {
         ]);
         expect(calls).toHaveLength(1);
         expect(calls[0]?.[1]).toBe("repos/o/r/compare/aaa...bbb");
+    });
+});
+
+// Issue #7647: a standing RED with an unverdicted pushed tip dispatches the
+// gate at once — a revert is GREEN in minutes, not at the next cron.
+describe("redTipOwesGate — the third classify predicate", () => {
+    it("RED standing + tip unverdicted + no run in flight → dispatch", () => {
+        for (const lineage of ["red", "second-red"] as const)
+            expect(
+                redTipOwesGate({ lineage, tipStatus: null, inFlight: false })
+            ).toBe(true);
+    });
+    it("GREEN (or any non-blocking) lineage → no dispatch", () => {
+        for (const lineage of ["green", "amber", "infra", "none"] as const)
+            expect(
+                redTipOwesGate({ lineage, tipStatus: null, inFlight: false })
+            ).toBe(false);
+    });
+    it("a gate in flight → no dispatch", () => {
+        expect(
+            redTipOwesGate({ lineage: "red", tipStatus: null, inFlight: true })
+        ).toBe(false);
+    });
+    it("INFRA on the tip proves nothing → dispatch; a settled tip verdict → no dispatch", () => {
+        expect(
+            redTipOwesGate({
+                lineage: "red",
+                tipStatus: "infra",
+                inFlight: false,
+            })
+        ).toBe(true);
+        for (const tipStatus of ["green", "red", "amber"])
+            expect(
+                redTipOwesGate({ lineage: "red", tipStatus, inFlight: false })
+            ).toBe(false);
+    });
+});
+
+describe("pushOwesRedRegate — total", () => {
+    const SHA = "e".repeat(40);
+    it("reads the lineage, the tip's own verdict and the in-flight probe", () => {
+        const asked: string[] = [];
+        expect(
+            pushOwesRedRegate("/tmp", SHA, {
+                lineage: () => "red",
+                tipStatus: (s) => {
+                    asked.push(s);
+                    return null;
+                },
+                inFlight: () => false,
+            })
+        ).toBe(true);
+        expect(asked).toEqual([SHA]);
+    });
+    it("an unreadable fact answers no re-gate — the cron's turn", () => {
+        expect(
+            pushOwesRedRegate("/tmp", SHA, {
+                lineage: () => "red",
+                tipStatus: () => {
+                    throw new Error("store down");
+                },
+                inFlight: () => false,
+            })
+        ).toBe(false);
+    });
+});
+
+describe("healthGateRunsPending — only a GATE in flight holds the re-gate (issue #7647)", () => {
+    const lists = (queued: string[], running: string[]) => (args: string[]) =>
+        JSON.stringify(
+            (args.includes("queued") ? queued : running).map((t) => ({
+                displayTitle: t,
+            }))
+        );
+    it("a ladder run, queued or running, is not a gate in flight", () => {
+        expect(
+            healthGateRunsPending(lists([LADDER_RUN_TITLE], [LADDER_RUN_TITLE]))
+        ).toBe(false);
+        expect(healthGateRunsPending(lists([], []))).toBe(false);
+    });
+    it("a gate run — or a run older than the run-name — is", () => {
+        expect(
+            healthGateRunsPending(lists([], [LADDER_RUN_TITLE, "health gate"]))
+        ).toBe(true);
+        expect(healthGateRunsPending(lists(["health"], []))).toBe(true);
     });
 });

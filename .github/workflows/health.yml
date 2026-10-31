@@ -25,6 +25,9 @@
 # schedules). `--ref staging` names the base by literal for the same reason
 # as post-merge's `branches:` (docs/guides/github-pipeline.md § health).
 name: health
+# The run's title names its job, so `classify`'s re-gate (issue #7647) tells a
+# gate in flight from a ladder (`healthGateRunsPending`): a schedule is a gate.
+run-name: "health ${{ github.event_name == 'schedule' && 'gate' || inputs.job }}"
 
 on:
     schedule:
