@@ -20,6 +20,7 @@ import {
     isValidRating,
     PICK_RATING_MIN,
     PICK_RATING_MAX,
+    getScopeMedianRating,
 } from "../pickRatings";
 import { isAdminUser } from "../../auth";
 import { buildCubePool, CUBE_SOURCE_KEY } from "../cube";
@@ -390,6 +391,8 @@ describe("buildScopeCardRatings — layering annotation (PRD #1296 Slice C, issu
                 name: "Nothing",
                 dbRating: null,
                 seedRating: null,
+                fallbackRating: getScopeMedianRating("lea"),
+                isFallback: true,
             },
         ]);
     });
@@ -523,5 +526,25 @@ describe("listScopeCardRatings end-to-end shape (PRD #1296 Slice C, issue #1300)
                 getPickRating(CUBE_SOURCE_KEY, row.cardId)
             );
         }
+    });
+});
+
+describe("listScopeCardRatings returns validator (issue #7652)", () => {
+    it("declares every field buildScopeCardRatings emits, so the Admin query is not rejected at runtime", async () => {
+        const { listScopeCardRatings } = await import("../cardRatings");
+        const exported = JSON.parse(
+            (
+                listScopeCardRatings as unknown as {
+                    exportReturns: () => string;
+                }
+            ).exportReturns()
+        );
+        const declared = Object.keys(exported.value.value).sort();
+        const [row] = buildScopeCardRatings(
+            "lea",
+            [{ cardId: "x", name: "X" }],
+            () => null
+        );
+        expect(declared).toEqual(Object.keys(row).sort());
     });
 });

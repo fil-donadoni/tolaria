@@ -37,6 +37,8 @@ const SCOPE_CARDS: Record<
         name: string;
         dbRating: number | null;
         seedRating: number | null;
+        fallbackRating: number;
+        isFallback: boolean;
     }[]
 > = {
     lea: [
@@ -45,16 +47,27 @@ const SCOPE_CARDS: Record<
             name: "Black Lotus",
             dbRating: null,
             seedRating: 5,
+            fallbackRating: 3,
+            isFallback: false,
         },
         {
             cardId: "circle-of-protection-red",
             name: "Circle of Protection: Red",
             dbRating: 1,
             seedRating: 1,
+            fallbackRating: 3,
+            isFallback: false,
         },
     ],
     "vintage-cube": [
-        { cardId: "sol-ring", name: "Sol Ring", dbRating: null, seedRating: 5 },
+        {
+            cardId: "sol-ring",
+            name: "Sol Ring",
+            dbRating: null,
+            seedRating: 5,
+            fallbackRating: 3,
+            isFallback: false,
+        },
     ],
 };
 

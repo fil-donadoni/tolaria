@@ -6,11 +6,14 @@
 // own two checks against hand-built fixtures.
 import { describe, it, expect } from "vitest";
 import { getBoosterConfig } from "../registry";
-import { CUBE_SOURCE_KEY, buildCubePool } from "../cube";
+import { CUBE_SOURCE_KEY } from "../cube";
 import {
     getPickRating,
     getPickRatingByCardId,
     getPickRatingFile,
+    getScopeMedianRating,
+    readPickRating,
+    PICK_RATING_EMPTY_SCOPE_FALLBACK,
     isValidRating,
     PICK_RATING_MAX,
     PICK_RATING_MIN,
@@ -72,14 +75,6 @@ describe("checked-in Vintage Cube Pick Rating file (PRD #1296 Slice D, issue #12
         const result = validateCubePickRatingFile(cubeRatings);
         expect(result.errors).toEqual([]);
         expect(result.valid).toBe(true);
-    });
-
-    it("covers the currently-implemented cube pool (buildCubePool) — every pool card is rated", () => {
-        const pool = buildCubePool();
-        expect(pool.length).toBeGreaterThan(0);
-        for (const cardId of pool) {
-            expect(cubeRatings.ratings[cardId]).not.toBeUndefined();
-        }
     });
 
     it("ships with a non-trivial curated set of ratings (not an empty stub)", () => {
@@ -213,5 +208,42 @@ describe("isValidRating (issue #1297, PRD #1296): the single bounds-check author
         expect(isValidRating("3" as unknown)).toBe(false);
         expect(isValidRating(null)).toBe(false);
         expect(isValidRating(undefined)).toBe(false);
+    });
+});
+
+describe("readPickRating — median fallback for an unrated card (issue #7652)", () => {
+    // Coverage of the pool is `check:cube-ratings`'s job on the PR adding the
+    // card (issue #7629); an unrated pool card reads the scope median here.
+    const blackLotusId = "b0faa7f2-b547-42c4-a810-839da50dadfe";
+
+    it("a rated card reads its own value with fallback: false", () => {
+        expect(readPickRating(CUBE_SOURCE_KEY, blackLotusId)).toEqual({
+            rating: PICK_RATING_MAX,
+            fallback: false,
+        });
+    });
+
+    it("an unrated card reads the scope median with fallback: true", () => {
+        const values = Object.values(
+            getPickRatingFile(CUBE_SOURCE_KEY)!.ratings
+        ).sort((a, b) => a - b);
+        const mid = Math.floor(values.length / 2);
+        const median =
+            values.length % 2 === 1
+                ? values[mid]
+                : (values[mid - 1] + values[mid]) / 2;
+        const reading = readPickRating(CUBE_SOURCE_KEY, "unrated-pool-card");
+        expect(reading).toEqual({ rating: median, fallback: true });
+        expect(getScopeMedianRating(CUBE_SOURCE_KEY)).toBe(median);
+        expect(median).toBeGreaterThan(PICK_RATING_MIN);
+        expect(median).toBeLessThan(PICK_RATING_MAX);
+    });
+
+    it("an empty scope reads the documented constant", () => {
+        expect(PICK_RATING_EMPTY_SCOPE_FALLBACK).toBe(2.5);
+        expect(readPickRating("madeupset", "any-card")).toEqual({
+            rating: PICK_RATING_EMPTY_SCOPE_FALLBACK,
+            fallback: true,
+        });
     });
 });

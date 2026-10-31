@@ -80,7 +80,7 @@ describe("PickRatingEditor — renders the real query projection (PRD #1296 Slic
         ).toHaveProperty("disabled", true);
     });
 
-    it("shows Unrated for a card with neither a database nor a seed rating", () => {
+    it("marks a card with neither a database nor a seed rating as a median fallback (issue #7652)", () => {
         const unrated = findCardWithNoRating();
         render(
             <PickRatingEditor
@@ -89,7 +89,12 @@ describe("PickRatingEditor — renders the real query projection (PRD #1296 Slic
                 onClear={vi.fn()}
             />
         );
-        expect(screen.getByText("Unrated (Pick Heuristic only)")).toBeTruthy();
+        expect(unrated.isFallback).toBe(true);
+        expect(
+            screen.getByText(
+                `Manual rating missing (median fallback: ${unrated.fallbackRating})`
+            )
+        ).toBeTruthy();
     });
 
     it("shows a card's DATABASE OVERRIDE distinctly from its seed default, and enables Clear", () => {
