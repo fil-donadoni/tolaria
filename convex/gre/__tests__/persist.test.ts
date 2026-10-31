@@ -340,7 +340,7 @@ describe("Persist — the return (CR 702.79a / 400.7)", () => {
             const state = board(PERSISTER_ID);
             destroy(state, "persister");
             drainStack(state);
-            const pub = projectPublicState(state, "p1");
+            const pub = projectPublicState(state, 1, "p1");
             const wire = pub.players
                 .flatMap((p) => p.battlefield)
                 .find((c) => c.id === "persister");
