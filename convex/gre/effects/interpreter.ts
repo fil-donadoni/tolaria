@@ -3099,12 +3099,15 @@ function bottomLookedAtCards(
 }
 
 /** Default prompt for a `lookDistribute` choice (issue #2070) — varies on
- *  BOTH independent axes (`keepTo` for the kept pile, `destination` for the
- *  un-kept pile) so the wording never claims a card goes to hand when it's
- *  headed to the library top, or vice-versa for the rest. */
+ *  every independent axis (`keepTo` for the kept pile, `destination` for the
+ *  un-kept pile, `randomBottom` for who orders it) so the wording never claims
+ *  a card goes to hand when it's headed to the library top, or vice-versa for
+ *  the rest, and never asks the player to order a pile the engine shuffles
+ *  (issue #7694 — "on the bottom of your library in a random order"). */
 function keepPromptFor(
     keepTo: OpOf<"lookDistribute">["keepTo"],
-    destination: LookDistributeDestination
+    destination: LookDistributeDestination,
+    randomBottom: boolean
 ): string {
     const keepPhrase =
         keepTo === "hand"
@@ -3117,7 +3120,9 @@ function keepPromptFor(
             ? "put the rest into your graveyard"
             : destination === "exile"
               ? "put the rest into exile"
-              : "order the rest on the bottom of your library";
+              : randomBottom
+                ? "put the rest on the bottom of your library in a random order"
+                : "order the rest on the bottom of your library";
     return `Choose which card(s) to put ${keepPhrase}, then ${restPhrase}.`;
 }
 
@@ -5374,7 +5379,9 @@ export const OP_EXECUTORS: {
             // Narset's random bottom: nothing for the picker to order — the
             // client mounts the simple grid pick instead of the drag picker.
             randomizeRest: randomBottom ? true : undefined,
-            prompt: op.prompt ?? keepPromptFor(op.keepTo, destination),
+            prompt:
+                op.prompt ??
+                keepPromptFor(op.keepTo, destination, randomBottom),
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
         // Public reveal (CR 701.20a), fired ONCE here on the resumed pass (the
