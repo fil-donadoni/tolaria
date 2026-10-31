@@ -5,6 +5,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup.helper";
 import {
     getEffectivePower,
@@ -27,6 +28,8 @@ import { getDefinition } from "../../../index";
 const nethergoyf = getDefinition("3ee3945e-5089-4751-b7b3-5961c39d2a33");
 const emperorOfBones = getDefinition("df9d9075-2d1e-4848-b661-816d539e05eb");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+const crabomination = getDefinition("f328d6e0-d808-4abe-b6a2-cc557b27c329");
+const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 
 // A dead card of a chosen card type sitting in a graveyard (the CDA reads the
 // instance `.types`).
@@ -345,5 +348,127 @@ describe("Emperor of Bones (CR 603.6a combat trigger, CR 701.46 adapt, CR 607 li
         // would fire and sacrifice nothing at the next end step (the exact
         // Shallow Grave bug, `mir/black.cards.ts`, shares this script shape).
         expect(state.delayedTriggers ?? []).toHaveLength(0);
+    });
+});
+
+describe("Crabomination (CR 702.119b emerge from artifact, CR 609.3 three-zone exile, CR 608.2g free cast from the opponent's exile)", () => {
+    function card(
+        defId: string,
+        id: string,
+        owner: string,
+        zone: CardInstanceState["zone"]
+    ): CardInstanceState {
+        return makeInstance(defId, {
+            id,
+            controllerId: owner,
+            ownerId: owner,
+            zone,
+        });
+    }
+
+    /** The ETB on the stack, through the REAL CR 603.3d announcement sweep:
+     *  p2 is the sole opponent, so "target opponent" auto-locks. */
+    function etbOnStack(opp: Parameters<typeof makePlayer>[1]): GameState {
+        const crab = card(crabomination.id, "crab", "p1", "battlefield");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [crab] }),
+                makePlayer("p2", opp),
+            ],
+        });
+        const trig = {
+            ...crab,
+            id: "crab-etb",
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "crabomination-etb-exile-and-cast",
+            triggerSourceId: crab.id,
+            triggerEvent: {
+                type: "PERMANENT_ENTERED",
+                instanceId: crab.id,
+                controllerId: "p1",
+                types: ["Creature"],
+            },
+            targets: undefined,
+        } as StackItem;
+        state.stack.push(trig);
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(trig.targets).toEqual([{ type: "player", id: "p2" }]);
+        return state;
+    }
+
+    it("exiles the opponent's library top, a graveyard card and a hand card, then casts a chosen NONLAND one for free from THEIR exile — it resolves under p1's control, still owned by p2", () => {
+        const state = etbOnStack({
+            library: [card(swamp.id, "libLand", "p2", "library")],
+            graveyard: [card(grizzlyBears.id, "gyBear", "p2", "graveyard")],
+            hand: [card(grizzlyBears.id, "handBear", "p2", "hand")],
+        });
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the pick
+
+        // CR 609.3 — all three left their zones, into the OWNER's exile.
+        const opp = state.players[1];
+        expect(opp.library).toHaveLength(0);
+        expect(opp.graveyard).toHaveLength(0);
+        expect(opp.hand).toHaveLength(0);
+        expect(opp.exile.map((c) => c.id).sort()).toEqual([
+            "gyBear",
+            "handBear",
+            "libLand",
+        ]);
+
+        // "cast a spell from among cards exiled this way" — the land is not
+        // castable (CR 305.9), so only the two creatures are offered.
+        const pick = state.pendingChoices![0];
+        expect(pick.playerId).toBe("p1");
+        expect(pick.zoneOwnerId).toBe("p2");
+        expect([...(pick.candidateIds ?? [])].sort()).toEqual([
+            "gyBear",
+            "handBear",
+        ]);
+        submitChoice(state, ["handBear"]);
+
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        expect(offer.options?.map((o) => o.id)).toEqual(["cast", "decline"]);
+        submitChoice(state, ["cast"]);
+
+        // CR 608.2g — cast during resolution, no priority, onto the stack.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(opp.exile.map((c) => c.id).sort()).toEqual([
+            "gyBear",
+            "libLand",
+        ]);
+        const spell = state.stack.find((s) => s.id === "handBear");
+        expect(spell?.castById).toBe("p1");
+
+        resolveTopOfStack(state);
+        const bear = state.players[0].battlefield.find(
+            (c) => c.id === "handBear"
+        );
+        expect(bear?.controllerId).toBe("p1");
+        expect(bear?.ownerId).toBe("p2");
+    });
+
+    it("declining the free cast leaves the chosen card in the opponent's exile", () => {
+        const state = etbOnStack({
+            library: [card(grizzlyBears.id, "libBear", "p2", "library")],
+        });
+        resolveTopOfStack(state);
+        // Graveyard and hand were empty: only the library card was exiled.
+        expect(state.players[1].exile.map((c) => c.id)).toEqual(["libBear"]);
+        if (state.pendingChoices?.[0]?.kind !== "option-pick") {
+            submitChoice(state, ["libBear"]);
+        }
+        submitChoice(state, ["decline"]);
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[1].exile.map((c) => c.id)).toEqual(["libBear"]);
+    });
+
+    it("an opponent with every zone empty is a clean no-op (CR 609.3)", () => {
+        const state = etbOnStack({});
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
     });
 });

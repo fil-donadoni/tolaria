@@ -5429,6 +5429,92 @@ describe("validateEffectScript — choice candidates / bindOther", () => {
             ).toEqual([]);
         });
 
+        // Crabomination (issue #7594): "target opponent exiles the top card
+        // of their library, a card at random from their hand … cast a spell
+        // from among cards exiled this way" — a face-up library exile and a
+        // bound pick moved into exile are both public-zone sets (CR 400.2).
+        function exileThenPick(faceDown: boolean): EffectOp[] {
+            return [
+                {
+                    op: "exileTopOfLibrary",
+                    player: "opponent",
+                    count: 1,
+                    bindAll: "$top",
+                    ...(faceDown ? { faceDown: true } : {}),
+                },
+                {
+                    op: "selectAtRandom",
+                    zone: "hand",
+                    zoneOwnerId: "opponent",
+                    count: 1,
+                    bind: "$fromHand",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$fromHand" },
+                    player: "opponent",
+                    from: "hand",
+                    to: "exile",
+                },
+                {
+                    op: "choice",
+                    kind: "choose-exile-card",
+                    player: "controller",
+                    zone: "exile",
+                    zoneOwnerId: "opponent",
+                    candidates: [{ ref: "$top" }, { ref: "$fromHand" }],
+                    count: 1,
+                    prompt: "Choose one.",
+                    bind: "$kept",
+                },
+            ] as EffectOp[];
+        }
+
+        it("accepts a face-up exileTopOfLibrary bindAll and a pick moved into exile as candidate sources", () => {
+            expect(
+                validateEffectScript(host({ effects: exileThenPick(false) }))
+            ).toEqual([]);
+        });
+
+        it("rejects a FACE-DOWN exileTopOfLibrary bindAll — face-down exile is not public (CR 406.3)", () => {
+            const errors = validateEffectScript(
+                host({ effects: exileThenPick(true) })
+            );
+            expect(errors.join("\n")).toContain(
+                'candidate "$top" names a picks binding whose cards are not known to be in a public zone'
+            );
+            expect(errors.join("\n")).not.toContain('candidate "$fromHand"');
+        });
+
+        it("rejects an EXILED set read by a graveyard pick — the sets never intersect", () => {
+            const effects = exileThenPick(false).map((op) =>
+                (op as { op: string }).op === "choice"
+                    ? ({
+                          ...(op as object),
+                          kind: "choose-graveyard-card",
+                          zone: "graveyard",
+                      } as EffectOp)
+                    : op
+            );
+            const errors = validateEffectScript(host({ effects }));
+            expect(errors.join("\n")).toContain(
+                'candidate "$top" holds cards in the exile, not the graveyard being picked from'
+            );
+            expect(errors.join("\n")).toContain(
+                'candidate "$fromHand" holds cards in the exile, not the graveyard being picked from'
+            );
+        });
+
+        it("rejects a random pick that never moved into a public zone", () => {
+            const effects = exileThenPick(false).filter(
+                (op) => (op as { op: string }).op !== "moveZone"
+            );
+            const errors = validateEffectScript(host({ effects }));
+            expect(errors.join("\n")).toContain(
+                'candidate "$fromHand" names a picks binding whose cards are not known to be in a public zone'
+            );
+        });
+
         it("rejects bindOther on a public-zone pick — an unpicked graveyard card is not a permanent", () => {
             const errors = validateEffectScript(
                 millThenPick({ bindOther: "$other" })

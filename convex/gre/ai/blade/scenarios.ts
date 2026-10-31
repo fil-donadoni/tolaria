@@ -640,6 +640,46 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "CR 702.96 reachability AND preference in one position: three opposing Craw Wurms, no creature of the bot's own, both cast modes affordable. `MoveMatcher` has no field for `alternativeCostId` — the only thing distinguishing an overloaded cast from a printed one of the same card — hence the `predicate` shape, the same one the dash entry uses.",
     },
     {
+        // EMERGE reachability (CR 702.119b "emerge from artifact", issue
+        // #7594). Issue #3218 taught `enumerateCastMoves` the emerge cost —
+        // the victim named on the Move, the tap plan priced with the
+        // victim's mana-value reduction — but no catalogue card carried the
+        // keyword, so only a synthetic probe pinned it. Five Swamps cannot pay
+        // Crabomination's printed {4}{B}{B}; sacrificing Howling Mine (MV 2)
+        // brings {5}{B}{B} down to {3}{B}{B}, exactly five. The emerge cast is
+        // the ONLY way the card reaches the stack, so a bot that does not
+        // enumerate it passes instead — trading a symmetric draw engine for a
+        // 5/5 and a free spell is not close.
+        label: "emerge: sacrifices an artifact to cast Crabomination",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Crabomination", owner: "me", zone: "hand" },
+                { name: "Howling Mine", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                move.alternativeCostId === "emerge",
+            describe:
+                "casts Crabomination via its emerge cost, sacrificing Howling Mine",
+        },
+        note: "CR 702.119b reachability: the printed cost is unaffordable, the emerge cost is affordable only through the sacrificed artifact's mana-value reduction. `MoveMatcher` has no field for `alternativeCostId`, hence the `predicate` shape (as for overload / dash).",
+    },
+    {
         // NINJUTSU reachability (CR 702.49a, issue #2390). The bot attacks with
         // a lone 2/2, the defender declines to block, and the position lands in
         // the priority round after blocks are declared — the ONLY window in
