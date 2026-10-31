@@ -40,7 +40,8 @@
 
 import type { ActivatedAbility, EffectOp } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
-import { payRemoveCounterCost } from "../state";
+import { animatePermanentAsCreature, payRemoveCounterCost } from "../state";
+import { validateBlockerEligibility } from "../combat";
 import { permanentGiveUpCostLegs } from "../constants";
 import { cloneGameState } from "../clone";
 import { checkStateBasedActions } from "../sba";
@@ -178,6 +179,215 @@ export function animatedBodyCannotFight(
     if (source.isTapped) return true;
     if (pid !== state.activePlayerId || !source.isSummoningSick) return false;
     return !source.staticAbilities.includes("haste") && !grantsHaste(ability);
+}
+
+/** The steps a combat body can still be put to use in, BEFORE the attack is
+ *  declared: an attacker must be a creature when attackers are declared
+ *  (CR 508.1a), and a blocker when blockers are (CR 509.1a). */
+const PRE_ATTACK_PHASES: ReadonlySet<GameState["phase"]> = new Set([
+    "UNTAP",
+    "UPKEEP",
+    "DRAW",
+    "PRECOMBAT_MAIN",
+    "BEGINNING_OF_COMBAT",
+]);
+
+/** The beginning-phase steps (CR 501.1) — an animation bought there for the
+ *  coming attack does the same in the precombat main phase. */
+const DEFERRABLE_TO_MAIN_PHASES: ReadonlySet<GameState["phase"]> = new Set([
+    "UNTAP",
+    "UPKEEP",
+    "DRAW",
+]);
+
+const COMBAT_STEPS: ReadonlySet<GameState["phase"]> = new Set([
+    "BEGINNING_OF_COMBAT",
+    "DECLARE_ATTACKERS",
+    "DECLARE_BLOCKERS",
+    "FIRST_STRIKE_DAMAGE",
+    "COMBAT_DAMAGE",
+    "END_OF_COMBAT",
+]);
+
+/** Whether this turn still has an attack declaration AHEAD of it: before the
+ *  first combat's declaration, or inside a combat with an extra combat still
+ *  owed (CR 500.8 — `state.extraPhases` is consumed only at the
+ *  `END_OF_COMBAT` exit, so an entry still queued once the turn has left
+ *  combat is dead and `advanceTurn` discards it). */
+function attackDeclarationAhead(state: GameState): boolean {
+    if (PRE_ATTACK_PHASES.has(state.phase)) return true;
+    if (state.phase === "DECLARE_ATTACKERS" && !state.combat?.confirmed) {
+        return true;
+    }
+    return COMBAT_STEPS.has(state.phase) && !!state.extraPhases?.length;
+}
+
+/** Whether a creature body that reverts this turn ({@link
+ *  isExpiringAnimatedBody}) can still attack or block before it does (issue
+ *  #7705) — the only thing such a body is worth. Outside such a window its
+ *  creature-ness buys nothing but exposure to creature removal and combat.
+ *
+ *    * A body already IN combat (declared attacker or blocker, CR 508.1 /
+ *      509.1) is in use until combat damage is dealt (CR 510.1); by the
+ *      COMBAT_DAMAGE priority round that damage is on the board already.
+ *    * Otherwise a tapped body can neither attack (CR 508.1a) nor block
+ *      (CR 509.1a).
+ *    * Its controller's own turn: usable while an attack declaration is
+ *      still ahead and the body may attack (continuous control since the
+ *      turn began, CR 508.1a, lifted by haste, CR 702.10b).
+ *    * The opponent's turn: usable while a block is still ahead — before
+ *      attackers are declared, or after, while blockers are not yet, when the
+ *      body can legally block at least one declared attacker (CR 509.1b,
+ *      through the engine's own `validateBlockerEligibility`).
+ *
+ *  Pure. */
+export function expiringBodyHasCombatUse(
+    state: GameState,
+    body: CardInstanceState
+): boolean {
+    const combat = state.combat;
+    if (
+        combat &&
+        (combat.attackerIds.includes(body.id) ||
+            body.id in combat.blockerAssignments) &&
+        (state.phase === "DECLARE_ATTACKERS" ||
+            state.phase === "DECLARE_BLOCKERS" ||
+            state.phase === "FIRST_STRIKE_DAMAGE")
+    ) {
+        return true;
+    }
+    if (body.isTapped) return false;
+    if (body.controllerId === state.activePlayerId) {
+        return (
+            attackDeclarationAhead(state) &&
+            (!body.isSummoningSick || body.staticAbilities.includes("haste"))
+        );
+    }
+    if (attackDeclarationAhead(state)) return true;
+    return canBlockADeclaredAttacker(state, body);
+}
+
+/** Whether the declare-attackers step holds a declared attack whose blockers
+ *  are not yet declared — the only window a body can still BECOME a blocker
+ *  in (CR 509.1: blockers are declared as the next step's turn-based action). */
+function blockDeclarationPending(state: GameState): boolean {
+    const combat = state.combat;
+    return (
+        state.phase === "DECLARE_ATTACKERS" &&
+        !!combat?.confirmed &&
+        !combat.blockersConfirmed &&
+        combat.attackerIds.length > 0
+    );
+}
+
+/** Whether `body`, controlled by the defending player, can legally block at
+ *  least one declared attacker in a declare-attackers step whose blockers are
+ *  not yet declared (CR 509.1). Once blockers are declared no body can
+ *  BECOME a blocker. Eligibility is the engine's own
+ *  `validateBlockerEligibility` (evasion — flying vs reach, CR 702.9b /
+ *  702.17b — restrictions, protection), judged against the defender's whole
+ *  battlefield (landwalk reads it). Attackers are judged one at a time, so a
+ *  restriction needing several blockers (menace) reads as blockable — fails
+ *  open, as the guardrail contract wants. */
+function canBlockADeclaredAttacker(
+    state: GameState,
+    body: CardInstanceState
+): boolean {
+    const combat = state.combat;
+    if (!combat || !blockDeclarationPending(state)) return false;
+    const defender = state.players.find((p) => p.id === body.controllerId);
+    if (!defender) return false;
+    return combat.attackerIds.some((attackerId) => {
+        const attacker = state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === attackerId);
+        return (
+            !!attacker &&
+            validateBlockerEligibility(
+                attacker,
+                body,
+                defender.battlefield,
+                state
+            ).eligible
+        );
+    });
+}
+
+/** The `animate` Op an `animatesSelf` ability applies to its own source, if
+ *  its script spells one out at top level. */
+function selfAnimateOp(
+    ability: ActivatedAbility
+): Extract<EffectOp, { op: "animate" }> | undefined {
+    return ability.effects?.find(
+        (op): op is Extract<EffectOp, { op: "animate" }> =>
+            op.op === "animate" &&
+            (op.target as { ref?: string }).ref === "$source"
+    );
+}
+
+/** Whether activating the `animatesSelf` `ability` of `source` NOW, by `pid`,
+ *  buys a body that can still fight this turn in a window where activating
+ *  LATER would lose that use (issue #7705). An animation buys a creature body
+ *  for the rest of the turn and nothing else, so these are the only windows
+ *  it is worth anything in:
+ *
+ *    * `pid`'s OWN turn, while an attack declaration is still ahead — from
+ *      the precombat main phase (the earlier untap/upkeep/draw windows defer
+ *      to it with the same effect) up to the declaration (CR 508.1a), plus an
+ *      owed extra combat (CR 500.8).
+ *    * The OPPONENT's turn, after attackers are declared and before blockers
+ *      are (CR 509.1), when the animated body could block at least one
+ *      declared attacker. The body is judged AS IT WOULD BE after the
+ *      animation — keywords the animation grants count (an animation granting
+ *      reach can block a flyer) — by applying the ability's own `animate` Op
+ *      to a clone through the engine's animation primitive, and eligibility
+ *      through `validateBlockerEligibility`, never a hand-rolled check.
+ *      Before attackers are declared the animation is deferrable: the
+ *      defender gets priority again in the declare-attackers step (CR 117.3a,
+ *      117.3d)
+ *      and can animate then with full information. The deterrence value of
+ *      animating at beginning of combat is deliberately NOT credited.
+ *
+ *  The stack does not lift any of this: an animation in response to a spell
+ *  or ability (a discard, a draw, burn to a player) buys the same body for
+ *  the same windows. An ability whose script has no top-level self-`animate`
+ *  is not judged on the opponent's turn — reads as usable (fails open: this
+ *  is a guardrail, never a dominance proof). Pure. */
+export function animationHasCombatWindow(
+    state: GameState,
+    pid: string,
+    source: CardInstanceState,
+    ability: ActivatedAbility
+): boolean {
+    if (pid === state.activePlayerId) {
+        return (
+            !DEFERRABLE_TO_MAIN_PHASES.has(state.phase) &&
+            attackDeclarationAhead(state)
+        );
+    }
+    if (!blockDeclarationPending(state)) return false;
+    const op = selfAnimateOp(ability);
+    if (!op) return true;
+    const world = cloneGameState(state);
+    const body = world.players
+        .flatMap((p) => p.battlefield)
+        .find((c) => c.id === source.id);
+    if (!body) return false;
+    animatePermanentAsCreature(
+        world,
+        body,
+        {
+            power: op.power,
+            toughness: op.toughness,
+            subtype: op.subtype,
+            additionalTypes: op.additionalTypes,
+            grantedAbilities: op.grantedAbilities,
+            colors: op.colors,
+            duration: op.duration,
+        },
+        pid
+    );
+    return canBlockADeclaredAttacker(world, body);
 }
 
 function grantsHaste(ability: ActivatedAbility): boolean {
