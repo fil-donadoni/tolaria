@@ -17,6 +17,7 @@ import {
     bandIsInherited,
     lineageRefusal,
     repairItems,
+    parkedPrItems,
     resumeItems,
     UNPRIORITIZED,
     type BatchPlan,
@@ -3056,5 +3057,59 @@ describe("repairItems — a land-failed PR is the FIRST pick (issue #5469)", () 
         });
         expect(plain.length).toBe(2);
         expect(excluded).toEqual([]);
+    });
+});
+
+describe("parkedPrItems — an open PR no queue label covers is seen (issue #7646)", () => {
+    // PR #7510 / issue #7388: handed back (`ready-for-human`). PR #7591 /
+    // issue #3219: claim lost, no role label. Plus every covered shape.
+    const row = (number: number, headRefName: string, ...labels: string[]) => ({
+        number,
+        headRefName,
+        labels: labels.map((name) => ({ name })),
+    });
+    const rows = [
+        row(7510, "feat/issue-7388"),
+        row(7591, "feat/issue-3219"),
+        row(7600, "feat/issue-7000"), // claimed
+        row(7601, "feat/issue-7001", "ready-to-land"), // queue label
+        row(7602, "merge-queue/pr-1"), // Mergify draft
+        { ...row(7603, "feat/issue-7003"), isDraft: true },
+        row(7604, "feat/issue-7004"), // ready-for-agent: batch re-picks
+    ];
+    const details: Record<number, string[]> = {
+        7388: ["enhancement", "ready-for-human"],
+        3219: ["enhancement", "model:opus"],
+        7000: ["in-progress"],
+        7003: [],
+        7004: ["ready-for-agent"],
+    };
+    const detailOf = (n: number) =>
+        details[n] ? { labels: details[n], body: "", open: true } : null;
+    const at = Date.parse(CONFIG.now) - 22 * 3_600_000;
+
+    it("hands the no-role-label PR out as resume on the issue's tier and lists the hand-back with its age", () => {
+        const out = parkedPrItems(rows, detailOf, () => at, CONFIG);
+        expect(out.resume).toEqual([
+            { number: 3219, pr: 7591, state: "stranded", model: "opus" },
+        ]);
+        expect(out.ownerParked).toEqual([
+            { number: 7388, pr: 7510, ageHours: 22 },
+        ]);
+    });
+
+    it("skips an issue already taken by repair/resume, and a closed issue", () => {
+        expect(
+            parkedPrItems(rows, detailOf, () => at, CONFIG, new Set([3219]))
+                .resume
+        ).toEqual([]);
+        expect(
+            parkedPrItems(
+                rows,
+                (n) => ({ labels: details[n] ?? [], body: "", open: false }),
+                () => at,
+                CONFIG
+            )
+        ).toEqual({ resume: [], ownerParked: [] });
     });
 });

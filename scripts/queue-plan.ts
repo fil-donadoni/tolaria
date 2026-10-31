@@ -50,6 +50,7 @@ import {
     repairItems,
     orphanPlanParts,
     resumeItems,
+    parkedPrItems,
     buildPlanRecord,
     lineageRefusal,
     redRefusal,
@@ -73,7 +74,7 @@ import {
     verdictStore,
     type VerdictStore,
 } from "./lib/health-verdict-store";
-import { claimClassifications } from "./lib/claim-verdict";
+import { claimClassifications, fetchOpenPrRows } from "./lib/claim-verdict";
 import { orphanWorktrees } from "./lib/orphan-worktree";
 import { FAILED_LABEL } from "./lib/land-labels";
 import { cappedRepairPrs, cappedUiReceiptPrs } from "./lib/repair-cap";
@@ -221,6 +222,19 @@ export function openPrFiles(): {
         );
     }
     return { byIssue, files };
+}
+
+/** When the issue's last comment (the hand-back) was posted, ms epoch. */
+function handBackTime(issue: number): number | null {
+    try {
+        const c = JSON.parse(
+            gh(["issue", "view", String(issue), "--json", "comments"])
+        ) as { comments: { createdAt: string }[] };
+        const last = c.comments.at(-1);
+        return last ? Date.parse(last.createdAt) : null;
+    } catch {
+        return null;
+    }
 }
 
 /** Open PRs the land-runner labelled `land-failed` (issue #5469) — the
@@ -956,6 +970,40 @@ function main(): void {
         (n) => port.issueDetail(n).body,
         port.priority
     ).filter((r) => !repaired.has(r.number));
+
+    // Parked PRs (issue #7646): open, no queue label, issue not claimed. One
+    // extra `gh pr list` plus a detail read per candidate; a comment read only
+    // per owner-parked issue. A failed read parks nothing this time.
+    try {
+        const taken = new Set([
+            ...repaired,
+            ...plan.resume.map((r) => r.number),
+        ]);
+        const parked = parkedPrItems(
+            fetchOpenPrRows((_cmd, args) => gh(args)),
+            (n) => {
+                try {
+                    const d = port.issueDetail(n);
+                    return {
+                        labels: d.labels,
+                        body: d.body,
+                        open: d.state === "OPEN",
+                    };
+                } catch {
+                    return null;
+                }
+            },
+            handBackTime,
+            config,
+            taken
+        );
+        plan.resume.push(...parked.resume);
+        plan.ownerParked = parked.ownerParked;
+    } catch (err) {
+        console.error(
+            `queue:plan: could not read parked PRs (${(err as Error).message.split("\n")[0]})`
+        );
+    }
 
     writePlanArtefact(plan, config.now, lineage);
 

@@ -11,6 +11,7 @@ import {
     closedClaimsToRelease,
     closedWithLabelArgs,
     releaseEditArgs,
+    releaseRefusal,
 } from "../lib/claim-labels";
 import { CLOSED_CLAIMS_STEP } from "../housekeeping";
 
@@ -88,5 +89,17 @@ describe("claimRefusal — `wt:new` and `land:ready` need the label claim (issue
         );
         expect(r).toBeNull();
         expect(read).toBe(false);
+    });
+});
+
+describe("releaseRefusal — a release with an open PR is also the hand-back (issue #7646)", () => {
+    it("refuses a release on an issue with an open PR and no hand-back", () => {
+        expect(releaseRefusal(3219, 7591, false)).toMatch(
+            /open PR #7591.*ready-for-human/
+        );
+    });
+    it("allows a hand-back release, and a release with no open PR", () => {
+        expect(releaseRefusal(7388, 7510, true)).toBeNull();
+        expect(releaseRefusal(5, null, false)).toBeNull();
     });
 });

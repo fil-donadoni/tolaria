@@ -21,7 +21,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
-import { CLAIM_LABEL } from "./claim-labels";
+import { CLAIM_LABEL, HAND_BACK_LABEL, PR_OPEN_LABEL } from "./claim-labels";
 import { FAILED_LABEL, READY_LABEL } from "./land-labels";
 import {
     PASS_WORKFLOW,
@@ -432,6 +432,7 @@ export type OpenPrRow = {
     headRefName: string;
     number?: unknown;
     labels?: { name?: unknown }[];
+    isDraft?: boolean;
 };
 
 /** Every open PR, with the labels the land-runner's queue lives in
@@ -447,9 +448,63 @@ export function fetchOpenPrRows(runner: ShRunner = sh): OpenPrRow[] {
             "--limit",
             "300",
             "--json",
-            "headRefName,number,labels",
+            "headRefName,number,labels,isDraft",
         ]) || "[]"
     ) as OpenPrRow[];
+}
+
+/** The role labels an issue wears while someone owns it (issue #7646). */
+export const READY_FOR_AGENT_LABEL = "ready-for-agent";
+
+/**
+ * Issue #7646 — what an open, non-draft PR that never reached the land queue
+ * is, judged by its ISSUE's labels. ONE predicate:
+ * - `covered`: claimed (`classifyClaim` owns it), `ready-for-agent` (the
+ *   batch re-picks it) or the issue is closed — nothing new;
+ * - `owner-parked`: `ready-for-human` — listed, never a pick;
+ * - `resume`: no role label — a claim lost with live work, handed out like
+ *   a `stranded` claim.
+ */
+export type ParkedPrState = "covered" | "owner-parked" | "resume";
+
+export function classifyParkedPr(
+    issueLabels: readonly string[],
+    issueOpen: boolean
+): ParkedPrState {
+    if (!issueOpen) return "covered";
+    if (
+        issueLabels.includes(CLAIM_LABEL) ||
+        issueLabels.includes(PR_OPEN_LABEL)
+    )
+        return "covered";
+    if (issueLabels.includes(HAND_BACK_LABEL)) return "owner-parked";
+    if (issueLabels.includes(READY_FOR_AGENT_LABEL)) return "covered";
+    return "resume";
+}
+
+/** Open PRs no queue label covers, authored here: a `feat|fix/issue-N`
+ *  branch (so never a Mergify `merge-queue/*` draft), not a draft PR. */
+export function parkedPrCandidates(
+    rows: readonly OpenPrRow[]
+): { pr: number; branch: string; issue: number }[] {
+    return rows.flatMap((r) => {
+        const m = /^(?:feat|fix)\/issue-(\d+)$/.exec(r.headRefName);
+        if (!m || r.isDraft || !Number.isInteger(r.number)) return [];
+        const names = (r.labels ?? []).map((l) => l.name);
+        if (
+            names.some(
+                (n) => n === READY_LABEL || n === FAILED_LABEL || n === "queued"
+            )
+        )
+            return [];
+        return [
+            {
+                pr: r.number as number,
+                branch: r.headRefName,
+                issue: Number(m[1]),
+            },
+        ];
+    });
 }
 
 export function openPrMap(rows: OpenPrRow[]): Map<string, number | null> {
