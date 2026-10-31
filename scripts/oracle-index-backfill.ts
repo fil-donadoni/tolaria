@@ -222,19 +222,33 @@ export async function buildCompiledEntriesForChunk(
     return { entries, skippedRarity, unresolvedPrints };
 }
 
+/** The lockfile after a backfill: every existing row kept, the new compiled
+ *  rows appended, sorted by name. Never keyed by `oracleId` — one oracle id
+ *  legitimately carries two rows (a hand-written front face beside its
+ *  compiled `A // B` row), and a map would keep only the last of them.
+ *
+ *  Exported so that contract is testable without the network. */
+export function mergeCardIndex(
+    existing: readonly Entry[],
+    added: readonly Entry[]
+): Entry[] {
+    return [...existing, ...added].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 async function main() {
     const lockPath = resolve("data/card-index.json");
     const existing: Entry[] = existsSync(lockPath)
         ? JSON.parse(readFileSync(lockPath, "utf-8"))
         : [];
-    const byOracleId = new Map(existing.map((e) => [e.oracleId, e]));
+    const added: Entry[] = [];
+    const indexed = new Set(existing.map((e) => e.oracleId));
 
     const lockfilePath = resolve("data/oracle-compiled.json");
     const lockfile = JSON.parse(readFileSync(lockfilePath, "utf-8")) as {
         cards: ReadyRow[];
     };
     const ready = lockfile.cards.filter((c) => c.state === "ready");
-    const missing = ready.filter((c) => !byOracleId.has(c.oracleId));
+    const missing = ready.filter((c) => !indexed.has(c.oracleId));
     console.log(
         `${ready.length} compiled ready row(s), ${existing.length} card-index entries, ` +
             `${missing.length} to resolve.`
@@ -245,9 +259,7 @@ async function main() {
     }
 
     const writeLock = () => {
-        const merged = [...byOracleId.values()].sort((a, b) =>
-            a.name.localeCompare(b.name)
-        );
+        const merged = mergeCardIndex(existing, added);
         writeFileSync(
             lockPath,
             JSON.stringify(merged, null, 4) + "\n",
@@ -271,7 +283,10 @@ async function main() {
                     userAgent: "tolaria-oracle-index/1.0",
                 })
         );
-        for (const e of built.entries) byOracleId.set(e.oracleId, e);
+        for (const e of built.entries) {
+            added.push(e);
+            indexed.add(e.oracleId);
+        }
         for (const s of built.skippedRarity)
             console.warn(
                 `  skipping ${s.name}: unmodelled rarity "${s.rarity}"`
@@ -283,8 +298,10 @@ async function main() {
         console.log(`  ${Math.min(done, missing.length)}/${missing.length}`);
     }
 
-    const stillMissing = ready.filter((c) => !byOracleId.has(c.oracleId));
-    console.log(`\nWrote ${byOracleId.size} total card-index entries.`);
+    const stillMissing = ready.filter((c) => !indexed.has(c.oracleId));
+    console.log(
+        `\nWrote ${existing.length + added.length} total card-index entries.`
+    );
     if (skippedRarity)
         console.warn(`${skippedRarity} skipped (unmodelled rarity).`);
     if (stillMissing.length) {
