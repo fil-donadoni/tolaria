@@ -23,10 +23,9 @@ import {
 // Aura-with-nothing-to-enchant (CR 303.4c, issue #1094): an Aura in the swept
 // set with no legal host — not even a non-Aura sibling entering as part of
 // this SAME event — stays in the graveyard rather than entering unattached.
-// SIMPLIFICATION (tracked-by: #2785): when more than one legal host exists, the batch primitive
-// auto-picks the first one (deterministic order) — no player choice is
-// modeled, matching this sweep's own "no per-card choice" design for which
-// enchantments return.
+// Gap (tracked-by: #974): with two or more legal hosts the Aura's controller chooses one
+// (CR 303.4f, `choose-aura-host`), but that prompted Aura enters as its own later event,
+// not as part of this simultaneous one.
 export const replenish = defineCard(() => ({
     id: "7fd2fe13-bbc0-42b7-bc42-3b51910ce118",
     rarity: "rare",

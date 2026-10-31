@@ -2235,7 +2235,7 @@ export const aetherRift = defineCard(() => ({
 //     and `tappedTrigger({ scope: "any", filter: { types: "Land" },
 //     forMana: true })` is the shipped way to key off it.
 //   - "the mana doubling has no engine precedent (Extraplanar Lens-style
-//     doublers unimplemented catalogue-wide)" (tracked-by: #2785) — Mana Flare (`lea/red.cards.ts`)
+//     doublers missing catalogue-wide)" — Mana Flare (`lea/red.cards.ts`)
 //     is SHIPPED and its Oracle text is this card's first clause verbatim;
 //     Gauntlet of Might (`lea/colorless.cards.ts`) ships the same shape.
 //
@@ -2636,9 +2636,8 @@ const STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS: StaticKeywordGrant["applies"] =
 // 0014). Coalition Victory and Ordered Migration (the Domain cluster's own
 // two gold cards, issue #1066) are already active above this section — not
 // duplicated. All five dragons are now active: Crosis and Darigaaz shipped
-// with the filtered hand count (issue #2150), joining Dromar/Rith/Treva. One
-// Apprentice (Nightscape) still hits a genuine capability gap and is deferred
-// (tracked-by: #2785) at the end of this file.
+// with the filtered hand count (issue #2150), joining Dromar/Rith/Treva. The
+// remaining Apprentice (Nightscape) is owned by the Oracle compiler (ADR 0137).
 // ─────────────────────────────────────────────────────────────────────────
 
 // The five WUBRG "choose a color, then return every creature of that color
@@ -3553,17 +3552,7 @@ export const thunderscapeMaster = defineCard(() => ({
     ],
 }));
 
-// ─────────────────────────────────────────────────────────────────────────
-// Deferred (engine capability gaps) — 3-colour + WUBRG (issue #1080)
-// ─────────────────────────────────────────────────────────────────────────
-
-// Nightscape Apprentice — {B} Creature — Zombie Wizard, 1/1. "{U}, {T}: Put
-// target creature you control on top of its owner's library. {R}, {T}:
-// Target creature gains first strike until end of turn." tracked-by: #3715
-// (authoring only, shipped together with Sunscape Apprentice, `white.ts`. The
-// old premise — `moveZone` from a live permanent supports only `to: "hand"`
-// — is FALSE since issue #1726: `to: "library"` with a 1-based `position`
-// ships (Teferi, Hero of Dominaria; Oust), "on top" is `position: 1`.)
+// Sterling Grove — {G}{W} Enchantment. "Other enchantments you control have
 // shroud. (They can't be the targets of spells or abilities.) {1}, Sacrifice
 // this enchantment: Search your library for an enchantment card, reveal it,
 // then shuffle and put that card on top." (CR 611/613 layer 6 keyword grant

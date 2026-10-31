@@ -27,24 +27,19 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // observable, which is also what the layer system (CR 613) and state-based
 // actions (CR 704.5) must see on their first read.
 //
-// Deviation (tracked-by: #2785) (documented, CR-compliance default per gre-development.md): the
-// "put into your graveyard from anywhere" clause is implemented across the
-// two zone-change sources the engine's event vocabulary actually covers —
-// PERMANENT_LEFT (battlefield → graveyard, i.e. dies/sacrifice/destroy) and
-// CARD_DISCARDED (hand → graveyard). It does NOT fire for a permanent card
-// milled from library, because mill is not implemented anywhere in the
-// engine yet (mechanicsRegistry.ts lists it "planned"/backlog, issue #684
-// audit note) — no card in the catalogue currently triggers off a mill
-// event, so this is a project-wide gap, not a Moonshadow-specific
-// regression. The "while this creature has a -1/-1 counter on it" guard
+// The "put into your graveyard from anywhere" clause is listened for across every
+// zone-change source that partitions graveyard entry: PERMANENT_LEFT (battlefield →
+// graveyard, i.e. dies/sacrifice/destroy), CARD_DISCARDED (hand → graveyard), CARD_MILLED
+// (library → graveyard) and CARD_PUT_INTO_GRAVEYARD (any other move; see the ability
+// below). The "while this creature has a -1/-1 counter on it" guard
 // needs no explicit condition: `counters` (remove) is clamped to the
 // counters actually present (SpellContext.removeCounter), so firing with
 // zero counters on the creature is a safe no-op — CR-equivalent to gating
 // the trigger itself.
 //
-// "Put into your graveyard from anywhere" = ONE Oracle line spanning two
+// "Put into your graveyard from anywhere" = ONE Oracle line spanning several
 // engine events (CR 603.2), so it is ONE `TriggeredAbility` with an array
-// `event: ["PERMANENT_LEFT", "CARD_DISCARDED"]` (the multi-event standard,
+// `event: [...]` over those events (the multi-event standard,
 // gre-development.md) — its `matches` discriminates per firing event. Shown
 // once on the stack / inspector, not as two near-duplicate lines.
 //

@@ -95,26 +95,8 @@ function makeUpkeepPayOrElse(args: {
 // Glaciers, Skeleton Ship, Spectral Shield, Storm Spirit, Stormbind, Wings of
 // Aesthir).
 //
-// DEFERRED (remain commented stubs, owned by a later capability cluster) (tracked-by: #2785):
-//   • Divided-as-you-choose damage / counters — Fire Covenant, Fiery Justice,
-//     Meteor Shower, Spoils of War: SHIPPED (#664). Player-chosen ≥1-each
-//     division (`dealDamageDividedAsChosen` / `distributeCountersAsChosen` +
-//     the `divideAsChosen` target requirement), pay-X-life additional cost, and
-//     cast-time graveyard-derived X all ship.
-//   • Pay-life additional cost — Fumarole ("pay 3 life" as an additional cast
-//     cost; `additionalCosts` only models sacrifice/exile today).
-//   • Cross-graveyard reanimation under YOUR control — Hymn of Rebirth
-//     (`returnToBattlefield` returns the card under its OWNER's control; putting
-//     an opponent's graveyard creature under the caster's control needs a
-//     source-owner / controller split).
-//   • End-of-combat destroy of blocking-or-blocked-by — Kjeldoran Frostbeast
-//     (same delayed end-of-combat combat-relationship trigger flagged for
-//     Venomous Breath).
-//   • Specialized statics / triggers — Earthlink (dies → sac a land), Ghostly
-//     Flame (colourless-damage-source static), Monsoon (per-player end-step
-//     Island tap + damage), Mountain Titan (cast-trigger counter grant),
-//     Merieke Ri Berit (gain control + destroy-on-leave/untap). Each needs a
-//     primitive not yet built; flagged for its capability cluster.
+// Cards of this set not defined in this file are owned by the Oracle compiler (ADR 0137): their
+// compile state and Grammar Gaps (gaps:sync) decide the work.
 // ─────────────────────────────────────────────────────────────────────────────
 // Altar of Bone — {G}{W} Sorcery. "As an additional cost to cast this spell,
 // sacrifice a creature. Search your library for a creature card, reveal it, put

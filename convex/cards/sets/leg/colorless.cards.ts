@@ -111,8 +111,6 @@ export const koboldsOfKherKeep = defineCard(() => ({
 //   • Sword of the Ages — "Sacrifice any number of creatures" as a cost needs a
 //     variable multi-sacrifice activation cost; only single sacrificeFilter
 //     exists.
-//   • Gauntlets of Chaos — two-target type-matched control exchange + aura
-//     destruction; deferred (tracked-by: #2785) to keep this batch low-risk.
 //   • Knowledge Vault — "return all cards exiled with this artifact to hand /
 //     graveyard" needs exile-by-source tracking with non-battlefield return;
 //     returnExiledForSource returns to the battlefield only.

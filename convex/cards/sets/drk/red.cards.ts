@@ -31,31 +31,6 @@ export const goblinHero = defineCard(() => ({
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Deferred — two DRK artifacts (#417) each need a "note a creature, then destroy
-// it if THIS artifact leaves the battlefield this turn" delayed-self-LTB
-// mechanism the engine does not ship. `scheduleDelayedTrigger` only fires at
-// phase boundaries (end-step / end-of-combat / draw-step), not on a source's
-// PERMANENT_LEFT, and there is no serializable "noted target" field on an
-// instance a self `leftTrigger` could read. Both are intentionally NOT registered
-// to keep the pool honest; flagged in the PR. TODO(#417):
-//
-//   • Runesword — "{3}, {T}: Target attacking creature gets +2/+0 until end of
-//     turn. When that creature leaves the battlefield this turn, sacrifice this
-//     artifact. ..." Beyond the delayed-self-LTB, it also needs per-creature
-//     combat-damage-interaction tracking ("if the creature deals damage to a
-//     creature this turn, the creature dealt damage can't be regenerated"; "if a
-//     creature dealt damage by the targeted creature would die this turn, exile
-//     it instead") — there is no per-damage-pair tally surface.
-//
-//   • War Barge — "{3}: Target creature gains islandwalk until end of turn. When
-//     this artifact leaves the battlefield this turn, destroy that creature. A
-//     creature destroyed this way can't be regenerated." The islandwalk grant is
-//     free-tranche, but the "destroy the noted creature when THIS leaves the
-//     battlefield this turn" clause needs the same noted-target delayed-self-LTB
-//     primitive Runesword does. Defer the whole card until it lands.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
 // RED (#413 / #419)
 // ─────────────────────────────────────────────────────────────────────────────
 

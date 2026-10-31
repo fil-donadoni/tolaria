@@ -126,66 +126,15 @@ export const sylvanLibrary = defineCard(() => ({
 //     Shelkin Brownie ("loses all bands-with-other abilities").
 //   • C5 named counters — Cocoon (pupa counters), Whirling Dervish (+1/+1
 //     counter on its own combat-damage end-step trigger).
-//   • World rule (C2) — Concordant Crossroads, Living Plane, Revelation. These
-//     carry the World supertype; like every other World-supertype LEG card they
-//     are deferred (tracked-by: #2785) to the world-rule cluster so the supertype and its SBA ship
-//     together (mirrors the blue/black/red tranches).
+//   • World rule (C2, shipped) — Concordant Crossroads carries the World supertype; the
+//     world rule is a global SBA in sba.ts.
 //   • C9 conditional attack restriction (World) — Arboria. SHIPPED in the C9
 //     section at the foot of this file (#386).
 //
 // Out of scope for the whole set (per #369): Rebirth (ante, ADR 0010).
 //
-// Cards that genuinely need an unbuilt primitive are SKIPPED (not built here) (tracked-by: #2785):
-//   • Aisling Leprechaun / Floral Spuzzem — "whenever this blocks / becomes
-//     blocked" and "whenever this attacks and isn't blocked" need a combat
-//     attack/block triggered-ability factory; only ETB/death/tap/cast/phase
-//     factories exist.
-//   • Avoid Fate — "counter target instant or Aura spell that targets a
-//     permanent you control" needs a spell-target predicate gating the legal
-//     spell on what IT targets; the `spell` target requirement only filters the
-//     spell's own types, not its targets.
-//   • Deadfall — "creatures with forestwalk can be blocked as though they
-//     didn't have forestwalk" — buildable with the `landwalk-negation` static
-//     (Great Wall / Undertow, #484), `subtypes: ["Forest"]`. Deferred to its
-//     tranche.
-//   • Eureka — "starting with you, each player may put a permanent card from
-//     hand onto the battlefield; repeat until no one does" needs an alternating
-//     multi-player put-from-hand loop with no primitive.
-//   • Glyph of Reincarnation — destroy creatures a target Wall blocked this turn
-//     and reanimate per their last-blocked controller needs per-Wall blocked-
-//     history tracking with no surface.
-//   • Ichneumon Druid — "other than the first instant that player casts each
-//     turn" needs a per-player per-turn instant-cast tally not surfaced to
-//     trigger conditions.
-//   • Radjan Spirit — "target creature loses flying until end of turn" needs
-//     SELECTIVE keyword removal as an Op. Three neighbouring shapes ship and
-//     none of them is it: the `loseAllAbilities` Op (all abilities, indefinite),
-//     the `keyword-remove` static (one keyword, continuous, source-tied,
-//     Earthbind) and the raw `removeStaticAbilities` primitive, reachable only
-//     from a resolve() closure (Vertigo, ice/red.cards.ts). tracked-by: #2125.
-//   • Reincarnation — "when that creature dies this turn, return a creature from
-//     its owner's graveyard" needs a per-target delayed dies-watcher; the
-//     delayed-trigger timings are phase boundaries only, not "when X dies".
-//   • Rust — "counter target activated ability from an artifact source" needs an
-//     ability-on-the-stack target type that does not exist.
-//   • Subdue — "prevent all combat damage that would be dealt BY target
-//     creature". The one-shot source-scoped shield now ships (`preventDamage`
-//     with `mode: "all-from-source"` + `combatOnly`, #1955), so the Fog-only
-//     claim recorded here is stale; what the CONTINUOUS aura form still wants
-//     is the direction axis of ADR 0090 (tracked-by: #2133).
-//   • Untamed Wilds — "search your library for a basic land card" is NOT
-//     blocked: `getLibraryCards` exposes `supertypes` and `EffectCardFilter`
-//     has `supertype`, so a basic land is isolable (Fabled Passage,
-//     eld/colorless.ts, ships `filter: { supertype: "Basic" }`). CR 205.4a:
-//     basic is the SUPERTYPE, so a dual land must not be findable. Deferred to
-//     its tranche for authoring only — owned by #2124.
-//   • Willow Satyr — "gain control of target legendary creature for as long as
-//     you control this AND this remains tapped" needs a control-change condition
-//     combining controls-source + source-tapped; only the separate
-//     `controller-controls-source` and `source-tapped-and-power-ge` kinds exist.
-//   • Wood Elemental — "P/T each equal to the number of Forests sacrificed as it
-//     entered" needs an entry-time sacrifice count stored and read by a CDA (or
-//     an indefinite base-P/T set); only phase-scoped `setBasePT` exists.
+// Cards of this set not defined in this file are owned by the Oracle compiler (ADR 0137): their
+// compile state and Grammar Gaps (gaps:sync) decide the work.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // --- Vanilla / keyword creatures (CR 110.1 / 702 — pure data) -------------

@@ -214,7 +214,7 @@ export const channel = defineCard(() => ({
 // "Whenever this creature blocks or becomes blocked by a non-Wall creature,
 // destroy that creature at end of combat." (CR 509.1h, CR 511.3)
 
-// Built from the shared `combatPairKill` primitive (becomes-blocked → deferred (tracked-by: #2785)
+// Built from the shared `combatPairKill` primitive (becomes-blocked → delayed
 // end-of-combat destroy). The non-Wall gate is the only card-specific input;
 // `combatant: "self"` because the trigger source IS the combatant.
 function combatKillPair(

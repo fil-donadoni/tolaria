@@ -805,14 +805,12 @@ export const freyalisesWinds = defineCard(() => ({
 //     ACTIVE (#738) — the granted "{0}: Untap this creature. Activate only
 //     once." activated ability now rides the duration-scoped
 //     `grantActivatedAbility` seam (see its definition below).
-//   • Snow-matters — Snowblind / Whiteout / Woolly Mammoths / Rime Dryad
-//     (snow-land counting, snow landwalk evasion, snow-land sac recursion). No
-//     snow supertype filter / snow-evasion plumbing yet — snow cluster.
-//   • Forgotten Lore / Freyalise Supplicant / Freyalise's Winds — blocked
-//     one-offs owned by later clusters.
+//   • Snow-matters — Snowblind / Whiteout / Woolly Mammoths / Rime Dryad are
+//     defined below on the snow supertype filter and snow landwalk.
+//   • Blizzard carries its snow-land cast condition (`castCondition`).
 //
-// FLAGGED SIMPLIFICATIONS (no new primitive) (tracked-by: #2785): Blizzard drops its snow cast-
-// condition (no snow lands in pool).
+// Cards of this set not defined in this file are owned by the Oracle compiler (ADR 0137): their
+// compile state and Grammar Gaps (gaps:sync) decide the work.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Fyndhorn Elder — "{T}: Add {G}{G}." Mana dork (CR 605.1a mana ability,
@@ -1191,9 +1189,9 @@ export const scaledWurm = defineCard(() => ({
 // toughness on its own. The host's toughness read in `compute` is its toughness
 // WITHOUT this effect (the modification is added on top), giving the intended cap.
 //
-// SIMPLIFICATION (tracked-by: #2785) (flagged): the "defending player" while the host attacks is
-// resolved as the host's opponent (the non-controller in 2-player). Multiplayer
-// (3+) is out of scope (CLAUDE.md), so the single opponent is the defender.
+// Out of scope: the "defending player" while the host attacks is resolved as the host's
+// opponent (the non-controller in 2-player). Multiplayer (3+) is not built, so the single
+// opponent is the defender.
 export const snowblind = defineCard(() => ({
     id: "5f62c376-487a-42bc-bd85-ab8b0480f7dc",
     name: "Snowblind",

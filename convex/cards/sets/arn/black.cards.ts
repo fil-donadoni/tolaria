@@ -456,13 +456,11 @@ export const cuombajjWitches = defineCard(() => ({
 // Auras already attached" is automatic — the enchant gate only blocks NEW
 // attachment; auras already on a guarded artifact are untouched.
 //
-// Simplification (tracked-by: #2785) (flagged): the printed "if something would destroy Guardian
-// Beast and your artifacts simultaneously, only Guardian Beast is destroyed"
-// rider is handled implicitly — our engine resolves "destroy" effects
-// sequentially and the indestructible guard is read at each destroy, so a mass
-// destroy that hits Guardian Beast and a guarded artifact spares the artifact
-// as long as Guardian Beast has not yet left when the artifact's destroy is
-// processed. Strict CR 616 simultaneous-replacement ordering is out of scope.
+// Divergence (tracked-by: #7633): the modern Oracle has no printed rider, but a
+// mass destroy is not simultaneous here. The engine destroys sequentially and
+// reads the indestructible guard at each destroy, so a mass destroy that hits
+// Guardian Beast and a guarded artifact is order-dependent: the artifact is
+// spared only while Guardian Beast has not yet left when its destroy is processed.
 export const guardianBeast = defineCard(() => ({
     id: "9941f83b-2903-4eab-ac6d-5313e3978fa3",
     rarity: "rare",

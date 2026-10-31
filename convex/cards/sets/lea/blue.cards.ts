@@ -1286,9 +1286,8 @@ export const timetwister = defineCard(() => ({
 }));
 
 // CR 701.26: oracle reads "you may tap or untap target ~". Modal-spell
-// infrastructure (CR 700.2) is not implemented (tracked-by: #2785) yet, so the resolve toggles
-// the target's tap state — the only mode-with-effect for any board state.
-// Replace with explicit mode selection once modal cast UI lands.
+// infrastructure (CR 700.2) is expressed as an `optionChoice` over Tap / Untap modes
+// (the caster picks the direction).
 export const twiddle = defineCard(() => ({
     id: "576e811f-26a3-4a7c-bd13-3b1cc3e184eb",
     rarity: "common",
@@ -1642,7 +1641,7 @@ export const manaShort = defineCard(() => ({
 
 // Drain Power — {U}{U} Sorcery. "Target player activates a mana ability of
 // each land they control. Then that player loses all unspent mana and you add
-// the mana lost this way." Simplified (tracked-by: #2785) model: tap all target's lands, drain
+// the mana lost this way." Simplified (tracked-by: #974) model: tap all target's lands, drain
 // their pool, add drained mana to caster. (CR 106.4)
 export const drainPower = defineCard(() => ({
     id: "ea3830c5-cc66-453e-9e53-0636e00ee0ee",

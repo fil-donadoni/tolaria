@@ -736,9 +736,9 @@ export const clockworkAvian = defineCard(() => ({
 // mana costs / type lines come from MTGJSON ATQ.json. Every effect reuses
 // existing staticEffects kinds, the COP factory, animateAsCreature, and
 // SpellContext prevention/keyword primitives — no new primitive, no engine
-// change. Divergences (animate can't add the Artifact type; Urza's Avenger's
-// keyword choice modeled as fixed per-keyword abilities; Ashnod's "becomes an
-// artifact" deferred) (tracked-by: #2785) are flagged inline below.
+// change. Divergences (animate can't add the Artifact type; Ashnod's "becomes an
+// artifact" omitted) (tracked-by: #3725) are flagged inline below. Urza's
+// Avenger's keyword choice is deliberately authored as fixed per-keyword abilities.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Mightstone — {4} Artifact. "Attacking creatures get +1/+0." (CR 611 layer
@@ -1155,7 +1155,7 @@ export const ashnodsTransmogrant = defineCard(() => ({
                 excludeTypes: "Artifact",
             },
             // CR 122 (issue #841) — put one +1/+1 counter on the target.
-            // "becomes an artifact" omitted — see DIVERGENCE (tracked-by: #2785) note above.
+            // "becomes an artifact" omitted — see DIVERGENCE (tracked-by: #3725) note above.
             effects: [
                 {
                     op: "counters",
