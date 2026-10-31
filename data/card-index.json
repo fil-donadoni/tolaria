@@ -1574,6 +1574,16 @@
         "source": "compiled"
     },
     {
+        "name": "Alrund's Epiphany",
+        "scryfallId": "c94fcb53-a7bd-4a80-a536-9fb0eb24261a",
+        "oracleId": "bc842838-1993-4480-b8fe-f9d9f2dee7a4",
+        "firstSet": "khm",
+        "firstPrintId": "c94fcb53-a7bd-4a80-a536-9fb0eb24261a",
+        "firstPrintSet": "khm",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Altar of Bone",
         "scryfallId": "75d5b014-8675-4d91-a539-ac5c31d44b35",
         "oracleId": "607a3f5f-4a36-4077-b5cf-40ffd52fa580",
@@ -4064,6 +4074,16 @@
         "source": "compiled"
     },
     {
+        "name": "Augury Raven",
+        "scryfallId": "a9947cfd-91d6-479e-a7f6-2a2050f020f3",
+        "oracleId": "ee05fc58-1356-4b2f-b9ce-bda8cc716aee",
+        "firstSet": "khm",
+        "firstPrintId": "a9947cfd-91d6-479e-a7f6-2a2050f020f3",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Aura Blast",
         "scryfallId": "090f5ad6-e10e-49b3-8643-51a4e792517c",
         "oracleId": "4e3c3bdc-667d-42ec-b960-159a39c53cb3",
@@ -5926,6 +5946,16 @@
         "firstSet": "dom",
         "firstPrintId": "88858285-23ac-4d7e-b8dd-a20982d95a2d",
         "firstPrintSet": "dom",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Behold the Multiverse",
+        "scryfallId": "27855a38-a682-4f97-ad22-ac625e86faec",
+        "oracleId": "d7d2f701-77df-4169-bf98-0d51d6886e9b",
+        "firstSet": "khm",
+        "firstPrintId": "27855a38-a682-4f97-ad22-ac625e86faec",
+        "firstPrintSet": "khm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -16818,6 +16848,16 @@
         "source": "compiled"
     },
     {
+        "name": "Demon Bolt",
+        "scryfallId": "5f856b0e-b413-49b0-9aa7-d935ad40ae53",
+        "oracleId": "6e786f0b-e2cb-40ee-96bc-81945a0b35a3",
+        "firstSet": "khm",
+        "firstPrintId": "5f856b0e-b413-49b0-9aa7-d935ad40ae53",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Demon's Disciple",
         "scryfallId": "836f5197-e42b-45e0-8170-1b0a8a5beebd",
         "oracleId": "d5a33091-a348-4b13-8dbd-79ab0ad99afe",
@@ -16949,6 +16989,16 @@
         "firstPrintId": "15f236ce-41ad-4a49-a6f9-7853a2395a84",
         "firstPrintSet": "pcy",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Depart the Realm",
+        "scryfallId": "2ce0403d-76ed-4eb0-abdd-74ed28f96137",
+        "oracleId": "ae069ba4-8ca6-4eda-8f5d-fc82072d7d40",
+        "firstSet": "khm",
+        "firstPrintId": "2ce0403d-76ed-4eb0-abdd-74ed28f96137",
+        "firstPrintSet": "khm",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -18380,6 +18430,16 @@
         "firstSet": "pls",
         "firstPrintId": "85206cc1-5484-40c6-b11d-b8d6fad4fc5c",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Doomskar",
+        "scryfallId": "130ee895-1e5e-4f82-bb66-e1275bac75dd",
+        "oracleId": "38ece0fa-2c94-4eae-b6ab-74b783862f3e",
+        "firstSet": "khm",
+        "firstPrintId": "130ee895-1e5e-4f82-bb66-e1275bac75dd",
+        "firstPrintSet": "khm",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Dormant Sliver",
@@ -19878,6 +19938,16 @@
         "firstSet": "hob",
         "firstPrintId": "1f9a61a1-454e-4d5b-a6dd-1a79fe9dedf3",
         "firstPrintSet": "hob",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dwarven Reinforcements",
+        "scryfallId": "40bcc7cb-65dd-4bc6-8606-a162fa6c65f7",
+        "oracleId": "b38c567e-fd79-4a74-ab5f-df4a6a8f7e00",
+        "firstSet": "khm",
+        "firstPrintId": "40bcc7cb-65dd-4bc6-8606-a162fa6c65f7",
+        "firstPrintSet": "khm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -29498,6 +29568,16 @@
         "firstPrintSet": "gpt"
     },
     {
+        "name": "Gods' Hall Guardian",
+        "scryfallId": "e8e645c8-90ac-4865-b441-e64251d6c9a8",
+        "oracleId": "7d22e071-4af4-4182-b387-ecca873d00cc",
+        "firstSet": "khm",
+        "firstPrintId": "e8e645c8-90ac-4865-b441-e64251d6c9a8",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Goham Djinn",
         "scryfallId": "d67796c7-4d93-4c50-8839-bb69e075bc42",
         "oracleId": "e9db02fb-78e2-44b3-9e1b-ef0148234337",
@@ -35560,6 +35640,16 @@
         "source": "compiled"
     },
     {
+        "name": "Iron Verdict",
+        "scryfallId": "2fb38f5b-a2c2-4b06-8c9c-9615475a43e7",
+        "oracleId": "70528ca9-195c-49a5-9d83-d51df3b0591f",
+        "firstSet": "khm",
+        "firstPrintId": "2fb38f5b-a2c2-4b06-8c9c-9615475a43e7",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Iron Will",
         "scryfallId": "bee0ee84-6c22-4649-b621-e3fdb08bbe45",
         "oracleId": "dc0decb9-32da-47aa-a51a-0d9c623c534a",
@@ -41583,6 +41673,16 @@
         "firstSet": "avr",
         "firstPrintId": "f1dda42d-55eb-46fc-89da-17cc5bfaa823",
         "firstPrintSet": "avr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Mammoth Growth",
+        "scryfallId": "0e55041f-69a5-4bcf-899f-a4b44c208b4d",
+        "oracleId": "bd433a27-1f3f-4d69-8b7e-97239fdf165b",
+        "firstSet": "khm",
+        "firstPrintId": "0e55041f-69a5-4bcf-899f-a4b44c208b4d",
+        "firstPrintSet": "khm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -58818,6 +58918,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sarulf's Packmate",
+        "scryfallId": "6061113e-7dd8-4739-b4dd-55bb7f9e39a2",
+        "oracleId": "f32caf11-abc1-4cae-a311-10210176ea3a",
+        "firstSet": "khm",
+        "firstPrintId": "6061113e-7dd8-4739-b4dd-55bb7f9e39a2",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Saruli Caretaker",
         "scryfallId": "ef3358cb-714c-49bf-b7e9-a69d02d7799e",
         "oracleId": "5e2736e6-b812-43a4-bd79-6f6095344fe1",
@@ -59051,6 +59161,16 @@
         "firstPrintId": "5b5fa4bb-e061-456f-808e-8d98b2c8abf5",
         "firstPrintSet": "m20",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Saw It Coming",
+        "scryfallId": "877a1bb9-5eae-453a-bec0-a9de20ea6815",
+        "oracleId": "90edaf33-d0ab-47e0-8f6a-6fba38286e6e",
+        "firstSet": "khm",
+        "firstPrintId": "877a1bb9-5eae-453a-bec0-a9de20ea6815",
+        "firstPrintSet": "khm",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -59506,6 +59626,16 @@
         "firstSet": "som",
         "firstPrintId": "ca4d9198-52a7-4dfe-8f7f-4fa6e19a2479",
         "firstPrintSet": "som",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Scorn Effigy",
+        "scryfallId": "4fa13084-3e68-49f4-8cc9-6d02286fd150",
+        "oracleId": "9ef2a604-4053-4ce0-bc08-43d9cc0b15cc",
+        "firstSet": "khm",
+        "firstPrintId": "4fa13084-3e68-49f4-8cc9-6d02286fd150",
+        "firstPrintSet": "khm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -70932,6 +71062,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tergrid's Shadow",
+        "scryfallId": "417f71d2-d7da-4279-8847-d27c67e9ea9d",
+        "oracleId": "692260bb-e01c-4550-832a-9611856a6ff0",
+        "firstSet": "khm",
+        "firstPrintId": "417f71d2-d7da-4279-8847-d27c67e9ea9d",
+        "firstPrintSet": "khm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Terminal Agony",
         "scryfallId": "314e94ad-0e12-48bb-aae1-2c842943114a",
         "oracleId": "b69e68e7-0612-40f8-a40a-9c4e77653442",
@@ -76541,6 +76681,16 @@
         "source": "compiled"
     },
     {
+        "name": "Vengeful Reaper",
+        "scryfallId": "854c99fd-71ba-40b7-98cf-b783f01a77b4",
+        "oracleId": "5d776be0-cece-4496-a3b0-b7424eca77fd",
+        "firstSet": "khm",
+        "firstPrintId": "854c99fd-71ba-40b7-98cf-b783f01a77b4",
+        "firstPrintSet": "khm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Venom",
         "scryfallId": "bb0480f5-6aae-4297-afa6-3f7a5801bf95",
         "oracleId": "ee55ca31-73f3-4e9d-8373-0a44009a25bd",
@@ -79037,6 +79187,16 @@
         "firstSet": "clb",
         "firstPrintId": "5e7a5951-4f71-47a0-ad80-f236f61d3f22",
         "firstPrintSet": "clb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Warhorn Blast",
+        "scryfallId": "3fc98aff-edc0-4f78-ae4f-e08735c9e512",
+        "oracleId": "8106606c-9a1c-44b2-a9bf-3f189ce050ef",
+        "firstSet": "khm",
+        "firstPrintId": "3fc98aff-edc0-4f78-ae4f-e08735c9e512",
+        "firstPrintSet": "khm",
         "rarity": "common",
         "source": "compiled"
     },

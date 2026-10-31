@@ -17,6 +17,7 @@ function fakeMutations() {
         summonCompanion: vi.fn().mockResolvedValue(null),
         turnPermanentFaceUp: vi.fn().mockResolvedValue(null),
         plotCard: vi.fn().mockResolvedValue(null),
+        foretellCard: vi.fn().mockResolvedValue(null),
         announceCast: vi.fn().mockResolvedValue(null),
         selectTarget: vi.fn().mockResolvedValue(null),
         selectTargets: vi.fn().mockResolvedValue(null),
@@ -172,6 +173,17 @@ describe("executeMove (issue #110)", () => {
         expect(m.plotCard).toHaveBeenCalledWith({
             ...GP,
             cardInstanceId: "pillage",
+        });
+        // A special action is ONE mutation: no announce, no tap round-trip.
+        expect(m.announceCast).not.toHaveBeenCalled();
+        expect(m.tapForPayment).not.toHaveBeenCalled();
+    });
+
+    it("foretell → foretellCard with the hand card's id (CR 116.2h / 702.143a, issue #2096)", async () => {
+        const m = await run({ kind: "foretell", cardInstanceId: "omen" });
+        expect(m.foretellCard).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "omen",
         });
         // A special action is ONE mutation: no announce, no tap round-trip.
         expect(m.announceCast).not.toHaveBeenCalled();

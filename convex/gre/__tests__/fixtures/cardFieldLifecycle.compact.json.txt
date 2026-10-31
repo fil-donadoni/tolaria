@@ -353,6 +353,11 @@
           "castableFromExileFromTurn": 22,
           "castableFromExileSorceryTiming": true,
           "plotted": true,
+          "foretold": true,
+          "grantedForetellCost": {
+            "X": 1,
+            "U": 1
+          },
           "warpExiled": true,
           "warped": true,
           "transformedAtDelayedSeq": 19,
@@ -784,6 +789,11 @@
       "castableFromExileFromTurn": 22,
       "castableFromExileSorceryTiming": true,
       "plotted": true,
+      "foretold": true,
+      "grantedForetellCost": {
+        "X": 1,
+        "U": 1
+      },
       "warpExiled": true,
       "warped": true,
       "transformedAtDelayedSeq": 19,

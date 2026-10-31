@@ -218,6 +218,83 @@ describe("Plot [cost] (CR 702.170a)", () => {
     });
 });
 
+describe("Foretell [cost] (CR 702.143a)", () => {
+    it("Augury Raven: the cost lands on `foretell`", () => {
+        expect(
+            compiled(
+                oracleCard({
+                    name: "Augury Raven",
+                    manaCost: "{3}{U}",
+                    typeLine: "Creature — Bird Spirit",
+                    power: "3",
+                    toughness: "1",
+                    oracleText:
+                        "Flying\nForetell {1}{U} (During your turn, you may pay {2} and exile this card from your hand face down. Cast it on a later turn for its foretell cost.)",
+                })
+            )
+        ).toEqual({
+            name: "Augury Raven",
+            types: ["Creature"],
+            subtypes: ["Bird", "Spirit"],
+            manaCost: { X: 3, U: 1 },
+            power: 3,
+            toughness: 1,
+            oracleText:
+                "Flying\nForetell {1}{U} (During your turn, you may pay {2} and exile this card from your hand face down. Cast it on a later turn for its foretell cost.)",
+            staticAbilities: ["flying"],
+            foretell: { X: 1, U: 1 },
+        });
+    });
+
+    it("a mono-coloured cost: Foretell {W}", () => {
+        expect(
+            compiled(
+                oracleCard({
+                    name: "Foretold Bear",
+                    manaCost: "{2}{W}",
+                    typeLine: "Creature — Bear",
+                    power: "2",
+                    toughness: "2",
+                    oracleText: "Foretell {W}",
+                })
+            )?.foretell
+        ).toEqual({ W: 1 });
+    });
+
+    it("a mixed generic-and-coloured cost: Foretell {1}{U}", () => {
+        expect(
+            compiled(
+                oracleCard({
+                    name: "Foretold Draw",
+                    manaCost: "{2}{U}",
+                    typeLine: "Sorcery",
+                    oracleText: "Draw two cards.\nForetell {1}{U}",
+                })
+            )?.foretell
+        ).toEqual({ X: 1, U: 1 });
+    });
+
+    it("a card declaring foretell twice is refused whole", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Double Foretell",
+                manaCost: "{1}{U}",
+                typeLine: "Sorcery",
+                oracleText: "Draw a card.\nForetell {U}\nForetell {1}{U}",
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
+    it.each([
+        ["a variable cost", "Foretell {X}{R}"],
+        ["a hybrid pip", "Foretell {W/U}"],
+        ["a non-mana cost", "Foretell—Discard a card."],
+    ])("REFUSES %s", (_why, line) => {
+        expect(readLine(line).ok).toBe(false);
+    });
+});
+
 describe("Morph [cost] (CR 702.37a, 702.37e)", () => {
     it("Exalted Angel: the turn-up cost lands on `morph`", () => {
         const def = compiled(

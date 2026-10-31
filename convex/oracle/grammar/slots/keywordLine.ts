@@ -435,6 +435,7 @@ function costParameter(head: string, span: string): RuleResult<ManaCost> {
 const CYCLING_HEAD = "Cycling ";
 const MADNESS_HEAD = "Madness ";
 const PLOT_HEAD = "Plot ";
+const FORETELL_HEAD = "Foretell ";
 const OVERLOAD_HEAD = "Overload ";
 const MORPH_HEAD = "Morph ";
 
@@ -475,6 +476,18 @@ export const plotRule: Rule<SlotIR> = rule("plot", (span) => {
     const cost = costParameter(PLOT_HEAD, span);
     if (!cost.ok) return cost;
     return ok({ kind: "plot" as const, cost: cost.value });
+});
+
+/**
+ * CR 702.143a — "Foretell [cost]": the cost a foretold card is cast for from
+ * exile. The special action that foretells it always costs {2} (the rule's
+ * cost, not the card's); the engine reads this cost off
+ * `CardDefinition.foretell` (`gre/foretell.ts`).
+ */
+export const foretellRule: Rule<SlotIR> = rule("foretell", (span) => {
+    const cost = costParameter(FORETELL_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({ kind: "foretell" as const, cost: cost.value });
 });
 
 /**
@@ -578,7 +591,7 @@ export const fadingRule: Rule<SlotIR> = rule("fading", (span) => {
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker line, or one cost-parameter keyword (cycling, madness, plot,
- * overload, morph, fading). They are disjoint by construction — no registry keyword name
+ * foretell, overload, morph, fading). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
  * object, and each parameterised rule reads only its own head — and `oneOf`
  * enforces it rather than trusting it.
@@ -591,6 +604,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     cyclingRule,
     madnessRule,
     plotRule,
+    foretellRule,
     overloadRule,
     morphRule,
     echoRule,

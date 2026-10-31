@@ -408,6 +408,8 @@ export function useVsAiDriver(
         turnPermanentFaceUp: useMutation(api.game.turnPermanentFaceUp),
         // CR 116.2k / 702.170a — the plot special action.
         plotCard: useMutation(api.game.plotCard),
+        // CR 116.2h / 702.143a — the foretell special action.
+        foretellCard: useMutation(api.game.foretellCard),
         announceCast: useMutation(api.game.announceCast),
         selectTarget: useMutation(api.game.selectTarget),
         // issue #1779 / PRD #1776 T4 — batched target selection: the bot

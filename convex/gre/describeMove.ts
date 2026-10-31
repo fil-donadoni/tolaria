@@ -154,6 +154,10 @@ export function describeMove(move: Move, state: GameState): string {
         // for the trace like a cast.
         case "plot":
             return `plot ${instanceName(state, move.cardInstanceId)}`;
+        // CR 116.2h / 702.143a — the foretell special action; the actor's own
+        // hand card, so the trace may name it.
+        case "foretell":
+            return `foretell ${instanceName(state, move.cardInstanceId)}`;
         case "cast-spell": {
             const name = instanceName(state, move.cardInstanceId);
             const x = move.chosenX !== undefined ? ` (X=${move.chosenX})` : "";
