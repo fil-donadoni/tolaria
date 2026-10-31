@@ -46,9 +46,13 @@ const baseArg = process.argv.find((a) => a.startsWith("--base="));
 const base = baseArg ? baseArg.slice("--base=".length) : ORIGIN_BASE;
 const mergeBase = must("merge-base", base, "HEAD").trim();
 
+// `--diff-filter=a` (issue #7653): a derived path the PR ADDS is a new
+// derived path's first bytes — the PR that introduces it must carry them, and
+// the merge-base has nothing to restore it to.
 const changed = must(
     "diff",
     "--name-only",
+    "--diff-filter=a",
     mergeBase,
     "HEAD",
     "--",

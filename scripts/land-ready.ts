@@ -378,7 +378,17 @@ export function restoreDerivedState(
 ): DerivedCarried {
     const mergeBase = git.run(["merge-base", base, "HEAD"]).trim();
     const changed = git
-        .run(["diff", "--name-only", mergeBase, "HEAD", "--", ...DERIVED_PATHS])
+        // `--diff-filter=a`: a derived path the PR adds has no merge-base
+        // bytes — its first ones are the PR's (issue #7653).
+        .run([
+            "diff",
+            "--name-only",
+            "--diff-filter=a",
+            mergeBase,
+            "HEAD",
+            "--",
+            ...DERIVED_PATHS,
+        ])
         .split("\n")
         .filter((p) => p !== "");
     const carried = derivedCarried({

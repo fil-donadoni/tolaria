@@ -482,6 +482,34 @@ describe("land:ready restoreDerivedState — the hand-off puts the derived state
         );
     });
 
+    it("a derived path the PR ADDS is its first bytes, never carried: the guard passes and nothing is restored (issue #7653)", () => {
+        const added = REFIT_ARTIFACT_PATHS[0]!;
+        git("switch", "-q", "base");
+        git("rm", "-q", added);
+        commit("base without the new derived path");
+        git("switch", "-q", "-c", "introduces");
+        write(added, "fitted v1\n");
+        write("convex/gre/ai/evalWeights.ts", "spreads the fitted file\n");
+        commit("refactor: a new derived path");
+        const before = git("rev-parse", "HEAD").trim();
+        expect(
+            spawnSync(
+                "bun",
+                [
+                    resolve(__dirname, "..", "check-derived-in-diff.ts"),
+                    "--base=base",
+                ],
+                { cwd: repo }
+            ).status
+        ).toBe(0);
+        expect(
+            carriesNothing(
+                restoreDerivedState(repo, "base", restoreGit, () => undefined)
+            )
+        ).toBe(true);
+        expect(git("rev-parse", "HEAD").trim()).toBe(before);
+    });
+
     it("a PR carrying nothing gets no commit", () => {
         write(LOCKFILE_PATH, lockfile({}, ['{"name":"A"}', '{"name":"B"}']));
         commit("feat: card B");

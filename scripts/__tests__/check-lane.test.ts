@@ -31,6 +31,7 @@ import {
     type TreeSnapshot,
     type RunResult,
 } from "../check-lane";
+import { REFIT_ARTIFACT_PATHS } from "../lib/bot-refit";
 import { BLADE_INDEX_DRIFT_TEST } from "../lib/blade-card-index";
 import { DOC_GATE_TESTS } from "../lib/doc-gate-tests";
 import type { BotRelatedTests, RelatedTests } from "../lib/test-reach";
@@ -2419,6 +2420,17 @@ describe("check-lane — cheap census guards run in the lane (issue #4963)", () 
             for (const id of CENSUS)
                 expect(ids(plan.skip), `${file}: ${id}`).toContain(id);
         }
+    });
+
+    it("a moved Bot refit artefact admits check:derived-in-diff — the hand edit is refused in the lane (issue #7653)", () => {
+        for (const path of REFIT_ARTIFACT_PATHS)
+            expect(ids(classifyLane([path]).run), path).toContain(
+                "check:derived-in-diff"
+            );
+        // The Bot code beside them is the PR's: it admits nothing here.
+        expect(
+            ids(classifyLane(["convex/gre/ai/evalWeights.ts"]).run)
+        ).not.toContain("check:derived-in-diff");
     });
 
     it("the docs lane runs none — prose is no census input", () => {
