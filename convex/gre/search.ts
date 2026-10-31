@@ -1727,8 +1727,9 @@ export function isDiscouragedRolloutMove(
         // window where the payoff can matter (issue #4261).
         if (isDeferrableTransientSacrifice(state, pid, move)) return true;
 
-        // (a) Pointless self-animation after the mover's own combat — issue
-        // #1890 item 4, shared with the root tie-break.
+        // (a) Pointless self-animation outside a window where the body can
+        // still fight (issue #1890 item 4, issue #7705), shared with the root
+        // tie-break.
         if (isPointlessSelfActivation(state, pid, move)) return true;
 
         // (b) Sorcery-speed window: the mover is in ITS OWN sorcery window — a

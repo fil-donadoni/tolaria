@@ -286,7 +286,9 @@ function blockDeclarationPending(state: GameState): boolean {
  *  BECOME a blocker. Eligibility is the engine's own
  *  `validateBlockerEligibility` (evasion — flying vs reach, CR 702.9b /
  *  702.17b — restrictions, protection), judged against the defender's whole
- *  battlefield (landwalk reads it). */
+ *  battlefield (landwalk reads it). Attackers are judged one at a time, so a
+ *  restriction needing several blockers (menace) reads as blockable — fails
+ *  open, as the guardrail contract wants. */
 function canBlockADeclaredAttacker(
     state: GameState,
     body: CardInstanceState

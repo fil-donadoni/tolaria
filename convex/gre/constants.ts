@@ -386,6 +386,9 @@ export function isExpiringAnimatedBody(card: CardInstanceState): boolean {
         card.animation?.addedCreatureType === true &&
         !!duration &&
         !duration.skip &&
+        // A player-scoped boundary ("until end of YOUR next turn") may not
+        // fire this turn — read as lasting, fail closed.
+        duration.playerId === undefined &&
         (duration.phase === "end-of-turn" || duration.phase === "end-of-combat")
     );
 }
