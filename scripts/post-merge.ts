@@ -536,11 +536,13 @@ export function seed(
             `post-merge: no derive:sync commit on top of ${after.slice(0, 10)} within ${Math.round(SEED_DERIVE_WAIT_MS / 60_000)} min — nothing seeded for PR(s) ${prs.map((p) => `#${p}`).join(" ") || "(none)"}; seed by hand (bun run seed:scenario <PR>) once it lands`
         );
     if (!ff) return false;
-    // Issue #7690 — the tip may add a card: bring the Card Prints tables up to
-    // its definition set before a preset scenario is opened, so its tokens
-    // resolve their art (ADR 0140 §4). One query when nothing changed;
-    // `--warn-only` keeps a Scryfall outage from redding the seed.
-    bun(["scripts/prints-sync.ts", "--if-stale", "--warn-only"], primary);
+    // Issue #7690 — a seeding tip may add a card (a card PR always carries a
+    // preset scenario): bring the Card Prints tables up to its definition set
+    // before that scenario is opened, so its tokens resolve their art (ADR
+    // 0140 §4). One query when nothing changed; `--warn-only` keeps a Scryfall
+    // outage from redding the seed.
+    if (plan.scenarios.length > 0 || plan.presets)
+        bun(["scripts/prints-sync.ts", "--if-stale", "--warn-only"], primary);
     let ok = true;
     for (const pr of plan.scenarios)
         ok = bun(["scripts/seed-scenario.ts", String(pr)], primary) && ok;

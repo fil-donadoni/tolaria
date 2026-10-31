@@ -53,8 +53,9 @@ export interface PrintsPopulated {
     cardPrints: boolean;
     definitionTokenPrints: boolean;
     /** The `definitionSetDigest` the last successful sync recorded, or `null`
-     *  (never recorded — a deployment filled before issue #7690). */
-    syncedDigest: string | null;
+     *  (never recorded — a deployment filled before issue #7690). ABSENT when
+     *  the deployment still runs functions older than issue #7690. */
+    syncedDigest?: string | null;
 }
 
 /** Tables a sync would fill, named for the log; empty = nothing owed. */
@@ -82,6 +83,18 @@ export function definitionSetDigest(
 }
 
 /**
+ * True when the deployment's `cardPrints:populated` predates issue #7690 (no
+ * `syncedDigest` key): it has no `recordSync` either, so a sync could never
+ * record its digest and every `--if-stale` run would re-download the bulk.
+ * The caller skips with a warning until the functions are redeployed.
+ */
+export function deploymentPredatesSyncState(
+    populated: PrintsPopulated
+): boolean {
+    return populated.syncedDigest === undefined;
+}
+
+/**
  * Why `--if-stale` must sync, or `[]` when it may skip (issue #7690): an
  * empty table, a deployment that never recorded a digest, or one recorded
  * against a different definition set.
@@ -91,7 +104,7 @@ export function syncOwed(
     currentDigest: string
 ): string[] {
     const reasons = emptyPrintTables(populated).map((t) => `${t} empty`);
-    if (populated.syncedDigest === null)
+    if (populated.syncedDigest == null)
         reasons.push("no sync recorded for any definition set");
     else if (populated.syncedDigest !== currentDigest)
         reasons.push("definition set changed since the last sync");

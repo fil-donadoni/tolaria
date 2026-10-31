@@ -47,6 +47,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import {
     definitionSetDigest,
+    deploymentPredatesSyncState,
     parsePrintsSyncArgs,
     printsSyncTarget,
     syncOwed,
@@ -81,19 +82,14 @@ function readCardIndex(): CardIndexRow[] {
     }));
 }
 
-/** The digest `--if-stale` compares and a successful write records. */
-function currentDigest(): string {
-    const ids = buildDefinitionIndex(readCardIndex()).values();
-    return definitionSetDigest(ids, loadRarityOverrides());
-}
-
-async function buildRows(): Promise<{
+async function buildRows(
+    definitionByOracleId: ReadonlyMap<string, string>,
+    overrides: ReturnType<typeof loadRarityOverrides>
+): Promise<{
     rows: CardPrintRow[];
     definitionTokens: DefinitionTokenRow[];
     scanned: number;
 }> {
-    const definitionByOracleId = buildDefinitionIndex(readCardIndex());
-    const overrides = loadRarityOverrides();
     const rows: CardPrintRow[] = [];
     const definitionTokens: DefinitionTokenRow[] = [];
     let scanned = 0;
@@ -218,11 +214,27 @@ async function sync(
     args: ReturnType<typeof parsePrintsSyncArgs>
 ): Promise<void> {
     const target = printsSyncTarget(args);
+    // Read ONCE, before the download: the rows are built from this
+    // definition set, and the digest recorded (issue #7690) is ITS digest
+    // even if a fast-forward rewrites card-index.json mid-sync.
+    const definitionByOracleId = buildDefinitionIndex(readCardIndex());
+    const overrides = loadRarityOverrides();
+    const digest = definitionSetDigest(
+        definitionByOracleId.values(),
+        overrides
+    );
     const plan = target.cwd ? (target as Required<SeedTargetPlan>) : null;
     if (!args.dryRun) {
         if (!plan) throw new Error(target.error ?? "no deployment selected");
         if (args.ifStale) {
-            const owed = syncOwed(readPopulated(plan), currentDigest());
+            const populated = readPopulated(plan);
+            if (deploymentPredatesSyncState(populated)) {
+                console.warn(
+                    "prints-sync: the deployment's cardPrints functions predate issue #7690 (no syncedDigest) — skipping; redeploy the functions, then rerun"
+                );
+                return;
+            }
+            const owed = syncOwed(populated, digest);
             if (owed.length === 0) {
                 console.log(
                     "prints-sync: tables synced for the current definition set, skipping."
@@ -233,14 +245,17 @@ async function sync(
         }
     }
 
-    const { rows, definitionTokens, scanned } = await buildRows();
+    const { rows, definitionTokens, scanned } = await buildRows(
+        definitionByOracleId,
+        overrides
+    );
     process.stderr.write(
         `prints-sync: scanned ${scanned} Scryfall printing(s), matched ${rows.length}, ` +
             `${definitionTokens.length} definition printing(s) link a token\n`
     );
 
     if (args.dryRun) return runDryRun(rows, definitionTokens);
-    return runWrite(plan!, rows, definitionTokens, currentDigest());
+    return runWrite(plan!, rows, definitionTokens, digest);
 }
 
 async function main(): Promise<void> {

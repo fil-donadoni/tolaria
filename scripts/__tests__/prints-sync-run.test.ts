@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
     definitionSetDigest,
+    deploymentPredatesSyncState,
     emptyPrintTables,
     parsePrintsSyncArgs,
     printsSyncTarget,
@@ -160,5 +161,27 @@ describe("syncOwed (issue #7690)", () => {
                 "d1"
             )
         ).toEqual(["cardPrints empty"]);
+    });
+});
+
+describe("deploymentPredatesSyncState (issue #7690)", () => {
+    it("flags a deployment whose populated() has no syncedDigest key", () => {
+        expect(
+            deploymentPredatesSyncState({
+                cardPrints: true,
+                definitionTokenPrints: true,
+            })
+        ).toBe(true);
+    });
+
+    it("a recorded or never-recorded digest is a current deployment", () => {
+        for (const syncedDigest of [null, "d1"])
+            expect(
+                deploymentPredatesSyncState({
+                    cardPrints: true,
+                    definitionTokenPrints: true,
+                    syncedDigest,
+                })
+            ).toBe(false);
     });
 });
