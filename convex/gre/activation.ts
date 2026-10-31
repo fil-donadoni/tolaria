@@ -328,32 +328,9 @@ export function findCastableExileCard(
     return undefined;
 }
 
-/** CR 601.3 / 400.7 (issue #1156) — the player whose zone actually holds a
- *  card being cast/played, which may differ from the CASTER (`player`) for a
- *  cross-player exile grant (Robber of the Rich, Dauthi Voidwalker). Every
- *  other cast zone (hand, graveyard) is always the caster's own — Flashback /
- *  Escape / the broad graveyard-cast permission all read from the caster's
- *  OWN graveyard, no cross-player graveyard-cast primitive exists — so this
- *  only ever redirects for `zone === "exile"`. Falls back to `player` when
- *  the card isn't found in any exile (defensive; callers have already located
- *  the card via `locateCastSource` / `findCastableExileCard`, so this should
- *  always resolve for a real cast). Exported so the cross-player cast-commit
- *  integration test can drive the exact removal the mutation performs (no
- *  convex-test harness in this repo — mirrors `locateCastSource` /
- *  `castRawManaCost`, issue #944 pattern). */
-export function castZoneOwner(
-    state: GameState,
-    player: PlayerState,
-    cardInstanceId: string,
-    zone: CastFromZone
-): PlayerState {
-    if (zone !== "exile") return player;
-    return (
-        state.players.find((p) =>
-            p.exile.some((c) => c.id === cardInstanceId)
-        ) ?? player
-    );
-}
+// `castZoneOwner` lives in `./state` (the cast-during-resolution getters
+// read it too); re-exported here for its historical importers.
+export { castZoneOwner } from "./state";
 
 /** CR 601.3 (ADR 0093, issue #2244) — the cast half of the graveyard play
  *  permission record. Returns the NON-LAND card in `player`'s graveyard

@@ -8808,6 +8808,39 @@ function checkOpListRefs(
                 JSON.stringify(entry.player ?? null)
             );
         }
+        // CR 406.3 — a FACE-UP `exileTopOfLibrary` puts the exiled cards in
+        // the exiled player's exile, an open zone: its `bindAll` is a
+        // public-zone set exactly as a mill's is. A face-down exile is not.
+        if (
+            entry.op === "exileTopOfLibrary" &&
+            typeof entry.bindAll === "string" &&
+            entry.faceDown !== true &&
+            newlyDeclared.has(entry.bindAll)
+        ) {
+            publicZoneBindings.set(
+                entry.bindAll,
+                JSON.stringify(entry.player ?? null)
+            );
+        }
+        // CR 400.2 — a `moveZone` of a bound picks set into a graveyard or
+        // exile makes THAT binding a public-zone set: the cards it names now
+        // sit in `player`'s copy of the destination ("exiles a card at random
+        // from their hand … cast a spell from among cards exiled this way").
+        // The ref must already be a picks binding; a snapshot never is.
+        if (
+            entry.op === "moveZone" &&
+            (entry.to === "graveyard" || entry.to === "exile") &&
+            entry.faceDown !== true &&
+            typeof entry.cards === "object" &&
+            entry.cards !== null &&
+            typeof (entry.cards as { ref?: unknown }).ref === "string" &&
+            declared.get((entry.cards as { ref: string }).ref) === "picks"
+        ) {
+            publicZoneBindings.set(
+                (entry.cards as { ref: string }).ref,
+                JSON.stringify(entry.player ?? null)
+            );
+        }
 
         // CR 608.2h (issue #2384) — `captureBinding.ref` is a BARE binding
         // name held as a plain string (not a `{ ref }` object), so the generic
