@@ -35,7 +35,9 @@ export default function CardNameInput({
     // compiled names are in.
     const names = useCompiledIndex();
     const allNames = useMemo(
-        () => (names.ready ? getChooseableCardNames() : []),
+        // A meld pair's combined name is declared by both front cards
+        // (CR 712.4, 712.19); the list offers it once.
+        () => (names.ready ? [...new Set(getChooseableCardNames())] : []),
         [names.ready]
     );
     // Case-insensitive registry membership — gates the submit and disambiguates
