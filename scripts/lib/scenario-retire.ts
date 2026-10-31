@@ -28,9 +28,9 @@ import { revertedCommitsOf } from "./ui-scope";
 
 /** A line of a PR body that declares what it reverts. */
 const REVERTS_LINE = /^Reverts\b.*$/gm;
-/** A PR reference on a `Reverts` line: `#N`, `PR #N`, `owner/repo#N` — but
- *  never `issue #N`. */
-const PR_REF = /(?<!issue )(?:PR |[\w.-]+\/[\w.-]+)?#(\d+)\b/g;
+/** A PR reference on a `Reverts` line — `#N`, `PR #N`, `owner/repo#N` all end
+ *  in `#N` — but never `issue #N`. */
+const PR_REF = /(?<!issue )#(\d+)\b/g;
 
 /**
  * Every PR a landing's body says it reverts, ascending, each once — empty for
