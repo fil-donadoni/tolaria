@@ -2634,9 +2634,9 @@ const STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS: StaticKeywordGrant["applies"] =
 // white.ts/green.ts per the earlier White/Green free-tranche issues
 // (#1069/#1073); not re-declared here (ADR 0043 one-definition-per-card, ADR
 // 0014). Coalition Victory and Ordered Migration (the Domain cluster's own
-// two gold cards, issue #1066) are already active above this section — not
+// two gold cards) are already active above this section — not
 // duplicated. All five dragons are now active: Crosis and Darigaaz shipped
-// with the filtered hand count (issue #2150), joining Dromar/Rith/Treva. The
+// with the filtered hand count, joining Dromar/Rith/Treva. The
 // remaining Apprentice (Nightscape) is owned by the Oracle compiler (ADR 0137).
 // ─────────────────────────────────────────────────────────────────────────
 

@@ -6,7 +6,7 @@
 import { defineCard, type SpellContext } from "../../types";
 
 // Robber of the Rich — {1}{R} Creature — Human Archer Rogue, 2/2, reach,
-// haste (Vintage Cube FREE: ETB/dies/attack triggers, issue #679). "Reach,
+// haste (Vintage Cube FREE: ETB/dies/attack triggers). "Reach,
 // haste. Whenever this creature attacks, if defending player has more cards
 // in hand than you, exile the top card of their library. During any turn you
 // attacked with a Rogue, you may cast that card and you may spend mana as
