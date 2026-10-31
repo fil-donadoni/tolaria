@@ -174,3 +174,40 @@ export const oko = defineCard(() => ({
         },
     ],
 }));
+
+// Escape to the Wilds — {3}{R}{G} Sorcery (Vintage Cube, issue #7232, ELD 189).
+//   - "Exile the top five cards of your library": `exileTopOfLibrary`
+//     (CR 701.13 / 406.3), `linkToSource` (CR 607 / 406.6) so the grant below
+//     reaches ALL five cards, not just one.
+//   - "You may play cards exiled this way until the end of your next turn":
+//     `grantCastFromExile` over `{ exiledWithSource: true }` with the
+//     `until-end-of-your-next-turn` window (CR 514.2); `includesLand`
+//     because the Oracle says "play" (CR 305.1 — a land among them is a drop).
+//   - "You may play an additional land this turn": `grantExtraLandDrops`
+//     (CR 305.2), the one-shot Op the land-and-cast permissions cluster shipped.
+// hand-tail: You may play cards exiled this way until the end of your next turn (#7232)
+export const escapeToTheWilds = defineCard(() => ({
+    id: "3e26c10b-179f-4a6e-bc8d-3ec1d6783fb9", // ELD 189 (scryfallId)
+    name: "Escape to the Wilds",
+    rarity: "rare",
+    manaCost: { X: 3, R: 1, G: 1 },
+    types: ["Sorcery"],
+    oracleText:
+        "Exile the top five cards of your library. You may play cards exiled this way until the end of your next turn.\nYou may play an additional land this turn.",
+    effects: [
+        {
+            op: "exileTopOfLibrary",
+            player: "controller",
+            count: 5,
+            linkToSource: true,
+        },
+        {
+            op: "grantCastFromExile",
+            card: { exiledWithSource: true },
+            player: "controller",
+            window: "until-end-of-your-next-turn",
+            includesLand: true,
+        },
+        { op: "grantExtraLandDrops", player: "controller", count: 1 },
+    ],
+}));
