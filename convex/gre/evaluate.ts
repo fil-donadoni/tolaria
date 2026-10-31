@@ -55,7 +55,11 @@ import type { ActivatedAbility } from "../cards/types";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 // Issue #1890 item 3 — the single authority on whether an activation could just
 // as well happen in a later, better-informed window (CR 117.1b / 602.5d).
-import { isDeferrableStackAbility } from "./ai/abilityTiming";
+import {
+    expiringBodyHasCombatUse,
+    isDeferrableStackAbility,
+    isExpiringAnimatedBody,
+} from "./ai/abilityTiming";
 import { loyaltyRealizationRatio } from "./ai/loyaltyValue";
 import { pendingBattlefieldReturns } from "./ai/pendingReturn";
 import {
@@ -1563,6 +1567,28 @@ function landStandingAbilityValue(
     return standingAbilityValueById(String(perm.card.id ?? ""), weights.latent);
 }
 
+/** Whether `perm` is valued as a creature BODY — by the board term and the
+ *  removal lens alike, so the two price one permanent identically (issue
+ *  #7705).
+ *
+ *  A creature whose creature-ness is an animation that expires this turn
+ *  (`isExpiringAnimatedBody` — reverts at cleanup, CR 514.2) is worth its
+ *  body only while that body can still attack or block before it reverts
+ *  (`expiringBodyHasCombatUse`). Outside such a window it is not lasting
+ *  board material: it is valued as the permanent it reverts to (a land's
+ *  standing abilities, a non-creature's body), while the mana its animation
+ *  cost stays spent — so a leaf reached after a pointless animation no longer
+ *  out-scores the leaf after `pass` on the body it bought. */
+function fightsAsCreatureBody(
+    state: GameState,
+    perm: CardInstanceState
+): boolean {
+    if (!isCreature(perm)) return false;
+    return (
+        !isExpiringAnimatedBody(perm) || expiringBodyHasCombatUse(state, perm)
+    );
+}
+
 /** What one permanent's REMOVAL costs its controller, on `evaluate`'s own
  *  scale — the sum of every term that permanent contributes and that its
  *  destruction takes away (issue #3398):
@@ -1596,7 +1622,7 @@ export function permanentRealisedValue(
     pass: Layer7Pass = beginLayer7Pass(state)
 ): number {
     let total = weights.permanentWeight;
-    if (isCreature(perm)) {
+    if (fightsAsCreatureBody(state, perm)) {
         total += evaluateCreature(state, perm, weights.latent, pass, weights);
     } else if (!isLand(perm)) {
         total += nonCreatureBodyValue(state, perm, weights, pass);
@@ -1830,7 +1856,7 @@ function playerTerms(
             weights,
             pass
         );
-        if (isCreature(perm)) {
+        if (fightsAsCreatureBody(state, perm)) {
             terms.creatures += evaluateCreature(
                 state,
                 perm,

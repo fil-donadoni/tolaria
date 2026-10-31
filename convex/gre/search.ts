@@ -185,6 +185,7 @@ import {
 // activation could just as well happen in a later, better-informed window.
 import {
     animatedBodyCannotFight,
+    animationHasCombatWindow,
     costShrinksSource,
     effectiveAbilityOf,
     effectiveActivatedAbilityEntryOf,
@@ -1765,18 +1766,23 @@ export function isDiscouragedRolloutMove(
 }
 
 /** Whether `move` animates its own source (`ActivatedAbility.animatesSelf` — the
- *  manland marker the move enumerator already reads) at a point in `pid`'s OWN
- *  turn where the resulting body can no longer matter (issue #1890 item 4).
+ *  manland marker the move enumerator already reads) in a window where the
+ *  body it buys has no use (issue #1890 item 4, issue #4238, issue #7705).
  *
- *  An `animatesSelf` ability buys a creature BODY and nothing else, so it is
- *  worth something only while that body can still attack or block. Once the
- *  mover is the ACTIVE player and the turn has reached `END_OF_COMBAT` or later,
- *  there is no attack left this turn (their combat is over — UNLESS CR 500.8
- *  says otherwise, see the `extraPhases` carve-out below) and an active player
- *  never blocks on their own turn; the animation only exposes a land to removal
- *  and combat damage. This is the observed "Mishra's Factory animated after its
- *  own combat" misplay, and the reason it wins on noise is that the saturating
- *  reward band cannot see that small negative.
+ *  An `animatesSelf` ability buys a creature BODY for the rest of the turn and
+ *  nothing else, so it is worth something only in a window where that body can
+ *  still be used in combat this turn AND activating later would lose that use.
+ *  The reading is therefore "pointless EXCEPT in those windows" —
+ *  `animationHasCombatWindow` names them (the mover's own turn from the
+ *  precombat main up to the attack declaration, CR 508.1a, plus an owed extra
+ *  combat, CR 500.8; the opponent's declare-attackers step when the animated
+ *  body could block a declared attacker, CR 509.1 / 509.1b). Every other
+ *  window — after the mover's own combat, the opponent's turn before attackers
+ *  are declared, after blockers are, in response to a spell — only spends the
+ *  mana and exposes a land to removal and combat damage, the small NEGATIVE the
+ *  saturating reward band cannot see, so it tied `pass` and won on noise
+ *  ("Mishra's Factory animated after its own combat", "Treetop Village animated
+ *  facing a lone flyer / in response to Mind Rot").
  *
  *  Deliberately NOT expressed as a refinement of `ai/dominance.ts` (issue #1887).
  *  That module's contract is an EXACT-EQUALITY proof: a move is dropped only when
@@ -1786,51 +1792,29 @@ export function isDiscouragedRolloutMove(
  *  would regress the very property #1887 exists to hold, so it lives here, in the
  *  policy guardrail and the outcome-equality tie-break, where "probably not worth
  *  it" is the stated currency. Per-card-agnostic: the only inputs are the engine's
- *  `animatesSelf` marker, the phase, and who is active. Pure. */
+ *  `animatesSelf` marker, the phase, who is active, the combat state and block
+ *  eligibility. Pure. */
 function isPointlessSelfAnimation(
     state: GameState,
     pid: string,
     move: Move
 ): boolean {
     if (move.kind !== "activate-ability") return false;
-    // Issue #4238 — a body that can do nothing in ANY window it is bought in
-    // (tapped, or summoning-sick on the mover's own turn), before the
-    // phase-scoped "combat is over" reading below.
     const mover = findPermanent(state, move.cardInstanceId);
     const moverAbility = mover && effectiveAbilityOf(mover, move.abilityId);
+    if (!mover || !moverAbility || moverAbility.animatesSelf !== true) {
+        return false;
+    }
+    // Issue #4238 — a body that can do nothing in ANY window it is bought in
+    // (tapped, or summoning-sick on the mover's own turn), or whose sole
+    // source of the activation's mana is the land it animates.
     if (
-        mover &&
-        moverAbility &&
-        (animatedBodyCannotFight(state, pid, mover, moverAbility) ||
-            // The self-PAID half of the tapped-body clause: the sole source
-            // of the activation's mana is the land it animates.
-            (moverAbility.animatesSelf === true &&
-                move.tapPlan.some((t) => t.cardInstanceId === mover.id)))
+        animatedBodyCannotFight(state, pid, mover, moverAbility) ||
+        move.tapPlan.some((t) => t.cardInstanceId === mover.id)
     ) {
         return true;
     }
-    if (pid !== state.activePlayerId) return false;
-    if (
-        state.phase !== "END_OF_COMBAT" &&
-        state.phase !== "POSTCOMBAT_MAIN" &&
-        state.phase !== "END_STEP"
-    ) {
-        return false;
-    }
-    // CR 500.8 (issue #2886) — "their combat is over" is FALSE at the
-    // END_OF_COMBAT exit while an extra combat is still owed: `advancePhase`
-    // pops `state.extraPhases` at exactly that exit and re-enters
-    // BEGINNING_OF_COMBAT, so the body this activation buys does get an attack
-    // after all. POSTCOMBAT_MAIN / END_STEP keep the original reading — the
-    // queue is ONLY ever consumed at the END_OF_COMBAT exit, so an entry still
-    // sitting there once the turn is past it is dead (`advanceTurn` discards
-    // it) and the animation is as pointless as it ever was.
-    if (state.phase === "END_OF_COMBAT" && state.extraPhases?.length) {
-        return false;
-    }
-    const source = findPermanent(state, move.cardInstanceId);
-    if (!source) return false;
-    return effectiveAbilityOf(source, move.abilityId)?.animatesSelf === true;
+    return !animationHasCombatWindow(state, pid, mover, moverAbility);
 }
 
 /** The ONE authority both consumers of the pointless-activation reading ask
