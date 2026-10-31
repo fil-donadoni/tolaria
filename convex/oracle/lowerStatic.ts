@@ -114,6 +114,10 @@ export interface LoweredStatic {
     readonly extraLandDrops?: number;
     /** CR 401.5 — the controller plays with their library top revealed. */
     readonly revealsLibraryTop?: "controller";
+    /** CR 401.5 — the controller may look at their library top any time. */
+    readonly looksAtLibraryTop?: "controller";
+    /** CR 305.1-analog — the controller may play lands from their graveyard. */
+    readonly graveyardLandPlay?: true;
 
     /** CR 614.1a — the "instead" cost an entering permanent pays (discard a
      *  card, sacrifice a permanent), as the `entersWith.asEnters` member. */
@@ -644,6 +648,23 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        // CR 601.3 / 102.1 — the read-time cast gate, scoped to the source
+        // controller's opponents while that controller is the active player.
+        case "opponents-cant-cast-during-your-turn":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "cast-restriction",
+                            id: nextId("opponent-cast-lock"),
+                            oracleText:
+                                "Your opponents can't cast spells during your turn.",
+                            opponentsDuringControllersTurn: true,
+                        },
+                    ],
+                },
+            };
         case "kicked-enters-with":
             return lowerKickedRider(clause, kickers, nextId);
         // CR 509.1b — the engine collects a block restriction from the
@@ -780,6 +801,13 @@ export function lowerStaticClause(
         // reads live off the battlefield; never stored state.
         case "reveal-library-top":
             return { ok: true, lowered: { revealsLibraryTop: "controller" } };
+        // CR 401.5 — the private twin of the reveal, read the same way.
+        case "look-at-library-top":
+            return { ok: true, lowered: { looksAtLibraryTop: "controller" } };
+        // CR 305.1-analog — a row on the one graveyard play permission
+        // record (ADR 0093), read live off the battlefield.
+        case "graveyard-land-play":
+            return { ok: true, lowered: { graveyardLandPlay: true } };
         case "extra-land-drop":
             return { ok: true, lowered: { extraLandDrops: clause.count } };
         case "as-enters-discard":

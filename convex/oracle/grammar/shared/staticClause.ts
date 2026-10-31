@@ -291,6 +291,16 @@ export type StaticClauseIR =
     | { readonly kind: "does-not-untap" }
     /** CR 401.5 — "Play with the top card of your library revealed". */
     | { readonly kind: "reveal-library-top" }
+    /** CR 401.5 — "You may look at the top card of your library any time":
+     *  the private half of the same rule, visible to the controller alone. */
+    | { readonly kind: "look-at-library-top" }
+    /** CR 305.1-analog — "You may play lands from your graveyard": the
+     *  land-play special action with its hand zone lifted to the graveyard. */
+    | { readonly kind: "graveyard-land-play" }
+    /** CR 601.3 + CR 102.1 — "Your opponents can't cast spells during your
+     *  turn": a cast prohibition on every opponent of the source's controller
+     *  while that controller is the active player. */
+    | { readonly kind: "opponents-cant-cast-during-your-turn" }
     /**
      * CR 509.1b — "This creature can't block": the source's own printed
      * restriction as a BLOCKER. The Aura twin ("Enchanted creature can't
@@ -2437,6 +2447,70 @@ const revealLibraryTopRule: Rule<StaticClauseIR> = rule(
             : fail("not the library-top reveal template", span)
 );
 
+/**
+ * "You may look at the top card of your library any time." (Sphinx of Jwar
+ * Isle, Mystic Forge.) CR 401.5: an effect may say that a player may look at
+ * the top card of their library — the private half of the reveal above, read
+ * live off the battlefield and shown to the controller alone. The sentence is
+ * the whole clause; "Players may look at …" and "You may look at the top
+ * card of target player's library" name another audience or library and stay
+ * refused by the exact match.
+ */
+const LOOK_AT_LIBRARY_TOP =
+    "You may look at the top card of your library any time";
+
+const lookAtLibraryTopRule: Rule<StaticClauseIR> = rule(
+    "library top look",
+    (span): RuleResult<StaticClauseIR> =>
+        span === LOOK_AT_LIBRARY_TOP
+            ? ok({ kind: "look-at-library-top" as const })
+            : fail("not the library-top look template", span)
+);
+
+// ── Frame: play lands from the graveyard (CR 305.1) ────────────────────────
+
+/**
+ * "You may play lands from your graveyard." (Crucible of Worlds, Ramunap
+ * Excavator.) CR 305.1 lets a player play a land card from their hand; this
+ * permission lifts that zone to the controller's own graveyard, unlimited and
+ * player-wide, as the engine's one graveyard play permission record (ADR
+ * 0093). The once-per-turn and "cast spells" variants ("During each of your
+ * turns, you may play a land and cast a permanent spell … from your
+ * graveyard", Muldrotha) carry gates and a cast half this exact match does
+ * not read, and stay refused.
+ */
+const GRAVEYARD_LAND_PLAY = "You may play lands from your graveyard";
+
+const graveyardLandPlayRule: Rule<StaticClauseIR> = rule(
+    "graveyard land play",
+    (span): RuleResult<StaticClauseIR> =>
+        span === GRAVEYARD_LAND_PLAY
+            ? ok({ kind: "graveyard-land-play" as const })
+            : fail("not the graveyard land-play template", span)
+);
+
+// ── Frame: the turn-scoped opponent cast lock (CR 601.3) ───────────────────
+
+/**
+ * "Your opponents can't cast spells during your turn." (Tidal Barracuda,
+ * Voice of Victory, Dragonlord Dromoka.) CR 601.3: a player can begin to cast
+ * a spell only if no effect prohibits it; this one prohibits every opponent of
+ * the source's controller while that controller is the active player (CR
+ * 102.1). A class of spell ("can't cast noncreature spells"), another window
+ * ("during combat") or another caster ("Players can't …") differs from the
+ * exact match and stays refused.
+ */
+const OPPONENTS_CANT_CAST_DURING_YOUR_TURN =
+    "Your opponents can't cast spells during your turn";
+
+const opponentsCantCastDuringYourTurnRule: Rule<StaticClauseIR> = rule(
+    "opponent cast lock during your turn",
+    (span): RuleResult<StaticClauseIR> =>
+        span === OPPONENTS_CANT_CAST_DURING_YOUR_TURN
+            ? ok({ kind: "opponents-cant-cast-during-your-turn" as const })
+            : fail("not the opponent cast-lock template", span)
+);
+
 // ── Frame: the as-enters discard (CR 614.1a) ────────────────────────────────
 
 /**
@@ -2631,6 +2705,9 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         optionalDrawSkipRule,
         extraLandDropRule,
         revealLibraryTopRule,
+        lookAtLibraryTopRule,
+        graveyardLandPlayRule,
+        opponentsCantCastDuringYourTurnRule,
         asEntersDiscardRule,
         asEntersSacrificeRule,
         asEntersExileFromGraveyardRule,
