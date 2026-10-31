@@ -30,7 +30,11 @@ import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { gh } from "./lib/gh";
-import { cappedRepairPrs, escalateCappedRepairs } from "./lib/repair-cap";
+import {
+    cappedRepairPrs,
+    cappedUiReceiptPrs,
+    escalateCappedRepairs,
+} from "./lib/repair-cap";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { sanitizeHost } from "./lib/github-runner";
 import { releaseEditArgs, CLAIM_LABEL } from "./lib/claim-labels";
@@ -339,8 +343,12 @@ function repairDispatchables(
     const failedAt = new Map(repairPicks(slug).map((p) => [p.pr, p.failedAt]));
     // Repair cap (issue #6649): a PR whose repairs keep failing leaves the
     // loop for its human, once.
-    const capped = cappedRepairPrs(slug, prs);
-    escalateCappedRepairs(capped);
+    // `ui-receipt` is its own class (issue #7649): counted from the check:ui
+    // failure comments, so a PR never labelled `land-failed` is capped too.
+    const failedCapped = cappedRepairPrs(slug, prs);
+    const uiCapped = cappedUiReceiptPrs(slug);
+    escalateCappedRepairs(failedCapped, uiCapped);
+    const capped = new Set([...failedCapped.keys(), ...uiCapped.keys()]);
     return repairItems(
         prs,
         (issue) => {
