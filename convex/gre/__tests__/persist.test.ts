@@ -36,7 +36,7 @@ import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { projectPublicState } from "../../gameProjections";
 import { validateAbilityEffectScript } from "../effects/validate";
 import { withTemporaryDefinition } from "../../cards/registry";
-import { getDefinition } from "../../cards";
+import { getCardByName, getDefinition } from "../../cards";
 import { enteredTrigger } from "../../cards/abilities/triggers/enteredTrigger";
 import type {
     CardDefinition,
@@ -175,6 +175,25 @@ describe("Persist — expansion (CR 702.79a)", () => {
             expect(persist).toHaveLength(1);
             expect(persist[0].event).toBe("PERMANENT_LEFT");
         });
+    });
+});
+
+describe("Woodfall Primus — the compiled card carries persist (issue #1372)", () => {
+    it("serves {5}{G}{G}{G} 6/6 trample with its ETB destroy AND the persist trigger", () => {
+        const named = getCardByName("Woodfall Primus");
+        expect(named).toBeDefined();
+        // Through the `getDefinition` seam: the compiled triggers and the
+        // ADR 0054 keyword expansion are applied there.
+        const primus = getDefinition(named!.id);
+        expect(primus!.manaCost).toEqual({ X: 5, G: 3 });
+        expect([primus!.power, primus!.toughness]).toEqual([6, 6]);
+        expect(primus!.staticAbilities).toEqual(
+            expect.arrayContaining(["trample", "persist"])
+        );
+        const ids = (primus!.triggeredAbilities ?? []).map((t) => t.event);
+        expect(ids).toEqual(
+            expect.arrayContaining(["PERMANENT_ENTERED", "PERMANENT_LEFT"])
+        );
     });
 });
 
