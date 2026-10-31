@@ -2381,6 +2381,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › effect clause › You may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand",
+            "issue": 7721
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › enchanted creature",
             "issue": 4583
         },

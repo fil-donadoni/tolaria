@@ -24,7 +24,7 @@ import { entersOrAttacksTrigger } from "../../abilities/triggers/entersOrAttacks
 // either type that is not an Avatar. Exact over the printed card pool — no
 // card in the Oracle corpus is a creature AND a planeswalker AND an Avatar, the
 // only shape on which the two readings could differ.
-// compiler-gap: "then you may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand" (#COMPILERGAP)
+// compiler-gap: "then you may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand" (#7721)
 export const overlordOfTheBalemurk = defineCard(() => ({
     id: "9b911653-7b96-4cf3-a907-13c5c53a14f7",
     name: "Overlord of the Balemurk",
