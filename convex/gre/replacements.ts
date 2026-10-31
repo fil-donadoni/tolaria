@@ -598,16 +598,100 @@ export type TransientRedirectionResidual = {
     residuals: { target: DamageReplacementEvent["target"]; amount: number }[];
 };
 
+type NextTimeRedirectShield = Extract<
+    DamageRedirection,
+    { kind: "from-source-to-permanent-redirect" }
+>;
+
+/** CR 510.2 — "all combat damage that's been assigned is dealt
+ *  simultaneously". The engine still deals that damage one event per source,
+ *  so a "the next time damage would be dealt to <creature>" redirect
+ *  (`from-source-to-permanent-redirect`: Jade Monolith, Mirrorwood Treefolk)
+ *  would otherwise be spent by the FIRST source and miss every other source
+ *  hitting the creature in the same step. Mirrorwood Treefolk's ruling: "During
+ *  combat it is possible for multiple sources to damage the Treefolk at one
+ *  time, in which case damage from all of those sources is redirected." A batch spans one simultaneous damage step: a
+ *  shield spent inside it keeps redirecting every later matching event of
+ *  the same batch, and is never charged twice by it.
+ *
+ *  Opened by the caller that deals the simultaneous damage
+ *  (`applyAllCombatDamage`) and threaded through `runDamageReplacement`;
+ *  never persisted — it lives for one function call. */
+export interface SimultaneousDamageBatch {
+    /** Shields whose one "next time" this batch already spent. */
+    spentRedirects: NextTimeRedirectShield[];
+    /** Surviving (decremented) copies of those shields, still in
+     *  `state.damageRedirections`: skipped for the rest of the batch, so one
+     *  simultaneous instance charges a multi-charge shield once. */
+    charged: Set<DamageRedirection>;
+}
+
+export function beginSimultaneousDamageBatch(): SimultaneousDamageBatch {
+    return { spentRedirects: [], charged: new Set() };
+}
+
+function nextTimeRedirectMatches(
+    sh: NextTimeRedirectShield,
+    event: DamageReplacementEvent
+): boolean {
+    return (
+        (sh.sourceInstanceId === undefined ||
+            sh.sourceInstanceId === event.sourceInstanceId) &&
+        event.target.type === "permanent" &&
+        event.target.id === sh.targetInstanceId
+    );
+}
+
+/** CR 614.9 — the redirect itself. Official ruling (Mirrorwood Treefolk,
+ *  Scryfall/Gatherer): "If the target creature is not on the battlefield (or
+ *  is not a creature) at the time the damage would be redirected, then the
+ *  damage goes on this card." So a permanent destination is re-validated at
+ *  redirection time (`findPermanent` + `isDamageablePermanent`, the same gate
+ *  the sibling `to-self-redirect-to-owner` branch applies to ITS target); on
+ *  an illegal destination the event is returned untouched — its target
+ *  already IS the shielded creature — so the damage lands there instead of
+ *  vanishing. */
+function redirectToShieldDestination(
+    state: GameState,
+    sh: NextTimeRedirectShield,
+    event: DamageReplacementEvent
+): DamageReplacementEvent {
+    if (sh.redirectTo.type === "permanent") {
+        const destCard = findPermanent(state, sh.redirectTo.id);
+        if (destCard === undefined || !isDamageablePermanent(destCard))
+            return event;
+    }
+    return { ...event, target: sh.redirectTo };
+}
+
 export function applyTransientDamageRedirections(
     state: GameState,
     event: DamageReplacementEvent,
     locks: DamageLocks = NO_DAMAGE_LOCKS,
-    residualOut?: TransientRedirectionResidual
+    residualOut?: TransientRedirectionResidual,
+    batch?: SimultaneousDamageBatch
 ): DamageReplacementEvent | null {
-    const shields = state.damageRedirections;
-    if (!shields || shields.length === 0) return event;
-    const kept: DamageRedirection[] = [];
     let current = event;
+    // CR 510.2 — a "next time" redirect already spent by this simultaneous
+    // batch applies to this event too, without being charged again. The
+    // shield may have left `state.damageRedirections` already, so this runs
+    // before the empty-array fast path below.
+    if (
+        batch !== undefined &&
+        !damageLockSuppresses(
+            locks,
+            SHIELD_DAMAGE_EFFECT_KIND["from-source-to-permanent-redirect"]
+        )
+    ) {
+        const spent = batch.spentRedirects.find((sh) =>
+            nextTimeRedirectMatches(sh, current)
+        );
+        if (spent !== undefined)
+            current = redirectToShieldDestination(state, spent, current);
+    }
+    const shields = state.damageRedirections;
+    if (!shields || shields.length === 0) return current;
+    const kept: DamageRedirection[] = [];
     let consumed = false;
     // Reverse Damage's life gain is DEFERRED to after the shield array is
     // written back (see below). `gainLifeEmitting` runs the CR 614 lifegain
@@ -723,47 +807,24 @@ export function applyTransientDamageRedirections(
             }
             kept.push(sh);
         } else if (sh.kind === "from-source-to-permanent-redirect") {
-            const sourceMatches =
-                sh.sourceInstanceId === undefined ||
-                sh.sourceInstanceId === current.sourceInstanceId;
-            if (
-                sourceMatches &&
-                current.target.type === "permanent" &&
-                current.target.id === sh.targetInstanceId &&
-                sh.remaining > 0
-            ) {
-                // Jade Monolith / Mirrorwood Treefolk (CR 614): redirect
+            if (batch?.charged.has(sh)) {
+                kept.push(sh);
+                continue;
+            }
+            if (nextTimeRedirectMatches(sh, current) && sh.remaining > 0) {
+                // Jade Monolith / Mirrorwood Treefolk (CR 614.9): redirect
                 // damage to the chosen destination — a player or a
-                // permanent (issue #1939 generalization). Official ruling
-                // (Mirrorwood Treefolk, Scryfall/Gatherer): "If the target
-                // creature is not on the battlefield (or is not a creature)
-                // at the time the damage would be redirected, then the
-                // damage goes on this card." So a permanent destination must
-                // be re-validated at redirection time — the same
-                // existence/damageability gate the sibling
-                // `to-self-redirect-to-owner` branch above already applies
-                // to ITS target (`findPermanent` +
-                // `isDamageablePermanent`). On an illegal destination,
-                // `current.target` is left untouched (it already IS the
-                // shielded creature, since its id === sh.targetInstanceId),
-                // so the damage lands there instead of vanishing. The "next
-                // time" is still spent either way — charges decrement per
-                // match regardless of whether the redirect actually landed.
-                let destinationValid = true;
-                if (sh.redirectTo.type === "permanent") {
-                    const destCard = findPermanent(state, sh.redirectTo.id);
-                    destinationValid =
-                        destCard !== undefined &&
-                        isDamageablePermanent(destCard);
-                }
-                if (destinationValid) {
-                    current = {
-                        ...current,
-                        target: sh.redirectTo,
-                    };
-                }
+                // permanent. The "next time" is spent whether or not the
+                // redirect actually landed (charges decrement per match).
+                current = redirectToShieldDestination(state, sh, current);
+                // CR 510.2 — the rest of a simultaneous batch is the same
+                // "time": record the spend so later events of the batch are
+                // redirected too, and their charge is not taken again.
+                if (batch !== undefined) batch.spentRedirects.push(sh);
                 if (sh.remaining - 1 > 0) {
-                    kept.push({ ...sh, remaining: sh.remaining - 1 });
+                    const rest = { ...sh, remaining: sh.remaining - 1 };
+                    batch?.charged.add(rest);
+                    kept.push(rest);
                 }
                 continue;
             }

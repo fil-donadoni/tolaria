@@ -77,7 +77,10 @@ import {
     promoteQueuedPassUntilAction,
     prunePassUntilActionBaselines,
 } from "./passUntilAction";
-import { describeDamageSource } from "./replacements";
+import {
+    beginSimultaneousDamageBatch,
+    describeDamageSource,
+} from "./replacements";
 import {
     beginLayer7Pass,
     getEffectivePT,
@@ -1381,6 +1384,10 @@ export function applyAllCombatDamage(
     // replacement effect that did move a permanent mid-step is what the pass
     // re-walks for (`layer7SourcesFor`).
     const pass = beginLayer7Pass(state);
+    // CR 510.2 — every event dealt below is one simultaneous damage instance
+    // (Mirrorwood Treefolk's ruling: two attackers hitting it at once are both
+    // redirected by one "next time" shield).
+    const damageBatch = beginSimultaneousDamageBatch();
 
     // Track damage received: cardId → total damage
     const damageReceived: Record<string, number> = {};
@@ -1482,7 +1489,8 @@ export function applyAllCombatDamage(
             true,
             unpreventable,
             unredirectable,
-            replacementsSpent
+            replacementsSpent,
+            damageBatch
         );
         if (!repl) return;
         // CR 614.9 (issue #3810) — a recipient-keyed redirect whose points
