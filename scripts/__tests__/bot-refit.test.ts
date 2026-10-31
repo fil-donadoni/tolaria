@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BOT_PINS_TESTS } from "../check-lane";
-import { EVAL_WEIGHTS_PATH } from "../../convex/gre/ai/verdicts/promotion";
 import {
     BOT_PIN_TESTS,
     REFIT_ARTIFACT_PATHS,
@@ -93,7 +92,9 @@ describe("bot:refit --derive and the refit artefacts (issue #7653)", () => {
     });
 
     it("the artefacts are the files the fit and the pin tests write", () => {
-        expect(REFIT_ARTIFACT_PATHS[0]).toBe(EVAL_WEIGHTS_PATH);
+        // `REFIT_ARTIFACT_PATHS[0]` is the fit's own path: pinned beside
+        // `EVAL_WEIGHTS_PATH` in `weightFit.bot.test.ts` (a bot-only module
+        // stays out of the app suite, `bot-suite-boundary.test.ts`).
         for (const path of REFIT_ARTIFACT_PATHS)
             expect(() => readFileSync(resolve(ROOT, path))).not.toThrow();
         // Every pin test names exactly one recorded file among them: a

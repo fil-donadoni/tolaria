@@ -38,7 +38,7 @@ export const WEIGHT_FIT_FILTER = "reproduces DEFAULT_EVAL_WEIGHTS";
  *  each a function of the tree (ADR 0124 §3: the fit is deterministic), so
  *  the base writes them and a PR never carries them (issue #7653). Restated
  *  here so `lib/derive-sync.ts` stays a leaf; pinned equal to the owners'
- *  paths by `__tests__/bot-refit.test.ts`. */
+ *  paths by `__tests__/bot-refit.test.ts` (the weights: `weightFit.bot.test.ts`). */
 export const REFIT_ARTIFACT_PATHS: readonly string[] = [
     "convex/gre/ai/fittedEvalWeights.ts",
     "convex/gre/__tests__/fixtures/searchCost.pins.json",

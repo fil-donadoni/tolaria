@@ -42,6 +42,7 @@ import {
 } from "../../../verdictStore";
 import { createMemoryVerdictStore } from "../../../verdictStoreMemory";
 import { packVerdicts } from "../../../../scripts/lib/verdict-pack-cache";
+import { REFIT_ARTIFACT_PATHS } from "../../../../scripts/lib/bot-refit";
 import { runVerdictPromotionStep } from "../blade/verdictPromotion";
 import {
     committedVerdictCorpus,
@@ -502,5 +503,14 @@ describe("widening the lock and moving the weights are ONE change (issue #3583, 
         expect(promoted.evalWeightsSource).toBe(
             rewriteDefaultEvalWeights(source, committed)
         );
+    });
+});
+
+// Issue #7653 — the fitted weights are derived state the base writes: the
+// refit's artefact list names this fit's file first, so `derive:sync` and the
+// hand-edit refusal cover the file the fit actually rewrites.
+describe("the refit artefacts name the fit's file (issue #7653)", () => {
+    it("REFIT_ARTIFACT_PATHS[0] is EVAL_WEIGHTS_PATH", () => {
+        expect(REFIT_ARTIFACT_PATHS[0]).toBe(EVAL_WEIGHTS_PATH);
     });
 });
