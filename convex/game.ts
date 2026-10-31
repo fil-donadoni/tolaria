@@ -3014,7 +3014,7 @@ export const createGame = mutation({
         // This is the whole seam: the format validator has no concept of
         // "mode", so the rejection lives here, fail-closed.
         if (args.deck.format === "manual")
-            throw new Error(
+            throw new ConvexError(
                 "Tabletop decks cannot start a real game. Play a Tabletop game instead."
             );
         const user = await getCurrentUser(ctx);
@@ -3023,7 +3023,7 @@ export const createGame = mutation({
         // races (Convex OCC retries the loser, which then sees the new match
         // and is rejected here).
         if (await findActiveMatchForUser(ctx, user._id))
-            throw new Error(ACTIVE_GAME_MESSAGE);
+            throw new ConvexError(ACTIVE_GAME_MESSAGE);
         // Authoritative deck legality gate (ADR 0036): reject an illegal deck
         // before any Match/Game row is written. The DB banlist override (PRD
         // #1138, issue #1144) is loaded first so a card banned in `formatBanlists`
@@ -3118,7 +3118,7 @@ export const challengeLimitedSeat = mutation({
         // #155 (match-scoped): at most one active match per user — a pending
         // challenge counts, so a challenger can have only one outstanding.
         if (await findActiveMatchForUser(ctx, user._id))
-            throw new Error(ACTIVE_GAME_MESSAGE);
+            throw new ConvexError(ACTIVE_GAME_MESSAGE);
         const event = await ctx.db.get(args.eventId);
         // Challenger owns the seat they claim (same gate `userDecks.create`
         // uses — one seat-ownership authority, keyed off the AUTHENTICATED id).
@@ -3247,7 +3247,7 @@ export const startPairingMatch = mutation({
             throw new Error("Your round Match needs your Limited deck's seat.");
         // #155 (match-scoped): at most one active Match per user.
         if (await findActiveMatchForUser(ctx, user._id))
-            throw new Error(ACTIVE_GAME_MESSAGE);
+            throw new ConvexError(ACTIVE_GAME_MESSAGE);
         const event = await ctx.db.get(args.eventId);
         // Caller owns the seat they claim (one seat-ownership authority, keyed
         // off the AUTHENTICATED id). `event` is non-null past this gate.
@@ -3468,17 +3468,17 @@ export const createSoloGame = mutation({
     handler: async (ctx, args) => {
         // ADR 0080 — a manual-format deck is rejected by the real engine.
         if (args.deck.format === "manual")
-            throw new Error(
+            throw new ConvexError(
                 "Tabletop decks cannot start a real game. Play a Tabletop game instead."
             );
         if (args.deck2?.format === "manual")
-            throw new Error(
+            throw new ConvexError(
                 "Tabletop decks cannot start a real game. Play a Tabletop game instead."
             );
         const user = await getCurrentUser(ctx);
         // #155 (match-scoped): one active match per user (see createGame).
         if (await findActiveMatchForUser(ctx, user._id))
-            throw new Error(ACTIVE_GAME_MESSAGE);
+            throw new ConvexError(ACTIVE_GAME_MESSAGE);
         // An event binding is only legitimate when seat 1's deck IS that
         // event's deck — the ownership of that seat is re-checked below by
         // `loadLimitedPoolResolver`/`assertLimitedSeatOwnership`.

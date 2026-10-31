@@ -19,6 +19,7 @@ import {
     type MatchSetup,
 } from "~/lib/matchSetup";
 import LoadingScreen from "~/components/ui/loading-screen";
+import ActiveGameNotice from "~/components/lobby/active-game-notice";
 import MatchSetupPanes from "./match-setup-panes";
 
 export default function MatchSetupFlow() {
@@ -26,6 +27,11 @@ export default function MatchSetupFlow() {
     const userDecks = useUserDecks();
     const presetDecks = useQuery(api.decks.list, {});
     const openGames = useQuery(api.gameReads.listOpenGames);
+    // The server admits one active Match per user (`findActiveMatchForUser`)
+    // and rejects every create/join while one stands, so the flow surfaces it
+    // where Start is pressed — Resume or Concede it here — and blocks Start,
+    // exactly as the lobby does (issue #7703).
+    const activeGame = useQuery(api.gameReads.myActiveGame);
     const [stored, setStored] = useState<MatchSetup>(loadSetup);
     const { start, busy, error } = useStartMatch();
     useStartMatchPrefetch();
@@ -64,15 +70,20 @@ export default function MatchSetupFlow() {
     };
 
     return (
-        <MatchSetupPanes
-            setup={setup}
-            decks={decks}
-            tables={openGames}
-            onChange={update}
-            canStart={request !== null}
-            busy={busy}
-            error={error}
-            onStart={() => void start(setup, request, user._id)}
-        />
+        <>
+            {activeGame && (
+                <ActiveGameNotice activeGame={activeGame} userId={user._id} />
+            )}
+            <MatchSetupPanes
+                setup={setup}
+                decks={decks}
+                tables={openGames}
+                onChange={update}
+                canStart={request !== null && !activeGame}
+                busy={busy}
+                error={error}
+                onStart={() => void start(setup, request, user._id)}
+            />
+        </>
     );
 }
