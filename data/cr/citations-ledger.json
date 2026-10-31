@@ -46328,6 +46328,7 @@
         {"id":"702.170a","line":"// CR 116.2k / 702.170a — the plot special action, same one-call shape.","sites":1,"status":"confirmed","ruleHash":"2313ad3cd544edaf"},
         {"id":"702.170a","line":"// CR 116.2k / 702.170a — the plot special action.","sites":1,"status":"confirmed","ruleHash":"2313ad3cd544edaf"},
         {"id":"702.170a","line":"// CR 116.2k / 702.170a — the plot special action; a hand card, named","sites":1,"status":"confirmed","ruleHash":"2313ad3cd544edaf"},
+        {"id":"702.170a","line":"// plotting a hand card (CR 702.170a).","sites":1,"status":"confirmed","ruleHash":"2313ad3cd544edaf"},
         {"id":"702.170a","line":"// turn-up of a morph (CR 702.37e) and the plot action (CR 702.170a).","sites":1,"status":"confirmed","ruleHash":"2313ad3cd544edaf"},
         {"id":"702.170a","line":"describe(\"Plot [cost] (CR 702.170a)\", () => {","sites":1,"status":"confirmed","ruleHash":"2313ad3cd544edaf"},
         {"id":"702.170a","line":"describe(\"Plot — full path through the mutations (CR 702.170a/d)\", () => {","sites":1,"status":"confirmed","ruleHash":"2313ad3cd544edaf"},
