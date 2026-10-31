@@ -832,6 +832,13 @@
             "needsSetup": false
         }
     ],
+    "Vibrance": [
+        {
+            "label": "discriminating pair: evokes Vibrance off two Mountains to kill a lethal MV-2 Watchwolf",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Walking Ballista": [
         {
             "label": "activation payoff: shoots its own last counter at a face on 1",
