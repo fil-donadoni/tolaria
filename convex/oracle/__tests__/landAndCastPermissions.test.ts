@@ -170,17 +170,20 @@ describe("land and cast permissions — refusals (fail-closed)", () => {
 
 describe("opponent cast lock during your turn — the cast gate (CR 601.3, 102.1)", () => {
     const LOCK_ID = "7220aaaa-1111-4111-8111-111111111111";
-    const lock: CardDefinition = expandDefinition({
-        ...compiled({
-            ...BARRACUDA,
-            oracleText: BARRACUDA_TEXT.split("\n")[1]!,
-        }),
-        id: LOCK_ID,
-        rarity: "rare",
-    });
+    // Built per call, not at collection: a refused line then reds the test
+    // that reads it rather than the whole file.
+    const lock = (): CardDefinition =>
+        expandDefinition({
+            ...compiled({
+                ...BARRACUDA,
+                oracleText: BARRACUDA_TEXT.split("\n")[1]!,
+            }),
+            id: LOCK_ID,
+            rarity: "rare",
+        });
 
     function gate(activePlayerId: string, casterId: string) {
-        return withTemporaryDefinition(lock, () => {
+        return withTemporaryDefinition(lock(), () => {
             const state = makeState({
                 players: [
                     makePlayer("p1", {
