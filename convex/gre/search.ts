@@ -1768,7 +1768,7 @@ export function isDiscouragedRolloutMove(
 
 /** Whether `move` animates its own source (`ActivatedAbility.animatesSelf` — the
  *  manland marker the move enumerator already reads) in a window where the
- *  body it buys has no use (issue #1890 item 4, issue #4238, issue #7705).
+ *  body it buys has no use (issue #7705).
  *
  *  An `animatesSelf` ability buys a creature BODY for the rest of the turn and
  *  nothing else, so it is worth something only in a window where that body can
@@ -1785,12 +1785,12 @@ export function isDiscouragedRolloutMove(
  *  ("Mishra's Factory animated after its own combat", "Treetop Village animated
  *  facing a lone flyer / in response to Mind Rot").
  *
- *  Deliberately NOT expressed as a refinement of `ai/dominance.ts` (issue #1887).
+ *  Deliberately NOT expressed as a refinement of `ai/dominance.ts`.
  *  That module's contract is an EXACT-EQUALITY proof: a move is dropped only when
  *  applying it changes nothing but the mover's own cost. An animation genuinely
  *  changes the board — a land becomes a 2/2 — so calling it futile is a judgement
  *  about the remainder of the turn, not a proof. Admitting that reasoning there
- *  would regress the very property #1887 exists to hold, so it lives here, in the
+ *  would regress the very property that module exists to hold, so it lives here, in the
  *  policy guardrail and the outcome-equality tie-break, where "probably not worth
  *  it" is the stated currency. Per-card-agnostic: the only inputs are the engine's
  *  `animatesSelf` marker, the phase, who is active, the combat state and block
