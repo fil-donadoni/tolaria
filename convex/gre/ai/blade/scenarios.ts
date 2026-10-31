@@ -17295,4 +17295,38 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5609. `MoveMatcher.target` matches ANY target, so the pair half cannot name the fighter slot — this predicate does: the 6/6 fights, never the 1/1 (the 1/1 fighting the 4/4 loses the Bot its creature and kills nothing).",
     },
+    // Issue #7246 — Prismatic Ending (Converge, issue #7211). X=1 pays {1}{W}
+    // with Plains + Island: two colours spent, so the MV-2 Watchwolf (lethal
+    // next turn at 3 life) is exiled. No anchor half: with one colour spent
+    // the cast is a provable no-op, pruned before the tree, so a `forbidden`
+    // anchor would rule nothing out (that case is pinned by
+    // `probeCastManaSpent.bot.test.ts`).
+    {
+        label: "casts Prismatic Ending off Plains + Island to exile an MV-2 threat",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Prismatic Ending", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                {
+                    name: "Watchwolf",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 3, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Prismatic Ending" }] },
+        note: "Issue #7246: the converge removal paid with two colours at an MV-2 threat, owed by issue #7561. The search reads the colours off the tap plan (`searchCastManaSpent`, `gre/searchTapPlan.ts`), so the exile fires in-tree and the cast is worth making.",
+    },
 ];

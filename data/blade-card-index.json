@@ -540,6 +540,13 @@
             "needsSetup": true
         }
     ],
+    "Prismatic Ending": [
+        {
+            "label": "casts Prismatic Ending off Plains + Island to exile an MV-2 threat",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Prodigal Sorcerer": [
         {
             "label": "activation payoff: Prodigal Sorcerer zaps in response to removal aimed at it",
