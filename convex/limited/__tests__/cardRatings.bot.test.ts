@@ -20,6 +20,7 @@ import {
     isValidRating,
     PICK_RATING_MIN,
     PICK_RATING_MAX,
+    getScopeMedianRating,
 } from "../pickRatings";
 import { isAdminUser } from "../../auth";
 import { buildCubePool, CUBE_SOURCE_KEY } from "../cube";
@@ -390,6 +391,8 @@ describe("buildScopeCardRatings — layering annotation (PRD #1296 Slice C, issu
                 name: "Nothing",
                 dbRating: null,
                 seedRating: null,
+                fallbackRating: getScopeMedianRating("lea"),
+                isFallback: true,
             },
         ]);
     });
