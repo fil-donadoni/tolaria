@@ -33,6 +33,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import {
+    applyAllCombatDamage,
     emitBlockersConfirmedEvents,
     advancePhase,
 } from "../../../../gre/phases";
@@ -267,6 +268,126 @@ describe("Mirrorwood Treefolk ({3}{G} 2/4 — one-shot damage redirect, CR 614/1
         // Damage lands on the Treefolk itself — not lost, not on the gone
         // destination.
         expect(mwtAfter.damageMarked).toBe(3);
+    });
+
+    it("redirects EVERY source dealing combat damage to it at once — one simultaneous instance (CR 510.2, official ruling)", () => {
+        // Ruling: "During combat it is possible for multiple sources to damage
+        // the Treefolk at one time, in which case damage from all of those
+        // sources is redirected." The Treefolk (p1, defending) blocks two
+        // 6/4 attackers; both hits go to p2, none is marked on the Treefolk.
+        const mwt = makeInstance(mirrorwoodTreefolk.id, {
+            id: "mwt",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const wurmA = makeInstance(crawWurm.id, {
+            id: "wurmA",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const wurmB = makeInstance(crawWurm.id, {
+            id: "wurmB",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [mwt] }),
+                makePlayer("p2", { battlefield: [wurmA, wurmB], life: 20 }),
+            ],
+        });
+        activateAndPickTarget(state, "mwt", { type: "player", id: "p2" });
+        state.combat = {
+            confirmed: true,
+            attackerIds: ["wurmA", "wurmB"],
+            blockerAssignments: { mwt: ["wurmA", "wurmB"] },
+            blockedAttackerIds: ["wurmA", "wurmB"],
+            blockersConfirmed: true,
+            damageConfirmed: false,
+        } as GameState["combat"];
+
+        applyAllCombatDamage(state, {
+            wurmA: { mwt: 6 },
+            wurmB: { mwt: 6 },
+            mwt: { wurmA: 2 },
+        });
+
+        const mwtAfter = state.players[0].battlefield.find(
+            (c) => c.id === "mwt"
+        );
+        expect(mwtAfter?.damageMarked).toBeUndefined();
+        expect(state.players[1].life).toBe(8); // 6 + 6 redirected
+        expect(state.damageRedirections).toBeUndefined(); // the one "next time" is spent
+
+        // The batch ends with the step: later damage this turn is a new
+        // instance and lands on the Treefolk.
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "mwt" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "mwt")
+                ?.damageMarked
+        ).toBe(3);
+        expect(state.players[1].life).toBe(8);
+    });
+
+    it("a CHAIN of spent shields (A → B, B → player) redirects every simultaneous source all the way (CR 510.2 / 614.5)", () => {
+        const mwtA = makeInstance(mirrorwoodTreefolk.id, {
+            id: "mwtA",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const mwtB = makeInstance(mirrorwoodTreefolk.id, {
+            id: "mwtB",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const wurmA = makeInstance(crawWurm.id, {
+            id: "wurmA",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const wurmB = makeInstance(crawWurm.id, {
+            id: "wurmB",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [mwtA, mwtB] }),
+                makePlayer("p2", { battlefield: [wurmA, wurmB], life: 20 }),
+            ],
+        });
+        activateAndPickTarget(state, "mwtA", { type: "permanent", id: "mwtB" });
+        activateAndPickTarget(state, "mwtB", { type: "player", id: "p2" });
+        state.combat = {
+            confirmed: true,
+            attackerIds: ["wurmA", "wurmB"],
+            blockerAssignments: { mwtA: ["wurmA", "wurmB"] },
+            blockedAttackerIds: ["wurmA", "wurmB"],
+            blockersConfirmed: true,
+            damageConfirmed: false,
+        } as GameState["combat"];
+
+        applyAllCombatDamage(state, {
+            wurmA: { mwtA: 6 },
+            wurmB: { mwtA: 6 },
+            mwtA: { wurmA: 2 },
+        });
+
+        const field = state.players[0].battlefield;
+        expect(
+            field.find((c) => c.id === "mwtA")?.damageMarked
+        ).toBeUndefined();
+        expect(
+            field.find((c) => c.id === "mwtB")?.damageMarked
+        ).toBeUndefined();
+        expect(state.players[1].life).toBe(8);
     });
 
     it("holds through the real damage pipeline and survives the wire projection (CR 614)", () => {

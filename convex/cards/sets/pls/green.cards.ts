@@ -54,14 +54,13 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 // this creature", from ANY source), unlike Jade Monolith's chosen-source
 // filter.
 //
-// DIVERGENCE (tracked-by: #1983): the official ruling says "during combat it is possible for
+// CR 510.2 — combat damage from several sources is dealt simultaneously, and
+// the official ruling redirects ALL of it ("during combat it is possible for
 // multiple sources to damage the Treefolk at one time, in which case damage
-// from all of those sources is redirected" — but the shield is `remaining: 1`
-// and the engine emits one combat-damage event PER SOURCE
-// (`applyOneCombatDamage`, `convex/gre/phases.ts`), each independently
-// running the CR 614 replacement loop, so only the first simultaneous
-// source's damage is redirected; the rest lands on the Treefolk. Not fixed
-// in this pass — tracked-by: #1983.
+// from all of those sources is redirected"): `applyAllCombatDamage` opens a
+// `SimultaneousDamageBatch` per damage step, and a "next time" shield spent
+// inside it keeps redirecting every other source of that same step
+// (`applyTransientDamageRedirections`, `convex/gre/replacements.ts`).
 export const mirrorwoodTreefolk = defineCard(() => ({
     id: "ba9a1c94-2b7f-4df7-8517-a122616d9ae4", // PLS printing (scryfallId)
     name: "Mirrorwood Treefolk",
@@ -77,7 +76,7 @@ export const mirrorwoodTreefolk = defineCard(() => ({
     // extension): the redirect ability is `resolve()`-only with no `effects[]`
     // it could carry (see the protocol-card justification above) and its
     // `addDamageRedirectionShield` mechanism has no `EffectOp` a shadow script
-    // could honestly approximate (tracked-by: #1983), so this plugs the `aiEffectsGuard`
+    // could honestly stand in for, so this plugs the `aiEffectsGuard`
     // ability-level gap (`convex/cards/__tests__/aiEffectsGuard.bot.test.ts`)
     // with a card-level override rather than a misleading shadow script.
     // Calibrated against `creatureValueRaw` and the committed
