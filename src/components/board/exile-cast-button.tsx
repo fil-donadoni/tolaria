@@ -90,7 +90,12 @@ export default function ExileCastButton({
           `Can't ${label.toLowerCase()} yet — not available from exile until turn ${windowOpensOnTurn}.`
         : isLand
           ? "Can't play yet — no land drop remaining, or not your main phase."
-          : "Can't cast yet — not enough usable mana (the noted mana must match this card's cost).";
+          : card.castableFromExileSorceryTiming
+            ? // CR 702.170d — a plotted card's free cast is open only in its
+              // owner's main phase with an empty stack, so timing, not mana,
+              // is what closes it.
+              "Can't cast now — only in your main phase while the stack is empty."
+            : "Can't cast yet — not enough usable mana (the noted mana must match this card's cost).";
 
     return (
         <>

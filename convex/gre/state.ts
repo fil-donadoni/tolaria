@@ -15288,6 +15288,9 @@ export function buildSpellContext(
             } else {
                 delete card.castableFromExileFromTurn;
             }
+            // CR 702.170d — a re-grant replaces the window whole; a stale
+            // sorcery-timing rider must not outlive the grant it rode.
+            delete card.castableFromExileSorceryTiming;
             if (opts?.withoutPayingManaCost) {
                 card.castFromExileWithoutPayingManaCost = true;
             } else {
@@ -21107,6 +21110,10 @@ export function moveCard(
         // beside them; a card pulled back out of exile keeps neither.
         delete card.castableFromExileFromTurn;
         delete card.warpExiled;
+        // CR 702.170d / 400.7 — the plot window's timing rider and the plotted
+        // designation leave exile with the card.
+        delete card.castableFromExileSorceryTiming;
+        delete card.plotted;
         delete card.castFromExileWithoutPayingManaCost;
         // CR 715.3d — the SEVENTH sibling, cleared in the SAME permission
         // window as the six above. Left standing it is durable and
@@ -21443,6 +21450,10 @@ export function removeFromZone(
     // recast must never leave a stale window behind for its next exile.
     delete card.castableFromExileFromTurn;
     delete card.warpExiled;
+    // CR 702.170d — the plot window's timing rider and the plotted
+    // designation are consumed with the permission they ride.
+    delete card.castableFromExileSorceryTiming;
+    delete card.plotted;
     // CR 601.3 (issue #1156) — the free-cast waiver (Dauthi Voidwalker) rides
     // the SAME permission window as `castableFromExileBy`; consumed together.
     delete card.castFromExileWithoutPayingManaCost;

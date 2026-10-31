@@ -296,6 +296,11 @@ export type SlotIR =
      */
     | { readonly kind: "madness"; readonly cost: ManaCost }
     /**
+     * CR 702.170a — a "Plot [cost]" line: the cost of the plot special action,
+     * lowered onto `CardDefinition.plot`.
+     */
+    | { readonly kind: "plot"; readonly cost: ManaCost }
+    /**
      * CR 702.96a — an "Overload [cost]" line: the alternative cost that turns
      * every "target" of the spell into "each", lowered onto
      * `CardDefinition.overload`. `description` is the printed line, as the

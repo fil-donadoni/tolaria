@@ -150,6 +150,10 @@ export function describeMove(move: Move, state: GameState): string {
         // hides, and traces are read while a game is live.
         case "turn-face-up":
             return `turn face up ${instanceName(state, move.cardInstanceId)}`;
+        // CR 116.2k / 702.170a — the plot special action; a hand card, named
+        // for the trace like a cast.
+        case "plot":
+            return `plot ${instanceName(state, move.cardInstanceId)}`;
         case "cast-spell": {
             const name = instanceName(state, move.cardInstanceId);
             const x = move.chosenX !== undefined ? ` (X=${move.chosenX})` : "";

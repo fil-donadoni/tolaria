@@ -21939,6 +21939,12 @@ export interface CardDefinition {
      *  `undefined`, which means "no madness"). Used by Basking Rootwalla
      *  (`{}`), Blazing Rootwalla (`{}`), Anje's Ravager (`{ X: 1, R: 1 }`). */
     madness?: ManaCost;
+    /** CR 702.170a — Plot [cost]. The cost paid by the plot SPECIAL ACTION
+     *  (CR 116.2k): exile this card from hand during your main phase while the
+     *  stack is empty and it becomes plotted. Read by `convex/gre/plot.ts`; the
+     *  later free cast belongs to the PLOTTED designation (CR 702.170d), never
+     *  to this field, so a plotted card that lost its plot ability still casts. */
+    plot?: ManaCost;
     /** CR 702.30a — Echo [cost]. The echo cost, declared as DATA (ADR 0155):
      *  the `getDefinition` seam (`expandEchoCumulativeUpkeep`) synthesizes the
      *  CR 702.30a upkeep trigger from it and the engine arms `echoPending` on

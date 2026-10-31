@@ -68,6 +68,8 @@ export type PriorityMove = Extract<
             // `summon-companion` neighbour it belongs to every priority
             // window, not just the actor's own main phase.
             | "turn-face-up"
+            // CR 116.2k / 702.170a — the plot special action (sorcery-timed).
+            | "plot"
             | "cast-spell"
             | "activate-ability"
             | "declare-attackers";
