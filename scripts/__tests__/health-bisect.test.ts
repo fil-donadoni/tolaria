@@ -631,6 +631,7 @@ describe("remainingGates — a flake closes GREEN only once its run's unreached 
         ).toEqual([
             "check:gaps",
             "check:targets",
+            "check:cube-ratings",
             "check:test-hygiene",
             "check:issue-log-comments",
             "check:duplicate-test-blocks",
