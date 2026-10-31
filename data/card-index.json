@@ -12600,6 +12600,14 @@
         "source": "compiled"
     },
     {
+        "name": "Collective Brutality",
+        "scryfallId": "cb94a02f-4660-45b6-8a39-941b710cf8f3",
+        "oracleId": "22a78443-db21-4656-b38a-e3e3186fd94b",
+        "firstSet": "emn",
+        "firstPrintId": "cb94a02f-4660-45b6-8a39-941b710cf8f3",
+        "firstPrintSet": "emn"
+    },
+    {
         "name": "Collective Nightmare",
         "scryfallId": "05864d3a-d8bb-4ddf-b721-883632050cb1",
         "oracleId": "fa7b7db2-c830-405c-a5e6-e5431d573ed3",
