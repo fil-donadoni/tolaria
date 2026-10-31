@@ -455,7 +455,18 @@ function bisect(
         );
         return outcome === "infra" ? "infra" : red;
     });
-    const report = attributeMaintenance(bisected, commits, subjectOf);
+    const report = attributeMaintenance(bisected, commits, subjectOf, (sha) =>
+        git(ctx.root, [
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            "--first-parent",
+            sha,
+        ])
+            .split("\n")
+            .filter(Boolean)
+    );
     return culpritLines({
         report,
         total: tests.length,

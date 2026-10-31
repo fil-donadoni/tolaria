@@ -7,6 +7,7 @@ import { maintenanceRefusal } from "../health-revert";
 import {
     BOT_REPLAY_COMMIT_SUBJECT,
     DERIVE_SYNC_COMMIT_SUBJECT,
+    DERIVE_SYNC_PATHS,
     isBaseMaintenanceSubject,
 } from "../lib/derive-sync";
 import { TREE_ROLE_ENV } from "../lib/derived-state";
@@ -14,7 +15,9 @@ import {
     attributeMaintenance,
     bisectCulprits,
     culpritLines,
+    isGeneratedCommit,
     PROBE_BOOTSTRAP,
+    resolveCulprit,
     type CulpritReport,
     type TestProbe,
 } from "../lib/health-bisect";
@@ -139,15 +142,15 @@ describe("the incident's shape: a PR's cards break a test only once derive:sync 
         expect(lines[0]).not.toContain("base maintenance");
     });
 
-    it("a first red probe on the derive commit anyway, with two PR commits before it: none named, both listed", () => {
+    it("a first red probe on the derive commit anyway, with two PR commits before it: the nearest PR merge is named (issue #7648)", () => {
         const h = history();
         const report = attributeMaintenance(
             bisectCulprits(h.commits, [CUT], probeWith([])),
             h.commits,
             subjectOf
         );
-        expect(report.found).toEqual([]);
-        expect(report.unexplained?.tests).toEqual([CUT]);
+        expect(report.found.map((f) => f.culprit)).toEqual([h.pr]);
+        expect(report.unexplained).toBeNull();
         const lines = culpritLines({
             report,
             total: 1,
@@ -156,12 +159,54 @@ describe("the incident's shape: a PR's cards break a test only once derive:sync 
             subjectOf,
         });
         expect(lines).toHaveLength(1);
-        expect(lines[0]).toContain("not named");
+        expect(lines[0]).toContain("PR #7396");
         expect(lines[0]).toContain(
             `base maintenance \`${h.derive.slice(0, 12)}\``
         );
-        expect(lines[0]).toContain("(#7396)");
-        expect(lines[0]).toContain("(#7395)");
+        expect(lines[0]).toContain("derived state");
+        expect(lines[0]).not.toContain("(#7395)");
+    });
+});
+
+describe("resolveCulprit / isGeneratedCommit (issue #7648)", () => {
+    const subjects: Record<string, string> = {
+        a: "first (#1)",
+        b: DERIVE_SYNC_COMMIT_SUBJECT,
+        c: BOT_REPLAY_COMMIT_SUBJECT,
+        d: "second (#2)",
+    };
+    const gen = (sha: string) => isGeneratedCommit(subjects[sha]);
+
+    it("a PR merge resolves to itself", () => {
+        expect(resolveCulprit("d", ["a", "b", "c", "d"], gen)).toEqual({
+            kind: "named",
+            sha: "d",
+        });
+    });
+
+    it("a generated commit resolves to the nearest PR merge, skipping generated ones", () => {
+        expect(resolveCulprit("c", ["a", "b", "c", "d"], gen)).toEqual({
+            kind: "named",
+            sha: "a",
+            generated: "c",
+        });
+    });
+
+    it("a generated commit with no PR merge before it in the range is no single culprit", () => {
+        const r = resolveCulprit("c", ["b", "c", "d"], gen);
+        expect(r.kind).toBe("none");
+    });
+
+    it("a maintenance subject touching a source path is not generated; derived paths only is", () => {
+        expect(
+            isGeneratedCommit(DERIVE_SYNC_COMMIT_SUBJECT, [
+                "convex/gre/state.ts",
+            ])
+        ).toBe(false);
+        expect(
+            isGeneratedCommit(DERIVE_SYNC_COMMIT_SUBJECT, DERIVE_SYNC_PATHS)
+        ).toBe(true);
+        expect(isGeneratedCommit("a PR (#1)", DERIVE_SYNC_PATHS)).toBe(false);
     });
 });
 
