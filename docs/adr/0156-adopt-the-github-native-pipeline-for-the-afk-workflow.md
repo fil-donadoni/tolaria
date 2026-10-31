@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted, amended five times (Amendment I, the gap review, same day; Amendment II, the revert's receipt, 2026-10-21; Amendment III, a PR's own red under a RED, 2026-10-27; Amendment IV, the heartbeat, 2026-10-29; Amendment V, a declared repair's tip is GREEN on the RED's evidence, 2026-10-31) — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.
+accepted, amended six times (Amendment I, the gap review, same day; Amendment II, the revert's receipt, 2026-10-21; Amendment III, a PR's own red under a RED, 2026-10-27; Amendment IV, the heartbeat, 2026-10-29; Amendment V, a declared repair's tip is GREEN on the RED's evidence, 2026-10-31; Amendment VI, a pure revert's lane and a repair's queue priority, 2026-10-31) — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.
 accetta l'ADR e apri il PRD"), written at the owner's request as the LAST
 iteration of the workflow discussion ("arrivare a una soluzione che mi
 permetta di concentrarmi sul prodotto"). The repository stays **personal and
@@ -822,6 +822,42 @@ fails on the repair tip is a defect of the repair itself (or of a `--red-ok`
 landing beside it), which the batch gate finds within one cadence and the
 ladder bisects from the last full GREEN, the proof tip among the probes.
 Accepted for the ~30 min per episode it returns.
+
+## Amendment VI (2026-10-31, issue #7658) — a pure revert's lane, and a declared repair's place in the queue
+
+Amendment V made a repair's tip GREEN in minutes; the revert still reached
+it behind the queue's full lane and, in one episode, behind its own RED: PR
+#7136, the ladder's revert for the RED at `5adf19f8`, sat `queue:held` for
+2 h 40 (PRD issue #7645, the "revert impossible or `land-failed`" hours).
+
+**Rule — the `revert` lane.** `check:lane` recognises a **pure revert**
+with the predicate Amendment II uses for the `check:ui` exemption, applied
+to EVERY changed path rather than the DOM-reachable ones
+(`scripts/lib/revert-restores.ts`: `restoresParent`, which
+`landingRestoresParent` now calls with the DOM paths): the branch's commits
+name the reverted commits (`This reverts commit <sha>`, the line `git
+revert` writes — read from git, since the queue's draft carries Mergify's
+body), each is in HEAD's history, and every changed path is byte-identical
+to the parent of the oldest reverted commit touching it. Such a code diff
+plans the `revert` lane: `tsc[all]` alone, in the queue as in `land:ready`
+(which then owes no proof receipt: a revert adds no guarding test). The
+`repair-proof` check — the RED's failing tests re-run green — stays the
+PR's `pr-check` job, a land refusal when red. One hand edit on the branch, on
+a culprit path or any other, and the diff takes the lane its paths decide.
+What `tsc` cannot see (a restored file meeting a newer neighbour at run
+time) is the batch gate's, bisected from the last full GREEN as Amendment V
+says. A `docs` diff keeps its own lane.
+
+**Rule — priority, never held.** "Declared repair" is one set for every
+`pr-gate` reader: the repair issues recorded on ANY RED of the standing run,
+closed ones included (`readRunRepairIssues`, issue #7647) — the set
+`health:repair-merged` and the repair-tip proof read. A PR closing one gets
+`base-health` green (the queue admits it), is never labelled `queue:held`
+(`holdsBeforeRed`'s `declaredRepair`), and gets a green `declared-repair`
+status that `.mergify.yml`'s priority rule reads: it jumps the queue it
+unblocks, as the ladder's `Revert PR #` title already did. Amendment III's
+hold on every other PR stands; the dispatcher's `red` hold still admits the
+repair pass (`holdAdmitsRepairs`).
 
 ## What would change the answer
 
