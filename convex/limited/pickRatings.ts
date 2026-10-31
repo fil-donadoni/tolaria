@@ -220,7 +220,9 @@ export function getScopeMedianRating(setCode: string): number {
 /** Reads a card's Pick Rating, never `null` (issue #7652): a hand rating
  *  reads as itself with `fallback: false`; an unrated card reads the scope's
  *  median with `fallback: true`, so a pool card missing its hand value
- *  neither blocks a draft nor goes unnoticed (the Admin panel marks it). */
+ *  is never an error and never goes unnoticed (the Admin panel marks it).
+ *  Not yet consulted by the Bot's pick path (`resolveEventPickRating` still
+ *  yields `null` → Pick Heuristic); wiring it there is a Bot change. */
 export function readPickRating(
     setCode: string,
     cardId: string

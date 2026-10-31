@@ -528,3 +528,23 @@ describe("listScopeCardRatings end-to-end shape (PRD #1296 Slice C, issue #1300)
         }
     });
 });
+
+describe("listScopeCardRatings returns validator (issue #7652)", () => {
+    it("declares every field buildScopeCardRatings emits, so the Admin query is not rejected at runtime", async () => {
+        const { listScopeCardRatings } = await import("../cardRatings");
+        const exported = JSON.parse(
+            (
+                listScopeCardRatings as unknown as {
+                    exportReturns: () => string;
+                }
+            ).exportReturns()
+        );
+        const declared = Object.keys(exported.value.value).sort();
+        const [row] = buildScopeCardRatings(
+            "lea",
+            [{ cardId: "x", name: "X" }],
+            () => null
+        );
+        expect(declared).toEqual(Object.keys(row).sort());
+    });
+});
