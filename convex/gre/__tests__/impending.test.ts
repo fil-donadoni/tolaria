@@ -177,11 +177,20 @@ describe("Impending — entry, and the not-a-creature window (CR 702.176a, 613.1
         expect(validateAttackerEligibility(overlord).eligible).toBe(false);
     });
 
-    it("is not a legal target for creature-only removal", () => {
-        const state = castAndResolve(true);
-        expect(
-            getLegalTargets(state, { type: "Creature", count: 1 }, "p2")
-        ).not.toContain("overlord");
+    it("is not a legal target for creature-only removal; a hard-cast one is", () => {
+        const source = {
+            playerId: "p2",
+            cardInstanceId: "removal",
+        } as unknown as Parameters<typeof getLegalTargets>[2];
+        const targetable = (state: GameState) =>
+            getLegalTargets(
+                state,
+                { type: "Creature", count: 1 },
+                source,
+                "p2"
+            ).some((t) => t.id === "overlord");
+        expect(targetable(castAndResolve(true))).toBe(false);
+        expect(targetable(castAndResolve(false))).toBe(true);
     });
 
     it("hard-cast: no counters, a creature immediately", () => {
