@@ -48,6 +48,7 @@ import {
     finiteManaUsesRemaining,
     hasManaAbility,
     isPlaneswalker,
+    isExpiringAnimatedBody,
     POISON_LOSS_COUNTERS,
 } from "./constants";
 import { currentLoyalty, LOYALTY_COUNTER_KEY } from "./loyalty";
@@ -58,7 +59,6 @@ import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import {
     expiringBodyHasCombatUse,
     isDeferrableStackAbility,
-    isExpiringAnimatedBody,
 } from "./ai/abilityTiming";
 import { loyaltyRealizationRatio } from "./ai/loyaltyValue";
 import { pendingBattlefieldReturns } from "./ai/pendingReturn";
