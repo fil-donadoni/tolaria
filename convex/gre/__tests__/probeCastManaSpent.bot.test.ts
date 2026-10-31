@@ -7,40 +7,84 @@
 // Bot's legal moves (issue #7246) — the Bot could only pass.
 
 import { describe, expect, it } from "vitest";
-import { buildBladeState } from "../ai/blade/runner";
-import type { BladeScenario } from "../ai/blade/types";
-import type { ScenarioSpec } from "../../debugScenarioSpec";
 import { isDominatedNoOpMove } from "../ai/dominance";
 import { enumerateMoves } from "../moves";
 import type { GameState } from "../state";
+import { getCardByName, registerTokenDefinition } from "../../cards";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup.helper";
+import type { CardDefinition } from "../../cards/types";
+
+/** The converge removal shape, as a stand-in so the test needs no catalogue
+ *  row: "Exile target nonland permanent if its mana value is less than or
+ *  equal to the number of colors of mana spent to cast this spell." */
+const CONVERGE = "probe-converge-exile";
+const convergeSpell: CardDefinition = {
+    id: CONVERGE,
+    name: CONVERGE,
+    rarity: "uncommon",
+    manaCost: { X: "X", W: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "Creature", count: 1 },
+    noteManaSpent: true,
+    effects: [
+        {
+            op: "if",
+            predicate: {
+                left: { manaValue: { of: { target: 0 } } },
+                op: "le",
+                right: { colorsSpentToCast: true },
+            },
+            then: [{ op: "exile", target: { target: 0 } }],
+        },
+    ],
+};
+registerTokenDefinition(convergeSpell);
+
+const MV2_ID = "probe-converge-mv2";
+registerTokenDefinition({
+    id: MV2_ID,
+    name: MV2_ID,
+    rarity: "common",
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    power: 2,
+    toughness: 2,
+});
 
 function board(secondLand: string): GameState {
-    const cards: ScenarioSpec["cards"] = [
-        { name: "Prismatic Ending", owner: "me", zone: "hand" },
-        { name: "Plains", owner: "me", zone: "battlefield" },
-        { name: secondLand, owner: "me", zone: "battlefield" },
-        {
-            name: "Watchwolf",
-            owner: "opp",
+    const land = (name: string) =>
+        makeInstance(getCardByName(name).id, {
+            controllerId: "p1",
+            ownerId: "p1",
             zone: "battlefield",
-            summoningSick: false,
-        },
-    ];
-    const scenario: BladeScenario = {
-        label: "probe-cast-mana-spent-unit",
-        spec: {
-            cards,
-            phase: "PRECOMBAT_MAIN",
-            turn: 5,
-            landCount: 0,
-            libraryCount: 20,
-        },
-        bot: "me",
-        budget: { iterations: 1 },
-        tier: "must",
-        expect: { moves: [{ kind: "pass" }] },
-    };
-    return buildBladeState(scenario);
+        });
+    const mv2 = makeInstance(MV2_ID, {
+        id: "mv2",
+        controllerId: "p2",
+        ownerId: "p2",
+        zone: "battlefield",
+    });
+    return makeState({
+        players: [
+            makePlayer("p1", {
+                hand: [
+                    makeInstance(CONVERGE, {
+                        controllerId: "p1",
+                        ownerId: "p1",
+                        zone: "hand",
+                    }),
+                ],
+                battlefield: [land("Plains"), land(secondLand)],
+            }),
+            makePlayer("p2", { battlefield: [mv2] }),
+        ],
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+    });
 }
 
 function xOneCast(state: GameState) {
