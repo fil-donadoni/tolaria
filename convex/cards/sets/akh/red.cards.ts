@@ -69,3 +69,28 @@ export const glorybringer = defineCard(() => ({
         },
     ],
 }));
+
+// Soul-Scar Mage — {R} Creature — Human Wizard 1/2.
+// "Prowess
+//  If a source you control would deal noncombat damage to a creature an
+//  opponent controls, put that many -1/-1 counters on that creature instead."
+//
+// CR 614.1a — the second line is a damage replacement effect, declared as the
+// `damageAsCounters` template (`cards/abilities/damageAsCounters.ts`), which
+// expands into one "damage" `replacementEffects[]` entry. CR 702.108a — prowess.
+//
+// hand-tail: If a source you control would deal noncombat damage to a creature an opponent controls, put that many -N/-N counters on that creature instead (#7249)
+export const soulScarMage = defineCard(() => ({
+    id: "a8003786-6e2a-4e2d-a915-f23293c7273a",
+    name: "Soul-Scar Mage",
+    rarity: "common",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 1,
+    toughness: 2,
+    oracleText:
+        "Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.)\nIf a source you control would deal noncombat damage to a creature an opponent controls, put that many -1/-1 counters on that creature instead.",
+    staticAbilities: ["prowess"],
+    damageAsCounters: { counterType: "-1/-1", noncombatOnly: true },
+}));
