@@ -196,7 +196,7 @@ describe("self-animation guardrail — the opponent's turn before attacks", () =
         "PRECOMBAT_MAIN",
         "BEGINNING_OF_COMBAT",
     ] as const) {
-        it(`flags it in the opponent's ${phase}: priority comes again after attackers are declared (CR 117.3a)`, () => {
+        it(`flags it in the opponent's ${phase}: priority comes again after attackers are declared (CR 117.3a, 117.3d)`, () => {
             expect(flagged(at(phase, "p2"))).toBe(true);
         });
     }

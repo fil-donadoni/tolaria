@@ -378,7 +378,7 @@ export function isCreature(card: CardInstanceState): boolean {
  *  turn (issue #7705): an until-end-of-turn effect ends at cleanup (CR 514.2),
  *  an until-end-of-combat one at the end of the combat phase (CR 500.5a). Read off
  *  the animation record's own duration — the layer system's, never a card
- *  name — so an indefinite animation (CR 611.2b, Earthbend) or one lasting
+ *  name — so an indefinite animation (CR 611.2a, Earthbend) or one lasting
  *  into a later turn is lasting material and stays outside this reading. */
 export function isExpiringAnimatedBody(card: CardInstanceState): boolean {
     const duration = card.animation?.duration;
