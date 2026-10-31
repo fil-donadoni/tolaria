@@ -142,7 +142,7 @@ import { isCreature, isLand, PERMANENT_TYPES } from "../constants";
 // paid that way is never proved dominated. That prunes strictly LESS than the
 // exert-only copy this replaced, never more — the fail-safe direction, since a
 // move left unpruned is still scored by the search.
-import { applyTapPlanInSearch } from "../searchTapPlan";
+import { applyTapPlanInSearch, searchCastManaSpent } from "../searchTapPlan";
 import { tryGetDefinition } from "../../cards";
 import { spellHasDelve } from "../payWith";
 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared cast-timing snapshot
@@ -1002,7 +1002,26 @@ export function applyProbeCast(
 ): boolean {
     const player = probe.players.find((p) => p.id === pid);
     if (!player) return false;
-    if (!player.hand.some((c) => c.id === move.cardInstanceId)) return false;
+    const handCard = player.hand.find((c) => c.id === move.cardInstanceId);
+    if (!handCard) return false;
+    // CR 601.2h / 702.44a — a `noteManaSpent` card records the colours it was
+    // paid with, exactly as the tree's cast commit stamps it (`applyMove.ts`):
+    // a probe without the record reads 0 colours, so a Converge cast looked
+    // like a no-op and `isDominatedNoOpMove` deleted it from the legal moves.
+    // Read BEFORE the taps, which may sacrifice a source.
+    const castDef = tryGetDefinition(
+        (handCard.card as { id?: string }).id ?? ""
+    );
+    const notedManaSpent = castDef?.noteManaSpent
+        ? searchCastManaSpent(
+              probe,
+              pid,
+              move.tapPlan,
+              move.alternativeCostId === undefined
+                  ? { manaCost: castDef.manaCost, chosenX: move.chosenX }
+                  : undefined
+          )
+        : undefined;
     applyTapPlanInSearch(probe, pid, move.tapPlan);
     const spellCard = removeFromZone(
         probe,
@@ -1017,6 +1036,7 @@ export function applyProbeCast(
         castById: pid,
         ...(move.targets.length > 0 ? { targets: move.targets } : {}),
         ...(move.chosenX !== undefined ? { chosenX: move.chosenX } : {}),
+        ...(notedManaSpent ? { notedManaSpent } : {}),
         ...announcedModeFields(move),
         // CR 601.2a — Cast Provenance: the probe only casts from hand, and
         // stamps it as every real cast commit does.
