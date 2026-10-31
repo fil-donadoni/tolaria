@@ -52,6 +52,8 @@
  * one. `--dry-run` regenerates (the refit and the drift sweep included) and
  * prints the plan, commits nothing; `--check` is the same run with a verdict:
  * exit 1 when any derived path — the refit artefacts among them — is stale.
+ * Both REWRITE the working tree (refit, sweep, pack) and leave it so; a
+ * failed refit puts the refit artefacts back to HEAD.
  *
  * `--settled` is health's question (ADR 0158 § 2b, ADR 0159): `--fresh` —
  * the same exit and stale line, so health waits on it within the grace and
@@ -396,21 +398,38 @@ function openLateIssues(): { number: number; title: string }[] {
  *  #7653); a cold worktree pays its module graph once. */
 const REFIT_WALL_MS = 10 * 60_000;
 
-/** `bot:refit --check`'s steps on this tree, quiet: the ids of the red ones
- *  (empty = the refit artefacts are what the tree fits and records). The
- *  hosted lane's missing reader key skips the weight guard inside the test
- *  itself (issue #5675), as it does everywhere. */
+/** One `bot:refit --check` step's wall inside `--settled`: health kills
+ *  the whole predicate at 10 min (`judgeDerivedTip`) and reads the kill as
+ *  BROKEN — a RED with no grace — so the two steps together stay well under
+ *  it beside the compile (review of PR for issue #7653). */
+const REFIT_CHECK_STEP_WALL_MS = 3 * 60_000;
+
+/** `bot:refit --check`'s steps on this tree: the ids of the red ones (empty
+ *  = the refit artefacts are what the tree fits and records). A step that
+ *  crashed or ran out of wall counts as lag too — STALE, so health waits
+ *  within the grace, never an instant RED — and its last lines are kept on
+ *  stderr for the reason. The hosted lane's missing reader key skips the
+ *  weight guard inside the test itself (issue #5675), as it does everywhere. */
 function refitLag(): string[] {
     const failed: string[] = [];
     for (const step of refitPlan(["--check"])) {
         const [cmd, ...rest] = step.argv;
         const r = spawnSync(cmd!, rest, {
             cwd: ROOT,
-            stdio: "ignore",
+            encoding: "utf8",
+            maxBuffer: 64 * 1024 * 1024,
             env: { ...process.env, ...step.env },
-            timeout: REFIT_WALL_MS,
+            timeout: REFIT_CHECK_STEP_WALL_MS,
+            killSignal: "SIGKILL",
         });
-        if (r.status !== 0) failed.push(step.id);
+        if (r.status === 0) continue;
+        failed.push(r.status === null ? `${step.id} (no answer)` : step.id);
+        const tail = `${r.stdout ?? ""}${r.stderr ?? ""}`
+            .trimEnd()
+            .split("\n")
+            .slice(-15)
+            .join("\n");
+        complain(`bot:refit --check [${step.id}] red:\n${tail}`);
     }
     return failed;
 }
@@ -418,8 +437,9 @@ function refitLag(): string[] {
 /** Step 0 of the write path (issue #7653): re-fit the weights and re-record
  *  the pins on this tree. A refit that fails leaves no half-written file
  *  behind — the paths go back to HEAD — and the run goes on: the header and
- *  catalogue commit must still land, and `--settled` reports the lag. */
-function refit(): void {
+ *  catalogue commit must still land, and `--settled` reports the lag. False
+ *  on a failure, which the run's exit then says (after its push). */
+function refit(): boolean {
     // `--derive` drops the fit itself where the Verdict Lock's pack cannot
     // be read (`refitPlan`, issue #5675).
     if (
@@ -429,11 +449,12 @@ function refit(): void {
             REFIT_WALL_MS
         )
     )
-        return;
+        return true;
     complain(
         `the refit failed — ${REFIT_ARTIFACT_PATHS.length} refit artefact(s) put back to HEAD; the next run refits`
     );
     git(["checkout", "-q", "HEAD", "--", ...REFIT_ARTIFACT_PATHS]);
+    return false;
 }
 
 /** `--settled` (ADR 0159): fresh or stale as `--fresh` (exit 1 on stale),
@@ -649,7 +670,12 @@ function write(dryRun: boolean, check = false): number {
         }
     }
     if (!ensureCorpus()) return 1;
-    refit();
+    // A failed refit still lets the header and catalogue land; the run's
+    // exit says it, so housekeeping files the writer's failure (review of
+    // PR for issue #7653) rather than health finding it past the grace.
+    const refitted = refit();
+    const refitExit = (code: number): number =>
+        refitted || code !== 0 ? code : 1;
     const swept = driftSweep(head);
     if (
         !swept.ok ||
@@ -663,13 +689,15 @@ function write(dryRun: boolean, check = false): number {
     const plan = derivePlan(found, owned);
     if (plan.kind === "no-op") {
         say(`${head.slice(0, 10)} is derived-fresh — nothing to commit`);
-        return 0;
+        return refitExit(0);
     }
     say(
         `${head.slice(0, 10)} is derived-stale: ${plan.paths.join(", ")}${dryRun ? " — dry run, nothing committed" : ""}`
     );
-    if (dryRun) return check ? 1 : 0;
-    return commitAndPush(head, plan.paths, DERIVE_SYNC_COMMIT_SUBJECT).code;
+    if (dryRun) return refitExit(check ? 1 : 0);
+    return refitExit(
+        commitAndPush(head, plan.paths, DERIVE_SYNC_COMMIT_SUBJECT).code
+    );
 }
 
 /** ONE commit with exactly `paths`, built on `head` on a scratch index and
