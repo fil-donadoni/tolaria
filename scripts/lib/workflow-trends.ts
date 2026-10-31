@@ -100,6 +100,8 @@ export interface QueueRun {
     updatedAt: string;
     lane: LaneVerdict;
     flakes: QueueFlake[];
+    /** The test files its failed steps named (`failedFiles`). */
+    tests: string[];
 }
 
 /** One machine's `weekly-report machine` file. */
@@ -135,6 +137,9 @@ export interface TrendFacts {
     /** Each passed issue's `area:*` label, the prefix cut; an issue without
      *  one is absent. */
     issueAreas: Record<number, string>;
+    /** The lane's sentinel test files (`data/lane-sentinels.json`, issue
+     *  #7651), or `null` while that file does not exist. */
+    sentinels: string[] | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -281,9 +286,12 @@ export function commentCause(body: string): LandingCause | null {
     );
     if (dequeued)
         return /timeout/i.test(dequeued[1]) ? "environment" : "red-lane";
-    // One of pr-check's refusal jobs, its advisory lane included: the PR.
+    // One of pr-check's refusal jobs: the PR.
     if (head.startsWith("**merge queue: a `land` refusal is red"))
         return "defect";
+    // pr-check's own lane on the PR's head (`.mergify.yml`, issue #7650).
+    if (head.startsWith("**merge queue: `check:lane (advisory)` is red"))
+        return "advisory";
     if (head.startsWith("**land-runner: `land` exited")) {
         if (/the rebase stopped/.test(head)) return "rebase";
         if (
@@ -307,6 +315,8 @@ export interface LandingEpisode {
     pr: number;
     at: string;
     cause: LandingCause;
+    /** The failing test files its dequeuing queue-lane run named. */
+    tests: string[];
 }
 
 const LANE_CAUSE: Readonly<Record<LaneVerdict, LandingCause>> = {
@@ -384,14 +394,15 @@ export function landingEpisodes(f: TrendFacts): LandingEpisode[] {
                     pick = c;
             }
             if (pick !== null) pick.used = true;
+            const lane =
+                pick?.cause === "red-lane"
+                    ? dequeuingRun(pr.number, it.createdAt, f.queueRuns)
+                    : null;
             const cause: LandingCause =
                 pick === null
                     ? "other"
                     : pick.cause === "red-lane"
-                      ? LANE_CAUSE[
-                            dequeuingRun(pr.number, it.createdAt, f.queueRuns)
-                                ?.lane ?? "unknown"
-                        ]
+                      ? LANE_CAUSE[lane?.lane ?? "unknown"]
                       : pick.cause!;
             // Before the window too: the episode a repeat belongs to may
             // predate it.
@@ -401,7 +412,12 @@ export function landingEpisodes(f: TrendFacts): LandingEpisode[] {
             if (sameHead && (pick === null || cause === prev.cause)) continue;
             last = { at: t, cause };
             if (inWindow(it.createdAt, f.window))
-                out.push({ pr: pr.number, at: it.createdAt, cause });
+                out.push({
+                    pr: pr.number,
+                    at: it.createdAt,
+                    cause,
+                    tests: lane?.tests ?? [],
+                });
         }
     }
     return out.sort((a, b) => ms(a.at) - ms(b.at));
@@ -450,6 +466,11 @@ export interface RedEpisode {
     hours: number;
     /** No RED of it reached the ladder's stop rung (an owner's issue). */
     ownerFree: boolean;
+    /** The failing test files its REDs named (`tests:`), first seen first. */
+    tests: string[];
+    /** Whether one of `tests` is a lane sentinel; `null` with no sentinel
+     *  file or no test named. */
+    sentinel: boolean | null;
 }
 
 /**
@@ -483,9 +504,11 @@ export function redEpisodes(f: TrendFacts): RedEpisode[] {
                 ms(v.at) < ms(f.window.to)
         );
     const out: RedEpisode[] = [];
-    let open: { shas: string[]; redAt: string } | null = null;
+    const sentinels = f.sentinels === null ? null : new Set(f.sentinels);
+    let open: { shas: string[]; redAt: string; tests: string[] } | null = null;
     const close = (greenAt: string | null) => {
         if (open === null) return;
+        const tests = open.tests;
         if (inWindow(open.redAt, f.window))
             out.push({
                 shas: open.shas,
@@ -495,14 +518,21 @@ export function redEpisodes(f: TrendFacts): RedEpisode[] {
                 ownerFree: !open.shas.some((s) =>
                     stops.has(escalationTitle(s))
                 ),
+                tests,
+                sentinel:
+                    sentinels === null || tests.length === 0
+                        ? null
+                        : tests.some((t) => sentinels.has(t)),
             });
         open = null;
     };
     for (const v of verdicts) {
         if (v === null || v.at === undefined) continue;
         if (v.status === "red") {
-            if (open === null) open = { shas: [v.sha], redAt: v.at };
-            else open.shas.push(v.sha);
+            if (open === null) open = { shas: [], redAt: v.at, tests: [] };
+            open.shas.push(v.sha);
+            for (const t of v.tests ?? [])
+                if (!open.tests.includes(t)) open.tests.push(t);
         } else if (v.status === "green") close(v.at);
     }
     close(null);
@@ -847,8 +877,9 @@ export function parseMachineReading(text: string): MachineReading | null {
 export function laneRecord(text: string | null): {
     lane: LaneVerdict;
     flakes: QueueFlake[];
+    tests: string[];
 } {
-    if (text === null) return { lane: "unknown", flakes: [] };
+    if (text === null) return { lane: "unknown", flakes: [], tests: [] };
     let raw: unknown;
     try {
         raw = text.trim() === "" ? null : JSON.parse(text);
@@ -856,10 +887,14 @@ export function laneRecord(text: string | null): {
         raw = null;
     }
     // An empty or torn file: the lane refused before its JSON, or died.
-    if (!isObj(raw)) return { lane: "refused", flakes: [] };
+    if (!isObj(raw)) return { lane: "refused", flakes: [], tests: [] };
     const outcomes = Array.isArray(raw.outcomes) ? raw.outcomes : [];
     const flakes: QueueFlake[] = [];
+    const tests: string[] = [];
     for (const o of outcomes) {
+        if (isObj(o) && o.status === "fail" && Array.isArray(o.failedFiles))
+            for (const t of o.failedFiles)
+                if (typeof t === "string" && !tests.includes(t)) tests.push(t);
         if (!isObj(o) || !isObj(o.flake)) continue;
         const files = Array.isArray(o.flake.files)
             ? o.flake.files.filter((x): x is string => typeof x === "string")
@@ -875,7 +910,39 @@ export function laneRecord(text: string | null): {
             : classifyLane(raw as Parameters<typeof classifyLane>[0]) !== null
               ? "regenerable"
               : "red";
-    return { lane, flakes };
+    return { lane, flakes, tests };
+}
+
+/** The test files `data/lane-sentinels.json` lists — a list of paths, or
+ *  of `{ file }` rows, bare or under `files`/`sentinels` (the generator is
+ *  issue #7651's). `null` text = no file; unreadable = `null` too. */
+export function parseSentinels(text: string | null): string[] | null {
+    if (text === null) return null;
+    let raw: unknown;
+    try {
+        raw = JSON.parse(text);
+    } catch {
+        return null;
+    }
+    const rows = Array.isArray(raw)
+        ? raw
+        : isObj(raw)
+          ? Array.isArray(raw.files)
+              ? raw.files
+              : raw.sentinels
+          : null;
+    if (!Array.isArray(rows)) return null;
+    const files: string[] = [];
+    for (const r of rows) {
+        const file =
+            typeof r === "string"
+                ? r
+                : isObj(r) && typeof r.file === "string"
+                  ? r.file
+                  : null;
+        if (file !== null) files.push(file);
+    }
+    return files;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -937,6 +1004,9 @@ const mark = (ok: boolean | null) => (ok === null ? "—" : ok ? "✅" : "❌");
 const spreadCell = (s: Spread | null, fmt: (n: number | null) => string) =>
     s === null || s.n === 0 ? "n/a" : `${fmt(s.median)} / ${fmt(s.p90)}`;
 
+const testsCell = (tests: readonly string[]) =>
+    tests.length ? tests.map((x) => `\`${x}\``).join(", ") : "—";
+
 function costTable(by: string, groups: readonly CostGroup[]): string[] {
     if (groups.length === 0) return [];
     return [
@@ -972,6 +1042,19 @@ export function summaryMarkdown(t: Trends): string {
         ...LANDING_CAUSES.map(
             (c) => `| ${LANDING_CAUSE_LABEL[c]} | ${t.landings.byCause[c]} |`
         ),
+        ...(t.landingEpisodes.some((e) => e.tests.length)
+            ? [
+                  "",
+                  "| PR | at | cause | failing tests |",
+                  "| --- | --- | --- | --- |",
+                  ...t.landingEpisodes
+                      .filter((e) => e.tests.length)
+                      .map(
+                          (e) =>
+                              `| #${e.pr} | ${e.at} | ${LANDING_CAUSE_LABEL[e.cause]} | ${testsCell(e.tests)} |`
+                      ),
+              ]
+            : []),
         "",
         "### RED episodes and time to green",
         "",
@@ -981,11 +1064,11 @@ export function summaryMarkdown(t: Trends): string {
         ...(t.redEpisodes.length
             ? [
                   "",
-                  "| RED at | first sha | hours | owner |",
-                  "| --- | --- | --- | --- |",
+                  "| RED at | first sha | hours | owner | failing tests | sentinel |",
+                  "| --- | --- | --- | --- | --- | --- |",
                   ...t.redEpisodes.map(
                       (e) =>
-                          `| ${e.redAt} | \`${e.shas[0].slice(0, 8)}\` | ${fx(e.hours)}${e.greenAt === null ? " (standing)" : ""} | ${e.ownerFree ? "no" : "yes"} |`
+                          `| ${e.redAt} | \`${e.shas[0].slice(0, 8)}\` | ${fx(e.hours)}${e.greenAt === null ? " (standing)" : ""} | ${e.ownerFree ? "no" : "yes"} | ${testsCell(e.tests)} | ${e.sentinel === null ? "n/a" : e.sentinel ? "yes" : "no"} |`
                   ),
               ]
             : []),

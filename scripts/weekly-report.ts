@@ -53,6 +53,7 @@ import {
 import {
     laneRecord,
     parseMachineReading,
+    parseSentinels,
     summaryMarkdown,
     weeklyTrends,
     type HistoryNode,
@@ -405,6 +406,25 @@ function issueAreas(
     return out;
 }
 
+/** The lane's sentinel set, written by issue #7651's generator. */
+const SENTINELS_FILE = join(
+    import.meta.dir,
+    "..",
+    "data",
+    "lane-sentinels.json"
+);
+
+/** `SENTINELS_FILE`'s files, or `null` while it does not exist. */
+function laneSentinels(): string[] | null {
+    let text: string;
+    try {
+        text = readFileSync(SENTINELS_FILE, "utf8");
+    } catch {
+        return null;
+    }
+    return parseSentinels(text);
+}
+
 /** Every `machine.json` under `dir` (`gh run download` nests each artifact
  *  in its own directory). */
 export function machineReadings(dir: string | undefined): MachineReading[] {
@@ -487,6 +507,7 @@ export async function gatherFacts(opts: GatherOptions): Promise<TrendFacts> {
                 repo,
                 pass.passes.map((p) => p.issue)
             ),
+            sentinels: laneSentinels(),
         };
     } finally {
         if (opts.artifactCache === undefined)
