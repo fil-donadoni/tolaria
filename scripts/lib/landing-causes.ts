@@ -8,6 +8,8 @@ export type LandingCause =
     | "rebase"
     | "red-base"
     | "defect"
+    /** The PR's own advisory lane (`pr-check`) went red while it queued. */
+    | "advisory"
     | "stale-artefact"
     | "environment"
     /** A red queue lane whose run left no `lane.json` to tell which red. */
@@ -18,6 +20,7 @@ export const LANDING_CAUSES: readonly LandingCause[] = [
     "rebase",
     "red-base",
     "defect",
+    "advisory",
     "stale-artefact",
     "environment",
     "red-lane",
@@ -28,6 +31,7 @@ export const LANDING_CAUSE_LABEL: Readonly<Record<LandingCause, string>> = {
     rebase: "rebase conflict",
     "red-base": "refused: RED base",
     defect: "red lane: the PR's own defect",
+    advisory: "red lane: the PR's own defect (advisory)",
     "stale-artefact": "red lane: stale generated artefact",
     environment: "red lane: environment or flaky",
     "red-lane": "red lane: unclassified (no `lane.json`)",

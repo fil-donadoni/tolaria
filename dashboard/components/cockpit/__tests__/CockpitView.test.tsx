@@ -6,6 +6,7 @@ import { render, screen, within } from "@testing-library/react";
 import { CockpitView } from "../CockpitView";
 import { readCockpit } from "../../../lib/cockpit";
 import { fixtureReading } from "./fixture";
+import { LANDING_CAUSES } from "../../../../scripts/lib/landing-causes";
 
 /**
  * The cockpit's page (issue #5652): every panel populated from one reading,
@@ -49,12 +50,33 @@ describe("CockpitView — one page of trends", () => {
                 name: "Failed landings by cause",
             })
         );
-        expect(causes.getAllByRole("row")).toHaveLength(1 + 7);
+        expect(causes.getAllByRole("row")).toHaveLength(
+            1 + LANDING_CAUSES.length
+        );
         expect(
             causes.getByText("rebase conflict").closest("tr")!.textContent
         ).toBe("rebase conflict1");
         // RED: the recorded episodes and the owner-free share.
         expect(section("red").getByText("67 %")).toBeTruthy();
+        // Each RED names its failing tests; no sentinel file yet: n/a.
+        const reds = within(
+            section("red").getByRole("table", { name: "RED episodes" })
+        );
+        const named = fixtureReading().trends!.redEpisodes.find(
+            (e) => e.tests.length
+        )!;
+        const row = reds.getByText(named.tests[0]).closest("tr")!;
+        expect(row.lastElementChild!.textContent).toBe("n/a");
+        expect(
+            reds.getByRole("columnheader", { name: "sentinel" })
+        ).toBeTruthy();
+        expect(
+            within(
+                section("landings").getByRole("table", {
+                    name: "The latest failed-landing episodes",
+                })
+            ).getByRole("columnheader", { name: "failing tests" })
+        ).toBeTruthy();
         // Cost: per model tier and per area.
         expect(section("cost").getByText("sonnet")).toBeTruthy();
         expect(section("cost").getByText("workflow")).toBeTruthy();

@@ -16,6 +16,7 @@ import {
     laneRecord,
     machineTrend,
     parseMachineReading,
+    parseSentinels,
     passCost,
     passLatency,
     percentile,
@@ -67,6 +68,7 @@ function facts(over: Partial<TrendFacts> = {}): TrendFacts {
         machines: [],
         readyForAgent: 441,
         issueAreas: { 5651: "workflow" },
+        sentinels: null,
         ...over,
     };
 }
@@ -185,12 +187,135 @@ describe("laneRecord — one queue-lane run's lane.json", () => {
                     cause: "timeout",
                 },
             ],
+            tests: [],
         });
+        expect(laneRecord(text("lane-red.json")).tests).toEqual([
+            "scripts/__tests__/docs-lane.test.ts",
+        ]);
         expect(laneRecord(text("lane-stale.json")).lane).toBe("regenerable");
         expect(laneRecord(text("lane-red.json")).lane).toBe("red");
         expect(laneRecord("").lane).toBe("refused");
         expect(laneRecord('{"ok": fal').lane).toBe("refused");
         expect(laneRecord(null).lane).toBe("unknown");
+    });
+});
+
+/**
+ * The week 2026-10-24 → 10-31 (issue #7650), recorded by `gatherFacts` on
+ * 2026-10-31 and cut to what the episodes read: PRs that were labelled
+ * `land-failed`, those labels, the comments `commentCause` recognises (cut
+ * to their first line), the first push after each label, the base's
+ * statuses, the failed queue-lane runs. The cut was checked to leave the
+ * landing and RED episodes identical to the whole recording's.
+ */
+describe("the week of 2026-10-24 — the advisory lane and the failing tests", () => {
+    const week = json<
+        Pick<TrendFacts, "window" | "prs" | "history" | "queueRuns">
+    >("week-2026-10-24.json");
+    const weekFacts = (over: Partial<TrendFacts> = {}) =>
+        facts({ ...week, escalations: [], ...over });
+
+    it("reads Mergify's advisory-lane comment as the PR's own defect", () => {
+        const body = week.prs
+            .flatMap((p) => p.timelineItems.nodes)
+            .flatMap((i) => (i.__typename === "IssueComment" ? [i.body] : []))
+            .find((b) => b.includes("check:lane (advisory)"));
+        expect(body).toBeDefined();
+        expect(commentCause(body!)).toBe("advisory");
+    });
+
+    it("leaves no episode of the week unrecognised", () => {
+        // Before issue #7650 the 43 advisory episodes were all "other".
+        expect(weeklyTrends(weekFacts()).landings.byCause).toEqual({
+            rebase: 29,
+            "red-base": 0,
+            defect: 45,
+            advisory: 43,
+            "stale-artefact": 0,
+            environment: 1,
+            "red-lane": 3,
+            other: 0,
+        });
+    });
+
+    it("names the failing tests of a lane red, from its queue-lane run", () => {
+        const eps = landingEpisodes(weekFacts()).filter((e) => e.tests.length);
+        expect(eps.map((e) => [e.pr, e.cause, e.tests])).toEqual([
+            [6735, "defect", ["convex/gre/ai/__tests__/verdicts.bot.test.ts"]],
+            [6923, "defect", ["src/lib/__tests__/no-bare-100vh.guard.test.ts"]],
+            [6973, "defect", ["src/lib/__tests__/no-bare-100vh.guard.test.ts"]],
+            [
+                7186,
+                "defect",
+                ["convex/gre/ai/__tests__/verdictRegistryPairs.bot.test.ts"],
+            ],
+            [
+                7535,
+                "defect",
+                ["convex/limited/__tests__/pickRatings.bot.test.ts"],
+            ],
+            [
+                7539,
+                "defect",
+                ["convex/limited/__tests__/pickRatings.bot.test.ts"],
+            ],
+            [7547, "defect", ["convex/oracle/__tests__/kickerLine.test.ts"]],
+        ]);
+    });
+
+    it("names each RED's failing tests, and whether a sentinel holds one", () => {
+        const pick = "convex/limited/__tests__/pickRatings.bot.test.ts";
+        const at = (eps: ReturnType<typeof redEpisodes>, sha: string) =>
+            eps.find((e) => e.shas[0].startsWith(sha))!;
+        const without = redEpisodes(weekFacts());
+        expect(without).toHaveLength(15);
+        // Its two REDs named the blade shards in turn: one list, no repeat.
+        expect(at(without, "4b51eb77").tests).toEqual([
+            "convex/gre/ai/blade/__tests__/blade.shard-2.spec.ts",
+            "convex/gre/ai/blade/__tests__/blade.shard-1.spec.ts",
+            "convex/gre/ai/blade/__tests__/blade.shard-0.spec.ts",
+        ]);
+        expect(at(without, "d279be9a")).toMatchObject({
+            tests: [pick],
+            sentinel: null,
+        });
+
+        const withSet = redEpisodes(weekFacts({ sentinels: [pick] }));
+        expect(at(withSet, "d279be9a").sentinel).toBe(true);
+        expect(at(withSet, "a23d7e1f").sentinel).toBe(false);
+        // A RED that named no test: nothing for a sentinel to catch.
+        expect(at(withSet, "eeb2b0eb")).toMatchObject({
+            tests: [],
+            sentinel: null,
+        });
+    });
+
+    it("prints the failing tests and the sentinel column", () => {
+        const md = summaryMarkdown(weeklyTrends(weekFacts()));
+        expect(md).toContain(
+            "| red lane: the PR's own defect (advisory) | 43 |"
+        );
+        expect(md).toContain(
+            "| #7535 | 2026-10-30T09:09:04Z | red lane: the PR's own defect | `convex/limited/__tests__/pickRatings.bot.test.ts` |"
+        );
+        expect(md).toMatch(
+            /\| `d279be9a` \| [^|]+ \| [^|]+ \| `convex\/limited\/__tests__\/pickRatings\.bot\.test\.ts` \| n\/a \|/
+        );
+    });
+});
+
+describe("parseSentinels — the lane's sentinel file", () => {
+    it("reads paths or `{ file }` rows, bare or under a key; none is null", () => {
+        expect(parseSentinels(null)).toBeNull();
+        expect(parseSentinels("{")).toBeNull();
+        expect(parseSentinels('{"version": 1}')).toBeNull();
+        expect(parseSentinels('["a.test.ts"]')).toEqual(["a.test.ts"]);
+        expect(
+            parseSentinels(
+                '{"files": [{"file": "a.test.ts", "ms": 16}, "b.test.ts", 3]}'
+            )
+        ).toEqual(["a.test.ts", "b.test.ts"]);
+        expect(parseSentinels('{"sentinels": []}')).toEqual([]);
     });
 });
 

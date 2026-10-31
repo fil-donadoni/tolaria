@@ -50,6 +50,7 @@ export function fixtureReading(
         ),
         readyForAgent: 441,
         issueAreas: { 5651: "workflow" },
+        sentinels: null,
     });
     return {
         version: 1,
