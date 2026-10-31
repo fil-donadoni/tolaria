@@ -329,6 +329,12 @@ discipline, unchanged:
 - **Uncomment every matching reprint stub** — `grep -rn "definitionId:
 \"<NEW_CARD_ID>\"" convex/cards/sets/`, uncomment the whole `CardPrint` block,
   drop the trailing ` (stub)`.
+- **A Vintage Cube card owes a Pick Rating** — a name in
+  `convex/cubes/vintageCubeNames.ts` joins `buildCubePool()` once written:
+  add `"<id>": <rating>` to `data/pick-ratings/vintage-cube.json` (a 0–5
+  pick score, read neighbours). Run `bun run check:cube-ratings` (~0.1 s,
+  issue #7629): `pickRatings.bot.test.ts` passes locally against a merge-base
+  catalogue (ADR 0157) and reds only on the queue's lane (PR #7579).
 - **Frontend wiring walk** (mandatory, `.claude/rules/gre-development.md`): a
   new activation-cost shape goes into
   `src/lib/__tests__/activation-affordability.catalogue.test.ts`'s `Shape`

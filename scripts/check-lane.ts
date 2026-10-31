@@ -1012,6 +1012,15 @@ export const CHEAP_GUARDS: readonly {
         admits: /^(data\/|convex\/|scripts\/lib\/|scripts\/oracle-[^/]*\.ts$|scripts\/check-targets\.ts$)/,
         lacks: "no changed path under data/**, convex/**, scripts/lib/** or scripts/oracle-*.ts — the Target Lists, the lockfile and the claims did not move",
     },
+    // Issue #7629: a hand-written card on the Vintage Cube list owes a Pick
+    // Rating. The lane's `pickRatings.bot.test.ts` sees the miss only on a
+    // regenerated catalogue (ADR 0157), so the authoring session's pre-queue
+    // never did (PR #7579); this reads card SOURCE instead. ~0.1 s.
+    {
+        id: "check:cube-ratings",
+        admits: /^(convex\/cards\/sets\/|convex\/cubes\/vintageCubeNames\.ts$|data\/pick-ratings\/vintage-cube\.json$|scripts\/check-cube-ratings\.ts$|scripts\/lib\/(compiler-gap-markers|divergence-markers)\.ts$)/,
+        lacks: "no changed path under convex/cards/sets/**, the Vintage Cube list, its Pick Rating file or the guard's readers — no cube card and no rating moved",
+    },
     {
         id: "check:test-hygiene",
         admits: /(\.test\.tsx?$|(^|\/)__tests__\/|^convex\/|^data\/|^scripts\/lib\/|^scripts\/(check-test-hygiene|purge-identity-tests)\.ts$)/,
