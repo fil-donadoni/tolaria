@@ -127,6 +127,27 @@ export interface VerdictStore {
     lineage(): Lineage;
 }
 
+/**
+ * The mark a GREEN's `step` carries when a declared repair's tip was proven
+ * by the RED's own evidence (issue #7657, ADR 0156 Amendment V): the RED's
+ * failing files plus the health steps the RED's run never reached, never the
+ * steps that run passed on the RED tip. `repair: failing files + 2 unreached
+ * steps green`. The same vocabulary as the flake path's `flake: …`, so no new
+ * verdict state: the lineage reads it as GREEN. `release` does not (ADR
+ * 0116): it gates such a tip whole (`isRepairProofGreen`).
+ */
+export const REPAIR_PROOF_MARK = "repair: ";
+
+/** Whether a verdict is a GREEN earned by a repair proof — a GREEN for the
+ *  lineage, not the full gate `release` requires on the exact tip. */
+export function isRepairProofGreen(
+    v: { status: string; step?: string } | null | undefined
+): boolean {
+    return (
+        v?.status === "green" && (v.step ?? "").startsWith(REPAIR_PROOF_MARK)
+    );
+}
+
 /** Whether the lineage refuses a new pick / a non-repair landing. */
 export function lineageBlocks(kind: LineageKind): boolean {
     return kind === "red" || kind === "second-red";

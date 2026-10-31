@@ -408,6 +408,56 @@ describe("a LATE Bot state rides onto a fresh verdict — never a wait, never a 
     });
 });
 
+describe("gateSkipReason — a repair-proof GREEN never skips the tip: the full gate is still owed (issue #7657)", () => {
+    const sha = "abc123def456";
+    it("local or stored, the next run gates the tip whole; a full GREEN skips it", () => {
+        const proof = {
+            sha,
+            status: "green" as const,
+            startedAt: "2026-10-31T10:00:00Z",
+            proof: "repair" as const,
+        };
+        expect(
+            gateSkipReason({
+                last: proof,
+                tip: sha,
+                now: Date.now(),
+                retryTerminal: false,
+            })
+        ).toBeNull();
+        expect(
+            gateSkipReason({
+                last: null,
+                tip: sha,
+                now: Date.now(),
+                retryTerminal: false,
+                stored: {
+                    sha,
+                    status: "green",
+                    step: "repair: failing files + 1 unreached step green",
+                },
+            })
+        ).toBeNull();
+        expect(
+            gateSkipReason({
+                last: { ...proof, proof: undefined },
+                tip: sha,
+                now: Date.now(),
+                retryTerminal: false,
+            })
+        ).toMatch(/already green/);
+        expect(
+            gateSkipReason({
+                last: null,
+                tip: sha,
+                now: Date.now(),
+                retryTerminal: false,
+                stored: { sha, status: "green", step: "test" },
+            })
+        ).toMatch(/already green on the verdict store/);
+    });
+});
+
 describe("gateSkipReason — a pending record never skips the tip (issue #6248)", () => {
     it("re-judges a tip whose last record is pending, under any retry policy", () => {
         const last = {

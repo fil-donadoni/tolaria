@@ -37,6 +37,11 @@ interface State {
     statuses: Record<string, FakeStatus[]>;
     /** Commit comments per sha, oldest first. */
     comments: Record<string, { body: string; html_url: string }[]>;
+    /** The PRs a commit is associated with (`commits/{sha}/pulls`), and the
+     *  issues each PR closes (`pr view --json closingIssuesReferences`) —
+     *  what `issuesClosedBy` reads (issue #7657). */
+    pulls?: Record<string, number[]>;
+    prCloses?: Record<string, number[]>;
 }
 
 const REPO = "owner/name";
@@ -55,6 +60,9 @@ export interface FakeGh {
     envNoPath: Record<string, string>;
     /** Name the base history (newest first) when the cwd is no repository. */
     setHistory(shas: string[]): void;
+    /** Record that `sha` merged PR `pr`, which closes `closes`
+     *  (`issuesClosedBy`'s two reads, issue #7657). */
+    seedPr(sha: string, pr: number, closes: number[]): void;
     statuses(sha: string): FakeStatus[];
     comments(sha: string): string[];
     /** The same fake as a `GhRunner`, for the store functions that take one. */
@@ -111,21 +119,51 @@ export function fakeGh(dir: string): FakeGh {
                 JSON.stringify({ ...readState(state), commits: shas })
             );
         },
+        seedPr(sha, pr, closes) {
+            const st = readState(state);
+            st.pulls = { ...st.pulls, [sha]: [...(st.pulls?.[sha] ?? []), pr] };
+            st.prCloses = { ...st.prCloses, [String(pr)]: closes };
+            writeFileSync(state, JSON.stringify(st));
+        },
         statuses: (sha) => readState(state).statuses[sha] ?? [],
         comments: (sha) =>
             (readState(state).comments[sha] ?? []).map((c) => c.body),
     };
 }
 
-/** `gh api …` as the verdict store issues it. */
+/** `gh api …` as the verdict store issues it, and the two reads of
+ *  `issuesClosedBy` (`commits/{sha}/pulls`, `pr view --json
+ *  closingIssuesReferences`). */
 function main(argv: string[]): number {
     const path = process.env.FAKE_GH_STATE;
-    if (!path || argv[0] !== "api") {
+    if (!path) {
         console.error(`fake gh: unsupported: ${argv.join(" ")}`);
         return 1;
     }
     const st = readState(path);
+    if (argv[0] === "pr" && argv[1] === "view") {
+        const pr = argv[2];
+        if (!argv.includes("closingIssuesReferences")) {
+            console.error(`fake gh: unsupported: ${argv.join(" ")}`);
+            return 1;
+        }
+        // `--jq .closingIssuesReferences[].number`: one number per line.
+        for (const n of st.prCloses?.[pr] ?? []) console.log(String(n));
+        return 0;
+    }
+    if (argv[0] !== "api") {
+        console.error(`fake gh: unsupported: ${argv.join(" ")}`);
+        return 1;
+    }
     const args = argv.slice(1);
+    const pulls = /commits\/([0-9a-f]{40})\/pulls$/.exec(
+        args.find((a) => a.startsWith("repos/")) ?? ""
+    );
+    if (pulls) {
+        // `--jq .[].number`: one number per line.
+        for (const n of st.pulls?.[pulls[1]] ?? []) console.log(String(n));
+        return 0;
+    }
     const field = (flag: string, k: string) => {
         for (let i = 0; i < args.length - 1; i++)
             if (args[i] === flag && args[i + 1].startsWith(`${k}=`))
