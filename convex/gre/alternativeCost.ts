@@ -940,7 +940,17 @@ export function buildCostLegsHandChoice(
         }
         action = leg.hand.action;
         for (const r of leg.hand.requirements) {
-            requirements.push({ filter: r.filter, count: r.count });
+            // Issue #2267 — requirements with the SAME filter merge into one
+            // (counts summed): a cost paid N times (escalate per extra mode,
+            // a Multikicker hand leg) is one "discard N cards", so the forced
+            // check below sees N candidates for a count of N and auto-resolves
+            // instead of parking a picker with nothing to choose.
+            const key = JSON.stringify(r.filter);
+            const same = requirements.find(
+                (q) => JSON.stringify(q.filter) === key
+            );
+            if (same) same.count += r.count;
+            else requirements.push({ filter: r.filter, count: r.count });
         }
     }
     if (requirements.length === 0 || action === undefined) return undefined;

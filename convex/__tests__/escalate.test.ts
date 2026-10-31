@@ -131,7 +131,8 @@ describe("Escalate — Collective Brutality through the real cast path (CR 702.1
 
     it("THREE modes owe two discards — the count is written from the mode list, paid, and every mode resolves", async () => {
         await withTemporaryDefinitionAsync(FREE_BRUTALITY(), async () => {
-            const harness = makeMutationCtx("p1", [gameStateSeed(board(2))]);
+            // Three spare cards for two discards: a real choice, so it parks.
+            const harness = makeMutationCtx("p1", [gameStateSeed(board(3))]);
             // The caster names the modes only — no escalate count is sent.
             await announce(harness, ["drain", "duress", "shrink"]);
             await target(harness, ["duress", "shrink", "drain"]);
@@ -187,6 +188,25 @@ describe("Escalate — Collective Brutality through the real cast path (CR 702.1
             expect(p2.graveyard.map((c) => c.id)).toContain("bears");
             expect(p2.life).toBe(18);
             expect(getPlayer(state, "p1").life).toBe(22);
+        });
+    });
+
+    it("a FORCED discard (exactly two spare cards for two extra modes) auto-resolves — no picker parks", async () => {
+        await withTemporaryDefinitionAsync(FREE_BRUTALITY(), async () => {
+            const harness = makeMutationCtx("p1", [gameStateSeed(board(2))]);
+            await announce(harness, ["duress", "shrink", "drain"]);
+            await target(harness, ["duress", "shrink", "drain"]);
+            const state = harness.state();
+            expect(state.pendingCast).toBeUndefined();
+            expect(state.stack).toHaveLength(1);
+            expect(state.stack[0].unkickedCostPayments).toEqual({
+                escalate: 2,
+            });
+            expect(
+                getPlayer(state, "p1")
+                    .graveyard.map((c) => c.id)
+                    .sort()
+            ).toEqual(["spare0", "spare1"]);
         });
     });
 
