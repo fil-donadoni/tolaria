@@ -334,13 +334,23 @@ export interface EscapeCost {
  *  this family's machinery verbatim. Never kicked (CR 702.33d), no twin trigger
  *  (its consequence is a text change on the spell, CR 702.47c), and not
  *  repeatable (CR 702.47b: "You can't splice any one card onto the same spell
- *  more than once"). */
+ *  more than once").
+ *
+ *  Escalate (CR 702.120a, issue #2267) is the first member whose payment
+ *  COUNT is not the caster's to choose: "For each mode you choose beyond the
+ *  first as you cast this spell, you pay an additional [cost]" — the count is
+ *  DERIVED from the announced mode list ({@link ModeSelection}), and its row
+ *  says so with `paidPerExtraMode`. Everything else — the legs, the folds, the
+ *  pickers, the payment record — is this family's machinery verbatim. Never
+ *  kicked (CR 702.33d), no twin trigger, and no "any number of times" clause:
+ *  it repeats exactly as often as the mode count says, never more. */
 export type AdditionalCostKeyword =
     | "kicker"
     | "offspring"
     | "squad"
     | "replicate"
-    | "splice";
+    | "splice"
+    | "escalate";
 
 /** CR 702.175a / 702.157a — the LINK between the two halves of an additional-cost
  *  keyword that "represents two abilities": the `kickers[]` cost entry and the
