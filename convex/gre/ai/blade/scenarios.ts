@@ -3960,7 +3960,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         // Issue #7705 — the opponent's turn is a window only once an attack
         // the body could block is declared (CR 509.1); before it the
-        // animation defers to this very step (CR 117.3a).
+        // animation defers to this very step (CR 117.3a, 117.3d).
         setup: [{ kind: "declare-attackers", haltForDefenderResponse: true }],
         bot: "me",
         budget: { iterations: 200 },
@@ -3977,7 +3977,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "the animation is enumerated with no rollout-policy penalty: the flag survives the opponent's turn and a sick body can still block",
         },
-        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Control of the sick-body entry: the flag outlives the controller's turn, and there the body can block. Moved from BEGINNING_OF_COMBAT to the defender's declare-attackers window by issue #7705: on the opponent's turn the animation is a window only after an attack the body could block (Grizzly Bears, CR 509.1) is declared — before it the defender gets priority again in that step (CR 117.3a) and the animation is deferrable.",
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Control of the sick-body entry: the flag outlives the controller's turn, and there the body can block. Moved from BEGINNING_OF_COMBAT to the defender's declare-attackers window by issue #7705: on the opponent's turn the animation is a window only after an attack the body could block (Grizzly Bears, CR 509.1) is declared — before it the defender gets priority again in that step (CR 117.3a, 117.3d) and the animation is deferrable.",
     },
     {
         label: "manland animation: declines a tapped Mishra's Factory on its own turn",
@@ -16881,7 +16881,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             forbidden: [{ kind: "activate-ability", card: "Treetop Village" }],
         },
-        note: "Issue #7705 (c). No attack is declared yet: the defender gets priority again in the declare-attackers step (CR 117.3a) and can animate then, knowing what attacks; the deterrence value of animating early is deliberately not credited. Already passing on the pre-fix engine (`last-window-deferral` / `material-tiebreak`), so NOT discriminating: it pins the window the rewritten guardrail now names pointless.",
+        note: "Issue #7705 (c). No attack is declared yet: the defender gets priority again in the declare-attackers step (CR 117.3a, 117.3d) and can animate then, knowing what attacks; the deterrence value of animating early is deliberately not credited. Already passing on the pre-fix engine (`last-window-deferral` / `material-tiebreak`), so NOT discriminating: it pins the window the rewritten guardrail now names pointless.",
     },
     {
         label: "pointless self-animation: does NOT animate Treetop Village in its own upkeep",
