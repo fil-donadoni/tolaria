@@ -837,27 +837,36 @@ to EVERY changed path rather than the DOM-reachable ones
 `landingRestoresParent` now calls with the DOM paths): the branch's commits
 name the reverted commits (`This reverts commit <sha>`, the line `git
 revert` writes — read from git, since the queue's draft carries Mergify's
-body), each is in HEAD's history, and every changed path is byte-identical
-to the parent of the oldest reverted commit touching it. Such a code diff
-plans the `revert` lane: `tsc[all]` alone, in the queue as in `land:ready`
-(which then owes no proof receipt: a revert adds no guarding test). The
-`repair-proof` check — the RED's failing tests re-run green — stays the
-PR's `pr-check` job, a land refusal when red. One hand edit on the branch, on
-a culprit path or any other, and the diff takes the lane its paths decide.
-What `tsc` cannot see (a restored file meeting a newer neighbour at run
-time) is the batch gate's, bisected from the last full GREEN as Amendment V
-says. A `docs` diff keeps its own lane.
+body), none of them is itself a revert (a revert of a revert re-applies the
+culprit a RED proved bad), each is in HEAD's history, and every changed
+path, renames split into both sides, is byte-identical to the parent of the
+oldest reverted commit touching it. A `skin`, `engine` or `cards` diff that
+is one plans the `revert` lane, in the queue as in `land:ready` (which then
+owes no proof receipt: a revert adds no guarding test): no test, only
+`tsc[all]` — the restored files can meet a newer neighbour's changed
+signature — and the diff's `format`, `lint` and `cr:lint`, which judge it
+against today's config and ledger. The `repair-proof` check — the RED's
+failing tests re-run green — stays the PR's `pr-check` job, a land refusal
+when red. A `full` diff keeps `check:pr` (a restored dependency or config is
+a run-time change `tsc` cannot see); `docs` keeps its own lane. One hand
+edit on the branch, on a culprit path or any other, and the diff takes the
+lane its paths decide. What `tsc` cannot see is the batch gate's, bisected
+from the last full GREEN as Amendment V says.
 
 **Rule — priority, never held.** "Declared repair" is one set for every
-`pr-gate` reader: the repair issues recorded on ANY RED of the standing run,
-closed ones included (`readRunRepairIssues`, issue #7647) — the set
-`health:repair-merged` and the repair-tip proof read. A PR closing one gets
-`base-health` green (the queue admits it), is never labelled `queue:held`
-(`holdsBeforeRed`'s `declaredRepair`), and gets a green `declared-repair`
+reader before the merge — `pr-gate`, `land` and `repair-proof`: the
+standing RED's repair issues plus every still-open one an earlier RED of the
+run recorded (`readRepairRecords`, issue #7139; an unmerged repair's issue
+is still open). `pr-gate` now fails its run when that set cannot be read,
+where it used to read "none declared" and hold the repair silently. A PR
+closing one gets `base-health` green (the queue admits it), which keeps it
+out of `holdsBeforeRed`'s `queue:held`, and a green `declared-repair`
 status that `.mergify.yml`'s priority rule reads: it jumps the queue it
-unblocks, as the ladder's `Revert PR #` title already did. Amendment III's
-hold on every other PR stands; the dispatcher's `red` hold still admits the
-repair pass (`holdAdmitsRepairs`).
+unblocks, as the ladder's `Revert PR #` title already did. A green that no
+longer holds (the RED cleared, the body dropped its closing line) is
+withdrawn as `failure`; an ordinary PR never wears the context. Amendment
+III's hold on every other PR stands; the dispatcher's `red` hold still
+admits the repair pass (`holdAdmitsRepairs`).
 
 ## What would change the answer
 

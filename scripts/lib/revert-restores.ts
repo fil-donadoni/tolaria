@@ -100,24 +100,40 @@ export function revertedCommitsInMessages(messages: string): string[] {
 
 /**
  * Is the diff `base...HEAD` at `root` a **pure revert** (issue #7658)? The
- * commits of the branch (`base..HEAD`) name the reverted commits, and every
- * changed path — `changed`, deleted ones included — is byte-identical to its
- * culprit's parent (`restoresParent`). A hand edit on the branch, on a path
- * the culprit touched or on any other, loses it. Returns the reverted shas,
- * or null when the diff is not a pure revert or anything cannot be read.
+ * commits of the branch (`base..HEAD`) name the reverted commits, none of
+ * which is itself a revert, and every changed path — deleted ones included,
+ * renames split into their two sides — is byte-identical to its culprit's
+ * parent (`restoresParent`). A hand edit on the branch, on a path the
+ * culprit touched or on any other, loses it. Returns the reverted shas, or
+ * null when the diff is not a pure revert or anything cannot be read.
  *
- * Read from git, never a PR body: the queue's draft carries Mergify's body,
- * and the revert commits survive its rebase with their messages.
+ * A revert of a revert ("Reapply …") is refused: its "parent" holds the
+ * culprit's bytes, the very change a RED proved bad. Read from git, never a
+ * PR body: the queue's draft carries Mergify's body, and the revert commits
+ * survive its rebase with their messages.
  */
-export function pureRevertOf(
-    base: string,
-    root: string,
-    changed: readonly string[]
-): string[] | null {
+export function pureRevertOf(base: string, root: string): string[] | null {
+    const git = gitIn(root);
+    // `--no-renames`: a rename would list only its new side, and a deleted
+    // path paired with a similar added one would never be judged.
+    const diff = git([
+        "diff",
+        "-z",
+        "--no-renames",
+        "--name-only",
+        `${base}...HEAD`,
+    ]);
+    if (diff === null) return null;
+    const changed = diff.split("\0").filter((p) => p.length > 0);
     if (changed.length === 0) return null;
-    const log = gitIn(root)(["log", "--format=%B", `${base}..HEAD`]);
+    const log = git(["log", "--format=%B", `${base}..HEAD`]);
     if (log === null) return null;
     const reverted = revertedCommitsInMessages(log);
     if (reverted.length === 0) return null;
+    for (const c of reverted) {
+        const message = git(["log", "-1", "--format=%B", c]);
+        if (message === null || revertedCommitsInMessages(message).length > 0)
+            return null;
+    }
     return restoresParent(reverted, changed, root) ? reverted : null;
 }

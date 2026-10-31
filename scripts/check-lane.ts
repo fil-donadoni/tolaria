@@ -686,8 +686,10 @@ export function classifyLane(
      * The commits the diff is a PURE revert of (issue #7658,
      * `lib/revert-restores.ts` `pureRevertOf`: every changed path back to its
      * culprit's parent), or null. Read from git by the caller, so the plan
-     * builder stays pure. Turns any CODE lane into `revert`; `docs` keeps its
-     * own, already that cheap.
+     * builder stays pure. Turns a scoped code lane (`skin`, `engine`,
+     * `cards`) into `revert`; `docs` keeps its own, already that cheap, and
+     * `full` keeps `check:pr` — a restored dependency or config is a run-time
+     * change `tsc` cannot see.
      */
     pureRevert: readonly string[] | null = null
 ): LanePlan {
@@ -696,8 +698,13 @@ export function classifyLane(
     const classOf = (p: string) => merged.get(p) ?? classifyPath(p);
     const lane = laneFor(files.map(classOf));
 
-    if (lane !== "docs" && pureRevert !== null && pureRevert.length > 0)
-        return revertPlan(files, lane, pureRevert);
+    if (
+        lane !== "docs" &&
+        lane !== "full" &&
+        pureRevert !== null &&
+        pureRevert.length > 0
+    )
+        return revertPlan(files, presentPaths, lane, pureRevert);
 
     if (lane === "full") {
         const bot = botHalf(files, classOf, botReach);
@@ -995,9 +1002,10 @@ export function classifyLane(
  * The `revert` lane (issue #7658, ADR 0156 Amendment VI): a diff whose every
  * changed path is byte-identical to the parent of the commit it reverts puts
  * back bytes that already landed through the gate — the RED ladder's revert
- * of a culprit. It runs the whole type-check alone: the restored files can
- * meet newer neighbours that changed a signature they use, and `tsc` is what
- * sees that in seconds. Whether the revert REPAIRS the RED is the
+ * of a culprit. It runs no test: the whole type-check (the restored files
+ * can meet newer neighbours that changed a signature they use, and `tsc`
+ * sees that in seconds) and the diff's format, lint and `cr:lint` (today's
+ * config and ledger, which may have moved since). Whether the revert REPAIRS the RED is the
  * `repair-proof` check's (`pr-checks.ts`, a `pr-check` job on the PR: the
  * RED's failing tests, re-run), and its tip's GREEN is health's (ADR 0156
  * Amendment V). Anything a newer neighbour breaks at run time is the batch
@@ -1008,28 +1016,42 @@ export function classifyLane(
  */
 function revertPlan(
     files: string[],
+    presentPaths: string[],
     pathLane: DiffLane,
     reverted: readonly string[]
 ): LanePlan {
     const shas = reverted.map((c) => c.slice(0, 12)).join(", ");
     const restored = `every changed path is byte-identical to the parent of the reverted commit (${shas})`;
+    // Seconds each, and they judge the restored bytes against TODAY's
+    // prettier, eslint config and CR ledger, which may have moved since the
+    // culprit's parent landed.
+    const run = [
+        scopedCheck(
+            "format(diff)",
+            "bunx prettier --check",
+            presentPaths.filter((p) => PRETTIER_EXTENSIONS.test(p))
+        ),
+        scopedCheck(
+            "lint(diff)",
+            "bunx eslint --no-warn-ignored",
+            presentPaths.filter((p) => ESLINT_EXTENSIONS.test(p))
+        ),
+        { id: "tsc[all]", command: "bun run check:ts" },
+        { id: "cr:lint", command: "bun run cr:lint" },
+    ].filter((c): c is PlannedCheck => c !== null);
     return {
         lane: "revert",
         rationale: `a pure revert of ${reverted.length} commit(s) — ${files.length} path(s), ${restored}; by its paths it would be ${pathLane}`,
         files,
-        run: [{ id: "tsc[all]", command: "bun run check:ts" }],
+        run,
         skip: [
             {
                 id: "repair-proof",
                 reason: "pr-check's `repair-proof` job on the PR re-runs the standing RED's failing tests (issue #5639); a red one is a land refusal (`.mergify.yml`)",
             },
             {
-                id: "format(diff)+lint(diff)+cr:lint",
-                reason: `${restored} — bytes that passed them when they landed`,
-            },
-            {
                 id: "tests+guards",
-                reason: `${restored}; a newer neighbour broken at run time is the batch gate's (ADR 0154), bisected from the last full GREEN (ADR 0156 Amendment V)`,
+                reason: `${restored} — bytes that passed them when they landed; a newer neighbour broken at run time is the batch gate's (ADR 0154), bisected from the last full GREEN (ADR 0156 Amendment V)`,
             },
         ],
         reverted: [...reverted],
@@ -2515,7 +2537,7 @@ function main(): void {
         defaultBotReach,
         defaultScanGuards,
         defaultSentinels,
-        pureRevertOf(base, cwd, all)
+        pureRevertOf(base, cwd)
     );
 
     // The classification read the tree; assert it is still the tree the
