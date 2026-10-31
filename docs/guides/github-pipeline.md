@@ -866,7 +866,9 @@ job) is written by the next health run before it gates.
    `bunx vitest run <files>`; the blade's specs under
    `vitest.blade.config.ts`). A RED naming no file re-runs its failed step
    (`bun run check:all`, …). Health stops at its first failed step (and
-   `test`'s chain at its first red tier), so when that part passes the
+   `test`'s chain at its first red tier — except the hosted early run,
+   whose `test` step runs every suite without bail so its RED names every
+   failing file, issue #7656), so when that part passes the
    ladder runs **every gate the RED's run never reached** in the same
    worktree (`remainingGates`: after a `test:app` file, `test:bot` and
    `test:blade`; after `check:all`, the guards and `test`). **Not
@@ -1002,7 +1004,15 @@ PR [`base-health`](#g-base-health) admits, and `repair-proof` proves it.
 once the bisect names a culprit the ladder reverts it before any fixer, and
 fix-forward is the reopened issue's ordinary pass; the fixer above runs only
 when the revert conflicts or no culprit is named) reads the culprit off the
-RED's `- **culprit:**` evidence line. In order: the `revert` rung is
+RED's `- **culprit:**` evidence lines. A bisect that named several
+culprits — one per failing-file group, by first red probe — gets **one
+revert PR per culprit**, each with its own repair issue and so its own
+declared repair of the RED (issue #7656): a culprit whose revert conflicts
+with a later culprit shares that culprit's PR (`revertGroups`); every PR is
+on the record (`PR #A,#B`), any that cannot land stops the ladder, all
+landed with the RED standing stops it. A culprit a revert in flight already
+covers — a later RED of the episode naming it again — is never reverted
+twice; only the culprits it adds are. In order: the `revert` rung is
 recorded `attempting`; `git revert` of the culprit off
 the base tip, in a throwaway detached worktree — a conflict (a later PR depends on
 the culprit) pulls in the oldest later commit touching a conflicting path,
