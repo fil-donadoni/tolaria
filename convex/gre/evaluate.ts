@@ -1608,10 +1608,7 @@ function revertedShape(perm: CardInstanceState): CardInstanceState {
 
 /** What one permanent's REMOVAL costs its controller, on `evaluate`'s own
  *  scale — the sum of every term that permanent contributes and that its
- *  destruction takes away (issue #3398). One deliberate split: an expiring
- *  animated body outside its combat window is priced here as a creature,
- *  while the board term no longer counts it as one (`fightsAsCreatureBody`,
- *  issue #7705):
+ *  destruction takes away (issue #3398):
  *
  *   - the flat board-presence weight every permanent carries;
  *   - a CREATURE's realized body (`evaluateCreature`, effective P/T through
