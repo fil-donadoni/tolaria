@@ -197,6 +197,20 @@ describe("resolveCulprit / isGeneratedCommit (issue #7648)", () => {
         expect(r.kind).toBe("none");
     });
 
+    it("attributeMaintenance with filesOf: a maintenance subject touching source stays the culprit", () => {
+        const out = attributeMaintenance(
+            {
+                found: [{ culprit: "b", tests: [CUT] }],
+                unexplained: null,
+                probes: [],
+            },
+            ["a", "b"],
+            (sha) => subjects[sha],
+            (sha) => (sha === "b" ? ["convex/gre/state.ts"] : [])
+        );
+        expect(out.found.map((f) => f.culprit)).toEqual(["b"]);
+    });
+
     it("a maintenance subject touching a source path is not generated; derived paths only is", () => {
         expect(
             isGeneratedCommit(DERIVE_SYNC_COMMIT_SUBJECT, [
