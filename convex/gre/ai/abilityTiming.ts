@@ -222,22 +222,6 @@ function attackDeclarationAhead(state: GameState): boolean {
     return COMBAT_STEPS.has(state.phase) && !!state.extraPhases?.length;
 }
 
-/** Whether `card` is a creature only through an animation that expires THIS
- *  turn (issue #7705): an until-end-of-turn effect ends at cleanup (CR 514.2),
- *  an until-end-of-combat one at the end of combat step (CR 511.3). Read off
- *  the animation record's own duration — the layer system's, never a card
- *  name — so an indefinite animation (CR 611.2b, Earthbend) or one lasting
- *  into a later turn is lasting material and stays outside this reading. */
-export function isExpiringAnimatedBody(card: CardInstanceState): boolean {
-    const duration = card.animation?.duration;
-    return (
-        card.animation?.addedCreatureType === true &&
-        !!duration &&
-        !duration.skip &&
-        (duration.phase === "end-of-turn" || duration.phase === "end-of-combat")
-    );
-}
-
 /** Whether a creature body that reverts this turn ({@link
  *  isExpiringAnimatedBody}) can still attack or block before it does (issue
  *  #7705) — the only thing such a body is worth. Outside such a window its
@@ -249,8 +233,8 @@ export function isExpiringAnimatedBody(card: CardInstanceState): boolean {
  *    * Otherwise a tapped body can neither attack (CR 508.1a) nor block
  *      (CR 509.1a).
  *    * Its controller's own turn: usable while an attack declaration is
- *      still ahead and the body may attack (summoning sickness, CR 302.6,
- *      lifted by haste, CR 702.10b).
+ *      still ahead and the body may attack (continuous control since the
+ *      turn began, CR 508.1a, lifted by haste, CR 702.10b).
  *    * The opponent's turn: usable while a block is still ahead — before
  *      attackers are declared, or after, while blockers are not yet, when the
  *      body can legally block at least one declared attacker (CR 509.1b,
