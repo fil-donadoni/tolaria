@@ -56,6 +56,10 @@ import type {
 import { getPlayer, manaCostForCardFilter } from "./state";
 import { manaCostsEqual } from "./constants";
 import { hasLegalBestowHost } from "./bestow";
+import {
+    canCollectEvidence,
+    withCollectEvidenceExile,
+} from "./collectEvidence";
 import { liveSupertypesOf } from "./snow";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { getDefinition, tryGetDefinition } from "../cards";
@@ -489,6 +493,19 @@ export function canPayAlternativeCost(
     ) {
         return false;
     }
+    // CR 701.59b — a player unable to exile cards with total mana value N or
+    // greater "can't choose to collect evidence", so the variant is never
+    // offered. The cast card itself never counts (CR 601.2a).
+    if (
+        altCost.collectEvidence !== undefined &&
+        !canCollectEvidence(
+            player.graveyard,
+            altCost.collectEvidence,
+            castInstanceId ?? ""
+        )
+    ) {
+        return false;
+    }
     if (altCostHasPermanentLeg(altCost)) {
         const need = altCostPermanentCardinal(altCost);
         // CR 118 — a summed-power THRESHOLD leg has no fixed cardinal and the
@@ -605,6 +622,24 @@ export function castExileCostPickIds(
  *  already taken — CR 118.9a forbids a second alternative cost on a
  *  flashback / escape cast, and no shipped card pairs delve with this leg. */
 export function withAlternativeCostGraveyardExile(
+    player: PlayerState,
+    altCost: (CostLegs & Pick<AlternativeCost, "collectEvidence">) | undefined,
+    castInstanceId: string,
+    existing: PendingCast["exileFromGraveyardChoice"]
+): PendingCast["exileFromGraveyardChoice"] {
+    // CR 701.59a — the COLLECT EVIDENCE leg rides the same picker slot, in its
+    // unpicked `minTotalManaValue` mode (`gre/collectEvidence.ts`).
+    return withCollectEvidenceExile(
+        player.graveyard,
+        altCost,
+        castInstanceId,
+        withPositionalGraveyardExile(player, altCost, castInstanceId, existing)
+    );
+}
+
+/** The positional half of {@link withAlternativeCostGraveyardExile}: the
+ *  `CostLegs.graveyard` exile leg's deterministic top-N pick. */
+function withPositionalGraveyardExile(
     player: PlayerState,
     altCost: CostLegs | undefined,
     castInstanceId: string,
