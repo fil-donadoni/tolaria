@@ -506,7 +506,7 @@ export function applyAlternativeCostPermanentLegForSearch(
  *
  *  No HAND leg branch here: `enumerateKickerVariants` (`gre/kicker.ts`) never
  *  enumerates a caster-chosen hand-leg Kicker combo (fail CLOSED). The one
- *  hand leg a Move CAN carry is escalate's (CR 702.120a, issue #2267), whose
+ *  hand leg a Move CAN carry is escalate's (CR 702.120a), whose
  *  count follows the mode list — {@link applyKickerHandLegsForSearch} pays
  *  it.
  *
