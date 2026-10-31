@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * `bun run prints:sync [--dry-run]` — ADR 0140, issue #4116.
+ * `bun run prints:sync [--dry-run]` — ADR 0140 (Card Prints tables).
  *
  * Reads Scryfall's `default_cards` bulk and keeps every printing of every
  * oracle id with a Card Definition (`data/card-index.json`), except oversized
@@ -9,7 +9,7 @@
  *
  * The printing whose id IS the Card ID gets no `cardPrints` row, but when it
  * links a token its Token Prints go to `definitionTokenPrints`
- * (`cardPrints:upsertDefinitionTokensBatch`, issue #4120) — the row an object
+ * (`cardPrints:upsertDefinitionTokensBatch`) — the row an object
  * on its default printing resolves its tokens through.
  *
  * Two modes:
@@ -23,8 +23,8 @@
  *                                      bytes, WRITES NOTHING (no Convex call
  *                                      at all).
  *
- * Bootstrap flags (issue #5414 — empty or stale tables make a token render
- * the placeholder, silently):
+ * Bootstrap flags (empty or stale tables make a token render the
+ * placeholder, silently):
  *
  *   --if-stale    skip (before the Scryfall download) when both tables have
  *                 rows AND the last successful sync recorded the CURRENT
