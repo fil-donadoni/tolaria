@@ -355,11 +355,17 @@ export type CompiledStaticEffect =
      * source's `chosenName` (the as-enters `name` choice, CR 614.12a) locks
      * every spell bearing that name, for every caster. Read-time, like the
      * hand-written `cast-restriction` it rebuilds into.
+     *
+     * CR 601.3 / 102.1 — `opponentsDuringControllersTurn` replaces the name
+     * lock with "Your opponents can't cast spells during your turn": every
+     * spell, cast by an opponent of the source's controller, while that
+     * controller is the active player.
      */
     | {
           readonly kind: "cast-restriction";
           readonly id: string;
           readonly oracleText: string;
+          readonly opponentsDuringControllersTurn?: true;
       }
     /**
      * CR 502.3 — an untap-step lock: "Islands don't untap during their
@@ -820,6 +826,18 @@ export function resolveCompiledStatic(
                 oracleText: descriptor.oracleText,
             };
         case "cast-restriction":
+            if (descriptor.opponentsDuringControllersTurn === true)
+                return {
+                    kind: "cast-restriction",
+                    id: descriptor.id,
+                    oracleText: descriptor.oracleText,
+                    // CR 601.3 / 102.1 — a view built without an active
+                    // player names no turn, so it imposes no lock.
+                    forbids: (caster, _spell, source, state) =>
+                        caster !== source.controllerId &&
+                        state.activePlayerId !== undefined &&
+                        state.activePlayerId === source.controllerId,
+                };
             return {
                 kind: "cast-restriction",
                 id: descriptor.id,

@@ -2333,6 +2333,12 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // state.cannotPlayLandsThisTurn (asserted below).
             analysePlayer(op.player, req, false);
             return;
+        case "grantExtraLandDrops":
+            // CR 305.2 (issue #7220) — turn-scoped additional land plays for
+            // a player; the deterministic outcome is the player's grant
+            // landing in state.extraLandDropsThisTurn (asserted below).
+            analysePlayer(op.player, req, false);
+            return;
         case "skipDrawStepThisTurn":
             // CR 504.1 (issue #1097 — Elfhame Sanctuary) — a one-shot
             // draw-step-skip flag on a player; the deterministic outcome is
@@ -3447,6 +3453,28 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: locked && !wasLocked,
                     detail: `locked=${locked} (was ${wasLocked})`,
+                };
+            },
+        };
+    },
+    // `grantExtraLandDrops` (CR 305.2, issue #7220) — a deterministic
+    // same-resolution state change: the named player's extra land plays this
+    // turn grow by exactly `count`. Asserted directly.
+    grantExtraLandDrops(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "grantExtraLandDrops" }>;
+        const pid = assertionPlayerId(op.player);
+        const drops = (s: typeof pre) =>
+            (s.extraLandDropsThisTurn ?? [])
+                .filter((e) => e.playerId === pid)
+                .reduce((n, e) => n + e.count, 0);
+        const before = drops(pre);
+        return {
+            label: `grantExtraLandDrops grants player ${pid} ${op.count} more land play(s) this turn`,
+            check: (post) => {
+                const after = drops(post);
+                return {
+                    ok: after === before + op.count,
+                    detail: `drops=${after} (was ${before})`,
                 };
             },
         };

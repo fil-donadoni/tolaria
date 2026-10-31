@@ -3044,6 +3044,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Impose a turn-scoped per-player "can\'t play lands" restriction (CR 305.1 / 101.2 / 514.2, issue #2145 — Turf Wound: "target player can\'t play lands this turn"). A thin declarative skin over the single SpellContext primitive `restrictLandPlay`, one execution path (ADR 0045): `player` names whom to lock. Adds the player id to `state.cannotPlayLandsThisTurn`, read by `getLegalActions` as its own conjunct independent of the land-drop count (CR 101.2: the "can\'t" beats a later extra-drop allowance) and by the resolve-time land-play primitives; cleared at CLEANUP (CR 514.2), surviving END_OF_COMBAT. It does NOT stop lands entering the battlefield by other means (CR 305.4). No UI mirror: the client consumes the projected legal actions.',
     },
     {
+        op: "grantExtraLandDrops",
+        status: "implemented",
+        cr: "305.2",
+        binding: "SpellContext.grantExtraLandDrops",
+        note: 'Grant a player additional land plays for the rest of this turn (CR 305.2 / 514.2, issue #7220 — Explore: "You may play an additional land this turn"). A thin declarative skin over the single SpellContext primitive `grantExtraLandDrops`, one execution path (ADR 0045): `player` names the grantee, `count` (a positive integer) how many more plays. Appends an entry to `state.extraLandDropsThisTurn`, read by the ONE land-drop counter `getExtraLandDrops` (`gre/rules.ts`) beside the battlefield `extraLandDrops` static (Exploration, Fastbond) — so `getLegalActions`, the during-resolution land play and the Bot\'s move enumeration inherit it with no per-site wiring. The floating twin of that static: it outlives the spell that granted it and ends at CLEANUP (CR 514.2). Additive — two grants are two plays. Does NOT lift `restrictLandPlay` (CR 101.2: the "can\'t" wins) and does not put a land onto the battlefield (CR 305.4).',
+    },
+    {
         op: "skipDrawStepThisTurn",
         status: "implemented",
         cr: "504.1, 500.8",

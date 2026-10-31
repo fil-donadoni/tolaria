@@ -57,7 +57,6 @@ export const manifoldKey = defineCard(() => ({
 // `any` ORs "artifact spells" with "colorless spells" — two different filter
 // fields. Colorless = none of the five colours (CR 105.2c).
 // CR 701.13 / 119.4 — "{T}, Pay 1 life: Exile the top card of your library."
-// compiler-gap: "You may look at the top card of your library any time." (#7220)
 // hand-tail: "You may cast artifact spells and colorless spells from the top of your library." (#7241)
 export const mysticForge = defineCard(() => ({
     id: "924a24e7-91b8-4ceb-a136-7a765d98c994",

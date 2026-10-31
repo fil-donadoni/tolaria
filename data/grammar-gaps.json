@@ -1992,7 +1992,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › Spells you cast from anywhere other than your hand cost {…} less to cast",
-            "issue": 7220
+            "issue": 7642
         },
         {
             "kind": "grammar",

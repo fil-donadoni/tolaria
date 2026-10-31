@@ -4276,6 +4276,16 @@ const OP_SCHEMAS: OpSchemaTable = {
     // CR 305.1 / 101.2 (issue #2145) — a turn-scoped per-player "can't play
     // lands" lock (Turf Wound). `player` names whom to lock.
     restrictLandPlay: { required: { player: isPlayerRef } },
+    // CR 305.2 (issue #7220) — turn-scoped additional land plays. `count` is
+    // a positive integer: zero grants nothing, so it would validate an inert
+    // script.
+    grantExtraLandDrops: {
+        required: {
+            player: isPlayerRef,
+            count: (v: unknown) =>
+                typeof v === "number" && Number.isInteger(v) && v >= 1,
+        },
+    },
     // CR 504.1 (issue #1097 — Elfhame Sanctuary) — a one-shot per-player
     // "skip your draw step this turn" flag. `player` names whose draw step
     // to skip.
