@@ -443,6 +443,7 @@ export type {
     PileChoiceNotice,
 } from "./state/declarations";
 import type {
+    CastFromZone,
     Duration,
     DurationTickView,
     CardInstanceState,
@@ -19181,7 +19182,7 @@ export function buildSpellContext(
             // cast-during-resolution (Malcolm, issue #1477) can branch on
             // whether the caster must choose targets. Zone-broad (issue #1477).
             const owner = getPlayer(state, casterId);
-            const found = findOwnedCastSource(owner, cardInstanceId);
+            const found = findCastSource(state, owner, cardInstanceId);
             const cardId = found
                 ? (found.card.card as { id?: string }).id
                 : undefined;
@@ -19205,7 +19206,14 @@ export function buildSpellContext(
             // in the parameter's type at all — a hand card has no public
             // identity to disclose (CR 402.1), so the question is
             // unrepresentable rather than a branch returning `undefined`.
-            const owner = getPlayer(state, playerId);
+            // CR 400.1 — exile is ONE shared zone, kept here as a pile per
+            // owner, so a cast during resolution may reach any player's pile.
+            const owner = castZoneOwner(
+                state,
+                getPlayer(state, playerId),
+                cardInstanceId,
+                zone
+            );
             const found = owner[zone].find((c) => c.id === cardInstanceId);
             if (!found) return undefined;
             // The SHARED predicate (`gre/faceDown.ts`), not a fourth copy of
@@ -19230,7 +19238,15 @@ export function buildSpellContext(
             // at all. An `includesLand` grant (Hideaway) checks this AFTER
             // the offer was already accepted — the presence-channel fix — so
             // a false there means the accept silently fails instead.
-            const owner = getPlayer(state, playerId);
+            // CR 400.1 — exile is shared: the card may sit in another
+            // player's pile (a cast during resolution from an opponent's
+            // exile, `castZoneOwner`).
+            const owner = castZoneOwner(
+                state,
+                getPlayer(state, playerId),
+                cardInstanceId,
+                sourceZone
+            );
             const found = owner[sourceZone].find(
                 (c) => c.id === cardInstanceId
             );
@@ -19299,7 +19315,15 @@ export function buildSpellContext(
             // or the opponent reads land-ness off whether an offer appeared
             // at all (the presence channel `OFFER_PROMPT`'s byte-identical
             // wording does not close).
-            const owner = getPlayer(state, playerId);
+            // CR 400.1 — exile is shared: the card may sit in another
+            // player's pile (a cast during resolution from an opponent's
+            // exile, `castZoneOwner`).
+            const owner = castZoneOwner(
+                state,
+                getPlayer(state, playerId),
+                cardInstanceId,
+                sourceZone
+            );
             const found = owner[sourceZone].find(
                 (c) => c.id === cardInstanceId
             );
@@ -19368,7 +19392,7 @@ export function buildSpellContext(
             if (!def) return 0;
             // Zone-broad (issue #1477) — a graveyard/exile-sourced cast reads
             // its cost modifiers off the instance wherever it currently sits.
-            const handCard = findOwnedCastSource(owner, cardInstanceId)?.card;
+            const handCard = findCastSource(state, owner, cardInstanceId)?.card;
             if (!handCard) return 0;
             const subs = getManaSubstitutions(state, controllerId);
             const sources = buildAutoTapSources(
@@ -19429,7 +19453,7 @@ export function buildSpellContext(
             const owner = getPlayer(state, casterId);
             // Zone-broad (issue #1477) — enumerate targets for a card cast from
             // hand (Word of Command) or graveyard/exile (cast-during-resolution).
-            const found = findOwnedCastSource(owner, cardInstanceId);
+            const found = findCastSource(state, owner, cardInstanceId);
             return getLegalTargets(
                 state,
                 requirement,
@@ -19473,9 +19497,16 @@ export function buildSpellContext(
             const free = opts?.free ?? false;
 
             const owner = getPlayer(state, controllerId);
-            const handCard = owner[sourceZone].find(
-                (c) => c.id === cardInstanceId
-            );
+            // CR 400.1 — exile is shared, kept as a pile per owner: a cast
+            // during resolution may take it from an opponent's (Crabomination);
+            // mana and sacrifices still come from `owner`, the caster.
+            // `commitCast` removes it from the same zone owner.
+            const handCard = castZoneOwner(
+                state,
+                owner,
+                cardInstanceId,
+                sourceZone
+            )[sourceZone].find((c) => c.id === cardInstanceId);
             if (!handCard) return false; // not in source zone — no-op (CR 608.2b)
 
             const cardId = (handCard.card as { id?: string }).id;
@@ -19687,6 +19718,54 @@ export function buildSpellContext(
  *  mover via `exileFaceDownCard` rather than gating it.) */
 const PUBLIC_ZONES = new Set<Zone>(["battlefield", "graveyard", "exile"]);
 
+/** CR 601.3 / 400.7 (issue #1156) — the player whose zone actually holds a
+ *  card being cast/played, which may differ from the CASTER (`player`) for a
+ *  cross-player exile grant (Robber of the Rich, Dauthi Voidwalker) or a
+ *  cast during resolution from an opponent's exile (Crabomination, CR
+ *  608.2g — the `castDuringResolution` getters below). Every
+ *  other cast zone (hand, graveyard) is always the caster's own — Flashback /
+ *  Escape / the broad graveyard-cast permission all read from the caster's
+ *  OWN graveyard, no cross-player graveyard-cast primitive exists — so this
+ *  only ever redirects for `zone === "exile"`. Falls back to `player` when
+ *  the card isn't found in any exile (defensive; callers have already located
+ *  the card via `locateCastSource` / `findCastableExileCard`, so this should
+ *  always resolve for a real cast). Exported so the cross-player cast-commit
+ *  integration test can drive the exact removal the mutation performs (no
+ *  convex-test harness in this repo — mirrors `locateCastSource` /
+ *  `castRawManaCost`, issue #944 pattern). */
+export function castZoneOwner(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string,
+    zone: CastFromZone
+): PlayerState {
+    if (zone !== "exile") return player;
+    return (
+        state.players.find((p) =>
+            p.exile.some((c) => c.id === cardInstanceId)
+        ) ?? player
+    );
+}
+
+/** `findOwnedCastSource`, widened to a card sitting in ANOTHER player's exile
+ *  (CR 400.1 — exile is shared, kept as a pile per owner, `castZoneOwner`):
+ *  the cast-during-resolution getters read a chosen card's definition and
+ *  cost modifiers wherever it sits, and Crabomination's free cast picks from
+ *  the opponent's exile. The caster's own zones are searched first. */
+function findCastSource(
+    state: GameState,
+    caster: PlayerState,
+    cardInstanceId: string
+):
+    | { card: CardInstanceState; zone: "hand" | "graveyard" | "exile" }
+    | undefined {
+    const own = findOwnedCastSource(caster, cardInstanceId);
+    if (own) return own;
+    const exileOwner = castZoneOwner(state, caster, cardInstanceId, "exile");
+    const found = exileOwner.exile.find((c) => c.id === cardInstanceId);
+    return found ? { card: found, zone: "exile" } : undefined;
+}
+
 /** CR 608.2f (issue #1477) — the zones a card can be cast from that the
  *  controlled-cast / cast-during-resolution getters search. Instance ids are
  *  unique across a player's zones, so the search order is immaterial. */
@@ -19722,7 +19801,7 @@ function getHandCardDef(
     cardInstanceId: string
 ): CardDefinition | undefined {
     const owner = getPlayer(state, playerId);
-    const found = findOwnedCastSource(owner, cardInstanceId);
+    const found = findCastSource(state, owner, cardInstanceId);
     const cardId = found ? (found.card.card as { id?: string }).id : undefined;
     return (cardId ? tryGetDefinition(cardId) : undefined) ?? undefined;
 }

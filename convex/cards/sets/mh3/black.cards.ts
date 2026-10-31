@@ -7,6 +7,7 @@ import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { adaptAbility } from "../../abilities/adapt";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { counterAddedTrigger } from "../../abilities/triggers/counterAddedTrigger";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Nethergoyf — {B} Creature — Lhurgoyf, printed */1+*.
 // "Nethergoyf's power is equal to the number of card types among cards in your
@@ -196,6 +197,116 @@ export const emperorOfBones = defineCard(() => ({
             n: 2,
             cost: { X: 1, B: 1 },
             costLabel: "{1}{B}",
+        }),
+    ],
+}));
+
+// Crabomination — {4}{B}{B} Creature — Crab Demon 5/5.
+// "Emerge from artifact {5}{B}{B}" — CR 702.119b, the "emerge from [quality]"
+// variant: the alternative cost sacrifices an ARTIFACT permanent (creature or
+// not) and is reduced by its mana value. The whole cost half is the
+// `CardDefinition.emerge` data shape (engine infra, issue #3218,
+// `convex/gre/emerge.ts`).
+// ETB — the three exiles happen even when a zone is empty (CR 609.3: as much
+// as possible). Each random pick is one draw of the seeded PRNG
+// (`selectAtRandom`, issue #1702). "You may cast a spell from among cards
+// exiled this way" narrows the pick to the three cards this resolution exiled
+// (`choice.candidates`) and never a land (a land is played, not cast — CR
+// 305.9); the cast happens during resolution (CR 608.2g), at most one spell,
+// from the OPPONENT's exile.
+// hand-tail: "Emerge from artifact {5}{B}{B}" (#7594)
+// hand-tail: "When this creature enters, target opponent exiles the top card of their library, a card at random from their graveyard, and a card at random from their hand. You may cast a spell from among cards exiled this way without paying its mana cost." (#7594)
+export const crabomination = defineCard(() => ({
+    id: "f328d6e0-d808-4abe-b6a2-cc557b27c329", // MH3
+    name: "Crabomination",
+    rarity: "rare",
+    oracleText:
+        "Emerge from artifact {5}{B}{B} (You may cast this spell by sacrificing an artifact and paying the emerge cost reduced by that artifact's mana value.)\nWhen this creature enters, target opponent exiles the top card of their library, a card at random from their graveyard, and a card at random from their hand. You may cast a spell from among cards exiled this way without paying its mana cost.",
+    manaCost: { X: 4, B: 2 },
+    emerge: {
+        id: "emerge",
+        description: "Emerge from artifact {5}{B}{B}",
+        mana: { X: 5, B: 2 },
+        permanent: {
+            action: "sacrifice" as const,
+            count: 1,
+            filter: { types: "Artifact" as const },
+        },
+    },
+    types: ["Creature"],
+    subtypes: ["Crab", "Demon"],
+    power: 5,
+    toughness: 5,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "crabomination-etb-exile-and-cast",
+            oracleText:
+                "When this creature enters, target opponent exiles the top card of their library, a card at random from their graveyard, and a card at random from their hand. You may cast a spell from among cards exiled this way without paying its mana cost.",
+            scope: "self",
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [
+                {
+                    op: "exileTopOfLibrary",
+                    player: { target: 0 },
+                    count: 1,
+                    bindAll: "$fromLibrary",
+                },
+                {
+                    op: "selectAtRandom",
+                    zone: "graveyard",
+                    zoneOwnerId: { target: 0 },
+                    count: 1,
+                    bind: "$fromGraveyard",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$fromGraveyard" },
+                    player: { target: 0 },
+                    from: "graveyard",
+                    to: "exile",
+                },
+                {
+                    op: "selectAtRandom",
+                    zone: "hand",
+                    zoneOwnerId: { target: 0 },
+                    count: 1,
+                    bind: "$fromHand",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$fromHand" },
+                    player: { target: 0 },
+                    from: "hand",
+                    to: "exile",
+                },
+                {
+                    op: "choice",
+                    kind: "choose-exile-card",
+                    player: "controller",
+                    zone: "exile",
+                    zoneOwnerId: { target: 0 },
+                    candidates: [
+                        { ref: "$fromLibrary" },
+                        { ref: "$fromGraveyard" },
+                        { ref: "$fromHand" },
+                    ],
+                    filter: { excludeType: "Land" },
+                    count: 1,
+                    prompt: "Choose a card exiled this way to cast without paying its mana cost.",
+                    bind: "$toCast",
+                },
+                {
+                    op: "castDuringResolution",
+                    card: { ref: "$toCast" },
+                    player: "controller",
+                    source: "exile",
+                    free: true,
+                },
+            ],
         }),
     ],
 }));
