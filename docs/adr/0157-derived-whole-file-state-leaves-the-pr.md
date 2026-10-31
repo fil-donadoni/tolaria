@@ -246,3 +246,20 @@ GREEN promotes — and past it RED at step `derive:sync`, the writer's failure
 named as such. The intent is kept by the predicate instead of by a red gate.
 Guarded by `scripts/__tests__/health-release-steps.test.ts` (batch and
 `--release`, driven for real).
+
+## Amendment II (issue #7653, 2026-10-31) — the Bot's refit artefacts are derived state
+
+The Bot's refit output — the fitted eval weights and the pins `bot:refit`
+records (`REFIT_ARTIFACT_PATHS`, `scripts/lib/bot-refit.ts`) — is not
+tree-wide by content but by churn: every Bot PR refits, and in the week to
+2026-10-31 20 of 27 rebase conflicts were on these files. They join
+`DERIVED_PATHS` with the same remedy as the catalogue: `derive:sync` refits on
+the base as step 0 of its write path (`bot:refit --derive`, before the drift
+sweep plays), `derive:regenerate` refits in every draft, `land:ready`
+restores them whole, `check:derived-in-diff` refuses a diff that moves one,
+and the queue fixup's `derived` row (`derive:restore`) cures that red. The
+fitted vector moved out of `evalWeights.ts` into the whole generated file
+`fittedEvalWeights.ts` so the PR's types and the base's numbers never share
+a file. `--settled` adds `bot:refit --check`: a lag is **stale** (the base's
+tests read these files), never late. The Weight Fit's reproducibility guard
+(ADR 0124 §3) is unchanged and byte-exact on the base's commit.
