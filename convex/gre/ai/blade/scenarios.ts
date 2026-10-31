@@ -7812,7 +7812,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2],
+        // Issue #7705 — re-seeded off 0xb1ade: that seed settles by
+        // `material-tiebreak` (noise) even on the pre-refit weights, and the
+        // refit the issue's pairs owe flips it (and seed 18 of 0–19). Seeds
+        // 1–3 settle by `mean-reward` under both vectors. Follow-up: issue #7713.
+        seeds: [1, 2, 3],
         tier: "must",
         expect: {
             moves: [
