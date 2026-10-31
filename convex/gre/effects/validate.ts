@@ -4684,6 +4684,10 @@ const OP_SCHEMAS: OpSchemaTable = {
             // ("return it to the battlefield. It's an enchantment."), valid
             // only on the `target` shape with `to: "battlefield"`.
             entersAs: isEntryTypeLine,
+            // issue #1372 — counters the returning permanent is given AS it
+            // enters ("with a -1/-1 counter on it", Persist, CR 122.6), valid
+            // only on the `target` shape with `to: "battlefield"`.
+            entersWithCounters: isCountersMap,
             // CR 303.4f — the host a returning Aura enters attached to, valid
             // only on the `target` shape with `to: "battlefield"`.
             attachTo: isObjectSelector,
@@ -4902,6 +4906,17 @@ const OP_SCHEMAS: OpSchemaTable = {
             ) {
                 errors.push(
                     'field "entersAs" is only valid with "target" and to: "battlefield" (issue #2993)'
+                );
+            }
+            // issue #1372 — `entersWithCounters` rides the same reanimation
+            // branch (`returnToBattlefield`'s `entryCounters`) and nothing else
+            // consumes it.
+            if (
+                "entersWithCounters" in entry &&
+                (!hasTarget || entry.to !== "battlefield")
+            ) {
+                errors.push(
+                    'field "entersWithCounters" is only valid with "target" and to: "battlefield" (issue #1372)'
                 );
             }
             // CR 303.4f — `attachTo` rides the same reanimation branch as
