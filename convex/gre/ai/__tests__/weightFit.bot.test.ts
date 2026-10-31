@@ -50,6 +50,7 @@ import {
 } from "./committedVerdictCorpus.fixture";
 import { BLADE_SCENARIOS } from "../blade/registry";
 import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../evalWeights";
+import { representativeVictimLoss } from "../representativeVictim";
 import {
     EVAL_WEIGHTS_PATH,
     FITTABLE_WEIGHT_KEYS,
@@ -173,15 +174,22 @@ describe("fitWeights — the contract (issue #3401)", () => {
     });
 
     it("moves only the weights the pair loads — the others EXACTLY unchanged", () => {
+        // An UNBANDED key: a banded one drags its partner (the next test).
         const result = fitWeights(
-            [pairLoading("removal", { "latent.boardRemoval": 1 }, -300)],
+            [
+                pairLoading(
+                    "card-advantage",
+                    { "latent.cardAdvantage": 1 },
+                    -300
+                ),
+            ],
             FIT_BASE_EVAL_WEIGHTS
         );
-        expect(result.weights.latent.boardRemoval).toBeGreaterThan(
-            FIT_BASE_EVAL_WEIGHTS.latent.boardRemoval
+        expect(result.weights.latent.cardAdvantage).toBeGreaterThan(
+            FIT_BASE_EVAL_WEIGHTS.latent.cardAdvantage
         );
         for (const key of FITTABLE_WEIGHT_KEYS) {
-            if (key === "latent.boardRemoval") continue;
+            if (key === "latent.cardAdvantage") continue;
             expect(weightValue(result.weights, key)).toBe(
                 weightValue(FIT_BASE_EVAL_WEIGHTS, key)
             );
@@ -285,6 +293,22 @@ describe("fitWeights — the contract (issue #3401)", () => {
         const gap = result.weights.manaWeight - result.weights.tappedManaWeight;
         expect(gap).toBeGreaterThanOrEqual(1);
         expect(gap).toBeLessThanOrEqual(5.75);
+    });
+
+    it("keeps a removal unit cheaper than the representative victim it takes off", () => {
+        // Issue #3322: a removal spell in hand priced above the permanent it
+        // destroys makes announcing it a loss. A pair pushing the unit as hard
+        // as the trust region allows is what the band must hold.
+        const result = fitWeights(
+            [pairLoading("removal", { "latent.boardRemoval": 1 }, -300)],
+            FIT_BASE_EVAL_WEIGHTS
+        );
+        expect(result.weights.latent.boardRemoval).toBeGreaterThan(
+            FIT_BASE_EVAL_WEIGHTS.latent.boardRemoval
+        );
+        expect(result.weights.latent.boardRemoval).toBeLessThanOrEqual(
+            representativeVictimLoss(result.weights) - 1 + 1e-6
+        );
     });
 
     it("never prices a weight below zero, however hard a pair pushes", () => {

@@ -93,6 +93,7 @@
 // about the corpus, not about the weights.
 
 import type { EvalWeights, LatentWeights } from "../evalWeights";
+import { REPRESENTATIVE_VICTIM_BODY } from "../representativeVictim";
 import {
     FITTABLE_WEIGHT_KEYS,
     weightValue,
@@ -246,6 +247,23 @@ const FIT_BANDS: readonly {
         b: "tappedManaWeight",
         min: 1,
         max: 1.5,
+    },
+    {
+        // A removal spell in hand is worth LESS than the permanent it takes
+        // off the board, or announcing it is a loss and the search passes
+        // (issue #3322). A single-target removal's latent worth is
+        // `latent.boardRemoval × victimLoss / representativeVictimLoss`
+        // (`latentBoard.ts`), so that holds for EVERY victim exactly when one
+        // `boardRemoval` unit costs less than the representative victim's own
+        // realised loss, `REPRESENTATIVE_VICTIM_BODY + permanentWeight`. The
+        // ceiling keeps it one margin point under that, the same judgement
+        // as the floor above. Not binding at the prior; a refit pushing the
+        // unit past its own victim reaches it. No floor: only the ceiling is
+        // the invariant, and the sign floor already keeps the unit positive.
+        a: "latent.boardRemoval",
+        b: "permanentWeight",
+        min: -Infinity,
+        max: REPRESENTATIVE_VICTIM_BODY - 1,
     },
 ];
 
