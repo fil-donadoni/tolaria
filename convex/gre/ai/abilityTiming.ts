@@ -341,7 +341,8 @@ function selfAnimateOp(
  *      to a clone through the engine's animation primitive, and eligibility
  *      through `validateBlockerEligibility`, never a hand-rolled check.
  *      Before attackers are declared the animation is deferrable: the
- *      defender gets priority again in the declare-attackers step (CR 117.3a)
+ *      defender gets priority again in the declare-attackers step (CR 117.3a,
+ *      117.3d)
  *      and can animate then with full information. The deterrence value of
  *      animating at beginning of combat is deliberately NOT credited.
  *
