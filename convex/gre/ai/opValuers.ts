@@ -1431,8 +1431,9 @@ function contingentBindingWeight(op: EffectOp, scope: ScriptScope): number {
  *  is never cast while the predicate is false (issue #5045). The win needs no
  *  latent proxy — when the predicate holds, the search resolves the real
  *  `if` through the GRE and `evaluate` scores the resulting `gameOver`. The
- *  rest of the branch keeps the default certain reading; an unconditional
- *  top-level `winGame` is untouched. */
+ *  rest of the branch keeps the default certain reading. Only the `if`
+ *  construct is covered: a win gated by a triggered ability's own
+ *  `condition` is read on the trigger path, not here. */
 function withoutConditionalWin(branch: readonly EffectOp[]): EffectOp[] {
     return branch.filter((o) => o.op !== "winGame");
 }
@@ -3493,7 +3494,7 @@ export function valueOp(
                 ctx,
                 scope
             );
-            // Issue #4470 — the ONE exception to "assume the effect happens":
+            // Issue #4470 — the probability exception to "assume the effect happens":
             // a branch gated on a `coinFlipSeries` landing at zero losses is
             // not certain, it is `0.5 ** count` (CR 705.1), and pricing it as
             // certain is what made Squee's Revenge's static hand-value beat
