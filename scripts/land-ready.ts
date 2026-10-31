@@ -67,6 +67,7 @@ import {
     type RunResult,
 } from "./check-lane";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
+import { pureRevertOf } from "./lib/revert-restores";
 import {
     buildReceipt,
     measureDrift,
@@ -630,11 +631,17 @@ function preQueueGate(
     const refusals = landRefusals({ cwd, prBody }, console.log);
     const all = changedPaths(ORIGIN_BASE, cwd, true);
     const present = changedPaths(ORIGIN_BASE, cwd, false);
+    // A pure revert (issue #7658) plans the `revert` lane here as in the
+    // queue: `tsc` alone, and no proof receipt owed (it adds no test).
     const plan = classifyLane(
         all,
         present,
         undefined,
-        contentClasses(all, ORIGIN_BASE, cwd)
+        contentClasses(all, ORIGIN_BASE, cwd),
+        undefined,
+        undefined,
+        undefined,
+        pureRevertOf(ORIGIN_BASE, cwd, all)
     );
     // Issue #7655 — land:ready's own refusal, not a `pr-checks` one: the
     // queue never reads the receipt. The head this run judges (its rebase or

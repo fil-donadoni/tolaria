@@ -33,7 +33,7 @@ import { join } from "node:path";
 import { evidenceFiles, failingFiles } from "./lib/health-evidence";
 import { FAILED_LABEL, HELD_LABEL, READY_LABEL } from "./lib/land-labels";
 import { lastRequeueSince, type PrComment } from "./lib/land-requeue";
-import { pivotRepairIssues } from "./lib/health-pivot";
+import { readRunRepairIssues } from "./lib/health-pivot";
 import {
     githubEvidenceStore,
     githubVerdictStore,
@@ -46,6 +46,7 @@ import {
 import {
     BASE_HEALTH_CONTEXT,
     baseHealthStatus,
+    declaredRepairStatus,
     gatePrOf,
     heldPrAction,
     holdsBeforeRed,
@@ -238,16 +239,29 @@ function main(): number {
     const lineage = readVerdictLineage(() => githubVerdictStore({ repo, run }));
     if (lineage.error)
         console.log(`pr-gate: verdict store unreadable (${lineage.error})`);
-    const repairIssues = lineageBlocks(lineage.kind)
-        ? pivotRepairIssues(ROOT, { run })
-        : [];
+    // The repair issues of EVERY RED of the run, closed ones included (issue
+    // #7658, `readRunRepairIssues`): one "declared repair" for base-health,
+    // the hold and the queue priority alike. Unreadable → none, and the run
+    // reds: a repair is then held like any PR until a sweep reads it.
+    let repairIssues: number[] = [];
+    let failed = lineage.error ? 1 : 0;
+    if (lineageBlocks(lineage.kind)) {
+        try {
+            repairIssues = readRunRepairIssues(ROOT, { run });
+        } catch (e) {
+            failed++;
+            console.error(
+                `pr-gate: the repair issues could not be read (${(e as Error).message})`
+            );
+        }
+    }
     console.log(
         `pr-gate: health lineage ${lineage.kind}${lineage.verdict ? ` @ ${lineage.verdict.sha.slice(0, 8)}` : ""}; ${trusted.length} trusted author(s); ${prs.length} PR(s)`
     );
 
-    // A store that cannot be read posts `pending` and reds the run, so the
-    // outage shows on the Actions tab; the scheduled sweep decides again.
-    let failed = lineage.error ? 1 : 0;
+    // A store that cannot be read posts `pending` and reds the run (`failed`
+    // above), so the outage shows on the Actions tab; the scheduled sweep
+    // decides again.
     const show = (pr: number, sha: string, s: GateStatus) =>
         console.log(
             `PR #${pr} @ ${sha.slice(0, 8)}: ${s.context} ${s.state} — ${s.description}`
@@ -270,6 +284,13 @@ function main(): number {
                 }),
         ];
         const labels = (raw.labels ?? []).map((l) => l.name);
+        // Under a RED, the declared repair's priority status (issue #7658):
+        // posted after `base-health`, and it exempts the PR from the hold.
+        const repairStatus = declaredRepairStatus({
+            lineage,
+            pr: gatePrOf(raw, []),
+            repairIssues,
+        });
         const edit = (args: string[]): void => {
             if (dryRun) return;
             try {
@@ -296,6 +317,7 @@ function main(): number {
                         labels,
                         baseHealth: s.state,
                         trustedAuthor: posted.get(TRUSTED_AUTHOR_CONTEXT),
+                        declaredRepair: repairStatus !== null,
                     })
                 ) {
                     console.log(
@@ -313,6 +335,16 @@ function main(): number {
                 }
                 if (!dryRun) post(run, repo, raw.head.sha, s, targetUrl);
                 posted.set(s.context, s.state);
+            } catch (e) {
+                failed++;
+                console.error(`PR #${raw.number}: ${(e as Error).message}`);
+            }
+        }
+        if (repairStatus !== null) {
+            try {
+                show(raw.number, raw.head.sha, repairStatus);
+                if (!dryRun)
+                    post(run, repo, raw.head.sha, repairStatus, targetUrl);
             } catch (e) {
                 failed++;
                 console.error(`PR #${raw.number}: ${(e as Error).message}`);

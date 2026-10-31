@@ -99,6 +99,7 @@ import { laneFlakeOf, planLaneRetry, type LaneFlake } from "./lib/health-retry";
 import { matchesBotGlob } from "./lib/bot-globs";
 import { TREE_ROLE_ENV } from "./lib/derived-state";
 import { REFIT_ARTIFACT_PATHS } from "./lib/bot-refit";
+import { pureRevertOf } from "./lib/revert-restores";
 import {
     LANE_FORCE_ENV,
     LANE_VERDICT_DIR,
@@ -189,7 +190,15 @@ const defaultScanGuards = () =>
 // Path classification
 // ─────────────────────────────────────────────────────────────────────────
 
-export type Lane = "skin" | "engine" | "cards" | "docs" | "full";
+/** The lanes a diff's PATHS decide (`laneFor`). */
+export type DiffLane = "skin" | "engine" | "cards" | "docs" | "full";
+
+/**
+ * Every lane a plan can carry: the path-decided ones, and `revert` — a code
+ * diff that is a PURE revert (issue #7658, `revertPlan`), decided by git
+ * history on top of the paths, never by a flag.
+ */
+export type Lane = DiffLane | "revert";
 
 /**
  * What a single changed path admits. `full` is the fail-closed default.
@@ -198,7 +207,7 @@ export type Lane = "skin" | "engine" | "cards" | "docs" | "full";
  * rides with whatever code regenerated it — `cards` beside a card definition,
  * `engine` on its own or beside any other engine path (ADR 0136 §3/§4).
  */
-export type PathClass = Lane | "data";
+export type PathClass = DiffLane | "data";
 
 /**
  * Paths that force the full gate no matter what else is in the diff. Every
@@ -469,7 +478,7 @@ export function ledgerCompanionOverrides(
  * narrower lane is reached only through an affirmative predicate over ALL
  * paths. There is no `else` chain whose order decides safety.
  */
-export function laneFor(classes: PathClass[]): Lane {
+export function laneFor(classes: PathClass[]): DiffLane {
     // An empty diff is almost always a wrong base ref or a detached HEAD,
     // not a genuinely empty change — and "nothing changed" is precisely the
     // shape that would make a narrowed gate look green for free.
@@ -559,6 +568,11 @@ export interface LanePlan {
      * `--plan` prints them under their own heading.
      */
     sentinels?: { file: string; ms: number }[];
+    /**
+     * The commits a `revert` lane's diff restores to their parent (issue
+     * #7658) — `--plan` prints them, the receipt carries them.
+     */
+    reverted?: string[];
 }
 
 /** What a lane asks of the sentinel set (issue #7651), injectable for the
@@ -667,12 +681,23 @@ export function classifyLane(
      * The sentinel set (issue #7651), injectable for the reason `related`
      * is. Read by every code lane; run by the scoped ones.
      */
-    sentinels: SentinelSource = defaultSentinels
+    sentinels: SentinelSource = defaultSentinels,
+    /**
+     * The commits the diff is a PURE revert of (issue #7658,
+     * `lib/revert-restores.ts` `pureRevertOf`: every changed path back to its
+     * culprit's parent), or null. Read from git by the caller, so the plan
+     * builder stays pure. Turns any CODE lane into `revert`; `docs` keeps its
+     * own, already that cheap.
+     */
+    pureRevert: readonly string[] | null = null
 ): LanePlan {
     const files = [...changedPaths];
     const merged = new Map([...ledgerCompanionOverrides(files), ...overrides]);
     const classOf = (p: string) => merged.get(p) ?? classifyPath(p);
     const lane = laneFor(files.map(classOf));
+
+    if (lane !== "docs" && pureRevert !== null && pureRevert.length > 0)
+        return revertPlan(files, lane, pureRevert);
 
     if (lane === "full") {
         const bot = botHalf(files, classOf, botReach);
@@ -963,6 +988,51 @@ export function classifyLane(
         botReach: bot.reach,
         ...guardsField(guards),
         ...sentinelsField(sent.admitted),
+    };
+}
+
+/**
+ * The `revert` lane (issue #7658, ADR 0156 Amendment VI): a diff whose every
+ * changed path is byte-identical to the parent of the commit it reverts puts
+ * back bytes that already landed through the gate — the RED ladder's revert
+ * of a culprit. It runs the whole type-check alone: the restored files can
+ * meet newer neighbours that changed a signature they use, and `tsc` is what
+ * sees that in seconds. Whether the revert REPAIRS the RED is the
+ * `repair-proof` check's (`pr-checks.ts`, a `pr-check` job on the PR: the
+ * RED's failing tests, re-run), and its tip's GREEN is health's (ADR 0156
+ * Amendment V). Anything a newer neighbour breaks at run time is the batch
+ * gate's, bisected from the last full GREEN.
+ *
+ * One hand edit on the branch — on a culprit path or any other — and the
+ * diff is no longer a pure revert: it takes the lane its paths decide.
+ */
+function revertPlan(
+    files: string[],
+    pathLane: DiffLane,
+    reverted: readonly string[]
+): LanePlan {
+    const shas = reverted.map((c) => c.slice(0, 12)).join(", ");
+    const restored = `every changed path is byte-identical to the parent of the reverted commit (${shas})`;
+    return {
+        lane: "revert",
+        rationale: `a pure revert of ${reverted.length} commit(s) — ${files.length} path(s), ${restored}; by its paths it would be ${pathLane}`,
+        files,
+        run: [{ id: "tsc[all]", command: "bun run check:ts" }],
+        skip: [
+            {
+                id: "repair-proof",
+                reason: "pr-check's `repair-proof` job on the PR re-runs the standing RED's failing tests (issue #5639); a red one is a land refusal (`.mergify.yml`)",
+            },
+            {
+                id: "format(diff)+lint(diff)+cr:lint",
+                reason: `${restored} — bytes that passed them when they landed`,
+            },
+            {
+                id: "tests+guards",
+                reason: `${restored}; a newer neighbour broken at run time is the batch gate's (ADR 0154), bisected from the last full GREEN (ADR 0156 Amendment V)`,
+            },
+        ],
+        reverted: [...reverted],
     };
 }
 
@@ -1749,6 +1819,7 @@ export function renderPlan(plan: LanePlan, head: string): string {
     const lines: string[] = [];
     lines.push(`lane:  ${plan.lane}   (HEAD ${head}, ${plan.rationale})`);
     lines.push(`run:   ${plan.run.map((c) => c.id).join(" ")}`);
+    if (plan.reverted) lines.push(`reverts: ${plan.reverted.join(" ")}`);
     if (plan.botReach) {
         const { run, total, why } = plan.botReach;
         lines.push(`bot:   ${run}/${total} bot fast lane files (${why})`);
@@ -2440,7 +2511,11 @@ function main(): void {
         all,
         present,
         defaultRelated,
-        contentClasses(all, base, cwd)
+        contentClasses(all, base, cwd),
+        defaultBotReach,
+        defaultScanGuards,
+        defaultSentinels,
+        pureRevertOf(base, cwd, all)
     );
 
     // The classification read the tree; assert it is still the tree the
