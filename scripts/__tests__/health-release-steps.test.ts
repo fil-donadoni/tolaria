@@ -213,6 +213,32 @@ describe("browserStepsOwed — when --release runs only the browser steps (issue
         ).toBe(false);
     });
 
+    it("a repair-proof GREEN is not the offline half: release gates the tip whole, local or stored (issue #7657)", () => {
+        expect(
+            browserStepsOwed({
+                last: {
+                    sha: tip,
+                    status: "green",
+                    startedAt: at,
+                    browser: "skipped",
+                    proof: "repair",
+                },
+                tip,
+            })
+        ).toBe(false);
+        expect(
+            browserStepsOwed({
+                last: null,
+                tip,
+                stored: {
+                    sha: tip,
+                    status: "green",
+                    step: "repair: failing files green",
+                },
+            })
+        ).toBe(false);
+    });
+
     it("an INFRA at a browser step after the offline gates passed owes them again", () => {
         const infra = { sha: tip, status: "infra" as const, startedAt: at };
         expect(

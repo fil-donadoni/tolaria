@@ -3,7 +3,7 @@
  * decision reads, and the pure rule over it (issue #4960).
  */
 import type { HealthStatus } from "./health-verdict";
-import type { Verdict } from "./health-verdict-store";
+import { isRepairProofGreen, type Verdict } from "./health-verdict-store";
 
 /** A `running` record older than this belongs to a run that died. */
 const IN_FLIGHT_STALE_MS = 90 * 60 * 1000;
@@ -28,6 +28,15 @@ export interface HealthRecord {
     offline?: string;
     /** The release-only browser steps' state (`BrowserStepsState`). */
     browser?: string;
+    /** `green` only (issue #7657): earned by a repair proof — the RED's
+     *  failing files and the steps its run never reached — not the full
+     *  gate. Such a tip is gated whole by the next run, and by `release`. */
+    proof?: "repair";
+}
+
+/** A GREEN record that is the full gate's: a repair proof's is not. */
+function fullGreen(last: HealthRecord): boolean {
+    return last.status === "green" && last.proof !== "repair";
 }
 
 /**
@@ -56,6 +65,11 @@ export function healthRunInFlight(
  * tip with a RED or INFRA verdict is re-gated only on an explicit decision
  * (`retryTerminal`: `bun run health` by hand, or a job run on `--retry-infra`).
  * A tip that moved since the verdict is a different sha, and is gated.
+ *
+ * A GREEN a repair proof earned (issue #7657, `isRepairProofGreen`) is GREEN
+ * for the lineage but not the full gate: the ordinary batch gate still runs
+ * on it (ADR 0154), so it never skips the tip — once, since the full GREEN
+ * then replaces it on the store.
  */
 export function gateSkipReason(input: {
     last: HealthRecord | null;
@@ -68,10 +82,16 @@ export function gateSkipReason(input: {
     stored?: Verdict | null;
 }): string | null {
     const { last, tip, now, retryTerminal } = input;
-    if (input.stored?.sha === tip && input.stored.status === "green")
+    if (
+        input.stored?.sha === tip &&
+        input.stored.status === "green" &&
+        !isRepairProofGreen(input.stored)
+    )
         return `tip ${short(tip)} already green on the verdict store${input.stored.machine ? ` (${input.stored.machine})` : ""}`;
     if (last === null || last.sha !== tip) return null;
-    if (last.status === "green") return `tip ${short(tip)} already green`;
+    if (fullGreen(last)) return `tip ${short(tip)} already green`;
+    // A repair proof's GREEN (issue #7657): the full gate is still owed.
+    if (last.status === "green") return null;
     // A derived-stale tip within its grace was not gated (ADR 0157, issue
     // #6248): every run re-judges it — past the grace it is RED.
     if (last.status === "pending") return null;
@@ -95,7 +115,8 @@ export function gateSkipReason(input: {
  * local INFRA would refuse every `release` of the tip) — or, when this
  * machine has no record about the tip, on the store's GREEN. Any other local
  * record decides on its own (`gateSkipReason`): a running one is not raced, a
- * RED one is re-gated whole.
+ * RED one is re-gated whole. A repair proof's GREEN (issue #7657) is not the
+ * offline half: `release` gates such a tip whole (ADR 0116).
  */
 export function browserStepsOwed(input: {
     last: HealthRecord | null;
@@ -104,8 +125,13 @@ export function browserStepsOwed(input: {
 }): boolean {
     const { last, tip, stored } = input;
     if (last?.sha === tip) {
-        if (last.status === "green") return last.browser !== "green";
+        if (last.status === "green")
+            return fullGreen(last) && last.browser !== "green";
         return last.status === "infra" && last.offline === "green";
     }
-    return stored?.sha === tip && stored.status === "green";
+    return (
+        stored?.sha === tip &&
+        stored.status === "green" &&
+        !isRepairProofGreen(stored)
+    );
 }

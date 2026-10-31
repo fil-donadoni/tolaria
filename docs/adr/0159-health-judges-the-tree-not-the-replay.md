@@ -2,7 +2,9 @@
 
 ## Status
 
-**accepted** — owner's decision of 2026-10-26 (issue #6990), on the RED of
+**accepted**, amended once (Amendment I, 2026-10-31, issue #7657: a declared
+repair's tip is judged by the RED's evidence) — owner's decision of
+2026-10-26 (issue #6990), on the RED of
 2026-10-25. Reverses ADR 0158 § 2b "What the window holds" (a stale Bot
 verdict judged `pending` within the grace and RED past it); extends ADR 0157
 § Option 1b "Health" (the grace now decides a filing for the Bot state, a
@@ -152,6 +154,33 @@ supersedes; issue #6553's "at once" is a queue position, not a parallel run.
   is unchanged: a Bot that froze cards is still filed as a Bot regression,
   and the header stays on the previous Bot until it is fixed — and that
   standing issue keeps `--settled` current, as before.
+
+## Amendment I (2026-10-31, issue #7657) — § 5: a declared repair's tip is judged by the RED's evidence
+
+§ 1 says what health judges — the tree, never a maintenance job's lateness.
+This amendment says what health judges **on a declared repair's tip**: the
+parts of the tree the standing RED proved wrong, and the parts the RED's run
+never proved — not the parts it proved right on the RED tip.
+
+[ADR 0156 Amendment V](0156-adopt-the-github-native-pipeline-for-the-afk-workflow.md)
+holds the rule and its mechanics (`scripts/lib/health-repair-proof.ts`):
+`health-main`, finding that the tip merges a declared repair (the PR closing
+a repair issue recorded on a RED of the run), runs the RED's failing files
+and then every health step the RED's run never reached, and writes **GREEN**
+with `repair: failing files + N unreached steps green` as its step — the
+rung-2 flake path on the repair tip, no new verdict state. A RED naming no
+failing file (a step failure) owes the full gate, fail closed; a RED a hosted
+run wrote adds the corpus tests it skipped.
+
+What this changes here: § 4's batch gate (dispatched by event, the cron the
+fallback) still runs on the base after such a GREEN and, reading it as not
+yet the full gate (`gateSkipReason`), gates the tip whole once; a RED it
+finds is bisected from the last FULL GREEN, the proof tip inside the range
+(`lastGreenOf` walks past a repair proof's GREEN). The deployment predicate and the derived
+judgement (`pending` / RED at `derive:sync`) run before the proof and are
+unchanged: a derived-stale repair tip waits or is RED exactly as any tip.
+`release` is unchanged (ADR 0116): a repair-proof GREEN never promotes on
+its own.
 
 ## Not adopted
 

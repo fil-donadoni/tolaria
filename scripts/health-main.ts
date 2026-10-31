@@ -115,6 +115,24 @@
  * release promotes nothing — only a derived-fresh tip is released.
  *
  * `last.json`'s `status` gains `pending` for it.
+ *
+ * THE REPAIR PROOF (issue #7657, ADR 0156 Amendment V, ADR 0159 § 5). A tip
+ * that merges a DECLARED REPAIR of the standing RED — a first-parent commit
+ * since the RED whose PR closes one of the pivot's repair issues
+ * (`tipMergesDeclaredRepair`, `lib/health-repair-proof.ts`) — is judged by
+ * the RED's own evidence: after the bootstrap, instead of the full gate, the
+ * run executes the RED's failing files, then every health step the RED's run
+ * never reached (`repairProofPlan`: `test`'s later suites, the steps after
+ * the failed one), and writes GREEN when all pass, with `repair: failing
+ * files + N unreached steps green` as the verdict's step. The steps the
+ * RED's run passed on the RED tip are not re-run; a RED a GitHub-hosted run
+ * wrote adds the corpus tests it skipped. A failing step is RED with the
+ * usual evidence. Fail closed: a RED naming no failing file (a step
+ * failure), a tip not descending from the RED, an unreadable fact → the full
+ * gate. Not under `--release` (ADR 0116: the release re-proves the exact tip
+ * whole), not in an early run (it writes no GREEN), not under `--full`.
+ * Such a GREEN is GREEN for the lineage and not the full gate: the next
+ * batch gate re-gates the tip whole (`gateSkipReason`), as does `release`.
  */
 import { spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
@@ -160,6 +178,17 @@ import { reachable, readEnvLocal } from "./lib/convex-reachable";
 import { readDeploymentSkew } from "./lib/deployment-skew";
 import { buildEvidence, evidenceSummary } from "./lib/health-evidence";
 import {
+    corpusTestFiles,
+    fileMovesBetween,
+    repairProofCommands,
+    repairProofNote,
+    repairProofPlan,
+    resolveMovedFiles,
+    runRepairProof,
+    tipMergesDeclaredRepair,
+    type ProofPlan,
+} from "./lib/health-repair-proof";
+import {
     evidenceStore,
     lineageBlocks,
     machineName,
@@ -172,6 +201,7 @@ import { publishRunMarker } from "./lib/health-pivot";
 import { browserStepsOwed, gateSkipReason } from "./lib/health-gate-skip";
 import {
     appendFileSync,
+    existsSync,
     mkdirSync,
     readFileSync,
     rmSync,
@@ -245,6 +275,11 @@ interface LastRun {
      *  Bot state — `derive:sync --settled`'s late line, the reason and
      *  since when. Reported, never a verdict. */
     derivedLate?: string;
+    /** `green` only (issue #7657): earned by a repair proof, not the full
+     *  gate — `repairNote` says what ran. The next batch gate and `release`
+     *  gate the tip whole (`gateSkipReason`, `releaseDecision`). */
+    proof?: "repair";
+    repairNote?: string;
 }
 
 function git(args: string[], cwd: string): string {
@@ -437,7 +472,7 @@ function status(root: string): never {
     if (!last) console.log("  no health run recorded yet");
     else
         console.log(
-            `  last: ${last.status.toUpperCase()} @ ${last.sha.slice(0, 8)} (started ${last.startedAt}${last.finishedAt ? `, finished ${last.finishedAt}` : ""})${last.failedStep ? ` — failed at ${last.failedStep}` : ""}${last.retried ? `\n  retry: ${retryNote("test", last.retried, last.retryCause)} — ${retryOutcome(last)}` : ""}${last.reason ? `\n  why:  ${last.reason}` : ""}${last.log ? `\n  log:  ${last.log}` : ""}`
+            `  last: ${last.status.toUpperCase()} @ ${last.sha.slice(0, 8)} (started ${last.startedAt}${last.finishedAt ? `, finished ${last.finishedAt}` : ""})${last.failedStep ? ` — failed at ${last.failedStep}` : ""}${last.repairNote ? ` — ${last.repairNote} (a repair proof, not the full gate; issue #7657)` : ""}${last.retried ? `\n  retry: ${retryNote("test", last.retried, last.retryCause)} — ${retryOutcome(last)}` : ""}${last.reason ? `\n  why:  ${last.reason}` : ""}${last.log ? `\n  log:  ${last.log}` : ""}`
         );
     // The two halves, each on its own (issue #4962): a browser step the
     // environment cut short says so instead of hiding inside the run's
@@ -479,6 +514,10 @@ function pidAlive(pid: number | undefined): boolean {
 /** The flag `release` passes: this run owes the browser steps (issue
  *  #6143). */
 const RELEASE_FLAG = "--release";
+
+/** By hand: the full gate on a declared repair's tip, never the repair
+ *  proof (issue #7657). */
+const FULL_FLAG = "--full";
 
 /** Flags of the automated walk, retired by issue #6143: refused rather than
  *  silently read as a batch run that walks nothing. */
@@ -718,7 +757,10 @@ function finishRed(
     failedStep: string,
     halves: Pick<LastRun, "offline" | "browser">,
     failed: FailedOutput,
-    retry?: RetryFields
+    retry?: RetryFields,
+    /** A RED a repair proof run found (issue #7657): marked on the store, so
+     *  the next repair's proof never trusts the steps this run skipped. */
+    proof?: "repair"
 ): never {
     const ev = publishEvidence(ctx, failedStep, failed, retry);
     const tests = ev.tests;
@@ -736,6 +778,7 @@ function finishRed(
         evidence: ev.pointer,
         ...retry,
         ...halves,
+        ...(proof ? { proof } : {}),
     });
     publishVerdict(ctx, {
         sha: ctx.tip,
@@ -746,6 +789,7 @@ function finishRed(
         log: ev.pointer,
         failure: ev.failure,
         ...(tests.length > 0 ? { tests } : {}),
+        ...(proof ? { proof } : {}),
     });
     const lineage = readVerdictLineage(() =>
         verdictStore(ctx.root, { branch: ctx.branch })
@@ -849,7 +893,10 @@ function judgeDerivedTip(
 function finishGreen(
     ctx: RunCtx,
     browser: BrowserStepsState,
-    retry?: RetryFields
+    retry?: RetryFields,
+    /** The repair proof's note (issue #7657): this GREEN ran the RED's
+     *  failing files and the unreached steps, not the full gate. */
+    proof?: string
 ): void {
     const note = retry?.retried
         ? retryNote("test", retry.retried, retry.retryCause)
@@ -864,11 +911,18 @@ function finishGreen(
         browser,
         ...retry,
         ...(ctx.derivedLate ? { derivedLate: ctx.derivedLate } : {}),
+        ...(proof ? { proof: "repair" as const, repairNote: proof } : {}),
     });
     publishVerdict(ctx, {
         sha: ctx.tip,
         status: "green",
-        ...(note ? { step: note } : {}),
+        // The proof's note is the verdict's step (the flake path's shape):
+        // `isRepairProofGreen` reads it on the store, and the `proof` field.
+        ...(proof
+            ? { step: proof, proof: "repair" as const }
+            : note
+              ? { step: note }
+              : {}),
         log: ctx.logPath,
     });
     // The health gate IS the authoritative green record now (ADR 0110) —
@@ -879,7 +933,7 @@ function finishGreen(
             `${ctx.tip}\n`
         );
     console.log(
-        `health-main: GREEN @ ${ctx.tip.slice(0, 8)}${note ? ` (${note} — ${retry?.retryCause === "timeout" ? "a near-miss" : "a flake"}, see ${ctx.logPath})` : ""}`
+        `health-main: GREEN @ ${ctx.tip.slice(0, 8)}${proof ? ` (${proof} — a repair proof, not the full gate: the next batch gate and release gate it whole; issue #7657)` : ""}${note ? ` (${note} — ${retry?.retryCause === "timeout" ? "a near-miss" : "a flake"}, see ${ctx.logPath})` : ""}`
     );
     // A late Bot state is reported, never judged (ADR 0159): the job that
     // owes it files its issue past the grace (`derive:sync --settled`).
@@ -1042,6 +1096,206 @@ function deploymentSkew(ctx: RunCtx): string | null {
         );
         return null;
     }
+}
+
+/** A RED's published evidence body: null when none was published,
+ *  `unreadable` when the pivot could not be read — the plan then falls to
+ *  the full gate rather than trust a cut file list (`repairProofPlan`). */
+function readEvidence(
+    root: string,
+    sha: string
+): { body: string | null; unreadable: boolean } {
+    try {
+        return { body: evidenceStore(root).read(sha), unreadable: false };
+    } catch (err) {
+        console.error(
+            `health-main: the RED evidence of ${sha.slice(0, 8)} could not be read — ${String(err)}`
+        );
+        return { body: null, unreadable: true };
+    }
+}
+
+/**
+ * The repair proof this run owes instead of the full gate (issue #7657), or
+ * null: no RED stands, the tip merges no declared repair of it, the RED's
+ * evidence cannot stand in (`repairProofPlan`'s `full`), a failing file is
+ * missing from the tip for no reason its diff explains, or a fact could not
+ * be read — every one of them the full gate, said on the terminal. A failing
+ * file the repair renamed runs at its new path; one it deleted (a revert of
+ * the culprit that added it) is dropped, as the ladder's fresh run drops it.
+ */
+function repairProofFor(ctx: RunCtx, wt: string): ProofPlan | null {
+    // The pivot's repair issues are read on the configured base's lineage
+    // (`readRunRepairIssues`): a run on another branch would pair that
+    // branch's RED with the base's repairs.
+    if (ctx.branch !== BASE_BRANCH) return null;
+    const lineage = readVerdictLineage(() =>
+        verdictStore(ctx.root, { branch: ctx.branch })
+    );
+    if (lineage.error) {
+        console.error(
+            `health-main: no repair proof — the verdict store could not be read (${lineage.error}); the full gate runs`
+        );
+        return null;
+    }
+    if (!lineageBlocks(lineage.kind) || !lineage.verdict) return null;
+    const red = lineage.verdict;
+    const repair = tipMergesDeclaredRepair(ctx.root, red.sha, ctx.tip, {
+        warn: (line) =>
+            console.error(
+                `health-main: no repair proof — ${line}; the full gate runs`
+            ),
+    });
+    if (repair === null) return null;
+    const who =
+        repair.pr !== null
+            ? `PR #${repair.pr}`
+            : `\`${repair.sha.slice(0, 12)}\``;
+    const head = `health-main: ${ctx.tip.slice(0, 8)} merges ${who}, a declared repair of the RED @ ${red.sha.slice(0, 8)}`;
+    const plan = repairProofPlan({
+        reds: (lineage.reds ?? [red]).map((v) => {
+            const evidence = readEvidence(ctx.root, v.sha);
+            return {
+                sha: v.sha,
+                step: v.step,
+                tests: v.tests,
+                testsMore: v.testsMore,
+                machine: v.machine,
+                proof: v.proof,
+                evidence: evidence.body,
+                evidenceUnreadable: evidence.unreadable,
+            };
+        }),
+        offline: splitHealthGates(HEALTH_SCRIPTS).offline,
+        corpusTests: () =>
+            corpusTestFiles(wt, (line) =>
+                console.error(`health-main: ${line}`)
+            ),
+    });
+    if (plan.kind === "full") {
+        console.log(`${head} — but ${plan.reason}`);
+        return null;
+    }
+    let resolved: ReturnType<typeof resolveMovedFiles>;
+    try {
+        resolved = resolveMovedFiles(
+            plan.files,
+            (f) => existsSync(join(wt, f)),
+            fileMovesBetween(ctx.root, red.sha, ctx.tip)
+        );
+    } catch (err) {
+        console.log(
+            `${head} — but the files' moves could not be read (${String(err)}); the full gate runs`
+        );
+        return null;
+    }
+    if (resolved.unknown.length > 0) {
+        console.log(
+            `${head} — but ${resolved.unknown.join(", ")} ${resolved.unknown.length === 1 ? "is" : "are"} not in this tree and neither renamed nor deleted since the RED; the full gate runs`
+        );
+        return null;
+    }
+    const renamed = resolved.files.filter((f) => !plan.files.includes(f));
+    console.log(
+        `${head} — proving it by the RED's evidence (issue #7657): ${resolved.files.length} failing file(s)${plan.corpus ? " incl. the corpus tests a hosted run skipped" : ""}${renamed.length > 0 ? ` (${renamed.length} renamed since the RED)` : ""}${resolved.deleted.length > 0 ? ` (${resolved.deleted.length} deleted since the RED, not run)` : ""}${plan.projects.length > 0 ? `, then ${plan.projects.join(", ")} whole` : ""}, then ${plan.unreached.length} unreached step(s)${plan.unreached.length > 0 ? `: ${plan.unreached.join(", ")}` : ""}`
+    );
+    return {
+        ...plan,
+        files: resolved.files,
+        // A whole-project re-run puts the failing tests last by file: a
+        // deleted file is dropped there too, a renamed one found by its new
+        // path.
+        tests: plan.tests.flatMap((t) => {
+            const at = resolved.mapped.get(t.file);
+            return at === undefined ? [] : [{ ...t, file: at }];
+        }),
+    };
+}
+
+/** What the repair proof's failed step left, as the main loop reads it. */
+interface ProofFailure {
+    failedStep: string;
+    failedOutput: FailedOutput;
+    failedCause: InfraCause | null;
+}
+
+/**
+ * Runs the repair proof in the bootstrapped worktree through the same step
+ * runner as the gate (terminal lines, the per-sha log, INFRA classification
+ * per step). Null when every part passed, else the failure the main loop
+ * ends on — RED with the usual evidence, or INFRA.
+ */
+async function runProofSteps(
+    wt: string,
+    env: NodeJS.ProcessEnv,
+    logPath: string,
+    plan: ProofPlan
+): Promise<ProofFailure | null> {
+    const total =
+        1 +
+        (plan.files.length > 0 ? repairProofCommands(plan).length : 0) +
+        plan.unreached.length;
+    let ordinal = 1;
+    let failure: ProofFailure | null = null;
+    const exec = async (
+        name: string,
+        cmd: string,
+        args: string[],
+        extra?: Record<string, string>
+    ): Promise<boolean> => {
+        ordinal += 1;
+        const startedAt = Date.now();
+        const r = await runHealthStep(
+            {
+                ordinal,
+                total,
+                name,
+                cmd,
+                args,
+                ...(extra ? { env: extra } : {}),
+            },
+            { cwd: wt, env, logPath }
+        );
+        if (r.ok) return true;
+        failure = {
+            failedStep: name,
+            failedOutput: {
+                output: r.output,
+                status: r.status,
+                signal: r.signal,
+            },
+            failedCause: infraCause({
+                ok: false,
+                startedAt,
+                lastSleepAt: readLastSleepAt(),
+                step: name,
+                exitCode: r.status,
+                output: r.output,
+            }),
+        };
+        return false;
+    };
+    const outcome = await runRepairProof(plan, {
+        note: (line) => console.log(`health-main: ${line}`),
+        runFiles: async (cmds) => {
+            for (const c of cmds)
+                if (!(await exec(plan.step, "bunx", c.args, c.env)))
+                    return false;
+            return true;
+        },
+        runStep: (step) => {
+            const { cmd, args } = healthStepCommand(step);
+            return exec(step, cmd, args);
+        },
+    });
+    if (outcome.outcome === "green" || failure === null) return null;
+    // The verdict's step is the `HEALTH_SCRIPTS` entry (`test` for a chain
+    // tier): the ladder's fresh run reads it; the log line names the tier.
+    if (outcome.step !== outcome.ran)
+        console.log(
+            `health-main: ${outcome.ran} failed — recorded at step ${outcome.step}`
+        );
+    return { ...(failure as ProofFailure), failedStep: outcome.step };
 }
 
 async function main(): Promise<void> {
@@ -1240,6 +1494,14 @@ async function main(): Promise<void> {
     let failedCause: InfraCause | null = null;
     let retry: RetryFields | undefined;
     let pending: string | null = null;
+    // The repair proof's note once it passed (issue #7657); a RED it found
+    // is marked as its own, so no later proof trusts that run.
+    let proof: string | undefined;
+    let proofRed = false;
+    // Never under `--release` (ADR 0116), never in an early run (no GREEN
+    // of its reaches the store), never under `--full`.
+    const mayProve =
+        !release && mode !== "early" && !process.argv.includes(FULL_FLAG);
     try {
         git(["worktree", "add", "--detach", wt, tip], root);
         for (const step of steps) {
@@ -1299,6 +1561,19 @@ async function main(): Promise<void> {
                     };
                     break;
                 }
+                // A declared repair's tip is proven by the RED's evidence
+                // (issue #7657): the failing files, then the steps the
+                // RED's run never reached — in place of the full gate.
+                const plan = mayProve ? repairProofFor(ctx, wt) : null;
+                if (plan !== null) {
+                    const failed = await runProofSteps(wt, env, logPath, plan);
+                    if (failed === null) proof = repairProofNote(plan);
+                    else {
+                        ({ failedStep, failedOutput, failedCause } = failed);
+                        proofRed = true;
+                    }
+                    break;
+                }
             }
         }
     } finally {
@@ -1318,13 +1593,14 @@ async function main(): Promise<void> {
             failedStep,
             { offline: "red", browser: "not run" },
             failedOutput,
-            retry
+            retry,
+            proofRed ? "repair" : undefined
         );
 
     if (!release) {
         // The offline half alone decides GREEN; `release` runs the browser
         // steps on this tip before it trusts it (`browserStepsOwed`).
-        finishGreen(ctx, "skipped", retry);
+        finishGreen(ctx, "skipped", retry, proof);
         return;
     }
     ctx.retry = retry;
