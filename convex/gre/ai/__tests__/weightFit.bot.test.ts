@@ -311,6 +311,46 @@ describe("fitWeights — the contract (issue #3401)", () => {
         );
     });
 
+    it("leaves a pair ordered against its verdict by a terminal gap out of the descent, and still reports it (issue #7705)", () => {
+        // A pair whose leaves differ by a won/lost-game reading (≥ winScore/2
+        // against the verdict) holds a residual no material weight closes;
+        // fitted, its squared hinge outweighs every other pair and drags what
+        // its basis touches into the trust-region wall.
+        const material = pairLoading("material", { manaWeight: 1 }, -10);
+        const terminal = pairLoading(
+            "terminal",
+            { "latent.cardAdvantage": 1 },
+            -FIT_BASE_EVAL_WEIGHTS.winScore
+        );
+        const alone = fitWeights([material], FIT_BASE_EVAL_WEIGHTS);
+        const both = fitWeights([material, terminal], FIT_BASE_EVAL_WEIGHTS);
+        // The vector is the material pair's alone, to the bit.
+        expect(JSON.stringify(both.weights)).toBe(
+            JSON.stringify(alone.weights)
+        );
+        expect(both.weights.latent.cardAdvantage).toBe(
+            FIT_BASE_EVAL_WEIGHTS.latent.cardAdvantage
+        );
+        // Reported, never silently dropped.
+        expect(both.terminal.map((o) => o.pair.verdictId)).toEqual([
+            "terminal",
+        ]);
+        expect(both.violated.map((o) => o.pair.verdictId)).toContain(
+            "terminal"
+        );
+        // A material gap, however large, below the terminal threshold is fitted.
+        const large = pairLoading(
+            "large",
+            { "latent.cardAdvantage": 1 },
+            -FIT_BASE_EVAL_WEIGHTS.winScore / 2 + 1
+        );
+        const fittedLarge = fitWeights([large], FIT_BASE_EVAL_WEIGHTS);
+        expect(fittedLarge.terminal).toEqual([]);
+        expect(fittedLarge.weights.latent.cardAdvantage).toBeGreaterThan(
+            FIT_BASE_EVAL_WEIGHTS.latent.cardAdvantage
+        );
+    });
+
     it("never prices a weight below zero, however hard a pair pushes", () => {
         const result = fitWeights(
             [pairLoading("hate-mana", { manaWeight: -50 }, -5_000)],

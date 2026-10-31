@@ -1567,9 +1567,12 @@ function landStandingAbilityValue(
     return standingAbilityValueById(String(perm.card.id ?? ""), weights.latent);
 }
 
-/** Whether `perm` is valued as a creature BODY — by the board term and the
- *  removal lens alike, so the two price one permanent identically (issue
- *  #7705).
+/** Whether `perm` is valued as a creature BODY by the BOARD term (issue
+ *  #7705). The removal lens (`permanentRealisedValue`) deliberately keeps the
+ *  plain `isCreature` reading: removing an animated body still takes the
+ *  permanent away, and narrowing that lens moved the fitted
+ *  `latent.boardRemoval` unit off its representative victim (owner decision
+ *  on issue #7705 — the valuation fix is the board term's alone).
  *
  *  A creature whose creature-ness is an animation that expires this turn
  *  (`isExpiringAnimatedBody` — reverts at cleanup, CR 514.2) is worth its
@@ -1622,7 +1625,7 @@ export function permanentRealisedValue(
     pass: Layer7Pass = beginLayer7Pass(state)
 ): number {
     let total = weights.permanentWeight;
-    if (fightsAsCreatureBody(state, perm)) {
+    if (isCreature(perm)) {
         total += evaluateCreature(state, perm, weights.latent, pass, weights);
     } else if (!isLand(perm)) {
         total += nonCreatureBodyValue(state, perm, weights, pass);
