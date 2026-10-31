@@ -8,7 +8,8 @@
 // one: convex-auth reads its `subject`, so the call runs AS that user. That is
 // the whole mechanism — the deployment needs no ungated door of its own, and
 // these commands call the same `listDebugScenarios` / `deleteDebugScenario`
-// the admin panel calls.
+// the admin panel calls (`rm` resolves the label through the admin-gated
+// `debugScenarioIdsByLabel` index lookup).
 //
 // Issue #3331 originally added a pair of ungated `internal*` functions here
 // because it read the `Forbidden` as "the CLI cannot reach admin functions"
@@ -39,8 +40,8 @@ import {
     formatScenarioRow,
     identityPayload,
     projectScenarioListing,
+    scenarioIdLookup,
     selectAdminIdentity,
-    selectScenariosByLabel,
     type StoredScenarioRow,
     type UserRow,
 } from "./lib/scenario-cli";
@@ -121,10 +122,16 @@ function main(): void {
             process.exit(1);
         }
         const identity = adminIdentity();
-        // Resolve the label to ids through the listing — `deleteDebugScenario`
-        // takes an id, and the id is precisely what a CLI caller has no other
-        // way to obtain.
-        const ids = selectScenariosByLabel(listScenarios(identity), label);
+        // Resolve the label to ids through the label index — never the
+        // full-table listing, which times out under load (issue #7702).
+        // `deleteDebugScenario` takes an id, and the id is precisely what a
+        // CLI caller has no other way to obtain.
+        const lookup = scenarioIdLookup(label);
+        const ids =
+            lookup === null
+                ? []
+                : ((callAsAdmin(identity, lookup.fn, lookup.payload) ??
+                      []) as string[]);
         for (const id of ids) {
             callAsAdmin(identity, "debugScenarios:deleteDebugScenario", { id });
         }

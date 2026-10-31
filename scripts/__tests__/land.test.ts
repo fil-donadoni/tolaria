@@ -18,6 +18,7 @@ import {
     buildLockedCommand,
     buildHousekeepingCommand,
     postMergeHousekeepingSteps,
+    retireRevertedScenariosStep,
     seedScenarioStep,
     rebaseStep,
     remoteBranchDeleteStep,
@@ -888,7 +889,7 @@ describe("land.ts — post-merge housekeeping is the same list in both paths", (
      * adds its AMBER mark. The GitHub-bound steps live in the hourly
      * `housekeeping` cron (`scripts/housekeeping.ts`).
      */
-    it("pins the post-merge list at FOUR steps before the teardown, none of them GitHub-bound (issue #5457)", () => {
+    it("pins the post-merge list at FIVE steps before the teardown, none of them GitHub-bound (issue #5457, issue #7702)", () => {
         const steps = postMergeHousekeepingSteps({
             ...housekeeping,
             teardown: false,
@@ -896,6 +897,7 @@ describe("land.ts — post-merge housekeeping is the same list in both paths", (
         expect(steps).toEqual([
             primaryBranchFastForwardStep("/repo"),
             seedScenarioStep("/repo", 4159),
+            retireRevertedScenariosStep("/repo", 4159),
             telemetryIngestStep("/repo"),
             botAuditSuggestionStep("/repo"),
         ]);
@@ -912,6 +914,25 @@ describe("land.ts — post-merge housekeeping is the same list in both paths", (
             ])
                 expect(cmd, moved).not.toContain(moved);
         }
+    });
+
+    // Issue #7702 — a revert's landing retires the reverted PRs' seeded
+    // scenarios. AFTER the fast-forward (the retire pushes the merged tree,
+    // which carries its mutation) and alongside the seed; non-gating like it.
+    it("retires reverted PRs' scenarios after the fast-forward, beside the seed (issue #7702)", () => {
+        const steps = postMergeHousekeepingSteps(housekeeping);
+        const ff = steps.indexOf(primaryBranchFastForwardStep("/repo"));
+        const seed = steps.indexOf(seedScenarioStep("/repo", 4159));
+        const retire = steps.indexOf(
+            retireRevertedScenariosStep("/repo", 4159)
+        );
+        expect(ff).toBeGreaterThan(-1);
+        expect(retire).toBe(seed + 1);
+        expect(retire).toBeGreaterThan(ff);
+        const step = retireRevertedScenariosStep("/repo", 4159);
+        expect(step).toContain("retire-reverted-scenarios.ts");
+        expect(step).toContain(" 4159 ");
+        expect(step.endsWith("|| true)")).toBe(true);
     });
 
     it("the recovery path neither rebases, nor gates the lane, nor merges", () => {

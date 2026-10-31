@@ -2,9 +2,9 @@
 // (issue #3331, reshaped by issue #3333).
 //
 // These live on the SCRIPT side, not in `convex/debugScenarioSpec.ts`, because
-// nothing on the server calls them: the CLI reads whole rows back from the
-// existing admin query `listDebugScenarios` and does its own projecting and
-// selecting. `debugScenarioSpec.ts` carries the decisions the MUTATIONS act on
+// nothing on the server calls them: `ls` reads whole rows back from the
+// existing admin query `listDebugScenarios` and does its own projecting; `rm`
+// resolves ids through the label index (`scenarioIdLookup`). `debugScenarioSpec.ts` carries the decisions the MUTATIONS act on
 // (`selectScenarioUpsert`, `selectEphemeralIdsToPrune`); putting a CLI-only
 // concern there would make the server module grow logic no server path reaches.
 
@@ -17,9 +17,8 @@ export type StoredScenarioRow = {
     createdAt?: number;
 };
 
-/** A row as the listing shows it. `_id` is kept: `rm` needs it to call
- *  `deleteDebugScenario`, which takes an id. It is never PRINTED — the label
- *  is the handle a human types. */
+/** A row as the listing shows it. `_id` is kept for a caller that acts on the
+ *  row; it is never PRINTED — the label is the handle a human types. */
 export type ScenarioListingRow = {
     _id: string;
     label: string;
@@ -44,26 +43,27 @@ export function projectScenarioListing(
 }
 
 /**
- * Pure delete-by-label selection. Returns the ids of EVERY row carrying the
- * label — not the first, because labels are not unique by schema
- * (`selectScenarioUpsert` only picks one row to patch, so a row inserted
- * before that path existed can still share a label). Deleting one of two is a
- * silent half-success.
+ * How `scenario:rm` resolves a label to ids (issue #7702): through the
+ * `by_label` index (`debugScenarios:debugScenarioIdsByLabel`), ids only —
+ * NEVER the full-table `listDebugScenarios`, whose scan of up to 500 full
+ * specs exceeds the 1 s query limit under machine load and broke the escape
+ * hatch exactly when sessions were busy (load ~40–70). Null for a blank label:
+ * nothing to look up.
  *
- * Delete is by LABEL rather than by id, mirroring `seedScenarioDirect`'s
- * upsert-by-label: the label is the handle a caller already holds. The id is
- * resolved here, from the listing, and handed to `deleteDebugScenario`.
- *
- * The label is trimmed on both sides, matching the seed path, so a scenario
- * seeded as `" x "` (stored as `"x"`) is removable by either spelling.
+ * Every row carrying the label comes back, not the first: labels are not
+ * unique by schema (a row inserted before upsert-by-label existed can share
+ * one), and deleting one of two is a silent half-success. The label is
+ * trimmed, as every write path trims it.
  */
-export function selectScenariosByLabel(
-    rows: readonly StoredScenarioRow[],
+export function scenarioIdLookup(
     label: string
-): string[] {
+): { fn: string; payload: { label: string } } | null {
     const wanted = label.trim();
-    if (wanted === "") return [];
-    return rows.filter((row) => row.label.trim() === wanted).map((r) => r._id);
+    if (wanted === "") return null;
+    return {
+        fn: "debugScenarios:debugScenarioIdsByLabel",
+        payload: { label: wanted },
+    };
 }
 
 /** The line `scenario:ls` prints for one row. `★` marks a golden scenario, the

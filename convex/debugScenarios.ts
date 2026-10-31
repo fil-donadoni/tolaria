@@ -14,6 +14,7 @@ import {
     resolveScenarioGolden,
     scenarioSpecValidator,
     selectEphemeralIdsToPrune,
+    selectRetirableScenarioIds,
     selectScenarioUpsert,
     SCENARIO_SCHEMA_VERSION,
     type ScenarioSpec,
@@ -258,6 +259,59 @@ export const deleteDebugScenario = mutation({
         }
         await ctx.db.delete(args.id);
         return null;
+    },
+});
+
+/**
+ * The ids carrying a label, resolved through the `by_label` index (issue
+ * #7702) — ids only, never the specs. `scenario:rm` used to resolve a label by
+ * listing the whole table through `listDebugScenarios` (up to 500 full specs),
+ * which exceeds the 1 s query limit under machine load and broke the manual
+ * escape hatch exactly when sessions were busy. Labels are trimmed on every
+ * write path, so the lookup trims too.
+ */
+export const debugScenarioIdsByLabel = query({
+    args: { label: v.string() },
+    returns: v.array(v.id("debugScenarios")),
+    handler: async (ctx, args) => {
+        await assertIsAdmin(ctx);
+        const label = args.label.trim();
+        if (label === "") return [];
+        const rows = await ctx.db
+            .query("debugScenarios")
+            .withIndex("by_label", (q) => q.eq("label", label))
+            .take(50);
+        return rows.map((row) => row._id);
+    },
+});
+
+/**
+ * Retire the scenario a REVERTED PR seeded (issue #7702): `land`'s post-merge
+ * step calls this for every label the reverted PR's `## Preset scenario` fence
+ * declared, once the revert has merged and the cards it names have left the
+ * catalogue — a row left behind throws `Card not found by name` on load.
+ *
+ * `internalMutation`, like `seedScenarioDirect` whose write it undoes: reached
+ * by `npx convex run` with deploy access, never from a client.
+ *
+ * RE-ENTRY SAFE: no row is a no-op (`retired: 0`), never an error — the
+ * post-merge list is re-run by the recovery path. Which rows go is
+ * `selectRetirableScenarioIds`: seeded (ownerless) rows, golden included;
+ * an admin-authored row sharing the label is kept and counted in `kept`.
+ */
+export const retireScenariosByLabel = internalMutation({
+    args: { label: v.string() },
+    returns: v.object({ retired: v.number(), kept: v.number() }),
+    handler: async (ctx, args) => {
+        const label = args.label.trim();
+        if (label === "") return { retired: 0, kept: 0 };
+        const rows = await ctx.db
+            .query("debugScenarios")
+            .withIndex("by_label", (q) => q.eq("label", label))
+            .take(50);
+        const { retire, kept } = selectRetirableScenarioIds(rows);
+        for (const id of retire) await ctx.db.delete(id);
+        return { retired: retire.length, kept: kept.length };
     },
 });
 
