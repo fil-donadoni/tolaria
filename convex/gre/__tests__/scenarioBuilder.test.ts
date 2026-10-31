@@ -2335,7 +2335,7 @@ describe("buildStateFromScenario — what has already been cast (issue #3449)", 
         expect(state.spellsCastThisTurn).toBe(1);
     });
 
-    it("drops a seat's per-type split when the spec re-seeds that seat's total (CR 205.2a)", () => {
+    it("drops a seat's per-type split when the spec re-seeds that seat's total (CR 205.2b)", () => {
         const base = makeState();
         base.players[0].spellTypesCastThisTurn = { Creature: 1 };
         base.players[1].spellTypesCastThisTurn = { Instant: 2 };

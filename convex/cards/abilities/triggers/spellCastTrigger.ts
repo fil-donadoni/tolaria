@@ -137,7 +137,7 @@ export function nthSpellThisTurn(
  *  `types` counts spells WITH the type ("your second creature spell"),
  *  `excludeTypes` spells WITHOUT it ("your fourth noncreature spell"). A
  *  single type on one side only — that is all a per-type tally can answer
- *  (CR 205.2a: a spell counts once under each of its types, so the joint
+ *  (CR 205.2b: a spell counts once under each of its types, so the joint
  *  count of two types is not recoverable from it). Field names mirror
  *  `SpellFilter`. */
 export type SpellTypeCountScope =
@@ -145,7 +145,7 @@ export type SpellTypeCountScope =
     | { excludeTypes: CardType; types?: never };
 
 /** "This is exactly the caster's Nth <type> spell this turn" (CR 601.2i,
- *  CR 205.2a) — the type-scoped sibling of {@link nthSpellThisTurn}. True when
+ *  CR 205.2b) — the type-scoped sibling of {@link nthSpellThisTurn}. True when
  *  the cast spell itself matches `scope` and the caster had cast exactly N-1
  *  matching spells before it this turn. Reads the event's pre-cast snapshots
  *  (`casterSpellTypeCountsThisTurn`, `casterSpellCountThisTurn`), so the

@@ -11643,7 +11643,7 @@ export interface SpellCastEvent {
     casterSpellCountThisTurn?: number;
     /** Per-card-type split of `casterSpellCountThisTurn`: the caster's
      *  `PlayerState.spellTypesCastThisTurn` read before this spell's types
-     *  were counted (CR 205.2a — a spell counts once under each of its
+     *  were counted (CR 205.2b — a spell counts once under each of its
      *  types). `nthSpellOfTypeThisTurn` (`cards/abilities/triggers/
      *  spellCastTrigger.ts`) reads it. Optional like the field above: a
      *  hand-built fixture without it reads as "no spell of any type yet". */

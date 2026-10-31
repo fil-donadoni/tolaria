@@ -2013,7 +2013,7 @@ export type PlayerState = {
      *  turn" (CR 701.50, Ledger Shredder) needs the per-caster tally, not the
      *  table-wide one. */
     spellsCastThisTurn?: number;
-    /** Per-card-type split of `spellsCastThisTurn` (CR 601.2i, CR 205.2a):
+    /** Per-card-type split of `spellsCastThisTurn` (CR 601.2i, CR 205.2b):
      *  for each card type, how many spells THIS PLAYER has cast this turn
      *  that had that type. A spell counts once under EACH of its types (an
      *  artifact creature spell is both a creature spell and an artifact
