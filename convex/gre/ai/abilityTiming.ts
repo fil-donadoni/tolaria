@@ -267,6 +267,19 @@ export function expiringBodyHasCombatUse(
     return canBlockADeclaredAttacker(state, body);
 }
 
+/** Whether the declare-attackers step holds a declared attack whose blockers
+ *  are not yet declared — the only window a body can still BECOME a blocker
+ *  in (CR 509.1: blockers are declared as the next step's turn-based action). */
+function blockDeclarationPending(state: GameState): boolean {
+    const combat = state.combat;
+    return (
+        state.phase === "DECLARE_ATTACKERS" &&
+        !!combat?.confirmed &&
+        !combat.blockersConfirmed &&
+        combat.attackerIds.length > 0
+    );
+}
+
 /** Whether `body`, controlled by the defending player, can legally block at
  *  least one declared attacker in a declare-attackers step whose blockers are
  *  not yet declared (CR 509.1). Once blockers are declared no body can
@@ -279,14 +292,7 @@ function canBlockADeclaredAttacker(
     body: CardInstanceState
 ): boolean {
     const combat = state.combat;
-    if (
-        state.phase !== "DECLARE_ATTACKERS" ||
-        !combat?.confirmed ||
-        combat.blockersConfirmed ||
-        combat.attackerIds.length === 0
-    ) {
-        return false;
-    }
+    if (!combat || !blockDeclarationPending(state)) return false;
     const defender = state.players.find((p) => p.id === body.controllerId);
     if (!defender) return false;
     return combat.attackerIds.some((attackerId) => {
@@ -356,15 +362,7 @@ export function animationHasCombatWindow(
             attackDeclarationAhead(state)
         );
     }
-    const combat = state.combat;
-    if (
-        state.phase !== "DECLARE_ATTACKERS" ||
-        !combat?.confirmed ||
-        combat.blockersConfirmed ||
-        combat.attackerIds.length === 0
-    ) {
-        return false;
-    }
+    if (!blockDeclarationPending(state)) return false;
     const op = selfAnimateOp(ability);
     if (!op) return true;
     const world = cloneGameState(state);
