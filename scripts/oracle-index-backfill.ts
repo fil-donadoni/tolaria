@@ -284,6 +284,7 @@ async function main() {
                 })
         );
         for (const e of built.entries) {
+            if (indexed.has(e.oracleId)) continue;
             added.push(e);
             indexed.add(e.oracleId);
         }
