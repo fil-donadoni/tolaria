@@ -17295,56 +17295,15 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5609. `MoveMatcher.target` matches ANY target, so the pair half cannot name the fighter slot — this predicate does: the 6/6 fights, never the 1/1 (the 1/1 fighting the 4/4 loses the Bot its creature and kills nothing).",
     },
-    // Issue #7246 — Prismatic Ending (Converge, issue #7211). A DISCRIMINATING
-    // PAIR on one board: X=1 pays {1}{W} with the two lands, so the number of
-    // colors spent is the second land's colour. Only that differs — two Plains
-    // spend one colour and cannot exile the MV-2 Watchwolf, Plains + Island
-    // spend two and can.
+    // Issue #7246 — Prismatic Ending (Converge, issue #7211). X=1 pays {1}{W}
+    // with Plains + Island: two colours spent, so the MV-2 Watchwolf (lethal
+    // next turn at 3 life) is exiled. No anchor half: with one colour spent
+    // the cast is a provable no-op, pruned before the tree, so a `forbidden`
+    // anchor would rule nothing out (that case is pinned by
+    // `probeCastManaSpent.bot.test.ts`).
     {
-        label: "discriminating pair: does NOT cast Prismatic Ending off two Plains into an MV-2 threat",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "card",
-                detail: "the second land is an Island (two colours spent), not a Plains (one colour)",
-            },
-        },
-        spec: {
-            cards: [
-                { name: "Prismatic Ending", owner: "me", zone: "hand" },
-                { name: "Plains", owner: "me", zone: "battlefield" },
-                { name: "Plains", owner: "me", zone: "battlefield" },
-                {
-                    name: "Watchwolf",
-                    owner: "opp",
-                    zone: "battlefield",
-                    summoningSick: false,
-                },
-            ],
-            phase: "PRECOMBAT_MAIN",
-            turn: 5,
-            landCount: 0,
-            libraryCount: 20,
-            life: { me: 3, opp: 20 },
-        },
-        bot: "me",
-        budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
-        expect: {
-            forbidden: [{ kind: "cast-spell", card: "Prismatic Ending" }],
-        },
-        note: "Issue #7246, the anchor: two Plains spend one colour, so X=1 exiles only a mana value of 1 or less and the MV-2 Watchwolf stays; casting burns the card for nothing.",
-    },
-    {
-        label: "discriminating pair: casts Prismatic Ending off Plains + Island to exile an MV-2 threat",
-        pairOf: {
-            anchor: "discriminating pair: does NOT cast Prismatic Ending off two Plains into an MV-2 threat",
-            discriminant: {
-                kind: "card",
-                detail: "the second land is an Island (two colours spent), not a Plains (one colour)",
-            },
-        },
+        label: "casts Prismatic Ending off Plains + Island to exile an MV-2 threat",
+        classification: { kind: "absolute" },
         spec: {
             cards: [
                 { name: "Prismatic Ending", owner: "me", zone: "hand" },
