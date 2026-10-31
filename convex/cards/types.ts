@@ -17095,13 +17095,13 @@ export type EffectOp =
            *  counter AFTER the entry, so the PERMANENT_ENTERED event and every
            *  "whenever a creature enters" watcher would see a Woodfall Primus
            *  return as a 6/6 that only then shrinks — the shape
-           *  `entersWithCounters.test.ts` (issue #1693) forbids. And
+           *  `entersWithCounters.test.ts` forbids. And
            *  `CardDefinition.entersWith.counters` is a static declaration
            *  applied on EVERY entry, so it cannot say "only when returned by
            *  this effect". Threaded to `returnToBattlefield`'s
            *  `opts.entryCounters`, the same entry-funnel slot a discard
            *  replacement's "put it onto the battlefield with two +1/+1
-           *  counters" uses (issue #3814): placed after the CR 400.7
+           *  counters" uses: placed after the CR 400.7
            *  entry-side reset, before `emitPermanentEntered`, from the effect
            *  rather than an ability of the entering permanent (`fromCreatingEffect`). */
           entersWithCounters?: Readonly<Record<string, number>>;

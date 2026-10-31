@@ -14963,7 +14963,7 @@
         {"id":"400.7","line":"* clause is battlefield-scoped (CR 400.7): an object off the battlefield","sites":1,"status":"baseline"},
         {"id":"400.7","line":"* clean (`resetBattlefieldTransientState`, `gre/state.ts`, CR 400.7) and","sites":1,"status":"confirmed","ruleHash":"7c6531f78518051c"},
         {"id":"400.7","line":"* comes back is a new object (CR 400.7). */","sites":1,"status":"confirmed","ruleHash":"7c6531f78518051c"},
-        {"id":"400.7","line":"* counters\" uses (issue #3814): placed after the CR 400.7","sites":1,"status":"confirmed","ruleHash":"7c6531f78518051c"},
+        {"id":"400.7","line":"* counters\" uses: placed after the CR 400.7","sites":1,"status":"confirmed","ruleHash":"7c6531f78518051c"},
         {"id":"400.7","line":"* declaration (the `asEntersDiscardCandidates` reason: a simultaneous CR 400.7","sites":1,"status":"baseline"},
         {"id":"400.7","line":"* delayed trigger re-reads it at fire time to answer CR 400.7 — a","sites":1,"status":"baseline"},
         {"id":"400.7","line":"* deleted both when it parked this entry (the CR 400.7 clean applied early —","sites":1,"status":"baseline"},
