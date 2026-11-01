@@ -60,7 +60,10 @@ import { enteredTrigger } from "./abilities/triggers/enteredTrigger";
 import {
     causedByOpponent,
     leftTrigger,
+    wasSacrificed,
 } from "./abilities/triggers/leftTrigger";
+import { entersOrLeavesTrigger } from "./abilities/triggers/entersOrLeavesTrigger";
+import { librarySearchedTrigger } from "./abilities/triggers/librarySearchedTrigger";
 import { graveyardEntryTrigger } from "./abilities/triggers/graveyardEntryTrigger";
 import { libraryToGraveyardTrigger } from "./abilities/triggers/libraryToGraveyardTrigger";
 import { creatureCardDirectlyAboveInGraveyard } from "./graveyardOrder";
@@ -240,6 +243,28 @@ export type CompiledTriggerHead =
      */
     | { readonly kind: "left"; readonly scope: "self" }
     /**
+     * CR 603.2 / 603.6a / 603.6c — "when this permanent enters or leaves the
+     * battlefield": ONE Oracle line over the source's own entry and its own
+     * departure to any zone (`entersOrLeavesTrigger`). Self only.
+     */
+    | { readonly kind: "enters-or-leaves" }
+    /**
+     * CR 701.21a — "whenever you sacrifice a <type>": a permanent YOU control
+     * matching `filter` moved to its owner's graveyard as a sacrifice
+     * (`leftTrigger` + `wasSacrificed`, the hand-written Tireless Tracker's
+     * shape).
+     */
+    | {
+          readonly kind: "sacrificed";
+          readonly scope: "yours";
+          readonly filter: PermanentFilter;
+      }
+    /**
+     * CR 701.23a — "whenever an opponent searches their library"
+     * (`librarySearchedTrigger`).
+     */
+    | { readonly kind: "library-searched"; readonly scope: "opponents" }
+    /**
      * CR 603.6c — "when this Aura is put into a graveyard from the battlefield"
      * (`toZone` narrows the exit, as `leftTrigger`'s own field does), and its
      * non-self form "whenever a spell or ability an opponent controls causes a
@@ -333,10 +358,14 @@ export type CompiledTriggerHead =
           readonly phases?: readonly Phase[];
           readonly scope: TriggerScope;
       }
-    /** CR 603.2 — "whenever [you / an opponent / a player] casts a [black / nonred] spell". */
+    /**
+     * CR 603.2 — "whenever [you / an opponent / a player] casts a [black /
+     * nonred] spell"; `self` is "when you cast this spell", functioning from
+     * the stack (CR 113.6k, `spellCastTrigger`'s `functionsFromStack`).
+     */
     | {
           readonly kind: "spell-cast";
-          readonly scope: "you" | "opponent" | "any";
+          readonly scope: "you" | "opponent" | "any" | "self";
           readonly filter?: SpellFilter;
       };
 
@@ -606,6 +635,32 @@ function resolveCompiledTriggerHead(
             });
         case "left":
             return leftTrigger({ ...common, scope: head.scope });
+        case "enters-or-leaves":
+            return entersOrLeavesTrigger(common);
+        case "sacrificed": {
+            // CR 701.21a — a sacrifice, never a destroy, bounce or mill; ANDed
+            // with any compiled condition the line carries.
+            const inherited = (
+                gating as {
+                    condition?: (
+                        event: GameEvent,
+                        self: PermanentView,
+                        state?: TriggerStateView
+                    ) => boolean;
+                }
+            ).condition;
+            return leftTrigger({
+                ...common,
+                condition: (event, self, state) =>
+                    wasSacrificed(event) &&
+                    (inherited === undefined || inherited(event, self, state)),
+                scope: head.scope,
+                toZone: "graveyard",
+                filter: head.filter,
+            });
+        }
+        case "library-searched":
+            return librarySearchedTrigger({ ...common, scope: head.scope });
         case "left-to-graveyard": {
             // CR 404.1 — the owner of the card, which `PERMANENT_LEFT` carries
             // as last-known information; the departure's cause is the

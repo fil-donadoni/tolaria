@@ -400,6 +400,16 @@ export const EVENT_FIELD_REGISTRY: Record<
             resolve: (e) => (e.type === "CARD_DRAWN" ? e.playerId : undefined),
         },
     },
+    // CR 701.23a — "whenever an opponent searches their library, THAT PLAYER
+    // sacrifices a creature" (Ob Nixilis, Unshackled): the searcher, who is
+    // not the ability's controller. Player-family, like `CARD_DRAWN.playerId`.
+    LIBRARY_SEARCHED: {
+        playerId: {
+            family: "player",
+            resolve: (e) =>
+                e.type === "LIBRARY_SEARCHED" ? e.playerId : undefined,
+        },
+    },
     // CR 603.2b / issue #1953 — "whenever another permanent you control becomes
     // the target of a spell or ability an opponent controls, you may return
     // THAT PERMANENT to its owner's hand" (Cloud Cover). Every card that read

@@ -40,6 +40,9 @@ export const TRIGGER_HEAD = "trigger head";
 // CR 603.8 — "when <self>'s power is N or greater" (state trigger).
 const POWER_REACHED = /^when (.+)'s power is (\d+) or greater$/i;
 
+/** CR 603.6a — the enters head behind a plural card name (see `matchSelfHead`). */
+const PLURAL_NAME_ENTERS = "when {self} enter";
+
 /** CR 603.1 — the three words a trigger condition begins with. */
 const TRIGGER_OPENER = /^(when|whenever|at) /i;
 
@@ -73,6 +76,12 @@ export type TriggerHeadIR =
            * battlefield, CR 202.3e). Lowers to `PermanentFilter.manaValueAtLeast`.
            */
           readonly manaValueAtLeast?: number;
+          /**
+           * CR 208.1 — "a creature you control with power N or greater": a
+           * floor on the entering creature's power. Lowers to
+           * `PermanentFilter.powerAtLeast`.
+           */
+          readonly powerAtLeast?: number;
       }
     /** CR 603.6 — "when [this / a creature] dies". */
     | { readonly kind: "dies"; readonly scope: TriggerSubjectScope }
@@ -83,6 +92,27 @@ export type TriggerHeadIR =
      * only: "another creature … leaves" is a different scope, unread.
      */
     | { readonly kind: "leaves"; readonly scope: "self" }
+    /**
+     * CR 603.2 + CR 603.6a + CR 603.6c — "when this <permanent> enters or
+     * leaves the battlefield": ONE Oracle line over the source's own entry
+     * and its own departure to any zone. Self only.
+     */
+    | { readonly kind: "enters-or-leaves" }
+    /**
+     * CR 701.21a + CR 603.10a — "whenever you sacrifice a land": a permanent
+     * of the named type moved by its controller (the ability's) from the
+     * battlefield to its owner's graveyard as a sacrifice, never a destroy.
+     */
+    | {
+          readonly kind: "sacrificed";
+          readonly scope: "yours";
+          readonly permanentType: "Land";
+      }
+    /**
+     * CR 701.23a — "whenever an opponent searches their library": the act of
+     * searching, whatever it finds; the searcher is "that player".
+     */
+    | { readonly kind: "library-searched"; readonly scope: "opponents" }
     /**
      * CR 603.6c — "when this <permanent> is put into a graveyard from the
      * battlefield": the battlefield exit that ends in a graveyard, for ANY
@@ -233,11 +263,13 @@ export type TriggerHeadIR =
     /**
      * CR 603.2 — "whenever [you / an opponent / a player] casts a spell", with
      * the colour narrowing of CR 105.2 when the words carry one ("a black
-     * spell" / "a nonred spell"). Absent = every spell.
+     * spell" / "a nonred spell"). Absent = every spell. `self` is "when you
+     * cast this spell": the spell cast IS the source, so the trigger
+     * condition functions from the stack (CR 113.6k).
      */
     | {
           readonly kind: "spell-cast";
-          readonly scope: "you" | "opponent" | "any";
+          readonly scope: "you" | "opponent" | "any" | "self";
           readonly filter?: SpellFilter;
       };
 
@@ -522,6 +554,41 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
         },
     ],
     ...typeSpellCastHeads(),
+    // CR 603.2 + 205.2a — "a noncreature spell" is a spell without the
+    // creature card type: the negative of the type rows above, the same
+    // `SpellFilter.excludeTypes` a hand-written "noncreature" cast trigger
+    // declares. Only the "you" caster is printed on a cast head with it.
+    [
+        "whenever you cast a noncreature spell",
+        {
+            kind: "spell-cast",
+            scope: "you",
+            filter: { excludeTypes: ["Creature"] },
+        },
+    ],
+    // CR 603.2 + CR 113.6k — the spell being cast is the source itself; the
+    // condition cannot trigger from the battlefield, so it functions from the
+    // stack.
+    ["when you cast this spell", { kind: "spell-cast", scope: "self" }],
+    // CR 505.1 + CR 505.1a — the first main phase is the precombat main
+    // phase, and a turn has only one.
+    [
+        "at the beginning of your first main phase",
+        { kind: "phase", phase: "PRECOMBAT_MAIN", scope: "your" },
+    ],
+    // CR 701.21a — only a permanent's controller can sacrifice it, so "you
+    // sacrifice" is a land YOU control moved to its owner's graveyard by a
+    // sacrifice.
+    [
+        "whenever you sacrifice a land",
+        { kind: "sacrificed", scope: "yours", permanentType: "Land" },
+    ],
+    // CR 701.23a — the act of searching triggers it, found or not; "their
+    // library" is the searcher's own.
+    [
+        "whenever an opponent searches their library",
+        { kind: "library-searched", scope: "opponents" },
+    ],
 ]);
 
 /** Self-subject heads: `<opener> <self phrase> <tail>` (CR 109.2). */
@@ -540,6 +607,13 @@ export const SELF_HEADS: readonly {
         opener: "when ",
         tail: " leaves the battlefield",
         ir: { kind: "leaves", scope: "self" },
+    },
+    // CR 603.2 + 603.6a + 603.6c — the source's own entry OR its own
+    // departure, one line.
+    {
+        opener: "when ",
+        tail: " enters or leaves the battlefield",
+        ir: { kind: "enters-or-leaves" },
     },
     // CR 603.6c — a battlefield exit that ends in a graveyard, any permanent.
     {
@@ -644,6 +718,11 @@ export function matchSelfHead(span: string): TriggerHeadIR | null {
     const power = POWER_REACHED.exec(span);
     if (power !== null && isSelfPhrase(power[1]!))
         return { kind: "power-reached", atLeast: Number(power[2]) };
+    // CR 201.5 — a card whose NAME is plural ("Gert and Old Lace") takes the
+    // plural verb: "when {self} enter" is the "enters" head, spelled for the
+    // name alone — "this creature enter" is no English, and stays unread.
+    if (probe === PLURAL_NAME_ENTERS)
+        return { kind: "enters", scope: "self", creaturesOnly: false };
     for (const head of SELF_HEADS) {
         if (!probe.startsWith(head.opener)) continue;
         if (!probe.endsWith(head.tail)) continue;
@@ -697,7 +776,9 @@ export function headPronounReferent(
             return head.source === "self" ? "source" : null;
         // CR 603.6c — the source has LEFT; "it" would name a new object in
         // whatever zone it went to (CR 400.7), which no selector here reads.
+        // An enters-or-leaves firing may be either, so "it" stays unread too.
         case "leaves":
+        case "enters-or-leaves":
             return null;
         // CR 400.7 — the source went to a graveyard and is the object "it"
         // names there; the engine recovers `$source` from that graveyard
@@ -731,6 +812,8 @@ export function headPronounReferent(
             return "source";
         case "phase":
         case "spell-cast":
+        case "sacrificed":
+        case "library-searched":
             return null;
     }
 }
@@ -738,6 +821,10 @@ export function headPronounReferent(
 /** CR 603.6a + 202.3 — an entering creature gated on a mana-value floor. */
 const ENTERS_MANA_VALUE_FLOOR =
     /^when(?:ever)? a creature with mana value (\d+) or greater enters$/;
+
+/** CR 603.6a + 208.1 — an entering creature of yours gated on a power floor. */
+const YOURS_ENTERS_POWER_FLOOR =
+    /^whenever a creature you control with power (\d+) or greater enters$/;
 
 /**
  * The head of a triggered ability, consumed whole.
@@ -767,6 +854,15 @@ export const triggerHeadRule: Rule<TriggerHeadIR> = subGrammar(
                 scope: "any",
                 creaturesOnly: true,
                 manaValueAtLeast: Number(floor[1]),
+            });
+        // CR 603.6a + 208.1 — the power floor, read the same way.
+        const powerFloor = YOURS_ENTERS_POWER_FLOOR.exec(span.toLowerCase());
+        if (powerFloor !== null)
+            return ok({
+                kind: "enters",
+                scope: "yours",
+                creaturesOnly: true,
+                powerAtLeast: Number(powerFloor[1]),
             });
         return fail("not a trigger head this grammar knows", span);
     }),
