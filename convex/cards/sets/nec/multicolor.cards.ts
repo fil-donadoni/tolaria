@@ -15,7 +15,6 @@ import { makeVehicle } from "../../abilities/vehicle";
 // carries it onto the Pilot's synthesized definition, where every crew reader
 // already looks. Pilot art is not pinned: the NEC print's own Token Print pairing
 // resolves it from `sourcePrintId` (ADR 0140).
-// compiler-gap: Crew 8 (#7214)
 // hand-tail: {1}, {T}: Draw two cards, then discard a card. Create a 1/1 colorless Pilot creature token with "This token crews Vehicles as though its power were 2 greater." (#1863)
 export const shorikaiGenesisEngine = defineCard(() =>
     makeVehicle({
