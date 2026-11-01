@@ -296,6 +296,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › lookDistribute",
+            "issue": 7761
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › moveZone",
             "issue": 7390
         },
@@ -536,6 +541,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery target:player › draw",
+            "issue": 7760
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery target:player › forEach+libraryLook+moveZone",
             "issue": 4829
         },
@@ -716,11 +726,6 @@
         },
         {
             "kind": "grammar",
-            "key": "(card) › the meld keyword action (CR 701.42) is not in grammar v0",
-            "issue": 3341
-        },
-        {
-            "kind": "grammar",
             "key": "(card) › layout \"transform\" is not in grammar v0 (multi-faced cards)",
             "issue": 7217
         },
@@ -728,6 +733,11 @@
             "kind": "grammar",
             "key": "(card) › modal double-faced card with a nonland back face is CR 712.11b's cast option, out of scope",
             "issue": 7200
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › the meld keyword action (CR 701.42) is not in grammar v0",
+            "issue": 3341
         },
         {
             "kind": "grammar",
@@ -4563,6 +4573,11 @@
             "kind": "scenario",
             "key": "validate-effect-script › Elfhame Sanctuary ability \"elfhame-sanctuary-trigger\": effects[1]: then[2]: Op \"moveZone\" field \"bind\" is only valid with \"cards\" and to: \"battlefield\"",
             "issue": 7484
+        },
+        {
+            "kind": "scenario",
+            "key": "validate-effect-script › Kroxa and Kunoros ability \"kroxa-and-kunoros-trigger\": effects[1]: then[1]: Op \"moveZone\" field \"bind\" is only valid with \"cards\" and to: \"battlefield\"",
+            "issue": 7759
         },
         {
             "kind": "scenario",
