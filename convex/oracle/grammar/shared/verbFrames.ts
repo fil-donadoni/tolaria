@@ -755,6 +755,8 @@ const LIBRARY_TOP_EXACT =
 const FROM_ZONE = /^(.+) from (your hand|your graveyard|a graveyard|.+)$/;
 /** Issue #1702 — the "at random" that closes a chosen card's quantity phrase. */
 const AT_RANDOM = /^(.+) at random$/;
+/** CR 608.2c — "<A> card or a <B> card", two singular card nouns. */
+const CARD_NOUN_DISJUNCTION = /^(.+ card) or an? (.+ card)$/;
 /** CR 400.3 — "<a|an> <descriptor> you control". */
 const OWN_PERMANENT = /^(an? .+ you control)$/;
 
@@ -1012,23 +1014,38 @@ function readMoveObject(
                 '"up to N" is not a quantity of a pick at random — the PRNG picks an exact count',
                 span
             );
-        const descriptor = descriptorRule.run(quantity.noun, ctx);
-        if (!descriptor.ok) return descriptor;
         const plural =
             typeof quantity.count === "number"
                 ? quantity.count > 1
                 : quantity.count.max > 1;
-        if ((descriptor.value.plural === true) !== plural)
-            return fail(
-                `"${from[1]}" pairs the quantity with the wrong number`,
-                span
-            );
-        const filter = zoneChoiceFilterFromDescriptor(descriptor.value);
-        if (!filter.ok) return filter;
+        // CR 608.2c — "a <A> card or a <B> card": one pick, either
+        // description. Each half is a whole singular card noun of its own,
+        // read like the single noun; a plural count has no such form.
+        const either = quantity.noun.match(CARD_NOUN_DISJUNCTION);
+        const halves =
+            either === null ? [quantity.noun] : [either[1]!, either[2]!];
+        if (either !== null && plural)
+            return fail(`"${from[1]}" is a disjunction of single cards`, span);
+        const filters: EffectCardFilter[] = [];
+        for (const half of halves) {
+            const descriptor = descriptorRule.run(half, ctx);
+            if (!descriptor.ok) return descriptor;
+            if ((descriptor.value.plural === true) !== plural)
+                return fail(
+                    `"${from[1]}" pairs the quantity with the wrong number`,
+                    span
+                );
+            const read = zoneChoiceFilterFromDescriptor(descriptor.value);
+            if (!read.ok) return read;
+            filters.push(read.value);
+        }
+        // CR 608.2c — read by the rules of English, each half keeps its own
+        // clauses ("non-Avatar" qualifies the creature half only), so the
+        // pick is the filter's `any` over the halves.
         return ok({
             kind: "chosen",
             zone: zone === "your hand" ? "hand" : "graveyard",
-            filter: filter.value,
+            filter: filters.length === 1 ? filters[0]! : { any: filters },
             count: quantity.count,
             ...(randomPick !== null ? { random: true as const } : {}),
         });
