@@ -92,7 +92,12 @@
 // in a life total `ScenarioSpec` cannot yet carry (issue #2147): a finding
 // about the corpus, not about the weights.
 
-import type { EvalWeights, LatentWeights } from "../evalWeights";
+import {
+    terminalMagnitude,
+    type EvalWeights,
+    type LatentWeights,
+} from "../evalWeights";
+import { REPRESENTATIVE_VICTIM_BODY } from "../representativeVictim";
 import {
     FITTABLE_WEIGHT_KEYS,
     weightValue,
@@ -188,9 +193,9 @@ export const FIT_NUMERAIRE: FittableWeightKey = "lifeWeight";
  * constraint and not a finding to report.
  */
 const FIT_BANDS: readonly {
-    /** The larger weight. */
+    /** The first weight of the couple. */
     a: FittableWeightKey;
-    /** The smaller one. `a − b` must stay inside `[min, max]`. */
+    /** The second one. `a − b` must stay inside `[min, max]`. */
     b: FittableWeightKey;
     min: number;
     max: number;
@@ -246,6 +251,23 @@ const FIT_BANDS: readonly {
         b: "tappedManaWeight",
         min: 1,
         max: 1.5,
+    },
+    {
+        // A removal spell in hand is worth LESS than the permanent it takes
+        // off the board, or announcing it is a loss and the search passes
+        // (issue #3322). A single-target removal's latent worth is
+        // `latent.boardRemoval × victimLoss / representativeVictimLoss`
+        // (`latentBoard.ts`), so that holds for EVERY victim exactly when one
+        // `boardRemoval` unit costs less than the representative victim's own
+        // realised loss, `REPRESENTATIVE_VICTIM_BODY + permanentWeight`. The
+        // ceiling keeps it one margin point under that, the same judgement
+        // as the floor above. Not binding at the prior; a refit pushing the
+        // unit past its own victim reaches it. No floor: only the ceiling is
+        // the invariant, and the sign floor already keeps the unit positive.
+        a: "latent.boardRemoval",
+        b: "permanentWeight",
+        min: -Infinity,
+        max: REPRESENTATIVE_VICTIM_BODY - 1,
     },
 ];
 
@@ -310,6 +332,10 @@ export type WeightFitResult = {
     /** Pairs whose predicted gap is still under the margin — the subset of
      *  `outcomes` a reader has to look at. */
     violated: FitPairOutcome[];
+    /** Pairs left out of the descent: a terminal gap against the verdict
+     *  (`isTerminalAgainst`). In practice a subset of `violated`: the trust
+     *  region cannot close a gap of `terminalMagnitude`. */
+    terminal: FitPairOutcome[];
     /** Couples that no vector can satisfy together: anti-parallel basis
      *  directions. Reported, never dropped (header, decision 4). */
     contradictions: Contradiction[];
@@ -526,6 +552,13 @@ export function weightsFromCoordinates(
     return out as EvalWeights;
 }
 
+/** Whether `pair` is ordered AGAINST its verdict by at least half a won
+ *  game: the leaves differ by a terminal reading (`winScore`), not by
+ *  material, so no weight the fit moves reaches it. */
+export function isTerminalAgainst(pair: EvalPair, w0: EvalWeights): boolean {
+    return pair.delta <= -terminalMagnitude(w0);
+}
+
 /**
  * Fit the evaluation's weights to the Eval Pairs.
  *
@@ -588,8 +621,17 @@ export function fitWeights(
     // the residual (header, decision 1).
     const a = pairs.map((pair) => keys.map((k, i) => scale[i] * pair.basis[k]));
     const base = pairs.map((pair) => pair.delta);
+    // A pair whose gap is a TERMINAL reading against its verdict (one leaf
+    // scored as a won or lost game, the other not) holds a residual no
+    // material weight can close, and its squared hinge alone outweighs every
+    // other pair together: fitted, it drags whatever its basis touches into
+    // the trust-region wall. It takes no part in the descent, the curvature
+    // or the loss, and stays in `outcomes` (and `violated`), so the report
+    // still prints it. A terminal gap FOR the verdict is already satisfied and
+    // costs nothing either way.
+    const fitted = pairs.map((pair) => !isTerminalAgainst(pair, w0));
 
-    const n = pairs.length;
+    const n = fitted.filter(Boolean).length;
     const u = keys.map(() => 0);
 
     // Squared hinge over `n` pairs: ∇²  ≤  (2/n)·Σ_p a_p a_pᵀ/δ² + 2λI, so a
@@ -599,7 +641,9 @@ export function fitWeights(
     let curvature = 2 * lambda;
     if (n > 0) {
         let trace = 0;
-        for (const row of a) for (const v of row) trace += v * v;
+        a.forEach((row, p) => {
+            if (fitted[p]) for (const v of row) trace += v * v;
+        });
         curvature += (2 * trace) / (n * margin * margin);
     }
     const step = curvature > 0 ? 1 / curvature : 0;
@@ -607,7 +651,8 @@ export function fitWeights(
     const gradient = keys.map(() => 0);
     for (let t = 0; t < steps; t++) {
         for (let k = 0; k < keys.length; k++) gradient[k] = 2 * lambda * u[k];
-        for (let p = 0; p < n; p++) {
+        for (let p = 0; p < pairs.length; p++) {
+            if (!fitted[p]) continue;
             let g = base[p];
             const row = a[p];
             for (let k = 0; k < keys.length; k++) g += row[k] * u[k];
@@ -686,7 +731,8 @@ export function fitWeights(
     };
     const lossOf = (w: EvalWeights): number => {
         let sum = 0;
-        for (let p = 0; p < n; p++) sum += hinge(predictOn(w, p));
+        for (let p = 0; p < pairs.length; p++)
+            if (fitted[p]) sum += hinge(predictOn(w, p));
         return (n > 0 ? sum / n : 0) + penalty(w);
     };
 
@@ -695,6 +741,7 @@ export function fitWeights(
         movement,
         outcomes,
         violated: outcomes.filter((o) => !o.satisfiedAfter),
+        terminal: outcomes.filter((_, p) => !fitted[p]),
         contradictions: contradictoryCouples(pairs),
         lossBefore: lossOf(w0),
         lossAfter: lossOf(weights),
@@ -749,6 +796,7 @@ export function formatWeightFitReport(
         `  pairs separated (≥ δ)  : ${result.separatedBefore} → ${result.separatedAfter}`
     );
     out.push(`  contradictory pairs    : ${result.contradictions.length}`);
+    out.push(`  terminal, not fitted   : ${result.terminal.length}`);
 
     out.push(`\n== weight movement (relative, ordered by size)`);
     const moved = result.movement

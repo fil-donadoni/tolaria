@@ -29,6 +29,7 @@ import {
     isCombatDamageImmune,
     isDamageUnpreventableThisTurn,
     sourcePreventionShieldApplies,
+    revertAnimation,
 } from "./state";
 import {
     anyCombatDamageUnpreventableStatic,
@@ -48,6 +49,7 @@ import {
     finiteManaUsesRemaining,
     hasManaAbility,
     isPlaneswalker,
+    isExpiringAnimatedBody,
     POISON_LOSS_COUNTERS,
 } from "./constants";
 import { currentLoyalty, LOYALTY_COUNTER_KEY } from "./loyalty";
@@ -55,7 +57,10 @@ import type { ActivatedAbility } from "../cards/types";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 // Issue #1890 item 3 — the single authority on whether an activation could just
 // as well happen in a later, better-informed window (CR 117.1b / 602.5d).
-import { isDeferrableStackAbility } from "./ai/abilityTiming";
+import {
+    expiringBodyHasCombatUse,
+    isDeferrableStackAbility,
+} from "./ai/abilityTiming";
 import { loyaltyRealizationRatio } from "./ai/loyaltyValue";
 import { pendingBattlefieldReturns } from "./ai/pendingReturn";
 import {
@@ -1563,6 +1568,44 @@ function landStandingAbilityValue(
     return standingAbilityValueById(String(perm.card.id ?? ""), weights.latent);
 }
 
+/** Whether `perm` is valued as a creature BODY by the BOARD term (issue
+ *  #7705). The removal lens (`permanentRealisedValue`) deliberately keeps the
+ *  plain `isCreature` reading: removing an animated body still takes the
+ *  permanent away, and narrowing that lens moved the fitted
+ *  `latent.boardRemoval` unit off its representative victim (owner decision
+ *  on issue #7705 — the valuation fix is the board term's alone).
+ *
+ *  A creature whose creature-ness is an animation that expires this turn
+ *  (`isExpiringAnimatedBody` — reverts at cleanup, CR 514.2, or at the end of
+ *  combat, CR 500.5a) is worth its
+ *  body only while that body can still attack or block before it reverts
+ *  (`expiringBodyHasCombatUse`). Outside such a window it is not lasting
+ *  board material: it is valued as the permanent it reverts to (a land's
+ *  standing abilities, a non-creature's body), while the mana its animation
+ *  cost stays spent — so a leaf reached after a pointless animation no longer
+ *  out-scores the leaf after `pass` on the body it bought. */
+function fightsAsCreatureBody(
+    state: GameState,
+    perm: CardInstanceState
+): boolean {
+    if (!isCreature(perm)) return false;
+    return (
+        !isExpiringAnimatedBody(perm) || expiringBodyHasCombatUse(state, perm)
+    );
+}
+
+/** The permanent an expiring animated body reverts to (`revertAnimation` on a
+ *  shallow copy — the live object is untouched), so a non-land one outside its
+ *  combat window is valued as the artifact it becomes (Jade Statue's MV-4
+ *  body), never through its animated type line. Identity for every other
+ *  permanent. */
+function revertedShape(perm: CardInstanceState): CardInstanceState {
+    if (!isExpiringAnimatedBody(perm)) return perm;
+    const shape = { ...perm };
+    revertAnimation(shape);
+    return shape;
+}
+
 /** What one permanent's REMOVAL costs its controller, on `evaluate`'s own
  *  scale — the sum of every term that permanent contributes and that its
  *  destruction takes away (issue #3398):
@@ -1830,7 +1873,7 @@ function playerTerms(
             weights,
             pass
         );
-        if (isCreature(perm)) {
+        if (fightsAsCreatureBody(state, perm)) {
             terms.creatures += evaluateCreature(
                 state,
                 perm,
@@ -1868,7 +1911,7 @@ function playerTerms(
             if (!isLand(perm)) {
                 terms.permanents += nonCreatureBodyValue(
                     state,
-                    perm,
+                    revertedShape(perm),
                     weights,
                     pass
                 );

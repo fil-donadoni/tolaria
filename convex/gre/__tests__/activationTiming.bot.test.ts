@@ -297,7 +297,10 @@ describe("isDiscouragedRolloutMove — activated abilities (issue #1890)", () =>
         ).toBe(false);
     });
 
-    it("does NOT flag the animation on the OPPONENT'S turn, where the body can block", () => {
+    // Issue #7705 — the opponent's turn is no longer a blanket window: once its
+    // combat is over no body can become a blocker (CR 509.1). The windows that
+    // stay open are pinned in `selfAnimationWindows.bot.test.ts`.
+    it("flags the animation on the OPPONENT'S turn after its combat (CR 509.1)", () => {
         const state = makeState({
             phase: "END_OF_COMBAT",
             activePlayerId: "p2",
@@ -313,7 +316,7 @@ describe("isDiscouragedRolloutMove — activated abilities (issue #1890)", () =>
                 "p1",
                 activation("fac", FACTORY_ANIMATE)
             )
-        ).toBe(false);
+        ).toBe(true);
     });
 });
 

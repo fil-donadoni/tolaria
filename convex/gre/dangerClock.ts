@@ -24,7 +24,11 @@ import {
     type EffectivePT,
     type Layer7Pass,
 } from "./layers";
-import { isCreature, POISON_LOSS_COUNTERS } from "./constants";
+import {
+    isCreature,
+    isExpiringAnimatedBody,
+    POISON_LOSS_COUNTERS,
+} from "./constants";
 import {
     evaluateBlockerKeywords,
     evaluateAttackerKeywords,
@@ -77,16 +81,26 @@ export function predictUnblockedThreat(
 
     // Potential attackers: creatures that may attack (not defender-restricted)
     // and deal positive damage.
+    //
+    // Issue #7705 — a body that reverts THIS turn (an until-end-of-turn
+    // animation, CR 514.2, or an until-end-of-combat one, CR 500.5a) is
+    // transient the same way, in the other direction: it is gone by the turn
+    // this steady-state clock reads, so it neither attacks nor blocks there.
+    // Its use this turn is the declared combat's (`predictCombatOutcome`) and
+    // the board term's to price.
     const attackers = attacker.battlefield
         .filter(
             (c) =>
                 isCreature(c) &&
+                !isExpiringAnimatedBody(c) &&
                 evaluateAttackerKeywords(c).eligible &&
                 powerOf(c) > 0
         )
         .sort((a, b) => powerOf(b) - powerOf(a));
 
-    const blockers = defender.battlefield.filter((c) => isCreature(c));
+    const blockers = defender.battlefield.filter(
+        (c) => isCreature(c) && !isExpiringAnimatedBody(c)
+    );
     const usedBlocker = new Set<string>();
 
     for (const atk of attackers) {
