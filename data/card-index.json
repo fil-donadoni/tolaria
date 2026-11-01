@@ -71580,6 +71580,14 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "The Fantasticar",
+        "scryfallId": "ed0beb69-8441-4104-9990-81bd82f81f9a",
+        "oracleId": "9b0abb58-4e2c-45dc-99b1-61a4cb79354b",
+        "firstSet": "msc",
+        "firstPrintId": "ed0beb69-8441-4104-9990-81bd82f81f9a",
+        "firstPrintSet": "msc"
+    },
+    {
         "name": "The Hive",
         "scryfallId": "544a7138-eae8-4ff9-9e17-680bfa717183",
         "oracleId": "87a77482-f286-4fb1-b179-85b2095bb768",
