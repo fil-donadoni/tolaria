@@ -8,7 +8,6 @@
 // here on the main thread from `mulliganHand` / `mulligansTaken` and never
 // reaches the Worker.
 
-import { graveyardCardManaValue } from "@convex/gre/collectEvidence";
 import type {
     PublicGameState,
     PublicPlayer,
@@ -274,44 +273,10 @@ function buildCastExileChoiceView(
     // the only submission guaranteed to clear any card-type threshold.
     const required = ec.offsetGeneric
         ? ec.offsetGeneric.min
-        : ec.minCardTypes !== undefined || ec.minTotalManaValue !== undefined
+        : ec.minCardTypes !== undefined
           ? candidateIds.length
           : ec.count;
     const maximum = ec.offsetGeneric ? ec.offsetGeneric.max : required;
-    // CR 701.59a (collect evidence) — the threshold rides the view so
-    // `chooseCastExileCost` exiles a small set reaching the total mana value
-    // rather than the whole graveyard. The bot's own graveyard is public and
-    // carries real card ids, so the mana values are read off the registry.
-    if (ec.minTotalManaValue !== undefined) {
-        // Cheapest first, ties on id — the order the server-side view
-        // (`castExileViewFor`'s `cheapestFirst`) hands the same chooser, so the
-        // live answer exiles the cards the search would have exiled.
-        const mvOf = new Map(
-            source
-                .filter((c): c is NonNullable<typeof c> => c !== null)
-                .map((c) => [c.id, graveyardCardManaValue(c)])
-        );
-        const ordered = [...candidateIds].sort(
-            (a, b) =>
-                (mvOf.get(a) ?? 0) - (mvOf.get(b) ?? 0) || a.localeCompare(b)
-        );
-        return {
-            candidateIds: ordered,
-            required,
-            maximum,
-            manaValueCover: {
-                minTotalManaValue: ec.minTotalManaValue,
-                manaValueById: Object.fromEntries(
-                    source
-                        .filter(
-                            (c): c is NonNullable<typeof c> =>
-                                c !== null && candidateIds.includes(c.id)
-                        )
-                        .map((c) => [c.id, graveyardCardManaValue(c)])
-                ),
-            },
-        };
-    }
     return { candidateIds, required, maximum };
 }
 

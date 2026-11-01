@@ -675,9 +675,7 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         name: "Collect Evidence",
         kind: "keyword-action",
         cr: "701.59",
-        status: "implemented",
-        binding: "convex/gre/collectEvidence.ts",
-        note: "Cost leg (engine/cost infra, NOT an Effect Script Op), issue #2074: AlternativeCost.collectEvidence = N (CR 701.59a — exile any number of cards from your graveyard with total mana value N or greater). Affordability (CR 701.59b, the cast card excluded per CR 601.2a) gates canPayAlternativeCost, so the client picker and the Bot see the same answer; the payment rides the cast's one graveyard-exile picker (PendingCast.exileFromGraveyardChoice) in its minTotalManaValue mode — never auto-picked — validated by recordCastExileCostPick, answered by the Bot through paymentPicks' manaValueCover, rendered by CastExileCostDialog. Alternative-cost surface only (Detective's Phoenix's bestow): the activated-ability cost (\"Collect evidence N: …\") and the CR 701.59c optional additional cost with its linked \"if evidence was collected\" check are not wired; tracked by issue #7723.",
+        status: "planned",
     },
     // 701.60 Suspect
     {

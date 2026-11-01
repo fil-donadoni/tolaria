@@ -69,10 +69,7 @@ import { getEffectiveColors } from "../cards/effectiveColors";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import type { CastFromZone } from "./castCost";
-import {
-    exileCastPermitted,
-    requiredGraveyardAlternativeCostId,
-} from "./castCost";
+import { exileCastPermitted } from "./castCost";
 import {
     castOptionAlternativeCosts,
     castPermissionRequired,
@@ -1379,52 +1376,19 @@ export function getLegalActions(
     // `canPotentiallyPayCost` probe already folds those pseudo-sources in).
     // Reached only when the card has neither Flashback nor Escape (those return
     // above). Mirrors the broad-permission branch above.
-    //
-    // CR 118.9b — the SCOPED form (Detective's Phoenix: "using its
-    // bestow ability") licenses ONE announcement, its required alternative
-    // cost, priced at that cost's own mana and gated on that cost being
-    // payable (its non-mana legs, CR 701.59b collect evidence, and the bestow
-    // host gate) through the same `castOptionAlternativeCosts` list the picker
-    // offers. When a broad permission also covers the card, the cast is that
-    // permission's (`requiredGraveyardAlternativeCostId` answers `undefined`)
-    // and the branch below claims it with the printed cost available.
-    const inOwnGraveyard = player.graveyard.some((c) => c.id === card.id);
-    const intrinsicScope = tryGetDefinition(
-        (card.card as { id?: string }).id ?? ""
-    )?.castableFromOwnGraveyard;
-    const requiredAltCostId =
-        inOwnGraveyard && intrinsicScope && intrinsicScope !== true
-            ? requiredGraveyardAlternativeCostId(state, player, card, casterId)
-            : undefined;
     const isIntrinsicGraveyardCast =
-        inOwnGraveyard &&
+        player.graveyard.some((c) => c.id === card.id) &&
         !types.includes("Land") &&
-        (intrinsicScope === true || requiredAltCostId !== undefined);
+        (tryGetDefinition((card.card as { id?: string }).id ?? "")
+            ?.castableFromOwnGraveyard ??
+            false);
     if (isIntrinsicGraveyardCast) {
-        const requiredAltCost =
-            requiredAltCostId === undefined
-                ? undefined
-                : castOptionAlternativeCosts(
-                      state,
-                      caster,
-                      card,
-                      "graveyard"
-                  ).find((a) => a.id === requiredAltCostId);
         if (
             passesCastPhaseRestriction(state, card) &&
-            (requiredAltCostId === undefined ||
-                requiredAltCost !== undefined) &&
             anyCastAnnouncementLegal(state, caster, card, {
                 timingZone: "graveyard",
-                ...(requiredAltCostId !== undefined
-                    ? { announcements: [requiredAltCostId] }
-                    : {}),
                 // CR 709.3a — as above: the printed cost of the announced half.
-                // CR 118.9b — or the required alternative cost's own mana.
-                cost: (subject) =>
-                    requiredAltCost
-                        ? (requiredAltCost.mana ?? {})
-                        : (getInstanceManaCost(subject) ?? {}),
+                cost: (subject) => getInstanceManaCost(subject) ?? {},
             })
         ) {
             actions.push("cast");
