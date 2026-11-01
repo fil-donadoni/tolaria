@@ -230,7 +230,7 @@ describe("Op: vote (CR 701.38, issue #2071)", () => {
         expect(state.players[0].battlefield.map((c) => c.id)).toEqual(["mine"]);
     });
 
-    it("no candidates: no vote, nothing exiled, a clean resolution (CR 608.2b)", () => {
+    it("no candidates: no vote, nothing exiled, a clean resolution (CR 609.3)", () => {
         const state = cast([]);
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(exiledIds(state)).toEqual([]);

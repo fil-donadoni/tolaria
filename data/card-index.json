@@ -14154,6 +14154,16 @@
         "source": "compiled"
     },
     {
+        "name": "Council's Judgment",
+        "scryfallId": "17f28b16-da65-41a8-ba4f-f1c5e104aad6",
+        "oracleId": "acf4d685-a718-42f7-9a7a-dee069ae8db2",
+        "firstSet": "cns",
+        "firstPrintId": "17f28b16-da65-41a8-ba4f-f1c5e104aad6",
+        "firstPrintSet": "cns",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Counsel of the Soratami",
         "scryfallId": "4401911c-bfb0-4c94-9fc1-49198ccecc94",
         "oracleId": "62ddc5ae-ced9-4319-854c-1a114c6afc3f",
