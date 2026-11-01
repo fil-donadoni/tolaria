@@ -5,7 +5,8 @@
 //     manifested morph card), and the CR 708.4 cast-face-down replacements no
 //     longer reaching a manifested or morph permanent.
 //   - Integration: `applyTurnPermanentFaceUp` (the `turnPermanentFaceUp`
-//     mutation's body), the Bot's `enumerateMoves` + `applyMoveForSearch`.
+//     mutation's body). The Bot seam (`enumerateMoves` +
+//     `applyMoveForSearch`) is `manifestDread.bot.test.ts`.
 //   - Wire format: the controller's projection carries the real identity, the
 //     opponent's never does; `faceDownBy: "manifest"` rides for both.
 //   - Serialization: the producer survives the DB round-trip.
@@ -14,7 +15,6 @@
 
 import { describe, expect, it } from "vitest";
 import {
-    makeInstance,
     makePlayer,
     makeState,
     pushSpell,
@@ -25,7 +25,6 @@ import {
     registerTokenDefinition,
 } from "../../cards";
 import type { EffectOp } from "../../cards/types";
-import { abhorrentOculus } from "../../cards/sets/dsk/blue.cards";
 import { containmentPriest } from "../../cards/sets/c14/white.cards";
 import { underworldBreach } from "../../cards/sets/thb/red.cards";
 import { canTurnFaceUp, turnFaceUpPayment } from "../morph";
@@ -35,29 +34,32 @@ import {
     runDamageReplacement,
     tapPermanent,
 } from "../state";
-import type { CardInstanceState, GameState } from "../state";
+import type { GameState } from "../state";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { getEffectivePower, NO_BOARD_LAYER_VIEW } from "../layers";
 import { collectTriggers, placeTriggersOnStack } from "../triggers";
 import { getLegalActions } from "../rules";
 import { buildCastExileCostChoice } from "../castCost";
-import { enumerateMoves } from "../moves";
-import { applyMoveForSearch } from "../applyMove";
 import { applyTurnPermanentFaceUp } from "../../game";
 import { projectPublicState } from "../../gameProjections";
 import { compactState, expandState } from "../serialize";
+import {
+    BEARS,
+    card,
+    FOREST,
+    ISLAND,
+    lands,
+    manifestedBoard,
+    OCULUS,
+    oculusBoard,
+} from "./manifestDread.helper";
 
-const BEARS = getCardByName("Grizzly Bears").id; // {1}{G} 2/2
 const ANGEL = getCardByName("Exalted Angel").id; // {4}{W}{W}, morph {2}{W}{W}
 const COUNTERSPELL = getCardByName("Counterspell").id;
-const FOREST = getCardByName("Forest").id;
 const PLAINS = getCardByName("Plains").id;
-const ISLAND = getCardByName("Island").id;
 // Registered through the definition seam rather than looked up by name, so the
 // file runs on a tree whose derived Definition Index is still the base's
 // (ADR 0157 — `derive:regenerate` repacks it in the lane).
-const OCULUS = abhorrentOculus();
-registerTokenDefinition(OCULUS);
 const PRIEST = containmentPriest();
 registerTokenDefinition(PRIEST);
 const BREACH = underworldBreach();
@@ -76,26 +78,6 @@ registerTokenDefinition({
     ] satisfies EffectOp[],
 });
 
-function card(
-    cardId: string,
-    id: string,
-    zone: CardInstanceState["zone"],
-    owner = "p1"
-): CardInstanceState {
-    return makeInstance(cardId, {
-        id,
-        controllerId: owner,
-        ownerId: owner,
-        zone,
-    });
-}
-
-function lands(cardId: string, n: number, owner = "p1"): CardInstanceState[] {
-    return Array.from({ length: n }, (_, i) =>
-        card(cardId, `land${i}`, "battlefield", owner)
-    );
-}
-
 /** Drives the suspended look-distribute pick to manifest `pick`. */
 function submitPick(state: GameState, pick: string): void {
     const head = state.pendingChoices![0];
@@ -106,25 +88,6 @@ function submitPick(state: GameState, pick: string): void {
         choiceId: head.choiceId,
         cardInstanceIds: [pick],
     });
-}
-
-/** p1 controls a MANIFESTED `realId` plus `landCount` untapped `landId`. */
-function manifestedBoard(
-    realId: string,
-    landId: string,
-    landCount: number
-): { state: GameState; permanent: CardInstanceState } {
-    const permanent = card(realId, "manifested", "battlefield");
-    turnFaceDown(NO_BOARD_LAYER_VIEW, permanent, "manifest");
-    const state = makeState({
-        players: [
-            makePlayer("p1", {
-                battlefield: [permanent, ...lands(landId, landCount)],
-            }),
-            makePlayer("p2"),
-        ],
-    });
-    return { state, permanent: state.players[0].battlefield[0] };
 }
 
 describe("manifestDread Op (CR 701.62a)", () => {
@@ -318,22 +281,6 @@ describe("turning a manifested permanent face up (CR 701.40b / 116.2b)", () => {
             state.players[0].battlefield.filter((c) => c.isTapped)
         ).toHaveLength(4);
     });
-
-    it("the Bot enumerates the special action and the search applies it", () => {
-        const { state } = manifestedBoard(BEARS, FOREST, 2);
-        state.priorityPlayerId = "p1";
-        const moves = enumerateMoves(state, "p1");
-        const move = moves.find((m) => m.kind === "turn-face-up");
-        expect(move).toEqual({
-            kind: "turn-face-up",
-            cardInstanceId: "manifested",
-        });
-        const next = applyMoveForSearch(state, "p1", move!);
-        const after = next.players[0].battlefield.find(
-            (c) => c.id === "manifested"
-        )!;
-        expect(after.faceDown).toBeUndefined();
-    });
 });
 
 describe("the CR 708.4 cast-face-down turn-up replacements (issue #2072)", () => {
@@ -422,21 +369,6 @@ describe("the CR 708.4 cast-face-down turn-up replacements (issue #2072)", () =>
 });
 
 describe("Abhorrent Oculus — additional cost (CR 601.2f / 118.8 / 601.2h)", () => {
-    function oculusBoard(graveyardSize: number): GameState {
-        return makeState({
-            players: [
-                makePlayer("p1", {
-                    hand: [card(OCULUS.id, "oculus", "hand")],
-                    graveyard: Array.from({ length: graveyardSize }, (_, i) =>
-                        card(BEARS, `gy${i}`, "graveyard")
-                    ),
-                    battlefield: lands(ISLAND, 3),
-                }),
-                makePlayer("p2"),
-            ],
-        });
-    }
-
     it("castable with six other cards in the graveyard, not with five", () => {
         const six = oculusBoard(6);
         expect(
@@ -494,18 +426,6 @@ describe("Abhorrent Oculus — additional cost (CR 601.2f / 118.8 / 601.2h)", ()
                 eight.players[0].graveyard[0]
             )
         ).not.toContain("cast");
-    });
-
-    it("the Bot's cast Move charges the six exiles in the search", () => {
-        const state = oculusBoard(7);
-        state.priorityPlayerId = "p1";
-        const cast = enumerateMoves(state, "p1").find(
-            (m) => m.kind === "cast-spell" && m.cardInstanceId === "oculus"
-        );
-        expect(cast).toBeDefined();
-        const next = applyMoveForSearch(state, "p1", cast!);
-        expect(next.players[0].graveyard).toHaveLength(1);
-        expect(next.players[0].exile).toHaveLength(6);
     });
 });
 
