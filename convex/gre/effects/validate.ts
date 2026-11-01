@@ -5614,6 +5614,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             subtype: isNonEmptyString,
             additionalTypes: (v) => isStringArray(v, TOKEN_CARD_TYPES),
             grantedAbilities: (v) => isStringArray(v),
+            grantedStaticId: isNonEmptyString,
             colors: (v) => isStringArray(v, TOKEN_COLORS),
             duration: isDurationSpec,
         },

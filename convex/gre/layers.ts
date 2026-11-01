@@ -845,6 +845,29 @@ function resolveLayer7Payload(
     // emblem id is not a card id — which is why emblem statics stay derived
     // (they are, and PRD #2064 S6 keeps them so unless it stores an emblem's
     // effect list too).
+    // CR 113.3d (issue #7203) — a GRANTED quoted static belongs to the object
+    // that has it: its `source` is the recipient (`target`), and its effect
+    // is read off the GRANTING card's `staticGrantTemplates[]`, not off the
+    // recipient's own definition. The set of affected objects is fixed when
+    // the grant begins (CR 611.2c), so `layer7EntryApplies` already confined
+    // the entry to the recipient's id.
+    if (payload.grantTemplateId !== undefined) {
+        const granted = tryGetDefinition(
+            payload.sourceCardId
+        )?.staticGrantTemplates?.find(
+            (t) => t.id === payload.grantTemplateId
+        )?.effect;
+        if (!granted?.applies(target, target, STATIC_EFFECT_CTX)) {
+            return undefined;
+        }
+        if (
+            granted.condition &&
+            !granted.condition(target, state, STATIC_EFFECT_CTX)
+        ) {
+            return undefined;
+        }
+        return resolvePTAmount(granted, target, state, target);
+    }
     const source =
         derived?.source ??
         (entry.expiry.kind === "source"
