@@ -689,3 +689,22 @@ export const FRACTAL_TOKEN: EffectTokenSpec = {
     toughness: 0,
     colors: ["G", "U"],
 };
+
+/** Inkling token (CR 111.1, issue #3689). "1/1 white and black Inkling
+ *  creature token with flying" — created by Emeritus of Truce's entry trigger
+ *  for the player it targets (`sets/sos/white.cards.ts`). Vanilla apart from
+ *  the keyword, so the JSON-pure `EffectTokenSpec` shape (ADR 0046). Two
+ *  colours declared outright (CR 202.2), the `OTTER_TOKEN` shape.
+ *
+ *  Deliberately NO pinned `imagePrintId`, the `FRACTAL_TOKEN` treatment: the
+ *  art is the Inkling token of the PRODUCING card's own printing, resolved by
+ *  the client's Token Print resolver (`src/lib/tokenArt.ts`). */
+export const INKLING_TOKEN: EffectTokenSpec = {
+    name: "Inkling",
+    types: ["Creature"],
+    subtypes: ["Inkling"],
+    power: 1,
+    toughness: 1,
+    colors: ["W", "B"],
+    staticAbilities: ["flying"],
+};

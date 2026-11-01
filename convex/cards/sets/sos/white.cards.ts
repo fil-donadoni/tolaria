@@ -3,6 +3,8 @@
 // sos/index.cards.ts. Cards are classified by the colour identity of their mana
 // cost (CR 202.2): lands and colourless artifacts (no coloured cost) live in
 // colorless.ts.
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { INKLING_TOKEN } from "../../sharedTokens";
 import type { SpellContext } from "../../types";
 import { defineCard, isBasicLandCard } from "../../types";
 
@@ -59,5 +61,89 @@ export const erode = defineCard(() => ({
             ctx.tap({ type: "permanent", id: foundId });
         }
         ctx.shuffleLibrary(controllerId);
+    },
+}));
+
+// Emeritus of Truce // Swords to Plowshares is one card (CR 722.2c), the
+// Skycoach Conductor shape without "enters prepared": the creature becomes
+// prepared (CR 722.3a) only from its entry trigger, through the
+// `becomePrepared` Op — the seam `entersPrepared` uses, so an already-prepared
+// Truce (a flicker inside the trigger's window) makes no second copy.
+//
+// The trigger is ONE Oracle line (CR 603.2): "target player creates" names the
+// token's controller by the announced player slot (CR 111.2), then a
+// resolution-time comparison (CR 608.2c) — strictly more creatures under an
+// opponent's control than under the controller's, the token just created
+// counted — gates the designation. Not an intervening "if" (CR 603.4): the
+// trigger always goes on the stack.
+//
+// Swords to Plowshares is the LEA definition's effect script.
+// hand-tail: "When this creature enters, target player creates a 1/1 white and black Inkling creature token with flying. Then if an opponent controls more creatures than you, this creature becomes prepared." (#3689)
+export const emeritusOfTruce = defineCard(() => ({
+    id: "9869a753-5e41-4098-ab41-e75b4396ec50",
+    rarity: "mythic",
+    name: "Emeritus of Truce",
+    oracleText:
+        "When this creature enters, target player creates a 1/1 white and black Inkling creature token with flying. Then if an opponent controls more creatures than you, this creature becomes prepared. (While it's prepared, you may cast a copy of its spell. Doing so unprepares it.)",
+    manaCost: { X: 1, W: 2 },
+    types: ["Creature"],
+    subtypes: ["Cat", "Cleric"],
+    power: 3,
+    toughness: 3,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "emeritus-of-truce-inkling",
+            oracleText:
+                "When this creature enters, target player creates a 1/1 white and black Inkling creature token with flying. Then if an opponent controls more creatures than you, this creature becomes prepared.",
+            scope: "self",
+            targetRequirement: { type: "player", count: 1 },
+            effects: [
+                {
+                    op: "createToken",
+                    token: INKLING_TOKEN,
+                    controller: { target: 0 },
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "opponent",
+                                filter: { type: ["Creature"] },
+                            },
+                        },
+                        op: "gt",
+                        right: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: { type: ["Creature"] },
+                            },
+                        },
+                    },
+                    then: [
+                        { op: "becomePrepared", target: { ref: "$source" } },
+                    ],
+                },
+            ],
+        }),
+    ],
+    insetSpell: {
+        kind: "prepare",
+        name: "Swords to Plowshares",
+        manaCost: { W: 1 },
+        types: ["Instant"],
+        oracleText:
+            "Exile target creature. Its controller gains life equal to its power.",
+        targetRequirement: { type: "Creature", count: 1 },
+        effects: [
+            { op: "exile", target: { target: 0 }, bind: "$creature" },
+            {
+                op: "gainLife",
+                player: { ref: "$creature.controller" },
+                amount: { ref: "$creature.power" },
+            },
+        ],
     },
 }));
