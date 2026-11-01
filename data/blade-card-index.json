@@ -48,6 +48,13 @@
             "needsSetup": false
         }
     ],
+    "Black Lotus": [
+        {
+            "label": "graveyard engine: escapes the Black Lotus whose permanent outweighs the option",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Blue Elemental Blast": [
         {
             "label": "charter: picks the modal mode that survives a lethal red spell",
