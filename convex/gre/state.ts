@@ -14954,11 +14954,13 @@ export function buildSpellContext(
             // 608.2b's own half: an ability whose source is simply gone leaves
             // nothing to destroy, and a SPELL has no permanent source at all.
             //
-            // DELAYED and reflexive triggers are deliberately absent: their
-            // stack items allocate a fresh id and carry no `triggerSourceId`
-            // at all (`buildDelayedTriggerStackItem`, `pushReflexiveTrigger`),
-            // so there is nothing to read. Countering one destroys nothing —
-            // fail-closed, and narrower than CR 603.7e allows. Recorded in
+            // DELAYED and reflexive triggers are deliberately absent. A
+            // delayed item allocates a fresh id and carries no
+            // `triggerSourceId` (`buildDelayedTriggerStackItem`); a reflexive
+            // item carries one since issue #3719 (`pushReflexiveTrigger`) but
+            // no `triggeredAbilityId`, so the branch below never reads it.
+            // Countering either destroys nothing — fail-closed, and narrower
+            // than CR 603.7e allows. Recorded in
             // `docs/findings/2708-delayed-trigger-has-no-source-id.md`.
             const abilitySourcePermanentId =
                 found.sourceLki !== undefined
