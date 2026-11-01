@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    fileReadsCorpus,
     repairProofCheck,
     repairProofRun,
     runPrCheck,
@@ -32,6 +33,11 @@ function ctx(over: Partial<PrCheckContext>): PrCheckContext {
         lineage: () => redLineage(),
         repairIssues: () => [900],
         runTests: exitAll(0),
+        // Hermetic: never the ambient env's hosted corpus exclusion. On the
+        // hosted lane it is ON, and a real test file whose import closure
+        // reaches the fitted weights (issue #7819) turned unprovable there,
+        // so a case not about the corpus read a note it never asked for.
+        corpusExcluded: () => false,
         ...over,
     };
 }
@@ -173,6 +179,22 @@ describe("repair-proof (issue #5462)", () => {
             expect(r.refusal).toBeNull();
             expect(r.note).toContain(CORPUS_TEST);
             expect(ran).toBe(false);
+        });
+
+        // Issue #7819: a hosted `derive:regenerate` cannot refit the weights
+        // (no reader key), so a floor test over them judged PR #7827's sound
+        // repair against the base's weights and refused it.
+        it("a test whose import closure reaches the fitted weights rests on the corpus", () => {
+            expect(
+                fileReadsCorpus(
+                    "convex/cards/__tests__/aiEffectsGuard.bot.test.ts",
+                    process.cwd()
+                )
+            ).toBe(true);
+        });
+
+        it("a test reaching neither the corpus nor the fitted weights does not", () => {
+            expect(fileReadsCorpus(THIS_FILE, process.cwd())).toBe(false);
         });
 
         it("with the key: a corpus test that still fails refuses", () => {
