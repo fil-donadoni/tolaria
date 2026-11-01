@@ -25,7 +25,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ROBUSTNESS_BASELINE } from "../convex/gre/ai/blade/robustnessBaseline";
 import { corpusExcluded, readsLockedCorpus } from "./lib/corpus-exclusion";
+import { FITTED_WEIGHTS_PATH } from "./lib/bot-refit";
 import { DERIVED_PATHS } from "./lib/derive-sync";
+import { createImportGraph } from "./lib/import-graph";
+import { TEST_ALIASES } from "./lib/test-reach";
 import { ORIGIN_BASE } from "./lib/branches";
 import { gh } from "./lib/gh";
 import {
@@ -72,7 +75,8 @@ export interface PrCheckContext {
     runTests?: (tests: readonly string[], cwd: string) => readonly number[];
     /** Whether the hosted corpus exclusion is on (no reader key here). */
     corpusExcluded?: () => boolean;
-    /** Whether a test file reads the locked verdict corpus. */
+    /** Whether a test file's verdict rests on the locked verdict corpus
+     *  (`fileReadsCorpus`). */
     readsCorpus?: (file: string, cwd: string) => boolean;
 }
 
@@ -164,7 +168,7 @@ export function repairProofCheck(ctx: PrCheckContext): PrCheckResult {
     const provable = tests.filter((t) => !unprovable.includes(t));
     const unprovableNote =
         unprovable.length > 0
-            ? `repair proof: ${unprovable.join(", ")} read the locked verdict corpus and this check holds no reader key — not provable here; \`land\` runs them`
+            ? `repair proof: ${unprovable.join(", ")} read the locked verdict corpus or the weights fitted from it, and this check holds no reader key — not provable here; \`land\` runs them`
             : undefined;
     if (provable.length === 0) return { refusal: null, note: unprovableNote };
     const status = (ctx.runTests ?? repairProofRun)(provable, ctx.cwd);
@@ -181,8 +185,18 @@ export function repairProofCheck(ctx: PrCheckContext): PrCheckResult {
     return { refusal: null, ...(note ? { note } : {}) };
 }
 
-function fileReadsCorpus(file: string, cwd: string): boolean {
-    return readsLockedCorpus(readFileSync(resolve(cwd, file), "utf8"));
+/** Whether a test's verdict rests on the locked verdict corpus: it reads the
+ *  corpus fixture itself, or its import closure reaches the fitted weights —
+ *  fitted FROM the corpus, so a hosted `derive:regenerate` (no reader key)
+ *  leaves them at their committed bytes instead of refitting them
+ *  (`refitPlan`, issue #7819). Such a test, run there, judges the PR against
+ *  the base's weights, not its own: a weight-floor test a repair turns green
+ *  only through the refit reads red, and the proof refuses a sound repair. */
+export function fileReadsCorpus(file: string, cwd: string): boolean {
+    if (readsLockedCorpus(readFileSync(resolve(cwd, file), "utf8")))
+        return true;
+    const graph = createImportGraph({ root: cwd, aliases: TEST_ALIASES });
+    return graph.closureOf(file).has(FITTED_WEIGHTS_PATH);
 }
 
 function defaultLineage(cwd: string): () => Lineage & { error?: string } {

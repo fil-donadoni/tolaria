@@ -33,6 +33,11 @@ export const BOT_PIN_TESTS = [
 export const WEIGHT_FIT_TEST = "convex/gre/ai/__tests__/weightFit.bot.test.ts";
 export const WEIGHT_FIT_FILTER = "reproduces DEFAULT_EVAL_WEIGHTS";
 
+/** The fitted weights — the one artefact fitted FROM the Verdict Lock, so the
+ *  one a refit without the corpus reader key cannot rebuild (`refitPlan`'s
+ *  `corpusExcluded` branch keeps it at its committed bytes). */
+export const FITTED_WEIGHTS_PATH = "convex/gre/ai/fittedEvalWeights.ts";
+
 /** Every file a refit writes — the fitted weights (`EVAL_WEIGHTS_PATH`) and
  *  the fixture or snapshot each `BOT_PIN_TESTS` file records. Whole files,
  *  each a function of the tree (ADR 0124 §3: the fit is deterministic), so
@@ -40,7 +45,7 @@ export const WEIGHT_FIT_FILTER = "reproduces DEFAULT_EVAL_WEIGHTS";
  *  here so `lib/derive-sync.ts` stays a leaf; pinned equal to the owners'
  *  paths by `__tests__/bot-refit.test.ts` (the weights: `weightFit.bot.test.ts`). */
 export const REFIT_ARTIFACT_PATHS: readonly string[] = [
-    "convex/gre/ai/fittedEvalWeights.ts",
+    FITTED_WEIGHTS_PATH,
     "convex/gre/__tests__/fixtures/searchCost.pins.json",
     "convex/gre/__tests__/fixtures/searchForcedPass.pins.json",
     "convex/gre/__tests__/fixtures/searchLeafScore.snapshot.json",
