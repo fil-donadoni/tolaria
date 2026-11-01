@@ -4821,6 +4821,14 @@ export const OP_EXECUTORS: {
             subtype: op.subtype,
             additionalTypes: op.additionalTypes,
             grantedAbilities: op.grantedAbilities,
+            // CR 113.1 / 611.2a (issue #7203) — the quoted static ability,
+            // located on the RESOLVING source's `staticGrantTemplates[]`.
+            grantedStatic: op.grantedStaticId
+                ? {
+                      sourceCardId: ctx.sourceCardId,
+                      templateId: op.grantedStaticId,
+                  }
+                : undefined,
             // Layer 5 (CR 613.1e / 105.3) — "becomes a 3/2 blue and black
             // Elemental creature". Handed to the primitive, which routes it
             // through the SAME `setColorOverride` machinery the `setColor` Op

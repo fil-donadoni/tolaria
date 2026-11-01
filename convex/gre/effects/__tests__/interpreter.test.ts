@@ -37928,3 +37928,154 @@ describe("Effect Script Op: copyResolvingSpell (CR 707.10, CR 707.10c)", () => {
         expect(state.pendingTarget).toBeUndefined();
     });
 });
+
+describe("Effect Script Op: animate grantedStaticId (CR 113.1 / 611.2a / 613.4c, issue #7203)", () => {
+    // Iron Man Armor — "it becomes a 4/4 Construct Hero artifact creature with
+    // flying and 'This creature gets +1/+1 for each artifact you control' until
+    // end of turn". The quoted ability's closures live on the GRANTING card's
+    // `staticGrantTemplates[]`; the Op names it by id. The count is read live,
+    // with the RECIPIENT as `source`, at every layer-7 read.
+    const SCRIPT_ID = "test-op-animate-granted-static";
+    function register(duration: boolean): string {
+        return registerScript(
+            duration ? SCRIPT_ID : `${SCRIPT_ID}-indefinite`,
+            [
+                {
+                    op: "animate",
+                    target: { target: 0 },
+                    power: 4,
+                    toughness: 4,
+                    additionalTypes: ["Artifact"],
+                    grantedAbilities: ["flying"],
+                    grantedStaticId: "per-artifact",
+                    ...(duration ? { duration: { phase: "end-of-turn" } } : {}),
+                },
+            ],
+            {
+                staticGrantTemplates: [
+                    {
+                        id: "per-artifact",
+                        effect: {
+                            kind: "pt-buff",
+                            applies: (target, source) =>
+                                target.id === source.id,
+                            computeFor: (source, state) => {
+                                let artifacts = 0;
+                                for (const player of state.players) {
+                                    for (const p of player.battlefield) {
+                                        if (
+                                            p.controllerId ===
+                                                source.controllerId &&
+                                            p.types.includes("Artifact")
+                                        ) {
+                                            artifacts++;
+                                        }
+                                    }
+                                }
+                                return {
+                                    power: artifacts,
+                                    toughness: artifacts,
+                                };
+                            },
+                        },
+                    },
+                ],
+            }
+        );
+    }
+    function board(extra: ReturnType<typeof makeInstance>[] = []) {
+        const armor = makeInstance(BEAR_ID, {
+            id: "armor",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact"],
+            subtypes: ["Equipment"],
+            power: undefined,
+            toughness: undefined,
+            staticAbilities: [],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [armor, ...extra] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, armor };
+    }
+    function artifact(id: string, controllerId: string) {
+        return makeInstance(COLORLESS_CREATURE_ID, {
+            id,
+            controllerId,
+            ownerId: controllerId,
+        });
+    }
+
+    it("counts the artifacts its controller controls, live, and survives the projection (wire format)", () => {
+        const id = register(true);
+        const { state } = board([artifact("a1", "p1"), artifact("opp", "p2")]);
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "armor" }]);
+        resolveTopOfStack(state);
+        const armor = state.players[0].battlefield.find(
+            (c) => c.id === "armor"
+        )!;
+        // 4/4 base + 2 artifacts you control (a1, the animated armor itself);
+        // the opponent's artifact does not count.
+        expect(getEffectivePower(state, armor)).toBe(6);
+        expect(getEffectiveToughness(state, armor)).toBe(6);
+
+        // Not frozen at resolution: a third artifact arrives afterwards.
+        state.players[0].battlefield.push(artifact("a2", "p1"));
+        expect(getEffectivePower(state, armor)).toBe(7);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "armor"
+        )!;
+        expect(slim.staticAbilities).toContain("flying");
+        expect(getEffectivePower(projected, slim)).toBe(7);
+        expect(getEffectiveToughness(projected, slim)).toBe(7);
+    });
+
+    it("ends with the animation at the end-of-turn cleanup (CR 611.2a)", () => {
+        const id = register(true);
+        const { state } = board([artifact("a1", "p1")]);
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "armor" }]);
+        resolveTopOfStack(state);
+        expect(
+            (state.continuousEffects ?? []).filter(
+                (e) =>
+                    e.layer === 7 &&
+                    e.payload.kind === "template" &&
+                    e.payload.grantTemplateId === "per-artifact"
+            )
+        ).toHaveLength(1);
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        const armor = state.players[0].battlefield.find(
+            (c) => c.id === "armor"
+        )!;
+        expect(armor.types).not.toContain("Creature");
+        expect(
+            (state.continuousEffects ?? []).filter(
+                (e) =>
+                    e.layer === 7 &&
+                    e.payload.kind === "template" &&
+                    e.payload.grantTemplateId === "per-artifact"
+            )
+        ).toHaveLength(0);
+    });
+
+    it("an indefinite grant applied twice is recorded once (no double count)", () => {
+        const id = register(false);
+        const { state } = board([artifact("a1", "p1")]);
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "armor" }]);
+        resolveTopOfStack(state);
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "armor" }]);
+        resolveTopOfStack(state);
+        const armor = state.players[0].battlefield.find(
+            (c) => c.id === "armor"
+        )!;
+        // 4/4 base + 2 artifacts, counted ONCE.
+        expect(getEffectivePower(state, armor)).toBe(6);
+    });
+});
