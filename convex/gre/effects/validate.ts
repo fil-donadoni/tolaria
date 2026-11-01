@@ -3537,6 +3537,16 @@ function isPredicate(value: unknown): boolean {
             isCardFilter(obj.filter)
         );
     }
+    // castFromZone form (issue #2097, Delayed Blast Fireball) — a single key
+    // naming one of the four cast-from zones (CR 601.2a).
+    if (keys.length === 1 && keys[0] === "castFromZone") {
+        return (
+            obj.castFromZone === "hand" ||
+            obj.castFromZone === "exile" ||
+            obj.castFromZone === "graveyard" ||
+            obj.castFromZone === "library"
+        );
+    }
     // costVictimMatchesFilter form (issue #6503, Storm Elemental) — a single
     // key holding the card shape to test the cost victim's CR 608.2h snapshot
     // against. No ref, no player: the snapshot rides on the stack item.

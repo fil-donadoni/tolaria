@@ -10,6 +10,7 @@ import type {
     LookDistributeKeepTo,
     PendingChoiceZone,
 } from "../gre/types";
+import type { CastFromZone } from "../gre/state/declarations";
 
 // A hand-written Card Definition as a memoised factory (issue #4857): Set
 // modules author `export const fooBar = defineCard(() => ({ … }))` beside the
@@ -5725,6 +5726,12 @@ export interface SpellContext {
      *  "if the exiled card is a snow land" reads it through
      *  `costVictimMatchesFilter`. */
     getAdditionalCostSupertypes: () => string[] | undefined;
+    /** The zone the resolving spell was CAST from (CR 601.2a — the zone it
+     *  moved to the stack from), read off `StackItem.castFromZone`.
+     *  `undefined` for anything that was not cast (an ability, a copy,
+     *  CR 707.10). Read by the `castFromZone` predicate ("if this spell was
+     *  cast from exile"). */
+    getCastFromZone: () => CastFromZone | undefined;
     /** Domain (CR 702 preamble — an italic ability word, no independent rules
      *  meaning of its own): the number of basic land types among lands
      *  `playerId` controls (0–5, CR 305.6 — a dual land with two basic
@@ -20721,7 +20728,21 @@ export type EffectPredicate =
     | EffectSharesMostCommonColorPredicate
     | EffectHasCityBlessingPredicate
     | EffectTargetMatchesGraveyardFilterPredicate
-    | EffectCostVictimMatchesFilterPredicate;
+    | EffectCostVictimMatchesFilterPredicate
+    | EffectCastFromZonePredicate;
+
+/** Cast-from-zone predicate (issue #2097, CR 601.2a / CR 702.143c): true iff
+ *  the resolving spell was cast from the named zone. Reads the zone stamped on
+ *  the stack item at cast commit (`StackItem.castFromZone`), NOT a mechanism
+ *  flag: "cast from exile" holds for a foretold card cast from exile, and
+ *  equally for one cast from exile under an unrelated permission (Plot,
+ *  Ice Cauldron); a foretold card cast from hand is not "cast from exile".
+ *  Delayed Blast Fireball's "If this spell was cast from exile":
+ *  `{ castFromZone: "exile" }`. Reads `false` for anything that was not cast
+ *  (an ability, a copy, CR 707.10). */
+export interface EffectCastFromZonePredicate {
+    castFromZone: CastFromZone;
+}
 
 /** Cost-victim-matches-filter predicate (Storm Elemental — "If the exiled card
  *  is a snow land, …"; issue #6503): true iff the card an activation or
