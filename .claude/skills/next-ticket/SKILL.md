@@ -28,6 +28,8 @@ this file and nothing else.
 - → `job.md` — a pass inside an `afk-pass` job: given issue, label claim,
   job worktree, early push, repair from the failed run's log. Read it when:
   `GITHUB_ACTIONS=true`.
+- → `review-brief.md` — the reviewer's brief template. Read it when: you are
+  about to spawn the §4 reviewer.
 - → `hygiene.md` — why each context-hygiene habit below exists, and where
   its measurement lives. Read it when: a habit seems not to fit your case.
 
@@ -182,17 +184,19 @@ red.
 
 ## 4. Review — ONE round, routed by risk
 
-| Diff touches                                 | Reviewer                   |
-| -------------------------------------------- | -------------------------- |
-| `convex/gre/**`, `**/ai/**`, or `model:opus` | one spawn, `model: opus`   |
-| anything else with code                      | one spawn, `model: sonnet` |
-| docs/markdown only                           | no review                  |
+| Diff touches       | Reviewer                 |
+| ------------------ | ------------------------ |
+| any code           | one spawn, `model: opus` |
+| docs/markdown only | no review                |
 
-One reviewer subagent (`description: "review PR …"`, explicit `model`),
-scoped to the diff plus whatever context it asks to read. Fix blocking
-findings HERE, re-run the targeted tests,
-answer in the PR thread. No re-review round. A wrong-mental-model finding
-(not a mechanical slip) → `model:opus` on the issue, per §1.
+One reviewer subagent (`description: "review PR …"`, `model: opus`), briefed
+from `review-brief.md`: the diff, the `proof-receipt`, and the
+lane plan's skip list (`bun run check:lane --plan --skips`, ten lines at most)
+with one mechanical question — which skipped file can this diff break? Run the
+files it names before hand-off. Fix blocking findings HERE, re-run the targeted
+tests, answer in the PR thread. No hunt, no re-review round. A
+wrong-mental-model finding (not a mechanical slip) → `model:opus` on the
+issue, per §1.
 
 **Done when:** every blocking finding is fixed and committed, or the row
 says no review.
