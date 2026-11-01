@@ -82,7 +82,7 @@ import { declaresCombatRestrictionStaticEffect } from "../cards/registry";
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
 import {
-    exileCastPermission,
+    exileCastLatent,
     exileCastPermitted,
     graveyardCastMechanismForMember,
 } from "./castCost";
@@ -1728,8 +1728,10 @@ export function permanentRealisedValue(
 /** The exiled cards `player` holds a play permission for, in any player's
  *  exile (CR 400.7 — the grant may be cross-player): one OPEN now, read
  *  through `exileCastPermitted`, the one authority the enumerator and the
- *  payment path share (issue #4217) — or one whose window opens on a LATER
- *  turn and stays open from then (issue #2096):
+ *  payment path share — or one whose window opens on a LATER turn and stays
+ *  open from then. Both halves are ONE question, `exileCastLatent`
+ *  (issue #7587), which the search's banking tie-break
+ *  asks too:
  *    - a foretold card (Foretell, CR 702.143a: "after the current turn has
  *      ended");
  *    - a plotted card (Plot, CR 702.170d);
@@ -1750,14 +1752,7 @@ function playableExileCards(
                 // card on the client Bot's wire view) is not a card whose
                 // worth this view can read.
                 (c.card as { id?: string }).id !== FACE_DOWN_CARD_ID &&
-                (exileCastPermitted(state, c, player.id) ||
-                    (c.castableFromExileFromTurn !== undefined &&
-                        c.castableFromExileFromTurn > state.turn &&
-                        exileCastPermission(
-                            c,
-                            player.id,
-                            c.castableFromExileFromTurn
-                        ))) &&
+                exileCastLatent(state, c, player.id) &&
                 // A land is PLAYED, never cast (CR 305.9): a cast-only grant
                 // on one is unusable, so it counts only under a play grant —
                 // the same test `resolvePlayLandSourceZone` makes.

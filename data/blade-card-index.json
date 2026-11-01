@@ -211,6 +211,13 @@
             "needsSetup": false
         }
     ],
+    "Djinn of Fool's Fall": [
+        {
+            "label": "plot: banks a plot card with mana that would otherwise empty",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Etched Oracle": [
         {
             "label": "counter count: draws with an Etched Oracle that keeps a counter after paying",

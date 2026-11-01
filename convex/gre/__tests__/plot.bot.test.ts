@@ -27,6 +27,9 @@ import { applyMoveInSearch, search } from "../search";
 import { legalActions } from "../legalActions";
 import { applyPlot } from "../plot";
 import type { CardInstanceState, GameState } from "../state";
+import { evaluateBreakdown } from "../evaluate";
+import { findBladeScenario } from "../ai/blade/registry";
+import { runBladeScenario } from "../ai/blade/runner";
 
 const PILLAGE = pillageTheBog().id;
 const SWAMP = getCardByName("Swamp").id;
@@ -176,5 +179,29 @@ describe("plot — the plotted card's cast, and a search over both positions (CR
         expect(
             search(plottedOn3(5), "p1", { iterations: 60 }, 7)
         ).not.toBeNull();
+    });
+});
+
+describe("plot — the Bot banks a plot card with mana that would otherwise empty (issue #7587)", () => {
+    it("the plotted card stays latent material: the hand term does not drop", () => {
+        const before = evaluateBreakdown(board(), "p1").self.hand;
+        const after = evaluateBreakdown(
+            applyMoveForSearch(board(), "p1", plotMove),
+            "p1"
+        ).self.hand;
+        expect(after).toBe(before);
+    });
+
+    it("the blade entry plots on every seed — `free-development` takes the banking tie", () => {
+        // The registry entry IS the position (four Islands, Djinn of Fool's
+        // Fall, postcombat main): run through the real search, every seed.
+        // Seed 0xb1ade took `pass` on the material tie-break before the
+        // banking arm read plot.
+        const entry = findBladeScenario(
+            "plot: banks a plot card with mana that would otherwise empty"
+        );
+        expect(entry).toBeDefined();
+        const result = runBladeScenario(entry!);
+        expect(result.ok, result.failureMessage).toBe(true);
     });
 });
