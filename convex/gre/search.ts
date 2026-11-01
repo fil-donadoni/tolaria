@@ -1930,11 +1930,10 @@ export function policyValue(
     botId: string,
     move: Move,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
-    moverId?: string,
-    passHorizon = false
+    moverId?: string
 ): number {
     return policyValueOfSettled(
-        policyProbeState(probe, move, weights, moverId, passHorizon),
+        policyProbeState(probe, move, weights, moverId),
         botId,
         weights
     );
@@ -1960,7 +1959,10 @@ export function policyProbeState(
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
     moverId?: string,
     // The pre-move window was one where `pass` ends the step
-    // (`passEndsStep`): read the move's leaf at that same horizon.
+    // (`passEndsStep`): read the move's leaf at that same horizon. The Eval
+    // Pair bridge opts in, the rollout policy does not: carrying every probed
+    // cast past the step end costs a wide fan-out a step change per
+    // candidate (a 400-iteration Vindicate entry measured 21 s → 116 s).
     passHorizon = false
 ): GameState {
     // The depth the move's own announcement sits on — everything below it
@@ -2181,7 +2183,6 @@ export function selectRolloutMove(
     const moverIsBot = pid === botId;
     // Asked once for the ply, not once per candidate (issue #4461).
     const held = heldInstantProbe(state, pid, memo);
-    const passHorizon = passEndsStep(state, pid);
     let bestScore = -Infinity;
     let best: Move[] = [];
     for (const move of moves) {
@@ -2190,7 +2191,7 @@ export function selectRolloutMove(
         // `policyValue` is from the bot's view; flip for the opponent so each
         // mover greedily maximizes ITS own reward (a competent opponent).
         const r = rewardFromValue(
-            policyValue(probe, botId, move, weights, pid, passHorizon),
+            policyValue(probe, botId, move, weights, pid),
             weights
         );
         let moverReward = moverIsBot ? r : 1 - r;
@@ -2966,14 +2967,13 @@ export function computeActionPriors(
     cache?: Map<string, number>
 ): Map<string, number> {
     const moverIsBot = pid === botId;
-    const passHorizon = passEndsStep(state, pid);
     const scores: number[] = [];
     for (const k of keyed) {
         let raw = cache?.get(k.key);
         if (raw === undefined) {
             const probe = cloneGameState(state);
             applyMoveInSearch(probe, pid, k.move);
-            raw = policyValue(probe, botId, k.move, weights, pid, passHorizon);
+            raw = policyValue(probe, botId, k.move, weights, pid);
             cache?.set(k.key, raw);
         }
         const r = rewardFromValue(raw, weights);
