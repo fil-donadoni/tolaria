@@ -29,6 +29,11 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "../state";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
+import {
+    exileCastLatent,
+    exileCastOpensLater,
+    exileCastPermitted,
+} from "../castCost";
 
 const BEARS = getCardByName("Grizzly Bears").id; // 2/2 ground
 const GIANT = getCardByName("Hill Giant").id; // 3/3 ground
@@ -1825,6 +1830,30 @@ describe("exiled cards with an open play permission (issue #4755)", () => {
         expect(evaluate(open, "p1")).toBeGreaterThan(
             evaluate(makeState({ turn: 3 }), "p1")
         );
+    });
+
+    it("one authority answers both windows: `exileCastLatent` = open now ∨ opens later (issue #7587)", () => {
+        const at = (grant: Partial<CardInstanceState>) => {
+            const s = withExiledBorrower(grant);
+            return [s, s.players[0].exile[0]] as const;
+        };
+        const [sLater, later] = at({
+            castableFromExileBy: "p1",
+            castableFromExileFromTurn: 4,
+        });
+        expect(exileCastOpensLater(sLater, later, "p1")).toBe(true);
+        expect(exileCastPermitted(sLater, later, "p1")).toBe(false);
+        expect(exileCastLatent(sLater, later, "p1")).toBe(true);
+        // The other player holds nothing, now or later.
+        expect(exileCastLatent(sLater, later, "p2")).toBe(false);
+        const [sOpen, open] = at({
+            castableFromExileBy: "p1",
+            castableFromExileFromTurn: 3,
+        });
+        expect(exileCastOpensLater(sOpen, open, "p1")).toBe(false);
+        expect(exileCastLatent(sOpen, open, "p1")).toBe(true);
+        const [sNone, none] = at({});
+        expect(exileCastLatent(sNone, none, "p1")).toBe(false);
     });
 
     it("a grant held by the OTHER player does not count for this player", () => {

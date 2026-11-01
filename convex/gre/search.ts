@@ -95,7 +95,11 @@ import {
     enumerateRaisedTargetMoves,
     type ModeCombinationTruncation,
     type Move,
+    SPECIAL_ACTION_MOVE_KINDS,
 } from "./moves";
+// Issue #7587 — the one authority on a cast-from-exile grant that opens on a
+// later turn, shared with `evaluate`'s hand term.
+import { exileCastOpensLater } from "./castCost";
 // issue #2283 — the shared origin classification + raised-selection commit.
 import {
     applyRaisedTargetFinalization,
@@ -5517,31 +5521,38 @@ export function selectRootMove(
     // would then silently drop it — exactly the mana-screwed case where the bot
     // sat on its only land rather than developing it.
     //
-    // The FORETELL special action (CR 702.143a, issue #2096) is the same shape:
-    // the foretold card is latent material exactly as the hand card was
-    // (`evaluate`'s hand term), the {2} it taps is mana that empties at the end
-    // of the step (CR 106.4 / 500.5) when nothing else in the position spends
-    // it, and the cheaper later cast it buys lies past the rollout horizon —
-    // so the two lines reach outcome-equal rollout leaves and `pass` wins the
-    // tie on noise. The ONE thing the {2} can forfeit is an option held open
-    // THIS turn — a castable instant, a paid activation (`flexibility`) — and
-    // the rollout washes that out too (the lands untap), so the foretell is
-    // taken only when it keeps the mover's `flexibility` term unchanged
-    // (`foretellKeepsHeldOptions`; both sides pinned in `foretell.bot.test.ts`),
-    // and only once the turn's sorcery-speed plays are behind it
-    // (`isLastForetellWindow`: postcombat main or later) — earlier, the `pass`
-    // edge still reaches that window, and a {2} tapped in upkeep could starve
-    // a main-phase play the rollout does not see.
+    // A BANKING special action — one that exiles a card from hand under a
+    // cast grant opening on a LATER turn: foretell (CR 702.143a, issue #2096),
+    // plot (CR 702.170d, issue #7587) — is the same shape: the banked card is
+    // latent material exactly as the hand card was (`evaluate`'s hand term,
+    // `exileCastLatent`), the mana it taps empties at the end of the step
+    // (CR 106.4 / 500.5) when nothing else in the position spends it, and the
+    // cheaper later cast it buys lies past the rollout horizon — so the two
+    // lines reach outcome-equal rollout leaves and `pass` wins the tie on
+    // noise. The ONE thing the mana can forfeit is an option held open THIS
+    // turn — a castable instant, a paid activation (`flexibility`) — and the
+    // rollout washes that out too (the lands untap), so the action is taken
+    // only when it keeps the mover's `flexibility` term unchanged
+    // (`banksCardKeepingHeldOptions`; pinned in `foretell.bot.test.ts` and the
+    // plot blade pair), and only once the turn's sorcery-speed plays are behind
+    // it (`isLastBankingWindow`: postcombat main or later) — earlier, the
+    // `pass` edge still reaches that window, and mana tapped in upkeep could
+    // starve a main-phase play the rollout does not see. The action is told
+    // by what it DOES (the card lands under a later-opening grant), never by
+    // its kind, so the next banking keyword needs no edit here.
     if (best.move.kind === "pass" && ruleOn("free-development")) {
         const develop = pool.find(
             (e) =>
                 mean(e) >= bestMean - weights.outcomeEps &&
                 (e.move.kind === "play-land" ||
-                    (e.move.kind === "foretell" &&
-                        !!rootState &&
+                    (!!rootState &&
                         !!botId &&
-                        isLastForetellWindow(rootState) &&
-                        foretellKeepsHeldOptions(rootState, botId, e.move)) ||
+                        isLastBankingWindow(rootState) &&
+                        banksCardKeepingHeldOptions(
+                            rootState,
+                            botId,
+                            e.move
+                        )) ||
                     (!!rootState &&
                         (isFreeManaSourceCast(rootState, e.move, botId) ||
                             isManaDorkCast(rootState, e.move, botId))))
@@ -6991,29 +7002,39 @@ export function search(
     ).move;
 }
 
-/** CR 702.143a (issue #2096) — true iff taking the `foretell` special action
- *  forfeits no option the mover holds open THIS turn: their `flexibility`
- *  term (castable instants, paid instant-speed activations, ADR 0021) reads
- *  the same after the {2} is tapped as before. The `free-development`
- *  tie-break's gate for foretell: tapping the {2} out of a hand that holds a
- *  Counterspell is a real cost the rollout washes out (the lands untap). */
-function foretellKeepsHeldOptions(
+/** CR 702.143a / 702.170d (issues #2096, #7587) — true iff `move` is a
+ *  special action that BANKS a hand card (after it, the card sits in an exile
+ *  under a cast grant `botId` holds that opens on a later turn —
+ *  `exileCastOpensLater`) AND forfeits no option the mover holds open THIS
+ *  turn: their `flexibility` term (castable instants, paid instant-speed
+ *  activations, ADR 0021) reads the same after the mana is tapped as before.
+ *  The `free-development` tie-break's gate for foretell and plot: tapping out
+ *  of a hand that holds a Counterspell is a real cost the rollout washes out
+ *  (the lands untap). */
+function banksCardKeepingHeldOptions(
     state: GameState,
     botId: string,
     move: Move
 ): boolean {
+    if (!SPECIAL_ACTION_MOVE_KINDS.has(move.kind)) return false;
+    if (!("cardInstanceId" in move)) return false;
+    const cardId = move.cardInstanceId;
+    const after = applyMoveForSearch(state, botId, move);
+    const banked = after.players.some((p) =>
+        p.exile.some(
+            (c) => c.id === cardId && exileCastOpensLater(after, c, botId)
+        )
+    );
+    if (!banked) return false;
     const before = evaluateBreakdown(state, botId).self.flexibility;
-    const after = evaluateBreakdown(
-        applyMoveForSearch(state, botId, move),
-        botId
-    ).self.flexibility;
-    return after >= before;
+    return evaluateBreakdown(after, botId).self.flexibility >= before;
 }
 
-/** CR 702.143a (issue #2096) — the part of the mover's own turn where a
- *  foretell can no longer compete with a sorcery-speed play: the postcombat
- *  main phase and the ending phase. Earlier windows defer to this one. */
-function isLastForetellWindow(state: GameState): boolean {
+/** CR 702.143a / 702.170d (issues #2096, #7587) — the part of the mover's own
+ *  turn where a banking special action can no longer compete with a
+ *  sorcery-speed play: the postcombat main phase and the ending phase.
+ *  Earlier windows defer to this one. */
+function isLastBankingWindow(state: GameState): boolean {
     return (
         state.phase === "POSTCOMBAT_MAIN" ||
         state.phase === "END_STEP" ||
