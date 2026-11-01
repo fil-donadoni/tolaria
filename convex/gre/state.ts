@@ -9445,6 +9445,57 @@ export function animatePermanentAsCreature(
         }
         syncLayer6(state);
     }
+    // CR 113.1 / 611.2a / 613.4c (issue #7203) — a QUOTED static ability the
+    // animation grants ("with flying and 'This creature gets +1/+1 for each
+    // artifact you control'", Iron Man Armor). One layer-7c registry entry
+    // naming the template on the granting card; its closures stay on the
+    // definition and are evaluated at every read with the RECIPIENT as
+    // `source` (CR 113.3d), so the count tracks the board for the duration
+    // rather than being frozen at resolution. Same own-duration rule as the
+    // keyword grants above (CR 611.2a), and applied on a re-application onto
+    // an already-animated permanent too. The affected set is the recipient,
+    // fixed now (CR 611.2c). An INDEFINITE regrant of the same template is a
+    // no-op; the permanent leaving the battlefield purges the entry
+    // (`resetBattlefieldTransientState`, CR 400.7).
+    if (spec.grantedStatic) {
+        const { sourceCardId, templateId } = spec.grantedStatic;
+        const grantDuration = spec.duration
+            ? resolveDuration(spec.duration, controllerId, state)
+            : undefined;
+        const alreadyGranted =
+            !grantDuration &&
+            (state.continuousEffects ?? []).some(
+                (e) =>
+                    e.layer === 7 &&
+                    e.expiry.kind === "indefinite" &&
+                    e.payload.kind === "template" &&
+                    e.payload.grantTemplateId === templateId &&
+                    e.payload.sourceCardId === sourceCardId &&
+                    e.affected.kind === "instances" &&
+                    e.affected.instanceIds.includes(card.id)
+            );
+        if (!alreadyGranted) {
+            pushContinuousEffect(state, {
+                layer: 7,
+                sublayer: "7c",
+                affected: { kind: "instances", instanceIds: [card.id] },
+                expiry: grantDuration
+                    ? {
+                          kind: "duration",
+                          duration: grantDuration,
+                          controllerId,
+                      }
+                    : { kind: "indefinite", controllerId },
+                payload: {
+                    kind: "template",
+                    sourceCardId,
+                    effectIndex: 0,
+                    grantTemplateId: templateId,
+                },
+                characteristicDefining: false,
+            });
+        }
+    }
 }
 
 /** Undoes the mutations applied by `animateAsCreature`, restoring the
