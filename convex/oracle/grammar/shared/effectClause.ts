@@ -4707,6 +4707,8 @@ export function capitalise(span: string): string {
 
 /** CR 603.2's optional marker, as printed at a trigger's effect clause. */
 const MAY_PREFIX = "you may ";
+/** The marker behind a CR 608.2c ", then" connector. */
+const THEN_YOU_MAY = `, then ${MAY_PREFIX}`;
 /**
  * CR 305.1 — a land is played, never cast: a graveyard cast grant whose
  * announced card can only be a land grants nothing.
@@ -4751,7 +4753,32 @@ const OPTIONAL_HAND_COSTS = {
 export function optionalSentenceRule(
     inner: Rule<SentenceIR>
 ): Rule<SentenceIR> {
-    return rule(`optional ${inner.label}`, (span, ctx) => {
+    const optional: Rule<SentenceIR> = rule(
+        `optional ${inner.label}`,
+        (span, ctx) => {
+            const read = optionalSentence(span, ctx);
+            if (read.ok || !uncapitalise(span).includes(THEN_YOU_MAY))
+                return read;
+            // CR 608.2c + CR 603.5 — "mill four cards, then you may return
+            // …": the chain's tail is read by THIS site's sentence rule, the
+            // one a full stop would hand it to, so "then you may <effect>" is
+            // optional exactly where "You may <effect>." is — and nowhere the
+            // site has no optional marker (`sentenceRule`'s own chain reads
+            // its tail without one).
+            const chained = readThenChain(span, ctx, (half) =>
+                optional.run(half, ctx)
+            );
+            return chained === null || !chained.ok
+                ? deeperFailure(read, chained ?? read)
+                : chained;
+        }
+    );
+    return optional;
+
+    function optionalSentence(
+        span: string,
+        ctx: RuleContext
+    ): RuleResult<SentenceIR> {
         // The marker is a FUNCTION word at the head of its sentence, so it is
         // read at either casing — lowercase where a trigger's first clause
         // prints it ("…, you may draw a card"), capitalised where a following
@@ -4844,7 +4871,7 @@ export function optionalSentenceRule(
                 effect: parsed.value.effect,
             },
         });
-    });
+    }
 }
 
 /**

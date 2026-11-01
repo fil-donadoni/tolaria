@@ -14727,4 +14727,71 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 603.5 + CR 608.2c + CR 205.3 — "mill four cards, then you may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand": the chain's optional tail, a graveyard pick over the filter's `any` of two card nouns, "non-Avatar" on the creature half only (issue #7721). Exhibits the `choice` of that filter and the `moveZone` of its pick, which the smoke scenario cannot stage.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "652e87af-7cf0-407f-9fb7-1a630fb8dd47",
+            name: "Overlord of the Balemurk",
+            manaCost: "{3}{B}{B}",
+            typeLine: "Enchantment Creature — Avatar Horror",
+            oracleText:
+                "Impending 5—{1}{B} (If you cast this spell for its impending cost, it enters with five time counters and isn't a creature until the last is removed. At the beginning of your end step, remove a time counter from it.)\nWhenever this permanent enters or attacks, mill four cards, then you may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand.",
+            power: "5",
+            toughness: "5",
+            layout: "normal",
+        },
+        expected: {
+            name: "Overlord of the Balemurk",
+            oracleText:
+                "Impending 5—{1}{B} (If you cast this spell for its impending cost, it enters with five time counters and isn't a creature until the last is removed. At the beginning of your end step, remove a time counter from it.)\nWhenever this permanent enters or attacks, mill four cards, then you may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand.",
+            manaCost: { B: 2, X: 3 },
+            types: ["Enchantment", "Creature"],
+            subtypes: ["Avatar", "Horror"],
+            power: 5,
+            toughness: 5,
+            staticAbilities: ["impending 5"],
+            impending: {
+                id: "impending",
+                description: "Impending 5—{1}{B}",
+                mana: { B: 1, X: 1 },
+            },
+            compiledTriggeredAbilities: [
+                {
+                    id: "overlord-of-the-balemurk-trigger",
+                    oracleText:
+                        "Whenever this permanent enters or attacks, mill four cards, then you may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand.",
+                    head: { kind: "enters-or-attacks" },
+                    effects: [
+                        { op: "mill", player: "controller", count: 4 },
+                        {
+                            op: "choice",
+                            kind: "choose-graveyard-card",
+                            player: "controller",
+                            zone: "graveyard",
+                            filter: {
+                                any: [
+                                    {
+                                        type: "Creature",
+                                        excludeSubtype: "Avatar",
+                                    },
+                                    { type: "Planeswalker" },
+                                ],
+                            },
+                            count: { min: 0, max: 1 },
+                            prompt: "You may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand.",
+                            bind: "$picked",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$picked" },
+                            player: "controller",
+                            from: "graveyard",
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

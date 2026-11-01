@@ -20,11 +20,9 @@ import { entersOrAttacksTrigger } from "../../abilities/triggers/entersOrAttacks
 // entry whichever cost was paid — an impending Overlord still enters — while
 // the attacks half needs it to be a creature again (CR 508.1a).
 //
-// "A non-Avatar creature card or a planeswalker card" is one filter: a card of
-// either type that is not an Avatar. Exact over the printed card pool — no
-// card in the Oracle corpus is a creature AND a planeswalker AND an Avatar, the
-// only shape on which the two readings could differ.
-// compiler-gap: "then you may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand" (#7721)
+// "A non-Avatar creature card or a planeswalker card" is a disjunction of two
+// card descriptions, "non-Avatar" qualifying the creature half only: the
+// filter's `any`, one clause per half.
 export const overlordOfTheBalemurk = defineCard(() => ({
     id: "9b911653-7b96-4cf3-a907-13c5c53a14f7",
     name: "Overlord of the Balemurk",
@@ -58,8 +56,10 @@ export const overlordOfTheBalemurk = defineCard(() => ({
                     player: "controller",
                     zone: "graveyard",
                     filter: {
-                        type: ["Creature", "Planeswalker"],
-                        excludeSubtype: "Avatar",
+                        any: [
+                            { type: "Creature", excludeSubtype: "Avatar" },
+                            { type: "Planeswalker" },
+                        ],
                     },
                     count: { min: 0, max: 1 },
                     prompt: "You may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand.",
