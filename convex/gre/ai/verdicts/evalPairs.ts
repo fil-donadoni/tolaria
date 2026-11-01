@@ -42,15 +42,6 @@
 // pass in the LAST window (`isLastDeferralWindow`) — are built exactly like
 // any pair and routed to `timing` instead of `pairs`: never fitted, never
 // dropped silently, and checked by the search (`verdicts:search`).
-//
-// SEQUENCING PAIRS (issue #7819) are the same WHEN question between two
-// actions: the `other` move is still offered once `right` has settled, so the
-// judge said which to do FIRST — "play the land, then cast the Library" — not
-// which to give up. The two 1-ply leaves differ by the whole `other` move, so
-// the fit can only answer such a pair by shrinking what `other` is worth:
-// one Verdict Lock land-before-Sylvan-Library pair pinned `latent.recurrence`
-// to its trust-region floor and `latent.cardAdvantage` 45 → 31 once the probe
-// priced the Library at all (issue #7784). They ride the `timing` bucket.
 
 import { cloneGameState } from "../../clone";
 import type { EvalTerms } from "../../evaluate";
@@ -409,10 +400,15 @@ function planlessMove(move: Move): Move {
     return "tapPlan" in move ? ({ ...move, tapPlan: [] } as Move) : move;
 }
 
-/** Is a pair a SEQUENCING judgement (header, issue #7819)? Two actions, and
- *  the `other` one is still enumerated for the mover once `right` has settled
- *  through the production probe: the judge said which to do FIRST, not which
- *  to do instead. Read on the verdict's own rebuilt position; "pass" on either
+/** Is a pair a SEQUENCING judgement (issue #7819)? Two actions, and the
+ *  `other` one is still enumerated for the mover once `right` has settled
+ *  through the production probe: the judge said which to do FIRST — "play the
+ *  land, then cast the Library" — not which to give up. The two 1-ply leaves
+ *  differ by the whole `other` move, so the fit could only answer such a pair
+ *  by shrinking what `other` is worth: one Verdict Lock land-before-Sylvan-
+ *  Library pair pinned `latent.recurrence` to its trust-region floor and
+ *  `latent.cardAdvantage` 45 → 31 once the probe priced the Library at all.
+ *  The same WHEN question as the timing pairs, so they ride that bucket. Read on the verdict's own rebuilt position; "pass" on either
  *  side is never sequencing (it ends the window — `timingPairClassifier`'s
  *  shape), nor is a `right` whose settle hands the decision away. */
 export function sequencingPairClassifier(
