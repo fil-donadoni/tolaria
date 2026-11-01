@@ -2335,6 +2335,24 @@ describe("buildStateFromScenario — what has already been cast (issue #3449)", 
         expect(state.spellsCastThisTurn).toBe(1);
     });
 
+    it("drops a seat's per-type split when the spec re-seeds that seat's total (CR 205.2b)", () => {
+        const base = makeState();
+        base.players[0].spellTypesCastThisTurn = { Creature: 1 };
+        base.players[1].spellTypesCastThisTurn = { Instant: 2 };
+
+        const state = buildStateFromScenario(base, {
+            cards: [],
+            spellsCastThisTurn: { me: 0 },
+        });
+
+        // The live game's "one creature spell" must not outlive a spec that
+        // says this seat has cast nothing; the unseeded seat keeps its split.
+        expect(state.players[0].spellTypesCastThisTurn).toBeUndefined();
+        expect(state.players[1].spellTypesCastThisTurn).toEqual({
+            Instant: 2,
+        });
+    });
+
     it("leaves all three alone when the spec omits them", () => {
         const base = makeState();
         base.players[0].spellsCastThisGame = 5;

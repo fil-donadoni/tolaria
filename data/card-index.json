@@ -76565,6 +76565,14 @@
         "source": "compiled"
     },
     {
+        "name": "Vengevine",
+        "scryfallId": "51eb9f05-9d5a-4196-9329-626ce4793c42",
+        "oracleId": "7ed52301-81ea-4e7f-b985-cfab0593cae4",
+        "firstSet": "roe",
+        "firstPrintId": "51eb9f05-9d5a-4196-9329-626ce4793c42",
+        "firstPrintSet": "roe"
+    },
+    {
         "name": "Venom",
         "scryfallId": "bb0480f5-6aae-4297-afa6-3f7a5801bf95",
         "oracleId": "ee55ca31-73f3-4e9d-8373-0a44009a25bd",
