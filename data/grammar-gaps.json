@@ -1142,7 +1142,7 @@
         {
             "kind": "grammar",
             "key": "keyword-line › keyword ability › ward {…}",
-            "issue": 7214
+            "issue": 7769
         },
         {
             "kind": "grammar",
@@ -2082,7 +2082,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › Ward—Pay N life",
-            "issue": 7214
+            "issue": 7769
         },
         {
             "kind": "grammar",

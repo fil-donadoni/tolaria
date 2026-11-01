@@ -52,6 +52,10 @@ import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import type { LineParse, SlotIR } from "./grammar/ir";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import { CYCLING_ABILITY_ID, cyclingAbility } from "../cards/abilities/cycling";
+import { equipAbility } from "../cards/abilities/equipment";
+import { ninjutsuAbility } from "../cards/abilities/ninjutsu";
+import { offspringTriggerParts } from "../cards/abilities/offspring";
+import { crewAbility, crewKeyword } from "../cards/abilities/vehicle";
 import { keywordVocabulary } from "./grammar/shared/keywordVocabulary";
 import { CREATURE_SUBTYPES } from "./grammar/shared/subtypes";
 
@@ -179,6 +183,18 @@ interface Accumulator {
     impending?: AlternativeCost;
     echo?: MayPayCost;
     cumulativeUpkeep?: MayPayCost;
+    /** CR 702.6a — the equip line, checked against the Equipment subtype. */
+    equipLine?: string;
+    /** CR 702.122a — the crew line, checked against the Vehicle subtype. */
+    crewLine?: string;
+    /** CR 301.7a — a Vehicle's printed P/T, which crew animates it to. */
+    vehiclePt?: { power: number; toughness: number };
+    /**
+     * CR 702.175a — the offspring cost entry, kept apart from `kickers` until
+     * the card is assembled: it is not a kicker (CR 702.33d), so no kicker
+     * rider read while lowering may count it.
+     */
+    offspring?: KickerCost;
 }
 
 /**
@@ -873,6 +889,79 @@ function lowerLine(
             acc.cumulativeUpkeep = ir.cost;
             return null;
         }
+        case "equip": {
+            // CR 702.6d permits several equip abilities, but the factory's id
+            // convention (`<slug>-equip`) names one; a second would repeat it.
+            if (acc.equipLine !== undefined)
+                return "a card declares equip twice (one ability id per card)";
+            acc.equipLine = parsed.line;
+            // `equipAbility` takes fixed generic mana as `generic`, as every
+            // catalogue call writes it; the mana reader writes a numeric `X`.
+            const { X: generic, ...coloured } = ir.cost;
+            acc.activatedAbilities.push(
+                equipAbility({
+                    id: `${slugify(card.name)}-equip`,
+                    cost:
+                        typeof generic === "number"
+                            ? { generic, ...coloured }
+                            : ir.cost,
+                    oracleText: parsed.line,
+                })
+            );
+            return null;
+        }
+        case "crew": {
+            if (acc.crewLine !== undefined)
+                return "a card declares crew twice (one ability id per card)";
+            // CR 301.7b — crewed, the Vehicle "immediately has its printed
+            // power and toughness"; a `*` is a CDA the animation cannot read.
+            const power = readPt(card.power, "power");
+            if (typeof power !== "number") return power.error;
+            const toughness = readPt(card.toughness, "toughness");
+            if (typeof toughness !== "number") return toughness.error;
+            acc.crewLine = parsed.line;
+            acc.vehiclePt = { power, toughness };
+            acc.staticAbilities.push(crewKeyword(ir.count));
+            acc.activatedAbilities.push(
+                crewAbility({ name: card.name, n: ir.count, power, toughness })
+            );
+            return null;
+        }
+        case "ninjutsu": {
+            // The factory's ability id is the keyword's own ("ninjutsu").
+            if (acc.activatedAbilities.some((a) => a.id === "ninjutsu"))
+                return "a card declares ninjutsu twice (CR 702.49a)";
+            acc.activatedAbilities.push(ninjutsuAbility(ir.cost));
+            return null;
+        }
+        case "offspring": {
+            // CR 702.175b — two instances would need two cost ids and two
+            // triggers; no fixture reads one.
+            if (acc.offspring !== undefined)
+                return "a card declares offspring twice (CR 702.175b)";
+            const trigger = offspringTriggerParts({ cardName: card.name });
+            acc.offspring = {
+                id: trigger.costId,
+                keyword: "offspring",
+                description: ir.description,
+                mana: ir.cost,
+            };
+            acc.compiledTriggeredAbilities.push({
+                id: trigger.id,
+                oracleText: trigger.oracleText,
+                head: { kind: "entered", scope: "self" },
+                // CR 603.4 — checked as the ability would trigger: an unpaid
+                // offspring cost announces nothing. The resolution-time check
+                // is the body's own `if`.
+                condition: { kind: "kicker-paid", kickerId: trigger.costId },
+                effects: trigger.effects,
+                additionalCostTwin: {
+                    keyword: "offspring",
+                    costId: trigger.costId,
+                },
+            });
+            return null;
+        }
         default: {
             const never: never = ir;
             return `no lowering for slot IR ${JSON.stringify(never)}`;
@@ -1140,7 +1229,36 @@ export function lowerCard(
                 fragment: rider.line,
             };
     }
-    if (acc.kickers !== undefined) definition.kickers = acc.kickers;
+    // CR 702.175a — the offspring cost rides the same `kickers[]` the cast
+    // path reads; its `keyword` keeps it out of every "kicked" read.
+    const castKickers =
+        acc.offspring === undefined
+            ? acc.kickers
+            : [...(acc.kickers ?? []), acc.offspring];
+    if (castKickers !== undefined) definition.kickers = castKickers;
+    // CR 702.6a — "Equip is an activated ability of Equipment cards".
+    if (acc.equipLine !== undefined && !typeLine.subtypes.includes("Equipment"))
+        return {
+            ok: false,
+            reason: "equip on a card that is not an Equipment (CR 702.6a)",
+            fragment: acc.equipLine,
+        };
+    // CR 702.122a — "Crew is an activated ability of Vehicle cards"; a
+    // Vehicle that is already a creature is a shape no fixture reads.
+    if (acc.crewLine !== undefined) {
+        if (
+            !typeLine.subtypes.includes("Vehicle") ||
+            typeLine.types.includes("Creature")
+        )
+            return {
+                ok: false,
+                reason: "crew on a card that is not a non-creature Vehicle (CR 702.122a)",
+                fragment: acc.crewLine,
+            };
+        // CR 301.7a — a Vehicle's printed P/T, declared as `makeVehicle` does.
+        definition.power = acc.vehiclePt!.power;
+        definition.toughness = acc.vehiclePt!.toughness;
+    }
     // CR 612.6 — "has the text "<ability>"" keeps the card's OWN activated
     // ability with that text; it must exist, or the clause retains nothing.
     if (acc.fullText !== undefined) {

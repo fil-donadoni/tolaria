@@ -97,7 +97,7 @@
 // COPIABLE values and a payment record is not one, so the token's own copy of
 // this trigger is check-time-gated to silence and no token makes further
 // tokens — with no suppression code anywhere.
-import type { AdditionalCostTwin, TriggeredAbility } from "../types";
+import type { AdditionalCostTwin, EffectOp, TriggeredAbility } from "../types";
 import { enteredTrigger } from "./triggers/enteredTrigger";
 import {
     additionalCostPaidCondition,
@@ -123,6 +123,47 @@ export interface OffspringTriggerArgs {
     id?: string;
 }
 
+/** The JSON half of the Offspring trigger (CR 702.175a): its id, its stack
+ *  text and its Effect Script — everything but the factory's closures. Shared
+ *  by {@link offspringTrigger} and the Oracle compiler's compiled-trigger
+ *  descriptor (`convex/oracle/lower.ts`), so the body has one authority. */
+export function offspringTriggerParts(args: OffspringTriggerArgs): {
+    id: string;
+    costId: string;
+    oracleText: string;
+    effects: EffectOp[];
+} {
+    const costId = args.costId ?? OFFSPRING_COST_ID;
+    return {
+        id: args.id ?? `offspring-token-copy-${costId}`,
+        costId,
+        // CR 702.175a verbatim, with the card's name substituted for "this
+        // permanent" the way an Oracle line reads on the stack.
+        oracleText: `When ${args.cardName} enters, if its offspring cost was paid, create a token that's a copy of it, except it's 1/1.`,
+        effects: [
+            {
+                // CR 603.4, check 2 — read off the resolving stack item's
+                // own snapshot, never the live permanent.
+                op: "if",
+                predicate: {
+                    left: { additionalCostPaid: costId },
+                    op: "ge",
+                    right: 1,
+                },
+                then: [
+                    {
+                        op: "createTokenCopy",
+                        source: { ref: "$source" },
+                        controller: "controller",
+                        // CR 707.2's "except" clause — "except it's 1/1".
+                        except: { basePower: 1, baseToughness: 1 },
+                    },
+                ],
+            },
+        ],
+    };
+}
+
 /** Builds the Offspring token-copy trigger (CR 702.175a's second ability). Add
  *  it to the card's `triggeredAbilities[]` ALONGSIDE the card's own ETB
  *  abilities (if any) and alongside the `kickers[]` cost entry named by
@@ -130,41 +171,22 @@ export interface OffspringTriggerArgs {
  *  (`cards/__tests__/additionalCostKeywords.test.ts`) fails on either half
  *  without the other, in both directions. */
 export function offspringTrigger(args: OffspringTriggerArgs): TriggeredAbility {
-    const costId = args.costId ?? OFFSPRING_COST_ID;
-    const twin: AdditionalCostTwin = { keyword: "offspring", costId };
+    const parts = offspringTriggerParts(args);
+    const twin: AdditionalCostTwin = {
+        keyword: "offspring",
+        costId: parts.costId,
+    };
     return withAdditionalCostTwin(
         enteredTrigger({
-            id: args.id ?? `offspring-token-copy-${costId}`,
-            // CR 702.175a verbatim, with the card's name substituted for "this
-            // permanent" the way an Oracle line reads on the stack.
-            oracleText: `When ${args.cardName} enters, if its offspring cost was paid, create a token that's a copy of it, except it's 1/1.`,
+            id: parts.id,
+            oracleText: parts.oracleText,
             // CR 702.175a says "this PERMANENT", not "this creature" — every
             // printed offspring card is a creature, but the scope is the
             // source itself either way.
             scope: "self",
             // CR 603.4, check 1 — an unpaid offspring cost announces nothing.
-            conditionOnSelf: additionalCostPaidCondition(costId),
-            effects: [
-                {
-                    // CR 603.4, check 2 — read off the resolving stack item's
-                    // own snapshot, never the live permanent.
-                    op: "if",
-                    predicate: {
-                        left: { additionalCostPaid: costId },
-                        op: "ge",
-                        right: 1,
-                    },
-                    then: [
-                        {
-                            op: "createTokenCopy",
-                            source: { ref: "$source" },
-                            controller: "controller",
-                            // CR 707.2's "except" clause — "except it's 1/1".
-                            except: { basePower: 1, baseToughness: 1 },
-                        },
-                    ],
-                },
-            ],
+            conditionOnSelf: additionalCostPaidCondition(parts.costId),
+            effects: parts.effects,
         }),
         twin
     );

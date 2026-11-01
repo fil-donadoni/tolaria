@@ -32,6 +32,7 @@
 import { countControlledMatching } from "./controlledCount";
 import type { PermanentFilter, SpellFilter } from "./filters";
 import type {
+    AdditionalCostTwin,
     CardType,
     Color,
     EffectOp,
@@ -71,6 +72,7 @@ import { tappedTrigger } from "./abilities/triggers/tappedTrigger";
 import { cycledTrigger } from "./abilities/cycling";
 import {
     additionalCostPaidCondition,
+    withAdditionalCostTwin,
     type PermanentScope,
     type TriggerScope,
 } from "./abilities/triggers/shared";
@@ -371,6 +373,15 @@ export interface CompiledTriggeredAbility {
     readonly resolvesIfTargetsIllegal?: true;
     /** ADR 0045 — the resolution body. Required: there is no escape hatch. */
     readonly effects: readonly EffectOp[];
+    /**
+     * CR 702.175a — this trigger is the TRIGGER half of an additional-cost
+     * keyword (Offspring), linked to the `kickers[]` entry it names. Stamped
+     * onto the ability by the same `withAdditionalCostTwin` the keyword's
+     * hand-written factory uses. Needs a `kicker-paid` condition on the same
+     * cost id and an entered-self head: the twin's trigger fires only when
+     * its own cost was paid (CR 702.175b).
+     */
+    readonly additionalCostTwin?: AdditionalCostTwin;
 }
 
 /**
@@ -493,6 +504,20 @@ function controlsMore(
 
 /** One descriptor → the real ability, through the hand-written factories. */
 export function resolveCompiledTrigger(
+    descriptor: CompiledTriggeredAbility
+): TriggeredAbility {
+    const ability = resolveCompiledTriggerHead(descriptor);
+    const twin = descriptor.additionalCostTwin;
+    if (twin === undefined) return ability;
+    const condition = descriptor.condition;
+    if (condition?.kind !== "kicker-paid" || condition.kickerId !== twin.costId)
+        throw new Error(
+            `compiled trigger ${descriptor.id}: an additional-cost twin is gated on its own cost being paid (CR 702.175b)`
+        );
+    return withAdditionalCostTwin(ability, twin);
+}
+
+function resolveCompiledTriggerHead(
     descriptor: CompiledTriggeredAbility
 ): TriggeredAbility {
     const head = descriptor.head;
