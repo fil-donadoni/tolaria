@@ -33,6 +33,11 @@ function ctx(over: Partial<PrCheckContext>): PrCheckContext {
         lineage: () => redLineage(),
         repairIssues: () => [900],
         runTests: exitAll(0),
+        // Hermetic: never the ambient env's hosted corpus exclusion. On the
+        // hosted lane it is ON, and a real test file whose import closure
+        // reaches the fitted weights (issue #7819) turned unprovable there,
+        // so a case not about the corpus read a note it never asked for.
+        corpusExcluded: () => false,
         ...over,
     };
 }
