@@ -215,10 +215,10 @@ export const enduringCourage = defineCard(() => ({
 // The trigger is the shared `damageTakenTrigger` gated on the damaged
 // permanent being this one. Lethal damage still triggers it — the creature is
 // on the battlefield right after the damage event (CR 603.10), and it deals
-// the damage as it last existed once it has died (CR 113.7a). "That much" is the firing event's
-// amount (`$event.amount`, CR 120.3) and "any other target" is an `any`
-// requirement with `excludeSource` (CR 115.4), so it can never send the damage
-// back to itself. A loop between two copies is bounded by the stack: every
+// the damage as it last existed once it has died (CR 113.7a). "That much" is
+// the firing event's amount (`$event.amount`, CR 120.3) and "any other
+// target" is an `any` requirement with `excludeSource` (CR 115.4), so it can
+// never send the damage back to itself. A loop between two copies is bounded by the stack: every
 // trigger waits for both players to pass (CR 117.4), and the engine never
 // resolves one on its own.
 //
