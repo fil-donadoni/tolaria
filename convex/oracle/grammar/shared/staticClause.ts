@@ -301,6 +301,10 @@ export type StaticClauseIR =
      *  turn": a cast prohibition on every opponent of the source's controller
      *  while that controller is the active player. */
     | { readonly kind: "opponents-cant-cast-during-your-turn" }
+    /** CR 601.3 + CR 307.1 — "Each opponent can cast spells only any time
+     *  they could cast a sorcery": every opponent of the source's controller
+     *  held to sorcery timing for every spell. */
+    | { readonly kind: "opponents-sorcery-timing-lock" }
     /**
      * CR 509.1b — "This creature can't block": the source's own printed
      * restriction as a BLOCKER. The Aura twin ("Enchanted creature can't
@@ -2511,6 +2515,28 @@ const opponentsCantCastDuringYourTurnRule: Rule<StaticClauseIR> = rule(
             : fail("not the opponent cast-lock template", span)
 );
 
+// ── Frame: the opponent sorcery-timing lock (CR 601.3) ─────────────────────
+
+/**
+ * "Each opponent can cast spells only any time they could cast a sorcery."
+ * (Teferi, Time Raveler; Teferi, Mage of Zhalfir; Teferi, Druid of Argoth.)
+ * CR 601.3: a player can begin to cast a spell only if no effect prohibits
+ * it; this one prohibits every opponent of the source's controller from
+ * casting outside the window CR 307.1 gives a sorcery. Another caster ("Each
+ * player …"), a class of spell ("… creature spells only …") or another window
+ * differs from the exact match and stays refused.
+ */
+const OPPONENTS_SORCERY_TIMING_LOCK =
+    "Each opponent can cast spells only any time they could cast a sorcery";
+
+const opponentsSorceryTimingLockRule: Rule<StaticClauseIR> = rule(
+    "opponent sorcery-timing lock",
+    (span): RuleResult<StaticClauseIR> =>
+        span === OPPONENTS_SORCERY_TIMING_LOCK
+            ? ok({ kind: "opponents-sorcery-timing-lock" as const })
+            : fail("not the opponent sorcery-timing lock template", span)
+);
+
 // ── Frame: the as-enters discard (CR 614.1a) ────────────────────────────────
 
 /**
@@ -2708,6 +2734,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         lookAtLibraryTopRule,
         graveyardLandPlayRule,
         opponentsCantCastDuringYourTurnRule,
+        opponentsSorceryTimingLockRule,
         asEntersDiscardRule,
         asEntersSacrificeRule,
         asEntersExileFromGraveyardRule,

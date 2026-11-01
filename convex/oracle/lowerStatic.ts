@@ -665,6 +665,22 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        // CR 601.3 + CR 307.1 — the read-time timing gate on every opponent
+        // of the source's controller.
+        case "opponents-sorcery-timing-lock":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "cast-timing-lock",
+                            id: nextId("opponent-timing-lock"),
+                            oracleText:
+                                "Each opponent can cast spells only any time they could cast a sorcery.",
+                        },
+                    ],
+                },
+            };
         case "kicked-enters-with":
             return lowerKickedRider(clause, kickers, nextId);
         // CR 509.1b — the engine collects a block restriction from the
