@@ -7791,6 +7791,13 @@ export const MELD_GROUP_DISPOSITION: Readonly<
     restrictCombat: BATTLEFIELD_ONLY,
     returnToHandAtNextUntap: BATTLEFIELD_ONLY,
     sacrifice: BATTLEFIELD_ONLY,
+    // Both halves are ANNOUNCED target slots (the validator admits no other
+    // selector): a battlefield permanent, where a melded permanent is ONE
+    // object (CR 701.42a), and the single graveyard card the player chose —
+    // never a reference an earlier effect found, so there is no second card
+    // for CR 712.21c to reach.
+    sacrificeAndReturn:
+        "acts on two announced target slots only, never on an object an earlier effect found",
     setBasePT: BATTLEFIELD_ONLY,
     setCardTypes: BATTLEFIELD_ONLY,
     setColor: BATTLEFIELD_ONLY,
