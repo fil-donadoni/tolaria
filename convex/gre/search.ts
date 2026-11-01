@@ -1983,7 +1983,13 @@ export function policyProbeState(
     probe: GameState,
     move: Move,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
-    moverId?: string
+    moverId?: string,
+    // The pre-move window was one where `pass` ends the step
+    // (`passEndsStep`): read the move's leaf at that same horizon. The Eval
+    // Pair bridge opts in, the rollout policy does not: carrying every probed
+    // cast past the step end costs a wide fan-out a step change per
+    // candidate (a 400-iteration Vindicate entry measured 21 s → 116 s).
+    passHorizon = false
 ): GameState {
     // The depth the move's own announcement sits on — everything below it
     // belongs to somebody else. -1 when the move put nothing on the stack.
@@ -2077,7 +2083,56 @@ export function policyProbeState(
             true
         );
     }
+    if (passHorizon && announcedDepth === 0) readAtPassHorizon(settled);
     return settled;
+}
+
+/** Whether a `pass` by `pid` from `state` ends the step: the stack is empty,
+ *  nothing is pending, and the other seat's pass is already banked (CR
+ *  117.4 — all players passed in succession with an empty stack, so the step
+ *  ends). The case where the `pass` leaf of a 1-ply probe sits one step
+ *  further on than a cast or activation's leaf, which `readAtPassHorizon`
+ *  aligns. Pure. */
+export function passEndsStep(state: GameState, pid: string): boolean {
+    return (
+        state.priorityPlayerId === pid &&
+        state.stack.length === 0 &&
+        state.passCount >= 1 &&
+        (state.pendingChoices?.length ?? 0) === 0 &&
+        !state.pendingTarget &&
+        !state.gameOver
+    );
+}
+
+/** Read a probe at the horizon its `pass` sibling reaches (issue #7745).
+ *
+ *  From a window where `pass` ends the step (`passEndsStep`), the `pass` leaf
+ *  is scored in the NEXT step while a cast or activation's leaf, its own
+ *  announcement resolved, is still in this one, with priority back on the
+ *  active player (CR 117.3b). Scored there, the two differ by whatever the
+ *  step change reads — a declared lethal swing at DECLARE_BLOCKERS is
+ *  `winScore` on the `pass` side alone — and that gap is the probe's horizon,
+ *  not the position. So the leaf is carried on the same way: both seats pass
+ *  with the empty stack, the step ends, exactly as the `pass` leaf's own
+ *  `passInSearch` ended it. Nothing is done once the stack is non-empty or a
+ *  decision is pending — the move left something unresolved, and passing over
+ *  it would resolve it for the leaf. Mutates `state` in place. */
+function readAtPassHorizon(state: GameState): void {
+    const turn = state.turn;
+    const phase = state.phase;
+    for (let passes = 0; passes < 2; passes++) {
+        if (
+            state.gameOver ||
+            state.turn !== turn ||
+            state.phase !== phase ||
+            state.stack.length > 0 ||
+            (state.pendingChoices?.length ?? 0) > 0 ||
+            state.pendingTarget
+        ) {
+            return;
+        }
+        passInSearch(state, state.priorityPlayerId);
+    }
 }
 
 /** The SCORING half of `policyValue` (issue #3400): the leaf evaluation of an
