@@ -1939,6 +1939,28 @@ export function policyValue(
     );
 }
 
+/** The stack depth of the object `move` announced — the spell a cast put
+ *  there, or the top for anything else.
+ *
+ *  Not simply the top: CR 601.2i triggers a "when you cast" ability as the
+ *  spell becomes cast, and CR 603.3 puts it ABOVE the spell. Storm (CR
+ *  702.40a) is the shape that showed it — the top is the storm trigger, so a
+ *  probe that read the top as the announcement resolved the copies' trigger,
+ *  saw the spell still sitting below it, and scored a mill spell as the mana
+ *  it cost. The triggers above the spell are the cast's own consequences, so
+ *  the spell's depth is the floor the probe settles to. */
+function announcementDepth(probe: GameState, move: Move): number {
+    const top = probe.stack.length - 1;
+    if (move.kind !== "cast-spell") return top;
+    const spellDepth = probe.stack.findIndex(
+        (item) =>
+            item.id === move.cardInstanceId &&
+            !item.triggeredAbilityId &&
+            !item.abilityId
+    );
+    return spellDepth >= 0 ? spellDepth : top;
+}
+
 /** The SETTLED STATE half of `policyValue` (issue #3400) — the 1-ply probe
  *  itself: the one-resolution lookahead for a cast/activation, plus the
  *  mover-owned settle of a suspended resolution. Everything above the
@@ -1966,7 +1988,7 @@ export function policyProbeState(
         (move.kind === "cast-spell" || move.kind === "activate-ability") &&
         probe.stack.length > 0
     ) {
-        announcedDepth = probe.stack.length - 1;
+        announcedDepth = announcementDepth(probe, move);
         resolveTopOfStack(probe);
         // CR 704.3 (issue #5784) — a completed resolution is followed by the
         // SBA check before anyone gets priority; lethal damage (CR 704.5g)
@@ -2035,8 +2057,8 @@ export function policyProbeState(
         // on the stack (or still announcing its target, CR 603.3d) scored a
         // creature cast as its body alone: casting Flametongue Kavu into a
         // real target read below holding it. Same bound as the branch above —
-        // only with nothing underneath (the move's own announcement was the
-        // whole stack), the opponent's answers taken adversarially (a discard
+        // only with nothing underneath (the move's own announcement sits at
+        // the bottom, its cast triggers above it), the opponent's answers taken adversarially (a discard
         // ETB waits on the opponent's pick, issue #4896), and a settle that
         // cannot finish hands back the probe as it was.
         settled = settleStackForBreakdown(
@@ -3577,13 +3599,16 @@ function settleFrom(
             // the MOVER, the announcement is one of the mover's own answers,
             // like a resolution-time choice (#3194), and the ETB it announces
             // is the whole of what a creature's cast buys: stopping here
-            // scored the body without the removal it brings. Any other target
-            // selection — the opponent's trigger, a half-made cast or
-            // activation, a retarget — still bails.
+            // scored the body without the removal it brings. CR 707.10c is the
+            // same answer: a storm copy's "you may choose new targets" is
+            // raised at the mover as the copy is made (CR 702.40a), and
+            // bailing there left every copy unresolved, so a storm kill read
+            // as one copy's worth. Whatever `raisedPendingTargetOwedBy` hands
+            // the mover is answered; the opponent's selection, or a half-made
+            // cast or activation, still bails.
             if (
                 !moverId ||
-                state.pendingTarget.kind !== "trigger" ||
-                state.pendingTarget.playerId !== moverId ||
+                !raisedPendingTargetOwedBy(state, moverId) ||
                 depth >= MAX_CHOICE_DEPTH
             ) {
                 return { state, complete: false };
