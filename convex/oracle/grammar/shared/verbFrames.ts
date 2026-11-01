@@ -390,6 +390,18 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 601.3b + CR 611.2a — "until your next turn, you may cast
+           * sorcery spells as though they had flash": the controller's
+           * timing permission for one printed card type, for the Op's
+           * intrinsic span (cleared at the start of their next turn). "This
+           * turn", another class of spell or another player differs from the
+           * frame's whole spelling and stays refused.
+           */
+          readonly frame: "grantCastTiming";
+          readonly cardType: "Sorcery";
+      }
+    | {
+          /**
            * CR 725.1 — "you become the monarch": the controller takes the
            * designation. Only the bare "you" subject is read; "target
            * opponent becomes the monarch" earns the wider subject when a
@@ -604,6 +616,10 @@ export const VERB_FRAMES: readonly {
     {
         name: "grantExtraLandDrops",
         opens: /^you may play an additional land this turn$/i,
+    },
+    {
+        name: "grantCastTiming",
+        opens: /^until your next turn, you may cast sorcery spells as though they had flash$/i,
     },
     {
         name: "copyToken",
@@ -1765,6 +1781,11 @@ function readMember(
         return { frames: [{ frame: "skipDrawStepThisTurn" }], referent };
     if (opensFrame("grantExtraLandDrops", lower))
         return { frames: [{ frame: "grantExtraLandDrops" }], referent };
+    if (opensFrame("grantCastTiming", lower))
+        return {
+            frames: [{ frame: "grantCastTiming", cardType: "Sorcery" }],
+            referent,
+        };
     if (opensFrame("becomeMonarch", lower)) {
         if (lower !== BECOME_MONARCH)
             return {

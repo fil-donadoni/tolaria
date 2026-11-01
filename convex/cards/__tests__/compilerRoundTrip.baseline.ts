@@ -1089,7 +1089,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Teferi's Care",
     "Teferi's Moat",
     "Teferi, Hero of Dominaria",
-    "Teferi, Time Raveler",
     "Tek",
     "Teleport",
     "Temple Garden",

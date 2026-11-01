@@ -5430,6 +5430,16 @@ function lowerFrameChain(
                     count: 1,
                 });
                 break;
+            // CR 601.3b — the controller may cast spells of that card type as
+            // though they had flash; the Op owns the "until your next turn"
+            // boundary (`advanceTurn`).
+            case "grantCastTiming":
+                ops.push({
+                    op: "grantCastTiming",
+                    player: "controller",
+                    cardTypes: [frame.cardType],
+                });
+                break;
             // CR 707.2 + CR 111.1 — the controller creates the token.
             case "copyToken": {
                 const source = objectSelector(frame.source, walk.targets, site);

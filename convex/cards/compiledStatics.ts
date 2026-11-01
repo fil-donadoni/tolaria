@@ -368,6 +368,17 @@ export type CompiledStaticEffect =
           readonly opponentsDuringControllersTurn?: true;
       }
     /**
+     * CR 601.3 + CR 307.1 — "Each opponent can cast spells only any time they
+     * could cast a sorcery": every opponent of the source's controller is held
+     * to sorcery timing for every spell. Rebuilds into the engine's
+     * `cast-timing-lock`, read by `castTimingBaseLegal` (`gre/rules.ts`).
+     */
+    | {
+          readonly kind: "cast-timing-lock";
+          readonly id: string;
+          readonly oracleText: string;
+      }
+    /**
      * CR 502.3 — an untap-step lock: "Islands don't untap during their
      * controllers' untap steps", "Players skip their untap steps", "players
      * can't untap more than one land during their untap steps". Rebuilds into
@@ -847,6 +858,15 @@ export function resolveCompiledStatic(
                 forbids: (_caster, spell, source, _state, ctx) =>
                     source.chosenName !== undefined &&
                     ctx.hasChosenName(spell, source.chosenName),
+            };
+        // CR 601.3 + CR 307.1 — every caster but the source's controller is
+        // locked to sorcery timing.
+        case "cast-timing-lock":
+            return {
+                kind: "cast-timing-lock",
+                id: descriptor.id,
+                oracleText: descriptor.oracleText,
+                locks: (caster, source) => caster !== source.controllerId,
             };
         case "untap-restriction":
             return untapRestriction({
