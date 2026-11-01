@@ -345,6 +345,32 @@ export type SlotIR =
     | {
           readonly kind: "cumulativeUpkeep";
           readonly cost: ManaCost | { readonly life: number };
+      }
+    /**
+     * CR 702.6a — an "Equip [cost]" line: an activated ability of the
+     * Equipment, lowered through the catalogue's `equipAbility` factory.
+     */
+    | { readonly kind: "equip"; readonly cost: ManaCost }
+    /**
+     * CR 702.122a — a "Crew N" line: the Vehicle's activated ability, lowered
+     * through the catalogue's `crewAbility` factory with the card's printed
+     * power and toughness (CR 301.7b), plus the `"crew N"` keyword string.
+     */
+    | { readonly kind: "crew"; readonly count: number }
+    /**
+     * CR 702.49a — a "Ninjutsu [cost]" line: an activated ability usable from
+     * the hand, lowered through the catalogue's `ninjutsuAbility` factory.
+     */
+    | { readonly kind: "ninjutsu"; readonly cost: ManaCost }
+    /**
+     * CR 702.175a — an "Offspring [cost]" line: the additional cost (a
+     * `kickers[]` entry with `keyword: "offspring"`) and its token-copy
+     * trigger. `description` is the printed line.
+     */
+    | {
+          readonly kind: "offspring";
+          readonly cost: ManaCost;
+          readonly description: string;
       };
 
 /** A line, the slot that consumed it, and what it means. */
