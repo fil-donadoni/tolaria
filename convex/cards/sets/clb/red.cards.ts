@@ -13,6 +13,7 @@ import { SKELETON_TOKEN } from "../../sharedTokens";
 // exile under another permission deals 5 without ever being foretold
 // (CR 702.143c). The damage is simultaneous (CR 120.3) — one
 // `dealDamageToEach`, never a `forEach` walk.
+// compiler-gap: "If this spell was cast from exile, it deals 5 damage to each opponent and each creature they control instead." (#2693)
 export const delayedBlastFireball = defineCard(() => ({
     id: "400c76c6-f677-4e7e-87ad-2e526d4b498a",
     name: "Delayed Blast Fireball",
