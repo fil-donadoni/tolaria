@@ -46050,6 +46050,7 @@
         {"id":"702.138","line":"// Escape (CR 702.138), Retrace (CR 702.81), or a graveyard-cast","sites":1,"status":"baseline"},
         {"id":"702.138","line":"// Escape BEATS flashback when a card has both (CR 702.138 over CR 702.34)","sites":1,"status":"baseline"},
         {"id":"702.138","line":"// Escape capability tests (CR 702.138). Built once here, reused by all four","sites":1,"status":"baseline"},
+        {"id":"702.138","line":"// Issue #7783 — CR 702.138: the engine term prices the OPTION of casting from","sites":1,"status":"confirmed","ruleHash":"a8b51f547f8141af"},
         {"id":"702.138","line":"// Nethergoyf's escape cost ({2}{B}, CR 702.138) is castable from the","sites":1,"status":"baseline"},
         {"id":"702.138","line":"// `graveyardCastMechanism` use (CR 702.138 escape beats CR 702.34","sites":1,"status":"baseline"},
         {"id":"702.138","line":"// access, CR 702.138's granted escape) may make the mill a gain this reader","sites":1,"status":"confirmed","ruleHash":"a8b51f547f8141af"},
