@@ -96,7 +96,7 @@ export const phantasmalImage = defineCard(() => ({
     // for "becomes a copy of a good but unpredictable creature", tempered by
     // the sacrifice-on-becoming-a-target drawback and the (rarer) whiff when
     // no legal copy target exists.
-    aiValue: 118,
+    aiValue: 119,
     // The granted trigger's template lives here (kept off `triggeredAbilities`
     // — the `StaticTriggeredGrant`/`grantedTriggeredAbilities` convention —
     // so the un-copied base card doesn't fire it), referenced by

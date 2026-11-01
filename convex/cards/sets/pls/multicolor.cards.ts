@@ -1201,7 +1201,7 @@ export const meddlingMage = defineCard(() => ({
     // 2/2 body at the committed `latentCreatureDiscount` 0.7035 × 168) + 7 for
     // the disruption. A refit moves the body this tracks, which
     // `creatureAiValueCalibration.bot.test.ts` reports.
-    aiValue: 125,
+    aiValue: 126,
     entersWith: {
         asEnters: [{ kind: "name", filter: { excludeType: "Land" } }],
     },
