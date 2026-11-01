@@ -1,20 +1,43 @@
 // mh2 — white cards (ADR 0043 colour split).
-import { defineCard, type SpellContext } from "../../types";
+import { defineCard, PERMANENT_TYPES, type SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
 
-// TODO(issue #676 stub — Converge is an uncensused ability word: no
-// mechanicsRegistry row, and no primitive tracks "the number of colors of
-// mana spent to cast this spell" (`noteManaSpent` records per-colour AMOUNT,
-// not a distinct-colour COUNT usable as a target's mv comparator). Stop-and-
-// issue per gre-development.md; tracked stub.
-// export const prismaticEnding: CardDefinition = {
-//     id: "825969b9-3c70-4fca-8cab-696e9ca7cdb2",
-//     name: "Prismatic Ending",
-//     rarity: "uncommon",
-//     manaCost: { X: "X", W: 1 },
-//     types: ["Sorcery"],
-// };
+// Prismatic Ending — {X}{W} Sorcery (MH2 uncommon). "Converge — Exile target
+// nonland permanent if its mana value is less than or equal to the number of
+// colors of mana spent to cast this spell." Converge is an ability word (CR
+// 207.2c, no rules meaning of its own): `noteManaSpent: true` records the mana
+// paid, `{ colorsSpentToCast: true }` folds it to a distinct-colour count (CR
+// 105.1, colorless never counts). The mana-value gate is resolution-time (the
+// target is legal regardless), so an `if` over the target's `manaValue`
+// (issue #7211). A copy reads 0 colours (CR 707.10).
+// hand-tail: nonland permanent if its mana value is less than or equal to the number of colors of mana spent to cast this spell (#7246)
+export const prismaticEnding = defineCard(() => ({
+    id: "825969b9-3c70-4fca-8cab-696e9ca7cdb2",
+    rarity: "uncommon",
+    name: "Prismatic Ending",
+    oracleText:
+        "Converge — Exile target nonland permanent if its mana value is less than or equal to the number of colors of mana spent to cast this spell.",
+    manaCost: { X: "X", W: 1 },
+    types: ["Sorcery"],
+    noteManaSpent: true,
+    targetRequirement: {
+        type: [...PERMANENT_TYPES],
+        count: 1,
+        excludeTypes: "Land",
+    },
+    effects: [
+        {
+            op: "if",
+            predicate: {
+                left: { manaValue: { of: { target: 0 } } },
+                op: "le",
+                right: { colorsSpentToCast: true },
+            },
+            then: [{ op: "exile", target: { target: 0 } }],
+        },
+    ],
+}));
 
 // Solitude — {3}{W}{W} Creature Elemental Incarnation, 3/2 (Vintage Cube,
 // issue #900). "Flash. Lifelink. When this creature enters, exile up to one

@@ -52331,6 +52331,14 @@
         "firstPrintSet": "sos"
     },
     {
+        "name": "Prismatic Ending",
+        "scryfallId": "825969b9-3c70-4fca-8cab-696e9ca7cdb2",
+        "oracleId": "2cb98ca9-d7bb-416b-a17e-ee5f8e4d78f2",
+        "firstSet": "mh2",
+        "firstPrintId": "825969b9-3c70-4fca-8cab-696e9ca7cdb2",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Prismatic Lens",
         "scryfallId": "50f058a7-c3c7-4bdf-a66c-a2636a8bd9db",
         "oracleId": "e3056f28-868b-401a-a528-7528d639bdeb",
