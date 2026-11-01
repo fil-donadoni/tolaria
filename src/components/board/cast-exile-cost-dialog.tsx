@@ -1,8 +1,4 @@
 import { useMemo, useState } from "react";
-import {
-    collectEvidenceSatisfied,
-    totalManaValue,
-} from "@convex/gre/collectEvidence";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -45,9 +41,6 @@ export default function CastExileCostDialog({
          *  ignored. `min` > 0 means the caster's mana can't cover the shortfall
          *  — that many exiles are forced, and are pre-seeded below. */
         offsetGeneric?: { min: number; max: number };
-        /** CR 701.59a (collect evidence) — exile ANY number of cards with
-         *  total mana value ≥ this. When set, `count` is ignored. */
-        minTotalManaValue?: number;
     };
     me: Player | undefined;
     gameId: Id<"games">;
@@ -124,22 +117,11 @@ export default function CastExileCostDialog({
         }
         return types.size;
     }, [isVariable, selected, eligible]);
-    // CR 701.59a — collect evidence N: any number of cards whose TOTAL mana
-    // value reaches N, priced by the same helper the server validates with.
-    const evidenceThreshold = choice.minTotalManaValue;
-    const isEvidence = evidenceThreshold !== undefined;
-    const selectedCards = useMemo(
-        () => eligible.filter((c) => selected.includes(c.id)),
-        [eligible, selected]
-    );
-    const selectedManaValue = totalManaValue(selectedCards);
     const requirementMet = isDelve
         ? selected.length >= offset.min && selected.length <= offset.max
-        : isEvidence
-          ? collectEvidenceSatisfied(selectedCards, evidenceThreshold)
-          : isVariable
-            ? selectedTypeCount >= (choice.minCardTypes ?? 0)
-            : selected.length === choice.count;
+        : isVariable
+          ? selectedTypeCount >= (choice.minCardTypes ?? 0)
+          : selected.length === choice.count;
 
     function toggle(cardId: string) {
         setSelected((prev) => {
@@ -148,12 +130,7 @@ export default function CastExileCostDialog({
             // Delve caps at `max`; the fixed cost caps at `count`; the
             // Nethergoyf card-type cost has no cap.
             if (isDelve && prev.length >= offset.max) return prev;
-            if (
-                !isDelve &&
-                !isVariable &&
-                !isEvidence &&
-                prev.length >= choice.count
-            )
+            if (!isDelve && !isVariable && prev.length >= choice.count)
                 return prev;
             return [...prev, cardId];
         });
@@ -182,11 +159,9 @@ export default function CastExileCostDialog({
             title={
                 isDelve
                     ? "Delve"
-                    : isEvidence
-                      ? "Collect evidence"
-                      : isVariable
-                        ? "Escape cost"
-                        : "Flashback cost"
+                    : isVariable
+                      ? "Escape cost"
+                      : "Flashback cost"
             }
             subtitle={
                 isDelve
@@ -194,11 +169,9 @@ export default function CastExileCostDialog({
                       (offset.min > 0
                           ? ` (at least ${offset.min} required)`
                           : "")
-                    : isEvidence
-                      ? `Exile any number of cards with total mana value ${evidenceThreshold} or greater (${selectedManaValue} selected)`
-                      : isVariable
-                        ? `Exile any number of cards with ${choice.minCardTypes}+ card types among them (${selectedTypeCount} selected)`
-                        : `Exile ${choice.count} ${choice.color === "U" ? "blue " : ""}card(s) from your ${zone}`
+                    : isVariable
+                      ? `Exile any number of cards with ${choice.minCardTypes}+ card types among them (${selectedTypeCount} selected)`
+                      : `Exile ${choice.count} ${choice.color === "U" ? "blue " : ""}card(s) from your ${zone}`
             }
             size="wide"
             dismissable={!isPending}
@@ -230,11 +203,9 @@ export default function CastExileCostDialog({
                 >
                     {isDelve
                         ? `Exile ${selected.length}/${offset.max}`
-                        : isEvidence
-                          ? `Exile ${selected.length} (mana value ${selectedManaValue}/${evidenceThreshold})`
-                          : isVariable
-                            ? `Exile ${selected.length} (${selectedTypeCount}/${choice.minCardTypes} types)`
-                            : `Exile ${selected.length}/${choice.count}`}
+                        : isVariable
+                          ? `Exile ${selected.length} (${selectedTypeCount}/${choice.minCardTypes} types)`
+                          : `Exile ${selected.length}/${choice.count}`}
                 </Button>
             </div>
         </GameDialog>
