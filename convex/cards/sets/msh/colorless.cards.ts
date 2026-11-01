@@ -9,8 +9,7 @@ import {
     spellCastTrigger,
 } from "../../abilities/triggers/spellCastTrigger";
 
-// The Fantasticar — {3} Legendary Artifact — Vehicle, 4/4 (MSC, issue #7255,
-// parent #4243). "Flying. Whenever you cast a noncreature spell, you may have
+// The Fantasticar — {3} Legendary Artifact — Vehicle, 4/4 (MSC). "Flying. Whenever you cast a noncreature spell, you may have
 // The Fantasticar become an artifact creature until end of turn. Whenever you
 // cast your fourth noncreature spell each turn, you may sacrifice The
 // Fantasticar. If you do, create four 4/4 colorless Construct artifact
@@ -24,7 +23,7 @@ import {
 // body `crewAbility` uses.
 //
 // "Fourth noncreature spell each turn" is `nthSpellOfTypeThisTurn(4,
-// { excludeTypes: "Creature" })` (CR 601.2i, issue #1968): the caster's tally
+// { excludeTypes: "Creature" })` (CR 601.2i): the caster's tally
 // snapshotted on the cast event, so a fifth spell cast in response does not
 // undo it. Plain `condition`, not `interveningIf` — the Oracle text has no
 // "if" clause (CR 603.4).
@@ -34,7 +33,7 @@ import {
 // (`objectMatchesFilter`; a permanent already gone cannot be
 // sacrificed, so "if you do" is false and no Constructs appear).
 //
-// Guard C (issue #2701): the grammar does not consume either trigger head.
+// Guard C: the grammar does not consume either trigger head.
 // compiler-gap: Whenever you cast a noncreature spell (#7216)
 // hand-tail: Whenever you cast your fourth noncreature spell each turn (#7255)
 export const theFantasticar = defineCard(() => ({

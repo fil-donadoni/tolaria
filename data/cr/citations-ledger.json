@@ -23729,7 +23729,7 @@
         {"id":"601.2i","line":"// to that player unless they pay {2}\" (CR 601.2i cast trigger + `mayPay`","sites":1,"status":"baseline"},
         {"id":"601.2i","line":"// triggers (issue #4135, CR 603.2 / 601.2i / 105.2).","sites":1,"status":"confirmed","ruleHash":"483c59e2092745af"},
         {"id":"601.2i","line":"// value.\" (CR 601.2i cast trigger restricted to instants → CR 117.3a may-pay","sites":1,"status":"baseline"},
-        {"id":"601.2i","line":"// { excludeTypes: \"Creature\" })` (CR 601.2i, issue #1968): the caster's tally","sites":1,"status":"confirmed","ruleHash":"483c59e2092745af"},
+        {"id":"601.2i","line":"// { excludeTypes: \"Creature\" })` (CR 601.2i): the caster's tally","sites":1,"status":"confirmed","ruleHash":"483c59e2092745af"},
         {"id":"601.2i","line":"describe(\"Argothian Enchantress (draw on enchantment cast, CR 603.2 / 601.2i / 121.1)\", () => {","sites":1,"status":"baseline"},
         {"id":"601.2i","line":"describe(\"CR 722.3c / 601.2i — casting the copy\", () => {","sites":1,"status":"confirmed","ruleHash":"483c59e2092745af"},
         {"id":"601.2i","line":"describe(\"Decree of Silence — counter the triggering spell (CR 601.2i / 701.6a)\", () => {","sites":1,"status":"baseline"},
