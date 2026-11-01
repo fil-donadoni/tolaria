@@ -48,6 +48,8 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Jace, the Mind Sculptor": 13,
     // start 5, spends 1/2
     "Karn, Scion of Urza": 6,
+    // start 7, spend 1 — starting count again
+    "Kiora, Behemoth Beckoner": 8,
     // start 3, spends 2/6
     "Liliana of the Veil": 7,
     // start 3, spends 2 — the starting count is the larger bound

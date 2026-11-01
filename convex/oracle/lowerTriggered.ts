@@ -60,14 +60,17 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
                 ? {
                       kind: "entered",
                       scope: head.scope,
-                      // CR 202.3 — the mana-value floor rides the same filter.
-                      filter:
-                          head.manaValueAtLeast !== undefined
-                              ? {
-                                    ...CREATURE_FILTER,
-                                    manaValueAtLeast: head.manaValueAtLeast,
-                                }
-                              : CREATURE_FILTER,
+                      // CR 202.3 / 208.1 — a mana-value or power floor rides
+                      // the same filter.
+                      filter: {
+                          ...CREATURE_FILTER,
+                          ...(head.manaValueAtLeast !== undefined
+                              ? { manaValueAtLeast: head.manaValueAtLeast }
+                              : {}),
+                          ...(head.powerAtLeast !== undefined
+                              ? { powerAtLeast: head.powerAtLeast }
+                              : {}),
+                      },
                   }
                 : { kind: "entered", scope: head.scope };
         case "dies":
@@ -77,6 +80,16 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             return { kind: "died", scope: head.scope };
         case "leaves":
             return { kind: "left", scope: head.scope };
+        case "enters-or-leaves":
+            return { kind: "enters-or-leaves" };
+        case "sacrificed":
+            return {
+                kind: "sacrificed",
+                scope: head.scope,
+                filter: { types: [head.permanentType] },
+            };
+        case "library-searched":
+            return { kind: "library-searched", scope: head.scope };
         case "left-to-graveyard":
             return {
                 kind: "left-to-graveyard",
@@ -190,12 +203,18 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             ? { ref: "$event.damagedPlayer" }
             : null;
     // CR 603.2 — "whenever a player / an opponent casts a spell"
-    // names the caster, by the head's own words; behind "you" the caster is
-    // the controller and "that player" is never printed.
+    // names the caster, by the head's own words; behind "you" (and "you cast
+    // this spell") the caster is the controller and "that player" is never
+    // printed.
     const caster =
-        head.kind === "spell-cast" && head.scope !== "you"
+        head.kind === "spell-cast" &&
+        (head.scope === "opponent" || head.scope === "any")
             ? { ref: "$event.caster" }
             : null;
+    // CR 701.23a — "whenever an opponent searches their library" names the
+    // searcher, who is "that player" of the body.
+    const searcher =
+        head.kind === "library-searched" ? { ref: "$event.playerId" } : null;
     return {
         // CR 506.2 + CR 508.5 — the source's own attack names the player it
         // attacks; this engine is two-player (ADR 0010), so that is the
@@ -219,6 +238,7 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             : {}),
         ...(damagedPlayer !== null ? { player: damagedPlayer } : {}),
         ...(caster !== null ? { player: caster } : {}),
+        ...(searcher !== null ? { player: searcher } : {}),
         // CR 603.2 + CR 608.2h — the spell a cast head fired on, for a stack
         // verb ("counter it"); `$event.spell` is the censused stack-object ref.
         ...(head.kind === "spell-cast"

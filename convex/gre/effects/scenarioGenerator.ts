@@ -207,6 +207,13 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
         !("scope" in head && (head.scope === "self" || head.scope === "host")),
     // CR 603.6c — the source's own departure, the case this paragraph names.
     left: () => false,
+    // CR 603.6a / 603.6c — the line fires on both; the ENTRY half, with the
+    // source on the battlefield, is the one a canned scenario seeds.
+    "enters-or-leaves": () => true,
+    // CR 701.21a — the source watches ANOTHER permanent (a land) sacrificed.
+    sacrificed: () => true,
+    // CR 701.23a — the source watches an opponent search, and stays put.
+    "library-searched": () => true,
     // CR 603.6c — a SELF graveyard exit is the source's own departure; the
     // non-self form (Sacred Ground's land) watches ANOTHER permanent leave
     // while the source stays.
@@ -245,7 +252,9 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     // to, the same departure `activatedAbilitySourceOnBattlefield` names.
     cycled: () => false,
     phase: () => true,
-    "spell-cast": () => true,
+    // CR 113.6k — "when you cast this spell": the source is the spell on the
+    // stack, never a permanent, when the ability resolves.
+    "spell-cast": (head) => !("scope" in head && head.scope === "self"),
 };
 
 export function compiledTriggerSourceOnBattlefield(
