@@ -13,7 +13,11 @@
 //     read, so fail-closed is pinned rather than assumed.
 
 import { describe, expect, it } from "vitest";
-import type { CardDefinition } from "../../cards/types";
+import type {
+    ActivatedAbility,
+    CardDefinition,
+    TargetRequirement,
+} from "../../cards/types";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { routeLine } from "../grammar/router";
@@ -50,7 +54,11 @@ function expectDefinition(
 
 /** CR 702.6a — the equip ability every golden prints, as `equipAbility`
  *  builds it ("Equip {0}" costs no mana at all). */
-function equip(slug: string, generic: number, oracleText: string) {
+function equip(
+    slug: string,
+    generic: number,
+    oracleText: string
+): ActivatedAbility {
     return {
         id: `${slug}-equip`,
         oracleText,
@@ -62,7 +70,10 @@ function equip(slug: string, generic: number, oracleText: string) {
     };
 }
 
-const EQUIPMENT_SHELL = { types: ["Artifact"], subtypes: ["Equipment"] };
+const EQUIPMENT_SHELL: Pick<CardDefinition, "types" | "subtypes"> = {
+    types: ["Artifact"],
+    subtypes: ["Equipment"],
+};
 
 const EQUIP_1_REMINDER =
     "Equip {1} ({1}: Attach to target creature you control. Equip only as a sorcery.)";
@@ -173,7 +184,7 @@ describe("Attach this Equipment — golden fixtures (CR 701.3a, CR 301.5)", () =
     it("triggered, 'attach it' on the Equipment's own enters head: Utility Knife", () => {
         const text =
             "When this Equipment enters, attach it to target creature you control.\nEquipped creature gets +1/+1.\nEquip {3} ({3}: Attach to target creature you control. Equip only as a sorcery.)";
-        const requirement = {
+        const requirement: TargetRequirement = {
             type: "Creature",
             count: 1,
             controller: "you",
