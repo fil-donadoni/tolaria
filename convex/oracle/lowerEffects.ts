@@ -3255,6 +3255,15 @@ function lowerSentenceBody(
         }
         // CR 701.3a — the source attaches to the announced permanent.
         case "attach": {
+            // CR 608.2h + CR 701.3a — `attach` moves the ability's own source
+            // and has no field for another mover, so "attach IT to …" is
+            // readable exactly when the site's "it" IS that source (an
+            // Equipment's own enters head). Behind any other head it is
+            // refused, never re-pointed at the source.
+            if (sentence.moverIsPronoun === true && !pronounIsSource(site))
+                return unlowerable(
+                    '"attach it" names a mover that is not this ability\'s source (CR 701.3a)'
+                );
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             return lowered([{ op: "attach", target: target.value }]);

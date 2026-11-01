@@ -457,7 +457,8 @@ describe("Aura statics — refusals", () => {
         'Enchanted creature has "{0}: Return this Aura to its owner\'s hand."',
         // A bare comma list is not an Oracle keyword list.
         "Enchanted creature has shroud, flying.",
-        // Equipment is not an Aura, and no Equip line parses yet.
+        // "Equipped creature" on an Aura: the card is not an Equipment
+        // (CR 301.5).
         "Equipped creature gets +2/+0.",
     ])("refuses %s", (line) => {
         expect(

@@ -33,6 +33,64 @@ export interface GoldenFixture {
 // Frozen: `fixtureForms` caches by array identity, so the registry may never
 // change in place.
 export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
+    // CR 702.6a — "Equip [cost]": the equip ability's `attach` targets a
+    // creature its controller controls, which the canned smoke scenario (an
+    // opponent-side target) cannot stage. The same card's own enters trigger
+    // (CR 701.3a, issue #7215) prints the identical `attach` form, and its
+    // "Equipped creature gets +2/+0" (CR 301.5a) is the equipped-host frame.
+    {
+        rule: "equip",
+        card: {
+            oracleId: "aeaf3ce8-6bdf-4a90-8b81-cdbce0f3bb12",
+            name: "Mirran Banesplitter",
+            manaCost: "{R}",
+            typeLine: "Artifact — Equipment",
+            oracleText:
+                "Flash\nWhen this Equipment enters, attach it to target creature you control.\nEquipped creature gets +2/+0.\nEquip {3} ({3}: Attach to target creature you control. Equip only as a sorcery.)",
+            layout: "normal",
+        },
+        expected: {
+            name: "Mirran Banesplitter",
+            types: ["Artifact"],
+            subtypes: ["Equipment"],
+            manaCost: { R: 1 },
+            oracleText:
+                "Flash\nWhen this Equipment enters, attach it to target creature you control.\nEquipped creature gets +2/+0.\nEquip {3} ({3}: Attach to target creature you control. Equip only as a sorcery.)",
+            staticAbilities: ["flash"],
+            activatedAbilities: [
+                {
+                    id: "mirran-banesplitter-equip",
+                    oracleText: "Equip {3}",
+                    cost: { mana: { generic: 3 } },
+                    sorcerySpeedOnly: true,
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        controller: "you",
+                    },
+                    useStack: true,
+                    effects: [{ op: "attach", target: { target: 0 } }],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "mirran-banesplitter-trigger",
+                    oracleText:
+                        "When this Equipment enters, attach it to target creature you control.",
+                    head: { kind: "entered", scope: "self" },
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        controller: "you",
+                    },
+                    effects: [{ op: "attach", target: { target: 0 } }],
+                },
+            ],
+            compiledStaticEffects: [
+                { kind: "pt-buff", appliesTo: "host", power: 2, toughness: 0 },
+            ],
+        },
+    },
     // CR 702.122a — "Crew N": the crew ability's `animate` acts on `$source`
     // (the Vehicle itself), which the canned smoke scenario cannot stage.
     {
