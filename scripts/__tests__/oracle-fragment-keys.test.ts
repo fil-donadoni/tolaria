@@ -101,23 +101,25 @@ function refused(n: number, ...lines: string[]): CorpusCard {
     return card(n, `Test Card ${n}`, { oracleText: lines.join("\n") });
 }
 
-// Shared fragments, one grammar gap folding two of them (Equip {N}), and an
+// Shared fragments, one grammar gap folding two of them (Wibble {N}), and an
 // attributed spell line — every reader's grouping has something to group.
+// Wibble is an invented keyword no grammar rule will ever parse: a real one
+// (Equip {N}, issue #7214) graduates and silently empties the fixture.
 const READERS_CORPUS: CorpusCard[] = [
     card(1, "Test Sword", {
         typeLine: "Artifact — Equipment",
-        oracleText: "Equip {2}",
+        oracleText: "Wibble {2}",
     }),
     card(2, "Test Axe", {
         typeLine: "Artifact — Equipment",
-        oracleText: "Equip {3}",
+        oracleText: "Wibble {3}",
     }),
     card(3, "Test Spear", {
         typeLine: "Artifact — Equipment",
-        oracleText: "Equip {2}\nThe spear hums a tune nobody remembers.",
+        oracleText: "Wibble {2}\nThe spear hums a tune nobody remembers.",
     }),
     refused(4, "The spear hums a tune nobody remembers."),
-    refused(5, "A lantern counts the stars twice.", "Equip {3}"),
+    refused(5, "A lantern counts the stars twice.", "Wibble {3}"),
     card(6, "Test Bear", {
         typeLine: "Creature — Bear",
         manaCost: "{1}{G}",
@@ -129,9 +131,9 @@ const READERS_CORPUS: CorpusCard[] = [
         manaCost: "{2}{B}",
         oracleText: "Destroy all creatures with flying.",
     }),
-    // Its WIDER fragment (Equip {3}, three cards) has the LARGER key: the
+    // Its WIDER fragment (Wibble {3}, three cards) has the LARGER key: the
     // row's sorted keys put the narrow line first, rank order the wide one.
-    refused(8, "Equip {3}", "The mirror forgets faces."),
+    refused(8, "Wibble {3}", "The mirror forgets faces."),
 ];
 
 /** Everything a reader derives from a lockfile, as one comparable value. */
@@ -234,7 +236,7 @@ describe("a card's first fragment is its widest, whatever its keys' order", () =
             indexFragments(lock)
                 .of(row)
                 .map((f) => f.text)
-        ).toEqual(["Equip {3}", "The mirror forgets faces."]);
+        ).toEqual(["Wibble {3}", "The mirror forgets faces."]);
         const deck = {
             slug: "one",
             name: "One",
@@ -247,12 +249,12 @@ describe("a card's first fragment is its widest, whatever its keys' order", () =
             indexFragments(lock),
             new Set()
         );
-        expect(report.cards[0]!.blocker).toBe("Equip {3}");
-        const [equip] = findGapKeys(lock, "Equip");
-        const line = gapCards(lock, equip!, null).find(
+        expect(report.cards[0]!.blocker).toBe("Wibble {3}");
+        const [wibble] = findGapKeys(lock, "Wibble");
+        const line = gapCards(lock, wibble!, null).find(
             (c) => c.name === row.name
         )!.line;
-        expect(line).toBe("Equip {3}");
+        expect(line).toBe("Wibble {3}");
     });
 });
 
