@@ -28,6 +28,8 @@ this file and nothing else.
 - → `job.md` — a pass inside an `afk-pass` job: given issue, label claim,
   job worktree, early push, repair from the failed run's log. Read it when:
   `GITHUB_ACTIONS=true`.
+- → `review-brief.md` — the reviewer's brief template. Read it when: you are
+  about to spawn the §4 reviewer.
 - → `hygiene.md` — why each context-hygiene habit below exists, and where
   its measurement lives. Read it when: a habit seems not to fit your case.
 
@@ -188,7 +190,7 @@ red.
 | docs/markdown only | no review                |
 
 One reviewer subagent (`description: "review PR …"`, `model: opus`), briefed
-from `review-brief.md` (this directory): the diff, the `proof-receipt`, and the
+from `review-brief.md`: the diff, the `proof-receipt`, and the
 lane plan's skip list (`bun run check:lane --plan --skips`, ten lines at most)
 with one mechanical question — which skipped file can this diff break? Run the
 files it names before hand-off. Fix blocking findings HERE, re-run the targeted
