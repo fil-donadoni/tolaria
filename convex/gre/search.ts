@@ -1951,7 +1951,6 @@ export function policyValue(
  *  the spell's depth is the floor the probe settles to. */
 function announcementDepth(probe: GameState, move: Move): number {
     const top = probe.stack.length - 1;
-    if (process.env.T7713_OLD) return top;
     if (move.kind !== "cast-spell") return top;
     const spellDepth = probe.stack.findIndex(
         (item) =>
