@@ -488,6 +488,7 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         kind: "keyword-action",
         cr: "701.38",
         status: "planned",
+        note: "PARTIAL, honestly: OBJECT votes are built (the `vote` Effect Op, issue #2071 \u2014 Council's Judgment); OPTION votes (CR 701.38b's \"words with no rules meaning\", the Council's dilemma and Capital Punishment family \u2014 the same tally over a per-player option pick) and CR 701.38d's extra votes are not, so this row stays `planned` until they are.",
     },
     // 701.39 Bolster
     {
@@ -3844,6 +3845,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         cr: "205.3i",
         binding: "SpellContext.requestOptionChoice",
         note: 'Chooses a LAND TYPE as part of resolution (CR 205.3i, issue #5173 \u2014 Vision Charm: "Choose a land type and a basic land type. Each land of the first chosen type becomes the second chosen type until end of turn."). The land-type sibling of `chooseCreatureType`, sharing its executor core: a thin declarative skin over `SpellContext.requestOptionChoice`, one execution path (ADR 0045), whose options are CR 205.3i\'s land-type table (or, with `basic: true`, CR 305.6\'s five basic land types), each carrying `subtype` so the client combobox and the bot prior `subtypeModePrior` serve it unchanged. SUSPENDS like `chooseCreatureType`; the binding name doubles as the choiceId, and the stored subtype string is the picks-family binding a bare `{ ref }` reads back in an `EffectCardFilter.subtype` ("each land of the first chosen type") or in `setSubtype.subtypes` with `family: "land"` ("becomes the second chosen type"). `bind` is REQUIRED. Not `optionChoice` over the basics: "a land type" is the whole CR 205.3i table, and an `optionChoice` cannot bind its answer for a later filter to read.',
+    },
+    {
+        op: "vote",
+        status: "implemented",
+        cr: "701.38",
+        binding: "SpellContext.requestChoice",
+        mechanicId: "vote",
+        note: "Votes for an OBJECT (CR 701.38, issue #2071 \u2014 Council's Judgment: \"Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes.\"). CR 701.38a: each player, starting with the resolving controller and proceeding in turn order, chooses one candidate. The Op COLLECTS the votes and BINDS the candidates with the most votes or tied for most (the pure `tallyVotes`, gre/voteTally.ts) as a picks binding; it never acts on them \u2014 the following Op does (Council's Judgment: `forEach { set: \"bound\" }` + `exile`), so the next object vote reuses it with a different tail and there is no `outcome:` field. `candidates` is the `forEach` permanents selector, resolved by the same `selectForEachMembers` and frozen at the Op's entry (CR 608.2i): a non-targeted sweep, so hexproof, protection and ward never narrow it (CR 115.1). A thin declarative skin over the EXISTING `requestChoice` (`choose-permanents` over a `candidateIds` allow-list on every battlefield) \u2014 no new Pending Choice kind, so the submit validator, the board-click UI and the Bot's `choose-permanents` candidate generator serve it unchanged. SUSPENDS once per voter under a choiceId keyed by the Op's checkpoint (the `castDuringResolution` several-suspends shape); each prompt lists the votes already cast, because a vote is public. One candidate \u2192 no prompt (Arena parity); none \u2192 no vote, binding uncaptured (CR 608.2b). Deliberately NOT: option votes (CR 701.38b's \"words with no rules meaning\" \u2014 Capital Punishment, Council's dilemma cards) and CR 701.38d's extra votes, which is why the `vote` keyword-action row stays `planned`.",
     },
     {
         op: "digMatchingToHand",

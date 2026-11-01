@@ -127,6 +127,7 @@ import {
     SOURCE_CHOSEN_SUBTYPE_REF,
 } from "./targetRef";
 import { librarySearchFloor } from "./librarySearchFloor";
+import { tallyVotes } from "../voteTally";
 import { distinctColorsSpent } from "../../cards/entersWith";
 import {
     categorizedEligibleIds,
@@ -6661,6 +6662,8 @@ export const OP_EXECUTORS: {
     // binding name doubles as the choiceId (unique within the script,
     // validator-enforced), so the stored chosen name IS the NAME-family
     // binding a later `EffectCardFilter.name` bare ref reads back.
+    // CR 701.38 (issue #2071) — the whole vote lives in `runVote` (below).
+    vote: runVote,
     nameCard(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 608.2b — chooser gone, skip
@@ -8896,6 +8899,80 @@ export function runDelayedTriggerBody(
 // consumes the drop even mid-resolution (CR 305.2a), can't happen on the
 // opponent's turn (CR 305.3) and can't happen with the drop spent
 // (CR 305.2b). See `getChosenLandPlayable`.
+/** CR 701.38 (issue #2071) — collect one vote per player and bind the
+ *  candidates with the most votes or tied for most (`tallyVotes`). The Op
+ *  never acts on the winners; the Op after it does.
+ *
+ *  CR 701.38a — "each player, starting with a specified player and proceeding
+ *  in turn order, chooses one of those choices": the specified player is the
+ *  resolving controller ("Starting with you"), so the voters are the turn
+ *  order rotated to begin there.
+ *
+ *  SUSPENDS once per voter, the `castDuringResolution` shape: every prompt is
+ *  a `requestChoice` under its own choiceId keyed by this Op's checkpoint, so
+ *  a re-walk after voter N answers reads votes 1..N back off
+ *  `collectedChoices` and asks voter N+1 — no new resume mechanism. The
+ *  candidate set is frozen at the first walk (CR 608.2i) under the same
+ *  checkpoint, so every voter chooses among the same objects.
+ *
+ *  The candidates are NOT targets (CR 115.1) — `selectForEachMembers` sweeps
+ *  the battlefield, so hexproof, shroud, protection and ward never remove
+ *  one. The pick is a `choose-permanents` over an explicit `candidateIds`
+ *  allow-list on every controller's battlefield: the submit validator, the
+ *  board-click UI and the Bot's candidate generator already serve it.
+ *
+ *  A vote is PUBLIC: each prompt names the votes already cast, and the
+ *  Pending Choice itself crosses `projectPublicState` unredacted to both
+ *  viewers (issue #1977) — correct here precisely because nothing about a
+ *  vote is hidden information. Do not "fix" that redaction for this Op. */
+function runVote(ctx: SpellContext, op: OpOf<"vote">): OpOutcome {
+    const pos = ctx.getScriptCheckpoint() ?? 0;
+    const controller = resolvePlayerRef(ctx, "controller");
+    if (controller === undefined) return; // CR 608.2b — nobody to start
+    const order = ctx.apNapOrder();
+    const start = Math.max(0, order.indexOf(controller));
+    const voters = [...order.slice(start), ...order.slice(0, start)];
+
+    const candidatesKey = `#vote:${pos}:candidates`;
+    let candidateIds = ctx.recallChoice(candidatesKey);
+    if (candidateIds === undefined) {
+        candidateIds = selectForEachMembers(ctx, op.candidates);
+        ctx.noteChoice(candidatesKey, candidateIds);
+    }
+    // CR 608.2b — nothing to vote for: no vote, the binding stays uncaptured
+    // and every reader skips.
+    if (candidateIds.length === 0) return;
+
+    const votes: string[] = [];
+    for (const [index, voter] of voters.entries()) {
+        // Arena parity — one candidate is no decision, so no prompt.
+        if (candidateIds.length === 1) {
+            votes.push(candidateIds[0]);
+            continue;
+        }
+        const cast = votes
+            .map((id) => ctx.getCardName(id) ?? "a permanent")
+            .join(", ");
+        const picks = ctx.requestChoice({
+            playerId: voter,
+            choiceId: `vote:${pos}:${index}`,
+            kind: "choose-permanents",
+            zone: "battlefield",
+            allControllers: true,
+            candidateIds,
+            count: 1,
+            prompt:
+                votes.length === 0
+                    ? op.prompt
+                    : `${op.prompt} Votes so far: ${cast}.`,
+        });
+        if (picks === undefined) return "suspend"; // enqueued — wait
+        const vote = picks[0];
+        if (vote !== undefined && candidateIds.includes(vote)) votes.push(vote);
+    }
+    ctx.noteChoice(op.bind, tallyVotes(votes));
+}
+
 function runCastDuringResolution(
     ctx: SpellContext,
     op: OpOf<"castDuringResolution">

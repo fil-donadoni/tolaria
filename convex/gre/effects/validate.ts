@@ -3724,6 +3724,15 @@ function isRedirectEnd(value: unknown): boolean {
     );
 }
 
+/** `vote.candidates` (CR 701.38b, issue #2071) — a `forEach` PERMANENTS
+ *  selector and nothing else. */
+function isVoteCandidates(value: unknown): boolean {
+    return (
+        isForEachSelector(value) &&
+        (value as { set: unknown }).set === "permanents"
+    );
+}
+
 /** The `forEach` construct's set selector (ADR 0045) — `{ set:
  *  "players" }`, `{ set: "permanents", zone: "battlefield", controller?,
  *  filter?, excludeSource?, damagedBySourceThisGame? }` (`excludeSource` —
@@ -6929,6 +6938,18 @@ const OP_SCHEMAS: OpSchemaTable = {
     // meaningless — mirrors `choice`'s own required `bind`). `nameRestriction`
     // (CR 201.4a — Desperate Research's "other than a basic land card name",
     // Cabal Therapy's "a nonland card name") is optional.
+    // CR 701.38 (issue #2071) — vote among a non-targeted battlefield set and
+    // bind the winners. `candidates` is exactly the `forEach` PERMANENTS
+    // selector (same checker, `set: "permanents"` pinned): a vote over players
+    // or a bound list has no card. `bind` is REQUIRED — the winners are the
+    // Op's whole product.
+    vote: {
+        required: {
+            candidates: isVoteCandidates,
+            prompt: isNonEmptyString,
+            bind: bindingDeclaration("picks"),
+        },
+    },
     nameCard: {
         required: {
             player: isPlayerRef,

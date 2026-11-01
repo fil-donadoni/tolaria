@@ -77,6 +77,8 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     chooseCreatureType: true,
     // CR 205.3i — the land-type sibling, same `option-pick` and suspend.
     chooseLandType: true,
+    // CR 701.38 (issue #2071) — one `choose-permanents` suspend per voter.
+    vote: true,
     coinFlip: true,
     divideIntoPiles: true,
     draw: true,
