@@ -1924,7 +1924,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Escalate",
         kind: "keyword-ability",
         cr: "702.120",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/gre/kicker.ts",
+        note: 'CR 702.120a "For each mode you choose beyond the first as you cast this spell, you pay an additional [cost]" (issue #2267). The COST half is the ADR 0085 additional-cost family verbatim: a `kickers[]` entry with `keyword: "escalate"` whose legs are the shared CostLegs vocabulary (Collective Brutality\'s hand discard; a mana leg folds through foldKickerCosts). Its ADDITIONAL_COST_KEYWORDS row sets countsAsKicked:false (CR 702.33d — never kicked; the payment lands in unkickedCostPayments), no twin trigger, allowsMulti:false, and the one new axis `paidPerExtraMode: true`: the count is DERIVED from the announced mode list by withPerExtraModePayments (chosenModeIds.length - 1), never chosen. announceCast writes it before resolveKickerPayments (which admits a count above one on the row flag), so the existing canPayKickerLegs gate, foldKickerCosts / kickerLifeCost and the cast\'s single alternativeCostHandChoice picker charge it unchanged; canPayKickerLegs pools every hand leg\'s requirements so N discards need N distinct cards. Client: affordableKickersForCard drops the entry (isCasterChosenCostEntry — it is not a toggle) and the mode picker caps its max at perExtraModeAffordableModeCap. Bot: enumerateKickerVariants pins the axis at 0; moves.ts writes the count per mode combination and drops combinations it cannot pay; applyKickerHandLegsForSearch charges the discard in the search tree. Used by Collective Brutality.',
     },
     // 702.121 Melee
     {

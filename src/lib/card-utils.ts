@@ -106,7 +106,11 @@ import { libraryTopAnnouncementLicensed } from "@convex/gre/rules";
 import { payableAdditionalCostLegs } from "@convex/gre/additionalCost";
 // CR 702.33a (ADR 0079) — the server's own kicker-leg affordability check,
 // reused verbatim so the cast-cost dialog and `announceCast` can never disagree.
-import { canPayKickerLegs } from "@convex/gre/kicker";
+import {
+    canPayKickerLegs,
+    isCasterChosenCostEntry,
+    perExtraModeAffordableModeCap,
+} from "@convex/gre/kicker";
 import { spliceAugmentedDefinition } from "@convex/gre/splice";
 import {
     checkPermanentTargetFilters,
@@ -2060,14 +2064,44 @@ export function affordableKickersForCard(
         activePlayerId,
         players,
     } as unknown as GameState;
-    return kickers.filter((k) =>
-        canPayKickerLegs(
-            state,
-            caster as unknown as PlayerState,
-            { ...def, kickers: [k] } as CardDefinition,
-            { [k.id]: 1 },
-            card.id
-        )
+    // CR 702.120a (issue #2267) — an escalate entry is not a toggle: its count
+    // follows the modes the caster ticks, written by the server.
+    return kickers
+        .filter(isCasterChosenCostEntry)
+        .filter((k) =>
+            canPayKickerLegs(
+                state,
+                caster as unknown as PlayerState,
+                { ...def, kickers: [k] } as CardDefinition,
+                { [k.id]: 1 },
+                card.id
+            )
+        );
+}
+
+/** CR 702.120a / 601.2h (issue #2267) — the most modes, up to `upTo`, whose
+ *  escalate cost the caster can pay right now: the wire-projected view handed
+ *  to the SERVER's own `perExtraModeAffordableModeCap` (`convex/gre/kicker.ts`),
+ *  so the mode picker never lets the caster tick a count `announceCast` then
+ *  refuses as unpayable (ADR 0074 — shared module, server authority). `upTo`
+ *  for a card with no escalate entry. */
+export function escalateModeCapForCard(
+    card: CardInstance,
+    casterId: string,
+    players: ReadonlyArray<Player>,
+    activePlayerId: string,
+    upTo: number
+): number {
+    const def = tryGetDefinition(card.card.id);
+    const caster = players.find((p) => p.id === casterId);
+    if (!def || !caster) return upTo;
+    const state = { activePlayerId, players } as unknown as GameState;
+    return perExtraModeAffordableModeCap(
+        state,
+        caster as unknown as PlayerState,
+        def,
+        card.id,
+        upTo
     );
 }
 

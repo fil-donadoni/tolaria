@@ -355,6 +355,7 @@ import {
     paidKickersRequireDistinctColorX,
     resolveCastPermanentSelection,
     resolveKickerPayments,
+    withPerExtraModePayments,
 } from "./gre/kicker";
 // CR 601.2c (issue #4193) — which half of the effect each announced target of
 // a group receives, so the prompt can say it per slot instead of leaving the
@@ -6603,9 +6604,19 @@ export const announceCast = mutation({
         // X gate below: CR 601.2b announces the intention to pay a kicker
         // before the value of a variable cost, and a paid "Kicker {X}" is what
         // makes the X owed.
+        // CR 702.120a / 601.2b (issue #2267) — an escalate cost is announced
+        // in the same step as the modes and owed once per mode beyond the
+        // first, so its count is WRITTEN from the announced mode list here,
+        // never taken from the caster. The raw list's length is the count: an
+        // illegal list is rejected by the mode validation below before
+        // anything is paid.
         const kickerPayments = resolveKickerPayments(
             cardDef,
-            args.kickerPayments
+            withPerExtraModePayments(
+                cardDef,
+                args.kickerPayments,
+                args.chosenModeIds?.length ?? 0
+            )
         );
 
         // Validate X is provided iff the cost contains a string X (CR 107.3).

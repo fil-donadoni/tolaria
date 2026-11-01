@@ -54,11 +54,17 @@ export function modePickerConstraint(args: {
     selection: ModeSelection | undefined;
     facts: ModeSelectionFacts;
     isModeLegal: (mode: PickableMode) => boolean;
+    /** CR 702.120a / 601.2h (issue #2267) — the most modes whose escalate
+     *  cost the caster can pay right now (`perExtraModeAffordableModeCap`,
+     *  the server's own question). Caps `max`; omitted = no such cost. */
+    affordableModeCap?: number;
 }): ModePickerConstraint {
-    const { min, max, repeats } = modeSelectionBounds(
-        args.selection,
-        args.facts
-    );
+    const bounds = modeSelectionBounds(args.selection, args.facts);
+    const { min, repeats } = bounds;
+    const max =
+        args.affordableModeCap === undefined
+            ? bounds.max
+            : Math.min(bounds.max, Math.max(1, args.affordableModeCap));
     const legalModeIds = args.modes
         .filter((m) => args.isModeLegal(m))
         .map((m) => m.id);
@@ -67,7 +73,7 @@ export function modePickerConstraint(args: {
             ? min
             : 0
         : legalModeIds.length;
-    const requiredCount = Math.max(1, Math.min(min, reachable));
+    const requiredCount = Math.max(1, Math.min(min, reachable, max));
     return {
         min,
         max,
