@@ -133,6 +133,45 @@ export function nthSpellThisTurn(
     return (event) => (event.casterSpellCountThisTurn ?? 0) === n - 1;
 }
 
+/** The one card type an `nthSpellOfTypeThisTurn` count is scoped to:
+ *  `types` counts spells WITH the type ("your second creature spell"),
+ *  `excludeTypes` spells WITHOUT it ("your fourth noncreature spell"). A
+ *  single type on one side only — that is all a per-type tally can answer
+ *  (CR 205.2b: a spell counts once under each of its types, so the joint
+ *  count of two types is not recoverable from it). Field names mirror
+ *  `SpellFilter`. */
+export type SpellTypeCountScope =
+    | { types: CardType; excludeTypes?: never }
+    | { excludeTypes: CardType; types?: never };
+
+/** "This is exactly the caster's Nth <type> spell this turn" (CR 601.2i,
+ *  CR 205.2b) — the type-scoped sibling of {@link nthSpellThisTurn}. True when
+ *  the cast spell itself matches `scope` and the caster had cast exactly N-1
+ *  matching spells before it this turn. Reads the event's pre-cast snapshots
+ *  (`casterSpellTypeCountsThisTurn`, `casterSpellCountThisTurn`), so the
+ *  count is the one at the moment of casting: a third creature spell cast
+ *  while the second's trigger waits does not retroactively change it. A
+ *  non-type count is the caster's total minus the type's entry. Usable as both
+ *  `condition` and `interveningIf` (CR 603.4 checks it at trigger time and
+ *  again on resolution). */
+export function nthSpellOfTypeThisTurn(
+    n: number,
+    scope: SpellTypeCountScope
+): NonNullable<SpellCastTriggerArgs["condition"]> {
+    return (event) => {
+        const counts = event.casterSpellTypeCountsThisTurn ?? {};
+        if (scope.types !== undefined) {
+            if (!event.spellTypes.includes(scope.types)) return false;
+            return (counts[scope.types] ?? 0) === n - 1;
+        }
+        if (event.spellTypes.includes(scope.excludeTypes)) return false;
+        const prior =
+            (event.casterSpellCountThisTurn ?? 0) -
+            (counts[scope.excludeTypes] ?? 0);
+        return prior === n - 1;
+    };
+}
+
 function castInScope(
     event: SpellCastEvent,
     self: PermanentView,
