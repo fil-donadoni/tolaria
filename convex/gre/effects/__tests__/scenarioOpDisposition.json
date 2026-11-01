@@ -311,6 +311,10 @@
         "code": "choice-binding",
         "reason": "Op \"sacrifice\" consumes a choice binding — covered by the card's own suspension/resume tests"
     },
+    "sacrificeAndReturn": {
+        "code": "unmodelled-object-or-zone",
+        "reason": "Op \"sacrificeAndReturn\" pairs a battlefield target with a graveyard-card target of the same player — covered by the Op's own interpreter test"
+    },
     "scryReorder": {
         "code": "suspends-for-input",
         "reason": "Op \"scryReorder\" suspends for a look/reorder-top choice — covered by the Op's interpreter tests and the card's suspension/resume tests"
