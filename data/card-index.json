@@ -17880,6 +17880,14 @@
         "source": "compiled"
     },
     {
+        "name": "Detective's Phoenix",
+        "scryfallId": "e2a01edd-dbc0-4ed4-b827-9b608290e9a1",
+        "oracleId": "52c3fe55-74ee-44cb-b62b-dc6c5dfdc33e",
+        "firstSet": "mh3",
+        "firstPrintId": "e2a01edd-dbc0-4ed4-b827-9b608290e9a1",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Detention Chariot",
         "scryfallId": "75d5e64f-7af2-4cb4-abd1-23992e346bee",
         "oracleId": "0ea2c5ad-2982-4041-8c9d-a1d31ced11aa",
