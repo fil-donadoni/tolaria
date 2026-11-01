@@ -597,7 +597,7 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         status: "implemented",
         binding:
             "Effect Script composition, no dedicated Op (ADR 0045 § primitive reuse): `draw` + `choice` (kind choose-hand-card) + `discard` + `if` with the `picksMatchFilter` predicate (gre/effects/interpreter.ts) + `counters` add +1/+1. Shipped on Ledger Shredder (convex/cards/sets/snc/blue.cards.ts).",
-        note: 'Connive N (CR 701.50a): draw N, then discard N; for each nonland card discarded this way, put a +1/+1 counter on the conniving creature. The nonland gate is the `picksMatchFilter` `if` predicate (issue #1343), which resolves the picked cards through the discarding player\'s graveyard (CR 701.9) and tests them against an EffectCardFilter — `{ excludeType: "Land" }` here. Connive N > 1 is the same script with count: N on the draw/choice Ops; no engine work outstanding.',
+        note: 'Connive N (CR 701.50d): draw N, then discard N; for each nonland card discarded this way, put a +1/+1 counter on the conniving creature. The nonland gate is the `picksMatchFilter` `if` predicate (issue #1343), which resolves the picked cards through the discarding player\'s graveyard (CR 701.9) and tests them against an EffectCardFilter — `{ excludeType: "Land" }` here. That gate is BOOLEAN, so it is correct only for connive 1: Connive N > 1 (one counter per nonland discard) replaces the `if` with a `counters` Op whose `count` is `{ count: { zone: "graveyard", controller, filter: { excludeType: "Land" }, picks: { ref } } }` — the `count` construct narrowed to the picks binding (issue #3807, the Seasoned Pyromancer shape in convex/cards/sets/mh1/red.cards.ts), with count: N on the draw/choice Ops.',
     },
     // 701.51 Open an Attraction
     {
