@@ -52,6 +52,7 @@ const FOREST = getCardByName("Forest").id;
 const PLAINS = getCardByName("Plains").id;
 const MOUNTAIN = getCardByName("Mountain").id;
 const ISLAND = getCardByName("Island").id;
+const SWAMP = getCardByName("Swamp").id;
 
 /** Every characteristic a cast mode can change. Deliberately WIDER than the
  *  boolean markers (PR #3056 review finding 6): `applyBestowCharacteristics`
@@ -66,6 +67,7 @@ function modeMarkersOf(card: CardInstanceState) {
         faceDown: card.faceDown === true,
         dashed: card.dashed === true,
         warped: card.warped === true,
+        impended: card.impended === true,
         evoked: card.evoked === true,
         overloaded: card.overloaded === true,
         // CR 715.3b — the Adventure's mark IS the retained front id
@@ -95,6 +97,7 @@ const CLEARED_MARKERS = {
     faceDown: undefined,
     dashed: undefined,
     warped: undefined,
+    impended: undefined,
     evoked: undefined,
     overloaded: undefined,
     adventureOf: undefined,
@@ -165,6 +168,14 @@ type ModeFixture = {
      *  side CLEARED it on the way to the graveyard — the leak PR #3288's review
      *  finding 1 was about. */
     clearsOnResolve?: boolean;
+    /** True when the PERMANENT the spell becomes has different types from the
+     *  SPELL — Impending (CR 702.176a): the spell on the stack is a creature
+     *  spell, the permanent enters with time counters and is not a creature.
+     *  The tree still holds the spell, the greedy sandbox has resolved it, so
+     *  the two type lines differ by moment, not by executor: every OTHER
+     *  characteristic is compared for equality, and each side's type line is
+     *  asserted on its own. */
+    permanentTypes?: readonly string[];
 };
 
 /** `Record<CastMode, …>` is the point: a mode added to the union cannot compile
@@ -226,6 +237,19 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
         assertStamped: (m) => {
             expect(m.warped).toBe(true);
         },
+    },
+    // CR 702.176a — the marker the entry time counters, the layer-4 "not a
+    // creature" removal and the end-step countdown all read. Unstamped, the
+    // tree prices an impending cast as the full 5/5 bought for two mana.
+    impending: {
+        card: "Overlord of the Balemurk",
+        land: SWAMP,
+        landCount: 2,
+        enumerated: true,
+        assertStamped: (m) => {
+            expect(m.impended).toBe(true);
+        },
+        permanentTypes: ["Enchantment"],
     },
     // CR 702.74a — the marker `evokeTrigger` reads to sacrifice the permanent
     // as it enters. NOT enumerated today (the Bot is never offered an evoke
@@ -408,6 +432,8 @@ function altCostIdFor(def: CardDefinition, mode: CastMode): string {
             return def.dash?.id ?? "";
         case "warp":
             return def.warp?.id ?? "";
+        case "impending":
+            return def.impending?.id ?? "";
         case "evoke":
             return def.evoke?.id ?? "";
         case "overload":
@@ -474,6 +500,16 @@ describe("cast modes reach BOTH search executors (CR 601.2b, issue #2796)", () =
                 expect(modeMarkersOf(greedySubject)).toEqual(
                     modeMarkersOf({ ...greedySubject, ...CLEARED_MARKERS })
                 );
+            } else if (fixture.permanentTypes) {
+                const greedyMarkers = modeMarkersOf(subjectAfter(greedy));
+                expect({ ...treeMarkers, types: [] }).toEqual({
+                    ...greedyMarkers,
+                    types: [],
+                });
+                expect(treeMarkers.types).toEqual(
+                    [...fixtureDef(fixture).types].sort()
+                );
+                expect(greedyMarkers.types).toEqual(fixture.permanentTypes);
             } else {
                 expect(treeMarkers).toEqual(
                     modeMarkersOf(subjectAfter(greedy))

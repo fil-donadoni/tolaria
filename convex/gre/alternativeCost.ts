@@ -648,6 +648,10 @@ export function getAlternativeCost(
     // warp cost follows the rules for paying alternative costs in rules 601.2b
     // and 601.2f-h"). See `CardDefinition.warp`.
     if (def?.warp?.id === altCostId) return def.warp;
+    // CR 702.176a — same treatment for `def.impending` ("casting a spell for
+    // its impending cost follows the rules for paying alternative costs in
+    // rules 601.2b and 601.2f–h"). See `CardDefinition.impending`.
+    if (def?.impending?.id === altCostId) return def.impending;
     // CR 702.103a — same treatment for `def.bestow` ("casting a spell using
     // its bestow ability follows the rules for paying alternative costs").
     if (def?.bestow?.id === altCostId) return def.bestow;
@@ -742,6 +746,9 @@ export function affordableAlternativeCosts(
         // enumerator (`gre/moves.ts`), because each of them decides the cast
         // independently of this list.
         ...(def.warp && card.zone === "hand" ? [def.warp] : []),
+        // CR 702.176a — Impending names no zone, so it is offered on Dash's
+        // zone-blind terms.
+        ...(def.impending ? [def.impending] : []),
         // CR 702.103a — Bestow IS an alternative cost, offered on the same
         // terms. CR 601.2c / 702.103b adds one gate the other variants don't
         // need: a bestowed cast is an AURA spell and so requires a legal

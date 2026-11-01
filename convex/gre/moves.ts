@@ -4512,9 +4512,14 @@ function enumerateCastMovesFromZone(
     // Offered from anywhere else it would let a warp-exiled card be re-cast for
     // its warp cost, re-arming its own exile for ever; the same gate is applied
     // by `affordableAlternativeCosts` and at both cast-commit sites.
+    // CR 702.176a — Impending rides the same loop: its cost is an untargeted
+    // alternative cost on a creature card, and what it changes (time counters,
+    // "not a creature" while they last) is stamped by the cast-mode census
+    // (`gre/castMode.ts`), so the search sees the two boards side by side.
     const priceOnlyCosts = [
         def?.dash,
         ...(card.zone === "hand" ? [def?.warp] : []),
+        def?.impending,
     ];
     for (const priceOnlyCost of priceOnlyCosts) {
         if (

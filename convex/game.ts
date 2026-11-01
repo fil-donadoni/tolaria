@@ -5358,6 +5358,13 @@ export function finalizeTargetSelection(
         chosenAltCost !== undefined &&
         chosenAltCost === cardDef.warp &&
         castZone === "hand";
+    // CR 702.176a — the chosen alt cost IS the card's Impending cost (compared
+    // by reference — `getAlternativeCost` resolves `def.impending` for its own
+    // id): the resulting stack item is tagged `impended: true` below, the
+    // "if this permanent's impending cost was paid" clause the entry counters,
+    // the "not a creature" removal and the end-step trigger all read.
+    const isImpendingCost =
+        chosenAltCost !== undefined && chosenAltCost === cardDef.impending;
     // CR 702.103a — the chosen alt cost IS the card's Bestow cost (compared by
     // reference — `getAlternativeCost` resolves `def.bestow` for its own id).
     // Unlike `evoked`/`dashed` this is not just a marker for a later trigger:
@@ -5761,6 +5768,7 @@ export function finalizeTargetSelection(
             ...(isEvokeCost ? { evoked: true } : {}),
             ...(isDashCost ? { dashed: true } : {}),
             ...(isWarpCost ? { warped: true } : {}),
+            ...(isImpendingCost ? { impended: true } : {}),
             // CR 702.103a (producer census, issue #2388) — a bestowed cast
             // that PARKS carries the choice here so the deferred commit
             // (`tryAutoCommitPendingCast`) still applies the CR 702.103b
@@ -5861,6 +5869,7 @@ export function finalizeTargetSelection(
                 evoked: isEvokeCost,
                 dashed: isDashCost,
                 warped: isWarpCost,
+                impended: isImpendingCost,
                 bestowed: isBestowCost,
                 castAsAdventure: isAdventureCast,
                 castAsSplitHalf: splitCastSide,
@@ -5910,6 +5919,7 @@ export function finalizeTargetSelection(
             // off `pendingCast.dashed` once `tapForPayment` covers it.
             ...(isDashCost ? { dashed: true } : {}),
             ...(isWarpCost ? { warped: true } : {}),
+            ...(isImpendingCost ? { impended: true } : {}),
             // CR 702.103a (producer census, issue #2388) — a bestowed cast
             // that PARKS carries the choice here so the deferred commit
             // (`tryAutoCommitPendingCast`) still applies the CR 702.103b
@@ -6462,6 +6472,10 @@ export const announceCast = mutation({
             chosenAltCost !== undefined &&
             chosenAltCost === cardDef.warp &&
             castFromZone === "hand";
+        // CR 702.176a — the chosen alt cost IS the card's Impending cost. Tags
+        // the resulting stack item `impended: true` at commit below.
+        const isImpendingCost =
+            chosenAltCost !== undefined && chosenAltCost === cardDef.impending;
         // CR 702.103a — the chosen alt cost IS the card's Bestow cost. Two
         // things follow from it in this mutation, and neither is a plain
         // marker: the spell takes the "enchant creature" TARGET REQUIREMENT
@@ -7543,6 +7557,7 @@ export const announceCast = mutation({
                     ...(isEvokeCost ? { evoked: true } : {}),
                     ...(isDashCost ? { dashed: true } : {}),
                     ...(isWarpCost ? { warped: true } : {}),
+                    ...(isImpendingCost ? { impended: true } : {}),
                     // CR 702.103a (issue #2388 producer census) — a bestow
                     // cast cannot structurally reach this NO-TARGET branch: a
                     // bestowed spell is an Aura spell and always requires a
@@ -7631,6 +7646,7 @@ export const announceCast = mutation({
                     evoked: isEvokeCost,
                     dashed: isDashCost,
                     warped: isWarpCost,
+                    impended: isImpendingCost,
                     overloaded: isOverloadCost,
                     bestowed: isBestowCost,
                     morphed: isMorphCost,
