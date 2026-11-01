@@ -191,6 +191,7 @@ export function mapMoveCardRefs(
         case "play-land":
         case "turn-face-up":
         case "plot":
+        case "foretell":
             return { ...move, cardInstanceId: one(move.cardInstanceId) };
         case "cast-spell": {
             const picks = move.castCostPicks;

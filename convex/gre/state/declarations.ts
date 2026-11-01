@@ -1475,6 +1475,23 @@ export type CardInstanceState = {
      *  exile"). Public: plotted cards are exiled face up (CR 406.3). Cleared
      *  when the card leaves exile (CR 400.7). */
     plotted?: boolean;
+    /** CR 702.143a/c/d — the FORETOLD designation. On a card in exile: put
+     *  there face down by the foretell special action (or made foretold by an
+     *  effect, CR 702.143d), set by `makeForetold` (`gre/foretell.ts`)
+     *  together with the owner's cast permission it carries, which rides the
+     *  general `castableFromExile*` record (`castableFromExileBy` = owner,
+     *  `castableFromExileFromTurn` = the turn after: "after the current turn
+     *  has ended"). The cost of that cast is the card's foretell cost
+     *  (`castRawManaCost`). On a STACK ITEM: the spell "was a foretold card
+     *  before it was cast" (CR 702.143c), stamped by the Cast Commit kernel
+     *  whatever cost the cast paid, and cleared when the spell leaves the
+     *  stack. Cleared when the card leaves exile any other way (CR 400.7). */
+    foretold?: boolean;
+    /** CR 702.143d — a foretell cost an EFFECT gave this foretold card ("that
+     *  effect may give the card a foretell cost"); wins over the printed
+     *  `CardDefinition.foretell` in `getForetellCost`. Rides `foretold`: set
+     *  only by `makeForetold`, cleared wherever `foretold` is. */
+    grantedForetellCost?: CardManaCost;
     /** CR 601.3 / 118.9 (issue #1156) — a cost waiver riding {@link
      *  castableFromExileBy}: when both are set, `castableFromExileBy`'s
      *  named player may cast/play this card WITHOUT PAYING ITS MANA COST

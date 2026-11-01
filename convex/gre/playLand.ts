@@ -425,6 +425,8 @@ function consumeExilePlayGrant(card: CardInstanceState): void {
     // CR 702.170d — the plot window's rider and designation, likewise.
     delete card.castableFromExileSorceryTiming;
     delete card.plotted;
+    delete card.foretold;
+    delete card.grantedForetellCost;
     // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides the same
     // permission window; a land has no mana cost to waive, but drop the stale
     // flag for hygiene, mirroring `removeFromZone`'s spell-side cleanup.

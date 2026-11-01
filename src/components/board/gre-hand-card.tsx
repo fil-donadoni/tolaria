@@ -124,6 +124,7 @@ export default function GreHandCard({
     const activateAbility = useMutation(api.game.activateAbility);
     const activateManaAbility = useMutation(api.game.activateManaAbility);
     const plotCard = useMutation(api.game.plotCard);
+    const foretellCard = useMutation(api.game.foretellCard);
     const bufferCtx = usePendingChoiceBuffer();
 
     // Mid-resolution hand pick (CR 608.2, ADR 0007). When the active choice
@@ -244,10 +245,15 @@ export default function GreHandCard({
     // other actions (ADR 0074: the mutation re-validates).
     const plotOffered =
         card.canPlot === true && actionWindowOpen && !isHandChoice;
+    // CR 116.2h / 702.143a — the foretell special action, offered from the
+    // server's `canForetell` answer exactly like the plot.
+    const foretellOffered =
+        card.canForetell === true && actionWindowOpen && !isHandChoice;
     const actionable = cardHasLegalAction(actionWindowOpen && !isHandChoice, {
         legalActions: legal,
         activatableAbilityCount: handAbilities.length,
         canPlot: plotOffered,
+        canForetell: foretellOffered,
     });
 
     const {
@@ -312,6 +318,21 @@ export default function GreHandCard({
             plotCard({ gameId, playerId, cardInstanceId: card.id })
         ).catch((err) => console.error(extractMutationErrorMessage(err)));
     };
+    const foretellThisCard = () => {
+        if (hasPendingGameIntent()) return;
+        void trackGameIntent(
+            foretellCard({ gameId, playerId, cardInstanceId: card.id })
+        ).catch((err) => console.error(extractMutationErrorMessage(err)));
+    };
+    // CR 116.2 — the hand card's SPECIAL ACTIONS (plot, foretell): not casts,
+    // so never what a gesture commits, but options the menu names beside the
+    // cast.
+    const specialActions: HandCardPrimaryAction[] = [
+        ...(plotOffered ? [{ label: "Plot", onSelect: plotThisCard }] : []),
+        ...(foretellOffered
+            ? [{ label: "Foretell", onSelect: foretellThisCard }]
+            : []),
+    ];
     // CR 712.12 / 712.11c (ADR 0122 §2) — a card in hand can offer MORE THAN
     // ONE primary action. A modal double-faced card offers a cast of its front
     // face and a play of its land back face, and the two windows are
@@ -369,27 +390,28 @@ export default function GreHandCard({
                 : "Play land",
             onSelect: () => onPlayClick(face),
         })),
-        // CR 116.2k — a special action, not a cast: listed beside the cast so
-        // a card offering both routes through the menu, which names each.
-        ...(plotOffered ? [{ label: "Plot", onSelect: plotThisCard }] : []),
+        // CR 116.2 — special actions, not casts: listed beside the cast so a
+        // card offering both routes through the menu, which names each.
+        ...specialActions,
     ];
     const primaryAvailable = primaryActions.length > 0;
     const optionCount = handAbilities.length + primaryActions.length;
     const useMenu = !isHandChoice && optionCount > 1;
     const cyclingOnlyClick =
         !useMenu && handAbilities.length === 1 && !primaryAvailable;
-    // The one option is the plot: the click takes it, exactly as a
-    // Cycling-only card's click cycles.
-    const plotOnlyClick =
-        !useMenu && plotOffered && primaryActions.length === 1;
+    // The one option is a special action (plot, foretell): the click takes
+    // it, exactly as a Cycling-only card's click cycles.
+    const specialOnlyClick =
+        !useMenu && specialActions.length === 1 && primaryActions.length === 1;
     // CR 712.12 — the drag/swipe and tap-stage gestures commit "the" primary
     // action, so they are armed only while there IS one. A modal double-faced
     // card offering both a cast and a land play routes through the menu, which
     // names each face; see `commit` above.
-    // The plot entry is not a commit: the gesture still means "cast" when the
-    // card's only cast/play option is one, and the menu lists the plot.
+    // A special-action entry is not a commit: the gesture still means "cast"
+    // when the card's only cast/play option is one, and the menu lists the
+    // special actions.
     const gestureEnabled =
-        commitEnabled && primaryActions.length - (plotOffered ? 1 : 0) <= 1;
+        commitEnabled && primaryActions.length - specialActions.length <= 1;
 
     // Touch-vs-desktop tap detection for the menu (mirrors
     // `useAbilityCardClick` on the battlefield): touchstart flags the next
@@ -550,8 +572,8 @@ export default function GreHandCard({
             activateHandAbility(handAbilities[0].id, e.ctrlKey || e.metaKey);
             return;
         }
-        if (plotOnlyClick) {
-            plotThisCard();
+        if (specialOnlyClick) {
+            specialActions[0].onSelect(e);
             return;
         }
         if (!commitEnabled) return;

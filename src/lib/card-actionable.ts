@@ -56,6 +56,8 @@ export type CardActionSources = {
     canTurnFaceUp?: boolean;
     /** Plot special action on a hand card (`canPlot`, CR 702.170a). */
     canPlot?: boolean;
+    /** Foretell special action on a hand card (`canForetell`, CR 702.143a). */
+    canForetell?: boolean;
     /** Activated abilities offered on the card by the zone's `canActivate`
      *  checks (hand / graveyard / battlefield menus). */
     activatableAbilityCount?: number;
@@ -77,6 +79,7 @@ export function cardHasLegalAction(
         sources.canSummon === true ||
         sources.canTurnFaceUp === true ||
         sources.canPlot === true ||
+        sources.canForetell === true ||
         (sources.activatableAbilityCount ?? 0) > 0 ||
         sources.manaSourceActivatable === true
     );

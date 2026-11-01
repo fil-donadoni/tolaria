@@ -203,7 +203,11 @@ import {
 import { isSorceryTimingFor } from "./phases";
 import { loyaltyActivationViolation } from "./loyalty";
 import { effectivePermanentView } from "./permanentView";
-import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import {
+    FACE_DOWN_CARD_ID,
+    getInstanceManaCost,
+    tryGetDefinition,
+} from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf, countSnowLands } from "./snow";
 import { canSummonCompanion } from "./companion";
@@ -216,6 +220,7 @@ import { landPlayFaces, type PlayLandFace } from "./modalLandPlay";
 import { isSplitCastId, offersPrintedCast } from "./splitCast";
 import { morphCastAlternativeCost, turnableFaceUpPermanents } from "./morph";
 import { plottableHandCards } from "./plot";
+import { foretellableHandCards } from "./foretell";
 import { hasRetrace } from "./retrace";
 import { flashbackExileEligibleCount } from "./flashback";
 import { hasEscape } from "./escape";
@@ -472,6 +477,17 @@ export type Move =
           cardInstanceId: string;
       }
     | {
+          /** CR 116.2h / 702.143a — the `foretell` special action: pay {2} and
+           *  exile a card with foretell from your hand face down, any time you
+           *  have priority during your own turn; it becomes foretold
+           *  (castable from exile for its foretell cost on a later turn).
+           *  Per-CARD, repeatable, no tap plan: the {2} is solved and paid
+           *  server-side in one shot (`canForetell`, gre/foretell.ts, and the
+           *  `foretellCard` mutation in game.ts). */
+          kind: "foretell";
+          cardInstanceId: string;
+      }
+    | {
           kind: "cast-spell";
           cardInstanceId: string;
           /** CR 601.3 (issue #2971) — the zone this cast comes FROM. Absent
@@ -712,6 +728,8 @@ export const SPECIAL_ACTION_MOVE_KINDS: ReadonlySet<Move["kind"]> = new Set([
     "turn-face-up",
     // CR 116.2k / 702.170a — exiling a card with plot from hand.
     "plot",
+    // CR 116.2h / 702.143a — exiling a card with foretell from hand.
+    "foretell",
 ]);
 
 /** CR 712.12 — one `play-land` Move per FACE of `card` that is a land, in
@@ -5928,6 +5946,12 @@ export function enumerateMoves(
     for (const card of plottableHandCards(state, player)) {
         moves.push({ kind: "plot", cardInstanceId: card.id });
     }
+    // CR 116.2h / 702.143a — the foretell special action, one Move per card
+    // in hand with foretell while {2} is affordable, gated by the same
+    // `canForetell` the `foretellCard` mutation and the wire affordance read.
+    for (const card of foretellableHandCards(state, player)) {
+        moves.push({ kind: "foretell", cardInstanceId: card.id });
+    }
     for (const card of player.hand) {
         const actions = getLegalActions(state, player, card);
         if (actions.includes("play")) {
@@ -6051,6 +6075,13 @@ export function enumerateMoves(
     for (const zoneOwner of state.players) {
         for (const card of zoneOwner.exile) {
             if (card.types.includes("Land")) continue;
+            // CR 406.3 / 702.143a — a face-down card the viewer may not look
+            // at (an opponent's foretold card, as the client Bot's wire view
+            // carries it) is not a castable object for anyone modelling it
+            // from that view: its sentinel has no cost and no spell to cast.
+            if ((card.card as { id?: string }).id === FACE_DOWN_CARD_ID) {
+                continue;
+            }
             if (!exileCastPermitted(state, card, player.id)) continue;
             if (
                 !getLegalActions(
@@ -6287,6 +6318,8 @@ export function onlyPassIsLegal(state: GameState, playerId: string): boolean {
     if (canSummonCompanion(state, player)) return false;
     if (turnableFaceUpPermanents(state, player).length > 0) return false;
     if (plottableHandCards(state, player).length > 0) return false;
+    // CR 702.143a — and foretelling a hand card.
+    if (foretellableHandCards(state, player).length > 0) return false;
     // Hand: a land play, a cast, or a hand-source ability (Cycling).
     for (const card of player.hand) {
         if (getLegalActions(state, player, card).length > 0) return false;
