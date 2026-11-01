@@ -14051,7 +14051,8 @@ export function buildSpellContext(
         // resolution (CR 608.2b). Used by Transmute Artifact.
         putFromLibraryOntoBattlefield(
             playerId: string,
-            cardInstanceId: string
+            cardInstanceId: string,
+            opts?: { faceDown?: FaceDownProducer }
         ): boolean {
             const player = getPlayer(state, playerId);
             const idx = player.library.findIndex(
@@ -14059,7 +14060,19 @@ export function buildSpellContext(
             );
             if (idx === -1) return false;
             const [card] = player.library.splice(idx, 1);
-            return putReanimatedOnBattlefield(state, card, playerId);
+            // CR 708.3 / 701.40a (issue #2072) — "turned face down before they
+            // enter the battlefield": the entry chokepoint below sees only the
+            // 2/2, so the real card's ETB abilities and entry replacements
+            // never apply, and an entry replacement that bites a creature
+            // (Containment Priest) bites the face-down one.
+            if (opts?.faceDown) turnFaceDown(state, card, opts.faceDown);
+            const entered = putReanimatedOnBattlefield(state, card, playerId);
+            // CR 701.40f — a card that did not enter was never manifested:
+            // wherever an entry replacement sent it, it is the real card.
+            if (!entered && card.faceDown && card.zone !== "battlefield") {
+                turnFaceUp(state, card);
+            }
+            return entered;
         },
         // CR 400.7 — hand → battlefield (Gaea's Touch). Splice the instance out
         // of the hand and put it onto the same player's battlefield via the

@@ -180,7 +180,7 @@ import {
     getManaSubstitutions,
 } from "./state";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
-import { morphTurnUpPaymentPlan } from "./morph";
+import { turnFaceUpPayment } from "./morph";
 import { plotInSearch } from "./plot";
 import { applyCastModeCharacteristics } from "./castMode";
 import { turnFaceUpOnBattlefield } from "./faceDown";
@@ -1768,7 +1768,7 @@ export function summonCompanionInSearch(
     companion.used = true;
 }
 
-/** CR 116.2b / 702.37e — the turn-face-up special action. Same coarse mana
+/** CR 116.2b / 702.37e / 701.40b — the turn-face-up special action. Same coarse mana
  *  model as `summonCompanionInSearch`: legality AND affordability were
  *  established by `canTurnFaceUp` at enumeration time.
  *
@@ -1784,7 +1784,7 @@ export function turnFaceUpInSearch(
 ): void {
     const permanent = player.battlefield.find((c) => c.id === cardInstanceId);
     if (!permanent) return;
-    const plan = morphTurnUpPaymentPlan(state, player, permanent);
+    const plan = turnFaceUpPayment(state, player, permanent)?.plan;
     if (plan) {
         const tapped = new Set(plan.map((step) => step.cardId));
         for (const src of player.battlefield) {

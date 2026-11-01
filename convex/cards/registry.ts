@@ -976,6 +976,23 @@ export function tokenDefinitionId(spec: TokenSpec): string {
  *  vanilla 2/2 automatically. Registered in the lookup map only, NOT a set
  *  export, so it never enters the card pool or the catalogue guard tests. */
 export const FACE_DOWN_CARD_ID = "face-down:2-2-vanilla";
+
+/** CR 708.4 / ADR 0013 (issue #2072) — do the sentinel's turn-up
+ *  replacements below apply to `self`? They are Illusionary Mask's printed
+ *  rider ("If the creature that spell becomes as it resolves has not been
+ *  turned face up and would assign or deal damage, be dealt damage, or become
+ *  tapped, instead it's turned face up and …"), so they
+ *  belong to a permanent CAST face down by such an effect and to nothing else:
+ *  a morph (CR 702.37) or a manifested permanent (CR 701.40) attacks, blocks
+ *  and is dealt damage as a face-down 2/2 and turns up only through its own
+ *  special action. An ABSENT producer is state persisted before issue #2904,
+ *  which keeps the behaviour it was saved with. */
+function turnsUpLikeCastFaceDown(self: { faceDownBy?: string }): boolean {
+    return (
+        self.faceDownBy === undefined || self.faceDownBy === "cast-face-down"
+    );
+}
+
 setRegistryEntry(FACE_DOWN_CARD_ID, {
     id: FACE_DOWN_CARD_ID,
     name: "Face-down creature",
@@ -1004,7 +1021,9 @@ setRegistryEntry(FACE_DOWN_CARD_ID, {
             eventKind: "damage",
             damageEffectKind: "other",
             appliesTo: (event, self) =>
-                event.kind === "damage" && event.sourceInstanceId === self.id,
+                turnsUpLikeCastFaceDown(self) &&
+                event.kind === "damage" &&
+                event.sourceInstanceId === self.id,
             replace: (event, ctx) => {
                 const { power } = ctx.turnSelfFaceUp();
                 if (event.kind !== "damage") return { kind: "modified", event };
@@ -1023,6 +1042,7 @@ setRegistryEntry(FACE_DOWN_CARD_ID, {
             eventKind: "damage",
             damageEffectKind: "other",
             appliesTo: (event, self) =>
+                turnsUpLikeCastFaceDown(self) &&
                 event.kind === "damage" &&
                 event.target.type === "permanent" &&
                 event.target.id === self.id,
@@ -1038,7 +1058,9 @@ setRegistryEntry(FACE_DOWN_CARD_ID, {
                 "If this creature would become tapped, turn it face up, then it becomes tapped.",
             eventKind: "tap",
             appliesTo: (event, self) =>
-                event.kind === "tap" && event.cardInstanceId === self.id,
+                turnsUpLikeCastFaceDown(self) &&
+                event.kind === "tap" &&
+                event.cardInstanceId === self.id,
             replace: (event, ctx) => {
                 ctx.turnSelfFaceUp();
                 return { kind: "modified", event };

@@ -1679,6 +1679,15 @@ const SCENARIO_SKIPS = {
         code: "suspends-for-input",
         reason: `Op "hideaway" suspends for a look-distribute pick and exiles face down — covered by the Op's interpreter tests`,
     },
+    // CR 701.62a (issue #2072) — manifest dread waits on a live
+    // look-distribute pick (which card to manifest) that a canned
+    // scenario cannot submit, and its outcome is a FACE-DOWN permanent whose
+    // identity is per-viewer. Explicit skip; execution coverage is the Op's
+    // own interpreter tests plus the wire-format both-viewpoints assertion.
+    manifestDread: {
+        code: "suspends-for-input",
+        reason: `Op "manifestDread" suspends for a look-distribute pick and manifests face down — covered by the Op's interpreter tests`,
+    },
     // Same shape as `lookDistribute` (issue #1364): the Op suspends on a
     // live categorized look-distribute pick, which a canned scenario
     // cannot submit. Explicit skip; execution coverage is the Op's own

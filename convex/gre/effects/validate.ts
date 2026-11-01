@@ -5850,6 +5850,19 @@ const OP_SCHEMAS: OpSchemaTable = {
             prompt: isNonEmptyString,
         },
     },
+    // CR 701.62a (issue #2072) — MANIFEST DREAD: look at the top two cards,
+    // manifest one, the rest to the graveyard. Every count is the rule's own
+    // constant (two looked at, exactly one manifested, the rest binned), so the
+    // only field is WHO manifests. No `bind`: no shipped script reads the
+    // manifested permanent back.
+    manifestDread: {
+        required: {
+            player: isPlayerRef,
+        },
+        optional: {
+            prompt: isNonEmptyString,
+        },
+    },
     // CR 701.20a + CR 401.4 (issue #1364) — reveal a fixed top-N window once,
     // keep at most ONE card per category out of that shared window, bottom the
     // rest. Atraxa, Grand Unifier. `categories` is a non-empty ordered list of

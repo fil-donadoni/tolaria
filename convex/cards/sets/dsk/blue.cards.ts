@@ -6,6 +6,7 @@
 import { defineCard } from "../../types";
 import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Enduring Curiosity — {2}{U}{U} Enchantment Creature — Cat Glimmer, 4/3
 // (issue #2085, the DSK "Enduring" cycle; the shared dies-trigger and its
@@ -71,6 +72,51 @@ export const enduringCuriosity = defineCard(() => ({
         enduringReturnTrigger({
             id: "enduring-curiosity-return",
             cardName: "Enduring Curiosity",
+        }),
+    ],
+}));
+
+// Abhorrent Oculus — {2}{U} Creature — Eye, 5/5 (issue #2072).
+//
+// "As an additional cost to cast this spell, exile six cards from your
+// graveyard." — CR 601.2f / 118.8, `additionalCosts.exileFromGraveyard`:
+// owed by every cast, paid through the one graveyard-exile cast picker
+// (`PendingCast.exileFromGraveyardChoice`), and the cast is illegal with fewer
+// than six other cards in the graveyard (CR 601.2h).
+//
+// "Flying" — CR 702.9a, an `implemented` keyword (Guard A).
+//
+// "At the beginning of each opponent's upkeep, manifest dread." — CR 503.1a /
+// 603.2 upkeep trigger, `scope: "opponents"` (once per opponent's upkeep, the
+// Dark Suspicions shape). The body is the CR 701.62a `manifestDread` Op for the
+// CONTROLLER: "manifest dread" reads "your library" (CR 701.62a), never the
+// opponent whose upkeep it is.
+//
+// Guard C (issue #2701) — both clauses are sub-floor Grammar Gaps today: the
+// additional-cost static and the opponent-upkeep trigger head (#4582).
+// compiler-gap: As an additional cost to cast this spell, exile six cards from your graveyard. (#2693)
+// compiler-gap: At the beginning of each opponent's upkeep, manifest dread. (#4582)
+export const abhorrentOculus = defineCard(() => ({
+    id: "d2705b43-a94a-44c0-8740-82e0b296820c",
+    name: "Abhorrent Oculus",
+    rarity: "mythic",
+    manaCost: { X: 2, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Eye"],
+    power: 5,
+    toughness: 5,
+    oracleText:
+        "As an additional cost to cast this spell, exile six cards from your graveyard.\nFlying\nAt the beginning of each opponent's upkeep, manifest dread. (Look at the top two cards of your library. Put one onto the battlefield face down as a 2/2 creature and the other into your graveyard. Turn it face up any time for its mana cost if it's a creature card.)",
+    staticAbilities: ["flying"],
+    additionalCosts: { exileFromGraveyard: { count: 6 } },
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "abhorrent-oculus-manifest-dread",
+            oracleText:
+                "At the beginning of each opponent's upkeep, manifest dread.",
+            phase: "UPKEEP",
+            scope: "opponents",
+            effects: [{ op: "manifestDread", player: "controller" }],
         }),
     ],
 }));

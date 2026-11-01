@@ -2621,6 +2621,7 @@ import type {
     SpellFilter,
 } from "./filters";
 import type { ContinuousEffect } from "../gre/continuousEffects";
+import type { FaceDownProducer } from "../gre/faceDown";
 export type { PermanentFilter, SpellFilter } from "./filters";
 
 // --- Compiled triggered-ability descriptors (issue #2698) ---
@@ -5015,10 +5016,19 @@ export interface SpellContext {
      *  static effects push out, and an ETB notification fires (CR 603.6).
      *  Returns true if the card was in the library and moved, false on silent
      *  fizzle (CR 608.2b). Used by Transmute Artifact. Pair with
-     *  `shuffleLibrary` (CR 701.24) after the search resolves. */
+     *  `shuffleLibrary` (CR 701.24) after the search resolves.
+     *
+     *  `opts.faceDown` (CR 708.3 / 701.40a, issue #2072) puts the card onto
+     *  the battlefield FACE DOWN, stamped with that producer — turned face down
+     *  BEFORE it enters, so the entry machinery (ETB triggers, CR 614 entry
+     *  replacements, Containment Priest) sees only the 2/2 and the card's own
+     *  ETB abilities never apply. A card that does not end up entering is
+     *  turned back face up wherever it went (CR 701.40f — it was never a
+     *  face-down permanent). Used by the `manifestDread` Op. */
     putFromLibraryOntoBattlefield: (
         playerId: string,
-        cardInstanceId: string
+        cardInstanceId: string,
+        opts?: { faceDown?: FaceDownProducer }
     ) => boolean;
     /** Puts a card from `playerId`'s HAND onto their battlefield (CR 400.7 — a
      *  zone change that is not "playing" the card, so no cost is paid and the
@@ -8427,6 +8437,11 @@ export interface PermanentView {
     /** Set on auras attached to another permanent (CR 303.4b). Predicates
      *  for keyword-grant effects typically use `target.id === source.attachedTo`. */
     attachedTo?: string;
+    /** CR 708.2 (issue #2072) — WHICH mechanic put this permanent face down
+     *  (`CardInstanceState.faceDownBy`). Read by the face-down sentinel's
+     *  CR 708.4 turn-up replacements, which belong to a cast-face-down
+     *  permanent alone, never to a morph or a manifested one. */
+    faceDownBy?: FaceDownProducer;
     /** Player chosen as this permanent entered (CR 603.6b), stored for the rest
      *  of the game. Read by phase-trigger conditions that fire only on the
      *  chosen player's step (The Rack — "the chosen player's upkeep"). The
@@ -18406,6 +18421,36 @@ export type EffectOp =
           /** Optional prompt override for the look-distribute picker. */
           prompt?: string;
       }
+    /** CR 701.62a (issue #2072) — MANIFEST DREAD: "Look at the top two cards
+     *  of your library. Manifest one of them, then put the cards you looked at
+     *  that were not manifested this way into your graveyard."
+     *
+     *  Its own Op, deliberately NOT a `keepTo` arm on `lookDistribute`: that
+     *  Op's valuer prices kept cards as hand card selection, and the kept card
+     *  here becomes a face-down 2/2 creature on the battlefield (CR 701.40a),
+     *  stamped `faceDownBy: "manifest"` — a stamp meaningless on every other
+     *  arm. Structurally the `hideaway` relative of `lookDistribute`, reusing
+     *  the machinery verbatim: `peekLibraryTop(2)` names the window, ONE
+     *  suspending `look-distribute` `requestChoice` picks the card to
+     *  manifest, `putFromLibraryOntoBattlefield` with `faceDown: "manifest"`
+     *  puts it onto the battlefield through the canonical entry chokepoint
+     *  (CR 708.3 — turned face down BEFORE it enters, so ETB triggers watching
+     *  creatures and entry replacements see the 2/2), and the shared
+     *  `bottomLookedAtCards` tail sends the other card to the graveyard.
+     *
+     *  CR 608.2b clamps: one card in the library is manifested with nothing to
+     *  the graveyard and NO prompt (a forced pick); an empty library, or a
+     *  gone player, is a clean no-op that never suspends.
+     *
+     *  NOT plain CR 701.40 manifest ("manifest the top card of your library"),
+     *  whose registry row stays `planned`; and "manifest dread N times" is
+     *  the Op repeated, not a parameter (CR 701.40e — one at a time). */
+    | {
+          op: "manifestDread";
+          player: EffectPlayerRef;
+          /** Optional prompt override for the look-distribute picker. */
+          prompt?: string;
+      }
     /** CR 701.20a reveal + CR 401.4 (issue #1364) — reveal a fixed top-N
      *  window ONCE, then keep AT MOST ONE card per category from that single
      *  shared window, and send everything unkept to `destination`.
@@ -21672,6 +21717,20 @@ export interface CardDefinition {
          *  graveyard"). `color` filters the eligible cards (CR 105.2); omit for
          *  any card. */
         flashbackExileFromGraveyard?: { color?: Color };
+        /** CR 601.2f / 118.8 (issue #2072) — "As an additional cost to cast
+         *  this spell, exile N cards from your graveyard" (Abhorrent Oculus:
+         *  six). Owed by EVERY cast of the spell, whatever zone it is cast
+         *  from — unlike `flashbackExileFromGraveyard`, which only a flashback
+         *  cast owes. WHICH cards is the caster's choice, routed through the
+         *  ONE graveyard-exile cast picker flashback / escape / delve already
+         *  park on (`PendingCast.exileFromGraveyardChoice`, built by
+         *  `buildCastExileCostChoice`, `gre/castCost.ts`), so there is no
+         *  second picker. The cast card itself is never eligible (CR 601.2a —
+         *  it is on the stack by then). CR 601.2h — the cast is illegal with
+         *  fewer than `count` other cards in the caster's graveyard
+         *  (`canPayAdditionalCostSpec`, which `getLegalActions` reads, so the
+         *  projected Cast affordance and the Bot's enumerator agree). */
+        exileFromGraveyard?: { count: number };
         /** CR 601.2f / 701.9 — "As an additional cost to cast this spell,
          *  discard a card." The caster gives up `count` cards FROM HAND as the
          *  spell is cast; WHICH cards is their choice, routed through the SAME

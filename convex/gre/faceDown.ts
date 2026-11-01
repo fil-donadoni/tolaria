@@ -32,12 +32,16 @@ import type { LayerStateView } from "./layers";
  *
  * One row per mechanic, never a branch: `FACE_BY_PRODUCER`
  * (`src/lib/face-down.ts`) is a total `Record` over this union, so adding a
- * producer here fails the type-check until it also declares its face. Three
- * further mechanics are registry rows with status `planned` and ship nothing,
- * each earning its member when its own mechanic ships, not before:
- *   - CR 701.40 manifest
- *   - CR 701.62 manifest dread
- *   - megamorph, the second half of CR 702.37 morph (its subrule 702.37b)
+ * producer here fails the type-check until it also declares its face.
+ * Megamorph, the second half of CR 702.37 morph (its subrule 702.37b), is a
+ * registry row with status `planned` and ships nothing; it earns its member
+ * when its own mechanic ships, not before.
+ *
+ * The producer is ALSO a rules read, not only a display one (issue #2072):
+ * it decides which turn-face-up procedures a permanent offers (`gre/morph.ts`
+ * `turnFaceUpCosts` — CR 702.37e for `"morph"`, CR 701.40b for `"manifest"`)
+ * and whether the CR 708.4 cast-face-down replacements on the sentinel
+ * definition apply to it at all (`cards/registry.ts`).
  */
 export type FaceDownProducer =
     /** CR 702.37a/c — the morph alternative cost: cast as a face-down 2/2. */
@@ -47,6 +51,13 @@ export type FaceDownProducer =
      *  effect granting a face-down cast joins this row rather than adding one,
      *  because none of them has printed helper art either. */
     | "cast-face-down"
+    /** CR 701.40a — MANIFESTED: turned face down and put onto the battlefield
+     *  as a 2/2 by an effect. Covers CR 701.62 manifest dread too, which is
+     *  defined as manifesting one of the two looked-at cards (CR 701.62a), so
+     *  the permanent it makes is a manifested permanent like any other. Its
+     *  controller may turn it face up for the real card's mana cost when that
+     *  card is a creature card (CR 701.40b). */
+    | "manifest"
     /** CR 406.3 — exiled FACE DOWN because the card's own oracle text says so
      *  (Memory Jar, Necropotence, Headliner Scarlett, CR 702.75a hideaway).
      *  The object is a CARD in exile, not a permanent, and it is face down for
@@ -68,6 +79,7 @@ export type FaceDownProducer =
 const FACE_DOWN_PRODUCER_CENSUS: Record<FaceDownProducer, true> = {
     morph: true,
     "cast-face-down": true,
+    manifest: true,
     "face-down-exile": true,
 };
 

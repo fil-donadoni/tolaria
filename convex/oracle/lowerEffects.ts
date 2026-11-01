@@ -5379,6 +5379,11 @@ function lowerFrameChain(
                 ops.push(...empowerJaceOps(count.value));
                 break;
             }
+            // CR 701.62a — "your library": the ability's controller (or the
+            // spell's) manifests from their own library.
+            case "manifestDread":
+                ops.push({ op: "manifestDread", player: "controller" });
+                break;
             // CR 725.1 — the controller takes the monarch designation.
             case "becomeMonarch":
                 ops.push({ op: "becomeMonarch" });

@@ -62,6 +62,8 @@ export const FRAME_HEADS: readonly FrameHead[] = [
     { verb: "attach", op: "attach" },
     { verb: "transform", op: "transform" },
     { verb: "explore", op: "explore" },
+    { verb: "manifest", op: "manifestDread", requires: "dread" },
+    { verb: "manifest", op: null },
     { verb: "add", op: "addMana" },
     // Keyword actions the registry has no Op for: reported as `no Op`.
     { verb: "surveil", op: null },
