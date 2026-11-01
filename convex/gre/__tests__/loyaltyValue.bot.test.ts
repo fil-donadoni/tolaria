@@ -66,6 +66,8 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Sorin, Lord of Innistrad": 7,
     // start 4, spends 3/8
     "Teferi, Hero of Dominaria": 9,
+    // start 5, spend 3 — starting count again (issue #2607)
+    "Tamiyo, Collector of Tales": 6,
     // start 4, spend 3 — starting count again
     "Teferi, Time Raveler": 5,
     // start 4, spends 0/3/7
