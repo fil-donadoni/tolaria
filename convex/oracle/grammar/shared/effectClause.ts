@@ -529,6 +529,7 @@ export const EFFECT_SENTENCE_KINDS = [
     "combat-restriction",
     "assigns-no-combat-damage",
     "player-attack-protection",
+    "grant-cast-timing",
     "effect-and-assigns-no-combat-damage",
     "forced-block",
     "prevent-regeneration",
@@ -1370,6 +1371,14 @@ export type EffectSentenceIR =
      * turn begins. Only that printed duration and that carve-out are read.
      */
     | { readonly kind: "player-attack-protection" }
+    /**
+     * CR 601.3b + CR 611.2a — "Until your next turn, you may cast sorcery
+     * spells as though they had flash": a player-scoped timing permission for
+     * the controller, narrowed to one printed card type, lasting until the
+     * controller's next turn begins. "This turn", another class of spell or
+     * another player differs from the Op's fixed boundary and stays refused.
+     */
+    | { readonly kind: "grant-cast-timing"; readonly cardType: "Sorcery" }
     /**
      * CR 510.1c + CR 608.2c — "<effect> and <this creature> assigns no combat
      * damage this turn": the head effect, then the suppression, in printed
@@ -5269,6 +5278,10 @@ const PAY_FIXED_MANA =
  *  carve-out, whole. */
 const PLAYER_ATTACK_PROTECTION =
     /^Until your next turn, you can't be attacked except by creatures with flying and\/or islandwalk$/;
+/** CR 601.3b — the controller's flash-timing grant until their next turn,
+ *  whole: the card type is the only argument read. */
+const GRANT_CAST_TIMING =
+    /^Until your next turn, you may cast sorcery spells as though they had flash$/;
 /** CR 510.1c — the source's own assignment suppression, whole. */
 const ASSIGNS_NO_COMBAT_DAMAGE = /^(.+) assigns no combat damage this turn$/;
 const AND_ASSIGNS_NO_COMBAT_DAMAGE =
@@ -7436,6 +7449,12 @@ function effectSentence(
     if (PLAYER_ATTACK_PROTECTION.test(span))
         return ok({
             kind: "player-attack-protection" as const,
+        } satisfies EffectSentenceIR);
+    // ── controller's flash-timing grant (CR 601.3b) ─────────────────────
+    if (GRANT_CAST_TIMING.test(span))
+        return ok({
+            kind: "grant-cast-timing" as const,
+            cardType: "Sorcery" as const,
         } satisfies EffectSentenceIR);
     // ── source's assignment suppression (CR 510.1c) ─────────────────────
     const assignsNone = span.match(ASSIGNS_NO_COMBAT_DAMAGE);
