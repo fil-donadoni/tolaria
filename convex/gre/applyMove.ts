@@ -108,6 +108,7 @@ import { spliceAugmentedDefinition } from "./splice";
 import {
     additionalCostPaymentSnapshot,
     buildCastPermanentCostChoice,
+    buildCastHandCostChoice,
     type KickerPayments,
 } from "./kicker";
 import {
@@ -503,11 +504,11 @@ export function applyAlternativeCostPermanentLegForSearch(
  *  Phyrexian mana already rode on, so the Kicker life leg reuses that seam
  *  rather than adding a second one.
  *
- *  No HAND leg branch: `enumerateKickerVariants` (`gre/kicker.ts`) never
- *  enumerates a hand-leg Kicker combo (fail CLOSED — no shipped Kicker
- *  carries one), so `payments` reaching this function never names one; a
- *  future hand-leg Kicker card must extend the enumerator's bound before this
- *  needs to grow a branch for it.
+ *  No HAND leg branch here: `enumerateKickerVariants` (`gre/kicker.ts`) never
+ *  enumerates a caster-chosen hand-leg Kicker combo (fail CLOSED). The one
+ *  hand leg a Move CAN carry is escalate's (CR 702.120a), whose
+ *  count follows the mode list — {@link applyKickerHandLegsForSearch} pays
+ *  it.
  *
  *  Called from the search's one cast commit sequence (`commitCastInSearch`,
  *  issue #4444), so both search appliers charge it. */
@@ -542,6 +543,44 @@ export function applyKickerPermanentLegForSearch(
             removePermanentTo(state, id, "hand");
         }
     }
+}
+
+/** CR 702.120a / 601.2h (issue #2267) — pay the HAND legs of a Move's paid
+ *  cost entries (escalate's "discard a card" per extra mode) on a search
+ *  sandbox state, in place, through the live path's own picker and payer:
+ *  `buildCastHandCostChoice` builds the combined choice the server would park,
+ *  `pickAlternativeHandCost` names the cards the executor's driver submits,
+ *  and `payAlternativeCostHandChoice` moves them. Uncharged, every escalated
+ *  mode is free in the tree and the Bot would always pick every mode.
+ *
+ *  Returns `false` when the legs can no longer be paid — a STALE Move — so the
+ *  caller drops the cast. `true` when no paid entry has a hand leg. Runs while
+ *  the cast card is still in hand: CR 601.2a excludes it. */
+export function applyKickerHandLegsForSearch(
+    state: GameState,
+    playerId: string,
+    spell: CardInstanceState,
+    cardDef: CardDefinition,
+    payments: KickerPayments | undefined
+): boolean {
+    if (!payments) return true;
+    const player = getPlayer(state, playerId);
+    const choice = buildCastHandCostChoice(
+        player,
+        undefined,
+        cardDef,
+        payments,
+        spell.id,
+        []
+    );
+    if (!choice) return true;
+    const picks =
+        choice.pickedCardIds ?? pickAlternativeHandCost(player, choice);
+    if (!picks) return false;
+    return payAlternativeCostHandChoice(state, playerId, {
+        ...choice,
+        pickedCardIds: picks,
+    });
 }
 
 /** CR 601.2f / 701.21 / 701.13 (issue #2135) — pay a `cast-spell` move's
@@ -1471,6 +1510,19 @@ export function commitCastInSearch(
                 kickerCardDef,
                 move.kickerPayments
             );
+            // CR 702.120a (issue #2267) — and its HAND legs (escalate's
+            // discard per extra mode); a stale Move is dropped.
+            if (
+                !applyKickerHandLegsForSearch(
+                    state,
+                    playerId,
+                    preCastSpell,
+                    kickerCardDef,
+                    move.kickerPayments
+                )
+            ) {
+                return null;
+            }
         }
     }
     // CR 601.2f / 701.21 / 701.13 (issue #2135) — pay the mandatory

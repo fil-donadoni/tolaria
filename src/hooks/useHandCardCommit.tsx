@@ -3,6 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { getDefinition } from "@convex/cards";
 import { declaresAsEntersMode } from "@convex/gre/constants";
+import { maxModeCount } from "@convex/gre/modeSelection";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { expectedInputAdmits } from "~/lib/expected-input";
@@ -13,6 +14,7 @@ import {
 import {
     affordableAltCostsForCard,
     affordableKickersForCard,
+    escalateModeCapForCard,
     buildTriggerStateView,
     manaCostToString,
     matchesHandCardFilter,
@@ -832,6 +834,15 @@ export function useHandCardCommit(
                                           allPlayers,
                                           activePlayerId
                                       )
+                                  ),
+                                  // CR 702.120a (issue #2267) — no more modes
+                                  // than the escalate cost can pay for.
+                                  affordableModeCap: escalateModeCapForCard(
+                                      cardInstance,
+                                      playerId,
+                                      allPlayers,
+                                      activePlayerId,
+                                      maxModeCount(def.modeSelection)
                                   ),
                               }),
                               onConfirm: (modeIds) =>

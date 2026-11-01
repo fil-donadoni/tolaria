@@ -82,10 +82,13 @@ import {
 import {
     castAnnouncedTargetGroups,
     enumerateKickerVariants,
+    withPerExtraModePayments,
+    canPayKickerLegs,
     foldBuybackCost,
     foldKickerCosts,
     kickedTargetRequirement,
     kickerLegPermanentSlotWouldCollide,
+    kickerPermanentSlotWouldCollide,
     kickedCountOfPayments,
     kickerLifeCost,
     paidKickersAnnounceX,
@@ -3729,33 +3732,80 @@ function enumerateCastMovesFromZone(
                         additionalCostLegId
                     )
             )
-            .flatMap((kickerPayments) =>
+            .flatMap((choicePayments) =>
                 buybackVariants.flatMap((buybackPaid) =>
-                    modeShapesFor(kickerPayments).map(
+                    modeShapesFor(choicePayments).flatMap(
                         ({
                             chosenModeIds,
                             mode,
                             groupInstances,
                             multiGroups,
-                        }) => ({
-                            chosenModeIds,
-                            groupInstances,
-                            additionalCostLegId,
-                            kickerPayments,
-                            buybackPaid,
-                            groups:
-                                multiGroups ?? groupsFor(mode, kickerPayments),
-                            // CR 601.2c (issue #4193) — the script whose slot
-                            // reads decide whether a group's announced targets
-                            // are interchangeable. `undefined` for a several-
-                            // instance announcement (ADR 0094): each instance
-                            // owns its own slot window, which this one flat
-                            // script cannot be sliced into, so those groups
-                            // stay on combinations.
-                            slotRoleEffects: multiGroups
-                                ? undefined
-                                : announcedRoleScript(def ?? undefined, mode),
-                        })
+                        }) => {
+                            // CR 702.120a / 601.2h (issue #2267) — the escalate
+                            // count follows THIS combination's size, written
+                            // by the same helper `announceCast` uses, and a
+                            // combination whose extra-mode cost the Bot
+                            // cannot pay (discard two with one card in hand)
+                            // is dropped here rather than offered and
+                            // rejected live. Identity for every card without
+                            // an escalate entry.
+                            const kickerPayments = def
+                                ? withPerExtraModePayments(
+                                      def,
+                                      choicePayments,
+                                      chosenModeIds?.length ?? 0
+                                  )
+                                : choicePayments;
+                            if (
+                                def &&
+                                kickerPayments !== choicePayments &&
+                                (kickerLegPermanentSlotWouldCollide(
+                                    def,
+                                    kickerPayments,
+                                    additionalCostLegId
+                                ) ||
+                                    kickerPermanentSlotWouldCollide(
+                                        state,
+                                        def,
+                                        card,
+                                        kickerPayments
+                                    ) ||
+                                    !canPayKickerLegs(
+                                        state,
+                                        player,
+                                        def,
+                                        kickerPayments,
+                                        card.id
+                                    ))
+                            ) {
+                                return [];
+                            }
+                            return [
+                                {
+                                    chosenModeIds,
+                                    groupInstances,
+                                    additionalCostLegId,
+                                    kickerPayments,
+                                    buybackPaid,
+                                    groups:
+                                        multiGroups ??
+                                        groupsFor(mode, kickerPayments),
+                                    // CR 601.2c (issue #4193) — the script whose slot
+                                    // reads decide whether a group's announced targets
+                                    // are interchangeable. `undefined` for a several-
+                                    // instance announcement (ADR 0094): each instance
+                                    // owns its own slot window, which this one flat
+                                    // script cannot be sliced into, so those groups
+                                    // stay on combinations.
+                                    slotRoleEffects: multiGroups
+                                        ? undefined
+                                        : announcedRoleScript(
+                                              def ?? undefined,
+                                              mode
+                                          ),
+                                },
+                            ];
+                        }
                     )
                 )
             )

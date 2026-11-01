@@ -93,7 +93,14 @@ export type KickerPayments = Record<string, number>;
  *    own cost (`kickerDeclarations.test.ts` — the Everflowing Chalice class,
  *    issue #962) and any future renderer read the same answer instead of
  *    each branching on `multi`. `repeated` present ⟺ `allowsMulti`, asserted
- *    in `additionalCostKeywords.test.ts` so the two cannot drift. */
+ *    in `additionalCostKeywords.test.ts` so the two cannot drift.
+ *  - `paidPerExtraMode` — CR 702.120a: is the payment count
+ *    DERIVED from the announced mode list ("for each mode you choose beyond
+ *    the first … you pay an additional [cost]") rather than chosen by the
+ *    caster? Escalate is. Such an entry is never a toggle: the caster names
+ *    the modes and {@link withPerExtraModePayments} writes the count, so the
+ *    client's dialog ({@link isCasterChosenCostEntry}) and the Bot's kicker
+ *    axis ({@link enumerateKickerVariants}) both leave it out. */
 export const ADDITIONAL_COST_KEYWORDS: Record<
     AdditionalCostKeyword,
     {
@@ -102,6 +109,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
         castCopyTrigger: boolean;
         allowsMulti: boolean;
         printedLabel: { single?: string; repeated?: string };
+        paidPerExtraMode: boolean;
     }
 > = {
     // CR 702.33a/d — the original, and the only identity "kicked" is defined
@@ -114,6 +122,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
         castCopyTrigger: false,
         allowsMulti: true,
         printedLabel: { single: "Kicker", repeated: "Multikicker" },
+        paidPerExtraMode: false,
     },
     // CR 702.175a — same cost half word for word, a DIFFERENT consequence, and
     // never "kicked". Its twin trigger is what issue #2079 ships; until then
@@ -124,6 +133,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
         castCopyTrigger: false,
         allowsMulti: false,
         printedLabel: { single: "Offspring" },
+        paidPerExtraMode: false,
     },
     // CR 702.157a (issue #3220) — the family's third member, and the first to
     // set BOTH repeatability flags: "you may pay [cost] any number of times"
@@ -149,6 +159,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
         // `multi`-less squad entry is a mis-declared card with no printed
         // form at all, which is exactly what an absent `single` says.
         printedLabel: { repeated: "Squad" },
+        paidPerExtraMode: false,
     },
     // CR 702.56a/b (issue #2100) — repeatable like Multikicker, never
     // "kicked": the payment count buys COPIES, not a bigger effect, so a
@@ -165,6 +176,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
         // CR 702.56a — "any number of times" is in the keyword's definition,
         // exactly as for squad: only the repeated form exists.
         printedLabel: { repeated: "Replicate" },
+        paidPerExtraMode: false,
     },
     // CR 702.47a/b (issue #2394) — the first member whose entries are
     // SYNTHESIZED rather than declared: the cost prices a card revealed from
@@ -182,6 +194,25 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
         castCopyTrigger: false,
         allowsMulti: false,
         printedLabel: { single: "Splice" },
+        paidPerExtraMode: false,
+    },
+    // CR 702.120a (issue #2267) — "For each mode you choose beyond the first
+    // as you cast this spell, you pay an additional [cost]." The cost half is
+    // this family's verbatim (any leg kind: Collective Brutality's discard,
+    // Collective Defiance's mana), so it rides the same `kickers[]` entry,
+    // folds and pickers. What differs is WHO sets the count: the mode list
+    // does, so `paidPerExtraMode` makes `withPerExtraModePayments` write it
+    // and keeps it out of every caster-chosen axis. Never "kicked" (CR 702.33d
+    // is kicker costs only), no twin trigger, and no "any number of times"
+    // clause — so `allowsMulti: false`, and the derived count is admitted by
+    // `resolveKickerPayments` on the row flag instead.
+    escalate: {
+        countsAsKicked: false,
+        requiresTrigger: false,
+        castCopyTrigger: false,
+        allowsMulti: false,
+        printedLabel: { single: "Escalate" },
+        paidPerExtraMode: true,
     },
 };
 
@@ -216,6 +247,88 @@ export function costEntryCountsAsKicked(
 ): boolean {
     return ADDITIONAL_COST_KEYWORDS[additionalCostKeywordOf(kicker)]
         .countsAsKicked;
+}
+
+/** CR 702.120a (issue #2267) — is THIS cost entry's payment count derived
+ *  from the announced mode list (escalate) rather than chosen by the caster?
+ *  Answered only through {@link ADDITIONAL_COST_KEYWORDS}. */
+export function isPaidPerExtraMode(
+    kicker: Pick<KickerCost, "keyword">
+): boolean {
+    return ADDITIONAL_COST_KEYWORDS[additionalCostKeywordOf(kicker)]
+        .paidPerExtraMode;
+}
+
+/** The cost entries the CASTER decides on — every entry but the
+ *  per-extra-mode ones (CR 702.120a). The cast-cost dialog renders one control
+ *  per entry this admits; an escalate entry is not a decision, so offering a
+ *  toggle for it would let the caster announce a count the mode list then
+ *  contradicts. */
+export function isCasterChosenCostEntry(
+    kicker: Pick<KickerCost, "keyword">
+): boolean {
+    return !isPaidPerExtraMode(kicker);
+}
+
+/** CR 702.120a / 601.2b (issue #2267) — write every per-extra-mode entry's
+ *  DERIVED count into a requested payment record: `chosenModeCount - 1` (none
+ *  at all for a single mode). Escalate's cost is announced in the SAME CR
+ *  601.2b step as the mode choice, so the count is known exactly when the
+ *  modes are, and it is the one cost the caster never names separately.
+ *
+ *  Throws when the request names a per-extra-mode entry with any OTHER
+ *  count: a client or Bot that sends one disagreeing with its own mode list
+ *  has announced an impossible cast. Sending none is the normal case. The
+ *  result is still RAW — it goes through {@link resolveKickerPayments} like
+ *  any requested record. Identity for a card with no per-extra-mode entry. */
+export function withPerExtraModePayments(
+    cardDef: Pick<CardDefinition, "kickers">,
+    requested: KickerPayments | undefined,
+    chosenModeCount: number
+): KickerPayments | undefined {
+    const perMode = (cardDef.kickers ?? []).filter(isPaidPerExtraMode);
+    if (perMode.length === 0) return requested;
+    const owed = Math.max(0, chosenModeCount - 1);
+    const out: KickerPayments = { ...(requested ?? {}) };
+    for (const entry of perMode) {
+        const sent = out[entry.id];
+        if (sent !== undefined && sent !== 0 && sent !== owed) {
+            throw new Error(
+                "Escalate is paid once for each mode chosen beyond the first (CR 702.120a)"
+            );
+        }
+        if (owed > 0) out[entry.id] = owed;
+        else delete out[entry.id];
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** CR 702.120a / 601.2h (issue #2267) — the largest mode count, up to
+ *  `upTo`, whose per-extra-mode cost legs (escalate's discard, life,
+ *  permanents) the caster can pay right now; `upTo` itself for a card with no
+ *  per-extra-mode entry. Mana legs are not priced, exactly as
+ *  {@link canPayKickerLegs} does not: they fold into the total and are paid by
+ *  the ordinary mana path.
+ *
+ *  The one authority the client's mode picker reads to cap how many modes it
+ *  lets the caster tick, so a pick the picker allows is a pick `announceCast`
+ *  accepts. Never below 1 — a single mode owes no escalate cost at all. */
+export function perExtraModeAffordableModeCap(
+    state: GameState,
+    player: PlayerState,
+    cardDef: CardDefinition,
+    castInstanceId: string,
+    upTo: number
+): number {
+    if (!(cardDef.kickers ?? []).some(isPaidPerExtraMode)) return upTo;
+    let cap = 1;
+    for (let n = 2; n <= upTo; n++) {
+        const payments = withPerExtraModePayments(cardDef, undefined, n);
+        if (!canPayKickerLegs(state, player, cardDef, payments, castInstanceId))
+            break;
+        cap = n;
+    }
+    return cap;
 }
 
 /** CR 702.33 — the DERIVED total: how many times ANY of the spell's Kickers was
@@ -342,7 +455,11 @@ export function resolveKickerPayments(
         }
         const kicker = findKicker(cardDef, id);
         if (!kicker) throw new Error("This spell has no kicker");
-        if (!kicker.multi && n > 1) {
+        // CR 702.120a (issue #2267) — a per-extra-mode entry (escalate) is
+        // paid once per mode beyond the first, so its count may exceed one
+        // without being "any number of times": the count was written by
+        // `withPerExtraModePayments`, never chosen.
+        if (!kicker.multi && n > 1 && !isPaidPerExtraMode(kicker)) {
             throw new Error("This spell's kicker can only be paid once");
         }
         // CR 702.33c / 702.175a (ADR 0085) — repeatability is a property of the
@@ -804,14 +921,22 @@ export function canPayKickerLegs(
     if (legs.length === 0) return true;
     if (player.life < kickerLifeCost(cardDef, payments)) return false;
     if (!canAffordCostLegsPermanents(state, player.id, legs)) return false;
-    // CR 118.9 hand leg — each leg's requirements must be coverable from
-    // DISTINCT hand cards. Checked leg-by-leg against the same greedy the
-    // picker uses; a multi-leg composition is exercised by the combined picker
-    // at build time, which parks the cast until every requirement is met.
-    for (const leg of legs) {
-        if (!canPayHandCost(player, leg, castInstanceId)) return false;
-    }
-    return true;
+    // CR 118.8 / 601.2h — the hand legs: EVERY leg's requirements together must be coverable
+    // from DISTINCT hand cards: one card cannot pay two legs, and the combined
+    // picker (`buildCastHandCostChoice`) demands them all at once. Checking
+    // leg-by-leg passed a Multikicker or escalate cost paid N times with one
+    // card in hand and then parked a picker no hand could complete (issue
+    // #2267: Collective Brutality's "discard a card" × 2 extra modes). The
+    // action (discard vs exile) does not change the count, so the
+    // requirements are pooled under one leg for the same greedy the picker
+    // uses.
+    const requirements = legs.flatMap((leg) => leg.hand?.requirements ?? []);
+    if (requirements.length === 0) return true;
+    return canPayHandCost(
+        player,
+        { hand: { action: "discard", requirements } },
+        castInstanceId
+    );
 }
 
 /** CR 702.27a / 601.2f — fold the BUYBACK cost into a normalized mana-cost
@@ -1136,8 +1261,16 @@ export function enumerateKickerVariants(
     const kickers = cardDef.kickers ?? [];
     if (kickers.length === 0) return [undefined];
 
+    // CR 702.120a (issue #2267) — a per-extra-mode entry (escalate) is not a
+    // caster choice: its count follows the mode combination, which `moves.ts`
+    // writes per combination through `withPerExtraModePayments`. Its axis here
+    // is pinned at 0 so the kicker cross-product never invents one.
     const axisStates: number[][] = kickers.map((k) =>
-        k.multi ? [0, ...MULTIKICKER_REPEAT_SAMPLES] : [0, 1]
+        isPaidPerExtraMode(k)
+            ? [0]
+            : k.multi
+              ? [0, ...MULTIKICKER_REPEAT_SAMPLES]
+              : [0, 1]
     );
 
     let combos: number[][] = [[]];
