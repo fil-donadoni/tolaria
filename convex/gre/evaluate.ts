@@ -816,15 +816,15 @@ function etbAbilitiesInFlight(
  *  chosen among the permanents standing now. Credited to the player it
  *  returns under, in the term its body would read on the battlefield; the
  *  mana base it restores is read by `playerTerms`' aggregates
- *  (`boardWithPendingReturns`, issue #7791).
+ *  (`stateWithPendingReturns`).
  *
- *  Discounted for the wait by exactly one thing (issue #7791): a creature
- *  the defending player gets back only after a combat still ahead this turn
- *  misses that combat's blocks (`returnMissesBlocks`), and loses its block
- *  share — the price a "can't block" restriction puts on the same body
- *  (`creatureBlockShareRaw` × `cannotBlockShare`, issue #5154). Without it a
- *  Flickerwisp exiling the opponent's only blocker before its controller's
- *  attack read as a no-op, exactly like exiling their land. */
+ *  Discounted for the wait by exactly one thing: a creature the defending
+ *  player gets back only after a combat still ahead this turn misses that
+ *  combat's blocks (`returnMissesBlocks`), and loses its block share — the
+ *  price a "can't block" restriction puts on the same body
+ *  (`creatureBlockShareRaw` × `cannotBlockShare`). Without it a Flickerwisp
+ *  exiling the opponent's only blocker before its controller's attack read
+ *  as a no-op, exactly like exiling their land. */
 function pendingReturnsWorth(
     state: GameState,
     player: PlayerState,
