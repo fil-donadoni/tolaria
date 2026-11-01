@@ -4975,17 +4975,6 @@ function lowerSentenceBody(
                     player: "controller",
                 },
             ]);
-        case "grant-cast-timing":
-            // CR 601.3b — the controller may cast spells of that card type as
-            // though they had flash; the Op owns the "until your next turn"
-            // boundary (`advanceTurn`).
-            return lowered([
-                {
-                    op: "grantCastTiming",
-                    player: "controller",
-                    cardTypes: [sentence.cardType],
-                },
-            ]);
         case "assigns-no-combat-damage":
             // CR 510.1c — the source itself assigns nothing this turn.
             return lowered([
@@ -5439,6 +5428,16 @@ function lowerFrameChain(
                     op: "grantExtraLandDrops",
                     player: "controller",
                     count: 1,
+                });
+                break;
+            // CR 601.3b — the controller may cast spells of that card type as
+            // though they had flash; the Op owns the "until your next turn"
+            // boundary (`advanceTurn`).
+            case "grantCastTiming":
+                ops.push({
+                    op: "grantCastTiming",
+                    player: "controller",
+                    cardTypes: [frame.cardType],
                 });
                 break;
             // CR 707.2 + CR 111.1 — the controller creates the token.
