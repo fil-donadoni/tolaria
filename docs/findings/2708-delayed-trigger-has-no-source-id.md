@@ -9,8 +9,9 @@ confidence: medium
 its source, so its id IS the source permanent's id; a TRIGGERED ability's item
 carries `triggerSourceId`. A DELAYED or reflexive trigger has neither:
 `buildDelayedTriggerStackItem` (`convex/gre/triggers.ts:47`) allocates a fresh
-instance id and sets `delayedTriggerId` only, and `pushReflexiveTrigger`
-(`convex/gre/state.ts`) does the same. `state.ts:9704` already states the
+instance id and sets `delayedTriggerId` only. (`pushReflexiveTrigger` did the
+same until issue #3719, which stamps the creating ability's source on the
+reflexive item per CR 603.12 → 603.7e; the delayed builder is unchanged.) `state.ts:9704` already states the
 consequence for its own walk ("a queued DELAYED trigger carries neither
 `triggerSourceId` nor an `interveningIf` … there is nothing there to stamp
 today").

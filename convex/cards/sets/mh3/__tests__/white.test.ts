@@ -12,8 +12,10 @@ import type {
 } from "../../../../gre/state";
 import {
     createTokenPermanents,
+    removePermanentTo,
     resolveTopOfStack,
 } from "../../../../gre/state";
+import { payLoyaltyCost } from "../../../../game";
 import { getDefinition } from "../../../index";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { collectTriggers } from "../../../../gre/triggers";
@@ -945,5 +947,207 @@ describe("Ocelot Pride — the Cat token IS the tenth permanent (CR 702.131b / 6
             (c) => c.id !== "ocelot" && c.subtypes?.includes("Cat")
         );
         expect(slimCats).toHaveLength(2);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ajani, Nacatl Pariah // Ajani, Nacatl Avenger (issue #3719)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const AJANI = "0d16e8e0-31b2-4389-afd6-783c501f6fa0";
+const DWARVEN_WARRIORS = "2d4d87a3-5f8b-4152-9a8b-538ab49d62e8"; // red creature
+const GRIZZLY_BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+
+function ajaniBoard(extra: CardInstanceState[] = []): GameState {
+    return makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: [
+                    makeInstance(AJANI, {
+                        id: "ajani",
+                        controllerId: "p1",
+                    }),
+                    ...extra,
+                ],
+            }),
+            makePlayer("p2"),
+        ],
+    });
+}
+
+const ajaniOf = (state: GameState) =>
+    state.players[0].battlefield.find((c) => c.id === "ajani")!;
+
+/** Kills `ids` in ONE event, then queues what the real scan collects. */
+function killTogether(state: GameState, ids: string[]): number {
+    for (const id of ids) removePermanentTo(state, id, "graveyard", "destroy");
+    const items = collectTriggers(state, state.pendingEvents ?? []);
+    state.pendingEvents = [];
+    state.stack.push(...items);
+    return items.length;
+}
+
+/** Flips Ajani through the REAL dies trigger, never a hand-built back face. */
+function flippedAjani(extra: CardInstanceState[] = []): GameState {
+    const state = ajaniBoard([
+        makeInstance(OCELOT_PRIDE_ID_FOR_TEST, {
+            id: "fodder-cat",
+            controllerId: "p1",
+        }),
+        ...extra,
+    ]);
+    expect(killTogether(state, ["fodder-cat"])).toBe(1);
+    expect(resolveTopOfStack(state)).toBeNull(); // suspended on the may
+    applyMayPaySubmit(state, { playerId: "p1", accept: true });
+    expect(ajaniOf(state).transformed).toBe(true);
+    return state;
+}
+const OCELOT_PRIDE_ID_FOR_TEST = "89cf6f57-230f-497e-a14e-ad1e8737fd42";
+
+function activateAjani(state: GameState, abilityId: string): void {
+    const ajani = ajaniOf(state);
+    const ability = getDefinition(
+        (ajani.card as { id: string }).id
+    ).activatedAbilities!.find((a) => a.id === abilityId)!;
+    payLoyaltyCost(ajani, ability);
+    state.stack.push({
+        // An activated ability's stack item carries its SOURCE's id
+        // (`buildActivatedAbilityStackItem`) — `excludeSource` reads it.
+        ...ajani,
+        zone: "stack",
+        castById: "p1",
+        abilityId,
+        targets: [],
+    });
+    resolveTopOfStack(state);
+}
+
+describe("Ajani, Nacatl Pariah — front face (CR 603.10a, 603.2c, 712)", () => {
+    it("two Cats dying together trigger ONCE; accepting exiles and returns Ajani transformed with loyalty 3", () => {
+        const state = ajaniBoard([
+            makeInstance(OCELOT_PRIDE_ID_FOR_TEST, {
+                id: "cat-a",
+                controllerId: "p1",
+            }),
+            makeInstance(OCELOT_PRIDE_ID_FOR_TEST, {
+                id: "cat-b",
+                controllerId: "p1",
+            }),
+        ]);
+        expect(killTogether(state, ["cat-a", "cat-b"])).toBe(1);
+        expect(resolveTopOfStack(state)).toBeNull();
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+
+        const ajani = ajaniOf(state);
+        expect(ajani.transformed).toBe(true);
+        expect(ajani.types).toEqual(["Planeswalker"]);
+        expect(ajani.counters?.loyalty).toBe(3);
+        // Wire format — the opponent sees the planeswalker face.
+        const slim = projectPublicState(
+            state,
+            1,
+            "p2"
+        ).players[0].battlefield.find((c) => c.id === "ajani")!;
+        expect(getDefinition(slim.card.id).name).toBe("Ajani, Nacatl Avenger");
+    });
+
+    it("a non-Cat dying does not trigger, and declining leaves Ajani unflipped", () => {
+        const state = ajaniBoard([
+            makeInstance(GRIZZLY_BEARS, { id: "bear", controllerId: "p1" }),
+            makeInstance(OCELOT_PRIDE_ID_FOR_TEST, {
+                id: "cat",
+                controllerId: "p1",
+            }),
+        ]);
+        expect(killTogether(state, ["bear"])).toBe(0);
+        expect(killTogether(state, ["cat"])).toBe(1);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(ajaniOf(state).transformed).toBeFalsy();
+    });
+
+    it("the ETB creates a 2/1 white Cat Warrior token", () => {
+        const state = ajaniBoard();
+        state.pendingEvents = [];
+        const ajani = ajaniOf(state);
+        state.stack.push(
+            ...collectTriggers(state, [
+                {
+                    type: "PERMANENT_ENTERED",
+                    instanceId: ajani.id,
+                    controllerId: "p1",
+                    types: ajani.types,
+                },
+            ])
+        );
+        resolveTopOfStack(state);
+        const token = state.players[0].battlefield.find((c) => c.isToken)!;
+        expect(token.subtypes).toEqual(["Cat", "Warrior"]);
+        expect([token.power, token.toughness]).toEqual([2, 1]);
+    });
+});
+
+describe("Ajani, Nacatl Avenger — loyalty abilities (CR 606, 603.12, 603.4)", () => {
+    it("+2 puts a +1/+1 counter on each Cat you control and none on a non-Cat", () => {
+        const state = flippedAjani([
+            makeInstance(OCELOT_PRIDE_ID_FOR_TEST, {
+                id: "cat",
+                controllerId: "p1",
+            }),
+            makeInstance(GRIZZLY_BEARS, { id: "bear", controllerId: "p1" }),
+        ]);
+        activateAjani(state, "ajani-nacatl-avenger-plus2");
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "cat")!.counters?.["+1/+1"]).toBe(1);
+        expect(
+            bf.find((c) => c.id === "bear")!.counters?.["+1/+1"]
+        ).toBeUndefined();
+        expect(ajaniOf(state).counters?.loyalty).toBe(5);
+    });
+
+    it("0 without another red permanent: the token only — Ajani's own red does not count", () => {
+        const state = flippedAjani();
+        activateAjani(state, "ajani-nacatl-avenger-zero");
+        expect(state.players[0].battlefield.some((c) => c.isToken)).toBe(true);
+        expect(state.stack.some((s) => s.reflexiveTrigger)).toBe(false);
+    });
+
+    it("0 with another red permanent: the reflexive trigger deals damage equal to your creature count", () => {
+        const state = flippedAjani([
+            makeInstance(DWARVEN_WARRIORS, { id: "dwarf", controllerId: "p1" }),
+        ]);
+        activateAjani(state, "ajani-nacatl-avenger-zero");
+        expect(state.stack.some((s) => s.reflexiveTrigger)).toBe(true);
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        state.pendingTarget!.selected = [{ type: "player", id: "p2" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        resolveTopOfStack(state);
+        // Creatures: Dwarven Warriors + the new Cat Warrior token = 2.
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("0: the intervening if is re-checked on resolution — the red permanent gone, the reflexive ability does nothing (CR 603.4)", () => {
+        const state = flippedAjani([
+            makeInstance(DWARVEN_WARRIORS, { id: "dwarf", controllerId: "p1" }),
+        ]);
+        activateAjani(state, "ajani-nacatl-avenger-zero");
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        state.pendingTarget!.selected = [{ type: "player", id: "p2" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        // In response, the only other red permanent leaves. Ajani himself is
+        // red, so this also proves the body's `excludeSource` binds to him.
+        removePermanentTo(state, "dwarf", "graveyard");
+        state.pendingEvents = [];
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(20);
     });
 });

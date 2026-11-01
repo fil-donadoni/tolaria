@@ -540,6 +540,27 @@ export const CAT_TOKEN: EffectTokenSpec = {
     colors: ["G"],
 };
 
+/** Cat Warrior token (CR 111 / 707.2, issue #3719). "2/1 white Cat Warrior
+ *  creature token" — created today by BOTH faces of Ajani, Nacatl Pariah //
+ *  Ajani, Nacatl Avenger (`sets/mh3/white.cards.ts`): the front face's ETB and
+ *  the back face's `0`. Vanilla, so `EffectTokenSpec` (JSON-pure, ADR 0046).
+ *  A separate spec from `CAT_TOKEN` (a 2/2 GREEN Cat): colour, P/T and the
+ *  Warrior subtype are all copiable characteristics, so two specs.
+ *
+ *  Deliberately NO pinned `imagePrintId`, the `CAT_TOKEN` treatment: the
+ *  art-match rule is "the token associated with the PRODUCING card's own
+ *  printing", resolved per producer from the client's Token Print resolver
+ *  (`src/lib/tokenArt.ts`) — Ajani's MH3 #237 printing's `all_parts` names
+ *  this token "Cat Warrior", which is why `name` is exactly that. */
+export const WHITE_CAT_WARRIOR_TOKEN: EffectTokenSpec = {
+    name: "Cat Warrior",
+    types: ["Creature"],
+    subtypes: ["Cat", "Warrior"],
+    power: 2,
+    toughness: 1,
+    colors: ["W"],
+};
+
 /** Bat token (CR 111 / 707.2, issue #3222). "1/1 black Bat creature token with
  *  flying" — created today by Sanguine Evangelist's enters-or-dies trigger
  *  (`sets/lci/white.cards.ts`). Vanilla apart from the keyword, so
