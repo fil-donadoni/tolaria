@@ -200,6 +200,16 @@
         "firstPrintSet": "dsk"
     },
     {
+        "name": "Abigale, Poet Laureate // Heroic Stanza",
+        "scryfallId": "77285d12-e658-4eb3-ba13-ff202afab9c8",
+        "oracleId": "2f5f46ed-b8aa-4864-bd20-17281d4632bf",
+        "firstSet": "sos",
+        "firstPrintId": "77285d12-e658-4eb3-ba13-ff202afab9c8",
+        "firstPrintSet": "sos",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Abomination",
         "scryfallId": "a69e2cf8-5ecb-485a-92a2-b4e0a7959f1f",
         "oracleId": "2c57c4e9-0a46-45d6-92db-9203fb722b60",
@@ -21902,6 +21912,24 @@
         "source": "compiled"
     },
     {
+        "name": "Emeritus of Abundance // Regrowth",
+        "scryfallId": "ac095763-6f4e-4d4e-9c99-414646368f8d",
+        "oracleId": "e5152e8d-9f55-493d-a0fc-753cc72ee299",
+        "firstSet": "sos",
+        "firstPrintId": "ac095763-6f4e-4d4e-9c99-414646368f8d",
+        "firstPrintSet": "sos",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Emeritus of Truce",
+        "scryfallId": "9869a753-5e41-4098-ab41-e75b4396ec50",
+        "oracleId": "e6c41473-2398-4888-9f0c-467dce7c39a4",
+        "firstSet": "sos",
+        "firstPrintId": "9869a753-5e41-4098-ab41-e75b4396ec50",
+        "firstPrintSet": "sos"
+    },
+    {
         "name": "Emissary of Sunrise",
         "scryfallId": "0636cd47-d2a3-4320-97bf-40db805fca51",
         "oracleId": "e2155e61-f389-4b1d-9598-9a79cbccaaa2",
@@ -32451,6 +32479,16 @@
         "firstPrintId": "4b90dbd0-4672-4c0b-92eb-262ddd11cd32",
         "firstPrintSet": "plc",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Harmonized Trio // Brainstorm",
+        "scryfallId": "617208ff-dd9b-44fd-a740-d3188081e5cc",
+        "oracleId": "f6036065-7196-44d4-8a27-2199f0e1a03c",
+        "firstSet": "sos",
+        "firstPrintId": "617208ff-dd9b-44fd-a740-d3188081e5cc",
+        "firstPrintSet": "sos",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

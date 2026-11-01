@@ -8596,6 +8596,108 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             additionalCosts: { discard: { count: "X" } },
         },
     },
+    // CR 722.3a — "this creature becomes prepared" (issue #3689): the source
+    // gains the prepared designation, behind an attack head and its
+    // intervening-if (CR 603.4). Exhibits `becomePrepared` acting on
+    // `$source`, which the canned smoke scenario's filler (no prepare spell)
+    // can only show refused.
+    {
+        rule: "verb frame",
+        card: {
+            oracleId: "e5152e8d-9f55-493d-a0fc-753cc72ee299",
+            name: "Emeritus of Abundance // Regrowth",
+            manaCost: "{2}{G} // {1}{G}",
+            typeLine: "Creature \u2014 Elf Druid // Sorcery",
+            oracleText: "",
+            power: "3",
+            toughness: "4",
+            layout: "prepare",
+            faces: [
+                {
+                    name: "Emeritus of Abundance",
+                    manaCost: "{2}{G}",
+                    typeLine: "Creature \u2014 Elf Druid",
+                    oracleText:
+                        "Vigilance\nThis creature enters prepared.\nWhenever this creature attacks, if you control eight or more lands, this creature becomes prepared.",
+                    power: "3",
+                    toughness: "4",
+                },
+                {
+                    name: "Regrowth",
+                    manaCost: "{1}{G}",
+                    typeLine: "Sorcery",
+                    oracleText:
+                        "Return target card from your graveyard to your hand.",
+                },
+            ],
+        },
+        expected: {
+            name: "Emeritus of Abundance",
+            types: ["Creature"],
+            subtypes: ["Elf", "Druid"],
+            manaCost: {
+                X: 2,
+                G: 1,
+            },
+            power: 3,
+            toughness: 4,
+            oracleText:
+                "Vigilance\nThis creature enters prepared.\nWhenever this creature attacks, if you control eight or more lands, this creature becomes prepared.",
+            staticAbilities: ["vigilance"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "emeritus-of-abundance-trigger",
+                    oracleText:
+                        "Whenever this creature attacks, if you control eight or more lands, this creature becomes prepared.",
+                    head: {
+                        kind: "attacks",
+                    },
+                    condition: {
+                        kind: "controls",
+                        filter: {
+                            types: ["Land"],
+                        },
+                        atLeast: 8,
+                    },
+                    effects: [
+                        {
+                            op: "becomePrepared",
+                            target: {
+                                ref: "$source",
+                            },
+                        },
+                    ],
+                },
+            ],
+            entersPrepared: true,
+            insetSpell: {
+                kind: "prepare",
+                name: "Regrowth",
+                manaCost: {
+                    X: 1,
+                    G: 1,
+                },
+                types: ["Sorcery"],
+                oracleText:
+                    "Return target card from your graveyard to your hand.",
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: {
+                            target: 0,
+                        },
+                        to: "hand",
+                    },
+                ],
+                targetRequirement: {
+                    type: "card",
+                    count: 1,
+                    zone: "graveyard",
+                    controller: "you",
+                },
+            },
+        },
+    },
     // CR 707.2 + CR 111.1 — "Create a token that's a copy of this creature.":
     // the controller creates a token copy of the source. Exhibits
     // `createTokenCopy` acting on `$source`, which the canned smoke scenario

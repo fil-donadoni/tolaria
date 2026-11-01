@@ -4643,12 +4643,6 @@ function lowerSentenceBody(
             if (!target.ok) return target;
             return lowered([{ op: "phaseOut", target: target.value }]);
         }
-        case "become-prepared":
-            // CR 722.3a — the source's own permanent; the Op's seam refuses a
-            // permanent with no prepare spell or one already prepared.
-            return lowered([
-                { op: "becomePrepared", target: { ref: "$source" } },
-            ]);
         case "scry": {
             // CR 701.22a — look at the top N, any number to the bottom, the
             // rest back on top in any order: `scryReorder` to the bottom.
@@ -5419,6 +5413,16 @@ function lowerFrameChain(
                     target: { ref: "$source" },
                     count: frame.count,
                 });
+                break;
+            // CR 722.3a — "this permanent": a spell's own text has no
+            // permanent to prepare. The Op's seam refuses a permanent with no
+            // prepare spell or one already prepared.
+            case "becomePrepared":
+                if (site.resolvingSpell === true)
+                    return unlowerable(
+                        "only a permanent's ability has a permanent to prepare"
+                    );
+                ops.push({ op: "becomePrepared", target: { ref: "$source" } });
                 break;
             // CR 122.1 — a counter kind a player holds, added to that player.
             case "playerCounters": {

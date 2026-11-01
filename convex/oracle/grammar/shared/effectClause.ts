@@ -589,7 +589,6 @@ export const EFFECT_SENTENCE_KINDS = [
     "search-reveal-pile-pick",
     "look-reorder",
     "phase-out",
-    "become-prepared",
     "keep-one-of-each-permanent-type",
     "choose-one-per-category",
     "scry",
@@ -2173,14 +2172,6 @@ export type EffectSentenceIR =
            */
           readonly kind: "phase-out";
           readonly subject: SubjectIR;
-      }
-    | {
-          /**
-           * CR 722.3a (issue #3689) — "<self> becomes prepared": the card's own
-           * permanent gains the prepared designation. Self only — no printed
-           * card prepares another permanent.
-           */
-          readonly kind: "become-prepared";
       }
     | {
           /**
@@ -5693,8 +5684,6 @@ const KEEP_CARD_PER_COLOR =
     /^Each player reveals their hand, chooses one card of each color from it, then discards all other nonland cards$/;
 /** CR 702.26b — "<target> phases out". */
 const PHASES_OUT = /^(Target .+) phases out$/;
-/** CR 722.3a — "<subject> becomes prepared". */
-const BECOMES_PREPARED = /^(.+) becomes prepared$/;
 /** CR 101.4 — the keep-one-of-each edict, over a list of permanent types. */
 const KEEP_ONE_OF_EACH_TYPE =
     /^Each player chooses from among the permanents they control (.+), then sacrifices the rest$/;
@@ -9162,18 +9151,6 @@ function effectSentence(
         return ok({
             kind: "phase-out" as const,
             subject: subject.value,
-        } satisfies EffectSentenceIR);
-    }
-
-    // ── becomes prepared (CR 722.3a) ────────────────────────────────────────
-    const becomesPrepared = span.match(BECOMES_PREPARED);
-    if (becomesPrepared !== null) {
-        const subject = subjectRule.run(becomesPrepared[1]!, ctx);
-        if (!subject.ok) return subject;
-        if (subject.value.kind !== "self")
-            return fail("only the card itself becomes prepared", span);
-        return ok({
-            kind: "become-prepared" as const,
         } satisfies EffectSentenceIR);
     }
 
