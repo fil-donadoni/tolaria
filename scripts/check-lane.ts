@@ -49,6 +49,7 @@
  *   bun run check:lane --base=<ref>   # classify against another base
  *   bun run check:lane --json         # emit the plan + receipt as JSON
  *   bun run check:lane --plan         # print the classification, run NOTHING
+ *   bun run check:lane --plan --skips # the skip list alone, in the review brief's shape
  *   bun run check:lane --retry-flaky  # re-run a failed vitest command once (queue lane)
  *   TOLARIA_LANE_JSON_OUT=<path> bun run check:lane
  *                                     # pretty output AND the JSON receipt written to <path>
@@ -1869,6 +1870,28 @@ export function renderPlan(plan: LanePlan, head: string): string {
     return lines.join("\n");
 }
 
+/** The review brief's cap on skip lines (issue #7659): the reviewer reads a
+ *  list, not a log. */
+export const REVIEW_SKIPS_MAX = 10;
+
+/**
+ * `--plan --skips` (issue #7659): the plan's skip list in the shape
+ * `.claude/skills/next-ticket/review-brief.md` embeds — one `- id — reason`
+ * line per skip (the reason already carries each reached file's cost), ten
+ * at most, the overflow counted. A pure view of the SAME `plan.skip`, never a
+ * second computation of what was skipped.
+ */
+export function renderSkips(plan: LanePlan): string {
+    const shown = plan.skip.slice(0, REVIEW_SKIPS_MAX);
+    const lines = shown.map((s) => `- ${s.id} — ${s.reason}`);
+    const more = plan.skip.length - shown.length;
+    if (more > 0)
+        lines.push(
+            `- (+${more} more — \`bun run check:lane --plan\` lists all)`
+        );
+    return lines.length > 0 ? lines.join("\n") : "- (none — nothing skipped)";
+}
+
 /**
  * The machine-readable form of the SAME plan object, with the HEAD SHA the
  * human receipt carries. The dirty-tree refusal exists so the printed SHA
@@ -2458,6 +2481,7 @@ export function parseArgs(argv: string[]): {
     base: string;
     json: boolean;
     planOnly: boolean;
+    skipsOnly: boolean;
     retryFlaky: boolean;
     regenerateDerived: boolean;
 } {
@@ -2466,13 +2490,14 @@ export function parseArgs(argv: string[]): {
         if (
             a === "--json" ||
             a === "--plan" ||
+            a === "--skips" ||
             a === "--retry-flaky" ||
             a === "--regenerate-derived" ||
             a.startsWith("--base=")
         ) {
             continue;
         }
-        fail(`unknown argument \`${a}\` — usage: bun run check:lane [--base=<ref>] [--json] [--plan] [--retry-flaky] [--regenerate-derived]
+        fail(`unknown argument \`${a}\` — usage: bun run check:lane [--base=<ref>] [--json] [--plan [--skips]] [--retry-flaky] [--regenerate-derived]
 
 The lane is derived from the diff and can never be declared by a flag (#2738):
 a flag is a hand-maintained list in disguise, and the first agent that passes
@@ -2490,6 +2515,7 @@ classifying the PR's diff, and judges the tree as a draft: rows per row.`);
         base: baseArg ? baseArg.slice("--base=".length) : ORIGIN_BASE,
         json: argv.includes("--json"),
         planOnly: argv.includes("--plan"),
+        skipsOnly: argv.includes("--plan") && argv.includes("--skips"),
         retryFlaky: argv.includes("--retry-flaky"),
         regenerateDerived: argv.includes("--regenerate-derived"),
     };
@@ -2497,9 +2523,8 @@ classifying the PR's diff, and judges the tree as a draft: rows per row.`);
 
 function main(): void {
     const cwd = process.cwd();
-    const { base, json, planOnly, retryFlaky, regenerateDerived } = parseArgs(
-        process.argv.slice(2)
-    );
+    const { base, json, planOnly, skipsOnly, retryFlaky, regenerateDerived } =
+        parseArgs(process.argv.slice(2));
 
     let start = snapshotTree(cwd);
     if (start.status.trim() !== "") {
@@ -2562,7 +2587,11 @@ function main(): void {
     // before any shell: the session asking which path §3 owes it must not
     // pay a gate to find out (ADR 0136 §1/§8).
     if (planOnly) {
-        console.log(renderClassification(plan, head, json));
+        console.log(
+            skipsOnly && !json
+                ? renderSkips(plan)
+                : renderClassification(plan, head, json)
+        );
         process.exit(0);
     }
 
