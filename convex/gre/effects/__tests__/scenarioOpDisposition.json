@@ -207,6 +207,10 @@
         "reason": "Op \"loseAllAbilitiesWhileSourceRemains\" strips abilities (CR 613.1f) for a source-tied duration — covered by the Op's own interpreter + wire-format tests"
     },
     "loseLife": "runs",
+    "manifestDread": {
+        "code": "suspends-for-input",
+        "reason": "Op \"manifestDread\" suspends for a look-distribute pick and manifests face down — covered by the Op's interpreter tests"
+    },
     "markAssignsNoCombatDamage": "runs",
     "mayPay": {
         "code": "suspends-for-input",

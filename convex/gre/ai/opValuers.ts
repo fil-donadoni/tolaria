@@ -2413,6 +2413,20 @@ const hideaway: Valuer<"hideaway"> = () => ({
     tags: ["cardAdvantage"],
 });
 
+// CR 701.62a (issue #2072) — MANIFEST DREAD: a face-down 2/2 creature body
+// (CR 701.40a) plus one card of selection out of a two-card window (the kept
+// card is the better of two; the other is binned, CR 701.62a). The body is
+// priced exactly like a 2/2 vanilla creature token — its turn-up upside is a
+// later special action the search values on its own when it is affordable —
+// and the selection like one scry card. Never `board-scaling`: the Op takes no
+// `EffectValue`, so nothing about it scales with the board.
+const manifestDread: Valuer<"manifestDread"> = (_op, ctx) => ({
+    points:
+        ctx.latent.weights.tokens * creatureValueRaw(2, 2, 0, []) +
+        SCRY_PER_CARD_VALUE,
+    tags: ["tokens", "cardAdvantage"],
+});
+
 // `keepTo` (issue #2070) is not read here — the heuristic values "cards
 // selected out of a look window" the same whether they land in hand, on top
 // of the library, or onto the battlefield (issue #3249 — all beat a random
@@ -3375,6 +3389,7 @@ export const OP_VALUERS: {
     digMatchingToHand,
     lookDistribute,
     hideaway,
+    manifestDread,
     revealAndCategorize,
     chooseCategorized,
     discard,
@@ -3691,6 +3706,10 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // unlisted is exactly the asymmetry this census exists to close.
     revealAndCategorize: "beneficial",
     hideaway: "beneficial",
+    // CR 701.62a (issue #2072) — the manifesting player gets a 2/2 creature
+    // under their control out of their OWN library, and only their own
+    // library's two cards move. Never a downside to that player.
+    manifestDread: "beneficial",
     digMatchingToHand: "beneficial",
     // CR 701.44 (issue #2376) — every branch of Explore hands the exploring
     // permanent's CONTROLLER something: a land into their hand, or a +1/+1

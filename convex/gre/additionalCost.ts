@@ -182,6 +182,7 @@ export function additionalCostDiscardXCeiling(
  *     through the layer system's effective colours (CR 613), so a `colors`
  *     clause reads what the rest of the engine reads and never fails closed;
  *   - `payLife` — CR 119.4, you can't pay more life than you have;
+ *   - `exileFromGraveyard` — enough OTHER cards in the caster's graveyard;
  *   - `discard` — CR 701.9, enough DISTINCT matching cards in hand, excluding
  *     the cast card itself (CR 601.2a — it is on the stack by then). A
  *     `count: "X"` discard leg is passed no X here and so prices at zero: a
@@ -219,6 +220,16 @@ export function canPayAdditionalCostSpec(
         if (matching < owed) return false;
     }
     if ((spec.payLife ?? 0) > player.life) return false;
+    // CR 601.2h / 118.8 (issue #2072) — "exile six cards from your graveyard":
+    // enough OTHER cards (CR 601.2a — the cast card has left the zone it is
+    // cast from by the time costs are paid).
+    if (
+        spec.exileFromGraveyard &&
+        player.graveyard.filter((c) => c.id !== castInstanceId).length <
+            spec.exileFromGraveyard.count
+    ) {
+        return false;
+    }
     const handLeg = additionalCostHandLeg(spec);
     if (handLeg && !canPayHandCost(player, handLeg, castInstanceId)) {
         return false;

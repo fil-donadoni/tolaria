@@ -399,6 +399,16 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 701.62a — "manifest dread": the controller looks at the top two
+           * cards of their library, manifests one, and bins the other. Only
+           * the bare keyword action is read; "manifest dread twice" / "X
+           * times" (CR 701.40e — repeated manifests) and "manifest the top
+           * card of your library" (CR 701.40) are other sentences.
+           */
+          readonly frame: "manifestDread";
+      }
+    | {
+          /**
            * CR 104.2b — "you win the game": the controller wins through an
            * ability. Only the bare "you" subject is read; the gate ("if …",
            * "Then if …") is the enclosing clause's condition, never part of
@@ -575,6 +585,7 @@ export const VERB_FRAMES: readonly {
     { name: "skipNextTurn", opens: /^you skip your next turn$/i },
     { name: "empowerJace", opens: /^empower jace\b/i },
     { name: "becomeMonarch", opens: /^you become the monarch\b/i },
+    { name: "manifestDread", opens: /^manifest dread\b/i },
     { name: "winGame", opens: /^you win the game\b/i },
     { name: "monstrosity", opens: /^monstrosity \S+$/i },
     {
@@ -674,6 +685,8 @@ const EMPOWER_JACE = /^empower jace (\S+?)(?:, where X is (.+))?$/i;
 const BECOME_MONARCH = "you become the monarch";
 /** CR 104.2b — the whole sentence, nothing trailing. */
 const WIN_GAME = "you win the game";
+/** CR 701.62a — the bare keyword action, nothing trailing. */
+const MANIFEST_DREAD = "manifest dread";
 /** CR 701.37a — the keyword action and its count, nothing trailing. */
 const MONSTROSITY = /^monstrosity (\S+)$/;
 /**
@@ -1741,6 +1754,13 @@ function readMember(
                 refused: `"${member}" — only the bare "You become the monarch" is read`,
             };
         return { frames: [{ frame: "becomeMonarch" }], referent };
+    }
+    if (opensFrame("manifestDread", lower)) {
+        if (lower !== MANIFEST_DREAD)
+            return {
+                refused: `"${member}" — only the bare "Manifest dread" is read`,
+            };
+        return { frames: [{ frame: "manifestDread" }], referent };
     }
     if (opensFrame("winGame", lower)) {
         if (lower !== WIN_GAME)

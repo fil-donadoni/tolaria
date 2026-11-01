@@ -587,7 +587,9 @@ export type CastExileCostBuild =
  *  cost a cast from the GRAVEYARD owes, as the `PendingCast` picker every
  *  commit path parks on, or `undefined` when this cast owes none.
  *
- *  Three independent legs share the one picker slot (no shipped card carries
+ *  A spell's OWN `additionalCosts.exileFromGraveyard` rides the
+ *  same slot and is owed from ANY zone; it is checked first. Behind it, three
+ *  independent graveyard-cast legs share the slot (no shipped card carries
  *  more than one), checked in the precedence `announceCast` has always used:
  *
  *   1. `additionalCosts.flashbackExileFromGraveyard` (CR 702.34a / 118.8 —
@@ -621,6 +623,38 @@ export function buildCastExileCostChoice(
     zone: CastFromZone,
     opts?: { additionalCosts?: AdditionalCostSpec; chosenX?: number }
 ): CastExileCostBuild | undefined {
+    // CR 601.2f / 118.8 (issue #2072) — the spell's OWN "exile N cards from
+    // your graveyard" additional cost (Abhorrent Oculus), owed by every cast
+    // whatever its zone, so it is checked ahead of the graveyard-only legs
+    // below. On an escape cast (CR 702.138a — Underworld Breach grants
+    // escape to every nonland card) both costs are owed (CR 601.2f — the
+    // total cost), so a fixed escape count is SUMMED into the one picker. A
+    // variable escape cost (`minCardTypes`) has no single-count shape to join,
+    // so that combination fails closed as unpayable.
+    const ownExile = opts?.additionalCosts?.exileFromGraveyard;
+    if (ownExile) {
+        const escSpec =
+            zone === "graveyard" && hasEscape(state, card)
+                ? getEscapeExileSpec(state, card)
+                : undefined;
+        if (escSpec && "minCardTypes" in escSpec) {
+            return {
+                unpayable:
+                    "This spell's graveyard exile can't be combined with a variable escape cost",
+            };
+        }
+        const count = ownExile.count + (escSpec?.count ?? 0);
+        const others = player.graveyard.filter((c) => c.id !== card.id);
+        if (others.length < count) {
+            return {
+                unpayable:
+                    "Not enough other cards in your graveyard to pay the additional cost",
+            };
+        }
+        return {
+            choice: { count, excludeInstanceId: card.id },
+        };
+    }
     if (zone !== "graveyard") return undefined;
     // CR 702.138 / 702.34 — WHICH mechanism this cast uses decides which cost
     // it owes, and escape beats flashback, exactly as `castRawManaCost`,
