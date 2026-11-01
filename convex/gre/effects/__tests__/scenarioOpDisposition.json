@@ -19,6 +19,7 @@
         "code": "op-own-tests",
         "reason": "Op \"becomeMonarch\" sets the global monarch designation — covered by the Op's interpreter tests"
     },
+    "becomePrepared": "runs",
     "bringFromOutsideGame": {
         "code": "suspends-for-input",
         "reason": "Op \"bringFromOutsideGame\" suspends for a pick from outside the game — covered by hand-written tests"
