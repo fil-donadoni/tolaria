@@ -694,7 +694,7 @@ export const FRACTAL_TOKEN: EffectTokenSpec = {
  *  creature token with flying" — created by Emeritus of Truce's entry trigger
  *  for the player it targets (`sets/sos/white.cards.ts`). Vanilla apart from
  *  the keyword, so the JSON-pure `EffectTokenSpec` shape (ADR 0046). Two
- *  colours declared outright (CR 202.2), the `OTTER_TOKEN` shape.
+ *  colours declared outright on the spec, the `OTTER_TOKEN` shape.
  *
  *  Deliberately NO pinned `imagePrintId`, the `FRACTAL_TOKEN` treatment: the
  *  art is the Inkling token of the PRODUCING card's own printing, resolved by
