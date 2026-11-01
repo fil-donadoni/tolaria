@@ -34,7 +34,7 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const ALLOWLIST: Record<string, string> = {
     "src/components/board/graveyard-card-picker.tsx:37":
         "graveyard card tile title — graveyard cards are never face down",
-    "src/components/board/cast-exile-cost-dialog.tsx:188":
+    "src/components/board/cast-exile-cost-dialog.tsx:215":
         "exile-cost picker tile title — exiled/graveyard cards are never face down",
     "src/components/board/exile-cost-dialog.tsx:153":
         "exile-cost picker tile title — exiled/graveyard cards are never face down",
