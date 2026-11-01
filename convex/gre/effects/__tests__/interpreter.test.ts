@@ -37957,8 +37957,6 @@ describe("Effect Script Op: animate grantedStaticId (CR 113.1 / 611.2a / 613.4c,
                         id: "per-artifact",
                         effect: {
                             kind: "pt-buff",
-                            power: 0,
-                            toughness: 0,
                             applies: (target, source) =>
                                 target.id === source.id,
                             computeFor: (source, state) => {
@@ -38044,8 +38042,9 @@ describe("Effect Script Op: animate grantedStaticId (CR 113.1 / 611.2a / 613.4c,
         pushSpell(state, id, "p1", [{ type: "permanent", id: "armor" }]);
         resolveTopOfStack(state);
         expect(
-            continuousEffectsInLayer(state, 7).filter(
+            (state.continuousEffects ?? []).filter(
                 (e) =>
+                    e.layer === 7 &&
                     e.payload.kind === "template" &&
                     e.payload.grantTemplateId === "per-artifact"
             )
@@ -38057,8 +38056,9 @@ describe("Effect Script Op: animate grantedStaticId (CR 113.1 / 611.2a / 613.4c,
         )!;
         expect(armor.types).not.toContain("Creature");
         expect(
-            continuousEffectsInLayer(state, 7).filter(
+            (state.continuousEffects ?? []).filter(
                 (e) =>
+                    e.layer === 7 &&
                     e.payload.kind === "template" &&
                     e.payload.grantTemplateId === "per-artifact"
             )
