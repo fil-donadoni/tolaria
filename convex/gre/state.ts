@@ -7456,6 +7456,10 @@ export function removePermanentTo(
             types: lkiTypes,
             subtypes: lkiSubtypes,
             wasAura: lkiWasAura,
+            // CR 603.10a / 702.79a — the counters it left with (Persist).
+            ...(creature.countersAtLeave
+                ? { countersBeforeLeave: { ...creature.countersAtLeave } }
+                : {}),
             attachedToBeforeLeave: lkiAttachedTo,
             ...(lkiAttachments.length > 0
                 ? { attachmentsBeforeLeave: lkiAttachments }
@@ -10131,6 +10135,9 @@ function stageReanimatedOnBattlefield(
             state.stack[state.stack.length - 1]?.id,
             {
                 enteredFromGraveyard: entryOpts?.enteredFromGraveyard,
+                // CR 122.6 / 614.12a (issue #1372) — the effect's entry
+                // counters are part of HOW it enters; they ride the park.
+                entryCounters: entryOpts?.entryCounters,
             }
         );
         return false;
@@ -10340,7 +10347,10 @@ function putReanimatedOnBattlefield(
     state: GameState,
     card: CardInstanceState,
     controllerId: string,
-    enteredFromGraveyard?: boolean
+    enteredFromGraveyard?: boolean,
+    /** CR 122.6 (issue #1372) — counters the putting effect gives the
+     *  permanent as it enters; see `stageReanimatedOnBattlefield`. */
+    entryCounters?: Readonly<Record<string, number>>
 ): boolean {
     // Returns whether the card is actually on the battlefield now. A staging
     // redirect (Containment Priest → exile, Worms of the Earth → graveyard) or
@@ -10350,6 +10360,7 @@ function putReanimatedOnBattlefield(
     if (
         stageReanimatedOnBattlefield(state, card, controllerId, {
             enteredFromGraveyard,
+            ...(entryCounters ? { entryCounters } : {}),
         })
     ) {
         finishReanimatedEntry(state, card, enteredFromGraveyard);
@@ -10618,6 +10629,7 @@ export function stageAsEntersEntry(
         tokenEntry?: StagedEntry["tokenEntry"];
         enteredFromGraveyard?: boolean;
         playEntry?: StagedEntry["playEntry"];
+        entryCounters?: Readonly<Record<string, number>>;
     }
 ): void {
     if (origin === "effect" || origin === "play") {
@@ -10697,6 +10709,9 @@ export function stageAsEntersEntry(
         ...(extra?.playEntry ? { playEntry: extra.playEntry } : {}),
         ...(extra?.enteredFromGraveyard
             ? { enteredFromGraveyard: extra.enteredFromGraveyard }
+            : {}),
+        ...(extra?.entryCounters && Object.keys(extra.entryCounters).length > 0
+            ? { entryCounters: { ...extra.entryCounters } }
             : {}),
     };
     state.stagedEntries = [...(state.stagedEntries ?? []), entry];
@@ -11719,6 +11734,7 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
                     {
                         asEntersResolved: true,
                         enteredFromGraveyard: entry.enteredFromGraveyard,
+                        entryCounters: entry.entryCounters,
                         asEntersAnswers: stagedEntryAnswers(entry.card),
                     }
                 )
@@ -14009,7 +14025,11 @@ export function buildSpellContext(
             cardInstanceId: string,
             fromZone: "graveyard" | "exile",
             controllerId?: string,
-            opts?: { entersAs?: EntryTypeLine; attachTo?: string }
+            opts?: {
+                entersAs?: EntryTypeLine;
+                attachTo?: string;
+                entryCounters?: Readonly<Record<string, number>>;
+            }
         ): boolean {
             const player = getPlayer(state, playerId);
             const pile =
@@ -14069,11 +14089,17 @@ export function buildSpellContext(
                 );
                 return entered.length > 0;
             }
+            // CR 122.6 / 614.1c (issue #1372) — "with a -1/-1 counter on it"
+            // (Persist): the effect's own entry counters, placed inside the
+            // entry funnel so PERMANENT_ENTERED already sees them. Not threaded
+            // through the Aura branch above: no Aura in the pool is returned
+            // with counters.
             return putReanimatedOnBattlefield(
                 state,
                 card,
                 controllerId ?? playerId,
-                fromZone === "graveyard"
+                fromZone === "graveyard",
+                opts?.entryCounters
             );
         },
         // CR 400.7 / 614-batch (issue #1094) — the simultaneous twin of

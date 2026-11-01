@@ -1964,6 +1964,14 @@ function moveZonePoints(
             // Reanimation (graveyard → battlefield) — a body AND card
             // advantage. The victim is a GRAVEYARD card, not a board
             // permanent, so it prices at one `recursion` unit.
+            //
+            // `entersAs` / `entersWithCounters` (issue #2993 / #1372 — "It's an
+            // enchantment", Persist's "with a -1/-1 counter on it") are
+            // deliberately unread: this unit is a lump for "a card comes back
+            // as a permanent", never a function of the body's P/T or type line,
+            // so a modifier of that body is below its resolution. What the
+            // returned permanent is worth is read off the resulting state by
+            // the evaluator, which sees the counter.
             return { points: ctx.latent.weights.recursion, tag: "recursion" };
         case "hand":
             // Bounce (battlefield → hand, tempo removal) OR regrowth (graveyard
