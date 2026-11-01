@@ -1,5 +1,5 @@
 /**
- * The static-clause sub-grammar (CR 113.3d, CR 604.1) — issue #2700.
+ * The static-clause sub-grammar (CR 113.3d, CR 604.1).
  *
  * A static ability "is simply true" while its source is on the battlefield: it
  * has no trigger event, no cost and no resolution, so unlike every other slot
@@ -45,15 +45,15 @@
  *
  * CONDITIONAL statics ("… as long as …", CR 611.3a) are refused whole, with
  * ONE exception: "<self> gets +N/+N as long as you control a <descriptor>"
- * (issue #4126), and its opponent twin "… as long as an opponent controls a
- * <descriptor>" (issue #4565). The condition is not a second vocabulary — it
+ * and its opponent twin "… as long as an opponent controls a
+ * <descriptor>". The condition is not a second vocabulary — it
  * IS the `controls` condition a trigger's intervening-if carries, read by the
  * shared `controlsRule` / `opponentControlsRule`, and the descriptor rebuilds
  * it into `StaticPTBuff.condition`. Every other "as long as" tail ("it's
  * untapped", "you have …") still fails the line.
  *
- * ENCHANTED-scope statics are read by their own frames (issue #3833), now
- * that an Aura's "Enchant <filter>" line parses (issue #3825):
+ * ENCHANTED-scope statics are read by their own frames, which lean on the
+ * Aura's "Enchant <filter>" line:
  *
  *   "Enchanted <noun> gets +N/+N[ and <rest>]"      → layer 7c, host scope
  *   "Enchanted <noun> has <keyword>[, …, and <kw>]" → layer 6, host scope
@@ -67,8 +67,8 @@
  * the card IS an Aura is a card-level fact, checked in `lower.ts` against the
  * enchant line, not here.
  *
- * EQUIPPED-scope statics are read by their own frame (issue #7215), now that
- * an "Equip {N}" line parses (issue #7214):
+ * EQUIPPED-scope statics are read by their own frame, beside the Equipment's
+ * "Equip {N}" line:
  *
  *   "Equipped creature gets +N/+N[ and has <keyword>[, …, and <kw>]]"
  *   "Equipped creature has <keyword>[, …, and <kw>]"
