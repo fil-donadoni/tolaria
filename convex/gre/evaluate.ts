@@ -1728,9 +1728,9 @@ export function permanentRealisedValue(
 /** The exiled cards `player` holds a play permission for, in any player's
  *  exile (CR 400.7 — the grant may be cross-player): one OPEN now, read
  *  through `exileCastPermitted`, the one authority the enumerator and the
- *  payment path share (issue #4217) — or one whose window opens on a LATER
- *  turn and stays open from then (issue #2096). Both halves are ONE question,
- *  `exileCastLatent` (issue #7587), which the search's banking tie-break
+ *  payment path share — or one whose window opens on a LATER turn and stays
+ *  open from then. Both halves are ONE question, `exileCastLatent`
+ *  (issue #7587), which the search's banking tie-break
  *  asks too:
  *    - a foretold card (Foretell, CR 702.143a: "after the current turn has
  *      ended");
