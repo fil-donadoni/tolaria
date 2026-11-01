@@ -2602,6 +2602,21 @@ export interface AnimateSpec {
      *  OMITTED leaves the printed colour alone — a colourless manland
      *  (Mishra's Factory) stays colourless (CR 105.2). */
     colors?: Color[];
+    /** A QUOTED static ability the animation grants (CR 113.1 / 611.2a /
+     *  613.1f — "becomes a 4/4 Construct Hero artifact creature with flying
+     *  and \"This creature gets +1/+1 for each artifact you control\"", Iron
+     *  Man Armor), as the pair that locates it: the definition id of the card
+     *  whose `staticGrantTemplates[]` declares it and the template's `id`.
+     *  Resolved by the `animate` Op's executor from the resolving source —
+     *  the Op names only the template id, exactly as `grantAbility`'s
+     *  `grantedTriggeredId` does.
+     *
+     *  Shares the animation's own `duration` like `grantedAbilities` does
+     *  (CR 611.2a), and is applied even on a re-application onto an already
+     *  animated permanent. The static's own "this creature" is the RECIPIENT,
+     *  never the card declaring the template (CR 113.3d — an ability belongs
+     *  to the object that has it). */
+    grantedStatic?: { sourceCardId: string; templateId: string };
     /** Phase boundary at which the animation reverts (CR 611.2, Mishra's
      *  Factory's "until end of turn"). OMITTED means the animation is
      *  INDEFINITE (CR 611.2b) — it never auto-reverts at a phase boundary and
@@ -8997,6 +9012,12 @@ export type StaticPTBuff = {
         ctx: StaticEffectContext
     ) => boolean;
 } & PTAmount;
+
+/** A static ability a resolving effect GRANTS as a quoted ability (CR 113.1,
+ *  611.2a): the `id` an Op names plus the effect, whose `source` argument at
+ *  every read is the RECIPIENT of the grant (CR 113.3d — "This creature").
+ *  Only `pt-buff` today (issue #7203). */
+export type StaticGrantTemplate = { id: string; effect: StaticPTBuff };
 
 /** Characteristic-defining P/T ability (CR 604.3). Used when a creature's
  *  power and toughness are defined by a game-state lookup rather than a flat
@@ -17756,6 +17777,16 @@ export type EffectOp =
           subtype?: string;
           additionalTypes?: CardType[];
           grantedAbilities?: string[];
+          /** CR 113.1 / 611.2a / 613.1f (issue #7203) — the `id` of a
+           *  `StaticGrantTemplate` on the RESOLVING source's
+           *  `staticGrantTemplates[]`: the quoted static ability the animation
+           *  grants ("… with flying and \"This creature gets +1/+1 for each
+           *  artifact you control\"", Iron Man Armor). The template's
+           *  closures stay on the definition; the grant is a layer-7
+           *  registry entry naming it, expiring with the animation's own
+           *  `duration`. Not a keyword: `grantedAbilities` keeps the keyword
+           *  strings. */
+          grantedStaticId?: string;
           /** Layer-5 colour set applied in the same breath as the animation
            *  (CR 613.1e; CR 105.3 — the new colour replaces every colour the
            *  object had). Routed through the SAME `setColorOverride`
@@ -21624,6 +21655,15 @@ export interface CardDefinition {
      *  collector. The `id` on each template is the value referenced by the
      *  grant's `abilityId` field. Used by Energy Flux. */
     triggeredGrantTemplates?: TriggeredAbility[];
+    /** Static abilities this card's effects GRANT to a permanent as a QUOTED
+     *  ability (CR 113.1, 611.2a) — "becomes a 4/4 … creature with flying and
+     *  \"This creature gets +1/+1 for each artifact you control\"" (Iron Man
+     *  Armor, via `animate.grantedStaticId`). Kept off `staticEffects` so the
+     *  declaring card does not itself carry the ability: it is inert until an
+     *  Op grants it, and then applies to the RECIPIENT as its own `source`
+     *  (CR 113.3d). Only layer-7c `pt-buff` is supported — the one shape a
+     *  quoted static needs today; widen the union with the second card. */
+    staticGrantTemplates?: StaticGrantTemplate[];
     /** JSON-pure twin of `triggeredGrantTemplates` above, for the SAME reason
      *  `compiledTriggeredAbilities` exists beside `triggeredAbilities`: a
      *  granted trigger's `matches` is a required closure, and the Oracle
