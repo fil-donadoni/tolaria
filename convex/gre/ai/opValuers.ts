@@ -2808,6 +2808,10 @@ const chooseCreatureType: Valuer<"chooseCreatureType"> = () => ZERO_OP_VALUE;
 // CR 205.3i — the land-type sibling, BIND-ONLY for the identical reason: the
 // value is in the `setSubtype` that reads the chosen types back.
 const chooseLandType: Valuer<"chooseLandType"> = () => ZERO_OP_VALUE;
+// CR 701.38 (issue #2071) — BIND-ONLY: a vote moves no material by itself;
+// its winners are what the following Op acts on (Council's Judgment's
+// `forEach` + `exile`), which the script walk prices on its own.
+const vote: Valuer<"vote"> = () => ZERO_OP_VALUE;
 
 const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
     if (op.mode === "next-n") {
@@ -3417,6 +3421,7 @@ export const OP_VALUERS: {
     nameCard,
     chooseCreatureType,
     chooseLandType,
+    vote,
     preventDamage,
     redirectDamage,
     markAssignsNoCombatDamage,
@@ -3911,6 +3916,11 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // neutral for the same reason: a pick out of CR 205.3i's land-type table
     // moves no material; the `setSubtype` that reads it back carries the sign.
     chooseLandType: "neutral",
+    // CR 701.38 (issue #2071) — collecting votes hands each voter a choice
+    // and takes nothing from anyone: no card, life, object or resource moves.
+    // The winners have a recipient and a sign only through the Op that acts
+    // on them (`exile`), which carries its own row.
+    vote: "neutral",
     // CR 601.2b — divides `objects` into two piles under `chosenBind` /
     // `otherBind`. The pile members are DERIVED from the divider's split and
     // are never announced, so there is nothing here for a redirect to act on —
@@ -4101,6 +4111,7 @@ export const BINDING_ONLY_OPS: ReadonlySet<EffectOp["op"]> = new Set<
     "chooseCreatureType",
     "chooseLandType",
     "selectAtRandom",
+    "vote",
 ]);
 
 /** Sign of one Op for its recipient (issue #1888). Reads the Op's own shape for
