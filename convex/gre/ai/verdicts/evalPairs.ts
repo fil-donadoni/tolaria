@@ -51,6 +51,7 @@ import {
     applyMoveInSearch,
     decidingPlayer,
     moveKey,
+    passEndsStep,
     policyProbeState,
 } from "../../search";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
@@ -133,7 +134,13 @@ export function candidateFeatures(
     applyMoveInSearch(probe, botId, move);
     // `moverId` is the bot itself: a verdict is always about the seat that
     // owed the decision, so the settle may answer the choices that seat owns.
-    const settled = policyProbeState(probe, move, weights, botId);
+    const settled = policyProbeState(
+        probe,
+        move,
+        weights,
+        botId,
+        passEndsStep(state, botId)
+    );
     return featuresOfSettled(settled, botId, weights);
 }
 
