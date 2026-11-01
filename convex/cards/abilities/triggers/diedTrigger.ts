@@ -34,6 +34,9 @@ export interface DeadCreatureLKI {
     id: string;
     controllerId: string;
     types: ReadonlyArray<CardType>;
+    /** Subtypes at the moment of death (CR 603.10a), `[]` when the event
+     *  predates the field. */
+    subtypes: ReadonlyArray<string>;
     lastKnownPower: number;
     lastKnownToughness: number;
     damagedBySources: ReadonlyArray<string>;
@@ -50,10 +53,22 @@ export interface DiedTriggerArgs {
      *  source's own death doesn't fire the trigger. */
     scope: PermanentScope;
     /** Optional structural filter over the dying creature (CR 603.2 — "a
-     *  creature with X"). Matches the LKI fields carried on the event;
-     *  subtype / static-ability constraints are not supported because the
-     *  event payload doesn't carry that information. */
+     *  creature with X"). Matches the LKI fields carried on the event:
+     *  types, subtypes (CR 603.10a — the last-known subtypes, so "whenever
+     *  another Cat you control dies" sees a creature type a continuous
+     *  effect granted, issue #3719), controller, power and toughness.
+     *  Static-ability constraints are not supported because the event
+     *  payload doesn't carry keywords. */
     filter?: PermanentFilter;
+    /** CR 603.2c — "whenever ONE OR MORE ... die" (Ajani, Nacatl Pariah).
+     *  A board wipe kills several creatures in one event, emitting one
+     *  `CREATURE_DIED` per creature in the SAME `collectTriggers` batch; with
+     *  this set the ability triggers ONCE for that batch instead of once per
+     *  death. Opt-in — a plain "whenever a creature dies" (Blood Artist)
+     *  keeps firing per death. Forwarded verbatim onto the built
+     *  `TriggeredAbility`, where `gre/triggers.ts` enforces it, mirroring
+     *  `EnteredTriggerArgs.oncePerEventBatch`. */
+    oncePerEventBatch?: boolean;
     /** CR 603.3d — the targets the trigger announces as it goes on the stack
      *  ("When this creature dies, distribute three -1/-1 counters among one,
      *  two, or three target creatures"). Forwarded verbatim onto the built
@@ -133,7 +148,7 @@ export function diedTrigger(args: DiedTriggerArgs): TriggeredAbility {
                 const subject: MatchablePermanent = {
                     id: event.creatureInstanceId,
                     types: event.creatureTypes,
-                    subtypes: [],
+                    subtypes: event.creatureSubtypes ?? [],
                     staticAbilities: [],
                     controllerId: event.creatureControllerId,
                     power: event.creaturePower,
@@ -168,6 +183,7 @@ export function diedTrigger(args: DiedTriggerArgs): TriggeredAbility {
                           id: event.creatureInstanceId,
                           controllerId: event.creatureControllerId,
                           types: event.creatureTypes,
+                          subtypes: event.creatureSubtypes ?? [],
                           lastKnownPower: event.creaturePower,
                           lastKnownToughness: event.creatureToughness,
                           damagedBySources: event.damagedBySources,
@@ -189,6 +205,9 @@ export function diedTrigger(args: DiedTriggerArgs): TriggeredAbility {
     }
     if (args.targetRequirement !== undefined) {
         ability.targetRequirement = args.targetRequirement;
+    }
+    if (args.oncePerEventBatch) {
+        ability.oncePerEventBatch = true;
     }
     return withTriggerGate(ability, args);
 }

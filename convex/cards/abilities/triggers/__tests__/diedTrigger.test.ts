@@ -8,11 +8,29 @@ import { diedTrigger } from "../diedTrigger";
 import { getAbilityEffectFn } from "../../../effectRegistry";
 import { matchesPermanentScope } from "../shared";
 import type {
+    CardDefinition,
     CardType,
     CreatureDiedEvent,
     PermanentView,
     SpellContext,
 } from "../../../types";
+import {
+    beginApplyingStaticEffects,
+    removePermanentTo,
+    type CardInstanceState,
+    type GameState,
+} from "../../../../gre/state";
+import { collectTriggers } from "../../../../gre/triggers";
+import { withTemporaryDefinition } from "../../../registry";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../__tests__/setup.helper";
+import { grizzlyBears } from "../../../sets/lea/index.cards";
+
+// Conspiracy (MMQ) — "Creatures you control are the chosen type." (layer 4).
+const CONSPIRACY_ID = "411c9f22-2df0-4a63-b2be-fa02612a6ef8";
 
 function makeSelf(overrides: Partial<PermanentView> = {}): PermanentView {
     return {
@@ -251,6 +269,7 @@ describe("diedTrigger factory", () => {
             creatureInstanceId: "victim",
             creatureControllerId: "p2",
             creatureTypes: ["Creature", "Artifact"] as CardType[],
+            creatureSubtypes: ["Cat", "Construct"],
             damagedBySources: ["src"],
             creaturePower: 7,
             creatureToughness: 3,
@@ -260,6 +279,7 @@ describe("diedTrigger factory", () => {
             id: "victim",
             controllerId: "p2",
             types: ["Creature", "Artifact"],
+            subtypes: ["Cat", "Construct"],
             lastKnownPower: 7,
             lastKnownToughness: 3,
             damagedBySources: ["src"],
@@ -343,5 +363,184 @@ describe("diedTrigger DSL support (ADR 0045)", () => {
                 scope: "any",
             } as Parameters<typeof diedTrigger>[0])
         ).toThrow(/effects\[\] or resolve/);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Subtype-filtered, batched death triggers through the REAL trigger scan
+// (issue #3719 — "Whenever one or more other Cats you control die", Ajani,
+// Nacatl Pariah). Every test kills through the battlefield-departure funnel
+// (`removePermanentTo`) and reads what `collectTriggers` puts on the stack
+// over the `pendingEvents` that funnel queued — never a hand-built event.
+// ─────────────────────────────────────────────────────────────────────────
+
+const CAT_WATCH_ID = "test-3719-cat-watcher";
+const CAT_ID = "test-3719-cat";
+
+/** A watcher carrying "Whenever [one or more] other Cats you control die,
+ *  draw a card." — batched or not. */
+function catWatcher(oncePerEventBatch: boolean): CardDefinition {
+    return {
+        ...grizzlyBears(),
+        id: CAT_WATCH_ID,
+        name: "Cat Watcher",
+        subtypes: ["Human"],
+        triggeredAbilities: [
+            diedTrigger({
+                id: "cat-watcher-dies",
+                oracleText:
+                    "Whenever one or more other Cats you control die, draw a card.",
+                scope: "another-yours",
+                filter: { subtypes: "Cat" },
+                oncePerEventBatch,
+                effects: [{ op: "draw", player: "controller", count: 1 }],
+            }),
+        ],
+    };
+}
+
+const CAT: CardDefinition = {
+    ...grizzlyBears(),
+    id: CAT_ID,
+    name: "Test Cat",
+    subtypes: ["Cat", "Warrior"],
+};
+
+function withCatCards<T>(oncePerEventBatch: boolean, fn: () => T): T {
+    return withTemporaryDefinition(catWatcher(oncePerEventBatch), () =>
+        withTemporaryDefinition(CAT, fn)
+    );
+}
+
+function catBoard(extra: CardInstanceState[]): GameState {
+    return makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: [
+                    makeInstance(CAT_WATCH_ID, {
+                        id: "watcher",
+                        controllerId: "p1",
+                    }),
+                    ...extra,
+                ],
+            }),
+            makePlayer("p2"),
+        ],
+    });
+}
+
+function watcherFirings(state: GameState): number {
+    return collectTriggers(state, state.pendingEvents ?? []).filter(
+        (item) => item.triggeredAbilityId === "cat-watcher-dies"
+    ).length;
+}
+
+describe("diedTrigger subtype filter — last-known subtypes (CR 603.10a, CR 603.2, issue #3719)", () => {
+    it("fires for a dying Cat and not for a dying Bear", () => {
+        withCatCards(false, () => {
+            const state = catBoard([
+                makeInstance(CAT_ID, { id: "cat", controllerId: "p1" }),
+                makeInstance(grizzlyBears().id, {
+                    id: "bear",
+                    controllerId: "p1",
+                }),
+            ]);
+            removePermanentTo(state, "bear", "graveyard");
+            expect(watcherFirings(state)).toBe(0);
+
+            state.pendingEvents = [];
+            removePermanentTo(state, "cat", "graveyard");
+            expect(watcherFirings(state)).toBe(1);
+        });
+    });
+
+    it("reads the subtype a CONTINUOUS effect granted at the moment of death (CR 603.10a / 613.1d)", () => {
+        withCatCards(false, () => {
+            // Conspiracy naming Cat: every creature p1 controls is a Cat
+            // (layer 4). The Bear is a Cat only while on the battlefield.
+            const conspiracy = makeInstance(CONSPIRACY_ID, {
+                id: "consp",
+                controllerId: "p1",
+            });
+            conspiracy.chosenSubtypes = ["Cat"];
+            const bear = makeInstance(grizzlyBears().id, {
+                id: "bear",
+                controllerId: "p1",
+            });
+            const state = catBoard([conspiracy, bear]);
+            beginApplyingStaticEffects(state, conspiracy);
+            expect(bear.subtypes).toEqual(["Cat"]);
+
+            removePermanentTo(state, "bear", "graveyard");
+            const died = (state.pendingEvents ?? []).find(
+                (e) => e.type === "CREATURE_DIED"
+            ) as CreatureDiedEvent;
+            expect(died.creatureSubtypes).toEqual(["Cat"]);
+            expect(watcherFirings(state)).toBe(1);
+        });
+    });
+
+    it("still filters a Cat TOKEN that has ceased to exist before the scan (CR 111.7)", () => {
+        withCatCards(false, () => {
+            const state = catBoard([
+                makeInstance(CAT_ID, {
+                    id: "cat-token",
+                    controllerId: "p1",
+                    isToken: true,
+                }),
+            ]);
+            removePermanentTo(state, "cat-token", "graveyard");
+            // CR 111.7 / 704.5d — the token ceases to exist in the graveyard;
+            // the trigger reads the event's snapshot, never the zone.
+            state.players[0].graveyard = state.players[0].graveyard.filter(
+                (c) => c.id !== "cat-token"
+            );
+            expect(watcherFirings(state)).toBe(1);
+        });
+    });
+});
+
+describe('diedTrigger oncePerEventBatch — "one or more … die" (CR 603.2c, issue #3719)', () => {
+    function threeCats(): CardInstanceState[] {
+        return [0, 1, 2].map((i) =>
+            makeInstance(CAT_ID, { id: `cat${i}`, controllerId: "p1" })
+        );
+    }
+
+    it("collapses three simultaneous Cat deaths to ONE trigger, and fires three without the flag", () => {
+        const fire = (batched: boolean) =>
+            withCatCards(batched, () => {
+                const state = catBoard(threeCats());
+                // One event (a board wipe): every death lands in the same
+                // `pendingEvents` batch before the scan runs.
+                for (const id of ["cat0", "cat1", "cat2"]) {
+                    removePermanentTo(state, id, "graveyard", "destroy");
+                }
+                return watcherFirings(state);
+            });
+        expect(fire(true)).toBe(1);
+        expect(fire(false)).toBe(3);
+    });
+
+    it("fires once PER death when the Cats die one at a time", () => {
+        withCatCards(true, () => {
+            const state = catBoard(threeCats());
+            let total = 0;
+            for (const id of ["cat0", "cat1", "cat2"]) {
+                state.pendingEvents = [];
+                removePermanentTo(state, id, "graveyard");
+                total += watcherFirings(state);
+            }
+            expect(total).toBe(3);
+        });
+    });
+
+    it("forwards the flag onto the built ability", () => {
+        expect(catWatcher(true).triggeredAbilities![0].oncePerEventBatch).toBe(
+            true
+        );
+        expect(
+            catWatcher(false).triggeredAbilities![0].oncePerEventBatch
+        ).toBeUndefined();
     });
 });
