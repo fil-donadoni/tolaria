@@ -139,12 +139,26 @@ const UNLESS_SACRIFICE: CardDefinition = {
     ],
 };
 
-/** Every case runs with the guard carrier and the may-pay fixture
- *  registered. */
+// "Target creature's controller sacrifices it" — the `sacrifice` Op's
+// announced-target form, which reaches the sacrifice funnel with no pick.
+const SACRIFICE_TARGET: CardDefinition = {
+    id: "test-2607-sacrifice-target",
+    name: "Test Sacrifice Target",
+    rarity: "common",
+    manaCost: { B: 1 },
+    types: ["Sorcery"],
+    oracleText: "Target creature's controller sacrifices it.",
+    targetRequirement: { type: "Creature", count: 1 },
+    effects: [{ op: "sacrifice", target: { target: 0 } }],
+};
+
+/** Every case runs with the guard carrier and the fixtures registered. */
 function itGuarded(name: string, fn: () => void): void {
     it(name, () =>
         withTemporaryDefinition(GUARD, () =>
-            withTemporaryDefinition(UNLESS_SACRIFICE, fn)
+            withTemporaryDefinition(UNLESS_SACRIFICE, () =>
+                withTemporaryDefinition(SACRIFICE_TARGET, fn)
+            )
         )
     );
 }
@@ -183,6 +197,8 @@ describe("CR 101.2 — opponents can't cause you to discard (issue #2607)", () =
         resolveTopOfStack(state);
         expect(handIds(state, 0)).toEqual(["p1-h1", "p1-h2"]);
         expect(state.players[0].graveyard).toHaveLength(0);
+        // No random pick is drawn for a discard that cannot happen.
+        expect(state.rngCounter).toBe(0);
     });
 
     itGuarded(
@@ -228,6 +244,31 @@ describe("CR 101.2 — opponents can't cause you to sacrifice (issue #2607)", ()
             ]);
             expect(state.pendingChoices ?? []).toHaveLength(0);
             expect(battlefieldIds(state, 0)).toContain("p1-bear");
+        }
+    );
+
+    itGuarded(
+        "an opponent's 'its controller sacrifices it' leaves the creature on the battlefield",
+        () => {
+            const state = guardedBoard();
+            pushSpell(state, SACRIFICE_TARGET.id, "p2", [
+                { type: "permanent", id: "p1-bear" },
+            ]);
+            resolveTopOfStack(state);
+            expect(battlefieldIds(state, 0)).toContain("p1-bear");
+            expect(state.players[0].graveyard).toHaveLength(0);
+        }
+    );
+
+    itGuarded(
+        "the same spell on the opponent's own creature still sacrifices it",
+        () => {
+            const state = guardedBoard();
+            pushSpell(state, SACRIFICE_TARGET.id, "p2", [
+                { type: "permanent", id: "p2-bear" },
+            ]);
+            resolveTopOfStack(state);
+            expect(battlefieldIds(state, 1)).not.toContain("p2-bear");
         }
     );
 
