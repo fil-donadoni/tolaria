@@ -3968,7 +3968,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // and coerces their pick. Signing it here as well would double-count the
     // same coercion onto the same slot.
     sacrifice: "neutral",
-    // CR 701.21a + CR 400.7 — an EXCHANGE inside ONE player's own zones: the
+    // CR 701.21a + CR 400.7 — a swap inside ONE player's own zones: the
     // sacrificed permanent and the returned card both belong to the same
     // player (the graveyard group is bound to the permanent's controller), so
     // the Op has no recipient a sign could be redirected over; whether it
