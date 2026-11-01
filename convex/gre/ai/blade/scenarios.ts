@@ -15886,22 +15886,17 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         audit: { theme: "cast × blink" },
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2],
-        // Issue #7784 demoted this half: a noise pin. The 1-ply probe prices
-        // all seven targets of the ETB identically (`policyValue` 517.9 on
-        // the committed weights, 541.3 on the refit the probe fix obliges),
-        // so the Giant won only by `material-tiebreak` (20/21 seeds) and the
-        // refit's wider outcome-equal band hands the pick to
-        // `announcement-variant`, which ranks the two opposing targets equal
-        // and settles on Mountain (0/21). Promotion ticket: issue #7791.
-        tier: "stretch",
-        beyondBudget: {
-            cause: "valuation",
-            note: "The pending-return credit (`pendingReturnsWorth`) hands an exiled-until-end-step permanent back at its full worth, so a one-turn exile of the opposing Hill Giant and of an opposing Mountain read as the same no-op at the probe: the evaluation has no term for what the permanent would have done before it returns (the blocker the Giant is not for THIS combat, against the instant-speed mana a Mountain cannot make). Measured on issue #7784: every `submit-target` answer at one `policyValue`, under both the committed and the refit vector; no budget separates two answers the leaf scores equal. Promote to `must` in the PR that prices a temporary exile by the combat or mana it denies (issue #7791).",
-        },
+        // Issue #7791 promoted it back (demoted by issue #7784: every target
+        // of the ETB read as one no-op). A one-turn exile of the opposing
+        // Hill Giant before the bot's own attack is a blocker gone from THIS
+        // combat (`returnMissesBlocks`, `ai/pendingReturn.ts`); a Mountain's
+        // is not a source lost for good (the restored board,
+        // `stateWithPendingReturns`).
+        tier: "must",
         expect: {
             moves: [{ kind: "submit-target", target: "Hill Giant" }],
         },
-        note: "Issue #6334 — the mirror half: with no enters trigger on the bot's own creature, flickering it gains nothing and the opposing body's one-turn exile is the better answer. Green before the fix (Hill Giant 5/5 at 400) and after it (Hill Giant 5/5): the pending-return credit gives the Giant back to its owner at its full worth, so the exile is priced as the tempo it is, not as a kill — and, issue #7784 found, as exactly the tempo a Mountain's exile is.",
+        note: "Issue #6334 — the mirror half: with no enters trigger on the bot's own creature, flickering it gains nothing and the opposing body's one-turn exile is the better answer. Green before the fix (Hill Giant 5/5 at 400) and after it (Hill Giant 5/5): the pending-return credit gives the Giant back to its owner at its full worth, so the exile is priced as the tempo it is, not as a kill — and, issue #7784 found, as exactly the tempo a Mountain's exile is. Issue #7791: the pending return is discounted by the block share of a creature the defending player gets back only after a combat still ahead in which the bot has a ready attacker, and the material aggregates and the Danger Clock read the board the returns restore (before, the Giant's exile read as the opponent's curve and clock gone, the Mountain's as a source lost for good). Settled margin: Giant +31.5 over Mountain and over flickering the Bears. 21/21 seeds (0–19, 0xb1ade) on the committed and on the locally refit vector; the pick reads `material-tiebreak` because the reward band clips here (the Kavu anchor reads the same), with `announcement-variant`'s settled payoff agreeing.",
     },
     {
         // CR 614.12a / 607.2b — Sutured Ghoul's "As this creature enters, exile
