@@ -11,6 +11,7 @@ import {
 } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
+import { damageTakenTrigger } from "../../abilities/triggers/damageTakenTrigger";
 import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 
 /** True when `controllerId`'s graveyard holds four or more distinct card types
@@ -202,6 +203,62 @@ export const enduringCourage = defineCard(() => ({
         enduringReturnTrigger({
             id: "enduring-courage-return",
             cardName: "Enduring Courage",
+        }),
+    ],
+}));
+
+// Screaming Nemesis — {2}{R} Creature — Spirit, 3/3, haste. "Whenever this
+// creature is dealt damage, it deals that much damage to any other target. If
+// a player is dealt damage this way, they can't gain life for the rest of the
+// game."
+//
+// The trigger is the shared `damageTakenTrigger` gated on the damaged
+// permanent being this one. Lethal damage still triggers it — the creature is
+// on the battlefield right after the damage event (CR 603.10), and it deals
+// the damage as it last existed once it has died (CR 113.7a). "That much" is the firing event's
+// amount (`$event.amount`, CR 120.3) and "any other target" is an `any`
+// requirement with `excludeSource` (CR 115.4), so it can never send the damage
+// back to itself. A loop between two copies is bounded by the stack: every
+// trigger waits for both players to pass (CR 117.4), and the engine never
+// resolves one on its own.
+//
+// "If a player is dealt damage this way" is `bindDamagedPlayer`: bound only
+// to a player the damage actually reached — prevented damage, or damage to a
+// creature or planeswalker, binds nobody and the lock is skipped (CR 608.2b).
+// The lock itself (CR 119.7 / 611.2a) is a player-scoped game-state entry, so
+// it outlasts this creature leaving the battlefield.
+// hand-tail: "Whenever this creature is dealt damage, it deals that much damage to any other target. If a player is dealt damage this way, they can't gain life for the rest of the game." (#3239)
+export const screamingNemesis = defineCard(() => ({
+    id: "ce35e6fb-ff54-44c4-a216-7ddd37f46882",
+    rarity: "mythic",
+    name: "Screaming Nemesis",
+    oracleText:
+        "Haste\nWhenever this creature is dealt damage, it deals that much damage to any other target. If a player is dealt damage this way, they can't gain life for the rest of the game.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["haste"],
+    triggeredAbilities: [
+        damageTakenTrigger({
+            id: "screaming-nemesis-redirect",
+            oracleText:
+                "Whenever this creature is dealt damage, it deals that much damage to any other target. If a player is dealt damage this way, they can't gain life for the rest of the game.",
+            target: {
+                kind: "permanent",
+                filter: { controllerRelation: "self" },
+            },
+            targetRequirement: { type: "any", count: 1, excludeSource: true },
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: { ref: "$event.amount" },
+                    to: { target: 0 },
+                    bindDamagedPlayer: "$damaged",
+                },
+                { op: "restrictLifeGain", player: { ref: "$damaged" } },
+            ],
         }),
     ],
 }));

@@ -278,6 +278,7 @@
     "restrictActivation": "runs",
     "restrictCasting": "runs",
     "restrictLandPlay": "runs",
+    "restrictLifeGain": "runs",
     "restrictCombat": {
         "code": "later-outcome",
         "reason": "Op \"restrictCombat\" only manifests at a later combat step — covered by hand-written tests"

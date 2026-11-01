@@ -288,6 +288,10 @@ import {
 } from "./constants";
 import { PLAYER_COUNTER_FIELD, readPlayerCounters } from "./playerCounters";
 import {
+    addPlayerRestriction,
+    playerHasRestriction,
+} from "./playerRestrictions";
+import {
     ZONE_TO_FIELD,
     allPermanents,
     allocInstanceId,
@@ -452,6 +456,8 @@ export type {
     NormalizedMayPayCost,
     MayPayHandCard,
     PileChoiceNotice,
+    PlayerRestriction,
+    PlayerRestrictionKind,
 } from "./state/declarations";
 import type {
     CastFromZone,
@@ -8704,6 +8710,10 @@ export function gainLifeEmitting(
     amount: number
 ): void {
     if (amount <= 0) return;
+    // CR 119.7 — a player who can't gain life gains none, and "a replacement
+    // effect that would replace a life gain event affecting that player won't
+    // do anything": checked BEFORE the replacement pass, so Lich draws nothing.
+    if (playerHasRestriction(state, playerId, "cantGainLife")) return;
     // CR 614 — Lich's "if you would gain life, draw cards instead" intercepts
     // here. The replacement consumes the event (no actual life gain) and runs
     // `drawCards` via its apply ctx.
@@ -16750,6 +16760,13 @@ export function buildSpellContext(
             const list = state.cannotPlayLandsThisTurn ?? [];
             if (!list.includes(playerId)) list.push(playerId);
             state.cannotPlayLandsThisTurn = list;
+        },
+
+        restrictLifeGain(playerId: string): void {
+            // CR 119.7 / 611.2a — "can't gain life for the rest of the game":
+            // a player-scoped entry no object carries, read by
+            // `gainLifeEmitting`. Idempotent; never cleared.
+            addPlayerRestriction(state, playerId, "cantGainLife");
         },
 
         grantExtraLandDrops(playerId: string, count: number): void {

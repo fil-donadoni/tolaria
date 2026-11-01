@@ -4198,6 +4198,9 @@ const OP_SCHEMAS: OpSchemaTable = {
             source: isObjectSelector,
             // CR 608.2h — snapshot of the recipient, taken before the damage.
             bind: bindingDeclaration("snapshot"),
+            // CR 120.3 — the player actually dealt the damage (post-
+            // prevention, post-redirection); uncaptured when none was.
+            bindDamagedPlayer: bindingDeclaration("player"),
         },
     },
     // CR 120.3 — simultaneous no-target mass damage. At least one half
@@ -4290,6 +4293,8 @@ const OP_SCHEMAS: OpSchemaTable = {
     // CR 305.1 / 101.2 (issue #2145) — a turn-scoped per-player "can't play
     // lands" lock (Turf Wound). `player` names whom to lock.
     restrictLandPlay: { required: { player: isPlayerRef } },
+    // CR 119.7 / 611.2a — a game-long "can't gain life" lock on a player.
+    restrictLifeGain: { required: { player: isPlayerRef } },
     // CR 305.2 (issue #7220) — turn-scoped additional land plays. `count` is
     // a positive integer: zero grants nothing, so it would validate an inert
     // script.

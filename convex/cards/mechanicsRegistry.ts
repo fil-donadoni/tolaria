@@ -3055,6 +3055,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Impose a turn-scoped per-player "can\'t play lands" restriction (CR 305.1 / 101.2 / 514.2, issue #2145 — Turf Wound: "target player can\'t play lands this turn"). A thin declarative skin over the single SpellContext primitive `restrictLandPlay`, one execution path (ADR 0045): `player` names whom to lock. Adds the player id to `state.cannotPlayLandsThisTurn`, read by `getLegalActions` as its own conjunct independent of the land-drop count (CR 101.2: the "can\'t" beats a later extra-drop allowance) and by the resolve-time land-play primitives; cleared at CLEANUP (CR 514.2), surviving END_OF_COMBAT. It does NOT stop lands entering the battlefield by other means (CR 305.4). No UI mirror: the client consumes the projected legal actions.',
     },
     {
+        op: "restrictLifeGain",
+        status: "implemented",
+        cr: "119.7",
+        binding: "SpellContext.restrictLifeGain",
+        note: 'Put a player under "can\'t gain life for the rest of the game" (CR 119.7 / 611.2a, issue #3239 — Screaming Nemesis, Stigma Lasher). A thin declarative skin over the single SpellContext primitive `restrictLifeGain`, one execution path (ADR 0045): `player` names whom to lock. Adds a `cantGainLife` entry to `state.playerRestrictions` — player-scoped, carried by no object, so it outlives its source — read at the one life-gain choke point `gainLifeEmitting` BEFORE the replacement pass (CR 119.7: a replacement of that gain does nothing, so Lich draws nothing and "if you gained life" sees no gain). Never cleared; idempotent. Game-scoped only: a "this turn" lock is a different boundary. Shown on the locked player\'s nameplate.',
+    },
+    {
         op: "grantExtraLandDrops",
         status: "implemented",
         cr: "305.2",

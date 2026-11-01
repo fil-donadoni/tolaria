@@ -50,6 +50,7 @@ import { AMOUNT_KEYS } from "./validate";
 import { classLevelOf } from "../../cards/abilities/classLevels";
 import { getEffectivePT } from "../layers";
 import { readPlayerCounters } from "../playerCounters";
+import { playerHasRestriction } from "../playerRestrictions";
 import { registerTokenDefinition } from "../../cards";
 import {
     makeInstance,
@@ -2354,6 +2355,12 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // state.cannotPlayLandsThisTurn (asserted below).
             analysePlayer(op.player, req, false);
             return;
+        case "restrictLifeGain":
+            // CR 119.7 / 611.2a (issue #3239) — a game-long life-gain lock on
+            // a player; the deterministic outcome is a `cantGainLife` entry
+            // landing in state.playerRestrictions (asserted below).
+            analysePlayer(op.player, req, false);
+            return;
         case "grantExtraLandDrops":
             // CR 305.2 (issue #7220) — turn-scoped additional land plays for
             // a player; the deterministic outcome is the player's grant
@@ -3471,6 +3478,24 @@ const OP_ASSERTORS: AssertorTable = {
             check: (post) => {
                 const locked =
                     post.cannotPlayLandsThisTurn?.includes(pid) ?? false;
+                return {
+                    ok: locked && !wasLocked,
+                    detail: `locked=${locked} (was ${wasLocked})`,
+                };
+            },
+        };
+    },
+    // `restrictLifeGain` (CR 119.7 / 611.2a, issue #3239) — a deterministic
+    // same-resolution state change: the named player gains a `cantGainLife`
+    // entry in state.playerRestrictions. Asserted directly.
+    restrictLifeGain(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "restrictLifeGain" }>;
+        const pid = assertionPlayerId(op.player);
+        const wasLocked = playerHasRestriction(pre, pid, "cantGainLife");
+        return {
+            label: `restrictLifeGain locks player ${pid} out of gaining life for the rest of the game`,
+            check: (post) => {
+                const locked = playerHasRestriction(post, pid, "cantGainLife");
                 return {
                     ok: locked && !wasLocked,
                     detail: `locked=${locked} (was ${wasLocked})`,
