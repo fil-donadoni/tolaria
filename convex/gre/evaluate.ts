@@ -66,7 +66,12 @@ import {
     asEventualCreature,
     isCounterClockCreature,
 } from "./ai/counterClockCreature";
-import { pendingBattlefieldReturns } from "./ai/pendingReturn";
+import {
+    pendingBattlefieldReturns,
+    returnMissesBlocks,
+    stateWithPendingReturns,
+    type PendingReturn,
+} from "./ai/pendingReturn";
 import {
     hasGraveyardRecursionAccess,
     isSelfReachableInGraveyard,
@@ -118,7 +123,7 @@ import {
     standingAbilityValueById,
 } from "./cardValue";
 import { findTriggeredAbility } from "./copy";
-import { keywordBonusFor } from "./creatureBody";
+import { creatureBlockShareRaw, keywordBonusFor } from "./creatureBody";
 // Issue #5154 — attack/block/untap restrictions priced on the RESTRICTED side
 // and credited to their source, off the engine's own legality collections.
 import {
@@ -809,10 +814,17 @@ function etbAbilitiesInFlight(
  *  Abilities at their full value against THIS board
  *  (`dslEtbAbilityValueById`) — they fire on entering, and their targets are
  *  chosen among the permanents standing now. Credited to the player it
- *  returns under, in the term its body would read on the battlefield. Not
- *  discounted for the wait: the trigger fires at the next phase boundary
- *  whatever happens, and what a player can do in the meantime (attack past a
- *  missing blocker) is the search's to read, not the leaf's. */
+ *  returns under, in the term its body would read on the battlefield; the
+ *  mana base it restores is read by `playerTerms`' aggregates
+ *  (`boardWithPendingReturns`, issue #7791).
+ *
+ *  Discounted for the wait by exactly one thing (issue #7791): a creature
+ *  the defending player gets back only after a combat still ahead this turn
+ *  misses that combat's blocks (`returnMissesBlocks`), and loses its block
+ *  share — the price a "can't block" restriction puts on the same body
+ *  (`creatureBlockShareRaw` × `cannotBlockShare`, issue #5154). Without it a
+ *  Flickerwisp exiling the opponent's only blocker before its controller's
+ *  attack read as a no-op, exactly like exiling their land. */
 function pendingReturnsWorth(
     state: GameState,
     player: PlayerState,
@@ -821,7 +833,7 @@ function pendingReturnsWorth(
     pass: Layer7Pass
 ): { creatures: number; permanents: number } {
     const worth = { creatures: 0, permanents: 0 };
-    for (const { card, to } of pendingBattlefieldReturns(state)) {
+    for (const { card, to, timing } of pendingBattlefieldReturns(state)) {
         if (to !== player.id) continue;
         const etb = dslEtbAbilityValueById(
             String(card.card.id ?? ""),
@@ -832,7 +844,8 @@ function pendingReturnsWorth(
         if (isCreature(card)) {
             worth.creatures +=
                 evaluateCreature(state, card, weights.latent, pass, weights) +
-                etb;
+                etb -
+                missedBlockDiscount(state, card, to, timing, weights, pass);
         } else if (!isLand(card)) {
             worth.permanents +=
                 nonCreatureBodyValue(state, card, weights, pass) + etb;
@@ -841,6 +854,58 @@ function pendingReturnsWorth(
         }
     }
     return worth;
+}
+
+/** Issue #7791 — the block share a returning creature misses this turn
+ *  (see `pendingReturnsWorth`), zero unless `returnMissesBlocks`. */
+function missedBlockDiscount(
+    state: GameState,
+    card: CardInstanceState,
+    to: string,
+    timing: PendingReturn["timing"],
+    weights: EvalWeights,
+    pass: Layer7Pass
+): number {
+    if (!returnMissesBlocks(state, { card, to, timing })) return 0;
+    const pt = getEffectivePT(state, card, { includeTemporary: false, pass });
+    return (
+        weights.cannotBlockShare *
+        creatureBlockShareRaw(Math.max(0, pt.toughness), card.staticAbilities)
+    );
+}
+
+/** Issue #7791 — `player`'s seat on the board its pending returns restore
+ *  (`stateWithPendingReturns`), or `undefined` when nothing returns to it. */
+function restoredSeat(
+    state: GameState,
+    player: PlayerState
+): { state: GameState; player: PlayerState } | undefined {
+    if (!pendingBattlefieldReturns(state).some((r) => r.to === player.id)) {
+        return undefined;
+    }
+    const restored = stateWithPendingReturns(state);
+    const seat = restored?.players.find((p) => p.id === player.id);
+    return restored && seat ? { state: restored, player: seat } : undefined;
+}
+
+/** Issue #7791 — the `mana` term's price of the mana sources a pending
+ *  return gives back to `player`: each one as an untapped renewable source
+ *  (CR 110.5b, CR 502.3), as `manaSourceTermFor` prices one standing there.
+ *  Read off the restored board so a land in temporary exile is not a source
+ *  lost for good while its `permanents` presence is credited back. */
+function returningManaSourcesTerm(
+    restored: PlayerState,
+    returningIds: ReadonlySet<string>,
+    weights: EvalWeights
+): number {
+    let total = 0;
+    for (const perm of restored.battlefield) {
+        if (!returningIds.has(perm.id)) continue;
+        if (!hasManaAbility(perm, undefined, restored.battlefield)) continue;
+        if (finiteManaUsesRemaining(perm) > 0) continue;
+        total += weights.manaWeight;
+    }
+    return total;
 }
 
 /** Activation cost legs the board-side flexibility term is willing to price.
@@ -1992,17 +2057,34 @@ function playerTerms(
     // the option it gave up THIS turn is `flexibility`'s job, priced below off
     // `manaCensus.now`.
     terms.mana = manaSourceTermFor(state, player, weights, pass);
+    // Issue #7791 — the board the pending returns restore: the mana sources
+    // and the curve they give back are read where the material aggregates
+    // read the battlefield (see `stateWithPendingReturns`).
+    const restored = restoredSeat(state, player);
+    if (restored) {
+        terms.mana += returningManaSourcesTerm(
+            restored.player,
+            new Set(
+                restored.player.battlefield
+                    .filter((c) => !player.battlefield.includes(c))
+                    .map((c) => c.id)
+            ),
+            weights
+        );
+    }
     // CR 118.3 / 122.1 (issue #3530) — what the two-valued `mana` read above
     // cannot see: how many activations a counter-paid source has left. Zero on
     // a board of renewable sources.
     terms.finiteManaUses = finiteManaUsesTermFor(player, weights);
-    const aggregates = baseAggregateTerms(
-        state,
-        player,
-        weights,
-        seat,
-        manaCensus.base
-    );
+    const aggregates = restored
+        ? baseAggregateTerms(
+              restored.state,
+              restored.player,
+              weights,
+              seat,
+              availableManaUnitsFor(restored.state, restored.player).base
+          )
+        : baseAggregateTerms(state, player, weights, seat, manaCensus.base);
     terms.manaDevelopment = aggregates.manaDevelopment;
     terms.colorCoverage = aggregates.colorCoverage;
     // Reactive flexibility uses the SAME available-mana count as the affordability
@@ -2133,9 +2215,16 @@ function valueFromMargin(
     // are kept OUT of `materialMargin` so the issue-#138 saturation-proof
     // tie-break stays pure material; they shape only the leaf `evaluate` the
     // reward band reads.
+    // Issue #7791 — the race is read past this turn, on the board the
+    // pending returns restore: a creature in temporary exile is back before
+    // either seat's next combat (this turn's missing blocker is priced in
+    // `pendingReturnsWorth`).
+    const restored = stateWithPendingReturns(state);
     return (
         margin +
-        dangerClock(state, playerId, pass) +
+        (restored
+            ? dangerClock(restored, playerId)
+            : dangerClock(state, playerId, pass)) +
         declaredCombatDelta(state, me.id, weights, pass, memo) +
         lethalUnblockedDelta(state, playerId, weights, pass) +
         deckOutDelta(me, opp, weights)
