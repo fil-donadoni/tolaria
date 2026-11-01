@@ -4719,8 +4719,17 @@ export const OP_EXECUTORS: {
         if (op.attackRequirement) {
             // CR 508.1d / 613.1f (issue #1972) — "This creature attacks each
             // combat if able", granted per-instance. One primitive covers both
-            // durations: an omitted `duration` is indefinite (CR 611.2a).
-            ctx.grantAttackRequirement(target, op.duration);
+            // durations: an omitted `duration` is indefinite (CR 611.2a). A
+            // `defender` pins it to one player (issue #3247), resolved NOW so
+            // the grant names a concrete id; an unresolvable ref grants
+            // nothing (CR 608.2b — the requirement would name no one).
+            if (op.defender === undefined) {
+                ctx.grantAttackRequirement(target, op.duration);
+            } else {
+                const defenderId = resolvePlayerRef(ctx, op.defender);
+                if (defenderId === undefined) return;
+                ctx.grantAttackRequirement(target, op.duration, defenderId);
+            }
         }
     },
     // CR 613.1d layer 4 (issue #1194) — add a subtype to a permanent

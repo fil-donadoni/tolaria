@@ -6307,11 +6307,15 @@ export interface SpellContext {
      *  attack-requirement predicate (`hasAttackRequirement`, `gre/combat.ts`)
      *  alongside a printed `attack-requirement`. Omitted `duration` is
      *  INDEFINITE (CR 611.2a) — kept until the permanent leaves the
-     *  battlefield; otherwise it expires at that phase boundary. No-op if the
-     *  target has left the battlefield (CR 608.2b). */
+     *  battlefield; otherwise it expires at that phase boundary. A
+     *  `defenderId` pins the requirement to that player (issue #3247). No-op
+     *  if the target has left the battlefield (CR 608.2b). */
     grantAttackRequirement: (
         target: TargetSelection,
-        duration?: DurationSpec
+        duration?: DurationSpec,
+        /** CR 508.1d (issue #3247) — the player the creature must attack;
+         *  omitted = attacks anything if able. */
+        defenderId?: string
     ) => void;
     /** Marks a permanent so that if it would leave the battlefield, it is
      *  exiled instead of going to any other zone (CR 614.1c — a replacement
@@ -17626,6 +17630,13 @@ export type EffectOp =
            *  the Bot's enumeration and the client affordance all see it.
            *  Omitted `duration` = indefinite, exactly like the other legs. */
           attackRequirement?: true;
+          /** CR 508.1d (issue #3247) — pins the `attackRequirement` grant to
+           *  ONE player: "this creature attacks THAT PLAYER this combat if
+           *  able" (Ursine Monstrosity). Resolved once, at resolution, to a
+           *  concrete player id stored on the grant; attacking a planeswalker
+           *  that player controls then does not obey it. Valid only beside
+           *  `attackRequirement`. */
+          defender?: EffectPlayerRef;
       }
     /** CR 613.1d (layer 4, issue #1194) — adds `subtype` to a target permanent
      *  INDEFINITELY, in addition to its other types (Guide of Souls: "It
