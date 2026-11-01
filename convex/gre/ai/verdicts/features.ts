@@ -183,6 +183,7 @@ const FITTABLE_TERM_WEIGHTS = [
     "deckingWeight",
     "poisonWeight",
     "graveyardEngineWeight",
+    "graveyardEngineFraction",
     "graveyardReachFraction",
     "recoverableSweepFraction",
     "heldDifferentialFraction",
