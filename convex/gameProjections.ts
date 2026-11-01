@@ -32,6 +32,7 @@ import { canSummonCompanion } from "./gre/companion";
 import { outsideGamePool } from "./gre/outsideGame";
 import { canTurnFaceUp } from "./gre/morph";
 import { canPlot } from "./gre/plot";
+import { canForetell } from "./gre/foretell";
 import { isRequiredAttacker } from "./gre/combat";
 import { isFaceDownExile } from "./gre/faceDown";
 import { exileCastPermitted } from "./gre/castCost";
@@ -103,6 +104,12 @@ export type SlimHandCard = SlimCardInstance & {
      *  `gre/plot.ts` — the predicate the `plotCard` mutation and the Bot's
      *  enumerator read). Absent (never `false`) otherwise. */
     canPlot?: true;
+    /** CR 116.2h / 702.143a (issue #2096) — true when the viewer may take the
+     *  FORETELL special action on this own-hand card right now
+     *  (`canForetell`, `gre/foretell.ts` — the predicate the `foretellCard`
+     *  mutation and the Bot's enumerator read). Absent (never `false`)
+     *  otherwise. */
+    canForetell?: true;
 };
 
 /** Exile card in projected state: slim, plus `legalActions` when the viewer may
@@ -785,6 +792,10 @@ const FACE_DOWN_EXILE_PUBLIC_KEYS = [
     "castableFromExileUntilOwnTurn",
     "castableFromExileUntilOwnUpkeep",
     "castableFromExileFromTurn",
+    // CR 702.143e — that a face-down card is FORETOLD (and so which of a
+    // player's face-down exiles are foretold cards) is public: everyone saw
+    // the special action. Its identity is not.
+    "foretold",
 ] as const satisfies readonly (keyof CardInstanceState)[];
 
 function projectExileCard(
@@ -1709,6 +1720,9 @@ export function projectPublicState(
                             : {}),
                         ...(canPlot(state, player, card)
                             ? { canPlot: true as const }
+                            : {}),
+                        ...(canForetell(state, player, card)
+                            ? { canForetell: true as const }
                             : {}),
                     };
                 }),

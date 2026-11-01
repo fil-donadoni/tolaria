@@ -21854,7 +21854,7 @@ export interface CardDefinition {
      *
      *  This field carries the FIRST half only — the {@link AlternativeCost}
      *  shape verbatim, since 702.185a says casting for the warp cost "follows
-     *  the rules for paying alternative costs in rules 601.2b and 601.2f-h".
+     *  the rules for paying alternative costs in rules 601.2b and 601.2f–h".
      *  A pure MANA leg, like `dash` and unlike `evoke`. Kept as its own
      *  dedicated field — the `evoke`/`dash`/`bestow` convention — so the
      *  chosen alt cost is IDENTIFIABLE as "the warp one" at cast commit
@@ -22066,6 +22066,13 @@ export interface CardDefinition {
      *  later free cast belongs to the PLOTTED designation (CR 702.170d), never
      *  to this field, so a plotted card that lost its plot ability still casts. */
     plot?: ManaCost;
+    /** CR 702.143a — Foretell [cost]. The cost a FORETOLD card is cast for
+     *  from exile, "rather than paying that spell's mana cost" (an alternative
+     *  cost, CR 601.2b / 601.2f–h). The special action itself always costs
+     *  {2} (CR 702.143a / 116.2h) — that cost is the rule's, never the card's.
+     *  Read by `convex/gre/foretell.ts` (`getForetellCost`), the cast-cost
+     *  chokepoint (`castRawManaCost`) and `getLegalActions`. */
+    foretell?: ManaCost;
     /** CR 702.30a — Echo [cost]. The echo cost, declared as DATA (ADR 0155):
      *  the `getDefinition` seam (`expandEchoCumulativeUpkeep`) synthesizes the
      *  CR 702.30a upkeep trigger from it and the engine arms `echoPending` on

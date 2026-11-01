@@ -307,7 +307,7 @@ describe("forced-pass fast path: lockstep against the unconditional path", () =>
 });
 
 describe("onlyPassIsLegal names every move source of the priority window", () => {
-    it("the ordinary window of `enumerateMoves` has the sixteen `moves.push` sites the probe was written against", () => {
+    it("the ordinary window of `enumerateMoves` has the seventeen `moves.push` sites the probe was written against", () => {
         const source = readFileSync(
             fileURLToPath(new URL("../moves.ts", import.meta.url)),
             "utf8"
@@ -321,7 +321,7 @@ describe("onlyPassIsLegal names every move source of the priority window", () =>
         // A new site is a new way to act with priority: teach
         // `onlyPassIsLegal` (gre/moves.ts) to rule it out, then move this.
         expect(source.slice(start, end).split("moves.push(").length - 1).toBe(
-            16
+            17
         );
     });
 });
