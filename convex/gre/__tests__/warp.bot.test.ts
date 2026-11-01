@@ -23,7 +23,8 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import type { GameState } from "../state";
+import type { CardInstanceState, GameState } from "../state";
+import { evaluateBreakdown } from "../evaluate";
 import { WARP_PROBE_ID, warpProbe } from "./fixtures/warpProbe.fixture";
 
 const MOUNTAIN = getCardByName("Mountain").id;
@@ -142,5 +143,43 @@ describe("Warp — the Bot and the recast window's lower bound (CR 702.185a)", (
             expect(casts.map((m) => m.alternativeCostId)).toEqual([undefined]);
             expect(casts[0].tapPlan).toHaveLength(5);
         }
+    });
+});
+
+describe("Warp — the warped card is latent material before its window opens (issue #7587)", () => {
+    // CR 702.185a — the warped card is castable only from the next turn, but it
+    // is still the player's card: `evaluate`'s hand term counts it through the
+    // same `exileCastLatent` authority as a foretold or plotted card, so the
+    // warp line is not read as losing the creature at the end step.
+    function exiled(grant: Partial<CardInstanceState>) {
+        const card = makeInstance(WARP_PROBE_ID, {
+            id: "probe",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+            ...grant,
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { exile: [card] }), makePlayer("p2")],
+        });
+        state.turn = 3;
+        return state;
+    }
+
+    it("counts the closed-window warped card in the hand term, like an open one", () => {
+        const gone = exiled({});
+        const closed = exiled({
+            warpExiled: true,
+            castableFromExileBy: "p1",
+            castableFromExileFromTurn: 4,
+        });
+        const open = exiled({
+            warpExiled: true,
+            castableFromExileBy: "p1",
+            castableFromExileFromTurn: 3,
+        });
+        const hand = (s: GameState) => evaluateBreakdown(s, "p1").self.hand;
+        expect(hand(closed)).toBeGreaterThan(hand(gone));
+        expect(hand(closed)).toBe(hand(open));
     });
 });

@@ -2383,6 +2383,24 @@
         "landCount": 6,
         "libraryCount": 0
     },
+    "plot: banks a plot card with mana that would otherwise empty": {
+        "cards": [
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 4
+            },
+            {
+                "name": "Djinn of Fool's Fall",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "phase": "POSTCOMBAT_MAIN",
+        "turn": 3,
+        "libraryCount": 20
+    },
     "pointless self-animation: animates Treetop Village to block a lethal ground attacker": null,
     "poison clock: Terror takes the bigger vanilla Hill Giant when the bot holds no poison (issue #5153)": {
         "cards": [

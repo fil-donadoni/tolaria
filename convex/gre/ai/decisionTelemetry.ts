@@ -116,7 +116,7 @@ export const ROOT_RULE_ALLOWLIST: Record<
     "free-development": {
         kind: "rule",
         issue: 206,
-        why: "a land drop / free mana source / mana dork / untargeted sorcery-speed artifact or enchantment with a controller-held activated ability / the foretell special action (issue #2096): deploying and deferring reach the same rollout leaves (the pass edge casts it later the same turn), so no evaluation term separates them (ADR 0020 §1, issue #4070)",
+        why: "a land drop / free mana source / mana dork / untargeted sorcery-speed artifact or enchantment with a controller-held activated ability / a banking special action — foretell, plot (issues #2096, #7587): deploying and deferring reach the same rollout leaves (the pass edge casts it later the same turn), so no evaluation term separates them (ADR 0020 §1, issue #4070)",
     },
     "hold-trick": {
         kind: "rule",
