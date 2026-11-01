@@ -15886,11 +15886,22 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         audit: { theme: "cast × blink" },
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2],
-        tier: "must",
+        // Issue #7784 demoted this half: a noise pin. The 1-ply probe prices
+        // all seven targets of the ETB identically (`policyValue` 517.9 on
+        // the committed weights, 541.3 on the refit the probe fix obliges),
+        // so the Giant won only by `material-tiebreak` (20/21 seeds) and the
+        // refit's wider outcome-equal band hands the pick to
+        // `announcement-variant`, which ranks the two opposing targets equal
+        // and settles on Mountain (0/21). Promotion ticket: issue #7791.
+        tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            note: "The pending-return credit (`pendingReturnsWorth`) hands an exiled-until-end-step permanent back at its full worth, so a one-turn exile of the opposing Hill Giant and of an opposing Mountain read as the same no-op at the probe: the evaluation has no term for what the permanent would have done before it returns (the blocker the Giant is not for THIS combat, against the instant-speed mana a Mountain cannot make). Measured on issue #7784: every `submit-target` answer at one `policyValue`, under both the committed and the refit vector; no budget separates two answers the leaf scores equal. Promote to `must` in the PR that prices a temporary exile by the combat or mana it denies (issue #7791).",
+        },
         expect: {
             moves: [{ kind: "submit-target", target: "Hill Giant" }],
         },
-        note: "Issue #6334 — the mirror half: with no enters trigger on the bot's own creature, flickering it gains nothing and the opposing body's one-turn exile is the better answer. Green before the fix (Hill Giant 5/5 at 400) and after it (Hill Giant 5/5): the pending-return credit gives the Giant back to its owner at its full worth, so the exile is priced as the tempo it is, not as a kill.",
+        note: "Issue #6334 — the mirror half: with no enters trigger on the bot's own creature, flickering it gains nothing and the opposing body's one-turn exile is the better answer. Green before the fix (Hill Giant 5/5 at 400) and after it (Hill Giant 5/5): the pending-return credit gives the Giant back to its owner at its full worth, so the exile is priced as the tempo it is, not as a kill — and, issue #7784 found, as exactly the tempo a Mountain's exile is.",
     },
     {
         // CR 614.12a / 607.2b — Sutured Ghoul's "As this creature enters, exile
