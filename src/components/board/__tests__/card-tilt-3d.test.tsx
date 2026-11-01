@@ -237,12 +237,11 @@ describe("CardTilt3D hover interactions (#253)", () => {
             stubRect(root, { left: 0, top: 0, width: 200, height: 280 });
             fireEvent.pointerMove(root, { clientX: 30, clientY: 30 });
             expect(root.style.perspective).toBe("700px");
-            expect(inner.style.transformStyle).toBe("preserve-3d");
             expect(inner.style.willChange).toBe("transform");
 
             // The eased settle runs IN the 3D context; it is dropped after.
             fireEvent.pointerLeave(root);
-            expect(inner.style.transformStyle).toBe("preserve-3d");
+            expect(root.style.perspective).toBe("700px");
             vi.advanceTimersByTime(CARD_TILT.flattenAfterMs);
             flat();
 
@@ -251,7 +250,36 @@ describe("CardTilt3D hover interactions (#253)", () => {
             fireEvent.pointerLeave(root);
             fireEvent.pointerMove(root, { clientX: 30, clientY: 30 });
             vi.advanceTimersByTime(CARD_TILT.flattenAfterMs);
-            expect(inner.style.transformStyle).toBe("preserve-3d");
+            expect(root.style.perspective).toBe("700px");
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    // Issue #7707: toggling `transform-style: preserve-3d` on the parent of a
+    // tapped permanent's 90°-rotated layer left the card unpainted in Gecko
+    // (Firefox, Zen) — declared attackers vanished as the pointer crossed them.
+    // The tilt needs no preserve-3d (every descendant is in the card's plane),
+    // so it must never be set, through the whole engage → settle → flatten
+    // cycle and on a tapped card.
+    it("never sets transform-style: preserve-3d, tapped or not", () => {
+        vi.useFakeTimers();
+        try {
+            render(
+                <CardTilt3D visualRotationDeg={90}>
+                    <div data-testid="face" />
+                </CardTilt3D>
+            );
+            const root = tiltRoot();
+            const inner = tiltInner();
+            stubRect(root, { left: 0, top: 0, width: 200, height: 280 });
+            fireEvent.pointerMove(root, { clientX: 30, clientY: 30 });
+            expect(inner.style.transform).toContain("rotateX");
+            expect(inner.style.transformStyle).toBe("");
+            fireEvent.pointerLeave(root);
+            expect(inner.style.transformStyle).toBe("");
+            vi.advanceTimersByTime(CARD_TILT.flattenAfterMs);
+            expect(inner.style.transformStyle).toBe("");
         } finally {
             vi.useRealTimers();
         }
