@@ -1645,6 +1645,26 @@ export function ownPermanentChoiceFilterFromDescriptor(
 export function zoneChoiceFilterFromDescriptor(
     descriptor: DescriptorIR
 ): RuleResult<EffectCardFilter> {
+    // CR 205.3 — "a non-Avatar creature card": a subtype the picked card must
+    // NOT have, `EffectCardFilter.excludeSubtype`, read against the card's
+    // own `subtypes` in every zone (`matchesCardFilter`). Peeled here, at the
+    // hand/graveyard pick, rather than admitted by the library-search frame,
+    // whose argument classes stay the ones its fixtures show.
+    const excluded = descriptor.excludeSubtypes;
+    if (excluded !== undefined && excluded.length > 0) {
+        const rest = Object.fromEntries(
+            Object.entries(descriptor).filter(
+                ([field]) => field !== "excludeSubtypes"
+            )
+        ) as DescriptorIR;
+        const narrowed = zoneChoiceFilterFromDescriptor(rest);
+        if (!narrowed.ok) return narrowed;
+        return ok({
+            ...narrowed.value,
+            excludeSubtype:
+                excluded.length === 1 ? excluded[0]! : [...excluded],
+        });
+    }
     const types = descriptor.types;
     if (
         descriptor.card === true &&
