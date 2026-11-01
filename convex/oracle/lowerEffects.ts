@@ -4643,6 +4643,12 @@ function lowerSentenceBody(
             if (!target.ok) return target;
             return lowered([{ op: "phaseOut", target: target.value }]);
         }
+        case "become-prepared":
+            // CR 722.3a — the source's own permanent; the Op's seam refuses a
+            // permanent with no prepare spell or one already prepared.
+            return lowered([
+                { op: "becomePrepared", target: { ref: "$source" } },
+            ]);
         case "scry": {
             // CR 701.22a — look at the top N, any number to the bottom, the
             // rest back on top in any order: `scryReorder` to the bottom.

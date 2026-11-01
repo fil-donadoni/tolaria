@@ -199,6 +199,7 @@ import type {
 import { resolveEntersTapped } from "../cards/entersTapped";
 import {
     applyEntersPrepared,
+    becomePrepared,
     onPhasedInPrepared,
     onPreparedCopyCast,
 } from "./prepare";
@@ -13493,6 +13494,15 @@ export function buildSpellContext(
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             becomeMonstrousOnCard(state, found.card, count);
+        },
+        // CR 722.3a — "becomes prepared": the seam "enters prepared" uses, so
+        // its refusals (no prepare spell; already prepared) and the CR 722.3c
+        // exiled copy come from one place. No-op once gone (CR 608.2b).
+        becomePrepared(target: TargetSelection): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            becomePrepared(state, found.card);
         },
         // CR 700.2c — re-write a permanent's stored modal colour post-ETB. The
         // "choose a color" half of a re-choosable modal permanent (Chromatic
