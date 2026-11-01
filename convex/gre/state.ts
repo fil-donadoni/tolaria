@@ -337,7 +337,11 @@ import {
     isProtectedFromSource,
     playerHasProtectionFromEverything,
 } from "./protection";
-import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
+import {
+    isGuardedAgainst,
+    isOpponentCauseProhibited,
+    playerHasShroud,
+} from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
 import {
     validateAttackerEligibility,
@@ -6907,6 +6911,21 @@ export function removePermanentTo(
 ): CardInstanceState | null {
     const initial = findOnBattlefield(state, cardId);
     if (!initial) return null;
+    // CR 101.2 (issue #2607) — "spells and abilities your opponents control
+    // can't cause you to sacrifice permanents": the sacrifice does nothing.
+    // Only a resolving spell/ability passes a causer, so a cost the player
+    // pays is never barred here.
+    if (
+        cause === "sacrifice" &&
+        isOpponentCauseProhibited(
+            state,
+            initial.card.controllerId,
+            "sacrifice",
+            causerControllerId
+        )
+    ) {
+        return null;
+    }
     // CR 614.1c — a persistent leave-the-battlefield → exile replacement
     // (Dreams of the Dead's `exileOnLeave`) redirects EVERY departure path to
     // exile, before any zone-specific handling. A card already heading to exile
@@ -17720,6 +17739,25 @@ export function buildSpellContext(
             // controlled cast's resolution; the explicit `req.actingPlayerId`
             // (Word of Command's own card pick) still wins when supplied.
             const routed = routeActingPlayer(req.playerId);
+            // CR 101.2 (issue #2607) — a pick that can only feed a sacrifice
+            // or discard an opponent's spell or ability can't cause ("each
+            // player sacrifices a creature or a land" under Tamiyo, Collector
+            // of Tales) is answered empty: nothing is chosen, no prompt opens,
+            // and the barred action that follows does nothing.
+            if (
+                choiceFeedsBarredAction(
+                    state,
+                    req.kind,
+                    req.zoneOwnerId ?? req.playerId,
+                    item.castById
+                )
+            ) {
+                item.collectedChoices = {
+                    ...(item.collectedChoices ?? {}),
+                    [key]: [],
+                };
+                return [];
+            }
             const entry: PendingChoice = {
                 stackItemId: item.id,
                 step,
@@ -17818,15 +17856,25 @@ export function buildSpellContext(
             const routed = routeActingPlayer(req.playerId);
             // Arena UX — a decline forced by a shortfall no mana ability can
             // remedy is answered inline, exactly as a submitted Skip: the same
-            // `["no"]` answer under the same key, no Pending Choice.
+            // `["no"]` answer under the same key, no Pending Choice. CR 101.2
+            // (issue #2607) — so is a payment whose sacrifice/discard leg an
+            // opponent's spell or ability can't cause ("unless you sacrifice
+            // a permanent" under Tamiyo, Collector of Tales: the option can't
+            // be taken).
             if (
                 req.cost &&
-                mayPayDeclineForced(
+                (mayPayLegBarred(
                     state,
-                    routed.playerId,
+                    req.playerId,
                     req.cost,
-                    req.manaRestriction
-                )
+                    item.castById
+                ) ||
+                    mayPayDeclineForced(
+                        state,
+                        routed.playerId,
+                        req.cost,
+                        req.manaRestriction
+                    ))
             ) {
                 item.collectedChoices = {
                     ...(item.collectedChoices ?? {}),
@@ -21812,6 +21860,52 @@ export function payDiscardLastDrawn(
  *  `tryAutoCommitPendingActivation`) plus the Bot's SEARCH-side payment
  *  (`applyActivationCostsForSearch`, `gre/applyMove.ts`), which omitted the
  *  cause until issue #3206 — the defect declared as hole #3118. */
+/** CR 101.2 (issue #2607) — true when a pending pick of `kind` from
+ *  `zoneOwnerId`'s zone exists only to choose what that player sacrifices
+ *  (`sacrifice-permanents`) or discards (`discard-hand`), and a spell or
+ *  ability controlled by `causerControllerId` can't cause that action. */
+function choiceFeedsBarredAction(
+    state: GameState,
+    kind: string,
+    zoneOwnerId: string,
+    causerControllerId: string
+): boolean {
+    const action =
+        kind === "sacrifice-permanents"
+            ? "sacrifice"
+            : kind === "discard-hand"
+              ? "discard"
+              : undefined;
+    return (
+        action !== undefined &&
+        isOpponentCauseProhibited(
+            state,
+            zoneOwnerId,
+            action,
+            causerControllerId
+        )
+    );
+}
+
+/** CR 101.2 — true when `origin` is an opponent's effect barred from making
+ *  `playerId` discard (`isOpponentCauseProhibited`). A cost or a turn-based
+ *  action is never an opponent's spell or ability causing the discard. */
+function discardBarred(
+    state: GameState,
+    playerId: string,
+    origin: DiscardOrigin
+): boolean {
+    return (
+        origin.kind === "effect" &&
+        isOpponentCauseProhibited(
+            state,
+            playerId,
+            "discard",
+            origin.controllerId
+        )
+    );
+}
+
 export function discardToGraveyard(
     state: GameState,
     playerId: string,
@@ -21822,6 +21916,9 @@ export function discardToGraveyard(
     const player = getPlayer(state, playerId);
     const handCard = player.hand.find((c) => c.id === cardInstanceId);
     if (!handCard) return false;
+    // CR 101.2 (issue #2607) — "spells and abilities your opponents control
+    // can't cause you to discard": an opponent's effect discards nothing.
+    if (discardBarred(state, playerId, origin)) return false;
     // CR 614 — discard replacements (Library of Leng, Dodecapod) intercept
     // here, scoped by what caused the discard (issue #3814).
     const repl = applyDiscardReplacements(state, {
@@ -21923,6 +22020,9 @@ export function discardCardsAtRandom(
     requireType?: CardType
 ): string[] {
     const player = getPlayer(state, playerId);
+    // CR 101.2 (issue #2607) — a barred discard picks nothing at random
+    // either (no PRNG draw for a discard that cannot happen).
+    if (discardBarred(state, playerId, origin)) return [];
     // CR 701.8a — when a type is required (Rag Man: "a creature card at
     // random"), the random pick is drawn only from the matching subset.
     const candidateId = (): string | undefined => {
@@ -24737,6 +24837,36 @@ export function canPayMayPayCost(
         return false;
     }
     return true;
+}
+
+/** CR 101.2 (issue #2607) — true when paying `cost` would make `payerId`
+ *  sacrifice or discard on behalf of a spell or ability controlled by
+ *  `causerControllerId` that `isOpponentCauseProhibited` bars: the payment is
+ *  an option the player can't take, so the may-pay is declined. A `"return"`
+ *  permanent leg and an `"exile"` hand leg are neither action. */
+export function mayPayLegBarred(
+    state: GameState,
+    payerId: string,
+    cost: MayPayCost,
+    causerControllerId: string
+): boolean {
+    const norm = normalizeMayPayCost(cost);
+    return (
+        (norm.permanent?.action === "sacrifice" &&
+            isOpponentCauseProhibited(
+                state,
+                payerId,
+                "sacrifice",
+                causerControllerId
+            )) ||
+        (norm.hand?.action === "discard" &&
+            isOpponentCauseProhibited(
+                state,
+                payerId,
+                "discard",
+                causerControllerId
+            ))
+    );
 }
 
 /** True when a `may-pay` can only be declined AND that cannot change while
