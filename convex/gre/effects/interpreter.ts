@@ -8912,7 +8912,7 @@ export function runDelayedTriggerBody(
  *  a `requestChoice` under its own choiceId keyed by this Op's checkpoint, so
  *  a re-walk after voter N answers reads votes 1..N back off
  *  `collectedChoices` and asks voter N+1 — no new resume mechanism. The
- *  candidate set is frozen at the first walk (CR 608.2i) under the same
+ *  candidate set is frozen at the first walk (CR 608.2h) under the same
  *  checkpoint, so every voter chooses among the same objects.
  *
  *  The candidates are NOT targets (CR 115.1) — `selectForEachMembers` sweeps
@@ -8928,7 +8928,7 @@ export function runDelayedTriggerBody(
 function runVote(ctx: SpellContext, op: OpOf<"vote">): OpOutcome {
     const pos = ctx.getScriptCheckpoint() ?? 0;
     const controller = resolvePlayerRef(ctx, "controller");
-    if (controller === undefined) return; // CR 608.2b — nobody to start
+    if (controller === undefined) return; // CR 609.3 — nobody to start
     const order = ctx.apNapOrder();
     const start = Math.max(0, order.indexOf(controller));
     const voters = [...order.slice(start), ...order.slice(0, start)];
@@ -8939,7 +8939,7 @@ function runVote(ctx: SpellContext, op: OpOf<"vote">): OpOutcome {
         candidateIds = selectForEachMembers(ctx, op.candidates);
         ctx.noteChoice(candidatesKey, candidateIds);
     }
-    // CR 608.2b — nothing to vote for: no vote, the binding stays uncaptured
+    // CR 609.3 — nothing to vote for: no vote, the binding stays uncaptured
     // and every reader skips.
     if (candidateIds.length === 0) return;
 

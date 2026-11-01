@@ -19622,7 +19622,7 @@ export type EffectOp =
      *
      *  NOT a target (CR 115.1): `candidates` is a non-targeted battlefield
      *  sweep — the `forEach` permanents selector's own shape and resolver —
-     *  frozen once at the Op's entry (CR 608.2i), so hexproof, shroud,
+     *  frozen once at the Op's entry (CR 608.2h), so hexproof, shroud,
      *  protection and ward never narrow it. A thin declarative skin over the
      *  EXISTING `SpellContext.requestChoice` (`choose-permanents` over a
      *  `candidateIds` allow-list, every controller's battlefield): ONE
@@ -19633,7 +19633,7 @@ export type EffectOp =
      *
      *  A voter with ONE candidate is not asked (Arena parity: no zero-branch
      *  prompt). No candidates → no vote, the binding stays uncaptured and the
-     *  readers skip (CR 608.2b).
+     *  readers skip (CR 609.3).
      *
      *  Deliberately NOT: OPTION votes ("vote for carnage or homicide",
      *  CR 701.38b's "words with no rules meaning"), and CR 701.38d's
