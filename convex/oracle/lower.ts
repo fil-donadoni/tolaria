@@ -173,6 +173,8 @@ interface Accumulator {
     overload?: AlternativeCost;
     /** CR 702.37e — the cost to turn the permanent face up. */
     morph?: ManaCost;
+    /** CR 702.176a — the card's impending alternative cost. */
+    impending?: AlternativeCost;
     echo?: MayPayCost;
     cumulativeUpkeep?: MayPayCost;
 }
@@ -832,6 +834,19 @@ function lowerLine(
             };
             return null;
         }
+        case "impending": {
+            if (acc.impending !== undefined)
+                return "a card declares impending twice (CR 702.176a)";
+            // The id is the `CardDefinition.impending` convention; N rides on
+            // the keyword string the `getDefinition` seam expands.
+            acc.impending = {
+                id: "impending",
+                description: ir.description,
+                mana: ir.cost,
+            };
+            acc.staticAbilities.push(`impending ${ir.count}`);
+            return null;
+        }
         case "morph": {
             if (acc.morph !== undefined)
                 return "a card declares morph twice (CR 702.37a)";
@@ -1388,6 +1403,7 @@ export function lowerCard(
     if (acc.madness !== undefined) definition.madness = acc.madness;
     if (acc.plot !== undefined) definition.plot = acc.plot;
     if (acc.morph !== undefined) definition.morph = acc.morph;
+    if (acc.impending !== undefined) definition.impending = acc.impending;
     if (acc.echo !== undefined) definition.echo = acc.echo;
     if (acc.cumulativeUpkeep !== undefined)
         definition.cumulativeUpkeep = acc.cumulativeUpkeep;

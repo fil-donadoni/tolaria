@@ -4130,6 +4130,9 @@ function finalizeSpellResolution(
                 // the ephemeral field is what the payment actually produced,
                 // so it is read here rather than the persisted twin.
                 manaSpentToCast: item.notedManaSpent ?? {},
+                // CR 702.176a — "if you chose to pay this permanent's
+                // impending cost": the cast-mode marker on the resolving item.
+                impended: item.impended,
             },
             state
         );

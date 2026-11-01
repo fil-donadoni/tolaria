@@ -152,6 +152,7 @@ export type CastModeMarkers = {
     evoked?: boolean;
     dashed?: boolean;
     warped?: boolean;
+    impended?: boolean;
     overloaded?: boolean;
     bestowed?: boolean;
     morphed?: boolean;
@@ -422,6 +423,7 @@ export function commitCast(
         ...(mode.evoked ? { evoked: true } : {}),
         ...(mode.dashed ? { dashed: true } : {}),
         ...(mode.warped ? { warped: true } : {}),
+        ...(mode.impended ? { impended: true } : {}),
         // CR 702.96a (issue #3215) — unlike `bestowed` the overload marker is
         // not consumed below: it stays on the stack item, because the text
         // change functions until the spell has finished resolving.

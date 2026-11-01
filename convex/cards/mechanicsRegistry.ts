@@ -2429,7 +2429,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Impending",
         kind: "keyword-ability",
         cr: "702.176",
-        status: "planned",
+        status: "implemented",
+        bindingPattern: /^impending \d+$/,
+        note: 'convex/cards/abilities/impending.ts — CR 702.176a is FOUR abilities, shipped as a COMPOSITION of Warp\'s cost half and Bestow\'s and Vanishing\'s expansions (issue #1970). (1) The alternative cost is `CardDefinition.impending`, the `AlternativeCost` shape `dash`/`warp` use, resolved by `getAlternativeCost`/`affordableAlternativeCosts`; choosing it stamps `impended: true` at every cast-commit site in `convex/game.ts` and in the cast-mode census (`gre/castMode.ts`), and the marker rides onto the permanent ("this permanent\'s impending cost was paid" — an INSTANCE fact, cleared on any zone change, CR 400.7). The other three are expanded from the `"impending N"` keyword string at the getDefinition seam (ADR 0054): (2) an `entersWith` replacement (CR 614.1c) counted `{ ifImpended: N }`, so a hard-cast copy enters with no time counters; (3) a self-applying layer-4 `type-remove` of Creature gated on `impended && time > 0`, re-read at every derivation of the layers-2-to-5 walk, so the last counter coming off makes it a creature with no event involved; (4) a `phaseTrigger` at the controller\'s END_STEP with the CR 603.4 intervening-if on the same condition, removing one time counter (no sacrifice tail). The Oracle grammar emits both halves from the "Impending N—[cost]" line (`impendingRule`, `oracle/grammar/slots/keywordLine.ts`). Used by Overlord of the Balemurk.',
     },
     // 702.177 Exhaust
     {

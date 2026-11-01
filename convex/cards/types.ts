@@ -8582,6 +8582,14 @@ export interface PermanentView {
      *  ETB event firing and this trigger resolving, so no resolve-time
      *  re-check plumbing is needed. */
     dashed?: boolean;
+    /** CR 702.176a — true iff this permanent's impending cost was paid (set
+     *  on the stack item at cast commit when the chosen alternative cost ===
+     *  `CardDefinition.impending`; rides onto the entering permanent for
+     *  free, the `evoked`/`dashed` precedent). Unlike those two it is read
+     *  for the permanent's whole life, not by one ETB trigger: it gates the
+     *  entry time counters, the layer-4 "not a creature" removal and the
+     *  end-step counter removal (`convex/cards/abilities/impending.ts`). */
+    impended?: boolean;
     /** CR 307.1 / 117.1a / 601.3a — true iff this permanent was cast at a
      *  moment a sorcery couldn't have been cast (set on the stack item at
      *  cast commit from the shared `wasCastOffSorceryTiming` predicate,
@@ -9253,21 +9261,21 @@ export interface StaticTypeAdd extends ZoneScopedStaticEffect {
 
 /** Continuous static ability that REMOVES card type(s) from a permanent
  *  (CR 205, 611, 1.3 — layer 4 type-setting effects, the subtractive
- *  counterpart of `StaticTypeAdd`). Mutates the affected permanent's `types`
- *  array imperatively on apply (and restores on unapply) via a per-`(source,
- *  type)` origin list, so unapplying one source only restores a type when no
- *  other source still suppresses it, and a NON-printed type is never
- *  restored. Used by Reconfigure (CR 702.151b — "Attaching an Equipment with
+ *  counterpart of `StaticTypeAdd`). DERIVED, never stamped: the layer-4
+ *  walk recomputes the affected permanent's type line from its printed one
+ *  at every read, so a removal that stops applying leaves nothing to
+ *  restore. Used by Reconfigure (CR 702.151b — "Attaching an Equipment with
  *  reconfigure to another creature causes the Equipment to stop being a
  *  creature until it becomes unattached", issue #1311): a Reconfigure
  *  permanent's own static ability removes its own "Creature" type while
  *  `source.attachedTo` is set (`applies: (target, source) => target.id ===
  *  source.id && !!source.attachedTo`, i.e. `EFFECT_AFFECTS_SELF` combined
  *  with an attached check) — self-targeting, but the shape is general enough
- *  for a future HOST-targeting type-loss effect too. Like `StaticTypeAdd`,
- *  `applies` is read at apply time (attach/detach), not continuously
- *  recomputed — sufficient for the shipped scope (no card revokes a
- *  type-remove mid-attachment without also detaching). */
+ *  for a future HOST-targeting type-loss effect too. `applies` is read at
+ *  EVERY derivation of the layers-2-to-5 walk (`gre/layers2to5.ts`, CR 613.1),
+ *  not only at attach/detach: Impending's "not a creature" removal
+ *  (CR 702.176a) is revoked by its last time counter coming off, with no
+ *  event to hang a re-application on. */
 export interface StaticTypeRemove extends ZoneScopedStaticEffect {
     kind: "type-remove";
     /** Predicate: does this removal apply to `target` given `source`? */
@@ -21795,6 +21803,24 @@ export interface CardDefinition {
      *  trigger infra's `warpCardInstanceId` marker. By convention this card's
      *  `AlternativeCost.id` is `"warp"`. */
     warp?: AlternativeCost;
+    /** CR 702.176 — Impending. "Impending N—[cost]" means "You may choose to
+     *  pay [cost] rather than pay this spell's mana cost" (the first of the
+     *  keyword's FOUR abilities, CR 702.176a), and "casting a spell for its
+     *  impending cost follows the rules for paying alternative costs in rules
+     *  601.2b and 601.2f–h".
+     *
+     *  This field carries the COST only — the {@link AlternativeCost} shape
+     *  verbatim, a pure MANA leg like `dash`/`warp`, kept as its own field so
+     *  the chosen alt cost is IDENTIFIABLE as "the impending one" at cast
+     *  commit (compared by reference), tagging the stack item
+     *  `impended: true`, which rides onto the entering permanent for free (a
+     *  stack item IS its `CardInstanceState`). `N` lives in the keyword string
+     *  `"impending N"` on `staticAbilities`, from which the other three
+     *  abilities (enter with N time counters, not a creature while one
+     *  remains, the end-step removal) are expanded at the `getDefinition`
+     *  seam (`convex/cards/abilities/impending.ts`, ADR 0054). By convention
+     *  this card's `AlternativeCost.id` is `"impending"`. */
+    impending?: AlternativeCost;
     /** CR 702.103 — Bestow. "Bestow [cost]" means "As you cast this spell, you
      *  may choose to cast it bestowed. If you do, you pay [cost] rather than
      *  its mana cost" (702.103a), and a spell cast bestowed "becomes an Aura
