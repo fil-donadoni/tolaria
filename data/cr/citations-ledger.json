@@ -32010,7 +32010,6 @@
         {"id":"608.2b","line":"// Still in exile ⇒ never cast (CR 608.2b) — a cast card has","sites":1,"status":"baseline"},
         {"id":"608.2b","line":"// The Bolt left the stack countered by the rules (CR 608.2b).","sites":1,"status":"confirmed","ruleHash":"f664a824528a8dfe"},
         {"id":"608.2b","line":"// The ability was neither fizzled by the CR 608.2b gate nor prevented","sites":1,"status":"baseline"},
-        {"id":"608.2b","line":"// The card must still sit in that graveyard (CR 608.2b).","sites":1,"status":"confirmed","ruleHash":"f664a824528a8dfe"},
         {"id":"608.2b","line":"// The choice finds zero candidates (CR 608.2b) and is skipped","sites":1,"status":"baseline"},
         {"id":"608.2b","line":"// The host leaves in response — CR 608.2b would counter an ordinary","sites":1,"status":"baseline"},
         {"id":"608.2b","line":"// The mirror of the above, and the direct CR 608.2b proof for the","sites":1,"status":"baseline"},
