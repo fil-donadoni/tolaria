@@ -7385,8 +7385,8 @@ export const OP_EXECUTORS: {
     // the battlefield." ALL-OR-NOTHING: a slot the legality gate blanked
     // (`ctx.targets[n]` undefined, or no longer the right kind of object)
     // skips BOTH halves. Re-checks presence in the zone each slot was
-    // targeted in (a permanent that already left the battlefield, a card that
-    // left the graveyard) before touching either, so neither half can run
+    // targeted in before touching either (the resolution-time legality gate
+    // blanks a slot whose object left its zone), so neither half can run
     // alone. Both moves happen inside this one executor — no SBA, priority or
     // trigger resolution between them — so the swap's leave/enter triggers are
     // put on the stack together (CR 603.3b).
@@ -7397,8 +7397,6 @@ export const OP_EXECUTORS: {
         if (ret?.type !== "graveyard-card" || ret.playerId === undefined) {
             return;
         }
-        // The card must still sit in that graveyard (CR 608.2b).
-        if (ctx.getGraveyardCardOwner(ret.id) !== ret.playerId) return;
         ctx.sacrifice(sac.id);
         ctx.returnCardSetToBattlefield([
             { playerId: ret.playerId, cardInstanceId: ret.id },
