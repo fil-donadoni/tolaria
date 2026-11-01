@@ -15630,6 +15630,9 @@ export function buildSpellContext(
         getAdditionalCostSupertypes(): string[] | undefined {
             return item.additionalSacrificeSnapshot?.supertypes;
         },
+        getCastFromZone(): CastFromZone | undefined {
+            return item.castFromZone;
+        },
         getManaValue(target: TargetSelection): number {
             if (target.type === "permanent") {
                 const found = findOnBattlefield(state, target.id);

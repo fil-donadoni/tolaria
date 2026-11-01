@@ -769,6 +769,12 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
         if (!playerId) return false;
         return ctx.hasCityBlessing(playerId);
     }
+    // castFromZone (issue #2097, Delayed Blast Fireball) — CR 601.2a: "if this
+    // spell was cast from exile" reads the zone stamped on the stack item at
+    // cast commit, never a mechanism flag. Not cast (ability/copy) -> false.
+    if ("castFromZone" in pred) {
+        return ctx.getCastFromZone() === pred.castFromZone;
+    }
     // costVictimMatchesFilter (issue #6503, Storm Elemental) — CR 608.2h: the
     // card an activation exiled or sacrificed as a cost is gone by resolution,
     // so match the stack item's last-known snapshot (CR 205.2a types, 205.4a
