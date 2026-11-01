@@ -207,3 +207,68 @@ export function pruneDominatedTriggerTargets(
         return true;
     });
 }
+
+// Answers the policy rates far below the best (issue #7812) — the rule the
+// strict prune above cannot be for an EXCHANGE. Gilded Drake's trigger trades
+// the Drake for the chosen creature (CR 701.12a), so every answer moves
+// permanents across both sides and no inclusion holds between any two of them:
+// the axes leave them all incomparable, and nothing is pruned. The tree still
+// explores each one, and below the root its mean backup debits the cast with
+// the mover's own bad trades — measured at 48 iterations, a cast whose best
+// answer settles at 327.8 read as a −59…−119 margin against a `pass` whose
+// rollouts cast the same card later and took the best trade there, because the
+// rollout's greedy policy never averages.
+//
+// So a node below the root reads each answer the way that policy does — the
+// 1-ply probe, which resolves the trigger to the end once its targets are
+// announced — and keeps only the answers within `TRIGGER_ANSWER_BEAM` of the
+// best one in reward: the node plays like its own rollout, ties and near-ties
+// kept for the tree to separate. The root keeps every answer (its statistics
+// are the decision, and `selectRootMove` reads them all). An answer the probe
+// cannot read to the end (`value` returns `undefined`) is never judged and
+// never anyone's best, like an unjudged answer above.
+
+/** Reward width of the beam: the size of a nudge, not of a verdict. The
+ *  open band maps a material margin linearly onto reward
+ *  (`rewardFromValue`, `materialFull` 500 points for half the band), so
+ *  0.05 is about 100 points — less than a 2/2 changing sides, which is what
+ *  every exchange answer differs by at least. */
+export const TRIGGER_ANSWER_BEAM = 0.05;
+
+/** `moves` without the trigger-target answers whose policy reward trails the
+ *  best answer's by more than `TRIGGER_ANSWER_BEAM`. The same gate as
+ *  `pruneDominatedTriggerTargets`: unchanged unless `state` is a trigger's
+ *  target announcement (CR 603.3d) owned by `moverId` with that trigger alone
+ *  on the stack. `value` is the mover's reward for one answer, or
+ *  `undefined` when the probe could not settle it. Never emptying: the best
+ *  answer always survives. */
+export function beamTriggerTargetsByValue(
+    state: GameState,
+    moverId: string,
+    moves: readonly Move[],
+    value: (move: Move) => number | undefined
+): Move[] {
+    const announcing = state.pendingTarget;
+    if (
+        !announcing ||
+        announcing.kind !== "trigger" ||
+        announcing.playerId !== moverId ||
+        state.stack.length !== 1
+    ) {
+        return [...moves];
+    }
+    const answers = moves.filter((m) => m.kind === "submit-target");
+    if (answers.length < 2) return [...moves];
+    const rewards = new Map<Move, number>();
+    let best = -Infinity;
+    for (const move of answers) {
+        const reward = value(move);
+        if (reward === undefined) continue;
+        rewards.set(move, reward);
+        if (reward > best) best = reward;
+    }
+    return moves.filter((m) => {
+        const reward = rewards.get(m);
+        return reward === undefined || reward >= best - TRIGGER_ANSWER_BEAM;
+    });
+}
