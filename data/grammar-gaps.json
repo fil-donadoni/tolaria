@@ -176,6 +176,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature [haste] › pump",
+            "issue": 7141
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature [menace] › counters",
             "issue": 4837
         },
