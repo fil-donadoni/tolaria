@@ -16,6 +16,8 @@ import {
     packageJsonClass,
     classifyLane as classifyLaneLive,
     renderPlan,
+    renderSkips,
+    REVIEW_SKIPS_MAX,
     renderJson,
     runPlan,
     renderReceipt,
@@ -1563,6 +1565,40 @@ describe("check-lane — every planned check is invokable today (issue #2740)", 
     });
 });
 
+describe("check-lane — `--plan --skips` prints the review brief's list (issue #7659)", () => {
+    const plan = (n: number): LanePlan => ({
+        lane: "engine",
+        rationale: "test",
+        files: [],
+        run: [],
+        skip: Array.from({ length: n }, (_, i) => ({
+            id: `step${i}`,
+            reason: `health's: f${i}.test.ts (${i} s)`,
+        })),
+    });
+
+    it("renders one `- id — reason` line per skip, the cost riding in the reason", () => {
+        expect(renderSkips(plan(2))).toBe(
+            "- step0 — health's: f0.test.ts (0 s)\n- step1 — health's: f1.test.ts (1 s)"
+        );
+    });
+
+    it("caps at ten lines and counts the overflow", () => {
+        const lines = renderSkips(plan(REVIEW_SKIPS_MAX + 3)).split("\n");
+        expect(lines).toHaveLength(REVIEW_SKIPS_MAX);
+        expect(lines.at(-1)).toContain("+4 more");
+    });
+
+    it("says so when nothing was skipped", () => {
+        expect(renderSkips(plan(0))).toContain("none");
+    });
+
+    it("`--skips` only takes effect with `--plan`", () => {
+        expect(parseArgs(["--plan", "--skips"]).skipsOnly).toBe(true);
+        expect(parseArgs(["--skips"]).skipsOnly).toBe(false);
+    });
+});
+
 describe("check-lane — the printed receipt renders the plan (issue #2740)", () => {
     it("prints the lane, the run list and the skip list with reasons", () => {
         const plan = classifyLane([
@@ -1969,6 +2005,7 @@ describe("check-lane — `--plan`: the classification without the gate (ADR 0136
             base: ORIGIN_BASE,
             json: false,
             planOnly: true,
+            skipsOnly: false,
             retryFlaky: false,
             regenerateDerived: false,
         });
@@ -1976,6 +2013,7 @@ describe("check-lane — `--plan`: the classification without the gate (ADR 0136
             base: "origin/x",
             json: true,
             planOnly: true,
+            skipsOnly: false,
             retryFlaky: false,
             regenerateDerived: false,
         });

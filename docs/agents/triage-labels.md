@@ -110,8 +110,9 @@ issue is parented to its band's umbrella). A script that COPIES an issue
 
 **This section is the single authority on model routing, for filing AND for
 pickup.** `model:opus` and `model:fable` decide whether `/next-ticket` may run
-an issue on the session's tier and where its review is routed; `resolveModel` in `scripts/lib/queue-plan.ts` reads the label
-first. An unlabelled issue runs on the default tier (Sonnet). There
+an issue on the session's tier; `resolveModel` in `scripts/lib/queue-plan.ts` reads the label
+first. Review is not routed by label: every code lane gets one opus reviewer
+briefed with the lane's skip list (`/next-ticket` § 4, issue #7659). An unlabelled issue runs on the default tier (Sonnet). There
 is deliberately no `model:sonnet` label — absence IS the default.
 
 **The area rule** (issue #7654, owner decision 2026-10-31): an issue with NO
