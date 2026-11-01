@@ -52,21 +52,23 @@ function attributionOf(card: Partial<OracleCard>): Attribution | undefined {
 }
 
 describe("attribution — one real card per slot names the sub-grammar that failed", () => {
-    it("keyword-line: a parameterised keyword the vocabulary cannot read (Air Response Unit)", () => {
+    it("keyword-line: a parameterised keyword the vocabulary cannot read (Sleep-Cursed Faerie)", () => {
+        // The fixture was Air Response Unit ("Crew 1") until issue #7214
+        // taught the keyword line Crew; Ward has no compiled trigger shape.
         expect(
             attributionOf({
-                name: "Air Response Unit",
-                manaCost: "{2}{W}",
-                typeLine: "Artifact — Vehicle",
+                name: "Sleep-Cursed Faerie",
+                manaCost: "{U}",
+                typeLine: "Creature — Faerie Wizard",
                 oracleText:
-                    "Flying, vigilance\nCrew 1 (Tap any number of creatures you control with total power 1 or more: This Vehicle becomes an artifact creature until end of turn.)",
+                    "Flying, ward {2}\nThis creature enters tapped with three stun counters on it. (If it would become untapped, remove a stun counter from it instead.)\n{1}{U}: Untap this creature.",
                 power: "3",
                 toughness: "3",
             })
         ).toEqual({
             slot: "keyword-line",
             path: [KEYWORD_ABILITY],
-            span: "Crew 1",
+            span: "ward {2}",
         });
     });
 
