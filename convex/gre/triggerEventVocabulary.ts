@@ -123,6 +123,8 @@ export const EVENT_FIELD_KINDS: {
         types: "scalar",
         subtypes: "scalar",
         wasAura: "scalar",
+        // CR 603.10a (issue #1372) — a plain counter-kind → count map.
+        countersBeforeLeave: "scalar",
         attachedToBeforeLeave: "object",
         attachmentsBeforeLeave: "objectList",
         linkedExileBeforeLeave: "objectList",
