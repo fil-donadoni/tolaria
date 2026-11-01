@@ -5180,7 +5180,20 @@ function lowerFrameChain(
 ): Lowered<EffectOp[]> {
     const ops: EffectOp[] = [];
     let found: string | null = null;
+    // CR 701.38 — a vote's outcome binding, waiting for the frame that acts
+    // on it; the one right after the vote, or the chain is misread.
+    let voted: string | null = null;
     for (const frame of sentence.frames) {
+        if (
+            voted !== null &&
+            !(
+                frame.frame === "moveZone" &&
+                frame.object.kind === "vote-winners"
+            )
+        )
+            return unlowerable(
+                "a vote is followed by something other than what it decides"
+            );
         switch (frame.frame) {
             case "sacrifice": {
                 const lowered = lowerSacrificeFrame(frame, walk, site);
@@ -5246,7 +5259,36 @@ function lowerFrameChain(
                 found = bind;
                 break;
             }
+            case "vote": {
+                // CR 701.38a — the controller votes first, then each player
+                // in turn order; the Op binds the permanents with the most
+                // votes or tied for most, and acts on none of them.
+                voted = walk.nextBind("winners");
+                ops.push({
+                    op: "vote",
+                    candidates: frame.candidates,
+                    prompt: `Vote for ${frame.phrase}.`,
+                    bind: voted,
+                });
+                break;
+            }
             case "moveZone": {
+                // CR 701.38 — "Exile each permanent with the most votes or
+                // tied for most votes": every winner, none of them a target
+                // (CR 115.1), so hexproof and protection do not save one.
+                if (frame.object.kind === "vote-winners") {
+                    if (voted === null)
+                        return unlowerable(
+                            '"each permanent with the most votes" follows no vote'
+                        );
+                    ops.push({
+                        op: "forEach",
+                        select: { set: "bound", ref: voted },
+                        effects: [{ op: "exile", target: { ref: "$each" } }],
+                    });
+                    voted = null;
+                    break;
+                }
                 // CR 601.2 + CR 305.1 — the exile of the top of a library
                 // that "you may play that card" reads back binds its card.
                 const exiledBind =
@@ -5510,6 +5552,8 @@ function lowerFrameChain(
                 break;
         }
     }
+    if (voted !== null)
+        return unlowerable("a vote decides nothing no later frame acts on");
     if (sentence.then === undefined) return lowered(ops);
     // CR 118.12 — "If you do" behind the chain: the gated effect runs on the
     // EVIDENCE the sacrifice left (the bind of the Op that moved something;
@@ -5737,6 +5781,11 @@ function lowerMoveFrame(
     const slots = walk.targets;
     const { object, to, tapped } = frame;
     switch (object.kind) {
+        // CR 701.38 — lowered by the chain, which holds the vote's binding.
+        case "vote-winners":
+            return unlowerable(
+                '"each permanent with the most votes" follows no vote'
+            );
         case "pronoun": {
             if (found === null)
                 return unlowerable(
