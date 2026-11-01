@@ -12,14 +12,14 @@
     },
     "medium (13 moves)": {
         "iterationsCompleted": 96,
-        "clones": 391,
-        "enumerations": 620,
-        "evaluations": 294,
-        "sbaSweeps": 2175,
+        "clones": 389,
+        "enumerations": 612,
+        "evaluations": 292,
+        "sbaSweeps": 2153,
         "ptWalkVisits": 0,
-        "censuses": 739,
+        "censuses": 734,
         "rngDraws": 0,
-        "searchDraws": 5679
+        "searchDraws": 5656
     },
     "large (49 moves)": {
         "iterationsCompleted": 100,
