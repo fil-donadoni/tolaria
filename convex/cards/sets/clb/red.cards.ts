@@ -6,36 +6,45 @@ import { SKELETON_TOKEN } from "../../sharedTokens";
 // Delayed Blast Fireball — {1}{R}{R} Instant. "Delayed Blast Fireball deals 2
 // damage to each opponent and each creature they control. If this spell was
 // cast from exile, it deals 5 damage to each opponent and each creature they
-// control instead. Foretell {4}{R}{R}." (CR 702.143 Foretell.) BLOCKED:
-// Foretell is STILL `status: "planned"` in `mechanicsRegistry.ts` — no
-// foretell-exile-from-hand zone/timing, no later-turn foretell-cost cast
-// path, and no "was this spell cast from exile" resolve-time condition. The
-// card's own damage amount is conditioned on Foretell, so a partial
-// hand-cast-only implementation would misrepresent the oracle text. Do not
-// invent a name or paper over the gap with `resolve()`.
-//
-// RE-POINTED 2026-08-26 (#1841 audit): #925 closed 2026-08-03 as
-// stateReason COMPLETED, which reads as "shipped" — it did NOT ship. Its own
-// last comment records it was superseded by PRD #2091 after a design grill
-// (2026-08-03): Foretell ships as six slices (#2092..#2097) with three of
-// #925's own premises corrected there (timing is CR 702.143a/116.2h any time
-// during your turn, not sorcery-speed; `StackItem` carried no `castFromZone`
-// then; the "cast from a non-hand zone" seam is per-keyword, not shared —
-// ADR 0088). This exact stub is #2097's own acceptance criterion ("closes
-// this issue" in #2097's body); #2097 sits under #2096 (the Foretell
-// keyword itself) and umbrella PRD #2091. No engine work happened between
-// #925's close and HEAD — Foretell is exactly as unbuilt as this paragraph
-// already said.
-// tracked-by: #2097
-// export const delayedBlastFireball: CardDefinition = {
-//     id: "400c76c6-f677-4e7e-87ad-2e526d4b498a",
-//     name: "Delayed Blast Fireball",
-//     rarity: "rare",
-//     oracleText:
-//         "Delayed Blast Fireball deals 2 damage to each opponent and each creature they control. If this spell was cast from exile, it deals 5 damage to each opponent and each creature they control instead.\nForetell {4}{R}{R} (During your turn, you may pay {2} and exile this card from your hand face down. Cast it on a later turn for its foretell cost.)",
-//     manaCost: { X: 1, R: 2 },
-//     types: ["Instant"],
-// };
+// control instead. Foretell {4}{R}{R}." (CR 702.143 Foretell.) The branch
+// reads the ZONE the spell was cast from (`castFromZone: "exile"`, CR 601.2a),
+// not "was foretold": a foretold card cast for its normal cost from exile
+// still deals 5, and a card cast from exile under another permission deals 5
+// without ever being foretold (CR 702.143c). The damage is simultaneous —
+// one `dealDamageToEach`, never a `forEach` walk.
+// compiler-gap: "If this spell was cast from exile, it deals 5 damage to each opponent and each creature they control instead." (#2693)
+export const delayedBlastFireball = defineCard(() => ({
+    id: "400c76c6-f677-4e7e-87ad-2e526d4b498a",
+    name: "Delayed Blast Fireball",
+    rarity: "rare",
+    oracleText:
+        "Delayed Blast Fireball deals 2 damage to each opponent and each creature they control. If this spell was cast from exile, it deals 5 damage to each opponent and each creature they control instead.\nForetell {4}{R}{R} (During your turn, you may pay {2} and exile this card from your hand face down. Cast it on a later turn for its foretell cost.)",
+    manaCost: { X: 1, R: 2 },
+    types: ["Instant"],
+    foretell: { X: 4, R: 2 },
+    effects: [
+        {
+            op: "if",
+            predicate: { castFromZone: "exile" },
+            then: [
+                {
+                    op: "dealDamageToEach",
+                    amount: 5,
+                    creatures: { controller: "opponent" },
+                    players: "opponent",
+                },
+            ],
+            else: [
+                {
+                    op: "dealDamageToEach",
+                    amount: 2,
+                    creatures: { controller: "opponent" },
+                    players: "opponent",
+                },
+            ],
+        },
+    ],
+}));
 
 // Gut, True Soul Zealot — {2}{R} Legendary Creature — Goblin Shaman, 2/2
 // (CLB 180, issue #2373, Vintage Cube). "Whenever you attack, you may

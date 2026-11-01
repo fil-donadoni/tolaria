@@ -16958,6 +16958,14 @@
         "source": "compiled"
     },
     {
+        "name": "Delayed Blast Fireball",
+        "scryfallId": "400c76c6-f677-4e7e-87ad-2e526d4b498a",
+        "oracleId": "99915b5a-5092-4900-8824-6de2aab1b2c1",
+        "firstSet": "clb",
+        "firstPrintId": "400c76c6-f677-4e7e-87ad-2e526d4b498a",
+        "firstPrintSet": "clb"
+    },
+    {
         "name": "Deliberate",
         "scryfallId": "c41c0dd0-fef2-4f3c-8f3c-9c9c521b5442",
         "oracleId": "362fc643-ab76-4160-a73e-73397464db40",

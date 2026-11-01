@@ -37804,6 +37804,61 @@ describe("EffectPredicate `costVictimMatchesFilter` (CR 608.2h, issue #6503)", (
     });
 });
 
+// ---------------------------------------------------------------------------
+// `castFromZone` — "if this spell was cast from exile" (CR 601.2a, issue #2097)
+// ---------------------------------------------------------------------------
+describe("EffectPredicate `castFromZone` (CR 601.2a, issue #2097)", () => {
+    const FROM_EXILE = registerScript("test-cast-from-exile", [
+        {
+            op: "if",
+            predicate: { castFromZone: "exile" },
+            then: [{ op: "gainLife", player: "controller", amount: 5 }],
+            else: [{ op: "gainLife", player: "controller", amount: 2 }],
+        },
+    ]);
+
+    function lifeAfter(castFromZone?: StackItem["castFromZone"]) {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, FROM_EXILE, "p1");
+        if (castFromZone) item.castFromZone = castFromZone;
+        resolveTopOfStack(state);
+        return state.players[0].life;
+    }
+
+    it("takes the then branch for a spell cast from exile", () => {
+        expect(lifeAfter("exile")).toBe(25);
+    });
+
+    it.each(["hand", "graveyard", "library", undefined] as const)(
+        "takes the else branch when cast from %s",
+        (zone) => {
+            expect(lifeAfter(zone)).toBe(22);
+        }
+    );
+
+    it("validator accepts a known zone and rejects an unknown one", () => {
+        const host = (zone: string) =>
+            validateEffectScript({
+                id: "cast-zone-probe",
+                name: "Cast Zone Probe",
+                types: ["Instant"],
+                effects: [
+                    {
+                        op: "if",
+                        predicate: { castFromZone: zone },
+                        then: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ],
+            } as never);
+        expect(host("exile")).toEqual([]);
+        expect(host("battlefield").length).toBeGreaterThan(0);
+    });
+});
+
 describe("Effect Script Op: copyResolvingSpell (CR 707.10, CR 707.10c)", () => {
     function resolvingCopier(player: EffectPlayerRef, scriptId: string) {
         const id = registerScript(scriptId, [
