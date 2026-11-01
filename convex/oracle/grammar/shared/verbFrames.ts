@@ -1189,7 +1189,7 @@ function admits(
         return "a plural owners' hands is the destination of a sweep or of a group of targets, not of one object (CR 400.3)";
     switch (object.kind) {
         case "vote-winners":
-            // CR 701.38 — exiling them is the one outcome printed.
+            // CR 701.38 — the one vote outcome printed is to remove them.
             return verb === "exile" && to.zone === "exile"
                 ? null
                 : "the permanents a vote chose are only exiled by this frame";
