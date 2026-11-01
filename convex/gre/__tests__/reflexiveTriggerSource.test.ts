@@ -34,8 +34,7 @@ const RED_SOURCE: CardDefinition = {
     id: SOURCE_ID,
     name: "Reflexive Source",
     rarity: "common",
-    manaCost: { R: 1 },
-    colors: ["R"],
+    manaCost: { R: 1 }, // red by its cost (CR 202.2)
     types: ["Creature"],
     subtypes: ["Goblin"],
     power: 1,

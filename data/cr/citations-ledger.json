@@ -10937,6 +10937,7 @@
         {"id":"202.2","line":"it(\"sourceFilter narrows on source colors (CR 202.2)\", () => {","sites":1,"status":"baseline"},
         {"id":"202.2","line":"it(\"the no-untap filter matches a blue creature on the projected wire state (CR 202.2)\", () => {","sites":1,"status":"baseline"},
         {"id":"202.2","line":"it('does not trigger for a COLORLESS spell (CR 202.2 — \"a spell that\\'s one or more colors\")', () => {","sites":1,"status":"baseline"},
+        {"id":"202.2","line":"manaCost: { R: 1 }, // red by its cost (CR 202.2)","sites":1,"status":"confirmed","ruleHash":"223ac4dfab3c4c25"},
         {"id":"202.2b","line":"* (CR 202.2b) are not modelled on `CardDefinition`, matching the layer-5 base","sites":1,"status":"baseline"},
         {"id":"202.2b","line":"* `amount` is: colourless is the ABSENCE of colour (CR 202.2b), never a sixth","sites":1,"status":"confirmed","ruleHash":"c4661796ae2e8a9f"},
         {"id":"202.2b","line":"* `colors` omitted = colorless (CR 105.2 / 202.2b); `Map` is an ARTIFACT","sites":1,"status":"confirmed","ruleHash":"c4661796ae2e8a9f"},
