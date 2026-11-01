@@ -17722,7 +17722,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // counter open, and foretelling taps them out of it. The rollout washes
         // that out too (the lands untap next turn), so the `free-development`
         // arm for foretell is gated on the mover's `flexibility` term reading
-        // the same after the {2} is tapped (`foretellKeepsHeldOptions`) —
+        // the same after the {2} is tapped (`banksCardKeepingHeldOptions`) —
         // here it does not, and the Bot holds.
         label: "foretell: keeps the mana open for a held Counterspell instead of foretelling",
         classification: {
@@ -17748,5 +17748,46 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         tier: "must",
         expect: { moves: [{ kind: "pass" }] },
         note: "Issue #2096 — pair half 2: the {2} is an option held open (Counterspell), so the foretell is not free and is not taken.",
+    },
+    {
+        // Issue #7587. Plot (CR 702.170a/d):
+        // Djinn of Fool's Fall ({4}{U}, Plot {3}{U}) in hand, exactly four
+        // untapped Islands — the plot is payable, the cast is not — in the
+        // last main phase of the turn, nothing else to spend them on. Plotting
+        // banks the Djinn for a FREE cast on any later turn; passing lets the
+        // {4} empty. The plotted card is latent material in `evaluate`'s hand
+        // term exactly as the hand card was (`exileCastLatent`), and the free
+        // cast lies past the horizon, so the two lines tie and before this
+        // issue `pass` took the material tie-break on seed 0xb1ade.
+        // `free-development` takes the banking special action on the tie. Its
+        // `flexibility` gate is the SAME code foretell's pair half 2 pins
+        // (`banksCardKeepingHeldOptions`); a plot-side half 2 with a
+        // Counterspell is no `must` — the search plots there on its own
+        // (material tie-break), and banking a free 4/3 flier is defensible.
+        label: "plot: banks a plot card with mana that would otherwise empty",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a castable instant held open on the same mana",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield", count: 4 },
+                { name: "Djinn of Fool's Fall", owner: "me", zone: "hand" },
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "plot", card: "Djinn of Fool's Fall" }],
+        },
+        note: "Issue #7587 — plot is a banking special action, `free-development`'s shape: banking and deferring reach the same rollout leaves and the {4} would otherwise empty. The held-option gate is shared with foretell and pinned by its pair half 2.",
     },
 ];

@@ -573,6 +573,52 @@ export function exileCastPermitted(
     );
 }
 
+/** CR 702.143a / 702.170d / 702.185a (issue #7587) — whether `casterId` holds
+ *  a grant to cast `card` from exile that is stamped but opens only on a LATER
+ *  turn: a foretold card ("after the current turn has ended"), a plotted card
+ *  ("on a later turn"), a warped card's recast window. The window half of
+ *  {@link exileCastPermission} read against the grant's own lower bound, so
+ *  the comparison stays the one authority's.
+ *
+ *  A board condition on that future window is NOT re-read: the future board is
+ *  unknown, and the card is banked either way. */
+export function exileCastOpensLater(
+    state: GameState,
+    card: Pick<
+        CardInstanceState,
+        "castableFromExileBy" | "castableFromExileFromTurn"
+    >,
+    casterId: string
+): boolean {
+    const from = card.castableFromExileFromTurn;
+    return (
+        from !== undefined &&
+        from > state.turn &&
+        exileCastPermission(card, casterId, from)
+    );
+}
+
+/** Issue #7587 — whether an exiled `card` is LATENT material for `casterId`:
+ *  castable now ({@link exileCastPermitted}) or once a later-turn window opens
+ *  ({@link exileCastOpensLater}). The evaluator's hand term and the search's
+ *  banking tie-break both ask here, so "what counts as a card still in hand"
+ *  has one answer. */
+export function exileCastLatent(
+    state: GameState,
+    card: Pick<
+        CardInstanceState,
+        | "castableFromExileBy"
+        | "castableFromExileFromTurn"
+        | "castableFromExileCondition"
+    >,
+    casterId: string
+): boolean {
+    return (
+        exileCastPermitted(state, card, casterId) ||
+        exileCastOpensLater(state, card, casterId)
+    );
+}
+
 /** CR 601.3 / 400.7 (issue #2971) — the zone a `cast-spell` Move actually
  *  leaves, and the player whose zone that is, for the Bot's search cast
  *  commit sequence (`commitCastInSearch`, issue #4444). `null` when no
