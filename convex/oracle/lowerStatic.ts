@@ -906,6 +906,7 @@ export function lowerStaticClause(
                 lowered: { preventsDamageToController: true },
             };
         case "enchanted-host":
+        case "equipped-host":
             return lowerHostClause(clause, nextId);
         default: {
             const never: never = clause;
@@ -1106,14 +1107,20 @@ function grantCensus(
 }
 
 /**
- * CR 303.4b — every effect a host clause names, scoped to the Aura's host.
+ * CR 303.4b / CR 301.5a — every effect a host clause names, scoped to the
+ * Aura's or the Equipment's host.
  *
  * Emitted in the order the sentence prints them, one descriptor each — the
  * shape the hand-written catalogue writes ("gets +0/+2 and has reach" is a
- * `pt-buff` then a `keyword-grant`, Web).
+ * `pt-buff` then a `keyword-grant`, Web). Only an Aura's clause carries the
+ * `host` noun `lower.ts` checks against an enchant line; an Equipment has
+ * none, and its frame has already read the card's Equipment subtype.
  */
 function lowerHostClause(
-    clause: Extract<StaticClauseIR, { kind: "enchanted-host" }>,
+    clause: Extract<
+        StaticClauseIR,
+        { kind: "enchanted-host" } | { kind: "equipped-host" }
+    >,
     nextId: (suffix: string) => string
 ): LowerStaticResult {
     const effects: CompiledStaticEffect[] = [];
@@ -1199,10 +1206,11 @@ function lowerHostClause(
         ok: true,
         lowered: {
             effects,
-            host: clause.host,
+            ...(clause.kind === "enchanted-host" ? { host: clause.host } : {}),
             ...(keywords.length > 0 ? grantCensus(keywords) : {}),
             ...(quotedAbilities.length > 0 ? { quotedAbilities } : {}),
-            ...(clause.keepsThisAura === true
+            ...(clause.kind === "enchanted-host" &&
+            clause.keepsThisAura === true
                 ? { exemptFromProtectionDetach: true as const }
                 : {}),
         },

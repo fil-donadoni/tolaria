@@ -65,8 +65,21 @@
  * frames carry no filter at all; the scope is an identity, and it is lowered
  * to the `AURA_AFFECTS_HOST` predicate every hand-written Aura declares. That
  * the card IS an Aura is a card-level fact, checked in `lower.ts` against the
- * enchant line, not here. EQUIPPED-scope ("Equipped creature gets +2/+0") is
- * still refused: no "Equip" line parses yet.
+ * enchant line, not here.
+ *
+ * EQUIPPED-scope statics are read by their own frame (issue #7215), now that
+ * an "Equip {N}" line parses (issue #7214):
+ *
+ *   "Equipped creature gets +N/+N[ and has <keyword>[, …, and <kw>]]"
+ *   "Equipped creature has <keyword>[, …, and <kw>]"
+ *
+ * "Equipped creature" is the one creature the Equipment is attached to
+ * (CR 301.5a), lowered to the same `AURA_AFFECTS_HOST` scope the Aura frames
+ * use — the hand-written Equipment (Batterskull, Skullclamp) declares it too.
+ * The frame reads the P/T clause and the keyword list ONLY: a quoted grant,
+ * "loses <keyword>", "is every creature type", a combat restriction and a
+ * "for each" count are each refused, as is the sentence on a card that is
+ * not an Equipment.
  *
  * SINGULAR "gets" with any OTHER subject is refused: essentially every printed
  * "<x> gets +N/+N." with a singular subject is either attached-scope or
@@ -466,6 +479,18 @@ export type StaticClauseIR =
           readonly effects: readonly HostEffectIR[];
           /** CR 702.16n — "This effect doesn't remove this Aura." */
           readonly keepsThisAura?: true;
+      }
+    /**
+     * CR 301.5a — effects on the equipped creature ("Equipped creature gets
+     * +1/+0 and has haste"). Only the two shapes the frame reads; the scope
+     * is the Equipment's host, as an Aura's is (CR 301.5f).
+     */
+    | {
+          readonly kind: "equipped-host";
+          readonly effects: readonly Extract<
+              HostEffectIR,
+              { kind: "pt-buff" } | { kind: "keyword-grant" }
+          >[];
       };
 
 /** What a kicked entry rider's "and with …" tail grants the permanent itself
@@ -2411,6 +2436,62 @@ const youControlHostRule: Rule<StaticClauseIR> = pattern(
         })
 );
 
+// ── Frame: the equipped creature (CR 301.5a) ──────────────────────────────
+
+const EQUIPPED_SUBJECT = /^Equipped creature (.+)$/;
+
+/**
+ * "Equipped creature gets +N/+N[ and has <keyword list>]" and "Equipped
+ * creature has <keyword list>" (Boots of Speed, Skinwing, Zephyr Boots).
+ *
+ * CR 301.5a — the equipped creature is the creature the Equipment is attached
+ * to; the sentence names that ONE object, so the frame carries no filter. The
+ * card must be an Equipment (CR 301.5): CR 301.5f lets any permanent say
+ * "equipped creature", but no golden pins a non-Equipment printing it, so the
+ * sentence there is refused, not read. Every tail beyond the P/T clause and
+ * one keyword list — a quoted ability, "loses", "is every creature type",
+ * "can't block", "for each …" — fails the frame whole.
+ */
+const equippedHostRule: Rule<StaticClauseIR> = rule(
+    "equipped host",
+    (span, ctx): RuleResult<StaticClauseIR> => {
+        const match = span.match(EQUIPPED_SUBJECT);
+        if (match === null)
+            return fail('not an "Equipped creature" sentence', span);
+        if (!(ctx as ParseContext).typeLine.subtypes.includes("Equipment"))
+            return fail(
+                '"equipped creature" on a card that is not an Equipment (CR 301.5)',
+                span
+            );
+        let rest = match[1]!;
+        const effects: Extract<
+            HostEffectIR,
+            { kind: "pt-buff" } | { kind: "keyword-grant" }
+        >[] = [];
+        const pt = rest.match(HOST_PT);
+        if (pt !== null) {
+            effects.push({
+                kind: "pt-buff",
+                power: signedModifier(pt[1]!),
+                toughness: signedModifier(pt[2]!),
+            });
+            rest = pt[3] ?? "";
+        }
+        if (rest.length > 0) {
+            if (!rest.startsWith("has ") || QUOTED_GRANT.test(rest))
+                return fail(
+                    `"${rest}" is not an effect this frame reads on an equipped creature`,
+                    span
+                );
+            const keywords = readGrantedKeywords(rest.slice("has ".length));
+            if (!keywords.ok) return keywords;
+            for (const keyword of keywords.value)
+                effects.push({ kind: "keyword-grant", keyword });
+        }
+        return ok({ kind: "equipped-host" as const, effects });
+    }
+);
+
 // ── Frame: an additional land play (CR 305.2) ───────────────────────────────
 
 /**
@@ -2753,5 +2834,6 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         selfPtCdaExiledTotalsRule,
         enchantedHostRule,
         youControlHostRule,
+        equippedHostRule,
     ])
 );
