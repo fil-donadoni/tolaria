@@ -1466,6 +1466,12 @@ export type EffectSentenceIR =
            */
           readonly kind: "attach";
           readonly subject: SubjectIR;
+          /**
+           * CR 608.2h — the mover was printed as "it" ("When this Equipment
+           * enters, attach it to …"). The Op still moves only the source,
+           * so the lowering SITE must confirm its "it" IS the source.
+           */
+          readonly moverIsPronoun?: true;
       }
     | {
           readonly kind: "life";
@@ -4567,16 +4573,27 @@ function requirementTypes(requirement: TargetRequirement): readonly string[] {
  * refused: CR 701.3b leaves an Aura attached to an illegal object where it is,
  * and the `attach` Op checks no enchant restriction to make it so.
  *
- * An Equipment's "Attach this Equipment to target creature …" is refused too,
- * for want of evidence rather than of meaning: every corpus card printing it
- * also prints an Equip line no rule reads yet, so no whole-card golden can
- * pin the form.
+ * CR 301.5 — an Equipment is attached to a creature and to nothing else
+ * (issue #7215, once its "Equip {N}" line parsed). An Equipment that is also
+ * a creature can equip only through reconfigure (CR 301.5c), which no rule
+ * reads, so its attach is refused.
  */
 function attachableTypes(
     ctx: ParseContext
 ): { ok: true; value: readonly string[] } | { ok: false; reason: string } {
+    if (ctx.typeLine.subtypes.includes("Equipment")) {
+        if (ctx.typeLine.types.includes("Creature"))
+            return {
+                ok: false,
+                reason: "an Equipment creature attaches only through reconfigure (CR 301.5c)",
+            };
+        return { ok: true, value: ["Creature"] };
+    }
     if (!ctx.typeLine.subtypes.includes("Aura"))
-        return { ok: false, reason: "only an Aura's attach is read" };
+        return {
+            ok: false,
+            reason: "only an Aura's or an Equipment's attach is read",
+        };
     const enchant = (ctx.card.oracleText ?? "")
         .split("\n")
         .filter((line) => line.startsWith(ENCHANT_HEAD));
@@ -8754,8 +8771,11 @@ function effectSentence(
     const attach = span.match(ATTACH_SELF);
     if (attach !== null) {
         // The `attach` Op moves the SOURCE and nothing else: "Attach target
-        // Equipment you control to this creature" names another mover.
-        if (!isSelfPhrase(uncapitalise(attach[1]!)))
+        // Equipment you control to this creature" names another mover. The
+        // lowercase "it" (CR 608.2h) is read as a mover the SITE must confirm
+        // is the source — never as the source by itself.
+        const moverIsPronoun = attach[1] === "it";
+        if (!moverIsPronoun && !isSelfPhrase(uncapitalise(attach[1]!)))
             return fail(`"${attach[1]}" is not the source object`, span);
         const subject = permanentTarget(attach[2]!, ctx);
         if (!subject.ok) return subject;
@@ -8774,6 +8794,7 @@ function effectSentence(
         return ok({
             kind: "attach" as const,
             subject: subject.value,
+            ...(moverIsPronoun ? { moverIsPronoun: true as const } : {}),
         } satisfies EffectSentenceIR);
     }
 
