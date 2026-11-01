@@ -64,6 +64,7 @@ import {
     getPlayer,
     moveCard,
     putHandCardOnTopOfLibrary,
+    payRemoveCounterCost,
     putHandCardOntoBattlefield,
     reduceLifeFromDamage,
 } from "./state";
@@ -479,6 +480,42 @@ function applyReplacementsLoop(
         event = result.event;
     }
     return event;
+}
+
+/** Counter name of the CR 122.1d stun counter. */
+export const STUN_COUNTER = "stun";
+
+/** CR 122.1d — "One or more stun counters on a permanent create a single
+ *  replacement effect that stops the permanent from untapping: if a permanent
+ *  with a stun counter on it would become untapped, instead remove a stun
+ *  counter from it." Counter-driven and intrinsic to the permanent, so it is
+ *  read off `card.counters` rather than declared as a `ReplacementEffect`.
+ *  ONE counter goes per untap event regardless of how many are present (the
+ *  effect is single, CR 122.1d), and the permanent stays tapped.
+ *  Returns true when the untap was replaced (the caller must not untap).
+ *  The sole caller is `untapPermanent`, the choke point for the untap step
+ *  (CR 502.3), untap effects and the optional-untap picks; an already-untapped
+ *  permanent never reaches it because it does not "become untapped". */
+export function applyUntapReplacements(
+    state: GameState,
+    card: CardInstanceState
+): boolean {
+    if ((card.counters?.[STUN_COUNTER] ?? 0) <= 0) return false;
+    const before = card.counters?.[STUN_COUNTER] ?? 0;
+    payRemoveCounterCost(state, card, { type: STUN_COUNTER, count: 1 });
+    // Same COUNTER_REMOVED event `SpellContext.removeCounter` emits.
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "COUNTER_REMOVED",
+            instanceId: card.id,
+            controllerId: card.controllerId,
+            counterType: STUN_COUNTER,
+            removed: 1,
+            remaining: before - 1,
+        },
+    ];
+    return true;
 }
 
 export function applyDamageReplacements(
