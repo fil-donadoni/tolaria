@@ -1423,11 +1423,37 @@ function graveyardEngineTerm(
     if (exileOtherCount === undefined) return 0;
     // One cast consumes the card itself plus `exileOtherCount` others.
     const perCast = exileOtherCount + 1;
-    const casts = Math.floor(player.graveyard.length / perCast);
-    return (
-        Math.min(casts, weights.graveyardEngineCap) *
-        weights.graveyardEngineWeight
+    const casts = Math.min(
+        Math.floor(player.graveyard.length / perCast),
+        weights.graveyardEngineCap
     );
+    if (casts === 0) return 0;
+    // Issue #7783 — each cast is an OPTION on a card, and an option is never
+    // worth more than the card it casts: spending one (escape) trades the
+    // credit for the permanent, so a flat price above the permanent's worth
+    // made the Bot refuse every escape. The casts go to the best nonland
+    // cards first (the grant is to nonland cards, and a pile of lands is
+    // fodder, not a spell), each credited at most its own latent worth.
+    const creatureDiscounts = {
+        creature: weights.latentCreatureDiscount,
+        flash: weights.latentFlashCreatureDiscount,
+    };
+    const worth: number[] = [];
+    for (const card of player.graveyard) {
+        if (isLand(card)) continue;
+        worth.push(
+            latentGraveyardValue(card, weights.latent, creatureDiscounts)
+        );
+    }
+    worth.sort((a, b) => b - a);
+    let credited = 0;
+    for (let i = 0; i < Math.min(casts, worth.length); i++) {
+        credited += Math.min(
+            weights.graveyardEngineWeight,
+            worth[i] * weights.graveyardEngineFraction
+        );
+    }
+    return credited;
 }
 
 /** Issue #3042 — a graveyard is worth something only to a player who can
