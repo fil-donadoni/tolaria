@@ -330,11 +330,14 @@ describe("the violation / contradiction report", () => {
         // pairs): pass over a deferrable action in an earlier window, and the
         // deferrable action over pass at the opponent's end step.
         expect(report.timing.length).toBeGreaterThan(0);
+        // The bucket also carries SEQUENCING pairs (issue #7819) — two
+        // actions, neither a pass — so each direction is read pass-shaped.
         const holds = report.timing.filter((p) => p.right.key === PASS_KEY);
-        const fires = report.timing.filter((p) => p.right.key !== PASS_KEY);
+        const fires = report.timing.filter(
+            (p) => p.right.key !== PASS_KEY && p.other.key === PASS_KEY
+        );
         expect(holds.length).toBeGreaterThan(0);
         expect(fires.length).toBeGreaterThan(0);
-        for (const pair of fires) expect(pair.other.key).toBe(PASS_KEY);
         // Never fitted: not one of them is among the pairs the fit is handed.
         const timing = new Set(report.timing);
         expect(report.pairs.filter((p) => timing.has(p))).toEqual([]);

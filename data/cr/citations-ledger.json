@@ -6401,6 +6401,7 @@
         {"id":"117.3b","line":"// (CR 117.3b) — the window where \"me\" decides whether to spend life.","sites":1,"status":"baseline"},
         {"id":"117.3b","line":"// 117.3b — priority returned to A (active), who passed again.","sites":1,"status":"confirmed","ruleHash":"a21fd5f28fc19103"},
         {"id":"117.3b","line":"// CR 117.3b — priority restarts with the ACTIVE player after","sites":1,"status":"baseline"},
+        {"id":"117.3b","line":"// CR 117.3b — the active player receives priority after a spell or","sites":1,"status":"confirmed","ruleHash":"a21fd5f28fc19103"},
         {"id":"117.3b","line":"// CR 117.3b — the cast leaves priority with the caster, who","sites":1,"status":"baseline"},
         {"id":"117.3b","line":"// Resolution handed priority to the non-active player (CR 117.3b); the","sites":1,"status":"baseline"},
         {"id":"117.3b","line":"// priority returns to the active player (CR 117.3b — \"the active player","sites":1,"status":"baseline"},

@@ -277,8 +277,10 @@ export function evalPairsOf(
         );
     }
     const isTiming = timingPairClassifier(state, botId, moves);
-    const pairs = built.filter((p) => !isTiming(p));
-    const timing = built.filter(isTiming);
+    const isSequencing = sequencingPairClassifier(state, botId, moves, weights);
+    const isWhen = (p: EvalPair) => isTiming(p) || isSequencing(p);
+    const pairs = built.filter((p) => !isWhen(p));
+    const timing = built.filter(isWhen);
     return { verdict, pairs, timing, features };
 }
 
@@ -389,4 +391,80 @@ export function timingPairClassifier(
         last
             ? deferrable[rightIndex] && isPass[otherIndex]
             : isPass[rightIndex] && deferrable[otherIndex];
+}
+
+/** A move read without its payment plan: `tapPlan` is HOW a cast or an
+ *  activation is paid, and the plan a land drop leaves differs from the one
+ *  before it although the decision is the same (issue #4238's reading). */
+function planlessMove(move: Move): Move {
+    return "tapPlan" in move ? ({ ...move, tapPlan: [] } as Move) : move;
+}
+
+/** Is a pair a SEQUENCING judgement (issue #7819)? Two actions, and the
+ *  `other` one is still enumerated for the mover once `right` has settled
+ *  through the production probe: the judge said which to do FIRST — "play the
+ *  land, then cast the Library" — not which to give up. The two 1-ply leaves
+ *  differ by the whole `other` move, so the fit could only answer such a pair
+ *  by shrinking what `other` is worth: one Verdict Lock land-before-Sylvan-
+ *  Library pair pinned `latent.recurrence` to its trust-region floor and
+ *  `latent.cardAdvantage` 45 → 31 once the probe priced the Library at all.
+ *  The same WHEN question as the timing pairs, so they ride that bucket. Read on the verdict's own rebuilt position; "pass" on either
+ *  side is never sequencing (it ends the window — `timingPairClassifier`'s
+ *  shape), nor is a `right` whose settle hands the decision away. */
+export function sequencingPairClassifier(
+    state: GameState,
+    botId: string,
+    moves: readonly Move[],
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): (pair: Pick<EvalPair, "rightIndex" | "otherIndex">) => boolean {
+    // One settle per `right` index, and only when a pair asks: every pair of a
+    // verdict shares its `right`, so this is one extra probe per verdict.
+    type Offered = { keys: ReadonlySet<string>; keyOf: (m: Move) => string };
+    const settledOffers = new Map<number, Offered | null>();
+    const offeredAfter = (index: number): Offered | null => {
+        const cached = settledOffers.get(index);
+        if (cached !== undefined) return cached;
+        const probe = cloneGameState(state);
+        applyMoveInSearch(probe, botId, moves[index]);
+        const settled = policyProbeState(
+            probe,
+            moves[index],
+            weights,
+            botId,
+            passEndsStep(state, botId)
+        );
+        // CR 117.3b — the active player receives priority after a spell or
+        // ability resolves. The probe resolves without handing priority back
+        // (its leaf is scored, never played on), so a drained stack is given
+        // to the active player here before asking what it still offers.
+        if (
+            settled.stack.length === 0 &&
+            (settled.pendingChoices?.length ?? 0) === 0 &&
+            !settled.pendingTarget
+        ) {
+            settled.priorityPlayerId = settled.activePlayerId;
+        }
+        let offered: Offered | null = null;
+        if (decidingPlayer(settled) === botId) {
+            // Both sides keyed on the SAME settled position, so the copy the
+            // interchangeability collapse kept reads as the one the judge named.
+            const interchangeable = makeInterchangeableKeyer(settled);
+            const keyOf = (m: Move) => interchangeable(planlessMove(m));
+            offered = {
+                keys: new Set(candidateMoves(settled, botId).map(keyOf)),
+                keyOf,
+            };
+        }
+        settledOffers.set(index, offered);
+        return offered;
+    };
+    return ({ rightIndex, otherIndex }) => {
+        if (moves[rightIndex].kind === "pass") return false;
+        if (moves[otherIndex].kind === "pass") return false;
+        const offered = offeredAfter(rightIndex);
+        return (
+            offered !== null &&
+            offered.keys.has(offered.keyOf(moves[otherIndex]))
+        );
+    };
 }
