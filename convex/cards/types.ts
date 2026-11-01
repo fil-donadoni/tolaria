@@ -11486,6 +11486,15 @@ export interface CreatureDiedEvent {
      *  `diedTrigger`'s last-known-information payload so authors don't have
      *  to refetch from a separate event source. */
     creatureTypes: ReadonlyArray<CardType>;
+    /** Subtypes snapshotted at the moment of death (CR 603.10a — a
+     *  leaves-the-battlefield trigger looks back in time), from the same
+     *  departure-funnel snapshot that fills `PermanentLeftEvent.subtypes`
+     *  (CR 205.3, issue #1191). Layer-4 effective subtypes, so a creature
+     *  type granted by a continuous effect counts. Read by `diedTrigger`'s
+     *  subtype filter — "whenever one or more other Cats you control die"
+     *  (Ajani, Nacatl Pariah, issue #3719). Optional so older event fixtures
+     *  and serialized logs without the field deserialize as "no subtypes". */
+    creatureSubtypes?: ReadonlyArray<string>;
     /** Instance ids of sources that dealt damage to this creature this turn. */
     damagedBySources: readonly string[];
     /** Effective power of the dying creature snapshotted at the moment it

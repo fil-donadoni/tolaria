@@ -7408,6 +7408,9 @@ export function removePermanentTo(
                 // triggers (Enduring Renewal's "put into your graveyard").
                 creatureOwnerId: lkiOwnerId,
                 creatureTypes: lkiTypes,
+                // CR 603.10a (issue #3719) — the same subtype snapshot
+                // PERMANENT_LEFT carries, for subtype-filtered death triggers.
+                creatureSubtypes: lkiSubtypes,
                 damagedBySources: snapshotDamagedBy,
                 creaturePower: snapshotPower,
                 creatureToughness: snapshotToughness,
@@ -16621,12 +16624,17 @@ export function buildSpellContext(
             // CR 701.27f (issue #3537) — a reflexive trigger is a triggered
             // ability of the resolving ability's source permanent (none for a
             // spell: its id is on no battlefield).
-            const reflexiveSource = findOnBattlefield(
-                state,
-                item.triggerSourceId ?? item.id
-            );
+            const reflexiveSourceId = item.triggerSourceId ?? item.id;
+            const reflexiveSource = findOnBattlefield(state, reflexiveSourceId);
             const reflexive: StackItem = {
                 id: allocInstanceId(state),
+                // CR 603.12 → 603.7d/603.7e (issue #3719) — a reflexive
+                // ability's SOURCE is the source of the ability that created
+                // it (the spell, for a spell). Without it the body resolved
+                // with its own fresh stack id as `ctx.sourceInstanceId`, so
+                // an `excludeSource` filter inside it ("a red permanent other
+                // than Ajani") excluded nothing.
+                triggerSourceId: reflexiveSourceId,
                 card: { id: sourceCardId },
                 controllerId: controller,
                 ownerId: controller,
