@@ -188,8 +188,8 @@ describe("loyalty abilities reach the bot's move enumerator (CR 606.2)", () => {
         expect(missing).toEqual([
             "Sorin, Lord of Innistrad :: sorin-lord-of-innistrad-minus6",
         ]);
-        expect(totalCount).toBe(52);
-        expect(offeredCount).toBe(51);
+        expect(totalCount).toBe(53);
+        expect(offeredCount).toBe(52);
     });
 
     it("never offers a loyalty move the server's own gate would reject", () => {
