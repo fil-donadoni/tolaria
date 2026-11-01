@@ -1493,13 +1493,18 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.78",
         status: "planned",
     },
-    // 702.79 Persist
+    // 702.79 Persist (issue #1372) — expanded from the bare
+    // `staticAbilities: ["persist"]` string at the `getDefinition` seam
+    // (`expandKeywordTriggers`, `convex/cards/abilities/keywordTriggers.ts`,
+    // ADR 0054), the exalted / prowess / battle cry mechanism.
     {
         id: "persist",
         name: "Persist",
         kind: "keyword-ability",
         cr: "702.79",
-        status: "planned",
+        status: "implemented",
+        binding: "persist",
+        note: "Issue #1372 — CR 702.79a is a TRIGGERED ability expanded IMPLICITLY from the `staticAbilities` string by `expandKeywordTriggers` (ADR 0054): the card declares only the string. Fully declarative (ADR 0045): a self `leftTrigger` on PERMANENT_LEFT with `toZone: \"graveyard\"` — the rule says \"this PERMANENT is put into a graveyard from the battlefield\", so the trigger is NOT narrowed to CREATURE_DIED (a persist creature made a noncreature still persists). Intervening-if (CR 603.4) reads the event's `countersBeforeLeave` last known information (CR 603.10a), snapshotted in the departure funnel `removePermanentTo` before the CR 122.2 counter strip — never the graveyard card, a new object with no counters (CR 400.7), which would loop forever. CR 704.8: `checkCounterAnnihilationSBA` (CR 704.5q) runs AFTER the same pass's zone-change SBAs, so a permanent dying in the batch that annihilated its counters keeps the -1/-1 counter in its LKI and does not persist; a counter annihilated in an EARLIER check is gone and it persists again (the Kitchen Finks loop). Body: one `moveZone $source graveyard → battlefield` with `entersWithCounters: { \"-1/-1\": 1 }` — the counter is given AS it enters (CR 122.6 / 614.1c) through the entry funnel's effect-counter slot (`stageReanimatedOnBattlefield`'s `entryCounters`, issue #3814), before PERMANENT_ENTERED, and rides an as-enters park (`StagedEntry.entryCounters`). Owner's control is the reanimation branch's default (CR 108.3); the trigger's controller is the last controller (CR 603.3a). A token never returns (CR 111.7, `returnToBattlefield` guard); a card gone from the graveyard is not found (CR 400.7). Multiple instances (each triggers, the second finds nothing) are unreachable: a `staticAbilities` list is a set and the ability has one id. NOT covered: granting persist (a grant writes the instance, the expander reads the definition — `isDefinitionLevelKeyword` keeps such grants quarantined), and an AURA with persist (the Aura branch of `returnToBattlefield` does not thread entry counters; no such card in the pool).",
     },
     // 702.80 Wither
     {
