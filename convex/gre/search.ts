@@ -2058,9 +2058,10 @@ export function policyProbeState(
         // creature cast as its body alone: casting Flametongue Kavu into a
         // real target read below holding it. Same bound as the branch above —
         // only with nothing underneath (the move's own announcement sits at
-        // the bottom, its cast triggers above it), the opponent's answers taken adversarially (a discard
-        // ETB waits on the opponent's pick, issue #4896), and a settle that
-        // cannot finish hands back the probe as it was.
+        // the bottom, its cast triggers above it), the opponent's answers
+        // taken adversarially (a discard ETB waits on the opponent's pick,
+        // issue #4896), and a settle that cannot finish hands back the probe
+        // as it was.
         settled = settleStackForBreakdown(
             probe,
             moverId,
