@@ -2522,6 +2522,22 @@ export type SentenceIR =
      */
     | { readonly role: "choose-graveyard-card"; readonly subject: SubjectIR }
     | { readonly role: "cast-chosen-card" }
+    /**
+     * CR 701.21a + CR 608.2b (issue #7206) — "Choose target <type> a player
+     * controls and target <type> card in that player's graveyard.": the two
+     * announced targets the next sentence ("If both targets are still legal
+     * as this ability resolves, that player simultaneously sacrifices the
+     * <type> and returns the <type> card to the battlefield.",
+     * `swap-if-both-legal`) acts on. The pair folds into one
+     * `sacrificeAndReturn` frame; either alone is refused.
+     */
+    | {
+          readonly role: "choose-swap-targets";
+          readonly noun: string;
+          readonly sacrificed: SubjectIR;
+          readonly returned: SubjectIR;
+      }
+    | { readonly role: "swap-if-both-legal"; readonly noun: string }
     | { readonly role: "flashback-cost" }
     /**
      * CR 615.12 + CR 614.9 — "If {self} would deal damage to a creature, that
@@ -2872,6 +2888,11 @@ export function assembleSentences(
     let chosenGraveyardCard: Extract<
         SentenceIR,
         { role: "choose-graveyard-card" }
+    > | null = null;
+    // CR 701.21a — two chosen targets wait for the swap that acts on them.
+    let chosenSwap: Extract<
+        SentenceIR,
+        { role: "choose-swap-targets" }
     > | null = null;
     // CR 101.4 — a per-land-type pick waits for the sentence that returns it.
     let landTypePick = false;
@@ -3383,6 +3404,46 @@ export function assembleSentences(
                 ok: false,
                 reason: '"You may cast that card this turn" follows no chosen graveyard card',
             };
+        if (chosenSwap !== null) {
+            if (
+                sentence.role !== "swap-if-both-legal" ||
+                sentence.noun !== chosenSwap.noun
+            )
+                return {
+                    ok: false,
+                    reason: "two chosen swap targets are not followed by the swap they feed",
+                };
+            effects.push({
+                frames: [
+                    {
+                        frame: "sacrificeAndReturn",
+                        sacrificed: chosenSwap.sacrificed,
+                        returned: chosenSwap.returned,
+                    },
+                ],
+            });
+            chosenSwap = null;
+            continue;
+        }
+        if (sentence.role === "swap-if-both-legal")
+            return {
+                ok: false,
+                reason: '"If both targets are still legal" follows no pair of chosen swap targets',
+            };
+        if (sentence.role === "choose-swap-targets") {
+            if (
+                window !== null ||
+                awaitingColorChoice ||
+                restrictions.length > 0 ||
+                coinFlip.length > 0
+            )
+                return {
+                    ok: false,
+                    reason: "chosen swap targets follow an unfinished sentence run",
+                };
+            chosenSwap = sentence;
+            continue;
+        }
         if (sentence.role === "choose-graveyard-card") {
             if (
                 window !== null ||
@@ -4306,6 +4367,11 @@ export function assembleSentences(
         return {
             ok: false,
             reason: "a chosen graveyard card is not followed by the cast it feeds",
+        };
+    if (chosenSwap !== null)
+        return {
+            ok: false,
+            reason: "two chosen swap targets are not followed by the swap they feed",
         };
     if (payVariable !== null)
         return {
@@ -5595,6 +5661,16 @@ const SEARCH_TARGET_LIBRARY =
 /** CR 608.2c — "If you control <A> and <B>, <body> instead" (either order). */
 /** CR 601.2 — the announcing half of a chosen graveyard card's cast grant. */
 const CHOOSE_GRAVEYARD_CARD = /^Choose (target .+ card in your graveyard)$/;
+/**
+ * CR 701.21a + CR 608.2b (issue #7206) — the announcing half of a swap:
+ * "Choose target <type> a player controls and target <type> card in that
+ * player's graveyard" (Goblin Welder). Both halves name ONE permanent type.
+ */
+const CHOOSE_SWAP_TARGETS =
+    /^Choose target (\w+) a player controls and target (\w+) card in that player(?:'|’)s graveyard$/;
+/** The swap the two chosen targets feed. */
+const SWAP_IF_BOTH_LEGAL =
+    /^If both targets are still legal as this ability resolves, that player simultaneously sacrifices the (\w+) and returns the (\w+) card to the battlefield$/;
 /** CR 614.1 — the exile rider of a graveyard cast grant (`cast-exile-rider`). */
 const CAST_EXILE_RIDER =
     /^If that spell would be put into your graveyard, exile it instead$/;
@@ -6347,6 +6423,56 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         }
         if (span === "You may cast that card this turn")
             return ok({ role: "cast-chosen-card" as const });
+
+        // CR 701.21a + CR 608.2b + CR 400.7 (issue #7206) — "Choose target
+        // <type> a player controls and target <type> card in that player's
+        // graveyard." and its "If both targets are still legal …" swap.
+        const swapTargets = span.match(CHOOSE_SWAP_TARGETS);
+        if (swapTargets !== null) {
+            const noun = swapTargets[1]!;
+            const type = permanentCardType(noun);
+            if (type === null || swapTargets[2] !== noun)
+                return fail(
+                    `"${noun}" is not one permanent type named on both halves`,
+                    span
+                );
+            const sacrificed = subjectRule.run(`target ${noun}`, ctx);
+            if (!sacrificed.ok) return sacrificed;
+            const returned = subjectRule.run(
+                `target ${noun} card from a graveyard`,
+                ctx
+            );
+            if (!returned.ok) return returned;
+            if (
+                sacrificed.value.kind !== "target" ||
+                returned.value.kind !== "target"
+            )
+                return fail("a swap's halves are announced targets", span);
+            return ok({
+                role: "choose-swap-targets" as const,
+                noun,
+                sacrificed: sacrificed.value,
+                returned: {
+                    ...returned.value,
+                    requirement: {
+                        ...returned.value.requirement,
+                        zoneOwnerOfPriorPermanentController: true,
+                    },
+                },
+            });
+        }
+        const swap = span.match(SWAP_IF_BOTH_LEGAL);
+        if (swap !== null) {
+            if (swap[1] !== swap[2])
+                return fail(
+                    "the sacrificed permanent and the returned card name different types",
+                    span
+                );
+            return ok({
+                role: "swap-if-both-legal" as const,
+                noun: swap[1]!,
+            });
+        }
 
         // CR 615.12 + CR 614.9 — the creature-conditional damage lock rider.
         const damageLock = span.match(CREATURE_DAMAGE_LOCK);

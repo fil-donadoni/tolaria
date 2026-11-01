@@ -486,6 +486,21 @@ export type FrameIR =
           readonly exilesOnResolve?: true;
       }
     | {
+          /**
+           * CR 701.21a + CR 608.2b + CR 400.7 (issue #7206) — "Choose target
+           * <type> a player controls and target <type> card in that player's
+           * graveyard. If both targets are still legal as this ability
+           * resolves, that player simultaneously sacrifices the <type> and
+           * returns the <type> card to the battlefield.": two announced
+           * targets read as one all-or-nothing unit. `returned` carries
+           * `zoneOwnerOfPriorPermanentController` — the card is chosen from the
+           * graveyard of the CONTROLLER of the `sacrificed` permanent.
+           */
+          readonly frame: "sacrificeAndReturn";
+          readonly sacrificed: SubjectIR;
+          readonly returned: SubjectIR;
+      }
+    | {
           readonly frame: "bringFromOutsideGame";
           /** What the card may be (`OUTSIDE_GAME_FILTERS`), as the Op's filter. */
           readonly filter: EffectCardFilter;
@@ -632,6 +647,10 @@ export const VERB_FRAMES: readonly {
     {
         name: "grantCastFromGraveyard",
         opens: /^you may cast target /i,
+    },
+    {
+        name: "sacrificeAndReturn",
+        opens: /^choose target \S+ a player controls and target \S+ card in that player's graveyard$/i,
     },
     {
         name: "bringFromOutsideGame",
