@@ -21100,6 +21100,29 @@ export type AlternativeCost = CostLegs & {
      *  so can consist of nothing but this) declares it. Applied at the Cast
      *  Commit (CR 601.2h), when the hand becomes known to every player. */
     revealHand?: true;
+    /** COLLECT EVIDENCE leg (CR 701.59a — "exile any number of cards from your
+     *  graveyard with total mana value N or greater"): the threshold `N`.
+     *  Detective's Phoenix's "Bestow—{R}, Collect evidence 6".
+     *
+     *  On the alternative cost, NOT on {@link CostLegs} (the `revealHand`
+     *  precedent): only the alternative-cost path has its picker, so the
+     *  may-pay and kicker vocabularies cannot even express it. The
+     *  activated-ability cost and the CR 701.59c optional additional cost are
+     *  separate surfaces, not wired yet (issue #7723).
+     *
+     *  A leg of its own rather than a `graveyard` variant: it has no filter
+     *  and no card COUNT — the payer picks a variable-size set whose summed
+     *  mana value meets `N` (over-payment is legal, minimality is not
+     *  required), which is the shape of the `permanent` leg's
+     *  `minTotalPower` threshold, not of a fixed-count graveyard leg. Payable
+     *  only while the payer's graveyard (the cast card excluded, CR 601.2a)
+     *  holds cards whose total mana value reaches `N` (CR 701.59b — "can't
+     *  choose to collect evidence"). WHICH cards pay is ALWAYS the payer's
+     *  explicit pick (`PendingCast.exileFromGraveyardChoice
+     *  .minTotalManaValue`), never auto-picked, not even when forced:
+     *  graveyard fuel is tactical (the delve precedent). Read by
+     *  `gre/collectEvidence.ts`. */
+    collectEvidence?: number;
 };
 
 /** When an {@link AlternativeCost} variant is legal to choose (CR 118.9). */
@@ -22267,8 +22290,18 @@ export interface CardDefinition {
      *  ("You may cast this card from your graveyard", Hogaak). Distinct from the
      *  external, turn-scoped Yawgmoth's Will / Lurrus permissions and from
      *  Flashback/Escape (which pay an ALTERNATIVE cost): the card resolves and
-     *  lands in the graveyard normally, no exile-on-resolve. Non-land only. */
-    castableFromOwnGraveyard?: boolean;
+     *  lands in the graveyard normally, no exile-on-resolve. Non-land only.
+     *
+     *  CR 118.9b — "An effect that allows you to cast a spell may
+     *  require a certain alternative cost to be paid." The object form
+     *  `{ requiredAlternativeCost }` is that permission SCOPED to one of the
+     *  card's own alternative costs: "You may cast this card from your
+     *  graveyard using its bestow ability" (Detective's Phoenix). The
+     *  graveyard cast must announce that cost; a printed-cost cast from the
+     *  graveyard is illegal. The card still resolves normally (no exile), so a
+     *  countered or dead Phoenix is castable again. Read through
+     *  `requiredGraveyardAlternativeCost` (`gre/castCost.ts`), never directly. */
+    castableFromOwnGraveyard?: boolean | { requiredAlternativeCost: "bestow" };
     /** CR 601.3a — "Cast this spell only if <board predicate>" (Blizzard, ICE).
      *  The card's OWN cast-legality gate, checked by the shared, frontend-safe
      *  `castProhibitionReason` (`convex/cards/castRestrictions.ts`) — so the
