@@ -17200,6 +17200,16 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     // the halves is the opponent's hand: with a card left the answer still has a
     // spell to wait for and is kept; with none it has nothing to wait for and
     // the land is saved.
+    //
+    // The "keeps" halves name the opponent's decklist (`deckKnowledge`). Blind,
+    // determinization re-deals the hidden hand card from hand + library, and
+    // the library is `libraryCount` filler basics, so the card the answer waits
+    // for was a land in about 20 worlds of 21. Played as the land drop, it
+    // emptied the hand, `stackAnswerUnits` read 0 at the leaf, and pass and
+    // the counter tied inside `outcomeEps`: the pick fell to the
+    // `material-tiebreak` and one seed in twenty countered (issue #7774). With
+    // the decklist the held card is the spell in every world, and pass wins on
+    // the mean reward.
     {
         setup: [
             {
@@ -17210,6 +17220,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             },
         ],
         bot: "opp",
+        deckKnowledge: [{ seat: "me", cards: ["Mons's Goblin Raiders"] }],
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
@@ -17245,7 +17256,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 20,
         },
         expect: { moves: [{ kind: "pass" }] },
-        note: 'Issue #7337, anchor of the held-answer pair. The opponent just cast Stone Rain on the bot\'s Volcanic Island and holds one more card, so the held Counterspell still has a spell to answer: it keeps its worth and the land is the price. The other half, "held answer: counters Stone Rain with Counterspell when the opponent has no cards left" empties the hand.',
+        note: 'Issue #7337, anchor of the held-answer pair. The opponent just cast Stone Rain on the bot\'s Volcanic Island and holds one more card, so the held Counterspell still has a spell to answer: it keeps its worth and the land is the price. The decklist makes that card the spell in every determinization, not a re-dealt filler basic. The other half, "held answer: counters Stone Rain with Counterspell when the opponent has no cards left" empties the hand.',
     },
     {
         setup: [
@@ -17306,6 +17317,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             },
         ],
         bot: "opp",
+        deckKnowledge: [{ seat: "me", cards: ["Mons's Goblin Raiders"] }],
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
@@ -17341,7 +17353,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 20,
         },
         expect: { moves: [{ kind: "pass" }] },
-        note: 'Issue #7337, anchor of the held-answer pair. The opponent just cast Stone Rain on the bot\'s Volcanic Island and holds one more card, so the held Mana Leak still has a spell to answer: it keeps its worth and the land is the price. The other half, "held answer: counters Stone Rain with Mana Leak when the opponent has no cards left" empties the hand.',
+        note: 'Issue #7337, anchor of the held-answer pair. The opponent just cast Stone Rain on the bot\'s Volcanic Island and holds one more card, so the held Mana Leak still has a spell to answer: it keeps its worth and the land is the price. The decklist makes that card the spell in every determinization, not a re-dealt filler basic. The other half, "held answer: counters Stone Rain with Mana Leak when the opponent has no cards left" empties the hand.',
     },
     {
         setup: [
