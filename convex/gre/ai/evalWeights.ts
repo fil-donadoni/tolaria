@@ -226,6 +226,12 @@ export type EvalWeights = {
      *  cannot dominate the leaf (the mana to cast them is the real limiter,
      *  and this term does not model it). */
     graveyardEngineCap: number;
+    /** Issue #7783 — fraction of a castable graveyard card's latent worth
+     *  that ONE engine cast is credited (`graveyardEngineTerm`, evaluate.ts),
+     *  never more than `graveyardEngineWeight`. The term prices the OPTION of
+     *  casting; an option worth more than the card it casts makes spending
+     *  it (an escape) a loss, so the Bot never takes the mid-line escape. */
+    graveyardEngineFraction: number;
     /** Fraction of a REACHABLE graveyard card's latent worth credited to its
      *  owner (`graveyardReachTerm`, evaluate.ts; issue #3042). Zero
      *  contribution unless the owner can actually reach the card — see
@@ -410,6 +416,7 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     poisonWeight: 2,
     graveyardEngineWeight: 60,
     graveyardEngineCap: 5,
+    graveyardEngineFraction: 0.5,
     graveyardReachFraction: 0.15,
     graveyardReachCap: 2,
     recoverableSweepFraction: 0.8,
