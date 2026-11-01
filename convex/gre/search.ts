@@ -5522,8 +5522,8 @@ export function selectRootMove(
     // sat on its only land rather than developing it.
     //
     // A BANKING special action — one that exiles a card from hand under a
-    // cast grant opening on a LATER turn: foretell (CR 702.143a, issue #2096),
-    // plot (CR 702.170d, issue #7587) — is the same shape: the banked card is
+    // cast grant opening on a LATER turn: foretell (CR 702.143a), plot
+    // (CR 702.170d) — is the same shape: the banked card is
     // latent material exactly as the hand card was (`evaluate`'s hand term,
     // `exileCastLatent`), the mana it taps empties at the end of the step
     // (CR 106.4 / 500.5) when nothing else in the position spends it, and the
