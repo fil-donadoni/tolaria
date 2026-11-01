@@ -6,13 +6,12 @@ import { SKELETON_TOKEN } from "../../sharedTokens";
 // Delayed Blast Fireball — {1}{R}{R} Instant. "Delayed Blast Fireball deals 2
 // damage to each opponent and each creature they control. If this spell was
 // cast from exile, it deals 5 damage to each opponent and each creature they
-// control instead. Foretell {4}{R}{R}." (CR 702.143 Foretell, CR 120.3
-// damage.) The branch reads the ZONE the spell was cast from
-// (`castFromZone: "exile"`, CR 601.2a), not "was foretold": a foretold card
-// cast for its normal cost from exile still deals 5, and a card cast from
-// exile under another permission deals 5 without ever being foretold
-// (CR 702.143c). The damage is simultaneous (CR 120.3) — one
-// `dealDamageToEach`, never a `forEach` walk.
+// control instead. Foretell {4}{R}{R}." (CR 702.143 Foretell.) The branch
+// reads the ZONE the spell was cast from (`castFromZone: "exile"`, CR 601.2a),
+// not "was foretold": a foretold card cast for its normal cost from exile
+// still deals 5, and a card cast from exile under another permission deals 5
+// without ever being foretold (CR 702.143c). The damage is simultaneous —
+// one `dealDamageToEach`, never a `forEach` walk.
 // compiler-gap: "If this spell was cast from exile, it deals 5 damage to each opponent and each creature they control instead." (#2693)
 export const delayedBlastFireball = defineCard(() => ({
     id: "400c76c6-f677-4e7e-87ad-2e526d4b498a",
