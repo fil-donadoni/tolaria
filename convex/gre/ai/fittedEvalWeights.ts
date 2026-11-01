@@ -17,7 +17,6 @@ export const FITTED_EVAL_WEIGHTS = Object.freeze({
     deckingWeight: 1.5,
     poisonWeight: 2,
     graveyardEngineWeight: 60,
-    graveyardEngineFraction: 0.5,
     graveyardReachFraction: 0.15965,
     recoverableSweepFraction: 0.8,
     heldDifferentialFraction: 0.25,
