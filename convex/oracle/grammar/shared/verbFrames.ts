@@ -114,6 +114,7 @@
 
 import { readNumberWord } from "./quantity";
 import type { ImpulsePlayIR } from "./impulsePlay";
+import { PERMANENT_TYPES } from "../../../cards/types";
 import type {
     CardType,
     PlayerCounterKind,
@@ -145,6 +146,7 @@ import { PLAYER_PHRASES, playerRefRule, type PlayerRefIR } from "./playerRef";
 import {
     COLOR_OR_LIST,
     descriptorRule,
+    type DescriptorIR,
     librarySearchFilterFromDescriptor,
     opensTargetPhrase,
     ownPermanentChoiceFilterFromDescriptor,
@@ -155,7 +157,7 @@ import {
 } from "./targetFilter";
 import { readUnlessPayment, type UnlessPaymentIR } from "./unlessPayment";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
-import { massSubjectRule } from "./massSubject";
+import { massSubjectRule, type PermanentSweepSelector } from "./massSubject";
 
 export const VERB_FRAME = "verb frame";
 
@@ -231,7 +233,13 @@ export type MoveObjectIR =
           readonly kind: "library-top";
           readonly count: AmountIR;
           readonly owner: PlayerRefIR;
-      };
+      }
+    /**
+     * CR 701.38 — "each permanent with the most votes or tied for most
+     * votes": the outcome of the `vote` frame of the sentence before, folded
+     * onto it by sentence assembly. Exiled only — the one tail printed.
+     */
+    | { readonly kind: "vote-winners" };
 
 export type FrameIR =
     | {
@@ -486,6 +494,24 @@ export type FrameIR =
           readonly exilesOnResolve?: true;
       }
     | {
+          /**
+           * CR 701.38a — "Starting with you, each player votes for <a
+           * permanent descriptor>": each player, the controller first and
+           * then in turn order, votes for one permanent the descriptor
+           * matches. Not a target (CR 115.1): the candidates are a
+           * battlefield sweep. The frame produces the vote's outcome and
+           * nothing else; the sentence after it ("Exile each permanent with
+           * the most votes or tied for most votes") acts on it, folded in by
+           * sentence assembly. An OPTION vote ("votes for death or taxes",
+           * CR 701.38b) names no permanent and is refused.
+           */
+          readonly frame: "vote";
+          readonly candidates: PermanentSweepSelector;
+          /** The candidate phrase as printed ("a nonland permanent you
+           *  don't control"), for the voters' prompt. */
+          readonly phrase: string;
+      }
+    | {
           readonly frame: "bringFromOutsideGame";
           /** What the card may be (`OUTSIDE_GAME_FILTERS`), as the Op's filter. */
           readonly filter: EffectCardFilter;
@@ -637,6 +663,12 @@ export const VERB_FRAMES: readonly {
         name: "bringFromOutsideGame",
         opens: /^you may reveal an? [^,]+? card you own from outside the game /i,
     },
+    {
+        name: "vote",
+        // The comma is the specified player's, not a member join: the piece
+        // behind it opens no member, so `splitMembers` rejoins the two.
+        opens: /^starting with you, each player votes for /i,
+    },
 ];
 
 function opensFrame(name: FrameName, member: string): boolean {
@@ -705,6 +737,18 @@ const WIN_GAME = "you win the game";
 const MANIFEST_DREAD = "manifest dread";
 /** CR 701.37a — the keyword action and its count, nothing trailing. */
 const MONSTROSITY = /^monstrosity (\S+)$/;
+/** CR 701.38a — an OBJECT vote: "a"/"an" and one permanent descriptor. */
+const VOTE_FOR = /^starting with you, each player votes for (an? (.+))$/;
+/** CR 701.38 — the vote's outcome, as the sentence after it names it. */
+const VOTE_WINNERS =
+    "each permanent with the most votes or tied for most votes";
+/** The descriptor clauses a vote's candidates read, each one-to-one onto the
+ *  `forEach` permanents selector. */
+const VOTE_FIELDS: ReadonlySet<string> = new Set([
+    "types",
+    "excludeTypes",
+    "controller",
+]);
 /**
  * CR 122.1 + CR 107.14 — "<player> gets {E}{E}" (the optional trailing space
  * is what stripping the "(two energy counters)" reminder, CR 207.2a, leaves)
@@ -928,6 +972,7 @@ function readMoveObject(
             ? ok({ kind: "subject", subject: subject.value })
             : subject;
     }
+    if (span === VOTE_WINNERS) return ok({ kind: "vote-winners" as const });
     if (/^(all|each) /.test(span)) {
         if (span.includes(" from "))
             return fail(
@@ -1143,6 +1188,11 @@ function admits(
     )
         return "a plural owners' hands is the destination of a sweep or of a group of targets, not of one object (CR 400.3)";
     switch (object.kind) {
+        case "vote-winners":
+            // CR 701.38 — exiling them is the one outcome printed.
+            return verb === "exile" && to.zone === "exile"
+                ? null
+                : "the permanents a vote chose are only exiled by this frame";
         case "library-top":
             // CR 701.13a — only exiling the top of a library has an Op
             // (`exileTopOfLibrary`); putting it elsewhere is another verb.
@@ -1786,6 +1836,22 @@ function readMember(
             frames: [{ frame: "grantCastTiming", cardType: "Sorcery" }],
             referent,
         };
+    if (opensFrame("vote", lower)) {
+        const vote = lower.match(VOTE_FOR);
+        if (vote === null)
+            return {
+                refused: `"${member}" — only a vote for "a <permanent>" is read (an option vote names no object, CR 701.38b)`,
+            };
+        const descriptor = descriptorRule.run(vote[2]!, ctx);
+        if (!descriptor.ok)
+            return { refused: descriptor.reason, failure: descriptor };
+        const candidates = voteCandidates(descriptor.value);
+        if (typeof candidates === "string") return { refused: candidates };
+        return {
+            frames: [{ frame: "vote", candidates, phrase: vote[1]! }],
+            referent,
+        };
+    }
     if (opensFrame("becomeMonarch", lower)) {
         if (lower !== BECOME_MONARCH)
             return {
@@ -1960,6 +2026,49 @@ function readMember(
     )
         return { refused: `"${member}" is not a form of the frame it opens` };
     return null;
+}
+
+/**
+ * CR 701.38b — the candidates of an object vote: the permanents a singular
+ * descriptor names, as the `forEach` battlefield selector. Only type, negated
+ * type and controller are read — each one-to-one onto the selector; any other
+ * clause is refused by name rather than dropped (a dropped clause widens what
+ * a player may vote for). "permanent" names every permanent type (CR 110.1),
+ * so a union covering them all constrains nothing and is omitted.
+ */
+function voteCandidates(
+    descriptor: DescriptorIR
+): PermanentSweepSelector | string {
+    for (const [field, value] of Object.entries(descriptor))
+        if (value !== undefined && !VOTE_FIELDS.has(field))
+            return `"${field}" is not a clause a vote's candidates read`;
+    const filter: EffectCardFilter = {};
+    const types = descriptor.types;
+    if (
+        types !== undefined &&
+        !(
+            types.length === PERMANENT_TYPES.length &&
+            PERMANENT_TYPES.every((t) => types.includes(t))
+        )
+    )
+        filter.type = types.length === 1 ? types[0]! : [...types];
+    const excluded = descriptor.excludeTypes;
+    if (excluded !== undefined)
+        filter.excludeType =
+            excluded.length === 1 ? excluded[0]! : [...excluded];
+    // CR 102.2 — "you don't control" is the opponent's in a two-player game.
+    const controller =
+        descriptor.controller === "you"
+            ? ("controller" as const)
+            : descriptor.controller === "opponent"
+              ? ("opponent" as const)
+              : undefined;
+    return {
+        set: "permanents",
+        zone: "battlefield",
+        ...(controller !== undefined ? { controller } : {}),
+        ...(Object.keys(filter).length > 0 ? { filter } : {}),
+    };
 }
 
 /**
