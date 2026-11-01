@@ -181,7 +181,10 @@ import {
     definitionChoiceDepth,
 } from "./ai/choiceDepth";
 import { boonsEveryTarget, misdirectedTargetCount } from "./ai/beneficence";
-import { pruneDominatedTriggerTargets } from "./ai/targetDominance";
+import {
+    beamTriggerTargetsByValue,
+    pruneDominatedTriggerTargets,
+} from "./ai/targetDominance";
 import {
     beginDominanceDecision,
     endDominanceDecision,
@@ -2082,6 +2085,23 @@ export function policyProbeState(
             undefined,
             true
         );
+    } else if (
+        moverId &&
+        move.kind === "submit-target" &&
+        probe.stack.length === 1 &&
+        !probe.pendingTarget &&
+        (probe.pendingChoices?.length ?? 0) === 0
+    ) {
+        settled = settleStackForBreakdown(
+            probe,
+            moverId,
+            weights,
+            0,
+            { left: MAX_CHOICE_BRANCH_WORK },
+            0,
+            undefined,
+            true
+        );
     }
     if (passHorizon && announcedDepth === 0) readAtPassHorizon(settled);
     return settled;
@@ -2559,20 +2579,27 @@ function withoutDominatedTriggerTargets(
     node: Node,
     world: GameState,
     pid: string,
-    keyed: KeyedMove[]
+    keyed: KeyedMove[],
+    weights: EvalWeights,
+    belowRoot: boolean
 ): KeyedMove[] {
     if (world.pendingTarget?.kind !== "trigger") return keyed;
     // Decided on the node's first world: a resolution that read a sampled
     // hidden zone (a library card's mana value) could judge differently in
     // another, and the first world's verdict stands for the node.
     if (!node.dominatedTargetKeys) {
+        const undominated = pruneDominatedTriggerTargets(
+            world,
+            pid,
+            keyed.map((k) => k.move),
+            (probe, move) => applyMoveInSearch(probe, pid, move)
+        );
         const kept = new Set(
-            pruneDominatedTriggerTargets(
-                world,
-                pid,
-                keyed.map((k) => k.move),
-                (probe, move) => applyMoveInSearch(probe, pid, move)
-            )
+            belowRoot
+                ? beamTriggerTargetsByValue(world, pid, undominated, (move) =>
+                      settledAnswerReward(world, pid, move, weights)
+                  )
+                : undominated
         );
         node.dominatedTargetKeys = new Set(
             keyed.filter((k) => !kept.has(k.move)).map((k) => k.key)
@@ -2582,6 +2609,37 @@ function withoutDominatedTriggerTargets(
     if (denied.size === 0) return keyed;
     const kept = keyed.filter((k) => !denied.has(k.key));
     return kept.length > 0 ? kept : keyed;
+}
+
+/** The mover's reward for one trigger-target answer as the 1-ply policy reads
+ *  it (`policyProbeState`: the trigger resolved to the end once its targets
+ *  are announced), or `undefined` when the probe left anything owed — a
+ *  further announcement, a choice, a trigger it put on the stack — and so
+ *  scored a position the answer has not finished making. */
+function settledAnswerReward(
+    world: GameState,
+    pid: string,
+    move: Move,
+    weights: EvalWeights
+): number | undefined {
+    const probe = cloneGameState(world);
+    try {
+        applyMoveInSearch(probe, pid, move);
+    } catch {
+        return undefined;
+    }
+    const settled = policyProbeState(probe, move, weights, pid);
+    if (
+        settled.stack.length > 0 ||
+        settled.pendingTarget ||
+        (settled.pendingChoices?.length ?? 0) > 0
+    ) {
+        return undefined;
+    }
+    return rewardFromValue(
+        policyValueOfSettled(settled, pid, weights),
+        weights
+    );
 }
 
 /** The steps where a transient payoff can matter: once blocks are declared, a
@@ -3236,7 +3294,9 @@ function iterate(
                 node,
                 world,
                 keyedMovesFor(world, pid, botId)
-            )
+            ),
+            weights,
+            depth > 0
         );
         // Deny-set, never an allow-set, and never emptying: a world-specific
         // move the root enumeration never saw stays available, and `pass` is
