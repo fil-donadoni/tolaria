@@ -79,6 +79,7 @@ const FULL_CAST: Required<PendingCast> = {
     revealHand: true,
     dashed: false,
     warped: false,
+    impended: false,
     emergeReductionOwed: true,
     bestowed: false,
     castOffSorceryTiming: false,

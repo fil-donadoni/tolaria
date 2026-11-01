@@ -575,10 +575,43 @@ export const fadingRule: Rule<SlotIR> = rule("fading", (span) => {
     });
 });
 
+// ── Impending N—[cost] (CR 702.176a) ──────────────────────────────────────
+
+const IMPENDING = /^Impending (\d+)—(.+)$/;
+
+/**
+ * CR 702.176a — "Impending N—[cost]": an alternative cost and three more
+ * abilities keyed on N. The rule emits the cost (read by
+ * {@link costParameter}, so the same mana-only narrowing applies) and N; the
+ * lowering writes `CardDefinition.impending` and the `"impending N"` keyword
+ * string the `getDefinition` seam expands (ADR 0054).
+ *
+ * Refused: "Impending 0" (a permanent that is never "not a creature" is a
+ * different printed shape this grammar has no card for), every cost
+ * {@link costParameter} refuses.
+ */
+export const impendingRule: Rule<SlotIR> = rule("impending", (span) => {
+    const match = IMPENDING.exec(span);
+    if (match === null)
+        return fail('an impending line is "Impending N—[cost]"', span);
+    const count = Number(match[1]);
+    if (count < 1) return fail("impending counts from 1", span);
+    const cost = costParameter("", match[2]!);
+    if (!cost.ok) return cost;
+    if (KEYWORD_VOCABULARY.get("impending") === undefined)
+        return fail("the Mechanics Registry names no impending row", span);
+    return ok({
+        kind: "impending" as const,
+        count,
+        cost: cost.value,
+        description: span,
+    });
+});
+
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker line, or one cost-parameter keyword (cycling, madness, plot,
- * overload, morph, fading). They are disjoint by construction — no registry keyword name
+ * overload, morph, fading, impending). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
  * object, and each parameterised rule reads only its own head — and `oneOf`
  * enforces it rather than trusting it.
@@ -596,6 +629,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     echoRule,
     cumulativeUpkeepRule,
     fadingRule,
+    impendingRule,
 ]);
 
 /** Guard: keyword lines are only meaningful on an object with a text box. */

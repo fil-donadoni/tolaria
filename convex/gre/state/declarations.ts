@@ -1697,6 +1697,18 @@ export type CardInstanceState = {
      *  reason they are (issue #2412): a countered or bounced warp spell must
      *  not carry the marker into its next cast. */
     warped?: boolean;
+    /** CR 702.176a — true iff this permanent's impending cost was paid. Set
+     *  on the stack item at cast commit (`convex/game.ts`, when the chosen
+     *  alternative cost === `CardDefinition.impending`) and by the cast-mode
+     *  census inside both search executors (`gre/castMode.ts`), riding onto
+     *  the resulting battlefield permanent for free (the `evoked`/`dashed`
+     *  precedent). It is the "if this permanent's impending cost was paid"
+     *  clause of three of the keyword's four abilities
+     *  (`convex/cards/abilities/impending.ts`): the entry time counters, the
+     *  layer-4 "not a creature" removal and the end-step counter removal.
+     *  Cleared on any zone change (CR 400.7) — a blinked impending permanent
+     *  returns as a new object whose impending cost was never paid. */
+    impended?: boolean;
     /** CR 702.185b — true iff this card in exile "is a warped card in exile":
      *  one "exiled by the delayed triggered ability created by a warp ability"
      *  (`applyWarpExile`, `gre/warp.ts`). The exile-zone sibling of
@@ -2918,6 +2930,14 @@ export type PendingCast = {
      *  built until commit, and without the carry the permanent that enters is
      *  one nobody warped — bought at the discount and never exiled. */
     warped?: boolean;
+    /** CR 702.176a — true iff the alternative cost chosen for this cast is the
+     *  card's Impending cost (`chosenAltCost === cardDef.impending` at
+     *  announcement). Carried through a parked cast so the deferred commit
+     *  (`tryAutoCommitPendingCast`) can still tag the resulting stack item
+     *  `impended: true` — same shape and same reason as `warped` above:
+     *  without the carry the permanent enters as a creature with no time
+     *  counters, bought at the impending discount. */
+    impended?: boolean;
     /** CR 702.119a / 702.119c — this cast chose the card's Emerge cost and its
      *  victim was NOT yet chosen when the cast parked (a real choice between
      *  permanents of different mana value), so `manaCost` still holds the

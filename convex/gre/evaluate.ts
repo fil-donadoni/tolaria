@@ -62,6 +62,10 @@ import {
     isDeferrableStackAbility,
 } from "./ai/abilityTiming";
 import { loyaltyRealizationRatio } from "./ai/loyaltyValue";
+import {
+    asEventualCreature,
+    isCounterClockCreature,
+} from "./ai/counterClockCreature";
 import { pendingBattlefieldReturns } from "./ai/pendingReturn";
 import {
     hasGraveyardRecursionAccess,
@@ -1491,6 +1495,24 @@ function nonCreatureBodyValue(
     weights: EvalWeights,
     pass: Layer7Pass
 ): number {
+    // CR 702.176a (issue #1970) — a counter-clock creature is priced as the
+    // creature it will be, at the price of that creature NOT YET in play
+    // (`latentCreatureDiscount`, the hand's own discount): its non-creature
+    // face prices the body at nothing, so the impending cast read as
+    // discarding a 5/5 and the Bot passed. One discount, not one per counter:
+    // the cast has already paid what the hand discount stands for — the mana
+    // and the entry — so the permanent must not read below the card it was;
+    // the hard cast (a creature now, undiscounted) still outranks it.
+    if (isCounterClockCreature(perm))
+        return (
+            evaluateCreature(
+                state,
+                asEventualCreature(perm),
+                weights.latent,
+                pass,
+                weights
+            ) * weights.latentCreatureDiscount
+        );
     return (
         withEngineRead(perm, (open) =>
             cardValue(

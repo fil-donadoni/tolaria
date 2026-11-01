@@ -90,6 +90,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     "offspring",
     "escalate",
     "warp",
+    // CR 702.176a — a cast mode; the not-yet-a-creature body is priced by
+    // the counter-clock valuation (`ai/counterClockCreature.ts`), not here.
+    "impending",
     "plot",
     "ninjutsu",
     "ravenous",
