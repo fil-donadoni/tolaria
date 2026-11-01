@@ -94,6 +94,7 @@ const NOT_A_BODY_KEYWORD = new Set([
     // the counter-clock valuation (`ai/counterClockCreature.ts`), not here.
     "impending",
     "plot",
+    "foretell",
     "ninjutsu",
     "ravenous",
     "hideaway",

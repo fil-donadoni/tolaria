@@ -28,6 +28,7 @@ import type {
     PlayerState,
 } from "./state/declarations";
 import { alternativeCostConditionMet } from "./alternativeCost";
+import { getForetellCost, isForetellCast } from "./foretell";
 import { getMadnessCost } from "./madness";
 import {
     countDistinctCardTypes,
@@ -285,6 +286,13 @@ export function castRawManaCost(
     // madness cost, not its printed mana cost. `Madness {0}` is the empty cost.
     if (zone === "exile" && card.madnessExiled) {
         return getMadnessCost(card) ?? {};
+    }
+    // CR 702.143a — a foretold card is cast from exile "by paying any
+    // foretell cost it has rather than paying that spell's mana cost" (an
+    // alternative cost, CR 601.2b / 601.2f–h). After the free-cast waiver,
+    // which `isForetellCast` defers to.
+    if (zone === "exile" && isForetellCast(card)) {
+        return getForetellCost(card);
     }
     // CR 118.9-analog / 119.4 (issue #2398, Bolas's Citadel) — a cast made
     // under a cast-from-top-of-library permission whose `manaCostReplacement`

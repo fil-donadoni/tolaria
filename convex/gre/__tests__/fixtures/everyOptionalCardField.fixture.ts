@@ -211,6 +211,8 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         castableFromExileFromTurn: 22,
         castableFromExileSorceryTiming: true,
         plotted: true,
+        foretold: true,
+        grantedForetellCost: { X: 1, U: 1 },
         castFromExileWithoutPayingManaCost: true,
         castFromExileNotAsAdventure: true,
         prepared: true,

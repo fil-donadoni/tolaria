@@ -479,6 +479,7 @@ import {
     turnFaceUpPayment,
 } from "./gre/morph";
 import { applyPlot } from "./gre/plot";
+import { applyForetell } from "./gre/foretell";
 import { paySpecialActionManaCost } from "./gre/specialActionPayment";
 import { isOverloadAlternativeCost } from "./gre/overload";
 import {
@@ -4486,6 +4487,39 @@ export const plotCard = mutation({
         });
         assertNoPendingChoices(state);
         applyPlot(state, args.playerId, args.cardInstanceId);
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+    },
+});
+
+/** CR 116.2h / 702.143a (issue #2096) — the `foretell` special action: pay
+ *  {2} and exile a card with foretell from hand face down, any time the caller
+ *  has priority during their own turn; it becomes foretold (castable from
+ *  exile for its foretell cost on a later turn). The whole transition is
+ *  `applyForetell` (`gre/foretell.ts`); this adds auth, the clone and the
+ *  save. No stack item; priority stays with the caller (CR 116.3). */
+export const foretellCard = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+        assertNoPendingChoices(state);
+        applyForetell(state, args.playerId, args.cardInstanceId);
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);

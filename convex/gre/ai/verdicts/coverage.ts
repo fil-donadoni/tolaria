@@ -90,6 +90,7 @@ export const CLASS_OF_MOVE_KIND: Record<Move["kind"], DecisionClass> = {
     "summon-companion": "protocol",
     "turn-face-up": "protocol",
     plot: "protocol",
+    foretell: "protocol",
 };
 
 /** The class of one move already in hand (issue #3984: a Verdict Proposal's

@@ -107,6 +107,7 @@ import { getInstanceManaCost } from "../cards";
 // Issue #4444 — the search's shared commit sequences, one copy each for both
 // search appliers.
 import {
+    applyMoveForSearch,
     commitCastInSearch,
     declineCastWindowInSearch,
     payActivationInSearch,
@@ -118,6 +119,7 @@ import {
 } from "./applyMove";
 import { applyTapPlanInSearch } from "./searchTapPlan";
 import { plotInSearch } from "./plot";
+import { foretellInSearch } from "./foretell";
 import { castNeedsSorceryWindow } from "./rules";
 // CR 602.2a / 602.5 (issue #1920) — the shared shape of an activated ability's
 // stack item and the shared activation tally, so the search's push is the same
@@ -1005,6 +1007,13 @@ export function applyMoveInSearch(
             // CR 116.2k / 702.170b — no stack item: resets the pass cycle and
             // keeps priority with the actor, like every special action.
             plotInSearch(state, player, move.cardInstanceId);
+            checkStateBasedActionsAfterSpecialAction(state, playerId);
+            SBA_SETTLED.add(state);
+            return;
+
+        case "foretell":
+            // CR 116.2h / 702.143b — no stack item, like plot.
+            foretellInSearch(state, player, move.cardInstanceId);
             checkStateBasedActionsAfterSpecialAction(state, playerId);
             SBA_SETTLED.add(state);
             return;
@@ -5507,11 +5516,32 @@ export function selectRootMove(
     // even though the two are outcome-equal. Gating on `contenders` (visit-band)
     // would then silently drop it — exactly the mana-screwed case where the bot
     // sat on its only land rather than developing it.
+    //
+    // The FORETELL special action (CR 702.143a, issue #2096) is the same shape:
+    // the foretold card is latent material exactly as the hand card was
+    // (`evaluate`'s hand term), the {2} it taps is mana that empties at the end
+    // of the step (CR 106.4 / 500.5) when nothing else in the position spends
+    // it, and the cheaper later cast it buys lies past the rollout horizon —
+    // so the two lines reach outcome-equal rollout leaves and `pass` wins the
+    // tie on noise. The ONE thing the {2} can forfeit is an option held open
+    // THIS turn — a castable instant, a paid activation (`flexibility`) — and
+    // the rollout washes that out too (the lands untap), so the foretell is
+    // taken only when it keeps the mover's `flexibility` term unchanged
+    // (`foretellKeepsHeldOptions`; both sides pinned in `foretell.bot.test.ts`),
+    // and only once the turn's sorcery-speed plays are behind it
+    // (`isLastForetellWindow`: postcombat main or later) — earlier, the `pass`
+    // edge still reaches that window, and a {2} tapped in upkeep could starve
+    // a main-phase play the rollout does not see.
     if (best.move.kind === "pass" && ruleOn("free-development")) {
         const develop = pool.find(
             (e) =>
                 mean(e) >= bestMean - weights.outcomeEps &&
                 (e.move.kind === "play-land" ||
+                    (e.move.kind === "foretell" &&
+                        !!rootState &&
+                        !!botId &&
+                        isLastForetellWindow(rootState) &&
+                        foretellKeepsHeldOptions(rootState, botId, e.move)) ||
                     (!!rootState &&
                         (isFreeManaSourceCast(rootState, e.move, botId) ||
                             isManaDorkCast(rootState, e.move, botId))))
@@ -6959,4 +6989,34 @@ export function search(
         deckKnowledge,
         repetition
     ).move;
+}
+
+/** CR 702.143a (issue #2096) — true iff taking the `foretell` special action
+ *  forfeits no option the mover holds open THIS turn: their `flexibility`
+ *  term (castable instants, paid instant-speed activations, ADR 0021) reads
+ *  the same after the {2} is tapped as before. The `free-development`
+ *  tie-break's gate for foretell: tapping the {2} out of a hand that holds a
+ *  Counterspell is a real cost the rollout washes out (the lands untap). */
+function foretellKeepsHeldOptions(
+    state: GameState,
+    botId: string,
+    move: Move
+): boolean {
+    const before = evaluateBreakdown(state, botId).self.flexibility;
+    const after = evaluateBreakdown(
+        applyMoveForSearch(state, botId, move),
+        botId
+    ).self.flexibility;
+    return after >= before;
+}
+
+/** CR 702.143a (issue #2096) — the part of the mover's own turn where a
+ *  foretell can no longer compete with a sorcery-speed play: the postcombat
+ *  main phase and the ending phase. Earlier windows defer to this one. */
+function isLastForetellWindow(state: GameState): boolean {
+    return (
+        state.phase === "POSTCOMBAT_MAIN" ||
+        state.phase === "END_STEP" ||
+        state.phase === "CLEANUP"
+    );
 }

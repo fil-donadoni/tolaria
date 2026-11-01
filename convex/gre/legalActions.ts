@@ -70,6 +70,9 @@ export type PriorityMove = Extract<
             | "turn-face-up"
             // CR 116.2k / 702.170a — the plot special action (sorcery-timed).
             | "plot"
+            // CR 116.2h / 702.143a — the foretell special action (any
+            // priority of the actor's own turn).
+            | "foretell"
             | "cast-spell"
             | "activate-ability"
             | "declare-attackers";

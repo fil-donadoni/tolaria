@@ -73,6 +73,7 @@ import {
     latentGraveyardValue,
 } from "./ai/graveyardReach";
 import {
+    FACE_DOWN_CARD_ID,
     getInstanceManaCost,
     getInstanceAiValue,
     tryGetDefinition,
@@ -81,10 +82,12 @@ import { declaresCombatRestrictionStaticEffect } from "../cards/registry";
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
 import {
+    exileCastPermission,
     exileCastPermitted,
     graveyardCastMechanismForMember,
 } from "./castCost";
 import { getPrintedEscape } from "./escape";
+import { getForetellCost, isForetellCast } from "./foretell";
 import {
     canPayCost,
     castProbeFor,
@@ -1078,6 +1081,22 @@ function flexibilityTerm(
             continue;
         castable += 1;
     }
+    // CR 702.143a (issue #2096) — a FORETOLD instant whose window is open is
+    // exactly a holdable response, just not in hand: castable at instant
+    // speed for its foretell cost, in either player's turn.
+    for (const card of player.exile) {
+        if (castable >= weights.flexCardCap) break;
+        if (!isForetellCast(card) || !hasInstantSpeed(card)) continue;
+        if (!exileCastPermitted(state, card, player.id)) continue;
+        if (
+            !canPayCost(units, getForetellCost(card) ?? {}, {
+                life: player.life,
+                cast: castProbeFor(state, player, card),
+            })
+        )
+            continue;
+        castable += 1;
+    }
     for (const perm of player.battlefield) {
         if (castable >= weights.flexCardCap) break;
         if (!hasFlexibleActivation(state, player, perm, units, player.life))
@@ -1706,10 +1725,20 @@ export function permanentRealisedValue(
     return total;
 }
 
-/** The exiled cards `player` holds an OPEN play permission for, in any
- *  player's exile (CR 400.7 — the grant may be cross-player), read through
- *  `exileCastPermitted`, the one authority the enumerator and the payment
- *  path share (issue #4217). */
+/** The exiled cards `player` holds a play permission for, in any player's
+ *  exile (CR 400.7 — the grant may be cross-player): one OPEN now, read
+ *  through `exileCastPermitted`, the one authority the enumerator and the
+ *  payment path share (issue #4217) — or one whose window opens on a LATER
+ *  turn and stays open from then (issue #2096):
+ *    - a foretold card (Foretell, CR 702.143a: "after the current turn has
+ *      ended");
+ *    - a plotted card (Plot, CR 702.170d);
+ *    - a warped card (Warp, CR 702.185a).
+ *  Such a card is latent material from the moment it is
+ *  exiled, exactly like the hand card it was; priced at zero until its window
+ *  opened, the special action that exiles it read as throwing the card away
+ *  and the Bot never took it. A board condition on a future window is not
+ *  re-read: the future board is unknown, and the card is latent either way. */
 function playableExileCards(
     state: GameState,
     player: PlayerState
@@ -1717,7 +1746,18 @@ function playableExileCards(
     return state.players.flatMap((owner) =>
         owner.exile.filter(
             (c) =>
-                exileCastPermitted(state, c, player.id) &&
+                // CR 406.3 — a face-down sentinel (an opponent's foretold
+                // card on the client Bot's wire view) is not a card whose
+                // worth this view can read.
+                (c.card as { id?: string }).id !== FACE_DOWN_CARD_ID &&
+                (exileCastPermitted(state, c, player.id) ||
+                    (c.castableFromExileFromTurn !== undefined &&
+                        c.castableFromExileFromTurn > state.turn &&
+                        exileCastPermission(
+                            c,
+                            player.id,
+                            c.castableFromExileFromTurn
+                        ))) &&
                 // A land is PLAYED, never cast (CR 305.9): a cast-only grant
                 // on one is unusable, so it counts only under a play grant —
                 // the same test `resolvePlayLandSourceZone` makes.
