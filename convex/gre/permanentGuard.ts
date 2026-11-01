@@ -33,7 +33,11 @@
 // (`getLegalTargets`, `selectTarget`), issue #1128.
 
 import type { CardInstanceState } from "./state/declarations";
-import type { StaticPermanentGuard } from "../cards/types";
+import type {
+    PlayerGuardAction,
+    StaticPermanentGuard,
+    StaticPlayerGuard,
+} from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { tryGetDefinition } from "../cards";
 
@@ -254,6 +258,17 @@ export function playerHasShroud(
     state: BattlefieldView,
     playerId: string
 ): boolean {
+    return playerGuardsOf(state, playerId).some((g) => g.cantBeTargeted);
+}
+
+/** Every `player-guard` static effect currently guarding `playerId`: a scan of
+ *  EVERY battlefield (a permanent either player controls can grant one), each
+ *  effect's `appliesTo` resolved against its source, read live (CR 611.3a). */
+function playerGuardsOf(
+    state: BattlefieldView,
+    playerId: string
+): StaticPlayerGuard[] {
+    const guards: StaticPlayerGuard[] = [];
     for (const player of state.players) {
         for (const source of player.battlefield) {
             const cardId = (source.card as { id?: string }).id;
@@ -262,15 +277,45 @@ export function playerHasShroud(
             if (!effects) continue;
             for (const effect of effects) {
                 if (effect.kind !== "player-guard") continue;
-                if (!effect.cantBeTargeted) continue;
                 const appliesTo = effect.appliesTo ?? "controller";
                 const targetPlayerId =
                     appliesTo === "controller"
                         ? source.controllerId
                         : source.chosenPlayerId;
-                if (targetPlayerId === playerId) return true;
+                if (targetPlayerId === playerId) guards.push(effect);
             }
         }
     }
-    return false;
+    return guards;
+}
+
+/** CR 101.2 — true when a spell or ability controlled by `causerControllerId`
+ *  can't cause `playerId` to perform `action` ("Spells and abilities your
+ *  opponents control can't cause you to discard cards or sacrifice
+ *  permanents", Tamiyo, Collector of Tales): the "can't" wins over the effect
+ *  directing it, so that part of the effect does nothing. Source-scoped — a
+ *  player's own spells and abilities (`causerControllerId === playerId`) are
+ *  never barred, and an undefined causer (a cost, a game rule) is not an
+ *  opponent's spell or ability.
+ *
+ *  Producer census (issue #2607) — every effect-driven discard and sacrifice
+ *  reaches one of four consulting sites in `gre/state.ts`: the discard
+ *  chokepoint `discardToGraveyard` (effect origin) and its random-discard
+ *  loop `discardCardsAtRandom`; the sacrifice funnel `removePermanentTo`
+ *  (`"sacrifice"` with a causer — only `SpellContext.sacrifice` passes one);
+ *  `SpellContext.requestMayPay` (a sacrifice/discard payment leg is an option
+ *  the player can't take); and `SpellContext.requestChoice` (a
+ *  `sacrifice-permanents` / `discard-hand` pick that could only feed a barred
+ *  action is answered empty, so no prompt opens). */
+export function isOpponentCauseProhibited(
+    state: BattlefieldView,
+    playerId: string,
+    action: PlayerGuardAction,
+    causerControllerId: string | undefined
+): boolean {
+    if (causerControllerId === undefined) return false;
+    if (causerControllerId === playerId) return false;
+    return playerGuardsOf(state, playerId).some(
+        (g) => g.opponentsCantCause?.includes(action) ?? false
+    );
 }

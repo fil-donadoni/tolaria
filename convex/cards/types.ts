@@ -10454,6 +10454,10 @@ export interface StaticPermanentGuard {
     survivesZeroLoyalty?: boolean;
 }
 
+/** An action a `player-guard`'s `opponentsCantCause` clause can bar an
+ *  opponent's spell or ability from making the guarded player perform. */
+export type PlayerGuardAction = "discard" | "sacrifice";
+
 /** Continuous PLAYER-scoped shroud static effect (CR 702.18 applied to a
  *  player via CR 115.4 — "You have shroud" / "can't be the target of spells
  *  or abilities"). `StaticPermanentGuard` is per-permanent (`applies(target,
@@ -10482,6 +10486,18 @@ export interface StaticPlayerGuard {
      *  shroud has no source-controller exception — it bars EVERY source,
      *  including the guarded player's own spells/abilities. */
     cantBeTargeted?: boolean;
+    /** CR 101.2 — "Spells and abilities your opponents control can't cause you
+     *  to discard cards or sacrifice permanents" (Tamiyo, Collector of Tales).
+     *  Each listed action, when a spell or ability controlled by a player
+     *  OTHER than the guarded one would make the guarded player perform it,
+     *  simply does not happen: that part of the effect does nothing, the rest
+     *  of the spell resolves, and an option to perform it ("unless you
+     *  sacrifice a permanent", a may-pay with a sacrifice/discard leg) can't be
+     *  taken. Source-scoped: the guarded player's own spells, abilities and
+     *  costs are untouched, and so are game-rule discards and graveyard moves
+     *  (CR 514.1 cleanup, CR 704.1 SBAs). Read by `isOpponentCauseProhibited`
+     *  (`convex/gre/permanentGuard.ts`). */
+    opponentsCantCause?: readonly PlayerGuardAction[];
     /** Whose shroud this is. Defaults to `"controller"` (the source
      *  permanent's controller — "You have shroud", read directly off the
      *  card that grants it). `"chosen-player"` mirrors
