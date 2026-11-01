@@ -359,6 +359,17 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 119.7 + CR 611.2a — "<player> can't gain life for the rest of
+           * the game": a game-long lock on the named player (Stigma Lasher's
+           * "that player", the damaged one). Only the game-long duration is
+           * read; "this turn" (Skullcrack) is a different boundary the Op
+           * does not express, and is refused by name.
+           */
+          readonly frame: "restrictLifeGain";
+          readonly player: PlayerRefIR;
+      }
+    | {
+          /**
            * CR 701.71a — "Empower Jace N": the keyword action, whose rule
            * text is itself a composition (create the Jace planeswalker token
            * if you control none, choose one, put N loyalty counters on it).
@@ -595,6 +606,14 @@ export const VERB_FRAMES: readonly {
         opens: /^(?:after this phase, there is an additional combat phase)\b/i,
     },
     { name: "skipNextTurn", opens: /^you skip your next turn$/i },
+    {
+        name: "restrictLifeGain",
+        // A player reference the shared sub-grammar reads, then the lock.
+        opens: new RegExp(
+            `^(?:${PLAYER_PHRASES.join("|")}) can't gain life\\b`,
+            "i"
+        ),
+    },
     { name: "empowerJace", opens: /^empower jace\b/i },
     { name: "becomeMonarch", opens: /^you become the monarch\b/i },
     { name: "manifestDread", opens: /^manifest dread\b/i },
@@ -715,6 +734,8 @@ const PLAYER_COUNTERS =
 /** CR 500.7 — the one extra-turn spelling per subject; nothing trails "this one". */
 const EXTRA_TURN =
     /^(?:(take)|(you take|target player takes)) an extra turn after this one$/;
+/** CR 119.7 + CR 611.2a — the game-long life-gain lock; nothing trails "game". */
+const RESTRICT_LIFE_GAIN = /^(.+?) can't gain life for the rest of the game$/;
 /** CR 500.8 — the combat-anchored spellings, each ending at the phase noun. */
 const EXTRA_COMBAT =
     /^(?:after this phase, there is an additional combat phase)$/;
@@ -1745,6 +1766,19 @@ function readMember(
     }
     if (opensFrame("skipNextTurn", lower))
         return { frames: [{ frame: "skipNextTurn" }], referent };
+    if (opensFrame("restrictLifeGain", lower)) {
+        const locked = lower.match(RESTRICT_LIFE_GAIN);
+        if (locked === null)
+            return {
+                refused: `"${member}" — only "<player> can't gain life for the rest of the game" is read`,
+            };
+        const player = playerRefRule.run(locked[1]!, ctx);
+        if (!player.ok) return { refused: player.reason, failure: player };
+        return {
+            frames: [{ frame: "restrictLifeGain", player: player.value }],
+            referent,
+        };
+    }
     if (opensFrame("empowerJace", lower)) {
         const empower = lower.match(EMPOWER_JACE);
         if (empower === null)

@@ -101,7 +101,7 @@ function lockThenGain(
 
 describe("restrictLifeGain — can't gain life for the rest of the game (CR 119.7 / 611.2a)", () => {
     it("validates", () => {
-        expect(validateEffectScript(LOCK_SCRIPT)).toEqual([]);
+        expect(validateEffectScript(LOCK)).toEqual([]);
     });
 
     it("a player dealt damage this way is locked, and a later gain gives nothing", () => {
