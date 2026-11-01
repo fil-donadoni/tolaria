@@ -6652,6 +6652,23 @@ const OP_SCHEMAS: OpSchemaTable = {
             return [];
         },
     },
+    // CR 701.21a + CR 608.2b (issue #7206) — sacrifice one announced
+    // permanent and return one announced graveyard card together, only when
+    // BOTH target slots are still legal. Both fields are announced target
+    // slots (`{ target: N }`): the "both targets are still legal" gate is a
+    // statement about targets, so a binding/event ref has no meaning here.
+    sacrificeAndReturn: {
+        required: { sacrificed: isTargetRef, returned: isTargetRef },
+        check: (entry) => {
+            const a = entry.sacrificed as { target: number };
+            const b = entry.returned as { target: number };
+            return a.target === b.target
+                ? [
+                      '"sacrificed" and "returned" must name different target slots',
+                  ]
+                : [];
+        },
+    },
     // forEach — the `forEach` structural construct (ADR 0045).
     // The `select` selector shape is checked here; body Op validity, the
     // nesting ban, and `$each` ref references are checked by the recursive

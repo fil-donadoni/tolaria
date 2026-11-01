@@ -1162,6 +1162,19 @@ export interface TargetRequirement {
      *  clickability gate all read one registry check. A directive, never
      *  checked against a candidate. Meaningless on a primary requirement. */
     zoneOwnerOfPriorPlayerTarget?: boolean;
+    /** CROSS-SLOT zone-owner constraint, permanent flavour (CR 601.2c, issue
+     *  #7206): "Choose target artifact a player controls and target artifact
+     *  card in THAT PLAYER's graveyard" (Goblin Welder) names a permanent in
+     *  one group and a card in a zone of that permanent's CONTROLLER in
+     *  another. The sibling of `zoneOwnerOfPriorPlayerTarget` — same lowering
+     *  into the registered `zoneOwnerId` filter at the group hand-off
+     *  (`zoneOwnedByPriorPlayerTarget`, `gre/targetGroupWalk.ts`), but the
+     *  player is read as the CONTROLLER of the earlier group's permanent pick
+     *  (live, at announcement) instead of a player pick. A directive, never
+     *  checked against a candidate; fails CLOSED (no legal card) when no
+     *  permanent precedes the group or it already left the battlefield.
+     *  Meaningless on a primary requirement. */
+    zoneOwnerOfPriorPermanentController?: boolean;
     /** The player whose zone the candidate must be in (CR 108.4a / 404.1 for a
      *  graveyard card: its OWNER). Registered filter, lowered from
      *  `zoneOwnerOfPriorPlayerTarget` at the group hand-off; not authored on a
@@ -20333,6 +20346,35 @@ export type EffectOp =
      *  Skipped when the binding was never captured (the choice found no
      *  candidates — CR 608.2b: a player with nothing to sacrifice does
      *  nothing). */
+    /** CR 701.21a + CR 608.2b + CR 400.7 (issue #7206) — "If both targets are
+     *  still legal as this ability resolves, that player simultaneously
+     *  sacrifices the artifact and returns the artifact card to the
+     *  battlefield" (Goblin Welder). TWO announced target slots, read as ONE
+     *  all-or-nothing unit: `sacrificed` names a permanent on the battlefield
+     *  (sacrificed through `SpellContext.sacrifice`, CR 701.21a — its controller
+     *  puts it into its owner's graveyard), `returned` a card in a graveyard
+     *  (returned through `SpellContext.returnCardSetToBattlefield`, under its
+     *  owner's control). Unlike two sequential `sacrifice` + `moveZone` Ops
+     *  (which CR 608.2b would let half-resolve when one target went illegal),
+     *  the Op does NOTHING unless BOTH slots survive to resolution, and both
+     *  moves happen inside this one Op with no state-based action, priority
+     *  or trigger resolution between them, so every leaves-the-battlefield and
+     *  enters-the-battlefield trigger of the swap is put on the stack together
+     *  (CR 603.3b).
+     *
+     *  Pair with the target-group directive
+     *  `zoneOwnerOfPriorPermanentController` on the `returned` group so the
+     *  card is chosen from the sacrificed permanent's controller's graveyard
+     *  ("THAT player's graveyard"). What it deliberately does NOT do: pick
+     *  either object itself (both are announced), take a `bind` snapshot
+     *  (no card needs the sacrificed permanent's last-known information
+     *  afterwards), or accept a picks/binding ref — only announced slots, since
+     *  "both targets are still legal" is a statement about targets. */
+    | {
+          op: "sacrificeAndReturn";
+          sacrificed: EffectTargetRef;
+          returned: EffectTargetRef;
+      }
     | {
           op: "sacrifice";
           /** A bare picks ref naming a `choice` Op's bind — sacrifices EVERY

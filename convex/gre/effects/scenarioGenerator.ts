@@ -2071,6 +2071,15 @@ const SCENARIO_SKIPS = {
         code: "op-own-tests",
         reason: `Op "winGame" sets state.gameOver — covered by the Op's own interpreter test`,
     },
+    // CR 701.21a / 608.2b (issue #7206) — needs TWO announced slots of
+    // different zones (a battlefield permanent and a graveyard card of the
+    // same player) and an all-or-nothing gate on both; the canned generator
+    // seeds neither a graveyard-card target nor a second slot. Explicit skip
+    // — the Op's own interpreter test covers both-legal and either-illegal.
+    sacrificeAndReturn: {
+        code: "unmodelled-object-or-zone",
+        reason: `Op "sacrificeAndReturn" pairs a battlefield target with a graveyard-card target of the same player — covered by the Op's own interpreter test`,
+    },
     // ADR 0053 (pile division, issue #1067) — a TWO-PLAYER divide-
     // then-choose interaction: the divider partitions the object set,
     // then a DIFFERENT player picks a pile, both suspending for a live
