@@ -297,6 +297,15 @@ export function commitCast(
         ? castExileCostPickIds(caster, exilePicks)
         : undefined;
     if (exilePicks?.pickedCardIds && !exilePickIds) return null;
+    // CR 701.59a — an UNANSWERED collect-evidence picker is an unpaid cost,
+    // never a free one: the kernel refuses rather than commit without it,
+    // whichever caller reached it (defence in depth beside the commit gate).
+    if (
+        exilePicks?.minTotalManaValue !== undefined &&
+        !exilePicks.pickedCardIds
+    ) {
+        return null;
+    }
     if (exilePicks && exilePickIds) {
         const exileSourceZone = exilePicks.zone ?? "graveyard";
         const exileSource =
