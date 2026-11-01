@@ -621,10 +621,85 @@ export const impendingRule: Rule<SlotIR> = rule("impending", (span) => {
     });
 });
 
+// ── Equip / Ninjutsu / Offspring <mana cost>, Crew N ──────────────────────
+
+const EQUIP_HEAD = "Equip ";
+const NINJUTSU_HEAD = "Ninjutsu ";
+const OFFSPRING_HEAD = "Offspring ";
+const CREW = /^Crew (\d+)$/;
+
+/**
+ * CR 702.6a — "Equip [cost]" means "[Cost]: Attach this permanent to target
+ * creature you control. Activate only as a sorcery." Lowered through the
+ * catalogue's `equipAbility` factory, so the compiled ability IS the
+ * hand-written one.
+ *
+ * Refused: a restricted equip ("Equip legendary creature {3}", CR 702.6c) —
+ * its quality narrows the target, and reading only the cost would attach to
+ * any creature; "Equip planeswalker" (CR 702.6e), the same shape; a non-mana
+ * cost ("Equip—Pay 3 life"); every cost {@link costParameter} refuses.
+ */
+export const equipRule: Rule<SlotIR> = rule("equip", (span) => {
+    const cost = costParameter(EQUIP_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({ kind: "equip" as const, cost: cost.value });
+});
+
+/**
+ * CR 702.122a — "Crew N" means "Tap any number of other untapped creatures
+ * you control with total power N or greater: This permanent becomes an
+ * artifact creature until end of turn." Lowered through the catalogue's
+ * `crewAbility` factory; the printed P/T it animates to is the card's own
+ * (CR 301.7b), read by lowering.
+ *
+ * Refused: "Crew 0" (no printed card; a crew that taps nothing is a
+ * different shape this grammar has no card for).
+ */
+export const crewRule: Rule<SlotIR> = rule("crew", (span) => {
+    const match = CREW.exec(span);
+    if (match === null) return fail('a crew line is "Crew N"', span);
+    const count = Number(match[1]);
+    if (count < 1) return fail("crew counts from 1", span);
+    return ok({ kind: "crew" as const, count });
+});
+
+/**
+ * CR 702.49a — "Ninjutsu [cost]": an activated ability that functions only
+ * while the card is in its owner's hand. Lowered through the catalogue's
+ * `ninjutsuAbility` factory.
+ *
+ * Refused: commander ninjutsu (CR 702.49d, another head — this engine models
+ * no command zone), every cost {@link costParameter} refuses.
+ */
+export const ninjutsuRule: Rule<SlotIR> = rule("ninjutsu", (span) => {
+    const cost = costParameter(NINJUTSU_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({ kind: "ninjutsu" as const, cost: cost.value });
+});
+
+/**
+ * CR 702.175a — "Offspring [cost]" means "You may pay an additional [cost] as
+ * you cast this spell" and "When this permanent enters, if its offspring cost
+ * was paid, create a token that's a copy of it, except it's 1/1." Both halves
+ * are lowered from this one line: the cost entry and its twin trigger.
+ *
+ * Refused: every cost {@link costParameter} refuses.
+ */
+export const offspringRule: Rule<SlotIR> = rule("offspring", (span) => {
+    const cost = costParameter(OFFSPRING_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({
+        kind: "offspring" as const,
+        cost: cost.value,
+        description: span,
+    });
+});
+
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker line, or one cost-parameter keyword (cycling, madness, plot,
- * foretell, overload, morph, fading, impending). They are disjoint by construction — no registry keyword name
+ * foretell, overload, morph, fading, impending, equip, crew, ninjutsu,
+ * offspring). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
  * object, and each parameterised rule reads only its own head — and `oneOf`
  * enforces it rather than trusting it.
@@ -644,6 +719,10 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     cumulativeUpkeepRule,
     fadingRule,
     impendingRule,
+    equipRule,
+    crewRule,
+    ninjutsuRule,
+    offspringRule,
 ]);
 
 /** Guard: keyword lines are only meaningful on an object with a text box. */

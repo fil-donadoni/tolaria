@@ -33,6 +33,218 @@ export interface GoldenFixture {
 // Frozen: `fixtureForms` caches by array identity, so the registry may never
 // change in place.
 export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
+    // CR 702.122a — "Crew N": the crew ability's `animate` acts on `$source`
+    // (the Vehicle itself), which the canned smoke scenario cannot stage.
+    {
+        rule: "crew",
+        card: {
+            oracleId: "be96b9e1-10ef-4955-8d23-c39384def86d",
+            name: "Aradara Express",
+            manaCost: "{5}",
+            typeLine: "Artifact — Vehicle",
+            oracleText:
+                "Menace\nCrew 4 (Tap any number of creatures you control with total power 4 or more: This Vehicle becomes an artifact creature until end of turn.)",
+            power: "8",
+            toughness: "6",
+            layout: "normal",
+        },
+        expected: {
+            name: "Aradara Express",
+            types: ["Artifact"],
+            subtypes: ["Vehicle"],
+            manaCost: { X: 5 },
+            oracleText:
+                "Menace\nCrew 4 (Tap any number of creatures you control with total power 4 or more: This Vehicle becomes an artifact creature until end of turn.)",
+            staticAbilities: ["menace", "crew 4"],
+            activatedAbilities: [
+                {
+                    id: "aradara-express-crew",
+                    oracleText:
+                        "Crew 4 (Tap any number of creatures you control with total power 4 or more: This Vehicle becomes an artifact creature until end of turn.)",
+                    cost: {
+                        tapOtherFilter: {
+                            filter: {
+                                types: "Creature",
+                                controllerRelation: "you",
+                            },
+                            totalPower: 4,
+                        },
+                    },
+                    useStack: true,
+                    animatesSelf: true,
+                    effects: [
+                        {
+                            op: "animate",
+                            target: { ref: "$source" },
+                            power: 8,
+                            toughness: 6,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+            power: 8,
+            toughness: 6,
+        },
+    },
+    // CR 702.49a — "Ninjutsu [cost]": the ability's `moveZone` puts `$source`
+    // from the hand onto the battlefield attacking, a zone move the canned
+    // smoke scenario does not model.
+    {
+        rule: "ninjutsu",
+        card: {
+            oracleId: "1f3c2b00-0000-4ae1-9650-9553accac52e",
+            name: "Ninja of the Deep Hours",
+            manaCost: "{3}{U}",
+            typeLine: "Creature — Human Ninja",
+            oracleText:
+                "Ninjutsu {1}{U} ({1}{U}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)\nWhenever this creature deals combat damage to a player, you may draw a card.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Ninja of the Deep Hours",
+            types: ["Creature"],
+            subtypes: ["Human", "Ninja"],
+            manaCost: { X: 3, U: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Ninjutsu {1}{U} ({1}{U}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)\nWhenever this creature deals combat damage to a player, you may draw a card.",
+            activatedAbilities: [
+                {
+                    id: "ninjutsu",
+                    oracleText:
+                        "Ninjutsu {1}{U} ({1}{U}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)",
+                    cost: {
+                        mana: { X: 1, U: 1 },
+                        returnUnblockedAttacker: true,
+                    },
+                    activateFromHand: true,
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            from: "hand",
+                            to: "battlefield",
+                            tapped: true,
+                            attacking: true,
+                        },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "ninja-of-the-deep-hours-trigger",
+                    oracleText:
+                        "Whenever this creature deals combat damage to a player, you may draw a card.",
+                    head: { kind: "combat-damage-to-player" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Draw a card?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$may1" },
+                            then: [
+                                { op: "draw", player: "controller", count: 1 },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 702.175a — "Offspring [cost]": the twin trigger reads whether the
+    // offspring cost was paid (the canned scenario casts unkicked) and copies
+    // `$source`, neither of which the smoke scenario can stage.
+    {
+        rule: "offspring",
+        card: {
+            oracleId: "d0be5969-0442-4557-a5fc-bee56e1835c2",
+            name: "Thundertrap Trainer",
+            manaCost: "{1}{U}",
+            typeLine: "Creature — Otter Wizard",
+            oracleText:
+                "Offspring {4} (You may pay an additional {4} as you cast this spell. If you do, when this creature enters, create a 1/1 token copy of it.)\nWhen this creature enters, look at the top four cards of your library. You may reveal a noncreature, nonland card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.",
+            power: "1",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Thundertrap Trainer",
+            types: ["Creature"],
+            subtypes: ["Otter", "Wizard"],
+            manaCost: { X: 1, U: 1 },
+            power: 1,
+            toughness: 2,
+            oracleText:
+                "Offspring {4} (You may pay an additional {4} as you cast this spell. If you do, when this creature enters, create a 1/1 token copy of it.)\nWhen this creature enters, look at the top four cards of your library. You may reveal a noncreature, nonland card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "offspring-token-copy-offspring",
+                    oracleText:
+                        "When Thundertrap Trainer enters, if its offspring cost was paid, create a token that's a copy of it, except it's 1/1.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "offspring" },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "offspring" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "createTokenCopy",
+                                    source: { ref: "$source" },
+                                    controller: "controller",
+                                    except: { basePower: 1, baseToughness: 1 },
+                                },
+                            ],
+                        },
+                    ],
+                    additionalCostTwin: {
+                        keyword: "offspring",
+                        costId: "offspring",
+                    },
+                },
+                {
+                    id: "thundertrap-trainer-trigger-2",
+                    oracleText:
+                        "When this creature enters, look at the top four cards of your library. You may reveal a noncreature, nonland card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "lookDistribute",
+                            keepTo: "hand",
+                            player: "controller",
+                            look: 4,
+                            take: 1,
+                            filter: { excludeType: ["Creature", "Land"] },
+                            optional: true,
+                            reveal: "kept",
+                            randomBottom: true,
+                        },
+                    ],
+                },
+            ],
+            kickers: [
+                {
+                    id: "offspring",
+                    keyword: "offspring",
+                    description: "Offspring {4}",
+                    mana: { X: 4 },
+                },
+            ],
+        },
+    },
     // CR 701.71a (issue #7198) — "Empower Jace N": the keyword action's whole
     // composition (`empowerJaceOps`, cards/abilities/empowerJace.ts). Exhibits
     // an `if` over a runtime count of Jace planeswalker tokens, a `forEach`

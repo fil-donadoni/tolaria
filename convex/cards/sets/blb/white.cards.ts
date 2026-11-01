@@ -49,11 +49,6 @@ import { OFFSPRING_COST_ID, offspringTrigger } from "../../abilities/offspring";
 // creature its controller controls and it is already on the battlefield when
 // its own ETB trigger is put on the stack, so the ability never lacks a target
 // on an otherwise empty board.
-//
-// Guard C (issue #2701) — the Oracle compiler's grammar reads no additional-
-// cost keyword, so the offspring line is named for the corpus backlog PRD #2693
-// ranks the next grammar rule by.
-// compiler-gap: Offspring {1} (You may pay an additional {1} as you cast this spell. If you do, when this creature enters, create a 1/1 token copy of it.) (#2693)
 export const intrepidRabbit = defineCard(() => ({
     id: "4d70b99d-c8bf-4a56-8957-cf587fe60b81", // BLB 17
     name: "Intrepid Rabbit",
