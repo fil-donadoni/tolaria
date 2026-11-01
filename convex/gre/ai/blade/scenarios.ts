@@ -965,6 +965,56 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #2798 — discriminating pair with the entry above (only the opponent's life differs): it pins that the walker preference comes from the walker's worth, not from a bias toward walker targets. Before the fix every seed attacked Garruk with lethal on the table.",
     },
     {
+        // MUST. The defender-pinned attack requirement (CR 508.1d, issue
+        // #3247). The walker-kill board above, with the attacker swapped for
+        // Ursine Monstrosity: its beginning-of-combat trigger has resolved,
+        // so it must attack THE OPPONENT this combat. Garruk at 3 loyalty is
+        // still the better target on worth alone (the Hill Giant entry), but
+        // a walker attack does not obey the pinned requirement — the only
+        // legal declaration aims Ursine at the player.
+        label: "pinned attack requirement: attacks the named player, never the planeswalker",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Ursine Monstrosity",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Garruk Wildspeaker",
+                    owner: "opp",
+                    zone: "battlefield",
+                    counters: { loyalty: 3 },
+                },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        setup: [
+            { kind: "phase-trigger" },
+            { kind: "resolve-top" },
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move?.kind === "declare-attackers" &&
+                move.attackerIds.length > 0 &&
+                Object.keys(move.attackTargets ?? {}).length === 0,
+            describe:
+                "declare-attackers with Ursine Monstrosity at the player — no walker target",
+        },
+        note: "Issue #3247 — `enumerateAttackerMoves` (`gre/moves.ts`) offers no walker variant for an attacker whose granted requirement is pinned to the defending player (`pinnedAttackDefenderOf`, `gre/combat.ts`), and `declaredAttackTargets` realises a stray one as an attack on the player. Without the enumeration filter the walker variant is the Hill Giant entry's winning move and is picked here too.",
+    },
+    {
         // MUST. The CR 508.1g optional-attack-cost seam (issue #3214, exert).
         // Glorybringer 4/4 flier swings into an untapped Serra Angel, the one
         // creature on the board that can block it — and trades with it exactly.

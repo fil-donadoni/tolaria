@@ -1,4 +1,8 @@
-import type { CardInstanceState, GameState } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    GrantedAttackRequirement,
+} from "./state";
 import { recomputeContinuousEffects } from "./state";
 import type {
     ManaCost,
@@ -708,9 +712,29 @@ export function validateDeclaredAttackers(
         };
     }
 
+    // CR 508.1d (issue #3247) — a requirement pinned to a player is obeyed
+    // only by attacking THAT player; sending the creature at a planeswalker
+    // obeys one requirement fewer than attacking the player would. Selection
+    // already refuses that target (`game.ts`); this is the backstop for any
+    // producer that writes `combat.attackTargets` directly.
+    for (const attacker of declared) {
+        if (combat.attackTargets?.[attacker.id] === undefined) continue;
+        if (pinnedAttackDefenderOf(attacker, state) === undefined) continue;
+        return { ok: false, reason: pinnedAttackReason(attacker) };
+    }
+
     const violation = declaredAttackRestrictionViolation(declared, state);
     if (violation !== undefined) return { ok: false, reason: violation };
     return { ok: true };
+}
+
+/** The refusal text for a defender-pinned attacker pointed anywhere but the
+ *  player it must attack (CR 508.1d, issue #3247). */
+export function pinnedAttackReason(card: CardInstanceState): string {
+    const name =
+        tryGetDefinition((card.card as { id?: string }).id ?? "")?.name ??
+        "A creature";
+    return `${name} must attack that player this combat if able`;
 }
 
 /** CR 508.1c — the oracle text of the first set-dependent attack restriction
@@ -1404,6 +1428,42 @@ export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
     return charges;
 }
 
+/** CR 508.1d / 506.2 (issue #3247) — whether a granted requirement binds
+ *  `card` now. An unpinned one always does; one pinned to a player ("attacks
+ *  THAT PLAYER this combat if able") only while that player is still in the
+ *  game and is not the creature's controller — a requirement to attack a
+ *  player who cannot be attacked cannot be obeyed, so it imposes nothing. */
+function grantBinds(
+    grant: GrantedAttackRequirement,
+    card: CardInstanceState,
+    state: GameState
+): boolean {
+    if (grant.defenderId === undefined) return true;
+    return (
+        grant.defenderId !== card.controllerId &&
+        state.players.some((p) => p.id === grant.defenderId)
+    );
+}
+
+/** CR 508.1d (issue #3247) — the player a binding, defender-pinned attack
+ *  requirement names for `card`, or `undefined`. Such a requirement is obeyed
+ *  only by attacking THAT PLAYER: attacking a planeswalker they control obeys
+ *  a plain requirement but not this one, so a declaration that sends the
+ *  creature at a planeswalker obeys fewer requirements than attacking the
+ *  player does, and is illegal. The one reader every declaration site consults
+ *  — selection and retarget (`game.ts`), the batch filter, the Bot's realised
+ *  attack targets (`declaredAttackTargets`, `gre/applyMove.ts`) and the
+ *  confirm-time backstop (`validateDeclaredAttackers`). */
+export function pinnedAttackDefenderOf(
+    card: CardInstanceState,
+    state: GameState
+): string | undefined {
+    return card.grantedAttackRequirements?.find(
+        (grant) =>
+            grant.defenderId !== undefined && grantBinds(grant, card, state)
+    )?.defenderId;
+}
+
 /** True if `card` is affected by an "attacks each combat if able"
  *  requirement (CR 508.1d), from any of its sources:
  *  - forced to attack this turn by an external effect (Nettling Imp —
@@ -1419,8 +1479,9 @@ export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
  *  (`mustAttack` / `getRequiredAttackerIds` → `game.ts`, `phases.ts`), the
  *  Bot's enumeration (`moves.ts`) and the client affordance (the projected
  *  `mustAttack` flag, via `isRequiredAttacker`) all go through it, so a new
- *  source — a defender-pinned requirement (issue #3247) — widens THIS
- *  function rather than adding a second reader. (The Bot's enumeration passes
+ *  source widens THIS function rather than adding a second reader — the
+ *  defender-pinned grant (issue #3247) binds here through `grantBinds`, and
+ *  WHOM it must attack is `pinnedAttackDefenderOf`'s answer. (The Bot's enumeration passes
  *  no `massAttackPlayerId`, so it sees the per-creature sources but not the
  *  mass one; `confirmAttackers` folds that in regardless.) */
 function hasAttackRequirement(
@@ -1429,7 +1490,12 @@ function hasAttackRequirement(
     massAttackPlayerId?: string
 ): boolean {
     if (card.mustAttackThisTurn) return true;
-    if (card.grantedAttackRequirements?.length) return true;
+    if (
+        card.grantedAttackRequirements?.some((grant) =>
+            grantBinds(grant, card, state)
+        )
+    )
+        return true;
     if (
         massAttackPlayerId &&
         card.controllerId === massAttackPlayerId &&
