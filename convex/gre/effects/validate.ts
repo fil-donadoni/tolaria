@@ -5467,6 +5467,8 @@ const OP_SCHEMAS: OpSchemaTable = {
             grantedTriggeredId: isNonEmptyString,
             // CR 508.1d (issue #1972) — "attacks each combat if able".
             attackRequirement: (v: unknown) => v === true,
+            // CR 508.1d (issue #3247) — "attacks THAT PLAYER if able".
+            defender: isPlayerRef,
             // CR 611.2b / 611.2c — omitted is an INDEFINITE grant on ALL THREE
             // legs: keyword (`grantStaticAbilityPermanent`),
             // triggered (`grantTriggeredAbilityPermanent`) and
@@ -5493,6 +5495,9 @@ const OP_SCHEMAS: OpSchemaTable = {
                 return [
                     'requires exactly one of "ability", "grantedActivatedId", "grantedTriggeredId" or "attackRequirement"',
                 ];
+            }
+            if ("defender" in op && !hasAttackRequirement) {
+                return ['"defender" is only valid with "attackRequirement"'];
             }
             return [];
         },

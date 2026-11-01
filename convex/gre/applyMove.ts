@@ -163,6 +163,7 @@ import {
 import {
     markAttacking,
     markDeclaredBlockers,
+    pinnedAttackDefenderOf,
     recordAttackerDeclared,
 } from "./combat";
 import { recordBlockedAttackers } from "./banding";
@@ -1883,8 +1884,14 @@ export function declaredAttackTargets(
     const defenderId = getOpponentId(state, playerId);
     const defenderBf =
         state.players.find((p) => p.id === defenderId)?.battlefield ?? [];
+    const attackerBf =
+        state.players.find((p) => p.id === playerId)?.battlefield ?? [];
     const filtered: Record<string, string> = {};
     for (const [atkId, pwId] of Object.entries(move.attackTargets)) {
+        // CR 508.1d (issue #3247) — an attacker pinned to attack THAT PLAYER
+        // keeps attacking the player, as `declareAttackers` realises it.
+        const attacker = attackerBf.find((c) => c.id === atkId);
+        if (attacker && pinnedAttackDefenderOf(attacker, state)) continue;
         if (
             move.attackerIds.includes(atkId) &&
             defenderBf.some((c) => c.id === pwId && isPlaneswalker(c))
