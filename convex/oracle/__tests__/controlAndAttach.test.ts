@@ -1,7 +1,7 @@
 // Control and attachment: "Gain control of target <permanent>" with and
 // without CR 611.2b's "for as long as you control <this object>" (CR 613.1b),
 // and an Aura's "Attach this Aura to target <permanent>" (CR 701.3a,
-// issue #4530).
+// issue #4530). An Equipment's attach is `equipmentStatics.test.ts`'s.
 //
 // Layers:
 //
@@ -52,16 +52,6 @@ const RUBINIA_SOULSINGER = oracleCard({
         "You may choose not to untap Rubinia Soulsinger during your untap step.\n{T}: Gain control of target creature for as long as you control Rubinia Soulsinger and Rubinia Soulsinger remains tapped.",
     power: "2",
     toughness: "3",
-});
-
-const HORNED_HELM = oracleCard({
-    name: "Horned Helm",
-    manaCost: "{2}",
-    typeLine: "Artifact — Equipment",
-    oracleText:
-        "Equipped creature gets +1/+1 and has trample.\n{G}{G}: Attach this Equipment to target creature you control.\nEquip {1} ({1}: Attach to target creature you control. Equip only as a sorcery.)",
-    power: undefined,
-    toughness: undefined,
 });
 
 describe("Gain control — golden fixtures (CR 613.1b, CR 611.2b)", () => {
@@ -298,12 +288,6 @@ describe("Control and attachment — refused neighbours", () => {
             toughness: undefined,
         });
         expect(compileCard(card).state).toBe("unparsed");
-    });
-
-    it("an Equipment's attach line is not read until a golden can pin it (Horned Helm)", () => {
-        const line =
-            "{G}{G}: Attach this Equipment to target creature you control.";
-        expect(routeLine(line, parseContext(HORNED_HELM)).ok).toBe(false);
     });
 
     // The sentence alone, so the refusal is this rule's and not a later
