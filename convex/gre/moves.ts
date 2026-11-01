@@ -66,7 +66,6 @@ import {
     flashbackLifeCost,
     exileCastPermitted,
     graveyardCastMechanism,
-    requiredGraveyardAlternativeCostId,
     type CastFromZone,
 } from "./castCost";
 import { BESTOW_TARGET_REQUIREMENT, hasLegalBestowHost } from "./bestow";
@@ -162,11 +161,7 @@ import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { canPayTapOtherCost, crewPowerContribution } from "./tapOtherCost";
 import type { ActivationCostPicks } from "./activationCostPicks";
 import { enumerateActivationCostPicks } from "./activationCostPicks";
-import {
-    planCastCostPicks,
-    planCollectEvidencePicks,
-    type CastCostPicks,
-} from "./castCostPicks";
+import { planCastCostPicks, type CastCostPicks } from "./castCostPicks";
 // Issue #2420 — the ONE model of a `tapOtherFilter` mana ability (Urza, Lord
 // High Artificer), shared with the castability census (`coloredCostLeftover`,
 // rules.ts) so the plan and the Cast affordance can never disagree.
@@ -4389,17 +4384,9 @@ function enumerateCastMovesFromZone(
     // mutation would reject for want of a target (the executor announces
     // first and taps afterwards, which is exactly the shape that strands it in
     // `pendingCast`).
-    // CR 701.59a / 701.59b — collect evidence as a bestow cost's leg (Detective's
-    // Phoenix) is planned up front: an unpayable one drops the variant (the
-    // announcement would throw), a payable one rides the Move as the exile
-    // picks the executor submits and the sandbox charges.
-    const bestowEvidencePicks = def?.bestow
-        ? planCollectEvidencePicks(player, def.bestow, card.id)
-        : undefined;
     if (
         def?.bestow &&
         chosenAltCost === undefined &&
-        bestowEvidencePicks !== null &&
         hasLegalBestowHost(state)
     ) {
         const bestowCost = normalizeManaCost(def.bestow.mana ?? {}, {
@@ -4454,9 +4441,6 @@ function enumerateCastMovesFromZone(
                             undefined
                         ),
                         tapPlan: bestowTapPlan,
-                        ...(bestowEvidencePicks
-                            ? { castCostPicks: bestowEvidencePicks }
-                            : {}),
                     });
                     if (moves.length >= MAX_COMBINATIONS) return moves;
                 }
@@ -6069,27 +6053,11 @@ export function enumerateMoves(
         );
         if (mechanism === undefined || mechanism === "retrace") continue;
         if (!getLegalActions(state, player, card).includes("cast")) continue;
-        // CR 118.9b — a permission scoped to one alternative cost
-        // (Detective's Phoenix: "using its bestow ability") licenses only
-        // that announcement; every other Move is one `announceCast` refuses
-        // (the #2283/#2284 freeze shape), so it never leaves here.
-        const requiredAltCostId = requiredGraveyardAlternativeCostId(
-            state,
-            player,
-            card
-        );
-        const graveyardMoves = enumerateCastMoves(state, player, card, {
-            castFromZone: "graveyard",
-            onTruncated,
-        });
         moves.push(
-            ...(requiredAltCostId === undefined
-                ? graveyardMoves
-                : graveyardMoves.filter(
-                      (m) =>
-                          m.kind !== "cast-spell" ||
-                          m.alternativeCostId === requiredAltCostId
-                  ))
+            ...enumerateCastMoves(state, player, card, {
+                castFromZone: "graveyard",
+                onTruncated,
+            })
         );
     }
     // CR 601.3 (issue #2971) — a cast from EXILE. Scanned across EVERY player's

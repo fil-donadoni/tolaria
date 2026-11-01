@@ -324,9 +324,6 @@ export interface CardInstance {
      *  Alluring Scoundrel), distinct from the BROAD `"graveyard-permission"`
      *  (any graveyard play permission, ADR 0093 — Yawgmoth's Will, Lurrus of
      *  the Dream-Den) — both currently render the same "Cast" label.
-     *  `"graveyard-intrinsic"` (CR 601.3 / 118.9b) — the card's own
-     *  permission (Hogaak; Detective's Phoenix, scoped to its bestow cost)
-     *  — also renders "Cast".
      *  `"retrace"` (CR 702.81a, issue #2358) pays the printed mana cost PLUS a
      *  discarded land card, so it labels and explains itself separately.
      *  MIRROR of the union in `convex/gameProjections.ts` — keep both in step. */
@@ -335,7 +332,6 @@ export interface CardInstance {
         | "escape"
         | "graveyard-permission"
         | "graveyard-grant"
-        | "graveyard-intrinsic"
         | "retrace";
     /** CR 702.34a / 118.5 / 107.3 — max {X} announceable on this flashback
      *  cast, bounded by its `flashbackExileFromGraveyard` cost (Flash of
