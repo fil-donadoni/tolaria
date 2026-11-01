@@ -1882,7 +1882,8 @@ export const REVIEW_SKIPS_MAX = 10;
  * second computation of what was skipped.
  */
 export function renderSkips(plan: LanePlan): string {
-    const shown = plan.skip.slice(0, REVIEW_SKIPS_MAX);
+    const over = plan.skip.length > REVIEW_SKIPS_MAX;
+    const shown = plan.skip.slice(0, over ? REVIEW_SKIPS_MAX - 1 : undefined);
     const lines = shown.map((s) => `- ${s.id} — ${s.reason}`);
     const more = plan.skip.length - shown.length;
     if (more > 0)

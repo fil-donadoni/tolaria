@@ -1585,8 +1585,8 @@ describe("check-lane — `--plan --skips` prints the review brief's list (issue 
 
     it("caps at ten lines and counts the overflow", () => {
         const lines = renderSkips(plan(REVIEW_SKIPS_MAX + 3)).split("\n");
-        expect(lines).toHaveLength(REVIEW_SKIPS_MAX + 1);
-        expect(lines.at(-1)).toContain("+3 more");
+        expect(lines).toHaveLength(REVIEW_SKIPS_MAX);
+        expect(lines.at(-1)).toContain("+4 more");
     });
 
     it("says so when nothing was skipped", () => {
