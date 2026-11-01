@@ -5932,6 +5932,12 @@ export interface StagedEntry {
      *  "from graveyard" (Twilight Diviner's source-zone condition survives a
      *  reanimated permanent that owes an "as it enters" choice). */
     enteredFromGraveyard?: boolean;
+    /** CR 122.6 / 614.12a (issue #1372) — `origin: "effect"` only: counters
+     *  the putting EFFECT gives the permanent as it enters ("with a -1/-1
+     *  counter on it" — Persist; "with two +1/+1 counters" — Dodecapod),
+     *  carried across the park so the resumed entry tail still places them.
+     *  JSON-pure so the staged entry survives the DB round-trip. */
+    entryCounters?: Record<string, number>;
 }
 
 /** The minimal state shape {@link sourcePreventionShieldApplies} reads: the

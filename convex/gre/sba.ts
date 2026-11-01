@@ -412,9 +412,11 @@ export function checkSagaSacrificeSBA(state: GameState): boolean {
 /** CR 704.5q — if a permanent has both a +1/+1 counter and a -1/-1 counter on
  *  it, N of each are removed, where N is the smaller of the two counts. The two
  *  kinds annihilate in equal numbers; the survivor keeps the remainder. This is
- *  a pure counter mutation (no zone change), run before the zero-toughness check
- *  so a creature reduced to 0 toughness only by un-annihilated -1/-1 counters
- *  dies with the correct net P/T. Returns true if any counters were removed. */
+ *  a pure counter mutation (no zone change), run AFTER every one of the same
+ *  pass's zone-change checks so a permanent that leaves in that batch keeps the
+ *  pre-batch counters as its last known information (CR 704.8); the net P/T the
+ *  death checks read is identical either way. Returns true if any counters were
+ *  removed. */
 export function checkCounterAnnihilationSBA(state: GameState): boolean {
     let changedAny = false;
     for (const player of state.players) {
@@ -927,9 +929,6 @@ export function checkStateBasedActions(state: GameState): void {
         // buff it strips that drops a creature to 0 toughness is caught by the
         // zero-toughness pass below in this same iteration.
         checkSourceTappedEffects(state);
-        // CR 704.5q — +1/+1 / -1/-1 counters annihilate in equal numbers before
-        // the zero-toughness death check reads the net P/T.
-        acted = checkCounterAnnihilationSBA(state) || acted;
         acted = checkZeroToughnessSBA(state) || acted;
         // CR 704.5i — a planeswalker with 0 loyalty is put into its owner's
         // graveyard. Sits beside the zero-toughness sweep: both are direct
@@ -964,6 +963,22 @@ export function checkStateBasedActions(state: GameState): void {
         // change life totals is resolved first; the choice itself suspends the
         // rest of the sweep (including the trigger scan below).
         if (checkLegendRuleSBA(state)) return;
+        // CR 704.5q — +1/+1 / -1/-1 counters annihilate in equal numbers.
+        // Run AFTER every zone-change check of this same pass (deaths, saga,
+        // world rule, legend rule), never before:
+        // CR 704.3 performs every applicable state-based action simultaneously,
+        // and CR 704.8 derives the last known information of a permanent that
+        // leaves in that batch from the state BEFORE any of them — so a
+        // permanent dying here must leave with the counters annihilation would
+        // have removed (Persist: a creature with a -1/-1 and a +1/+1 counter
+        // that dies in the same check had a -1/-1 counter on it, CR 702.79a).
+        // The death checks cannot read the order: annihilating N of each kind
+        // leaves the counter-derived P/T unchanged. A survivor's annihilation
+        // sets `acted`, so the next pass re-checks against the new state. A
+        // legend-rule prompt returns above before this runs; the re-sweep
+        // after `finalizeLegendKeep` annihilates then, so the legend put
+        // into the graveyard by that answer still leaves with its counters.
+        acted = checkCounterAnnihilationSBA(state) || acted;
         acted = checkGameOverSBA(state) || acted;
         if (state.gameOver) return;
         if (!acted) break;
