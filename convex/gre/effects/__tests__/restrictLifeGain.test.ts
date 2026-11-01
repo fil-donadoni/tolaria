@@ -138,6 +138,30 @@ describe("restrictLifeGain — can't gain life for the rest of the game (CR 119.
         expect(life(state, "p2")).toBe(24);
     });
 
+    it("locks the player dealt damage this way, not a reflected-damage bystander (Eye for an Eye)", () => {
+        const state = board();
+        withTemporaryDefinition(LOCK, () => {
+            const spell = pushSpell(state, LOCK.id, "p1", [
+                { type: "player", id: "p2" },
+            ]);
+            // p2's Eye for an Eye names the spell: p2 still takes the 3 and
+            // the spell's controller, p1, takes 3 too — both tallies rise.
+            state.damageRedirections = [
+                {
+                    kind: "reflect-to-source-controller",
+                    sourceInstanceId: spell.id,
+                    playerId: "p2",
+                    remaining: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ];
+            resolveTopOfStack(state);
+        });
+        expect(life(state, "p1")).toBe(17);
+        expect(playerHasRestriction(state, "p2", "cantGainLife")).toBe(true);
+        expect(playerHasRestriction(state, "p1", "cantGainLife")).toBe(false);
+    });
+
     it("a replacement of the gain does nothing either — Lich draws no card (CR 119.7)", () => {
         const state = board();
         state.players[1]!.battlefield.push(

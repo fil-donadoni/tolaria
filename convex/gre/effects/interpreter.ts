@@ -3219,16 +3219,22 @@ function playerDamageTally(ctx: SpellContext): ReadonlyMap<string, number> {
  *  Op, i.e. the player that Op actually dealt damage to: prevention leaves
  *  the tally where it was, a redirection raises the redirected-to player's.
  *  Nothing rose → the binding stays uncaptured and a ref to it skips
- *  (CR 608.2b). One Op deals one damage event, so at most one player is
- *  bound; should a split redirection reach two, the first in seat order is. */
+ *  (CR 608.2b). A named player recipient whose tally rose is the one bound,
+ *  even when another tally rose in the same Op (Eye for an Eye's reflected
+ *  damage to the source's controller is not damage dealt "this way"); the
+ *  seat scan only finds where a redirection sent the damage. */
 function bindDamagedPlayer(
     ctx: SpellContext,
     name: string,
-    before: ReadonlyMap<string, number>
+    before: ReadonlyMap<string, number>,
+    recipient: TargetSelection
 ): void {
-    const damaged = ctx.allPlayerIds.find(
-        (id) => ctx.getDamageDealtThisTurn(id) > (before.get(id) ?? 0)
-    );
+    const rose = (id: string) =>
+        ctx.getDamageDealtThisTurn(id) > (before.get(id) ?? 0);
+    const damaged =
+        recipient.type === "player" && rose(recipient.id)
+            ? recipient.id
+            : ctx.allPlayerIds.find(rose);
     if (damaged !== undefined) ctx.noteChoice(name, [damaged]);
 }
 
@@ -3405,7 +3411,12 @@ export const OP_EXECUTORS: {
             );
         }
         if (op.bindDamagedPlayer && tallyBefore) {
-            bindDamagedPlayer(ctx, op.bindDamagedPlayer, tallyBefore);
+            bindDamagedPlayer(
+                ctx,
+                op.bindDamagedPlayer,
+                tallyBefore,
+                recipient
+            );
         }
     },
     // CR 120.3 — deal `amount` damage to every creature / player in the
