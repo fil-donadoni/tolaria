@@ -4225,6 +4225,11 @@
             "issue": 6928
         },
         {
+            "kind": "mechanic",
+            "key": "ungrantable-keyword › keyword \"prowess\" is implemented by definition-level expansion (ADR 0054), so granting it to another permanent would produce nothing",
+            "issue": 7800
+        },
+        {
             "kind": "migration",
             "key": "(no slot)",
             "issue": 4039
@@ -4573,6 +4578,11 @@
             "kind": "scenario",
             "key": "validate-effect-script › Kroxa and Kunoros ability \"kroxa-and-kunoros-trigger\": effects[1]: then[1]: Op \"moveZone\" field \"bind\" is only valid with \"cards\" and to: \"battlefield\"",
             "issue": 7759
+        },
+        {
+            "kind": "scenario",
+            "key": "validate-effect-script › Shu Yun, the Silent Tempest ability \"shu-yun-the-silent-tempest-trigger\": effects[0]: Op \"mayPay\" field \"cost\" has invalid value {\"hybrid\":[[\"R\",\"W\"],[\"R\",\"W\"]]}",
+            "issue": 7801
         },
         {
             "kind": "scenario",
