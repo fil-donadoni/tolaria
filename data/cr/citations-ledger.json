@@ -47561,6 +47561,7 @@
         {"id":"702.181a","line":"/** Warrior token (CR 702.181a, issue #2611) — the \"1/1 red Warrior creature","sites":1,"status":"confirmed","ruleHash":"2c7f1896efef8da1"},
         {"id":"702.181a","line":"// \"sacrifice THEM\" (Mobilize, CR 702.181a). Uncaptured when nothing","sites":1,"status":"confirmed","ruleHash":"2c7f1896efef8da1"},
         {"id":"702.181a","line":"// CR 702.181a \"Mobilize is a triggered ability. 'Mobilize N' means 'Whenever","sites":1,"status":"confirmed","ruleHash":"2c7f1896efef8da1"},
+        {"id":"702.181a","line":"// CR 702.181a — the expanded attack trigger's createToken script.","sites":1,"status":"confirmed","ruleHash":"2c7f1896efef8da1"},
         {"id":"702.181a","line":"// MULTIPLE INSTANCES: CR 702.181a says mobilize IS a triggered ability, so two","sites":1,"status":"confirmed","ruleHash":"2c7f1896efef8da1"},
         {"id":"702.181a","line":"// Mobilize N keyword line (CR 702.181a, issue #2611).","sites":1,"status":"confirmed","ruleHash":"2c7f1896efef8da1"},
         {"id":"702.181a","line":"// them\", CR 702.181a).","sites":1,"status":"confirmed","ruleHash":"2c7f1896efef8da1"},
