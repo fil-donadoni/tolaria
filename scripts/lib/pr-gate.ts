@@ -236,24 +236,29 @@ export function heldPrAction(input: {
  * Whether a held PR's advisory lane red is the base's, left by a RED that has
  * since cleared (issue #7843): the lane tests the PR merged with the base,
  * and its run stays pinned to the merge it was cut from — under the RED,
- * broken — until a push re-runs it. Off RED (`green` / `amber` only), a lane
- * that failed BEFORE the newest verdict was written is that stale red; one
- * that failed after it ran on the cleared base and is the PR's own. Unknown
- * times read as not stale: today's rules judge the PR.
+ * broken — until a push re-runs it. Off RED (`green` / `amber` only), a
+ * failed lane run that STARTED before the newest verdict was written is that
+ * stale red; one started after it ran on the cleared base and is the PR's
+ * own. The newest verdict, not the one that cleared the RED: a PR whose own
+ * red outlives a later GREEN costs one more push, then fails after it.
+ * Unknown times read as not stale: today's rules judge the PR.
  */
 export function laneRedPredatesRelease(input: {
-    /** `completed_at` of the head's newest advisory lane run when it
-     *  failed (`laneFailedAtJq`), else null. */
-    laneFailedAt: string | null;
+    /** `started_at` of the head's newest advisory lane run when it failed
+     *  (`laneFailedAtJq`), else null. Read only off RED: it costs one API
+     *  call. */
+    laneFailedRunStartedAt: () => string | null;
     lineage: Pick<Lineage, "kind" | "verdict">;
 }): boolean {
-    const { laneFailedAt, lineage } = input;
-    if (laneFailedAt === null) return false;
+    const { lineage } = input;
     if (lineage.kind !== "green" && lineage.kind !== "amber") return false;
     const released = Date.parse(lineage.verdict?.at ?? "");
-    const failed = Date.parse(laneFailedAt);
-    if (Number.isNaN(released) || Number.isNaN(failed)) return false;
-    return failed < released;
+    if (Number.isNaN(released)) return false;
+    const startedAt = input.laneFailedRunStartedAt();
+    if (startedAt === null) return false;
+    const started = Date.parse(startedAt);
+    if (Number.isNaN(started)) return false;
+    return started < released;
 }
 
 /** `gh api` path of a commit's check runs — the lane's, read by `pr-gate`
@@ -263,9 +268,9 @@ export function checkRunsApiPath(repo: string, sha: string): string {
 }
 
 /** The head's NEWEST advisory lane run (a re-run supersedes), its
- *  `completed_at` as a JSON string when it failed, else no output. */
+ *  `started_at` as a JSON string when it failed, else no output. */
 export function laneFailedAtJq(): string {
-    return `[.check_runs[] | select(.name == "${LANE_CHECK_NAME}")] | sort_by(.started_at // "") | last | select(. != null and .conclusion == "failure") | .completed_at | tojson`;
+    return `[.check_runs[] | select(.name == "${LANE_CHECK_NAME}")] | sort_by(.started_at // "") | last | select(. != null and .conclusion == "failure") | .started_at | tojson`;
 }
 
 /** `TRUSTED_AUTHORS` as the repository variable holds it: logins separated

@@ -397,15 +397,18 @@ function laneRedStale(
     log: (line: string) => void
 ): boolean {
     try {
-        const out = gh([
-            "api",
-            checkRunsApiPath(repo, pr.headRefOid),
-            "--jq",
-            laneFailedAtJq(),
-        ]).trim();
-        const laneFailedAt =
-            out === "" ? null : (JSON.parse(out) as string | null);
-        return laneRedPredatesRelease({ laneFailedAt, lineage });
+        return laneRedPredatesRelease({
+            lineage,
+            laneFailedRunStartedAt: () => {
+                const out = gh([
+                    "api",
+                    checkRunsApiPath(repo, pr.headRefOid),
+                    "--jq",
+                    laneFailedAtJq(),
+                ]).trim();
+                return out === "" ? null : (JSON.parse(out) as string | null);
+            },
+        });
     } catch (e) {
         log(`PR #${pr.number}: lane unreadable (${(e as Error).message})`);
         return false;

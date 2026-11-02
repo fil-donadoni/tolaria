@@ -1691,7 +1691,7 @@ push does this before the GREEN only for a held PR whose files it touched
 (issue #6651); every other held PR reaches the GREEN with the RED's lane red,
 which the queue's `-check-failure=check:lane (advisory)` refuses — on
 2026-11-02 that stranded twelve PRs (issue #7843). So off RED a held PR whose
-newest lane run failed BEFORE the GREEN or AMBER was written
+newest lane run failed, having STARTED before the GREEN or AMBER was written
 (`laneRedPredatesRelease`, `scripts/lib/pr-gate.ts`) is the exception both
 ways: `pr-refresh` rebases it on the next base push whatever the push
 touched, and `pr-gate` neither requeues nor releases it until that push's

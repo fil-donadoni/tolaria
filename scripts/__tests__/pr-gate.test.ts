@@ -652,25 +652,25 @@ describe("laneRedPredatesRelease — the base's red, or the PR's own (issue #784
         verdict: { sha: "a8590e9c", status: "GREEN", at },
     });
 
-    it("a lane that failed before the GREEN was written is the RED's", () => {
+    it("a failed lane run started before the GREEN was written is the RED's", () => {
         expect(
             laneRedPredatesRelease({
-                laneFailedAt: "2026-11-02T00:14:16Z",
+                laneFailedRunStartedAt: () => "2026-11-02T00:14:16Z",
                 lineage: green("2026-11-02T09:10:17Z"),
             })
         ).toBe(true);
         expect(
             laneRedPredatesRelease({
-                laneFailedAt: "2026-11-02T00:14:16Z",
+                laneFailedRunStartedAt: () => "2026-11-02T00:14:16Z",
                 lineage: { ...green("2026-11-02T09:10:17Z"), kind: "amber" },
             })
         ).toBe(true);
     });
 
-    it("a lane that failed after it ran on the cleared base: the PR's own", () => {
+    it("a failed lane run started after it ran on the cleared base: the PR's own", () => {
         expect(
             laneRedPredatesRelease({
-                laneFailedAt: "2026-11-02T09:40:00Z",
+                laneFailedRunStartedAt: () => "2026-11-02T09:40:00Z",
                 lineage: green("2026-11-02T09:10:17Z"),
             })
         ).toBe(false);
@@ -679,21 +679,36 @@ describe("laneRedPredatesRelease — the base's red, or the PR's own (issue #784
     it("no failed lane, a blocking lineage, or an unknown time is not stale", () => {
         const at = "2026-11-02T09:10:17Z";
         expect(
-            laneRedPredatesRelease({ laneFailedAt: null, lineage: green(at) })
+            laneRedPredatesRelease({
+                laneFailedRunStartedAt: () => null,
+                lineage: green(at),
+            })
         ).toBe(false);
         for (const kind of ["red", "second-red", "infra", "none"] as const)
             expect(
                 laneRedPredatesRelease({
-                    laneFailedAt: "2026-11-02T00:14:16Z",
+                    laneFailedRunStartedAt: () => "2026-11-02T00:14:16Z",
                     lineage: { ...green(at), kind },
                 })
             ).toBe(false);
         expect(
             laneRedPredatesRelease({
-                laneFailedAt: "2026-11-02T00:14:16Z",
+                laneFailedRunStartedAt: () => "2026-11-02T00:14:16Z",
                 lineage: green(undefined),
             })
         ).toBe(false);
+    });
+
+    it("reads the head's lane only off RED", () => {
+        let reads = 0;
+        laneRedPredatesRelease({
+            laneFailedRunStartedAt: () => {
+                reads++;
+                return null;
+            },
+            lineage: { ...green("2026-11-02T09:10:17Z"), kind: "red" },
+        });
+        expect(reads).toBe(0);
     });
 });
 

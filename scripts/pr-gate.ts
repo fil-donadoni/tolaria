@@ -107,7 +107,7 @@ function prComments(run: GhRunner, repo: string, pr: number): PrComment[] {
     );
 }
 
-/** `completed_at` of the head's newest advisory lane run when it failed,
+/** `started_at` of the head's newest advisory lane run when it failed,
  *  else null (issue #7843). */
 function laneFailedAt(run: GhRunner, repo: string, sha: string): string | null {
     const out = gh(run, [
@@ -477,7 +477,8 @@ function main(): number {
                     ),
                 laneRedStale: () =>
                     laneRedPredatesRelease({
-                        laneFailedAt: laneFailedAt(run, repo, raw.head.sha),
+                        laneFailedRunStartedAt: () =>
+                            laneFailedAt(run, repo, raw.head.sha),
                         lineage,
                     }),
                 now: Date.now(),
