@@ -15576,6 +15576,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dalkovan Packbeasts",
+        "scryfallId": "4df7b253-6107-47d6-b650-cb4d3e0aec6b",
+        "oracleId": "cdd1a043-bd47-4197-be26-e2f7d3f1d209",
+        "firstSet": "tdm",
+        "firstPrintId": "4df7b253-6107-47d6-b650-cb4d3e0aec6b",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Damn",
         "scryfallId": "efeae088-9ac5-4d2f-a15c-d8675a471ac5",
         "oracleId": "b01d61cc-9844-4191-86a0-f2db6d42d6e5",
@@ -19452,6 +19462,16 @@
         "firstSet": "mh2",
         "firstPrintId": "4ced112a-e775-4f97-97b3-74877e9dce12",
         "firstPrintSet": "mh2"
+    },
+    {
+        "name": "Dragonback Lancer",
+        "scryfallId": "0200a8c5-3293-48d0-a523-ba148680f588",
+        "oracleId": "7875c063-19c3-4e6e-81d8-1a378a4e16e5",
+        "firstSet": "tdm",
+        "firstPrintId": "0200a8c5-3293-48d0-a523-ba148680f588",
+        "firstPrintSet": "tdm",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Dragonborn Looter",
@@ -63738,6 +63758,16 @@
         "source": "compiled"
     },
     {
+        "name": "Shock Brigade",
+        "scryfallId": "66940466-8e9d-4a85-bfb0-e92189b7a121",
+        "oracleId": "8676e917-17dd-4047-99c4-402f2e909e16",
+        "firstSet": "tdm",
+        "firstPrintId": "66940466-8e9d-4a85-bfb0-e92189b7a121",
+        "firstPrintSet": "tdm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Shock Troops",
         "scryfallId": "e7a918ca-3e60-46de-9f29-56bdc6430a77",
         "oracleId": "fdf2a8da-2933-44c5-b483-f035144da752",
@@ -80140,6 +80170,16 @@
         "firstPrintId": "40377e3d-77d9-4d86-ac8c-4e27803e48d8",
         "firstPrintSet": "nem",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Voice of Victory",
+        "scryfallId": "ec3de5f4-bb55-4ab9-995f-f3e0dc22c1bb",
+        "oracleId": "b12cbda1-ac09-49eb-96b3-a4df27bc37ea",
+        "firstSet": "tdm",
+        "firstPrintId": "ec3de5f4-bb55-4ab9-995f-f3e0dc22c1bb",
+        "firstPrintSet": "tdm",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

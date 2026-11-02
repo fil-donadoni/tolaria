@@ -6126,6 +6126,9 @@ export const OP_EXECUTORS: {
                     id: alreadyCreated[alreadyCreated.length - 1],
                 });
             }
+            if (op.bindAll && alreadyCreated.length > 0) {
+                ctx.noteChoice(op.bindAll, [...alreadyCreated]);
+            }
             return;
         }
         const count = op.count === undefined ? 1 : resolveValue(ctx, op.count);
@@ -6227,6 +6230,12 @@ export const OP_EXECUTORS: {
                 type: "permanent",
                 id: ids[ids.length - 1],
             });
+        }
+        // Every created token as a PICKS binding (`mill.bindAll`'s shape) —
+        // "sacrifice THEM" (Mobilize, CR 702.181a). Uncaptured when nothing
+        // was created, so a reader skips (CR 608.2b).
+        if (op.bindAll && ids.length > 0) {
+            ctx.noteChoice(op.bindAll, [...ids]);
         }
     },
     // CR 707.2 + CR 111.1 (issue #1459) — create token COPIES of a runtime
