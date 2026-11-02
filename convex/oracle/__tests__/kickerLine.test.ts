@@ -640,7 +640,14 @@ describe("Kicker gold over the hand-written catalogue", () => {
         // is a cost leg the shared cost grammar does not read (it reads a
         // return of the SOURCE only). Dralnu's Pet's "Discard a creature card"
         // is a hand leg it does not read either (compiler-gap, issue #7552).
-        expect(refused.sort()).toEqual(["Arctic Merfolk", "Dralnu's Pet"]);
+        // Thieving Skydiver's "Kicker {X}. X can't be 0." carries a lower
+        // bound on X (`minX`) the kicker grammar does not read (compiler-gap,
+        // issue #2693).
+        expect(refused.sort()).toEqual([
+            "Arctic Merfolk",
+            "Dralnu's Pet",
+            "Thieving Skydiver",
+        ]);
         expect(accepted).toBeGreaterThan(40);
     });
 });
