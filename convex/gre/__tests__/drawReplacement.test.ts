@@ -22,7 +22,7 @@ import {
     commitDrawPlan,
     resolveTopOfStack,
 } from "../state";
-import { getApplicableDrawReplacements } from "../replacements";
+import { buildStateView, getApplicableDrawReplacements } from "../replacements";
 import { applyMayPaySubmit } from "../pendingChoiceSubmit";
 import { advancePhase } from "../phases";
 import { compactState, expandState } from "../serialize";
@@ -116,6 +116,19 @@ describe("draw-replacement outcomes → plan (CR 614, ADR 0061)", () => {
                 { ...baseCtx, libraryEmpty: true }
             )
         ).toMatchObject({ kind: "create-token", count: 1 });
+    });
+
+    it("win → a win plan for the beneficiary, empty library or not (Jace, Wielder of Mysteries)", () => {
+        expect(drawPlanForOutcome({ kind: "win" }, baseCtx)).toEqual({
+            kind: "win",
+            winnerId: "p1", // the replacement source's controller
+        });
+        expect(
+            drawPlanForOutcome(
+                { kind: "win" },
+                { ...baseCtx, libraryEmpty: true }
+            )
+        ).toEqual({ kind: "win", winnerId: "p1" });
     });
 
     it("reveal-type-to-graveyard: creature top → bin, else normal (Enduring Renewal)", () => {
@@ -276,6 +289,64 @@ describe("commitDrawPlan (CR 614/704.5b, ADR 0061)", () => {
             c.subtypes.includes("Treasure")
         );
         expect(treasures).toHaveLength(1);
+    });
+});
+
+describe("commitDrawPlan — win (CR 614.6 / 104.2a, issue #3231)", () => {
+    it("the beneficiary wins; the drawing player draws nothing and is NOT flagged decked", () => {
+        const state = makeState({
+            players: [makePlayer("p1", { library: [] }), makePlayer("p2")],
+        });
+        const drew = commitDrawPlan(
+            state,
+            "p1",
+            { kind: "win", winnerId: "p1" },
+            { isTurnBasedDrawStepDraw: false }
+        );
+        expect(drew).toBe(0);
+        expect(state.players[0].hand).toHaveLength(0);
+        // CR 614.6 — the replaced draw never happened.
+        expect(state.players[0].hasDrawnFromEmpty).toBeFalsy();
+        expect(state.gameOver).toEqual({
+            winnerId: "p1",
+            loserId: "p2",
+            reason: "alternate-win",
+        });
+    });
+
+    it("a game already decided stays decided (endGame first-writer-wins)", () => {
+        const state = makeState({
+            gameOver: { winnerId: "p2", loserId: "p1", reason: "life" },
+        });
+        commitDrawPlan(
+            state,
+            "p1",
+            { kind: "win", winnerId: "p1" },
+            { isTurnBasedDrawStepDraw: false }
+        );
+        expect(state.gameOver?.winnerId).toBe("p2");
+    });
+});
+
+describe("ReplacementStateView.librarySize (issue #3231)", () => {
+    it("a draw-replacement predicate reads each player's library size", () => {
+        const lib = [
+            makeInstance(plainsId, {
+                id: "c1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+            makeInstance(plainsId, {
+                id: "c2",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        const view = buildStateView(state);
+        expect(view.players.map((p) => p.librarySize)).toEqual([2, 0]);
     });
 });
 

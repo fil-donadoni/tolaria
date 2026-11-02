@@ -214,6 +214,7 @@ export function buildStateView(state: GameState): ReplacementStateView {
             id: p.id,
             life: p.life,
             handSize: p.hand.length,
+            librarySize: p.library.length,
             battlefield: p.battlefield.map((c) => ({
                 id: c.id,
                 controllerId: c.controllerId,

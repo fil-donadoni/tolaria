@@ -72,7 +72,22 @@ function playerLossReason(
         return survived ? null : "life";
     }
     if (player.hasDrawnFromEmpty) {
-        return "decked";
+        // CR 704.5b — a player who attempted to draw from an empty library
+        // loses. Routed through the same CR 614 loss-replacement framework as
+        // life-zero and poison, so a "you don't lose the game" replacement
+        // scoped to this reason can intercept it. Unlike a life total, the
+        // condition is an EVENT window — "since the last time state-based
+        // actions were checked" — so a consumed loss closes it: the flag is
+        // cleared, and only a further empty-library draw reopens it.
+        const survived =
+            applyLoseGameReplacements(state, {
+                kind: "lose-game",
+                playerId: player.id,
+                reason: "decked",
+            }) === null;
+        if (!survived) return "decked";
+        delete player.hasDrawnFromEmpty;
+        return null;
     }
     if ((player.poisonCounters ?? 0) >= POISON_LOSS_COUNTERS) {
         // CR 704.5c — a player with ten or more poison counters loses the

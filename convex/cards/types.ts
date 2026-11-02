@@ -13502,9 +13502,11 @@ export type DiscardOrigin =
 export interface LoseGameReplacementEvent {
     kind: "lose-game";
     playerId: string;
-    /** CR 104 reason. "life-zero" (CR 704.5a) and "poison" (CR 704.5c) are the
-     *  loss conditions routed through this replacement framework in-engine. */
-    reason: "life-zero" | "poison";
+    /** CR 104 reason — every state-based loss condition routes through this
+     *  replacement framework in-engine: "life-zero" (CR 704.5a), "decked"
+     *  (CR 704.5b, a draw attempted from an empty library) and "poison"
+     *  (CR 704.5c). A replacement scopes itself by reading `reason`. */
+    reason: "life-zero" | "decked" | "poison";
 }
 
 /** Tap event: a permanent about to become tapped (CR 701.26a). Face-down
@@ -13814,7 +13816,18 @@ export type DrawReplacementOutcome =
      *  suspending. `token` carries closures (the Treasure mana ability), so a
      *  card declaring this outcome is a definition-level field, not a JSON-pure
      *  effect script. */
-    | { kind: "redirect-to-token"; token: TokenSpec; count: number };
+    | { kind: "redirect-to-token"; token: TokenSpec; count: number }
+    /** The would-be draw is replaced by a game win for the REPLACEMENT
+     *  SOURCE's controller (CR 614.1a / 614.6 — "If you would draw a card
+     *  while your library has no cards in it, you win the game instead",
+     *  Jace, Wielder of Mysteries). The draw never happens, so the drawing
+     *  player never "attempted to draw from an empty library" and the CR
+     *  704.5b loss is never flagged: the replacement fires at the draw, ahead
+     *  of the state-based action. The win goes through `endGame()`
+     *  (`gre/state.ts`), the single writer of `state.gameOver`. Deterministic,
+     *  so it commits inline at the draw seam. The predicate that gates it on
+     *  an empty library reads `ReplacementStateView.players[].librarySize`. */
+    | { kind: "win" };
 
 /** A continuous draw-event replacement (CR 614, ADR 0061) carried by a card
  *  definition. While ANY permanent with this declaration is on the
@@ -13871,7 +13884,11 @@ export type DrawStepPlan =
           beneficiaryId: string;
           token: TokenSpec;
           count: number;
-      };
+      }
+    /** Deterministic win (Jace, Wielder of Mysteries): the drawing player
+     *  draws nothing and `winnerId` (the replacement source's controller)
+     *  wins the game. Commits inline, like `create-token`. */
+    | { kind: "win"; winnerId: string };
 
 /** Side-effect mutators handed to a `ReplacementEffect.replace` body. Lets
  *  the effect issue follow-up actions ("draw N cards instead", "sacrifice
@@ -13946,6 +13963,11 @@ export interface ReplacementStateView {
         id: string;
         life: number;
         handSize: number;
+        /** Cards in the player's library (CR 401). A cardinality read only —
+         *  the library is hidden (CR 401.2), so the view exposes no card.
+         *  Lets a draw-replacement predicate gate on an empty library (Jace,
+         *  Wielder of Mysteries: "while your library has no cards in it"). */
+        librarySize: number;
         battlefield: ReadonlyArray<{
             id: string;
             controllerId: string;

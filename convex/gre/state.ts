@@ -8608,6 +8608,21 @@ export function endGame(state: GameState, outcome: GameOutcome): boolean {
     return true;
 }
 
+/** CR 104.2a — `playerId` wins the game by an effect (a resolving spell or
+ *  ability, Coalition Victory / Thassa's Oracle, or a draw replacement, Jace,
+ *  Wielder of Mysteries). The one path every effect-driven win takes, through
+ *  `endGame`'s first-writer-wins guard: a game already decided stays decided.
+ *  Throws on an unknown player id, like every `getPlayer` read. */
+export function declareWinner(state: GameState, playerId: string): void {
+    getPlayer(state, playerId);
+    const opponent = state.players.find((p) => p.id !== playerId);
+    endGame(state, {
+        winnerId: playerId,
+        loserId: opponent?.id ?? playerId,
+        reason: "alternate-win",
+    });
+}
+
 /** CR 702.143f — "at the end of each game, all face-down foretold cards must
  *  be revealed to all players": every foretold card still in exile becomes
  *  known to every player. Persistent knowledge (`knownTo`), not a transient
@@ -16004,13 +16019,7 @@ export function buildSpellContext(
         // the game already ended (`endGame`'s first-writer-wins guard) — CR 104.2a
         // doesn't re-decide an already-decided game.
         winGame(playerId: string): void {
-            getPlayer(state, playerId);
-            const opponent = state.players.find((p) => p.id !== playerId);
-            endGame(state, {
-                winnerId: playerId,
-                loserId: opponent?.id ?? playerId,
-                reason: "alternate-win",
-            });
+            declareWinner(state, playerId);
         },
         getDamageDealtThisTurn(playerId: string): number {
             return state.damageDealtToPlayerThisTurn?.[playerId] ?? 0;
@@ -20790,6 +20799,11 @@ export function drawPlanForOutcome(
                 token: outcome.token,
                 count: outcome.count,
             };
+        case "win":
+            // CR 614.1a / 614.6 — the draw is replaced by a win for the
+            // replacement source's controller; the draw never happens, so no
+            // draw-from-empty loss is flagged (CR 704.5b). Deterministic.
+            return { kind: "win", winnerId: ctx.beneficiaryId };
         case "modify-count":
             // CR — draw 1 → draw (1 + delta), clamped ≥ 0. The extra cards are
             // drawn raw by `commitDrawPlan` and do NOT re-trigger the
@@ -20931,6 +20945,12 @@ export function commitDrawPlan(
                 plan.beneficiaryId,
                 plan.count
             );
+            return 0;
+        case "win":
+            // CR 614.6 — the replaced draw never happens (no card, no
+            // `hasDrawnFromEmpty`); the beneficiary wins instead (CR 104.2a),
+            // through the single `state.gameOver` writer.
+            declareWinner(state, plan.winnerId);
             return 0;
         case "bin":
             binRevealedTopCard(state, player);

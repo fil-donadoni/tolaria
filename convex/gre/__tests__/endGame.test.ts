@@ -7,6 +7,13 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { buildSpellContext, endGame, type GameState } from "../state";
 import { checkGameOverSBA } from "../sba";
+import { makeInstance } from "../../cards/__tests__/setup.helper";
+import { lich } from "../../cards/sets/lea/black.cards";
+import { withTemporaryDefinition } from "../../cards/registry";
+import type {
+    CardDefinition,
+    LoseGameReplacementEvent,
+} from "../../cards/types";
 
 function ctx(state: GameState) {
     return buildSpellContext(state, pushSpell(state, incinerate().id, "p1"));
@@ -147,6 +154,84 @@ describe("outcome shapes recorded as before", () => {
             winnerId: "p1",
             loserId: "p2",
             reason: "alternate-win",
+        });
+    });
+});
+
+// CR 704.5b / CR 614 (issue #3231) — the decked loss is routed through the
+// same loss-replacement framework as life-zero and poison.
+describe("decked loss goes through the CR 614 loss replacements", () => {
+    const SAVIOR = "test-decked-loss-savior";
+    function saviorDef(seen: LoseGameReplacementEvent[]): CardDefinition {
+        return {
+            id: SAVIOR,
+            name: "Decked Loss Savior",
+            rarity: "rare",
+            manaCost: { X: 1 },
+            types: ["Enchantment"],
+            oracleText:
+                "You don't lose the game for drawing from an empty library.",
+            replacementEffects: [
+                {
+                    id: "test-decked-savior",
+                    oracleText:
+                        "You don't lose the game for drawing from an empty library.",
+                    eventKind: "lose-game",
+                    appliesTo: (event, self) => {
+                        if (event.kind !== "lose-game") return false;
+                        seen.push(event);
+                        return (
+                            event.reason === "decked" &&
+                            event.playerId === self.controllerId
+                        );
+                    },
+                    replace: () => ({ kind: "consumed" }),
+                },
+            ],
+        };
+    }
+
+    it('a replacement scoped to "decked" sees the event and consumes the loss', () => {
+        const seen: LoseGameReplacementEvent[] = [];
+        withTemporaryDefinition(saviorDef(seen), () => {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        hasDrawnFromEmpty: true,
+                        battlefield: [makeInstance(SAVIOR, { id: "savior" })],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            expect(checkGameOverSBA(state)).toBe(false);
+            expect(state.gameOver).toBeUndefined();
+            expect(seen).toContainEqual({
+                kind: "lose-game",
+                playerId: "p1",
+                reason: "decked",
+            });
+            // CR 704.5b — "since the last time state-based actions were
+            // checked": the consumed attempt closes the window, so the next
+            // sweep (savior still there or not) finds no loss.
+            expect(state.players[0].hasDrawnFromEmpty).toBeFalsy();
+        });
+    });
+
+    it("an unreplaced decked loss is unchanged: Lich (scoped to life-zero) does not save it", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hasDrawnFromEmpty: true,
+                    battlefield: [makeInstance(lich().id, { id: "lich" })],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(checkGameOverSBA(state)).toBe(true);
+        expect(state.gameOver).toEqual({
+            winnerId: "p2",
+            loserId: "p1",
+            reason: "decked",
         });
     });
 });
