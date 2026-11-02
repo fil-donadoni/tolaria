@@ -137,6 +137,7 @@ export const STATIC_EFFECT_READS: Record<
     "untap-restriction": [],
     "hand-size-override": [],
     "loyalty-activation-allowance": [],
+    "loyalty-activation-timing": [],
     "cost-modifier": [],
     "additional-cost": [],
     "mana-substitution": [],
