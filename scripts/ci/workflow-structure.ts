@@ -93,7 +93,7 @@
  *     (Bot-play replay, `health:nightly`) that reaches the `derive` role: a
  *     runner takes one job at a time, so a duty sharing the slot with an
  *     hour-long job queues behind it until the tip is derived-stale past the
- *     grace and health reds the base (issue #7855).
+ *     grace and health reds the base.
  *   - `queue-shape` — `merge_queue.max_parallel_checks` other than 1, or a
  *     queue rule with a `batch_size` other than 1 (ADR 0156 §3, ADR 0160).
  *   - `queue-dequeue` — no `pull_request_rules` entry relabelling a PR the
