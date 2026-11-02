@@ -24,6 +24,10 @@ import {
 import { getCardByName } from "../../cards";
 import { verdelothTheAncient } from "../../cards/sets/inv/green.cards";
 import { thievingSkydiver } from "../../cards/sets/znr/blue.cards";
+import { preloadDefinitions } from "../../cards/registry";
+
+// Registered from its module: the catalogue bytes are base-owned (ADR 0157).
+preloadDefinitions([thievingSkydiver()]);
 
 const FOREST = getCardByName("Forest").id;
 const VERDELOTH = "verdeloth";

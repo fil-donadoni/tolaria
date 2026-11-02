@@ -19,7 +19,13 @@ import { assertKickerMinX, paidKickersMinX } from "../../../../gre/kicker";
 import { compactState, expandState } from "../../../../gre/serialize";
 import { projectPublicState } from "../../../../gameProjections";
 import { getCardByName } from "../../../index";
+import { preloadDefinitions } from "../../../registry";
 import { thievingSkydiver } from "../blue.cards";
+
+// Registered from its module, not looked up through `data/catalogue/*`: the
+// catalogue bytes are base-owned (ADR 0157), so a branch's tests must not
+// depend on them carrying a card the branch adds.
+preloadDefinitions([thievingSkydiver()]);
 
 const SKULLCLAMP = getCardByName("Skullclamp").id; // {1} Equipment
 const MIND_STONE = getCardByName("Mind Stone").id; // {2} Artifact
