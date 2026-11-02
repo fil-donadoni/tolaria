@@ -72,6 +72,8 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Teferi, Time Raveler": 5,
     // start 4, spends 0/3/7
     "Tezzeret, Cruel Captain": 8,
+    // start 3, spends 1/2 — starting count again (issue #2606)
+    "The Wandering Emperor": 4,
     // start 7, spends 2/0/11
     "Ugin, Eye of the Storms": 12,
     // start 3, spends 1/7
