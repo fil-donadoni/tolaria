@@ -364,6 +364,10 @@
         "code": "card-paired-mechanism",
         "reason": "Op \"unattach\" only has an observable outcome after a prior attach — covered by hand-written interpreter/card tests"
     },
+    "vote": {
+        "code": "suspends-for-input",
+        "reason": "Op \"vote\" suspends once per voter for a permanent pick — covered by the Op's interpreter tests"
+    },
     "winGame": {
         "code": "op-own-tests",
         "reason": "Op \"winGame\" sets state.gameOver — covered by the Op's own interpreter test"

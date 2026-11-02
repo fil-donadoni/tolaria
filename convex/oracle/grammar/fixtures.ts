@@ -15064,4 +15064,48 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.38 (issue #2071) — "Starting with you, each player votes for <a
+    // permanent>" (the `vote` frame) and "Exile each permanent with the most
+    // votes or tied for most votes" (the `moveZone` frame's vote-winners
+    // object), folded into ONE chain by sentence assembly: the second
+    // sentence's object is the first's outcome binding. The exile iterates a
+    // runtime-chosen set no canned scenario stages, and it is not a target —
+    // which is what puts hexproof and protection in reach.
+    {
+        rule: "verb frame",
+        card: {
+            oracleId: "acf4d685-a718-42f7-9a7a-dee069ae8db2",
+            name: "Council's Judgment",
+            manaCost: "{1}{W}{W}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Will of the council — Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Council's Judgment",
+            types: ["Sorcery"],
+            manaCost: { X: 1, W: 2 },
+            oracleText:
+                "Will of the council — Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes.",
+            effects: [
+                {
+                    op: "vote",
+                    candidates: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "opponent",
+                        filter: { excludeType: "Land" },
+                    },
+                    prompt: "Vote for a nonland permanent you don't control.",
+                    bind: "$winners1",
+                },
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$winners1" },
+                    effects: [{ op: "exile", target: { ref: "$each" } }],
+                },
+            ],
+        },
+    },
 ]);

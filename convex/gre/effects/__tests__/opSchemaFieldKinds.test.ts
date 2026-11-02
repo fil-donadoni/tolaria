@@ -55,6 +55,7 @@ const DECLARATIONS = [
     "sacrifice.bind:snapshot",
     "selectAtRandom.bind:picks",
     "tapUntap.bind:snapshot",
+    "vote.bind:picks",
 ];
 
 const HOST = "Field Kind Probe";

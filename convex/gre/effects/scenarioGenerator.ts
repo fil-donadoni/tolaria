@@ -1578,6 +1578,15 @@ const SCENARIO_SKIPS = {
         code: "suspends-for-input",
         reason: `Op "chooseNumber" suspends for a numeric nomination — covered by the Op's interpreter tests`,
     },
+    // CR 701.38 (issue #2071) — a vote suspends once per voter for a live
+    // `choose-permanents` pick; the canned generator cannot cast the votes.
+    // Execution coverage is the Op's interpreter tests (turn order, the
+    // public prompt, the tie, the single-candidate auto-vote, the empty set)
+    // and the pure `tallyVotes` suite.
+    vote: {
+        code: "suspends-for-input",
+        reason: `Op "vote" suspends once per voter for a permanent pick — covered by the Op's interpreter tests`,
+    },
     // A `mayPay` Op suspends resolution for a live Pay/Skip decision
     // (issue #806) — a canned scenario cannot submit an answer, so the
     // script is reported as an explicit skip; execution coverage comes
