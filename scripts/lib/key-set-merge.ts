@@ -14,6 +14,11 @@
  * names conflict as text. Merged per key: a row only one side changed takes
  * that side, a row both changed identically takes it once, and a row both
  * changed DIFFERENTLY is a real disagreement — an error, left to a human.
+ *
+ * A third shape, a JSON object read as a keyed map (issue #7871), merges the
+ * same way key by key — `data/pick-ratings/*.json`, `{ setCode, ratings }`,
+ * where every card PR appends a rating at the tail of `ratings` and two PRs
+ * conflict on the moved trailing comma.
  */
 
 export type KeySetMerge =
@@ -139,15 +144,104 @@ export function mergeKeyedRows(
     return { ok: true, rows: merged };
 }
 
+/** A JSON object read as a keyed map: each key an independent fact. */
+type KeyedMap = Record<string, unknown>;
+
+const isPlainObject = (v: unknown): v is KeyedMap =>
+    typeof v === "object" && v !== null && !Array.isArray(v);
+
+function parseMap(text: string, side: string): KeyedMap | string {
+    if (text.trim() === "") return {};
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(text);
+    } catch (err) {
+        return `the ${side} side is not valid JSON (${String(err)})`;
+    }
+    if (!isPlainObject(parsed)) return `the ${side} side is not a JSON object`;
+    return parsed;
+}
+
 /**
- * The driver's entry: a file of keys or a file of keyed rows, decided by the
- * shape its sides hold, merged and rendered canonically.
+ * Merge three keyed maps key by key (issue #7871), recursing into a key whose
+ * value is an object on every side that holds it — so `{ setCode, ratings }`
+ * merges `ratings` per Scryfall id. A key only one side changed takes that
+ * side, both changed identically takes it once, both changed DIFFERENTLY is a
+ * real disagreement. Order is canonical: the base's keys in the base's order,
+ * then every new key sorted — so tail appends never reorder the file and the
+ * next merge starts from the same form.
+ */
+function mergeMaps(
+    base: KeyedMap,
+    ours: KeyedMap,
+    theirs: KeyedMap,
+    path: string
+): { ok: true; map: KeyedMap } | { ok: false; error: string } {
+    const same = (a: unknown, b: unknown) =>
+        JSON.stringify(a) === JSON.stringify(b);
+    const added = [...new Set([...Object.keys(ours), ...Object.keys(theirs)])]
+        .filter((k) => !Object.hasOwn(base, k))
+        .sort();
+    const merged: KeyedMap = {};
+    for (const key of [...Object.keys(base), ...added]) {
+        const [b, o, t] = [base[key], ours[key], theirs[key]];
+        const keyPath = path === "" ? key : `${path}.${key}`;
+        if (
+            isPlainObject(o) &&
+            isPlainObject(t) &&
+            (b === undefined || isPlainObject(b))
+        ) {
+            const r = mergeMaps(b ?? {}, o, t, keyPath);
+            if (!r.ok) return r;
+            merged[key] = r.map;
+            continue;
+        }
+        const value = same(o, t) || same(t, b) ? o : same(o, b) ? t : null;
+        if (value === null)
+            return {
+                ok: false,
+                error: `key "${keyPath}" changed differently on both sides`,
+            };
+        if (value !== undefined) merged[key] = value;
+    }
+    return { ok: true, map: merged };
+}
+
+/** Merge three texts of a keyed-map file; canonical four-space JSON out. */
+export function mergeKeyedMapFile(
+    baseText: string,
+    oursText: string,
+    theirsText: string
+): { ok: true; text: string } | { ok: false; error: string } {
+    const sides = {
+        base: parseMap(baseText, "base"),
+        ours: parseMap(oursText, "ours"),
+        theirs: parseMap(theirsText, "theirs"),
+    };
+    for (const v of Object.values(sides)) {
+        if (typeof v === "string") return { ok: false, error: v };
+    }
+    const r = mergeMaps(
+        sides.base as KeyedMap,
+        sides.ours as KeyedMap,
+        sides.theirs as KeyedMap,
+        ""
+    );
+    return r.ok ? { ok: true, text: `${JSON.stringify(r.map, null, 4)}\n` } : r;
+}
+
+/**
+ * The driver's entry: a file of keys, a file of keyed rows, or a keyed map
+ * (issue #7871), decided by the shape its sides hold, merged and rendered
+ * canonically.
  */
 export function mergeKeySetFile(
     baseText: string,
     oursText: string,
     theirsText: string
 ): { ok: true; text: string } | { ok: false; error: string } {
+    if ([baseText, oursText, theirsText].some((t) => /^\s*\{/.test(t)))
+        return mergeKeyedMapFile(baseText, oursText, theirsText);
     const keyed = [baseText, oursText, theirsText].some((t) =>
         /^\s*\[\s*\{/.test(t)
     );

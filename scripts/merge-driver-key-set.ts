@@ -5,12 +5,13 @@
  * Registered in LOCAL git config by `scripts/bootstrap-worktree.ts`;
  * `.gitattributes` names it for the files `OTHER_MERGE_DRIVERS` gives it. It
  * merges the three sides as a sorted set of keys ({@link mergeKeySets}), or of
- * rows keyed by `name` ({@link mergeKeyedRows}, issue #6648), and writes the
+ * rows keyed by `name` ({@link mergeKeyedRows}, issue #6648), or as a keyed
+ * map (`mergeKeyedMapFile`, issue #7871), and writes the
  * canonical form, so removals and additions never conflict.
  *
  * Exits non-zero when a side does not parse — a malformed file must reach a
  * human, not be merged into a plausible-looking one — or when both sides
- * changed one keyed row differently.
+ * changed one keyed row (or map key) differently.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { writeStderrSync } from "./lib/merge-driver-io";
