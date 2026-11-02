@@ -18,7 +18,7 @@ import { finalizeTargetSelection } from "../../../../game";
 import { assertKickerMinX, paidKickersMinX } from "../../../../gre/kicker";
 import { compactState, expandState } from "../../../../gre/serialize";
 import { projectPublicState } from "../../../../gameProjections";
-import { getCardByName } from "../../../index";
+import { getDefinition } from "../../../index";
 import { preloadDefinitions } from "../../../registry";
 import { thievingSkydiver } from "../blue.cards";
 
@@ -27,10 +27,10 @@ import { thievingSkydiver } from "../blue.cards";
 // depend on them carrying a card the branch adds.
 preloadDefinitions([thievingSkydiver()]);
 
-const SKULLCLAMP = getCardByName("Skullclamp").id; // {1} Equipment
-const MIND_STONE = getCardByName("Mind Stone").id; // {2} Artifact
-const GREAVES = getCardByName("Lightning Greaves").id; // {2} Equipment
-const BEARS = getCardByName("Grizzly Bears").id;
+const SKULLCLAMP = getDefinition("55318397-de3c-47ea-a088-72a24df5c8fa").id; // {1} Equipment
+const MIND_STONE = getDefinition("162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71").id; // {2} Artifact
+const GREAVES = getDefinition("61a28870-cf78-4323-9d82-cee764067764").id; // {2} Equipment
+const BEARS = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id;
 
 // Thieving Skydiver — {1}{U} 2/1 Merfolk Rogue, flying. "Kicker {X}. X can't
 // be 0. / When this creature enters, if it was kicked, gain control of target
