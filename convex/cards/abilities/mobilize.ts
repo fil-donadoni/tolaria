@@ -36,9 +36,10 @@
 //    sacrifices all N ("them"), not N triggers. "The next end step" is
 //    whichever end step begins next: this turn's when the creature attacked
 //    in a normal combat, a later turn's if that end step never began (an end
-//    step skipped by an effect, CR 603.7a's "the next" — the instance waits
-//    for the next END_STEP). A token that already left the battlefield is
-//    skipped by the picks-form `sacrifice` (CR 608.2b / 701.21a).
+//    step skipped by an effect — the instance simply waits for the next
+//    END_STEP to begin). A token that already left the battlefield is
+//    skipped by the picks-form `sacrifice` (CR 701.21a: only a permanent can
+//    be sacrificed).
 //
 // MULTIPLE INSTANCES: CR 702.181a says mobilize IS a triggered ability, so two
 // instances are two abilities and the per-entry trigger scan fires both. The

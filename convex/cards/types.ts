@@ -19171,8 +19171,8 @@ export type EffectOp =
            *  token, this names "them": Mobilize's (CR 702.181a) "Sacrifice
            *  them at the beginning of the next end step", read by a
            *  `delayedTrigger` `capture: { select: { set: "bound" } }` and a
-           *  picks-form `sacrifice`. Left uncaptured when nothing was created
-           *  (CR 608.2b). */
+           *  picks-form `sacrifice`. Left uncaptured when nothing was
+           *  created. */
           bindAll?: string;
       }
     /** CR 707.2 + CR 111.1 (issue #1459) — create one or more tokens that are

@@ -161,7 +161,9 @@ describe("Mobilize N — game flow (CR 702.181a / 508.4 / 603.7a)", () => {
             const def = getDefinition(t.card.id);
             expect(def.name).toBe(WARRIOR_TOKEN.name);
             expect(def.subtypes).toContain("Warrior");
-            expect(def.manaCost).toEqual({ R: 1 }); // colour-carrying (CR 202.2)
+            // The synthesized definition carries the token's red as its
+            // colour-bearing mana cost.
+            expect(def.manaCost).toEqual({ R: 1 });
             // CR 508.4 — put onto the battlefield attacking, never declared:
             // "whenever a creature attacks" never saw it.
             expect(t.hasAttackedThisTurn).toBeFalsy();

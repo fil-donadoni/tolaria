@@ -6233,7 +6233,7 @@ export const OP_EXECUTORS: {
         }
         // Every created token as a PICKS binding (`mill.bindAll`'s shape) —
         // "sacrifice THEM" (Mobilize, CR 702.181a). Uncaptured when nothing
-        // was created, so a reader skips (CR 608.2b).
+        // was created, so a reader skips.
         if (op.bindAll && ids.length > 0) {
             ctx.noteChoice(op.bindAll, [...ids]);
         }
