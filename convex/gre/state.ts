@@ -354,6 +354,7 @@ import {
 import { randomInt, seededShuffle } from "./rng";
 import {
     applyCounterPlacedReplacements,
+    applyUntapReplacements,
     applyDamageReplacements,
     applyDestroyReplacements,
     applyDiscardReplacements,
@@ -9021,6 +9022,8 @@ export function untapPermanent(
     card: CardInstanceState
 ): boolean {
     if (!card.isTapped) return false;
+    // CR 122.1d — a stun counter replaces the untap: remove one, stay tapped.
+    if (applyUntapReplacements(state, card)) return false;
     card.isTapped = false;
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),

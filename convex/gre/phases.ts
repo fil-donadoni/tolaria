@@ -351,6 +351,8 @@ export function untapStepHoldsTapped(
     if (card.staticAbilities.includes("does-not-untap")) return true;
     if (card.untapLockedBy?.length) return true;
     if (card.skipNextUntap) return true;
+    // CR 122.1d — a stun counter turns this untap into a counter removal.
+    if ((card.counters?.["stun"] ?? 0) > 0) return true;
     if (
         card.staticAbilities.includes(
             "does-not-untap-with-depletion-counter"
