@@ -5372,6 +5372,14 @@ function lowerFrameChain(
                 ops.push({ op: "extraTurn", player: player.value });
                 break;
             }
+            // CR 119.7 + CR 611.2a — the named player can't gain life for
+            // the rest of the game.
+            case "restrictLifeGain": {
+                const player = playerRef(frame.player, walk.targets, site);
+                if (!player.ok) return player;
+                ops.push({ op: "restrictLifeGain", player: player.value });
+                break;
+            }
             // CR 500.8 — one more combat phase behind the one in progress.
             case "extraCombat":
                 ops.push({ op: "extraCombat" });

@@ -174,6 +174,7 @@ const RESTRICT_CASTING_VALUE = 20; // a turn-scoped "can't cast" denial
 const RESTRICT_LAND_PLAY_VALUE = 15; // a turn-scoped "can't play lands" denial
 const EXTRA_LAND_DROP_VALUE = 15; // one more land play this turn — the mirror of the denial above (a land in hand is not checked: the hand is the planner's, not the valuer's)
 const RESTRICT_ACTIVATION_VALUE = 15; // a turn-scoped "can't activate" denial
+const RESTRICT_LIFE_GAIN_VALUE = 15; // a game-long "can't gain life" denial — lasting, but worth only the gains the player would have made
 const GRANT_CAST_TIMING_VALUE = 8; // a "cast as though flash" self-grant (tempo)
 const GRANT_SPELL_MANA_SUBSTITUTION_VALUE = 8; // one spell's colours fixed
 const GRANT_MANA_SUBSTITUTION_VALUE = 10; // a whole turn's colours fixed
@@ -3038,6 +3039,11 @@ const restrictLandPlay: Valuer<"restrictLandPlay"> = () => ({
     tags: ["disruption"],
 });
 
+const restrictLifeGain: Valuer<"restrictLifeGain"> = () => ({
+    points: RESTRICT_LIFE_GAIN_VALUE,
+    tags: ["disruption"],
+});
+
 // CR 305.2 — "you may play an additional land" is the recipient's ramp; the
 // same grant handed to an opponent is theirs, so it is signed by recipient.
 const grantExtraLandDrops: Valuer<"grantExtraLandDrops"> = (op, ctx) => ({
@@ -3431,6 +3437,7 @@ export const OP_VALUERS: {
     suppressDamagePrevention,
     restrictActivation,
     restrictLandPlay,
+    restrictLifeGain,
     grantExtraLandDrops,
     restrictCasting,
     grantCastTiming,
@@ -3813,6 +3820,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     suppressDamagePrevention: "neutral",
     restrictActivation: "harmful",
     restrictLandPlay: "harmful",
+    restrictLifeGain: "harmful",
     grantExtraLandDrops: "beneficial",
     restrictCasting: "harmful",
     markAssignsNoCombatDamage: "harmful",

@@ -179,6 +179,17 @@ describe("gameStates serialize round-trip", () => {
         });
     });
 
+    // CR 611.2a — a "for the rest of the game" player lock outlives every save:
+    // dropped by `compactState`, a reload would hand the player life gain back.
+    it("preserves playerRestrictions (CR 611.2a, can't gain life)", () => {
+        const state = freshState();
+        state.playerRestrictions = [{ playerId: "p2", kind: "cantGainLife" }];
+        const expanded = expandState(compactState(state));
+        expect(expanded.playerRestrictions).toEqual([
+            { playerId: "p2", kind: "cantGainLife" },
+        ]);
+    });
+
     // CR 614.1c / 614.12a (ADR 0100 D2) — a permanent held off every zone while
     // its controller owes an "as it enters" choice must survive the DB
     // round-trip, so a save/load mid-choice reloads the staged permanent (a

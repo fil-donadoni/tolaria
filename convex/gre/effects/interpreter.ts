@@ -3207,6 +3207,37 @@ function dealDamageSourcedFrom(
     }
 }
 
+/** Every player's damage-dealt-this-turn tally (CR 120.3), the yardstick
+ *  `dealDamage { bindDamagedPlayer }` measures its own damage against. */
+function playerDamageTally(ctx: SpellContext): ReadonlyMap<string, number> {
+    return new Map(
+        ctx.allPlayerIds.map((id) => [id, ctx.getDamageDealtThisTurn(id)])
+    );
+}
+
+/** CR 120.3 — binds the player whose damage tally rose across a `dealDamage`
+ *  Op, i.e. the player that Op actually dealt damage to: prevention leaves
+ *  the tally where it was, a redirection raises the redirected-to player's.
+ *  Nothing rose → the binding stays uncaptured and a ref to it skips
+ *  (CR 608.2b). A named player recipient whose tally rose is the one bound,
+ *  even when another tally rose in the same Op (Eye for an Eye's reflected
+ *  damage to the source's controller is not damage dealt "this way"); the
+ *  seat scan only finds where a redirection sent the damage. */
+function bindDamagedPlayer(
+    ctx: SpellContext,
+    name: string,
+    before: ReadonlyMap<string, number>,
+    recipient: TargetSelection
+): void {
+    const rose = (id: string) =>
+        ctx.getDamageDealtThisTurn(id) > (before.get(id) ?? 0);
+    const damaged =
+        recipient.type === "player" && rose(recipient.id)
+            ? recipient.id
+            : ctx.allPlayerIds.find(rose);
+    if (damaged !== undefined) ctx.noteChoice(name, [damaged]);
+}
+
 /** CR 120.1 — the object or player a `dealDamage` Op's `to` names, or
  *  undefined when it names nothing at resolution (CR 608.2b).
  *  `attackTargetOf` (CR 506.2 / 508.1b) is the player or planeswalker the
@@ -3359,6 +3390,9 @@ export const OP_EXECUTORS: {
         // itself can change the recipient (wither/infect -1/-1 counters, CR
         // 702.80a), and the clause names it as the spell resolved.
         if (op.bind) bindSnapshot(ctx, op.bind, recipient);
+        const tallyBefore = op.bindDamagedPlayer
+            ? playerDamageTally(ctx)
+            : undefined;
         // CR 120.1 — `source` applies to every recipient shape alike: the
         // recipient says nothing about who the SOURCE of the damage is.
         if (op.source) {
@@ -3368,9 +3402,22 @@ export const OP_EXECUTORS: {
                 recipient,
                 amount
             );
-            return;
+        } else {
+            ctx.dealDamage(
+                recipient,
+                amount,
+                op.unpreventable,
+                op.unredirectable
+            );
         }
-        ctx.dealDamage(recipient, amount, op.unpreventable, op.unredirectable);
+        if (op.bindDamagedPlayer && tallyBefore) {
+            bindDamagedPlayer(
+                ctx,
+                op.bindDamagedPlayer,
+                tallyBefore,
+                recipient
+            );
+        }
     },
     // CR 120.3 — deal `amount` damage to every creature / player in the
     // declared set in ONE `dealDamageToEach` call (the primitive fixes the
@@ -3617,6 +3664,15 @@ export const OP_EXECUTORS: {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
         ctx.restrictLandPlay(playerId);
+    },
+    // CR 119.7 / 611.2a (issue #3239) — "can't gain life for the rest of the
+    // game": a player-scoped lock no object carries. Skipped when the player
+    // can't be resolved (CR 608.2b) — an uncaptured `$damaged` binding is the
+    // "if a player is dealt damage this way" that wasn't.
+    restrictLifeGain(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.restrictLifeGain(playerId);
     },
     // CR 305.2 (issue #7220) — grant turn-scoped additional land plays
     // (Explore). Skipped when the player is gone.

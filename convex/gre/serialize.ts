@@ -1432,6 +1432,9 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "damageCapShields",
     "islandSanctuaryProtection",
     "playerProtectionFromEverything",
+    // CR 611.2a — "for the rest of the game" player locks (can't gain life):
+    // plain `{ playerId, kind }` data that must survive every save.
+    "playerRestrictions",
     "castTimingFlashGrants",
     // CR 601.2f / 514.2 (issue #3340) — the floating turn-scoped spell-cost
     // reductions (Urza, Planeswalker's +2). Plain data (a player id, a filter

@@ -6476,6 +6476,13 @@ export interface SpellContext {
      *  cannot lift it. Does NOT stop lands being put onto the battlefield
      *  (CR 305.4). Idempotent. */
     restrictLandPlay: (playerId: string) => void;
+    /** CR 119.7 / 611.2a — puts `playerId` under "can't gain life" for the
+     *  rest of the game (Screaming Nemesis, Stigma Lasher), as a
+     *  `GameState.playerRestrictions` entry that no object carries, so it
+     *  outlasts the source leaving the battlefield. Enforced at the single
+     *  life-gain choke point (`gainLifeEmitting`), ahead of the replacement
+     *  pass. Never cleared. Idempotent. */
+    restrictLifeGain: (playerId: string) => void;
     /** CR 305.2 / 514.2 — grants `playerId` `count` additional land plays for
      *  the remainder of this turn (Explore). Appends to
      *  `state.extraLandDropsThisTurn`, read by `getExtraLandDrops` beside the
@@ -16076,6 +16083,19 @@ export type EffectOp =
            *  unresolvable recipient), so a ref to it skips its Op (CR
            *  608.2b). */
           bind?: string;
+          /** CR 120.3 (issue #3239) — binds the PLAYER this Op actually dealt
+           *  damage to, as a player-family binding (`{ ref: "$damaged" }` in
+           *  any player position): "If a player is dealt damage this way,
+           *  they can't gain life for the rest of the game" (Screaming
+           *  Nemesis). Read off the per-turn damage-to-player tally around
+           *  the damage, so it is the player who was DEALT damage — after
+           *  prevention (all of it prevented: no one was) and after
+           *  redirection (a redirected-to player was) — never merely the one
+           *  named. Distinct from `bind`, a pre-damage snapshot of the named
+           *  recipient. Left uncaptured when no player was dealt damage (a
+           *  creature or planeswalker recipient, or prevented damage), so an
+           *  Op reading it skips (CR 608.2b). */
+          bindDamagedPlayer?: string;
       }
     /** CR 120.3 / 120.2 — deal `amount` damage SIMULTANEOUSLY to every
      *  creature and/or player in a declared set, with no target ("deals N
@@ -16254,6 +16274,17 @@ export type EffectOp =
      *  is not a land-drop allowance of zero. Skipped when the player cannot be
      *  resolved (CR 608.2b). */
     | { op: "restrictLandPlay"; player: EffectPlayerRef }
+    /** CR 119.7 / 611.2a (issue #3239) — "<player> can't gain life for the
+     *  rest of the game" (Screaming Nemesis, Stigma Lasher). A thin
+     *  declarative skin over `SpellContext.restrictLifeGain`, one execution
+     *  path (ADR 0045): the player gains a `cantGainLife`
+     *  `GameState.playerRestrictions` entry that no object carries, so it
+     *  survives the source leaving the battlefield, and every later gain is
+     *  stopped at `gainLifeEmitting` before replacements run. Game-scoped
+     *  only — a "this turn" lock (Skullcrack) is a different boundary this
+     *  Op does not express. Skipped when the player cannot be resolved
+     *  (CR 608.2b). */
+    | { op: "restrictLifeGain"; player: EffectPlayerRef }
     /** CR 305.2 / 514.2 (issue #7220 — Explore's "You may play an additional
      *  land this turn"). A thin declarative skin over
      *  `SpellContext.grantExtraLandDrops`, one execution path (ADR 0045):

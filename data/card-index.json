@@ -61338,6 +61338,14 @@
         "source": "compiled"
     },
     {
+        "name": "Screaming Nemesis",
+        "scryfallId": "ce35e6fb-ff54-44c4-a216-7ddd37f46882",
+        "oracleId": "fcb7c93c-46ab-49b5-a6e0-35d73f3be8f0",
+        "firstSet": "dsk",
+        "firstPrintId": "ce35e6fb-ff54-44c4-a216-7ddd37f46882",
+        "firstPrintSet": "dsk"
+    },
+    {
         "name": "Screaming Phantom",
         "scryfallId": "bc2f3efb-1526-48c0-842a-374af63ea467",
         "oracleId": "d32f570a-3738-4a9d-845f-6c7892b69991",
@@ -69432,6 +69440,16 @@
         "firstSet": "scg",
         "firstPrintId": "2d7643c0-b2db-478f-944e-b27b77bad3eb",
         "firstPrintSet": "scg"
+    },
+    {
+        "name": "Stigma Lasher",
+        "scryfallId": "ce5d1fd4-0543-46ce-bcea-1695fc04e85b",
+        "oracleId": "7e4a1286-cac6-491f-a32d-64fb98d35de2",
+        "firstSet": "eve",
+        "firstPrintId": "ce5d1fd4-0543-46ce-bcea-1695fc04e85b",
+        "firstPrintSet": "eve",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Stillmoon Cavalier",

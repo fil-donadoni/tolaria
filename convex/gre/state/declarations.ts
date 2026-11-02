@@ -1992,6 +1992,19 @@ export type PlayerDamagePreventionShield = {
     duration: Duration;
 };
 
+/** The kinds of player-scoped rule a {@link PlayerRestriction} imposes.
+ *  `"cantGainLife"` — CR 119.7: the player can't gain life; a gain that
+ *  would happen doesn't, and a replacement effect that would replace it
+ *  does nothing. */
+export type PlayerRestrictionKind = "cantGainLife";
+
+/** One `GameState.playerRestrictions` entry: `playerId` is under `kind` for
+ *  the rest of the game (CR 611.2a). */
+export type PlayerRestriction = {
+    playerId: string;
+    kind: PlayerRestrictionKind;
+};
+
 /** A reference to an activated ability template granted to a player by
  *  another card's effect (CR 113.1). Stores only ids — the actual ability
  *  is resolved at activation time via `getDefinition(sourceCardId)`. */
@@ -5289,6 +5302,17 @@ export type GameState = {
      *  turns overlaps the two windows, and a single slot would clobber the
      *  first grant. */
     playerProtectionFromEverything?: string[];
+    /** CR 611.2a — player-scoped rules-modifying effects a resolved spell or
+     *  ability created with NO object left to carry them: "they can't gain
+     *  life for the rest of the game" (Screaming Nemesis, Stigma Lasher). The
+     *  effect lives here, not on a permanent, so it outlasts its source's
+     *  leaving the battlefield — `collectReplacements` and the layer registry
+     *  both scan objects, and this has none. Never cleared: an entry's
+     *  duration is the rest of the game (a turn-scoped lock is a different
+     *  boundary and keeps its own `…ThisTurn` slot). One entry per (player,
+     *  kind) — a second grant of the same lock adds nothing. Read through
+     *  `playerHasRestriction` (`gre/playerRestrictions.ts`). */
+    playerRestrictions?: PlayerRestriction[];
     /** CR 601.3b (Teferi, Time Raveler +1) — per-player "you may cast spells of
      *  these types as though they had flash" grants. Each entry lets `playerId`
      *  cast a spell whose printed types intersect `cardTypes` (omitted/empty =
