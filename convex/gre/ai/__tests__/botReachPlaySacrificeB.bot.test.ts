@@ -26,7 +26,7 @@ describe("Bot-play sweep (ADR 0105 § 7.2) — sacrifice creatures, second half"
     // The gain-life sorcery pays only when life is scarce, so the sweep poses
     // the holder one point from dead against an attacker (`sorceryLifeGainRace`).
     it("played — a sorcery that only gains its controller life", () => {
-        for (const name of ["Bountiful Harvest", "Presence of the Wise"]) {
+        for (const name of ["Bountiful Harvest"]) {
             expect(playBotReachSeats(getCardByName(name)), name).toEqual([
                 { holderId: "p1", verdict: { outcome: "played" } },
                 { holderId: "p2", verdict: { outcome: "played" } },
@@ -39,16 +39,22 @@ describe("Bot-play sweep (ADR 0105 § 7.2) — sacrifice creatures, second half"
     // by the material tie-break) that flipped under almost any refit — a
     // noise pin, not evidence. Four times the budget gives the cast's edge
     // the visits to show; the sweep's own verdict keeps the default budget.
+    // Presence of the Wise is the same shape (2 life per card in hand) and
+    // the same near-tie, flipped by the issue #7819 refit — identical
+    // numbers at 48 iterations, played at four times the budget.
     it("played — a gain-life sorcery scaled by hand size, at a budget past its near-tie", () => {
-        expect(
-            playBotReachSeats(getCardByName("Gerrard's Wisdom"), {
-                ...BOT_REACH_BUDGET,
-                iterations: BOT_REACH_BUDGET.iterations * 4,
-            })
-        ).toEqual([
-            { holderId: "p1", verdict: { outcome: "played" } },
-            { holderId: "p2", verdict: { outcome: "played" } },
-        ]);
+        for (const name of ["Gerrard's Wisdom", "Presence of the Wise"]) {
+            expect(
+                playBotReachSeats(getCardByName(name), {
+                    ...BOT_REACH_BUDGET,
+                    iterations: BOT_REACH_BUDGET.iterations * 4,
+                }),
+                name
+            ).toEqual([
+                { holderId: "p1", verdict: { outcome: "played" } },
+                { holderId: "p2", verdict: { outcome: "played" } },
+            ]);
+        }
     }, 600_000);
 
     // Issue #4275: a flier whose only ability sacrifices a creature for a
