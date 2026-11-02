@@ -2086,9 +2086,16 @@ export function policyProbeState(
             true
         );
     } else if (
+        // CR 603.3d — a trigger's target announcement completed with the
+        // trigger alone on the stack: what the answer did is the trigger's
+        // resolution, so the probe reads it settled (issue #7812). A spell's
+        // or an activation's announcement is left alone: it fans out over
+        // every target of every cast in the rollout's hot loop, and its
+        // resolution is the cast branch's job above.
         moverId &&
         move.kind === "submit-target" &&
         probe.stack.length === 1 &&
+        probe.stack[0].triggeredAbilityId !== undefined &&
         !probe.pendingTarget &&
         (probe.pendingChoices?.length ?? 0) === 0
     ) {
