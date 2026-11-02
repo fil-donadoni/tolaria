@@ -16,7 +16,10 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup.helper";
+import { applyNameCardSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import {
@@ -600,5 +603,130 @@ describe("Saheeli, Sublime Artificer — −2 copy until end of turn (CR 707.2 /
         const reverted = onBattlefield(state, "lotus");
         expect(presentedDefId(reverted)).toBe(blackLotus.id);
         expect(reverted.types).toEqual(["Artifact"]);
+    });
+});
+
+// Tamiyo, Collector of Tales (issue #2607). The static's engine gate is proven
+// in `gre/__tests__/opponentCauseProhibition.test.ts` on a bare carrier; here
+// the CARD's declaration reaches it, and the +1 / −3 compose as printed.
+describe("Tamiyo, Collector of Tales — static, +1, −3 (CR 101.2 / 201.4a / 701.20a)", () => {
+    const tamiyo = getDefinition("76776b24-a2e1-4590-88e7-8a421baf2fc4");
+    const mindRot = getDefinition("b91d355d-8409-4f0b-87ce-7590a8b9ebc0");
+    const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
+    const PLUS1 = "tamiyo-collector-of-tales-plus1";
+    const MINUS3 = "tamiyo-collector-of-tales-minus3";
+
+    function tamiyoBoard(library: string[], hand: string[] = []): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    library: library.map((cardId, i) =>
+                        makeInstance(cardId, {
+                            id: `lib-${i}`,
+                            controllerId: "p1",
+                            zone: "library",
+                        })
+                    ),
+                    hand: hand.map((id) =>
+                        makeInstance(lightningBolt.id, {
+                            id,
+                            controllerId: "p1",
+                            zone: "hand",
+                        })
+                    ),
+                    battlefield: [
+                        makeInstance(tamiyo.id, {
+                            id: "tamiyo",
+                            controllerId: "p1",
+                            counters: { loyalty: 5 },
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("static: an opponent's Mind Rot makes Tamiyo's controller discard nothing", () => {
+        const state = tamiyoBoard([], ["h1", "h2"]);
+        pushSpell(state, mindRot.id, "p2", [{ type: "player", id: "p1" }]);
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["h1", "h2"]);
+    });
+
+    it("+1: every revealed card with the chosen name goes to hand, the rest to the graveyard", () => {
+        const state = tamiyoBoard([
+            grizzlyBears.id,
+            llanowarElves.id,
+            grizzlyBears.id,
+            llanowarElves.id,
+            lightningBolt.id,
+        ]);
+        resolveActivated(state, state.players[0].battlefield[0], PLUS1);
+        expect(state.pendingChoices?.[0]?.kind).toBe("name-card");
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "lib-0",
+            "lib-2",
+        ]);
+        expect(state.players[0].graveyard.map((c) => c.id).sort()).toEqual([
+            "lib-1",
+            "lib-3",
+        ]);
+        // Only the top four were revealed; the fifth stays in the library.
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["lib-4"]);
+    });
+
+    it("+1 with zero matches puts all four into the graveyard", () => {
+        const state = tamiyoBoard([
+            llanowarElves.id,
+            llanowarElves.id,
+            llanowarElves.id,
+            llanowarElves.id,
+        ]);
+        resolveActivated(state, state.players[0].battlefield[0], PLUS1);
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].graveyard).toHaveLength(4);
+    });
+
+    it("+1 refuses a land name (CR 201.4a 'nonland card name')", () => {
+        const state = tamiyoBoard([llanowarElves.id]);
+        resolveActivated(state, state.players[0].battlefield[0], PLUS1);
+        expect(() =>
+            applyNameCardSubmit(state, { playerId: "p1", cardName: "Forest" })
+        ).toThrow();
+        expect(state.pendingChoices).toHaveLength(1);
+    });
+
+    it("+1's name choice crosses the projection without exposing the library", () => {
+        const state = tamiyoBoard([grizzlyBears.id, llanowarElves.id]);
+        resolveActivated(state, state.players[0].battlefield[0], PLUS1);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.pendingChoices?.[0]?.kind).toBe("name-card");
+        expect(projected.pendingChoices?.[0]?.candidateIds).toBeUndefined();
+    });
+
+    it("−3: returns the target card from the graveyard to hand", () => {
+        const state = tamiyoBoard([]);
+        state.players[0].graveyard.push(
+            makeInstance(grizzlyBears.id, {
+                id: "gy-bear",
+                controllerId: "p1",
+                zone: "graveyard",
+            })
+        );
+        resolveActivated(state, state.players[0].battlefield[0], MINUS3, [
+            { type: "graveyard-card", id: "gy-bear", playerId: "p1" },
+        ]);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["gy-bear"]);
+        expect(state.players[0].graveyard).toHaveLength(0);
     });
 });
