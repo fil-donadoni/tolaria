@@ -11,6 +11,7 @@ import { adventureCastAltCostId } from "../adventure";
 import { MORPH_CAST_ALT_COST_ID } from "../morph";
 import type { GameState } from "../state";
 import {
+    ARTIFACT_MORPH,
     BLUE_ARTIFACT,
     BRAZEN_BORROWER,
     CITADEL,
@@ -195,6 +196,40 @@ describe("CR 601.2b / 118.9 — the Bot picks among overlapping permissions (iss
         });
     });
 
+    it("an artifact with morph: the printed cast offers both choices, the morph cast never announces a decline", () => {
+        withDefs(() => {
+            const moves = topMoves(
+                board([CITADEL.id, FORGE.id], ARTIFACT_MORPH.id)
+            );
+            const printed = moves.filter(
+                (m) =>
+                    m.kind === "cast-spell" && m.alternativeCostId === undefined
+            );
+            expect(
+                new Set(
+                    printed.map(
+                        (m) =>
+                            m.kind === "cast-spell" &&
+                            m.declineManaCostReplacement === true
+                    )
+                )
+            ).toEqual(new Set([false, true]));
+            const morph = moves.filter(
+                (m) =>
+                    m.kind === "cast-spell" &&
+                    m.alternativeCostId === MORPH_CAST_ALT_COST_ID
+            );
+            expect(morph.length).toBeGreaterThan(0);
+            expect(
+                morph.some(
+                    (m) =>
+                        m.kind === "cast-spell" &&
+                        m.declineManaCostReplacement === true
+                )
+            ).toBe(false);
+        });
+    });
+
     it("a morph cast the Citadel refuses rides the Forge (CR 601.2b, CR 702.37c)", () => {
         withDefs(() => {
             const morph = topMoves(
@@ -205,8 +240,16 @@ describe("CR 601.2b / 118.9 — the Bot picks among overlapping permissions (iss
                     m.alternativeCostId === MORPH_CAST_ALT_COST_ID
             );
             // The choice is forced (only the Forge can license a morph cast),
-            // so the Move needs no announced decline.
+            // so no morph Move announces a decline — `announceCast` refuses
+            // the flag where it chooses nothing.
             expect(morph.length).toBeGreaterThan(0);
+            expect(
+                morph.some(
+                    (m) =>
+                        m.kind === "cast-spell" &&
+                        m.declineManaCostReplacement === true
+                )
+            ).toBe(false);
         });
     });
 });

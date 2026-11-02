@@ -111,6 +111,7 @@ import {
     libraryTopCastGrant,
     isCastableLibraryTopSpell,
     libraryTopCastLifeCost,
+    libraryTopReplacementChoices,
     libraryTopReplacementDeclinable,
     getLegalTargets,
     getProducibleManaSourceView,
@@ -6250,8 +6251,19 @@ export function enumerateMoves(
         // Bolas's Citadel and Mystic Forge both covering an artifact, the
         // caster may pay its mana cost instead of life. A separate pass priced
         // at the printed cost (no `lifeInsteadOfMana`), stamped so the
-        // executor announces it and `licensed` re-asks it under that choice —
-        // a morph cast the Citadel refuses survives here under the Forge.
+        // executor announces it and `licensed` re-asks it under that choice.
+        // Only announcements where the decline is a real choice keep it
+        // (`libraryTopReplacementChoices`): a morph or Adventure cast the
+        // Citadel cannot license already rides the Forge by default in the
+        // pass above, and `announceCast` refuses the flag on it.
+        const declineIsChoice = (m: Move) =>
+            m.kind !== "cast-spell" ||
+            libraryTopReplacementChoices(
+                state,
+                player,
+                libraryTop,
+                m.alternativeCostId
+            ).includes(true);
         if (libraryTopReplacementDeclinable(state, player, libraryTop)) {
             moves.push(
                 ...enumerateCastMoves(state, player, libraryTop, {
@@ -6267,6 +6279,7 @@ export function enumerateMoves(
                               }
                             : m
                     )
+                    .filter(declineIsChoice)
                     .filter(licensed)
             );
         }
