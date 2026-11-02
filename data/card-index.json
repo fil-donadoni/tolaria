@@ -30316,6 +30316,16 @@
         "firstPrintSet": "fem"
     },
     {
+        "name": "Goblin Welder",
+        "scryfallId": "6171e136-1167-4329-acb2-6853d3a814e5",
+        "oracleId": "9fc28e1f-f4ea-4bf8-9442-a36dba3b3b29",
+        "firstSet": "ulg",
+        "firstPrintId": "6171e136-1167-4329-acb2-6853d3a814e5",
+        "firstPrintSet": "ulg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Goblin Wizard",
         "scryfallId": "9b73dfb4-d930-4a89-b621-129dd9f6328c",
         "oracleId": "912c99a0-ee97-4bb9-8ab7-2e469d74fa03",

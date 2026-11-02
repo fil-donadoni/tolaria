@@ -7379,6 +7379,29 @@ export const OP_EXECUTORS: {
         }
         for (const id of ids) ctx.sacrifice(id);
     },
+    // CR 701.21a + CR 608.2b + CR 400.7 (issue #7206) — Goblin Welder's
+    // "If both targets are still legal as this ability resolves, that player
+    // simultaneously sacrifices the artifact and returns the artifact card to
+    // the battlefield." ALL-OR-NOTHING: a slot the legality gate blanked
+    // (`ctx.targets[n]` undefined, or no longer the right kind of object)
+    // skips BOTH halves. Re-checks presence in the zone each slot was
+    // targeted in before touching either (the resolution-time legality gate
+    // blanks a slot whose object left its zone), so neither half can run
+    // alone. Both moves happen inside this one executor — no SBA, priority or
+    // trigger resolution between them — so the swap's leave/enter triggers are
+    // put on the stack together (CR 603.3b).
+    sacrificeAndReturn(ctx, op) {
+        const sac = resolveObjectRef(ctx, op.sacrificed);
+        const ret = resolveObjectRef(ctx, op.returned);
+        if (sac?.type !== "permanent") return;
+        if (ret?.type !== "graveyard-card" || ret.playerId === undefined) {
+            return;
+        }
+        ctx.sacrifice(sac.id);
+        ctx.returnCardSetToBattlefield([
+            { playerId: ret.playerId, cardInstanceId: ret.id },
+        ]);
+    },
     // CR 603.7 (ADR 0048) — grant a delayed triggered ability. Resolve each
     // `capture` value to ONE serializable string NOW (scheduling time),
     // persist it with the inline body on the DelayedTriggerInstance, and let
@@ -7768,6 +7791,13 @@ export const MELD_GROUP_DISPOSITION: Readonly<
     restrictCombat: BATTLEFIELD_ONLY,
     returnToHandAtNextUntap: BATTLEFIELD_ONLY,
     sacrifice: BATTLEFIELD_ONLY,
+    // Both halves are ANNOUNCED target slots (the validator admits no other
+    // selector): a battlefield permanent, where a melded permanent is ONE
+    // object (CR 701.42a), and the single graveyard card the player chose —
+    // never a reference an earlier effect found, so there is no second card
+    // for CR 712.21c to reach.
+    sacrificeAndReturn:
+        "acts on two announced target slots only, never on an object an earlier effect found",
     setBasePT: BATTLEFIELD_ONLY,
     setCardTypes: BATTLEFIELD_ONLY,
     setColor: BATTLEFIELD_ONLY,

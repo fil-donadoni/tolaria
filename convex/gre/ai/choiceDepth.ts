@@ -196,6 +196,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     revealTopAndRoute: false,
     revealUntilMatch: false,
     sacrifice: false,
+    sacrificeAndReturn: false,
     setBasePT: false,
     setCardTypes: false,
     setColor: false,

@@ -15064,4 +15064,72 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.21a + CR 608.2b + CR 400.7 (issue #7206) — "Choose target artifact
+    // a player controls and target artifact card in that player's graveyard. If
+    // both targets are still legal as this ability resolves, that player
+    // simultaneously sacrifices the artifact and returns the artifact card to
+    // the battlefield.": exhibits `sacrificeAndReturn` over a battlefield
+    // target paired with a graveyard-card target, which the canned smoke
+    // scenario cannot seed.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "9fc28e1f-f4ea-4bf8-9442-a36dba3b3b29",
+            name: "Goblin Welder",
+            manaCost: "{R}",
+            typeLine: "Creature — Goblin Artificer",
+            oracleText:
+                "{T}: Choose target artifact a player controls and target artifact card in that player's graveyard. If both targets are still legal as this ability resolves, that player simultaneously sacrifices the artifact and returns the artifact card to the battlefield.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Goblin Welder",
+            types: ["Creature"],
+            subtypes: ["Goblin", "Artificer"],
+            manaCost: {
+                R: 1,
+            },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "{T}: Choose target artifact a player controls and target artifact card in that player's graveyard. If both targets are still legal as this ability resolves, that player simultaneously sacrifices the artifact and returns the artifact card to the battlefield.",
+            activatedAbilities: [
+                {
+                    id: "goblin-welder-ability",
+                    oracleText:
+                        "{T}: Choose target artifact a player controls and target artifact card in that player's graveyard. If both targets are still legal as this ability resolves, that player simultaneously sacrifices the artifact and returns the artifact card to the battlefield.",
+                    cost: {
+                        tap: true,
+                    },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "sacrificeAndReturn",
+                            sacrificed: {
+                                target: 0,
+                            },
+                            returned: {
+                                target: 1,
+                            },
+                        },
+                    ],
+                    targetRequirement: {
+                        type: "Artifact",
+                        count: 1,
+                    },
+                    additionalTargetRequirements: [
+                        {
+                            type: "Artifact",
+                            count: 1,
+                            zone: "graveyard",
+                            controller: "any",
+                            zoneOwnerOfPriorPermanentController: true,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

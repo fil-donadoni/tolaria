@@ -5500,6 +5500,34 @@ function lowerFrameChain(
                 });
                 break;
             }
+            // CR 701.21a + CR 608.2b + CR 400.7 — the two announced targets
+            // of a swap, acted on together only when both are still legal.
+            case "sacrificeAndReturn": {
+                const sacrificed = objectSelector(
+                    frame.sacrificed,
+                    walk.targets,
+                    site
+                );
+                if (!sacrificed.ok) return sacrificed;
+                const returned = objectSelector(
+                    frame.returned,
+                    walk.targets,
+                    site,
+                    "zone-change"
+                );
+                if (!returned.ok) return returned;
+                if (
+                    !("target" in sacrificed.value) ||
+                    !("target" in returned.value)
+                )
+                    return unlowerable("a swap acts on two announced targets");
+                ops.push({
+                    op: "sacrificeAndReturn",
+                    sacrificed: sacrificed.value,
+                    returned: returned.value,
+                });
+                break;
+            }
             case "bringFromOutsideGame":
                 ops.push({
                     op: "bringFromOutsideGame",

@@ -3326,6 +3326,14 @@ const exileAndReturnTransformed: Valuer<"exileAndReturnTransformed"> = (
 
 const unattach: Valuer<"unattach"> = () => ZERO_OP_VALUE;
 
+/** CR 701.21a + CR 400.7 (issue #7206) — one artifact traded for a graveyard
+ *  card of the same player. The Op's worth is the DIFFERENCE between the two
+ *  cards, which the leaf valuer cannot read off an announced slot, so it prices
+ *  as neutral: the bot reaches the swap through the target-tuple enumeration
+ *  (which scores each pairing) rather than through a flat bonus that would
+ *  favour trading a good permanent for a worse card. */
+const sacrificeAndReturn: Valuer<"sacrificeAndReturn"> = () => ZERO_OP_VALUE;
+
 const winGame: Valuer<"winGame"> = () => ({
     points: WIN_GAME_VALUE,
     tags: [],
@@ -3459,6 +3467,7 @@ export const OP_VALUERS: {
     exileAndReturnTransformed,
     unattach,
     winGame,
+    sacrificeAndReturn,
 };
 
 /** The structural constructs the WALKER handles by recursion — never a leaf
@@ -3959,6 +3968,13 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // and coerces their pick. Signing it here as well would double-count the
     // same coercion onto the same slot.
     sacrifice: "neutral",
+    // CR 701.21a + CR 400.7 — a swap inside ONE player's own zones: the
+    // sacrificed permanent and the returned card both belong to the same
+    // player (the graveyard group is bound to the permanent's controller), so
+    // the Op has no recipient a sign could be redirected over; whether it
+    // helps is the comparison of the two cards, which the target-tuple scoring
+    // reads, not a direction.
+    sacrificeAndReturn: "neutral",
 
     // ── Schedulers: the material is in a body announced at another time ────
     // CR 603.7b / 603.3d — both Ops put an Op LIST somewhere else in time, and

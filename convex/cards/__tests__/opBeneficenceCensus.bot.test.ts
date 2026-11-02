@@ -273,6 +273,7 @@ const NEUTRAL_ROWS = [
     "reveal",
     "revealTopAndRoute",
     "sacrifice",
+    "sacrificeAndReturn",
     "selectAtRandom",
     "setBasePT",
     "setCardTypes",

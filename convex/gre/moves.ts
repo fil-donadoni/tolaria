@@ -2942,6 +2942,27 @@ function enumerateTargetGroupTuples(
                         continue;
                     }
                 }
+                // CR 601.2c + CR 404.1 (issue #7206) — "target artifact card in
+                // THAT player's graveyard": every card must sit in the graveyard
+                // of the CONTROLLER of the permanent an earlier group announced
+                // (`zoneOwnedByPriorPlayerTarget`, which lowers the same
+                // directive into `zoneOwnerId` when the walk reaches the group).
+                if (req?.zoneOwnerOfPriorPermanentController) {
+                    const perm = priorPicks.find((p) => p.type === "permanent");
+                    const controller = perm
+                        ? findPermanent(state, perm.id)?.controllerId
+                        : undefined;
+                    if (
+                        tuple.some(
+                            (t) =>
+                                t.type === "graveyard-card" &&
+                                (controller === undefined ||
+                                    t.playerId !== controller)
+                        )
+                    ) {
+                        continue;
+                    }
+                }
                 // CR 601.2c — the per-pick rule, read as a property of this
                 // group's picks (`groupPicksObeyTargetChoice`). A tuple the
                 // server would refuse half-way through is not a move.
