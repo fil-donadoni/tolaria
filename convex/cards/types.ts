@@ -673,12 +673,23 @@ export interface EnchantRestriction {
  *  is determined, that number doesn't change, even if the information used to
  *  determine the number of targets does". It is never re-read at resolution.
  *
- *  Narrowed to `EffectCount` rather than the whole `EffectValue` on purpose:
- *  every other member reads resolution state (bindings, kicker counts, the
- *  resolving trigger) that does not exist yet at announcement, so it would
- *  type-check and then read nothing. Widening it is a type-level change.
- *  Resolved by `resolveTargetRequirementCount` (`gre/state.ts`). */
-export type TargetCountQuantity = EffectCount;
+ *  Narrowed to `EffectCount` plus `{ kickerCount: true }` rather than the
+ *  whole `EffectValue` on purpose: every other member reads resolution state
+ *  (bindings, the resolving trigger) that does not exist yet at announcement,
+ *  so it would type-check and then read nothing. Widening it is a type-level
+ *  change. Resolved by `resolveTargetRequirementCount` (`gre/state.ts`).
+ *
+ *  `{ kickerCount: true }` (issue #7210) is the TRIGGERED-ability bound "each
+ *  of up to X targets, where X is the number of times he was kicked" (Batroc
+ *  the Leaper): the trigger is announced (CR 603.3d, incorporating CR 601.2c)
+ *  after its source permanent already carries the Kicker record its spell
+ *  paid (CR 702.33e), so the count exists at announcement: the trigger item
+ *  is built as a spread of its source (`buildTriggerItem`), Kicker record
+ *  included, and `SpellContext.getKickerCount` reads it. Authored on a
+ *  `TriggeredAbility.targetRequirement` only — a SPELL's own target walk is
+ *  not the surface this was proven on, and the catalogue guard
+ *  (`cards/__tests__/triggerVariableTargetCount.test.ts`) keeps it there. */
+export type TargetCountQuantity = EffectCount | EffectKickerCountValue;
 
 /** A live combat role a target filter can name (CR 508.1 attacking, CR 509.1
  *  blocking, CR 509.1h blocked). */
