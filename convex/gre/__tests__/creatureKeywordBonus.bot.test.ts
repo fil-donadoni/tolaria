@@ -35,6 +35,7 @@ const SCRIPT_PRICED: Record<
     exalted: { declared: "exalted" },
     prowess: { declared: "prowess" },
     "battle-cry": { declared: "battle cry" },
+    persist: { declared: "persist" },
     annihilator: { declared: "annihilator 2" },
     // CR 702.181a — the expanded attack trigger's createToken script.
     mobilize: { declared: "mobilize 2" },
