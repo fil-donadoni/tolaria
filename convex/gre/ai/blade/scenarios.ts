@@ -7894,6 +7894,45 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Guards all three halves of the Underworld Breach probe at once: the search-side sacrifice model (`applyTapPlanInSearch`), the `graveyard` eval term, and the `library` term plus `deckOutDelta`. Red on the parent commit at 400 and 1200 iterations across the same seeds — it cast Lightning Bolt from the graveyard and stopped, leaving the opponent at 8 cards instead of 0. Not paired: a positive `moves` expectation stands alone (ADR 0070 §1 concerns `forbidden` halves).",
     },
     {
+        // Issue #7783 — the mid-line escape of the storm kill above, pinned at
+        // the node AFTER Brain Freeze resolved (graveyard: Brain Freeze, Bolt,
+        // the Lotus, six Islands). Spending an escape used to cost the flat
+        // `graveyardEngineWeight` per lost cast against ~26 the Lotus earns on
+        // the battlefield, so `escape Black Lotus` scored below `pass`.
+        // `graveyardEngineTerm` now prices a cast at a FRACTION of the card's
+        // own latent worth, so an option is never dearer than what it casts.
+        label: "graveyard engine: escapes the Black Lotus whose permanent outweighs the option",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "a graveyard cast whose realized permanent worth exceeds its option credit",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Underworld Breach", owner: "me", zone: "battlefield" },
+                { name: "Brain Freeze", owner: "me", zone: "graveyard" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                { name: "Black Lotus", owner: "me", zone: "graveyard" },
+                { name: "Island", owner: "me", zone: "graveyard", count: 6 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 9,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Black Lotus" }],
+        },
+        note: "Issue #7783. The positive half; the negative half (a cast credited at no more than its fraction of a card that is worth little on the battlefield) is the unit pair in `deckingAndSacrificeModel.bot.test.ts` ('credits a cast at the card's own worth').",
+    },
+    {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #2796).
         // PAIRED WITH: "cast mode: never bestows the Aura onto the OPPONENT's
         // creature".
