@@ -22320,6 +22320,7 @@
         {"id":"601.2c","line":"// CR 601.2c — a variant's target requirements are a LIST of independent","sites":1,"status":"baseline"},
         {"id":"601.2c","line":"// CR 601.2c — advance to the next independent target group","sites":1,"status":"baseline"},
         {"id":"601.2c","line":"// CR 601.2c — an \"up to X\" bound that resolved to zero (Batroc","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},
+        {"id":"601.2c","line":"// CR 601.2c — an \"up to\" bound of zero announces no targets (issue","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},
         {"id":"601.2c","line":"// CR 601.2c — an Effect Script reads the announced picks POSITIONALLY,","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},
         {"id":"601.2c","line":"// CR 601.2c — an announcement's groups concatenate, so a group's slot","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},
         {"id":"601.2c","line":"// CR 601.2c — an effect may say an object MUST be chosen as a","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},

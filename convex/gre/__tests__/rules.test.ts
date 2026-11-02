@@ -7,7 +7,6 @@ import {
 import type {
     CardInstanceState,
     GameState,
-    PendingTarget,
     PlayerState,
     StackItem,
 } from "../state";
@@ -820,23 +819,18 @@ describe('raiseTriggerTargetSelection — "up to X" count collapse (CR 601.2c / 
         return { state, trigger };
     }
 
-    it("{ min: 0, max: 'X' } raises a PendingTarget with a numeric { min: 0, max: 0 } — never the literal string", () => {
-        const { state } = stateWithInlineTrigger({
+    it("{ min: 0, max: 'X' } collapses to zero targets — locks [] with no PendingTarget, never the literal string", () => {
+        const { state, trigger } = stateWithInlineTrigger({
             min: 0,
             max: "X",
         });
         const suspended = raiseTriggerTargetSelection(state);
-        expect(suspended).toBe(true);
-        const pt = state.pendingTarget as PendingTarget;
-        expect(pt).toBeDefined();
-        expect(pt.count).toEqual({ min: 0, max: 0 });
-        // The must-NOT assertion: no branch of the resolution can leave the
-        // literal "X" string on a numeric-typed field.
-        expect(typeof pt.count).not.toBe("string");
-        if (typeof pt.count === "object") {
-            expect(typeof pt.count.max).toBe("number");
-            expect(Number.isNaN(pt.count.max)).toBe(false);
-        }
+        // CR 601.2c — an "up to" bound of zero announces no targets (issue
+        // #7210): no prompt whose only legal answer is "nothing" is raised,
+        // so no "X" string can reach `PendingTarget.count` either.
+        expect(suspended).toBe(false);
+        expect(state.pendingTarget).toBeUndefined();
+        expect(trigger.targets).toEqual([]);
     });
 
     it("{ min: 1, max: 'X' } collapses to a single mandatory target and auto-selects (no PendingTarget raised)", () => {
