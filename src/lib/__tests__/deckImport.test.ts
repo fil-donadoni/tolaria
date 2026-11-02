@@ -154,7 +154,7 @@ function pile(...entries: [name: string, count: number][]): DeckCard[] {
 // 0080): its pool is every printed card, so a pasted list of not-yet-
 // implemented cards must import instead of landing in `unresolved`.
 describe("parseDecklist — catalogue-backed names (Tabletop, ADR 0080)", () => {
-    const UNIMPLEMENTED_ID = "0d16e8e0-31b2-4389-afd6-783c501f6fa0";
+    const UNIMPLEMENTED_ID = "33333333-4444-5555-6666-777777777777";
     const DFC_ID = "22222222-3333-4444-5555-666666666666";
 
     const resolveCatalogueName = makeCatalogueNameResolver([
