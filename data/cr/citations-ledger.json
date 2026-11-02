@@ -31666,7 +31666,7 @@
         {"id":"608.2b","line":"* (CR 608.2b), or the negated inner value is itself unresolvable — so the","sites":1,"status":"baseline"},
         {"id":"608.2b","line":"* (CR 608.2b), the same policy the battlefield presence recheck","sites":1,"status":"baseline"},
         {"id":"608.2b","line":"* (CR 608.2b).","sites":1,"status":"baseline"},
-        {"id":"608.2b","line":"* (CR 608.2b). */","sites":12,"status":"confirmed","ruleHash":"f664a824528a8dfe"},
+        {"id":"608.2b","line":"* (CR 608.2b). */","sites":13,"status":"confirmed","ruleHash":"f664a824528a8dfe"},
         {"id":"608.2b","line":"* (CR 608.2b). A named player recipient whose tally rose is the one bound,","sites":1,"status":"confirmed","ruleHash":"f664a824528a8dfe"},
         {"id":"608.2b","line":"* (CR 608.2b). Filter fields the battlefield matcher has no counterpart for","sites":1,"status":"baseline"},
         {"id":"608.2b","line":"* (CR 608.2b). Omitted, the recipient is the resolving permanent and the","sites":1,"status":"confirmed","ruleHash":"f664a824528a8dfe"},
