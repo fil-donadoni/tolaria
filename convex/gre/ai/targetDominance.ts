@@ -210,7 +210,7 @@ export function pruneDominatedTriggerTargets(
 
 // Answers the policy rates far below the best (issue #7812) — the rule the
 // strict prune above cannot be for an EXCHANGE. Gilded Drake's trigger trades
-// the Drake for the chosen creature (CR 701.12a), so every answer moves
+// the Drake for the chosen creature (CR 701.12b), so every answer moves
 // permanents across both sides and no inclusion holds between any two of them:
 // the axes leave them all incomparable, and nothing is pruned. The tree still
 // explores each one, and below the root its mean backup debits the cast with

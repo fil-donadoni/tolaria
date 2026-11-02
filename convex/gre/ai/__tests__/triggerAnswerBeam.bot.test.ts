@@ -1,7 +1,7 @@
 /**
  * Trigger-target answers below the root, read by their settled 1-ply value
  * (issue #7812). CR 603.3d — a triggered ability announces its targets as it
- * is put on the stack; CR 701.12a — an exchange of control swaps the
+ * is put on the stack; CR 701.12b — an exchange of control swaps the
  * controllers of the exchanged permanents, so every answer of Gilded Drake's
  * trigger moves permanents across both sides and the strict dominance prune
  * (`pruneDominatedTriggerTargets`) can order none of them.
@@ -57,7 +57,7 @@ function answerName(state: GameState, move: Move): string {
 const apply = (botId: string) => (probe: GameState, move: Move) =>
     applyMoveInSearch(probe, botId, move);
 
-describe("beamTriggerTargetsByValue — an exchange of control (CR 701.12a)", () => {
+describe("beamTriggerTargetsByValue — an exchange of control (CR 701.12b)", () => {
     it("is a trigger-target node the dominance prune cannot narrow", () => {
         const { state, botId } = announcing();
         expect(state.pendingTarget?.kind).toBe("trigger");

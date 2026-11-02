@@ -15943,7 +15943,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #6334 — the mirror half: with no enters trigger on the bot's own creature, flickering it gains nothing and the opposing body's one-turn exile is the better answer. Green before the fix (Hill Giant 5/5 at 400) and after it (Hill Giant 5/5): the pending-return credit gives the Giant back to its owner at its full worth, so the exile is priced as the tempo it is, not as a kill — and, issue #7784 found, as exactly the tempo a Mountain's exile is.",
     },
     {
-        // CR 701.12a — Gilded Drake's enters trigger exchanges control of
+        // CR 701.12b — Gilded Drake's enters trigger exchanges control of
         // the Drake and up to one target creature an opponent controls; with
         // no exchange the Drake is sacrificed. Every answer moves permanents
         // across both sides, so no answer's outcome includes another's and
