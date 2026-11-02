@@ -87,6 +87,13 @@
  *     resolve to it): the `lane` runner serves the gates a merge or a verdict
  *     waits on, and a maintenance job there holds the queue (ADR 0160).
  *     Maintenance runs on `maint`.
+ *   - `derive-slot` — a self-hosted job in `DERIVE_JOBS` (the derive commit
+ *     that keeps the base's tip fresh, the stalled-repair alert) whose
+ *     `runs-on` is not the `derive` role alone, or a job in `LONG_JOBS`
+ *     (Bot-play replay, `health:nightly`) that reaches the `derive` role: a
+ *     runner takes one job at a time, so a duty sharing the slot with an
+ *     hour-long job queues behind it until the tip is derived-stale past the
+ *     grace and health reds the base (issue #7855).
  *   - `queue-shape` — `merge_queue.max_parallel_checks` other than 1, or a
  *     queue rule with a `batch_size` other than 1 (ADR 0156 §3, ADR 0160).
  *   - `queue-dequeue` — no `pull_request_rules` entry relabelling a PR the
@@ -160,6 +167,7 @@ export type RuleId =
     | "queue-superseded"
     | "host-pinned"
     | "lane-role"
+    | "derive-slot"
     | "pass-run-name"
     | "pass-setup-record"
     | "owner-merge-trigger"
@@ -217,10 +225,6 @@ export const HOST_PINNED_JOBS: ReadonlyMap<string, string> = new Map([
         "the Bot-play replay is 15 min on the MacBook and 75 on the Huawei; a late replay is an issue, never a RED or a hold (ADR 0159)",
     ],
     [
-        ".github/workflows/post-merge.yml#repair-watch",
-        "the stalled-repair alert must not run on the `lane` runner's host (the MacBook, ADR 0160), or it sleeps with the lane it reports on; a late alert holds nothing (issue #7142)",
-    ],
-    [
         ".github/workflows/bot-costs-refresh.yml#refresh",
         "the cost table is derived from health's per-file walls, which only the `lane` runner's host (the MacBook, ADR 0160) holds in its primary checkout; a late refresh holds nothing, the committed table stands (issue #6999)",
     ],
@@ -255,6 +259,35 @@ export function mayHoldLane(runsOn: unknown): boolean {
             l === LANE_ROLE ||
             /^\s*\$\{\{[\s\S]*\}\}\s*$/.test(l)
     );
+}
+
+/** The jobs that MUST run on the `derive` role (rule `derive-slot`, issue
+ *  #7855): short duties something waits on, so they never queue behind a long
+ *  job on a one-slot machine. `<workflow path>#<job id>` → what waits on it. */
+export const DERIVE_JOBS: ReadonlyMap<string, string> = new Map([
+    [
+        ".github/workflows/post-merge.yml#housekeeping",
+        "health's derived-tip verdict (ADR 0157): the derive commit",
+    ],
+    [
+        ".github/workflows/post-merge.yml#repair-watch",
+        "the owner's notice of a stalled repair",
+    ],
+]);
+
+/** The jobs that hold a runner for an hour or more and may never share the
+ *  `derive` role (rule `derive-slot`). */
+export const LONG_JOBS: ReadonlySet<string> = new Set([
+    ".github/workflows/post-merge.yml#bot-replay",
+    ".github/workflows/post-merge.yml#nightly",
+]);
+
+export const DERIVE_ROLE: RunnerRole = "derive";
+
+/** The role labels a `runs-on` names literally. Pure. */
+export function literalRoles(runsOn: unknown): RunnerRole[] {
+    const labels = isObj(runsOn) ? asArray(runsOn.labels) : asArray(runsOn);
+    return RUNNER_ROLES.filter((r) => labels.includes(r));
 }
 
 /** Jobs whose newer run makes the older one worthless, RUNNING included
@@ -486,6 +519,24 @@ function checkJob(
             "lane-role",
             `\`runs-on\` reaches a \`${LANE_ROLE}\` runner — only the gates a merge or a verdict waits on run there; maintenance runs on \`maint\` (ADR 0160, issue #6653)`
         );
+
+    if (selfHosted) {
+        const roles = literalRoles(job["runs-on"]);
+        const key = `${file}#${id}`;
+        if (
+            DERIVE_JOBS.has(key) &&
+            !(roles.length === 1 && roles[0] === DERIVE_ROLE)
+        )
+            v(
+                "derive-slot",
+                `\`runs-on\` must carry the \`${DERIVE_ROLE}\` role alone — ${DERIVE_JOBS.get(key)} waits on this job, and on a shared slot it queues behind the replay or the nightly (issue #7855)`
+            );
+        if (LONG_JOBS.has(key) && roles.includes(DERIVE_ROLE))
+            v(
+                "derive-slot",
+                `a long job must not run on the \`${DERIVE_ROLE}\` role — it would hold the slot the derive commit needs (issue #7855)`
+            );
+    }
 
     const steps = asArray(job.steps);
     // Only a self-hosted job's first and last steps (the job worktree) may

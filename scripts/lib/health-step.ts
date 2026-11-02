@@ -288,6 +288,37 @@ export type DerivedTipVerdict =
     /** Stale past the grace: RED at `derive:sync`. */
     | { kind: "red"; reason: string };
 
+/** One `post-merge` run as `gh run list` / `gh run view --json` report it. */
+export interface PostMergeRunView {
+    createdAt: string;
+    jobs: { name: string; status: string }[];
+}
+
+/**
+ * The oldest `housekeeping` job still waiting for a runner, pure (issue
+ * #7855): a derive commit that never started is a different repair from one
+ * that ran and failed, and the RED must say which. Null when none queues.
+ */
+export function queuedHousekeeping(
+    runs: readonly PostMergeRunView[],
+    nowMs: number
+): string | null {
+    const queued = runs
+        .filter((r) =>
+            r.jobs.some(
+                (j) => j.name === "housekeeping" && j.status === "queued"
+            )
+        )
+        .map((r) => Date.parse(r.createdAt))
+        .filter((t) => Number.isFinite(t));
+    if (queued.length === 0) return null;
+    const minutes = Math.max(
+        0,
+        Math.round((nowMs - Math.min(...queued)) / 60_000)
+    );
+    return `housekeeping queued ${minutes} min, no runner`;
+}
+
 /**
  * What a derived-stale tip is to health, pure: the tip's committer time
  * against now. A FRESH tip is gated as ever. A stale one younger than the
@@ -311,6 +342,8 @@ export function derivedTipVerdict(input: {
     committedAtMs: number;
     nowMs: number;
     graceMs?: number;
+    /** `queuedHousekeeping`'s line: the derive job never got a runner. */
+    housekeepingQueued?: string | null;
 }): DerivedTipVerdict {
     if (input.stale === null)
         return input.late
@@ -323,6 +356,11 @@ export function derivedTipVerdict(input: {
         return {
             kind: "pending",
             reason: `derived-stale (${input.stale}) ${minutes} min after its commit — derive:sync writes it within the hour; nothing gated, re-judged next run (ADR 0157)`,
+        };
+    if (input.housekeepingQueued)
+        return {
+            kind: "red",
+            reason: `derived-stale (${input.stale}) ${minutes} min after its commit, past the ${Math.round(grace / 60_000)}-minute grace — ${input.housekeepingQueued}: the derive commit never started; check \`bun run runner status\` for a \`derive\` runner online (issue #7855, ADR 0157)`,
         };
     return {
         kind: "red",

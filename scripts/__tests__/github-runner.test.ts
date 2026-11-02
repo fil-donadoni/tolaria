@@ -53,7 +53,13 @@ const unit = (file: string) =>
 function input(platform: "darwin" | "linux"): InstallInput {
     const runners = runnerSpecs(
         "mac",
-        { pass: 2, lane: 1, maint: 0, seed: platform === "darwin" ? 1 : 0 },
+        {
+            pass: 2,
+            lane: 1,
+            maint: 0,
+            seed: platform === "darwin" ? 1 : 0,
+            derive: 0,
+        },
         ROOT
     );
     return {
@@ -189,7 +195,7 @@ describe("runner declaration", () => {
     it("names runners <host>-<role>-<n> with the role and host:<name> labels", () => {
         const specs = runnerSpecs(
             "huawei",
-            { pass: 2, lane: 1, maint: 0, seed: 0 },
+            { pass: 2, lane: 1, maint: 0, seed: 0, derive: 0 },
             ROOT
         );
         expect(specs.map((s) => s.name)).toEqual([
@@ -211,7 +217,7 @@ describe("runner declaration", () => {
         expect(defaultCounts("linux")).toMatchObject({ lane: 0, maint: 1 });
         const [maint] = runnerSpecs(
             "huawei",
-            { pass: 0, lane: 0, maint: 1, seed: 0 },
+            { pass: 0, lane: 0, maint: 1, seed: 0, derive: 0 },
             ROOT
         );
         expect(maint.name).toBe("huawei-maint-1");
@@ -246,7 +252,7 @@ describe("runner declaration", () => {
     it("round-trips machine.json and refuses a malformed one", () => {
         const d = {
             host: "mac",
-            counts: { pass: 3, lane: 1, maint: 0, seed: 1 },
+            counts: { pass: 3, lane: 1, maint: 0, seed: 1, derive: 1 },
         };
         expect(parseDeclaration(serializeDeclaration(d))).toEqual(d);
         expect(
@@ -263,7 +269,7 @@ describe("runner declaration", () => {
             )
         ).toEqual({
             host: "mac",
-            counts: { pass: 3, lane: 1, maint: 0, seed: 1 },
+            counts: { pass: 3, lane: 1, maint: 0, seed: 1, derive: 1 },
         });
     });
 });
@@ -272,7 +278,7 @@ describe("runner units", () => {
     it("the MacBook runner runs run.sh under caffeinate, with node on PATH", () => {
         const [r] = runnerSpecs(
             "mac",
-            { pass: 1, lane: 0, maint: 0, seed: 0 },
+            { pass: 1, lane: 0, maint: 0, seed: 0, derive: 0 },
             ROOT
         );
         const out = renderRunnerPlist(plistTpl, r, subs, hasNodeAndClaude);
@@ -324,7 +330,7 @@ describe("runner units", () => {
     it("launchd and systemd PATHs both start with the one shared head (issue #6217)", () => {
         const [r] = runnerSpecs(
             "mac",
-            { pass: 1, lane: 0, maint: 0, seed: 0 },
+            { pass: 1, lane: 0, maint: 0, seed: 0, derive: 0 },
             ROOT
         );
         const plist = renderRunnerPlist(plistTpl, r, subs, hasNodeAndClaude);
@@ -340,7 +346,7 @@ describe("runner units", () => {
     it("a pass-runner unit whose PATH resolves no claude is refused", () => {
         const [pass] = runnerSpecs(
             "mac",
-            { pass: 1, lane: 0, maint: 0, seed: 0 },
+            { pass: 1, lane: 0, maint: 0, seed: 0, derive: 0 },
             ROOT
         );
         expect(() => renderRunnerPlist(plistTpl, pass, subs, hasNode)).toThrow(
@@ -348,7 +354,7 @@ describe("runner units", () => {
         );
         const [lane] = runnerSpecs(
             "mac",
-            { pass: 0, lane: 1, maint: 0, seed: 0 },
+            { pass: 0, lane: 1, maint: 0, seed: 0, derive: 0 },
             ROOT
         );
         expect(() =>

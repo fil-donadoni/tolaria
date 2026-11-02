@@ -27,6 +27,7 @@ import {
     DERIVED_GRACE_MS,
     derivePredicateAnswer,
     derivedTipVerdict,
+    queuedHousekeeping,
 } from "../lib/health-step";
 import {
     carriedBotReach,
@@ -1262,5 +1263,64 @@ describe("pushDerivedCommit — landed / coalesced / failed against a bare remot
                 )
             )
         ).toBe(true);
+    });
+});
+
+describe("a derived-stale tip whose housekeeping never started says so (issue #7855)", () => {
+    const t0 = 1_700_000_000_000;
+    const now = t0 + DERIVED_GRACE_MS + 60_000;
+
+    it("queuedHousekeeping names the oldest queued housekeeping job in minutes, null when none queues", () => {
+        const at = (ms: number) => new Date(ms).toISOString();
+        expect(
+            queuedHousekeeping(
+                [
+                    {
+                        createdAt: at(now - 30 * 60_000),
+                        jobs: [{ name: "housekeeping", status: "queued" }],
+                    },
+                    {
+                        createdAt: at(now - 90 * 60_000),
+                        jobs: [
+                            { name: "sync", status: "in_progress" },
+                            { name: "housekeeping", status: "queued" },
+                        ],
+                    },
+                ],
+                now
+            )
+        ).toBe("housekeeping queued 90 min, no runner");
+        expect(
+            queuedHousekeeping(
+                [
+                    {
+                        createdAt: at(now),
+                        jobs: [{ name: "housekeeping", status: "in_progress" }],
+                    },
+                ],
+                now
+            )
+        ).toBeNull();
+    });
+
+    it("the RED past the grace carries the queued line; without it the reason is the generic one", () => {
+        const base = {
+            stale: "lockfile header",
+            committedAtMs: t0,
+            nowMs: now,
+        };
+        const queued = derivedTipVerdict({
+            ...base,
+            housekeepingQueued: "housekeeping queued 90 min, no runner",
+        });
+        expect(queued.kind).toBe("red");
+        if (queued.kind !== "red") return;
+        expect(queued.reason).toContain(
+            "housekeeping queued 90 min, no runner"
+        );
+        const plain = derivedTipVerdict(base);
+        expect(plain.kind).toBe("red");
+        if (plain.kind !== "red") return;
+        expect(plain.reason).not.toContain("no runner");
     });
 });

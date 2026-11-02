@@ -134,7 +134,7 @@
  * Such a GREEN is GREEN for the lineage and not the full gate: the next
  * batch gate re-gates the tip whole (`gateSkipReason`), as does `release`.
  */
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import {
     describePickRecord,
@@ -160,6 +160,7 @@ import {
     type HealthStep,
     derivePredicateAnswer,
     derivedTipVerdict,
+    queuedHousekeeping,
 } from "./lib/health-step";
 import {
     DERIVE_STEP,
@@ -843,6 +844,49 @@ function finishPending(ctx: RunCtx, reason: string): never {
 }
 
 /**
+ * The queued `housekeeping` job, if any (issue #7855): read only for a tip
+ * already stale, to name "never started" in the RED. A `gh` that fails reads
+ * as none — the reason then falls back to the generic one.
+ */
+function readQueuedHousekeeping(root: string): string | null {
+    try {
+        const list = JSON.parse(
+            execFileSync(
+                "gh",
+                [
+                    "run",
+                    "list",
+                    "--workflow",
+                    "post-merge.yml",
+                    "--status",
+                    "queued",
+                    "--limit",
+                    "10",
+                    "--json",
+                    "databaseId,createdAt",
+                ],
+                { cwd: root, encoding: "utf8", timeout: 60_000 }
+            )
+        ) as { databaseId: number; createdAt: string }[];
+        const runs = list.map((r) => ({
+            createdAt: r.createdAt,
+            jobs: (
+                JSON.parse(
+                    execFileSync(
+                        "gh",
+                        ["run", "view", String(r.databaseId), "--json", "jobs"],
+                        { cwd: root, encoding: "utf8", timeout: 60_000 }
+                    )
+                ) as { jobs: { name: string; status: string }[] }
+            ).jobs,
+        }));
+        return queuedHousekeeping(runs, Date.now());
+    } catch {
+        return null;
+    }
+}
+
+/**
  * `derive:sync --settled` on the bootstrapped worktree, judged against the
  * tip's committer time (`derivedTipVerdict`). Not `--fresh`, the
  * deployment's predicate: `--settled` also prints the late line when a
@@ -884,6 +928,8 @@ function judgeDerivedTip(
         Number(git(["log", "-1", "--format=%ct", tip], root)) * 1000;
     return derivedTipVerdict({
         stale: answer.kind === "stale" ? answer.why : null,
+        housekeepingQueued:
+            answer.kind === "stale" ? readQueuedHousekeeping(root) : null,
         late: answer.kind === "fresh" ? (answer.late ?? null) : null,
         committedAtMs,
         nowMs: Date.now(),
