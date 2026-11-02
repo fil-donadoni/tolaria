@@ -15860,6 +15860,17 @@ export type EffectForEachSelector =
      *  APNAP order. No filter: no printed line narrows the linked pile yet. */
     | { set: "exiledWithSource" };
 
+/** The candidate set a `vote` Op's players vote among (CR 701.38b — "the
+ *  listed choices may be objects"): exactly the `forEach` PERMANENTS selector,
+ *  resolved by the same `selectForEachMembers`, so "a nonland permanent you
+ *  don't control" is `{ set: "permanents", zone: "battlefield", controller:
+ *  "opponent", filter: { excludeType: "Land" } }` with no second vocabulary
+ *  for whose permanents and which ones. */
+export type EffectVoteCandidates = Extract<
+    EffectForEachSelector,
+    { set: "permanents" }
+>;
+
 /** The declarative object-set selector for `divideIntoPiles` (ADR 0053, pile
  *  division). Deliberately its OWN small type rather than reusing
  *  `EffectForEachSelector` — the pile-division object set is always a
@@ -19593,6 +19604,46 @@ export type EffectOp =
           prompt: string;
           bind: string;
           nameRestriction?: NameRestriction;
+      }
+    /** CR 701.38 (issue #2071) — VOTE for an object: "Starting with you,
+     *  each player votes for a nonland permanent you don't control" (Council's
+     *  Judgment, the will-of-the-council template). CR 701.38a: each player,
+     *  starting with the resolving controller and proceeding in turn order,
+     *  chooses one of the candidates.
+     *
+     *  The Op COLLECTS the votes and BINDS THE OUTCOME — the candidates with
+     *  the most votes or tied for most (`tallyVotes`, `gre/voteTally.ts`) —
+     *  as a picks binding; it never acts on them. What the vote decides is
+     *  the following Op's: Council's Judgment reads the winners with
+     *  `forEach { set: "bound", ref: "$winners" }` + `exile { target: { ref:
+     *  "$each" } }`. That is deliberate: the next object vote (Expropriate's
+     *  "money" half, a Council's dilemma) reuses this Op with a different
+     *  tail, so there is no `outcome:` field.
+     *
+     *  NOT a target (CR 115.1): `candidates` is a non-targeted battlefield
+     *  sweep — the `forEach` permanents selector's own shape and resolver —
+     *  frozen once at the Op's entry (CR 608.2h), so hexproof, shroud,
+     *  protection and ward never narrow it. A thin declarative skin over the
+     *  EXISTING `SpellContext.requestChoice` (`choose-permanents` over a
+     *  `candidateIds` allow-list, every controller's battlefield): ONE
+     *  suspend per voter, in order, each keyed under this Op's checkpoint, the
+     *  `castDuringResolution` several-suspends-in-one-Op shape — no new
+     *  Pending Choice kind, no new resume mechanism. Each voter's prompt
+     *  lists the votes already cast; a vote is public.
+     *
+     *  A voter with ONE candidate is not asked (Arena parity: no zero-branch
+     *  prompt). No candidates → no vote, the binding stays uncaptured and the
+     *  readers skip (CR 609.3).
+     *
+     *  Deliberately NOT: OPTION votes ("vote for carnage or homicide",
+     *  CR 701.38b's "words with no rules meaning"), and CR 701.38d's
+     *  extra votes — no shipped card needs either; the `vote` registry row
+     *  says so. */
+    | {
+          op: "vote";
+          candidates: EffectVoteCandidates;
+          prompt: string;
+          bind: string;
       }
     /** CR 205.3m (issue #3721) — "Choose a creature type." made DURING
      *  resolution, the sibling `nameCard` is for card names and `chooseNumber`
