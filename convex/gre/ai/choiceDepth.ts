@@ -126,6 +126,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     // controller nothing.
     setLevel: false,
     monstrosity: false,
+    becomePrepared: false,
     createToken: false,
     createTokenCopy: false,
     becomeCopy: false,
