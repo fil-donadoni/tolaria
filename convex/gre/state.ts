@@ -16459,7 +16459,8 @@ export function buildSpellContext(
         // never takes an indefinite one with it.
         grantAttackRequirement(
             target: TargetSelection,
-            duration?: DurationSpec
+            duration?: DurationSpec,
+            defenderId?: string
         ): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
@@ -16478,6 +16479,8 @@ export function buildSpellContext(
                         : {}),
                     // CR 613.7 timestamp — see `grantActivatedAbility`.
                     seq: allocStaticTimestamp(state),
+                    // CR 508.1d (issue #3247) — "attacks THAT PLAYER".
+                    ...(defenderId !== undefined ? { defenderId } : {}),
                 },
             ];
         },

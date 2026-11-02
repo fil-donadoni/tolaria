@@ -88,6 +88,14 @@ export type GrantedAttackRequirement = {
     /** Layer timestamp of the grant (CR 613.7), allocated at resolution like
      *  every other ability grant from a resolving ability. */
     seq: number;
+    /** CR 508.1d (issue #3247) — the player the creature must attack ("attacks
+     *  THAT PLAYER this combat if able", Ursine Monstrosity), resolved to a
+     *  concrete id at grant time. Absent = attacks anything if able. A pinned
+     *  requirement is obeyed only by attacking that player — attacking a
+     *  planeswalker they control does not satisfy it — and binds only while
+     *  that player can be attacked (see `pinnedAttackDefenderOf`,
+     *  `gre/combat.ts`). */
+    defenderId?: string;
 };
 
 /** Returns the duration after one phase-boundary tick, or null if it has
