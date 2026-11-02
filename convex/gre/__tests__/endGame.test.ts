@@ -217,6 +217,23 @@ describe("decked loss goes through the CR 614 loss replacements", () => {
         });
     });
 
+    it("a consumed decked loss still checks poison in the same sweep", () => {
+        withTemporaryDefinition(saviorDef([]), () => {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        hasDrawnFromEmpty: true,
+                        poisonCounters: 10,
+                        battlefield: [makeInstance(SAVIOR, { id: "savior" })],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            expect(checkGameOverSBA(state)).toBe(true);
+            expect(state.gameOver?.reason).toBe("poison");
+        });
+    });
+
     it("an unreplaced decked loss is unchanged: Lich (scoped to life-zero) does not save it", () => {
         const state = makeState({
             players: [

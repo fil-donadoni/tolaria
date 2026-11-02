@@ -893,6 +893,35 @@
         "landCount": 6,
         "libraryCount": 20
     },
+    "draw-replacement win: mills its own library empty under Jace, Wielder of Mysteries": {
+        "cards": [
+            {
+                "name": "Jace, Wielder of Mysteries",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "library",
+                "count": 3
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "library",
+                "count": 20
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 0,
+        "life": {
+            "me": 20,
+            "opp": 20
+        }
+    },
     "each-player one-shot: casts Wheel of Fortune holding nothing else against a seven-card hand": {
         "cards": [
             {
