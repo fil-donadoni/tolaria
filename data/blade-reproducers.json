@@ -727,12 +727,18 @@
                 "owner": "me",
                 "zone": "graveyard",
                 "count": 6
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "library",
+                "count": 10
             }
         ],
         "phase": "PRECOMBAT_MAIN",
         "turn": 3,
         "landCount": 0,
-        "libraryCount": 9,
+        "libraryCount": 0,
         "life": {
             "me": 20,
             "opp": 20
