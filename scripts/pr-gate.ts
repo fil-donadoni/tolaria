@@ -52,7 +52,10 @@ import {
     gatePrOf,
     heldPrAction,
     holdsBeforeRed,
+    checkRunsApiPath,
     LANE_CHECK_NAME,
+    laneFailedAtJq,
+    laneRedPredatesRelease,
     stripLogTimestamps,
     MERGIFY_QUEUED_LABEL,
     needsRequeue,
@@ -102,6 +105,18 @@ function prComments(run: GhRunner, repo: string, pr: number): PrComment[] {
         `repos/${repo}/issues/${pr}/comments?per_page=100`,
         ".[] | {author: {login: .user.login}, body, createdAt: .created_at} | tojson"
     );
+}
+
+/** `completed_at` of the head's newest advisory lane run when it failed,
+ *  else null (issue #7843). */
+function laneFailedAt(run: GhRunner, repo: string, sha: string): string | null {
+    const out = gh(run, [
+        "api",
+        checkRunsApiPath(repo, sha),
+        "--jq",
+        laneFailedAtJq(),
+    ]).trim();
+    return out === "" ? null : (JSON.parse(out) as string | null);
 }
 
 /** When the PR was last labelled `queue:held`, or null. */
@@ -460,6 +475,11 @@ function main(): number {
                         prComments(run, repo, raw.number),
                         heldSince(run, repo, raw.number)
                     ),
+                laneRedStale: () =>
+                    laneRedPredatesRelease({
+                        laneFailedAt: laneFailedAt(run, repo, raw.head.sha),
+                        lineage,
+                    }),
                 now: Date.now(),
             });
         } catch (e) {

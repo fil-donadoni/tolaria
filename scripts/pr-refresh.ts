@@ -8,7 +8,8 @@
  *
  *   for each `ready-to-land` PR GitHub reports `CONFLICTING`, a `merge:manual`
  *   one whose files the push just touched, or (only while the base lineage is
- *   RED) a `queue:held` one — never one Mergify holds `queued` unless it
+ *   RED, or off RED when its advisory lane is still the RED's red: issue
+ *   #7843) a `queue:held` one — never one Mergify holds `queued` unless it
  *   conflicts (issue #6957):
  *     rebase onto the base in a worktree of the primary checkout with the SAME
  *     steps `land` runs (`lib/rebase-resolve.ts`: merge drivers, the
@@ -54,6 +55,11 @@ import {
     semanticComment,
     type RefreshPr,
 } from "./lib/pr-refresh";
+import {
+    checkRunsApiPath,
+    laneFailedAtJq,
+    laneRedPredatesRelease,
+} from "./lib/pr-gate";
 import { primaryCheckout } from "./lib/primary-checkout";
 import {
     rebaseStep,
@@ -382,6 +388,30 @@ function listQueued(): RefreshPr[] {
     }));
 }
 
+/** Off RED, whether a held PR's advisory lane is still the cleared RED's red
+ *  (issue #7843). An unreadable check list reads as not stale. */
+function laneRedStale(
+    repo: string,
+    pr: RefreshPr,
+    lineage: Parameters<typeof laneRedPredatesRelease>[0]["lineage"],
+    log: (line: string) => void
+): boolean {
+    try {
+        const out = gh([
+            "api",
+            checkRunsApiPath(repo, pr.headRefOid),
+            "--jq",
+            laneFailedAtJq(),
+        ]).trim();
+        const laneFailedAt =
+            out === "" ? null : (JSON.parse(out) as string | null);
+        return laneRedPredatesRelease({ laneFailedAt, lineage });
+    } catch (e) {
+        log(`PR #${pr.number}: lane unreadable (${(e as Error).message})`);
+        return false;
+    }
+}
+
 function main(): number {
     const argv = process.argv.slice(2);
     const dryRun = argv.includes("--dry-run");
@@ -405,17 +435,18 @@ function main(): number {
     );
     // A held PR is rebased only under a RED (issue #6957); an unreadable
     // store reads as no RED, so the doubt costs no push.
-    const lineage = readVerdictLineage(() =>
-        githubVerdictStore({
-            repo: process.env.GITHUB_REPOSITORY || originRepo(primary),
-        })
-    );
+    const repo = process.env.GITHUB_REPOSITORY || originRepo(primary);
+    const lineage = readVerdictLineage(() => githubVerdictStore({ repo }));
     if (lineage.error) log(`verdict store unreadable (${lineage.error})`);
     const red = lineageBlocks(lineage.kind);
     log(`health lineage ${lineage.kind}`);
     const selected = (pr: RefreshPr) =>
         only === null || String(pr.number) === only;
-    const queued = listQueued();
+    const queued = listQueued().map((pr) =>
+        !red && pr.labels.includes("queue:held") && selected(pr)
+            ? { ...pr, laneRedStale: laneRedStale(repo, pr, lineage, log) }
+            : pr
+    );
     const candidates = selectRefreshCandidates(queued, touched, {
         red,
         // Held PRs only: their fork point, not the push's range, says whether
