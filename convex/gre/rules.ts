@@ -432,7 +432,7 @@ function libraryTopCastGrants(player: PlayerState): LibraryTopCastGrant[] {
     return grants;
 }
 
-/** CR 601.3 / 601.3e (issue #7205) — the grant that licenses casting `card`
+/** CR 601.3 / 601.3e — the grant that licenses casting `card`
  *  off the top of `player`'s library as the announcement `alternativeCostId`
  *  names (a split half, CR 709.3a), or `undefined` when no grant covers it.
  *
@@ -444,7 +444,7 @@ function libraryTopCastGrants(player: PlayerState): LibraryTopCastGrant[] {
  *  (`getEffectiveColors` over its cost, CR 202.2), so a colourless split half
  *  of a coloured card is a colourless spell. The library-top announcements
  *  asked of it are {@link libraryTopCastAnnouncements}: the printed cast or a
- *  split half, the Adventure and the face-down morph cast (issue #7526).
+ *  split half, the Adventure and the face-down morph cast.
  *
  *  The single authority every cost site reads the replacement through
  *  ({@link libraryTopCastLifeCost}, `libraryTopCastPayment`, the legality

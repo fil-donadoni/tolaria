@@ -6227,8 +6227,11 @@ export function enumerateMoves(
                         m.alternativeCostId,
                         m.declineManaCostReplacement
                     ));
-        moves.push(
-            ...enumerateCastMoves(state, player, libraryTop, {
+        const lifeOrDefaultMoves = enumerateCastMoves(
+            state,
+            player,
+            libraryTop,
+            {
                 // CR 601.3 — the zone, stated: without it the wrapper's
                 // permission scan defaults to the HAND and offers this
                 // library-top cast a `cast-permission` free cast that
@@ -6245,8 +6248,8 @@ export function enumerateMoves(
                     ?.manaCostReplacement === "life-equal-to-mana-value"
                     ? { lifeInsteadOfMana: lifeCost }
                     : {}),
-            }).filter(licensed)
-        );
+            }
+        ).filter(licensed);
         // CR 601.2b / 118.9 (issue #7525) — the OTHER permission choice: with
         // Bolas's Citadel and Mystic Forge both covering an artifact, the
         // caster may pay its mana cost instead of life. A separate pass priced
@@ -6264,25 +6267,27 @@ export function enumerateMoves(
                 libraryTop,
                 m.alternativeCostId
             ).includes(true);
-        if (libraryTopReplacementDeclinable(state, player, libraryTop)) {
-            moves.push(
-                ...enumerateCastMoves(state, player, libraryTop, {
-                    castFromZone: "library",
-                    onTruncated,
-                    declineManaCostReplacement: true,
-                })
-                    .map((m) =>
-                        m.kind === "cast-spell"
-                            ? {
-                                  ...m,
-                                  declineManaCostReplacement: true as const,
-                              }
-                            : m
-                    )
-                    .filter(declineIsChoice)
-                    .filter(licensed)
-            );
-        }
+        const declinedMoves = libraryTopReplacementDeclinable(
+            state,
+            player,
+            libraryTop
+        )
+            ? enumerateCastMoves(state, player, libraryTop, {
+                  castFromZone: "library",
+                  onTruncated,
+                  declineManaCostReplacement: true,
+              })
+                  .map((m) =>
+                      m.kind === "cast-spell"
+                          ? { ...m, declineManaCostReplacement: true as const }
+                          : m
+                  )
+                  .filter(declineIsChoice)
+                  .filter(licensed)
+            : [];
+        // One push for both choices: the same library-top move source
+        // `onlyPassIsLegal` already rules out.
+        moves.push(...lifeOrDefaultMoves, ...declinedMoves);
     }
     for (const perm of player.battlefield) {
         moves.push(
