@@ -15943,6 +15943,73 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #6334 — the mirror half: with no enters trigger on the bot's own creature, flickering it gains nothing and the opposing body's one-turn exile is the better answer. Green before the fix (Hill Giant 5/5 at 400) and after it (Hill Giant 5/5): the pending-return credit gives the Giant back to its owner at its full worth, so the exile is priced as the tempo it is, not as a kill — and, issue #7784 found, as exactly the tempo a Mountain's exile is.",
     },
     {
+        // CR 701.12a — Gilded Drake's enters trigger exchanges control of
+        // the Drake and up to one target creature an opponent controls; with
+        // no exchange the Drake is sacrificed. Every answer moves permanents
+        // across both sides, so no answer's outcome includes another's and
+        // `pruneDominatedTriggerTargets` keeps all four.
+        label: "exchange of control: casts Gilded Drake for the opposing Craw Wurm",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the opponent controls a creature worth more than the Drake it would receive (Craw Wurm)",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Gilded Drake", owner: "me", zone: "hand" },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Ornithopter",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Gilded Drake" }],
+        },
+        note: "Issue #7812. The cast's value lives one node below the root, at the trigger's target announcement, where four answers stand: the Wurm (the trade the card exists for), the opposing Bears, the Ornithopter, and no target (the Drake is sacrificed). An exchange moves permanents across both sides, so target dominance cannot prune any of them, and the tree's mean backup used to debit the cast with the mover's own bad trades while `pass` rollouts cast the Drake later and took the best trade greedily. A trigger-target node below the root now keeps only the answers within `TRIGGER_ANSWER_BEAM` of the best settled 1-ply answer (`beamTriggerTargetsByValue`).",
+    },
+    {
         // CR 614.12a / 607.2b — Sutured Ghoul's "As this creature enters, exile
         // any number of creature cards from your graveyard" parks the
         // permanent until the exile is answered. The graveyard holds the two
