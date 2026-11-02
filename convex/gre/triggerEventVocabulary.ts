@@ -94,6 +94,7 @@ export const EVENT_FIELD_KINDS: {
         creatureControllerId: "player",
         creatureOwnerId: "player",
         creatureTypes: "scalar",
+        creatureSubtypes: "scalar",
         damagedBySources: "objectList",
         creaturePower: "scalar",
         creatureToughness: "scalar",

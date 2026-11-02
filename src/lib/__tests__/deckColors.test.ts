@@ -33,7 +33,7 @@ describe("computeDeckColors", () => {
         const resolve = makeDeckCardShapeResolver([
             {
                 name: "Unimplemented Card",
-                printId: "0d16e8e0-31b2-4389-afd6-783c501f6fa0",
+                printId: "33333333-4444-5555-6666-777777777777",
                 typeLine: "Creature — Zombie",
                 manaCost: "{2}{B}",
                 cmc: 3,
@@ -49,7 +49,7 @@ describe("computeDeckColors", () => {
                 [
                     { cardId: BOLT_LEA, cardName: "Lightning Bolt" },
                     {
-                        cardId: "0d16e8e0-31b2-4389-afd6-783c501f6fa0",
+                        cardId: "33333333-4444-5555-6666-777777777777",
                         cardName: "Unimplemented Card",
                     },
                 ],
