@@ -151,7 +151,7 @@ export const theFantasticar = defineCard(() => ({
 // the template's `source` is the recipient at every read (CR 113.3d), so the
 // count is the controller's artifacts, itself included. "Construct Hero" is
 // two creature types, which `animate`'s single `subtype` cannot express, so a
-// `setSubtype` with `family: "creature"` (CR 205.1b) sets both for the same
+// `setSubtype` with `family: "creature"` (CR 205.1a) sets both for the same
 // duration and keeps the Equipment subtype.
 //
 // compiler-gap: Equip {2} (#7214)
