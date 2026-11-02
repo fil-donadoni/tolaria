@@ -254,6 +254,7 @@ import {
     castAnnouncedTargetGroups,
     kickedCountOfPayments,
     totalKickerCount,
+    type AdditionalCostPaymentRecords,
 } from "./kicker";
 import { modeInstances, soleChosenModeId } from "./modeSelection";
 // ADR 0079 — the may-pay PERMANENT leg's `action: "return"` terminal step runs
@@ -12498,6 +12499,27 @@ export function buildSpellContext(
         return { playerId: reqPlayerId };
     }
 
+    /** CR 702.33e / 607.1 — the additional-cost payment record a resolving
+     *  item's kicker reads (`getKickerCount`, `getKickerPaidCount`) consult.
+     *  A spell reads its own stack item, and so does an activated ability
+     *  (its stack item is a clone of its source, `buildActivatedAbilityStackItem`).
+     *  A TRIGGERED ability's item is a fresh object that carries no payment of
+     *  its own, yet the "for each time it was kicked" ability it resolves is
+     *  linked to the Kicker printed on its SOURCE (CR 702.33e) and reads the
+     *  permanent that spell became (issue #7210, Batroc the Leaper). Same
+     *  tiers as `getChosenSubtypes`: the departure-time `sourceLki` wins
+     *  (CR 608.2h last-known information; CR 400.7 — a same-id permanent
+     *  that re-entered is a NEW object that was never kicked), else the live
+     *  battlefield permanent, else nothing (0). */
+    function castPaymentRecords(): AdditionalCostPaymentRecords {
+        if (!item.triggeredAbilityId) return item;
+        if (item.sourceLki) return item.sourceLki;
+        return (
+            findOnBattlefield(state, item.triggerSourceId ?? item.id)?.card ??
+            {}
+        );
+    }
+
     const ctx: SpellContext = {
         caster: item.castById,
         controller: item.castById,
@@ -15550,7 +15572,7 @@ export function buildSpellContext(
         // back off the stack item (0 = not kicked). `> 0` is "if this spell was
         // kicked"; the raw count is the Multikicker tally (Everflowing Chalice).
         getKickerCount(): number {
-            return totalKickerCount(item.kickerPayments);
+            return totalKickerCount(castPaymentRecords().kickerPayments);
         },
         // CR 702.33 — the PER-KICKER read a two-Kicker card's intervening-ifs
         // need ("if it was kicked with its {2}{U} kicker"): a total cannot say
@@ -15559,7 +15581,7 @@ export function buildSpellContext(
         // about kicked-ness, so "was its offspring cost paid?" (CR 702.175a)
         // answers yes on a spell that was never kicked.
         getKickerPaidCount(kickerId: string): number {
-            return additionalCostPaidCount(item, kickerId);
+            return additionalCostPaidCount(castPaymentRecords(), kickerId);
         },
         // Domain (CR 702 preamble ability word, issue #1066) — the number of
         // basic land types among `playerId`'s controlled lands (0–5). `state`

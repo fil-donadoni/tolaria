@@ -1916,6 +1916,10 @@ export function evaluateTargetCountQuantity(
     ctx: SpellContext,
     quantity: TargetCountQuantity
 ): number {
+    // CR 702.33e (issue #7210) — "up to X targets, where X is the number of
+    // times he was kicked": the same `getKickerCount` read the `kickerCount`
+    // value takes at resolution.
+    if ("kickerCount" in quantity) return ctx.getKickerCount();
     return countSet(ctx, quantity.count);
 }
 

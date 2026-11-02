@@ -131,6 +131,7 @@ import {
     resolveTargetRequirementCount,
     restrictedUnitAllowsSpell,
     emitBecameTargetEvents,
+    type TargetCountAnnouncement,
 } from "./state";
 import {
     matchesBattlefieldController,
@@ -4093,10 +4094,20 @@ export function pendingTargetFiltersFromRequirement(
  *  routed through that validator (only `effects[]` is) and could still
  *  tsc-check with this shape; the catalogue-wide guard in
  *  `cards/__tests__/triggerVariableTargetCount.test.ts` covers that surface
- *  instead, so the shape can't ship silently inert either way (#957/#958). */
+ *  instead, so the shape can't ship silently inert either way (#957/#958).
+ *
+ *  A text-defined bound (`TargetCountQuantity`) is different: CR 601.2c — "in
+ *  some cases, the number of targets will be defined by the spell's text" — is
+ *  part of the announcement CR 603.3d incorporates, so it is read against
+ *  `announcement` (the trigger item itself) exactly as a spell's walk reads
+ *  it, once, and the resolved number is what the `PendingTarget` carries
+ *  (Batroc the Leaper's "up to X targets, where X is the number of times he
+ *  was kicked", issue #7210). With no announcement in hand (the mode-legality
+ *  probe reads `min` only) it falls back to `min`. */
 function triggerTargetMinMax(
     count: TargetRequirement["count"],
-    divideTotal?: number
+    divideTotal?: number,
+    announcement?: TargetCountAnnouncement
 ): {
     min: number;
     max: number;
@@ -4112,15 +4123,24 @@ function triggerTargetMinMax(
         count.max === undefined && divideTotal !== undefined
             ? divideTotal
             : Number.MAX_SAFE_INTEGER;
-    // A text-defined bound (`TargetCountQuantity`) collapses like `"X"`: the
-    // trigger walk carries no announcement to read it against, and the
-    // catalogue guard keeps the shape off every shipped trigger.
+    // CR 601.2c — a text-defined bound (`TargetCountQuantity`) is read
+    // against the announcement through the single resolver every spell and
+    // activated walk uses (issue #2365); `"X"` still collapses to `min`, since
+    // a trigger never announces an X (no CR 601.2b step).
+    const quantityMax =
+        typeof count.max === "object" && announcement
+            ? resolveTargetRequirementCount(count, undefined, {
+                  announcement,
+              })
+            : undefined;
     const max =
         count.max === undefined
             ? openCap
             : typeof count.max === "number"
               ? count.max
-              : count.min;
+              : typeof quantityMax === "object" && quantityMax.max !== undefined
+                ? quantityMax.max
+                : count.min;
     return { min: count.min, max };
 }
 
@@ -4490,8 +4510,21 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
             req.count,
             req.divideAsChosen && typeof req.divideAsChosen.total === "number"
                 ? req.divideAsChosen.total
-                : undefined
+                : undefined,
+            {
+                state,
+                controllerId: item.controllerId,
+                sourceInstanceId: item.id,
+                priorTargets: [],
+            }
         );
+        if (max === 0) {
+            // CR 601.2c — an "up to X" bound that resolved to zero (Batroc
+            // unkicked, issue #7210): the ability announces no targets and
+            // stays on the stack, exactly like an "up to" with nothing legal.
+            item.targets = [];
+            continue;
+        }
 
         if (effectiveLegal.length < min) {
             // CR 603.3c — required target(s), none legal: remove from the stack.
