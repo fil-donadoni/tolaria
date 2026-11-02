@@ -144,12 +144,22 @@ describe("a standing each-step engine reads the board (issue #5164)", () => {
         );
         expect(mineWorth(better)).toBeGreaterThan(0);
         expect(mineWorth(worse)).toBeLessThan(0);
-        // Dragons outdraw Bears: the gap grows with the library gap.
+        // Dragons outdraw Bears: a smaller library gap (Dragon over Bear)
+        // still feeds the better side, inside the cap. Read against a
+        // library of Bears, not of Forests — a Bear a turn over a
+        // Forest a turn already reaches MAX_LATENT_SCRIPT_VALUE at the
+        // recurrence prior (issue #7819), where the bound, by design, no
+        // longer orders the two.
+        const dragons = board(
+            { hand: 2, library: DRAGON, mine: "board" },
+            { hand: 2, library: BEAR }
+        );
         const bears = board(
             { hand: 2, library: BEAR, mine: "board" },
-            { hand: 2, library: FOREST }
+            { hand: 2, library: BEAR }
         );
-        expect(mineWorth(better)).toBeGreaterThan(mineWorth(bears));
+        expect(mineWorth(dragons)).toBeLessThan(MAX_LATENT_SCRIPT_VALUE);
+        expect(mineWorth(dragons)).toBeGreaterThan(mineWorth(bears));
     });
 
     it("hand face equals board face on the same board, whatever the sign", () => {
