@@ -13,7 +13,7 @@
 // Readings run through the PRODUCTION leaf (`permanentRealisedValue`,
 // `cardValue` with the hand term's lens) over the real registry definition.
 import { describe, expect, it } from "vitest";
-import { registeredDefinitions } from "../../../cards";
+import { catalogueDefinitions } from "../../../cards";
 import type { CardInstanceState, GameState } from "../../state";
 import {
     makeInstance,
@@ -32,7 +32,7 @@ import { forest } from "../../../cards/sets/lea/colorless.cards";
 import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
 
 function pitId(): string {
-    for (const def of registeredDefinitions()) {
+    for (const def of catalogueDefinitions()) {
         if (def.name === "Bottomless Pit") return def.id;
     }
     throw new Error("Bottomless Pit is not in the registry");
@@ -88,7 +88,7 @@ function pitWorth(state: GameState): number {
 
 describe("a standing each-step discard at random reads the board (issue #5624)", () => {
     it("the family's script is read by the Differential", () => {
-        const def = [...registeredDefinitions()].find((d) => d.id === PIT)!;
+        const def = [...catalogueDefinitions()].find((d) => d.id === PIT)!;
         const t = def.triggeredAbilities![0];
         expect(isEachStepEngineScript((t.effects ?? t.aiEffects)!)).toBe(true);
     });

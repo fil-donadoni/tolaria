@@ -755,22 +755,48 @@ export function* registeredDefinitions(): Generator<CardDefinition> {
     // map holds (a runtime token, the face-down sentinel, a client's fetched
     // compiled rows), once.
     const listed = new Set<string>();
-    if (sourceIds !== null) {
-        for (const id of sourceIds()) {
-            listed.add(id);
-            const def = resolveRaw(id);
-            if (!def || def.id !== id) continue;
-            yield expandDefinition(def);
-            for (const twinId of twinIdsByParent.get(id) ?? []) {
-                const twin = registry.get(twinId);
-                if (twin?.id !== twinId || listed.has(twinId)) continue;
-                listed.add(twinId);
-                yield expandDefinition(twin);
-            }
-        }
-    }
+    yield* walkSourceDefinitions(listed);
     for (const [id, def] of registry) {
         if (id === def.id && !listed.has(id)) yield expandDefinition(def);
+    }
+}
+
+/** The CATALOGUE half of {@link registeredDefinitions}, and nothing else: every
+ *  id the lazy source serves, in Definition Index order, each followed by the
+ *  derived faces (`#`-suffixed twins) its preload registered — never an entry
+ *  that is merely RESIDENT (a runtime token, the face-down sentinel, a
+ *  definition a test registered).
+ *
+ *  The population a catalogue CENSUS reads (issue #7873). The node test
+ *  projects run `isolate: false`, so the resident map is shared by every file
+ *  a worker runs: a census over {@link registeredDefinitions} measured the
+ *  catalogue PLUS whatever synthetic cards an earlier file had registered,
+ *  and went red or green by scheduling. Throws when no source is installed —
+ *  a census over an empty catalogue would pass vacuously. */
+export function* catalogueDefinitions(): Generator<CardDefinition> {
+    if (sourceIds === null) {
+        throw new Error(
+            "catalogueDefinitions: no lazy definition source installed — import the catalogue first"
+        );
+    }
+    yield* walkSourceDefinitions(new Set<string>());
+}
+
+function* walkSourceDefinitions(
+    listed: Set<string>
+): Generator<CardDefinition> {
+    if (sourceIds === null) return;
+    for (const id of sourceIds()) {
+        listed.add(id);
+        const def = resolveRaw(id);
+        if (!def || def.id !== id) continue;
+        yield expandDefinition(def);
+        for (const twinId of twinIdsByParent.get(id) ?? []) {
+            const twin = registry.get(twinId);
+            if (twin?.id !== twinId || listed.has(twinId)) continue;
+            listed.add(twinId);
+            yield expandDefinition(twin);
+        }
     }
 }
 

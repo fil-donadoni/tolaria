@@ -14,7 +14,7 @@
 // Readings run through the PRODUCTION leaf (`permanentRealisedValue`,
 // `cardValue` with the hand term's lens) over real registry definitions.
 import { describe, expect, it } from "vitest";
-import { registeredDefinitions } from "../../../cards";
+import { catalogueDefinitions } from "../../../cards";
 import type { CardDefinition } from "../../../cards/types";
 import type { CardInstanceState, GameState } from "../../state";
 import {
@@ -37,7 +37,7 @@ import { forest } from "../../../cards/sets/lea/colorless.cards";
 import { crawWurm, grizzlyBears } from "../../../cards/sets/lea/green.cards";
 
 function byName(name: string): CardDefinition {
-    for (const def of registeredDefinitions()) {
+    for (const def of catalogueDefinitions()) {
         if (def.name === name) return def;
     }
     throw new Error(`${name} is not in the catalogue`);
@@ -102,7 +102,7 @@ describe("a standing each-step mana engine reads the board (issue #5626)", () =>
         // phase (`EachPlayerSide.manaUnits`): an engine adding mana in any
         // other step would read casts it cannot make.
         const family = new Set<string>();
-        for (const def of registeredDefinitions()) {
+        for (const def of catalogueDefinitions()) {
             for (const t of def.triggeredAbilities ?? []) {
                 const script = t.effects ?? t.aiEffects;
                 if (t.phaseScope !== "each" || !script) continue;

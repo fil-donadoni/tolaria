@@ -3,7 +3,7 @@
 // authored with a minimum of zero; a bare-quantity search keeps its exact count.
 import { describe, expect, it } from "vitest";
 import "../../../cards/catalogue";
-import { registeredDefinitions } from "../../../cards/registry";
+import { catalogueDefinitions } from "../../../cards/registry";
 import { isChoiceCountRange } from "../../../cards/types";
 import { statesCardQuality } from "../librarySearchFloor";
 
@@ -32,7 +32,7 @@ function collectSearchOps(node: unknown, card: string, out: SearchSite[]) {
 }
 
 const SITES: SearchSite[] = [];
-for (const definition of registeredDefinitions()) {
+for (const definition of catalogueDefinitions()) {
     collectSearchOps(definition, definition.name, SITES);
 }
 

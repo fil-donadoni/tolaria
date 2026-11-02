@@ -32,7 +32,7 @@ import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { cardValueById, MAX_LATENT_SCRIPT_VALUE } from "../../cardValue";
 import { nonCreatureBodyRaw } from "../../creatureBody";
 import {
-    registeredDefinitions,
+    catalogueDefinitions,
     withTemporaryDefinition,
 } from "../../../cards/registry";
 import {
@@ -56,7 +56,7 @@ const FOREST = forest().id;
 const FIVE_TYPES = [plains().id, island().id, SWAMP, mountain().id, FOREST];
 
 function maskOfIntolerance(): CardDefinition {
-    for (const def of registeredDefinitions()) {
+    for (const def of catalogueDefinitions()) {
         if (def.name === "Mask of Intolerance") return def;
     }
     throw new Error("Mask of Intolerance is not in the catalogue");
