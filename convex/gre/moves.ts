@@ -191,6 +191,7 @@ import {
 } from "./constants";
 import {
     getRequiredAttackerIds,
+    pinnedAttackDefenderOf,
     getMaxBlockTargets,
     validateAttackerEligibility,
     validateBlockerEligibility,
@@ -5551,12 +5552,25 @@ export function enumerateAttackerMoves(
     const defenderPlaneswalkers = (defBf ?? []).filter((c) =>
         isPlaneswalker(c)
     );
+    // CR 508.1d (issue #3247) — an attacker whose requirement is pinned to
+    // the defending player obeys it only by attacking that player, so it is
+    // never aimed at a walker: the same rule `toggleAttacker` refuses and
+    // `declareAttackers` / `declaredAttackTargets` realise.
+    const pinnedIds = new Set(
+        player.battlefield
+            .filter((c) => pinnedAttackDefenderOf(c, state) !== undefined)
+            .map((c) => c.id)
+    );
     const pwMoves: Move[] = [];
     for (const pw of defenderPlaneswalkers) {
         for (const attackerIds of subsets) {
-            if (attackerIds.length === 0) continue;
             const attackTargets: Record<string, string> = {};
-            for (const id of attackerIds) attackTargets[id] = pw.id;
+            for (const id of attackerIds) {
+                if (!pinnedIds.has(id)) attackTargets[id] = pw.id;
+            }
+            // No attacker free to aim at the walker: the variant is the plain
+            // declaration `baseMoves` already holds.
+            if (Object.keys(attackTargets).length === 0) continue;
             for (const variant of withExertVariants(attackerIds)) {
                 if (pwMoves.length >= MAX_COMBINATIONS) break;
                 pwMoves.push({ ...variant, attackTargets });

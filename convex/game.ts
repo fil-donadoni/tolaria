@@ -438,6 +438,8 @@ import {
     validateBlockerEligibility,
     getRequiredAttackerIds,
     isRequiredAttacker,
+    pinnedAttackDefenderOf,
+    pinnedAttackReason,
     getMaxBlockTargets,
     getAttackerCapEffect,
     getBlockerCapEffect,
@@ -10984,6 +10986,12 @@ export const toggleAttacker = mutation({
         // loyalty instead of the defending player.
         if (args.planeswalkerId !== undefined) {
             assertLegalAttackTarget(defenderBattlefield, args.planeswalkerId);
+            // CR 508.1d (issue #3247) — a creature that must attack THAT
+            // PLAYER cannot be pointed at a planeswalker: the declaration
+            // would obey one requirement fewer than attacking the player.
+            if (pinnedAttackDefenderOf(card, state) !== undefined) {
+                throw new Error(pinnedAttackReason(card));
+            }
         }
 
         const idx = combat.attackerIds.indexOf(args.cardInstanceId);
@@ -11070,10 +11078,18 @@ export const declareAttackers = mutation({
             state,
             getOpponentId(state, args.playerId)
         ).battlefield;
+        const declarer = getPlayer(state, args.playerId);
         const attackTargets: Record<string, string> = {};
         for (const [attackerId, pwId] of Object.entries(
             args.attackTargets ?? {}
         )) {
+            // CR 508.1d (issue #3247) — a creature pinned to attack THAT
+            // PLAYER keeps attacking the player: its walker target is dropped,
+            // never the attacker, exactly like a stale target.
+            const attacker = declarer.battlefield.find(
+                (c) => c.id === attackerId
+            );
+            if (attacker && pinnedAttackDefenderOf(attacker, state)) continue;
             if (
                 defenderBattlefield.some(
                     (c) => c.id === pwId && isPlaneswalker(c)
