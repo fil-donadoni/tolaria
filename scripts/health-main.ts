@@ -159,6 +159,7 @@ import {
     WORKTREE_BOOTSTRAP,
     type HealthStep,
     derivePredicateAnswer,
+    DERIVED_GRACE_MS,
     derivedTipVerdict,
     queuedHousekeeping,
 } from "./lib/health-step";
@@ -850,24 +851,29 @@ function finishPending(ctx: RunCtx, reason: string): never {
  */
 function readQueuedHousekeeping(root: string): string | null {
     try {
-        const list = JSON.parse(
-            execFileSync(
-                "gh",
-                [
-                    "run",
-                    "list",
-                    "--workflow",
-                    "post-merge.yml",
-                    "--status",
-                    "queued",
-                    "--limit",
-                    "10",
-                    "--json",
-                    "databaseId,createdAt",
-                ],
-                { cwd: root, encoding: "utf8", timeout: 60_000 }
-            )
-        ) as { databaseId: number; createdAt: string }[];
+        // A run with `sync` or `seed` started reads `in_progress` while its
+        // `housekeeping` still waits, so both statuses are listed.
+        const list = ["queued", "in_progress"].flatMap(
+            (status) =>
+                JSON.parse(
+                    execFileSync(
+                        "gh",
+                        [
+                            "run",
+                            "list",
+                            "--workflow",
+                            "post-merge.yml",
+                            "--status",
+                            status,
+                            "--limit",
+                            "10",
+                            "--json",
+                            "databaseId,createdAt",
+                        ],
+                        { cwd: root, encoding: "utf8", timeout: 60_000 }
+                    )
+                ) as { databaseId: number; createdAt: string }[]
+        );
         const runs = list.map((r) => ({
             createdAt: r.createdAt,
             jobs: (
@@ -928,8 +934,13 @@ function judgeDerivedTip(
         Number(git(["log", "-1", "--format=%ct", tip], root)) * 1000;
     return derivedTipVerdict({
         stale: answer.kind === "stale" ? answer.why : null,
+        // Only past the grace, where the RED names it: a young stale tip is
+        // PENDING and uses no reason from `gh`.
         housekeepingQueued:
-            answer.kind === "stale" ? readQueuedHousekeeping(root) : null,
+            answer.kind === "stale" &&
+            Date.now() - committedAtMs >= DERIVED_GRACE_MS
+                ? readQueuedHousekeeping(root)
+                : null,
         late: answer.kind === "fresh" ? (answer.late ?? null) : null,
         committedAtMs,
         nowMs: Date.now(),
