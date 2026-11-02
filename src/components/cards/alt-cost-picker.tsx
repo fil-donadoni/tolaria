@@ -15,12 +15,23 @@ type AltCostPickerProps = {
      *  to refuse and is not rendered. Server-projected
      *  (`printedCostCastUnavailable`), never re-derived here. */
     printedCostAvailable: boolean;
+    /** CR 601.2b / 118.9 (issue #7525) — the printed cast off the top of the
+     *  library may ride EITHER covering permission: the one that replaces the
+     *  mana cost with life (Bolas's Citadel) or one that keeps it (Mystic
+     *  Forge). The printed row then reads as the life payment and a second
+     *  row pays the mana cost. Server-projected
+     *  (`castManaCostReplacementDeclinable`), never re-derived here. */
+    replacementDeclinable?: boolean;
     cardName: string;
     /** Anchor position (client px) — the picker opens next to the cast card. */
     position: { x: number; y: number };
     /** Called with the chosen alternative-cost id, or `undefined` to pay the
-     *  normal mana cost. */
-    onSelect: (altCostId: string | undefined) => void;
+     *  normal mana cost; the second argument is `true` for the
+     *  {@link replacementDeclinable} "Pay mana cost" row. */
+    onSelect: (
+        altCostId: string | undefined,
+        declineManaCostReplacement?: true
+    ) => void;
     onCancel: () => void;
 };
 
@@ -34,6 +45,7 @@ type AltCostPickerProps = {
 export default function AltCostPicker({
     altCosts,
     printedCostAvailable,
+    replacementDeclinable = false,
     cardName,
     position,
     onSelect,
@@ -42,12 +54,25 @@ export default function AltCostPicker({
     return (
         <AnchoredPicker
             position={position}
-            rowCount={altCosts.length + (printedCostAvailable ? 1 : 0)}
+            rowCount={
+                altCosts.length +
+                (printedCostAvailable ? 1 : 0) +
+                (replacementDeclinable ? 1 : 0)
+            }
             onCancel={onCancel}
             title={cardName}
         >
             {printedCostAvailable ? (
                 <AnchoredPickerRow onSelect={() => onSelect(undefined)}>
+                    <span className="text-display text-sm text-text">
+                        {replacementDeclinable
+                            ? "Pay life equal to its mana value"
+                            : "Pay mana cost"}
+                    </span>
+                </AnchoredPickerRow>
+            ) : null}
+            {replacementDeclinable ? (
+                <AnchoredPickerRow onSelect={() => onSelect(undefined, true)}>
                     <span className="text-display text-sm text-text">
                         Pay mana cost
                     </span>

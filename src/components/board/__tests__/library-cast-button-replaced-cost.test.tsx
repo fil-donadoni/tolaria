@@ -30,7 +30,9 @@ import { island } from "@convex/cards/sets/lea/colorless.cards";
 import { getCardByName } from "@convex/cards";
 import { withTemporaryDefinition } from "@convex/cards/registry";
 import {
+    BLUE_ARTIFACT,
     BRAZEN_BORROWER,
+    FORGE,
     INSTANTS_AND_SORCERIES,
     withDefs,
 } from "@convex/gre/__tests__/libraryTopCastFilter.fixture";
@@ -227,6 +229,47 @@ describe("library-top cast with a REPLACED mana cost — illegal announcement ch
                 cardInstanceId: "top",
                 alternativeCostId: adventureCastAltCostId(BRAZEN_BORROWER),
             });
+        });
+    });
+
+    it("CR 601.2b / 118.9 (issue #7525) — a second grant keeps the mana cost: the picker offers life AND mana", () => {
+        withDefs(() => {
+            const card = {
+                ...topCard(BLUE_ARTIFACT.id, true),
+                castManaCostReplacementDeclinable: true as const,
+            };
+            const board = players(FORGE);
+            renderButton(card, board);
+            fireEvent.click(screen.getByRole("button", { name: "Cast" }));
+            expect(
+                screen.getByText("Pay life equal to its mana value")
+            ).toBeTruthy();
+            fireEvent.click(screen.getByText("Pay mana cost"));
+            expect(announceCast).toHaveBeenCalledTimes(1);
+            expect(announceCast.mock.calls[0][0]).toMatchObject({
+                cardInstanceId: "top",
+                declineManaCostReplacement: true,
+            });
+        });
+    });
+
+    it("CR 601.2b / 118.9 (issue #7525) — the life row announces no decline", () => {
+        withDefs(() => {
+            renderButton(
+                {
+                    ...topCard(BLUE_ARTIFACT.id, true),
+                    castManaCostReplacementDeclinable: true as const,
+                },
+                players(FORGE)
+            );
+            fireEvent.click(screen.getByRole("button", { name: "Cast" }));
+            fireEvent.click(
+                screen.getByText("Pay life equal to its mana value")
+            );
+            expect(announceCast).toHaveBeenCalledTimes(1);
+            expect(
+                announceCast.mock.calls[0][0].declineManaCostReplacement
+            ).toBeUndefined();
         });
     });
 

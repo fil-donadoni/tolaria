@@ -83,6 +83,9 @@ type AltCostPickerState = {
      *  Read from the server-projected `printedCostCastUnavailable`, never
      *  re-derived (ADR 0074). */
     printedCostAvailable: boolean;
+    /** CR 601.2b / 118.9 (issue #7525) — the server-projected
+     *  `castManaCostReplacementDeclinable`: offer "pay life" AND "pay mana". */
+    replacementDeclinable: boolean;
 };
 
 /** CR 601.2b / 118.8 — open state for the caster-chosen ADDITIONAL-cost picker
@@ -282,6 +285,9 @@ export function useHandCardCommit(
         /** CR 700.2a (ADR 0094) — the announced mode ids, printed order. */
         chosenModeIds: string[] | undefined;
         alternativeCostId?: string | undefined;
+        /** CR 601.2b / 118.9 (issue #7525) — the alt-cost picker's "Pay mana
+         *  cost" row under `castManaCostReplacementDeclinable`. */
+        declineManaCostReplacement?: true | undefined;
         kickerPayments?: Record<string, number> | undefined;
         buyback?: boolean | undefined;
         /** CR 601.3c — the caster's acknowledgement of a MANDATORY
@@ -332,6 +338,9 @@ export function useHandCardCommit(
                     chosenX: args.chosenX,
                     chosenModeIds: args.chosenModeIds,
                     alternativeCostId: args.alternativeCostId,
+                    ...(args.declineManaCostReplacement
+                        ? { declineManaCostReplacement: true }
+                        : {}),
                     kickerPayments: args.kickerPayments,
                     buyback: args.buyback,
                     payFlashSurcharge: args.payFlashSurcharge,
@@ -515,10 +524,16 @@ export function useHandCardCommit(
         );
         const licensedLibraryAlt =
             cardInstance.zone === "library" && affordableAlts.length > 0;
+        // CR 601.2b / 118.9 (issue #7525) — a second covering permission
+        // keeps the mana cost (Mystic Forge beside Bolas's Citadel): the
+        // caster picks life or mana, so the picker opens with both rows.
+        const replacementDeclinable =
+            cardInstance.castManaCostReplacementDeclinable === true;
         if (
             !cardInstance.castManaCostReplaced ||
             halfChoiceOwed ||
-            licensedLibraryAlt
+            licensedLibraryAlt ||
+            replacementDeclinable
         ) {
             const printedCostAvailable =
                 !cardInstance.printedCostCastUnavailable;
@@ -560,7 +575,11 @@ export function useHandCardCommit(
                       isCastPermissionAltCostId(alt.id)
                   )
                 : affordableAlts;
-            const optionCount = options.length + (printedCostAvailable ? 1 : 0);
+            const declineRow = replacementDeclinable && printedCostAvailable;
+            const optionCount =
+                options.length +
+                (printedCostAvailable ? 1 : 0) +
+                (declineRow ? 1 : 0);
             if (!printedCostAvailable && options.length === 1) {
                 // The permission's free cast is the only legal announcement —
                 // no picker, no click on a row the mutation would refuse.
@@ -576,7 +595,7 @@ export function useHandCardCommit(
                 });
                 return;
             }
-            if (optionCount >= 2 && options.length > 0) {
+            if (optionCount >= 2 && (options.length > 0 || declineRow)) {
                 setAltCostPickerState({
                     chosenX,
                     kickerPayments,
@@ -586,6 +605,7 @@ export function useHandCardCommit(
                     position,
                     altCosts: options,
                     printedCostAvailable,
+                    replacementDeclinable: declineRow,
                     chosenXColors,
                 });
                 return;
@@ -858,13 +878,16 @@ export function useHandCardCommit(
         ) : null;
 
     const altCostPickerOverlay =
-        altCostPickerState && altCostPickerState.altCosts.length > 0 ? (
+        altCostPickerState &&
+        (altCostPickerState.altCosts.length > 0 ||
+            altCostPickerState.replacementDeclinable) ? (
             <AltCostPicker
                 altCosts={altCostPickerState.altCosts}
                 printedCostAvailable={altCostPickerState.printedCostAvailable}
+                replacementDeclinable={altCostPickerState.replacementDeclinable}
                 cardName={def.name}
                 position={altCostPickerState.position}
-                onSelect={(altCostId) => {
+                onSelect={(altCostId, declineManaCostReplacement) => {
                     const {
                         chosenX,
                         kickerPayments,
@@ -879,6 +902,7 @@ export function useHandCardCommit(
                         keepPriority,
                         chosenModeIds: undefined,
                         alternativeCostId: altCostId,
+                        declineManaCostReplacement,
                         kickerPayments,
                         buyback,
                         payFlashSurcharge,

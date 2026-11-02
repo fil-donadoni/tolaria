@@ -451,19 +451,27 @@ function libraryTopCastGrants(player: PlayerState): LibraryTopCastGrant[] {
  *  gate, the wire flag, the Bot), so a permission covering only artifacts can
  *  never lend its sibling's life payment to a creature, nor the reverse.
  *
- *  When two grants cover the same cast, the FIRST scanned wins. The caster
- *  is entitled to pick which permission they cast under (Bolas's Citadel
- *  beside Mystic Forge, an artifact on top: pay life, or pay mana); that
- *  choice has no surface yet — a documented deviation, tracked by issue
- *  #7525. */
+ *  CR 601.3 / 118.9 / 601.2b (issue #7525) — when two grants cover the same
+ *  cast, the CASTER picks which permission they cast under: any one effect
+ *  that allows the cast suffices (CR 601.3), and a grant's life payment "rather
+ *  than pay its mana cost" is an alternative cost "applied to it from another
+ *  effect" (CR 118.9) whose use the caster announces (CR 601.2b). Bolas's
+ *  Citadel beside Mystic Forge, an artifact on top: pay life, or pay mana.
+ *  The announcement is `declineManaCostReplacement`: absent picks a covering
+ *  grant that replaces the mana cost when one exists and could license the
+ *  announcement (else any covering grant), `true` picks one that keeps it —
+ *  or `undefined` when none does.
+ *  Grants of the same shape are interchangeable, so the choice is binary and
+ *  never depends on battlefield order. */
 export function libraryTopCastGrant(
     _state: GameState,
     player: PlayerState,
     card: CardInstanceState,
-    alternativeCostId?: string
+    alternativeCostId?: string,
+    declineManaCostReplacement?: boolean
 ): LibraryTopCastGrant | undefined {
     const subject = castSubjectView(card, alternativeCostId);
-    return libraryTopCastGrants(player).find(
+    const covering = libraryTopCastGrants(player).filter(
         (grant) =>
             grant.spellFilter === undefined ||
             matchesSpellFilter(
@@ -474,6 +482,68 @@ export function libraryTopCastGrant(
                 },
                 grant.spellFilter
             )
+    );
+    const keeps = covering.find((g) => g.manaCostReplacement === undefined);
+    if (declineManaCostReplacement === true) return keeps;
+    // CR 601.2b — an Adventure or morph announcement can never ride a grant
+    // that replaces the mana cost ({@link libraryTopAnnouncementLicensed}), so
+    // where a keeping grant also covers it the choice is forced: absent picks
+    // the grant that can license it. Only the printed cast and a split half
+    // (CR 709.3 — naming the half is no second method) default to the life.
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    const replacementLicensable =
+        alternativeCostId === undefined ||
+        isSplitCastId(def ?? undefined, alternativeCostId) !== undefined;
+    if (!replacementLicensable && keeps) return keeps;
+    return (
+        covering.find((g) => g.manaCostReplacement !== undefined) ?? covering[0]
+    );
+}
+
+/** CR 601.2b / 118.9 (issue #7525) — every `declineManaCostReplacement` value
+ *  the caster may announce for the announcement `alternativeCostId` of `card`
+ *  off the top of `player`'s library: `[undefined]` alone, unless a covering
+ *  grant replaces the mana cost AND another covering grant keeps it — then
+ *  `true` too, the cast that pays mana instead of life. The one list the
+ *  legality gate, the Bot's enumerator and the wire projection walk. */
+export function libraryTopReplacementChoices(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    alternativeCostId: string | undefined
+): (true | undefined)[] {
+    const byDefault = libraryTopCastGrant(
+        state,
+        player,
+        card,
+        alternativeCostId
+    );
+    const declined = libraryTopCastGrant(
+        state,
+        player,
+        card,
+        alternativeCostId,
+        true
+    );
+    return byDefault?.manaCostReplacement !== undefined && declined
+        ? [undefined, true]
+        : [undefined];
+}
+
+/** CR 601.2b / 118.9 (issue #7525) — whether ANY announcement of `card` off
+ *  the top of `player`'s library may be cast either way: under a covering
+ *  grant that replaces the mana cost, or under another that keeps it. The
+ *  card-level question the Bot's enumerator (one extra "pay mana" pass) and
+ *  the wire projection (`castManaCostReplacementDeclinable`) ask. */
+export function libraryTopReplacementDeclinable(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState
+): boolean {
+    return libraryTopCastAnnouncements(card).some((altCostId) =>
+        libraryTopReplacementChoices(state, player, card, altCostId).includes(
+            true
+        )
     );
 }
 
@@ -542,9 +612,17 @@ export function libraryTopAnnouncementLicensed(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
-    alternativeCostId: string | undefined
+    alternativeCostId: string | undefined,
+    /** CR 601.2b (issue #7525) — the announced permission choice. */
+    declineManaCostReplacement?: boolean
 ): boolean {
-    const grant = libraryTopCastGrant(state, player, card, alternativeCostId);
+    const grant = libraryTopCastGrant(
+        state,
+        player,
+        card,
+        alternativeCostId,
+        declineManaCostReplacement
+    );
     if (grant === undefined) return false;
     if (
         grant.manaCostReplacement === undefined ||
@@ -581,7 +659,18 @@ export function isCastableLibraryTopSpell(
         top.id === cardInstanceId &&
         !top.types.includes("Land") &&
         libraryTopCastAnnouncements(top).some((altCostId) =>
-            libraryTopAnnouncementLicensed(state, player, top, altCostId)
+            // CR 601.2b (issue #7525) — under EITHER permission choice: a
+            // morph cast Bolas's Citadel refuses may ride Mystic Forge.
+            libraryTopReplacementChoices(state, player, top, altCostId).some(
+                (decline) =>
+                    libraryTopAnnouncementLicensed(
+                        state,
+                        player,
+                        top,
+                        altCostId,
+                        decline
+                    )
+            )
         )
     );
 }
@@ -611,9 +700,18 @@ export function libraryTopCastLifeCost(
      *  red spell with a mana value of 1." The card's CR 709.4b SUMMED mana
      *  value is a characteristic in a ZONE and is never what a spell pays.
      *  Absent means the printed card, so nothing else moves. */
-    alternativeCostId?: string
+    alternativeCostId?: string,
+    /** CR 601.2b (issue #7525) — the announced permission choice: `true`
+     *  casts under a grant that keeps the mana cost, so no life is owed. */
+    declineManaCostReplacement?: boolean
 ): number {
-    const grant = libraryTopCastGrant(state, player, card, alternativeCostId);
+    const grant = libraryTopCastGrant(
+        state,
+        player,
+        card,
+        alternativeCostId,
+        declineManaCostReplacement
+    );
     if (grant?.manaCostReplacement !== "life-equal-to-mana-value") return 0;
     return manaValue(
         getInstanceManaCost(castSubjectView(card, alternativeCostId))
@@ -1631,10 +1729,17 @@ export function getLegalActions(
         // CR 601.3e (issue #7205) — which grant licenses the cast, and so
         // whether it replaces the mana cost, is asked per ANNOUNCEMENT: a
         // filtered permission may cover one split half and not the other.
-        const replacesManaCost = (altCostId: string | undefined) =>
-            libraryTopCastGrant(state, player, card, altCostId)
+        //
+        // CR 601.2b (issue #7525) — and per PERMISSION CHOICE: the caster may
+        // decline a grant's mana-cost replacement and cast under one that keeps
+        // the mana cost, so the card is castable when EITHER choice is.
+        const replacesManaCost = (
+            altCostId: string | undefined,
+            decline: true | undefined
+        ) =>
+            libraryTopCastGrant(state, player, card, altCostId, decline)
                 ?.manaCostReplacement === "life-equal-to-mana-value";
-        if (
+        const legalUnder = (decline: true | undefined) =>
             passesCastPhaseRestriction(state, card) &&
             // CR 118.8 / 601.2f — a spell whose additional cost is "sacrifice /
             // exile a permanent matching a filter" (Natural Order) is
@@ -1657,7 +1762,7 @@ export function getLegalActions(
                 // (CR 715.3a) or a morph cast (CR 702.37c — "pay {3} rather
                 // than pay its mana cost"), the option's own cost.
                 cost: (subject, altCostId) =>
-                    replacesManaCost(altCostId)
+                    replacesManaCost(altCostId, decline)
                         ? {}
                         : (libraryTopOptionManaCost(card, altCostId) ??
                           getInstanceManaCost(subject) ??
@@ -1686,18 +1791,20 @@ export function getLegalActions(
                         state,
                         player,
                         card,
-                        altCostId
+                        altCostId,
+                        decline
                     ) &&
-                    (!replacesManaCost(altCostId) ||
+                    (!replacesManaCost(altCostId, decline) ||
                         player.life >=
                             libraryTopCastLifeCost(
                                 state,
                                 player,
                                 card,
-                                altCostId
+                                altCostId,
+                                decline
                             )),
-            })
-        ) {
+            });
+        if (legalUnder(undefined) || legalUnder(true)) {
             actions.push("cast");
         }
         return actions;

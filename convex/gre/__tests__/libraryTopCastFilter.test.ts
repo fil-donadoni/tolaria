@@ -29,6 +29,7 @@ import {
     libraryTopAnnouncementLicensed,
     libraryTopCastGrant,
     libraryTopCastLifeCost,
+    libraryTopReplacementChoices,
 } from "../rules";
 import { splitCastAltCostId } from "../splitCast";
 import { adventureCastAltCostId } from "../adventure";
@@ -60,12 +61,14 @@ type AnnounceCastArgs = {
     playerId: string;
     cardInstanceId: string;
     alternativeCostId?: string;
+    declineManaCostReplacement?: boolean;
 };
 
 /** Drive the REGISTERED `announceCast` handler for the library top. */
 const runAnnounceCast = (
     ctx: Parameters<typeof runMutation>[1],
-    alternativeCostId?: string
+    alternativeCostId?: string,
+    declineManaCostReplacement?: true
 ) =>
     runMutation<AnnounceCastArgs, void>(
         announceCast as unknown as Handler<AnnounceCastArgs, void>,
@@ -75,6 +78,9 @@ const runAnnounceCast = (
             playerId: "p1",
             cardInstanceId: "top",
             ...(alternativeCostId ? { alternativeCostId } : {}),
+            ...(declineManaCostReplacement
+                ? { declineManaCostReplacement }
+                : {}),
         }
     );
 
@@ -181,7 +187,12 @@ describe("CR 601.3e — a split card is covered HALF by half (issue #7205)", () 
                 {}
             );
             expect(libraryTopCastLifeCost(state, p1, card, DELIVER)).toBe(3);
-            expect(libraryTopCastLifeCost(state, p1, card, STAND)).toBe(0);
+            // Stand is covered by BOTH grants: the caster picks (issue #7525)
+            // — 1 life under the Citadel, or its mana under the white grant.
+            expect(libraryTopCastLifeCost(state, p1, card, STAND)).toBe(1);
+            expect(libraryTopCastLifeCost(state, p1, card, STAND, true)).toBe(
+                0
+            );
         });
     });
 
@@ -224,7 +235,7 @@ describe("WIRE — the library-top affordance follows the filter (issue #7205)",
                     ?.castManaCostReplaced
             ).toBe(true);
             expect(
-                topCard(board([FORGE.id, CITADEL.id], BLUE_ARTIFACT.id))
+                topCard(board([FORGE.id], BLUE_ARTIFACT.id))
                     ?.castManaCostReplaced
             ).toBeUndefined();
         });
@@ -383,6 +394,121 @@ describe("CR 601.3e — the Adventure and the face-down morph cast are announcem
             expect(
                 top(board([CREATURES_ONLY.id], BRAZEN_BORROWER.id))
                     ?.printedCostCastUnavailable
+            ).toBeUndefined();
+        });
+    });
+});
+
+describe("CR 601.3 / 118.9 / 601.2b — the caster picks among overlapping permissions (issue #7525)", () => {
+    const topCard = (state: GameState) =>
+        projectPublicState(state, 1, "p1").players.find((p) => p.id === "p1")!
+            .library.known[0]?.card;
+
+    it("Citadel + Forge, an artifact on top: pay life OR pay mana, in either battlefield order", () => {
+        withDefs(() => {
+            for (const order of [
+                [CITADEL.id, FORGE.id],
+                [FORGE.id, CITADEL.id],
+            ]) {
+                const state = board(order, BLUE_ARTIFACT.id);
+                const p1 = state.players[0];
+                const card = p1.library[0];
+                expect(
+                    libraryTopReplacementChoices(state, p1, card, undefined)
+                ).toEqual([undefined, true]);
+                // Absent = the Citadel's life payment, never order-dependent.
+                expect(libraryTopCastLifeCost(state, p1, card)).toBe(1);
+                expect(castRawManaCost(state, card, "library")).toEqual({});
+                // Declined = the Forge's printed cost, no life.
+                expect(
+                    libraryTopCastLifeCost(state, p1, card, undefined, true)
+                ).toBe(0);
+                expect(
+                    castRawManaCost(state, card, "library", undefined, true)
+                ).toEqual({ U: 1 });
+            }
+        });
+    });
+
+    it("no choice where only one grant covers the cast, or both keep / both replace the mana cost", () => {
+        withDefs(() => {
+            const only = (ids: string[], top: string) => {
+                const state = board(ids, top);
+                const p1 = state.players[0];
+                return libraryTopReplacementChoices(
+                    state,
+                    p1,
+                    p1.library[0],
+                    undefined
+                );
+            };
+            // Grizzly Bears: the Forge does not cover it — Citadel only.
+            expect(only([CITADEL.id, FORGE.id], GRIZZLY_BEARS.id)).toEqual([
+                undefined,
+            ]);
+            expect(only([FORGE.id], BLUE_ARTIFACT.id)).toEqual([undefined]);
+            expect(only([CITADEL.id], BLUE_ARTIFACT.id)).toEqual([undefined]);
+        });
+    });
+
+    it("announceCast commits each choice's own payment: 1 life and no mana, or {U} and no life", async () => {
+        await withDefsAsync(async () => {
+            const life = makeMutationCtx("p1", [
+                gameStateSeed(board([FORGE.id, CITADEL.id], BLUE_ARTIFACT.id)),
+            ]);
+            await runAnnounceCast(life.ctx);
+            expect(life.state().players[0].life).toBe(19);
+            expect(
+                life.state().players[0].battlefield.filter((c) => c.isTapped)
+            ).toHaveLength(0);
+            expect(life.state().stack.map((s) => s.id)).toEqual(["top"]);
+
+            const mana = makeMutationCtx("p1", [
+                gameStateSeed(board([CITADEL.id, FORGE.id], BLUE_ARTIFACT.id)),
+            ]);
+            await runAnnounceCast(mana.ctx, undefined, true);
+            const p1 = mana.state().players[0];
+            expect(p1.life).toBe(20);
+            // The {U} is owed, never waived: the cast parks on its mana.
+            expect(mana.state().pendingCast).toMatchObject({
+                cardInstanceId: "top",
+                manaCost: { U: 1 },
+            });
+            expect(mana.state().stack).toHaveLength(0);
+        });
+    });
+
+    it("announceCast refuses the decline where no covering grant keeps the mana cost", async () => {
+        await withDefsAsync(async () => {
+            for (const [ids, top] of [
+                [[CITADEL.id], BLUE_ARTIFACT.id],
+                [[CITADEL.id, FORGE.id], GRIZZLY_BEARS.id],
+            ] as const) {
+                const harness = makeMutationCtx("p1", [
+                    gameStateSeed(board([...ids], top)),
+                ]);
+                await expect(
+                    runAnnounceCast(harness.ctx, undefined, true)
+                ).rejects.toThrow(/paying its mana cost/);
+                expect(harness.state().players[0].life).toBe(20);
+            }
+        });
+    });
+
+    it("WIRE — castManaCostReplacementDeclinable offers both rows only when both grants cover the card", () => {
+        withDefs(() => {
+            const both = topCard(
+                board([FORGE.id, CITADEL.id], BLUE_ARTIFACT.id)
+            );
+            expect(both?.castManaCostReplaced).toBe(true);
+            expect(both?.castManaCostReplacementDeclinable).toBe(true);
+            expect(
+                topCard(board([FORGE.id, CITADEL.id], GRIZZLY_BEARS.id))
+                    ?.castManaCostReplacementDeclinable
+            ).toBeUndefined();
+            expect(
+                topCard(board([CITADEL.id], BLUE_ARTIFACT.id))
+                    ?.castManaCostReplacementDeclinable
             ).toBeUndefined();
         });
     });

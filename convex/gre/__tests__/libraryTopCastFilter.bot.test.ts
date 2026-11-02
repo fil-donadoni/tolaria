@@ -79,8 +79,10 @@ describe("CR 601.3 — the Bot casts only what a filtered permission covers (iss
             );
             expect(deliver).toMatchObject({ payLife: 3, tapPlan: [] });
 
+            // Stand is covered by BOTH grants, so the caster picks (issue
+            // #7525): 1 life under the Citadel, or {W} under the white grant.
             state.players[0].life = 2;
-            expect(topCasts(state).map((c) => c.alt)).toEqual([LEFT]);
+            expect(topCasts(state).map((c) => c.alt)).toEqual([LEFT, LEFT]);
         });
     });
 });
@@ -137,8 +139,8 @@ describe("CR 601.3e — the Bot's library-top Adventure and morph casts (issue #
     it("an Adventure licensed apart from the Citadel-covered card is still enumerated", () => {
         withDefs(() => {
             // The creature rides the Citadel (3 life); Petty Theft the
-            // instant-and-sorcery grant scanned first, which keeps the mana
-            // cost (first covering grant wins, issue #7525). A whole-card
+            // instant-and-sorcery grant, which keeps the mana cost — the
+            // caster's permission choice (issue #7525). A whole-card
             // `lifeInsteadOfMana` guard dropped the Adventure here.
             const state = board(
                 [INSTANTS_AND_SORCERIES.id, CITADEL.id],
@@ -149,6 +151,62 @@ describe("CR 601.3e — the Bot's library-top Adventure and morph casts (issue #
             // which owes no life, stays (no whole-card life refusal).
             state.players[0].life = 2;
             expect(alts(state)).toEqual([PETTY_THEFT]);
+        });
+    });
+});
+
+describe("CR 601.2b / 118.9 — the Bot picks among overlapping permissions (issue #7525)", () => {
+    const topMoves = (state: GameState) =>
+        enumerateMoves(state, "p1").filter(
+            (m) => m.kind === "cast-spell" && m.cardInstanceId === "top"
+        );
+
+    it("Citadel + Forge, an artifact on top: a life Move and a mana Move, each priced its own way", () => {
+        withDefs(() => {
+            const moves = topMoves(
+                board([FORGE.id, CITADEL.id], BLUE_ARTIFACT.id)
+            );
+            const life = moves.find(
+                (m) =>
+                    m.kind === "cast-spell" &&
+                    m.declineManaCostReplacement === undefined
+            );
+            const mana = moves.find(
+                (m) =>
+                    m.kind === "cast-spell" &&
+                    m.declineManaCostReplacement === true
+            );
+            expect(life).toMatchObject({ payLife: 1, tapPlan: [] });
+            expect(mana).toBeDefined();
+            expect(mana).not.toMatchObject({ payLife: 1 });
+            expect(mana?.kind === "cast-spell" && mana.tapPlan.length).toBe(1);
+        });
+    });
+
+    it("no mana Move where the Forge does not cover the card", () => {
+        withDefs(() => {
+            expect(
+                topMoves(board([FORGE.id, CITADEL.id], GRIZZLY_BEARS.id)).some(
+                    (m) =>
+                        m.kind === "cast-spell" &&
+                        m.declineManaCostReplacement === true
+                )
+            ).toBe(false);
+        });
+    });
+
+    it("a morph cast the Citadel refuses rides the Forge (CR 601.2b, CR 702.37c)", () => {
+        withDefs(() => {
+            const morph = topMoves(
+                board([CITADEL.id, FORGE.id], EXALTED_ANGEL.id)
+            ).filter(
+                (m) =>
+                    m.kind === "cast-spell" &&
+                    m.alternativeCostId === MORPH_CAST_ALT_COST_ID
+            );
+            // The choice is forced (only the Forge can license a morph cast),
+            // so the Move needs no announced decline.
+            expect(morph.length).toBeGreaterThan(0);
         });
     });
 });
