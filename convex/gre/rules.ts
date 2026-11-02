@@ -4276,12 +4276,18 @@ function triggerTargetLegality(
     // distinct from `item.id`, the synthetic stack-item id
     // `triggerSource` above reads from.
     const sourcePower = getTriggerSourcePower(state, item.triggerSourceId);
+    // CR 107.3m (issue #3248) — an enters-the-battlefield trigger that refers
+    // to X uses the X of the spell that became its source, carried on the
+    // trigger item (`chosenX`, the same value `ctx.getX()` reads at
+    // resolution). A `mvFilter` bound of `"X"` (Thieving Skydiver's "target
+    // artifact with mana value X or less") is fixed with it as the target is
+    // chosen (CR 603.3d); a trigger with no X keeps `undefined`.
     const legal = getLegalTargets(
         state,
         effectiveReq,
         triggerSource,
         item.controllerId,
-        undefined,
+        item.chosenX,
         [],
         sourcePower
     );
@@ -4585,7 +4591,7 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
             // the resolved instance filter, not an empty static list.
             ...pendingTargetFiltersFromRequirement(
                 effectiveReq,
-                undefined,
+                item.chosenX,
                 sourcePower
             ),
             ...(divideTotal !== undefined ? { divideTotal } : {}),

@@ -23,6 +23,7 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../cards";
 import { verdelothTheAncient } from "../../cards/sets/inv/green.cards";
+import { thievingSkydiver } from "../../cards/sets/znr/blue.cards";
 
 const FOREST = getCardByName("Forest").id;
 const VERDELOTH = "verdeloth";
@@ -110,5 +111,74 @@ describe("Kicker {X} — Bot reachability (CR 107.3a / 702.33a, issue #2141)", (
         applyMoveInSearch(world, "p1", move);
         expect(tapped(world)).toBe(8);
         expect(world.stack[0]?.chosenX).toBe(2);
+    });
+});
+
+// CR 107.3 / 601.2b (issue #3248) — "Kicker {X}. X can't be 0." (Thieving
+// Skydiver): the kicked variant's X axis starts at the paid Kicker's `minX`
+// (`paidKickersMinX`), the same floor `announceCast` enforces, so the Bot
+// never offers an announcement the mutation refuses.
+describe("Kicker {X} with a minimum X — Bot reachability (issue #3248)", () => {
+    const ISLAND = getCardByName("Island").id;
+    function skydiverBoard(lands: number): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(thievingSkydiver().id, {
+                            id: "skydiver",
+                            zone: "hand",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                    battlefield: Array.from({ length: lands }, (_, i) =>
+                        makeInstance(ISLAND, {
+                            id: `island${i}`,
+                            zone: "battlefield",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        })
+                    ),
+                }),
+                // Two artifacts worth stealing, MV 1 and MV 2, so every X
+                // the kick can buy has a target.
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(getCardByName("Skullclamp").id, {
+                            id: "clamp",
+                            zone: "battlefield",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(getCardByName("Mind Stone").id, {
+                            id: "stone",
+                            zone: "battlefield",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+    }
+    const skydiverCasts = (state: GameState) =>
+        enumerateMoves(state, "p1").filter(
+            (m) => m.kind === "cast-spell" && m.cardInstanceId === "skydiver"
+        );
+
+    it("never enumerates a kicked cast for X = 0", () => {
+        const casts = skydiverCasts(skydiverBoard(4));
+        // Four Islands: {1}{U} leaves two for X — X = 1 and X = 2, never 0.
+        expect(casts.filter(kicked).map(xOf).sort()).toEqual([1, 2]);
+        expect(casts.filter((m) => !kicked(m)).map(xOf)).toEqual([undefined]);
+    });
+
+    it("offers no kicked cast at all when no mana is left for X ≥ 1", () => {
+        const casts = skydiverCasts(skydiverBoard(2));
+        expect(casts.filter(kicked)).toEqual([]);
+        expect(casts).toHaveLength(1);
     });
 });

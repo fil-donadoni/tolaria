@@ -136,6 +136,9 @@ type CostDialogState = {
                *  color" (Emblazoned Golem): the dialog also collects X
                *  distinct colours. */
               requiresDistinctColorX: boolean;
+              /** CR 107.3 (issue #3248) — the X floor while this Kicker is
+               *  paid ("X can't be 0"). */
+              minX?: number;
           }[]
         | undefined;
     buyback: boolean;
@@ -766,6 +769,7 @@ export function useHandCardCommit(
                     multi: k.multi === true,
                     announcesX: kickerAnnouncesX(k),
                     requiresDistinctColorX: kickerAnnouncesDistinctColorX(k),
+                    ...(k.minX !== undefined ? { minX: k.minX } : {}),
                 })),
                 buyback: def.buyback !== undefined,
                 flashSurcharge,
