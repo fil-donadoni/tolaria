@@ -215,6 +215,7 @@ export function buildStateView(state: GameState): ReplacementStateView {
             id: p.id,
             life: p.life,
             handSize: p.hand.length,
+            librarySize: p.library.length,
             battlefield: p.battlefield.map((c) => ({
                 id: c.id,
                 controllerId: c.controllerId,
@@ -273,9 +274,11 @@ export function buildPermanentView(card: CardInstanceState): PermanentView {
  *  scopes it to one side of the table. */
 export function getApplicableDrawReplacements(
     state: GameState,
-    event: DrawReplacementEvent
+    event: DrawReplacementEvent,
+    /** A hypothetical view to evaluate the predicates against (default: the
+     *  live one). Only `drawFromEmptyLibraryWins` passes one. */
+    view: ReplacementStateView = buildStateView(state)
 ): { source: CardInstanceState; effect: DrawReplacementEffect }[] {
-    const view = buildStateView(state);
     const own: { source: CardInstanceState; effect: DrawReplacementEffect }[] =
         [];
     const others: {
@@ -297,6 +300,44 @@ export function getApplicableDrawReplacements(
         }
     }
     return [...own, ...others];
+}
+
+/** CR 614.1a / 104.3c — would `playerId`'s next draw, attempted from an EMPTY
+ *  library, be replaced by a win for `playerId` (Jace, Wielder of Mysteries)?
+ *  Asked hypothetically — the predicates see a view where that player's
+ *  library is empty, whatever it holds now — and answered by the same
+ *  discovery + ordering `planDrawStep` uses: the first TERMINAL outcome in the
+ *  affected player's order decides (a `modify-count` resizes, never replaces).
+ *  For readers that must not price an empty library as a CR 704.5b loss when it
+ *  is the opposite: the Bot's decking terms (`gre/ai/decking.ts`,
+ *  `evaluate.ts`). Pure — no state is touched. */
+export function drawFromEmptyLibraryWins(
+    state: GameState,
+    playerId: string
+): boolean {
+    const live = buildStateView(state);
+    const view: ReplacementStateView = {
+        ...live,
+        players: live.players.map((p) =>
+            p.id === playerId ? { ...p, librarySize: 0 } : p
+        ),
+    };
+    const player = state.players.find((p) => p.id === playerId);
+    if (!player) return false;
+    const event: DrawReplacementEvent = {
+        kind: "draw",
+        drawingPlayer: playerId,
+        drawIndexThisTurn: (player.drawnThisTurn ?? []).length,
+        isTurnBasedDrawStepDraw: false,
+        requestedCount: 1,
+    };
+    const terminal = getApplicableDrawReplacements(state, event, view).find(
+        (m) => m.effect.outcome.kind !== "modify-count"
+    );
+    return (
+        terminal?.effect.outcome.kind === "win" &&
+        terminal.source.controllerId === playerId
+    );
 }
 
 /** The FIRST draw replacement applicable to `event` (CR 616.1 — the affected
