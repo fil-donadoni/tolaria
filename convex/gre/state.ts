@@ -8608,7 +8608,7 @@ export function endGame(state: GameState, outcome: GameOutcome): boolean {
     return true;
 }
 
-/** CR 104.2a — `playerId` wins the game by an effect (a resolving spell or
+/** CR 104.2b — `playerId` wins the game by an effect (a resolving spell or
  *  ability, Coalition Victory / Thassa's Oracle, or a draw replacement, Jace,
  *  Wielder of Mysteries). The one path every effect-driven win takes, through
  *  `endGame`'s first-writer-wins guard: a game already decided stays decided.
@@ -20948,7 +20948,7 @@ export function commitDrawPlan(
             return 0;
         case "win":
             // CR 614.6 — the replaced draw never happens (no card, no
-            // `hasDrawnFromEmpty`); the beneficiary wins instead (CR 104.2a),
+            // `hasDrawnFromEmpty`); the beneficiary wins instead (CR 104.2b),
             // through the single `state.gameOver` writer.
             declareWinner(state, plan.winnerId);
             return 0;

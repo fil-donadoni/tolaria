@@ -292,7 +292,7 @@ describe("commitDrawPlan (CR 614/704.5b, ADR 0061)", () => {
     });
 });
 
-describe("commitDrawPlan — win (CR 614.6 / 104.2a, issue #3231)", () => {
+describe("commitDrawPlan — win (CR 614.6 / 104.2b, issue #3231)", () => {
     it("the beneficiary wins; the drawing player draws nothing and is NOT flagged decked", () => {
         const state = makeState({
             players: [makePlayer("p1", { library: [] }), makePlayer("p2")],

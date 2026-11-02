@@ -120,7 +120,7 @@ export const jaceWielderOfMysteries = defineCard(() => ({
     activatedAbilities: [
         {
             id: "jace-wielder-plus1",
-            // CR 606.2 / 606.5 — loyalty ability; `+1` adds one counter.
+            // CR 606.2 / 606.4 — loyalty ability; `+1` adds one counter.
             cost: { loyalty: 1 },
             useStack: true,
             oracleText: "+1: Target player mills two cards. Draw a card.",
@@ -132,7 +132,7 @@ export const jaceWielderOfMysteries = defineCard(() => ({
         },
         {
             id: "jace-wielder-minus8",
-            // CR 606.2 / 606.5 — loyalty ability; `-8` removes eight counters.
+            // CR 606.2 / 606.4 — loyalty ability; `-8` removes eight counters.
             cost: { loyalty: -8 },
             useStack: true,
             oracleText:
