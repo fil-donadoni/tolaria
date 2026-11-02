@@ -3,6 +3,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { Phase } from "@convex/gre/types";
 import type { EmblemInstance } from "@convex/cards/types";
 import type { ContinuousEffect } from "@convex/gre/continuousEffects";
+import type { PlayerRestriction } from "@convex/gre/state";
 import type {
     CardInstance,
     Combat,
@@ -156,6 +157,11 @@ type GameContext = {
      *  {@link PlayerCityBlessingTile} to render the marker tile beside the
      *  pile column. */
     cityBlessingIds?: string[];
+    /** CR 611.2a — player-scoped "for the rest of the game" locks (CR 119.7:
+     *  can't gain life), forwarded from the wire
+     *  `GameState.playerRestrictions`. Never removed once granted.
+     *  Consumed by {@link PlayerLifeGainLock} to badge the nameplate. */
+    playerRestrictions?: PlayerRestriction[];
     /** One-shot look/reveal notifications for this viewer (CR 400.2 look /
      *  701.20 reveal, `SpellContext.notifyReveal`). The projection filters
      *  `pendingReveals` to entries whose `audience` includes this viewer — a

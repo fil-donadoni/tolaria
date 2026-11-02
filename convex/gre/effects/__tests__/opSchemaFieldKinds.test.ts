@@ -34,6 +34,7 @@ const DECLARATIONS = [
     "createToken.bindAll:picks",
     "createTokenCopy.bind:snapshot",
     "dealDamage.bind:snapshot",
+    "dealDamage.bindDamagedPlayer:player",
     "destroy.bind:snapshot",
     "digMatchingToHand.bind:snapshot",
     "discardAtRandom.bind:snapshot",
