@@ -196,7 +196,7 @@ export const REQUEUE_GRACE_MS = 10 * 60_000;
  *    not green (an entry gate,
  *    not the PR's red: the label keeps it off the repair-pick rules), its
  *    advisory lane is still the red the cleared RED put there
- *    (`laneRedPredatesRelease`, issue #7843: the queue's
+ *    (`laneRedPredatesRelease`: the queue's
  *    `-check-failure=check:lane (advisory)` refuses the requeue, and a
  *    release would make the base's red a repair pick — `pr-refresh` pushes
  *    it, and the fresh lane decides), or a requeue is still within its grace.

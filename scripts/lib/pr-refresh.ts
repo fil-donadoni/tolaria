@@ -74,7 +74,7 @@ export interface RefreshOptions {
  * green drafts and livelocked the queue (issue #6957). Off RED a held PR whose
  * advisory lane is still the RED's red (`laneRedStale`) IS taken, whatever
  * the push touched: the queue refuses it on that red and nothing else
- * re-runs the lane (issue #7843). One push clears it — the fresh lane
+ * re-runs the lane. One push clears it — the fresh lane
  * fails after the GREEN or not at all.
  */
 export function selectRefreshCandidates(
