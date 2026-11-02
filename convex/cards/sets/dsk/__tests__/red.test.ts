@@ -35,6 +35,8 @@ import { finalizeTargetSelection } from "../../../../game";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import type { GameEvent } from "../../../types";
 import { getDefinition } from "../../../index";
+import { checkStateBasedActions } from "../../../../gre/sba";
+import { playerHasRestriction } from "../../../../gre/playerRestrictions";
 
 const enduringCourage = getDefinition("f46ac55f-d68e-4d5d-af0a-3879f97f705e");
 const fearOfMissingOut = getDefinition("9d48aaff-46ab-411b-9456-171d4709f951");
@@ -452,5 +454,99 @@ describe("Enduring Courage — whenever another creature you control enters (CR 
         expect(getEffectivePower(state, theirs)).toBe(2);
         expect(theirs.staticAbilities).not.toContain("haste");
         expect(state.stack).toHaveLength(0);
+    });
+});
+
+// Screaming Nemesis (issue #3239) — "Whenever this creature is dealt damage,
+// it deals that much damage to any other target. If a player is dealt damage
+// this way, they can't gain life for the rest of the game." Driven through the
+// real stack: a Lightning Bolt kills it, the trigger is collected, its target
+// announced (CR 603.3d) and resolved; the later gain runs the real
+// `gainLife` Op through `resolveTopOfStack`.
+describe("Screaming Nemesis (CR 120.3 / 119.7 / 611.2a)", () => {
+    const nemesis = getDefinition("ce35e6fb-ff54-44c4-a216-7ddd37f46882");
+    const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+    const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+    const healingSalve = getDefinition("e28de37e-84d5-4dc7-b36c-e14da5924729");
+
+    function setup(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(nemesis.id, {
+                            id: "nemesis",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "bear",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+        });
+    }
+
+    /** p2 bolts Nemesis (lethal on a 3/3); its trigger aims at `target`. */
+    function boltNemesisRedirectingTo(
+        state: GameState,
+        target: { type: "player" | "permanent"; id: string }
+    ): void {
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "nemesis" },
+        ]);
+        resolveTopOfStack(state);
+        processPendingActionTriggers(state);
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        // CR 115.4 — "any OTHER target": Nemesis itself is never offered.
+        expect(state.pendingTarget!.excludeInstanceIds).toContain("nemesis");
+        state.pendingTarget!.selected = [target];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+    }
+
+    const life = (state: GameState, id: string) =>
+        state.players.find((p) => p.id === id)!.life;
+
+    it("deals that much damage to a player, who then can't gain life even after Nemesis died", () => {
+        const state = setup();
+        boltNemesisRedirectingTo(state, { type: "player", id: "p2" });
+        expect(life(state, "p2")).toBe(17);
+        // The lock outlives its source (CR 611.2a): Nemesis is in the yard.
+        expect(
+            state.players[0]!.graveyard.some((c) => c.id === "nemesis")
+        ).toBe(true);
+        expect(playerHasRestriction(state, "p2", "cantGainLife")).toBe(true);
+        pushSpell(state, healingSalve.id, "p2", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(life(state, "p2")).toBe(17);
+        // The client sees who is locked.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(playerHasRestriction(projected, "p2", "cantGainLife")).toBe(
+            true
+        );
+    });
+
+    it("redirected at a creature, it locks nobody", () => {
+        const state = setup();
+        boltNemesisRedirectingTo(state, { type: "permanent", id: "bear" });
+        expect(state.players[1]!.graveyard.some((c) => c.id === "bear")).toBe(
+            true
+        );
+        expect(state.playerRestrictions ?? []).toEqual([]);
     });
 });

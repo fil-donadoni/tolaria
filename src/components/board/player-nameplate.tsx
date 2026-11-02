@@ -17,6 +17,7 @@ import PlayerSeatPlate from "./player-seat-plate";
 import PlayerPoisonCounters from "./player-poison-counters";
 import PlayerEnergyCounters from "./player-energy-counters";
 import PlayerExperienceCounters from "./player-experience-counters";
+import PlayerLifeGainLock from "./player-life-gain-lock";
 
 type PlayerNameplateProps = {
     player: Player;
@@ -395,6 +396,7 @@ export default function PlayerNameplate({
                         count={player.experienceCounters}
                         compact
                     />
+                    <PlayerLifeGainLock playerId={player.id} compact />
                 </div>
             ) : (
                 // FULL plaque (desktop / classic chrome), v4 shape (ADR 0103
@@ -430,6 +432,7 @@ export default function PlayerNameplate({
                             <PlayerExperienceCounters
                                 count={player.experienceCounters}
                             />
+                            <PlayerLifeGainLock playerId={player.id} />
                         </span>
                     </div>
                 </div>
