@@ -3709,6 +3709,54 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 119.7 + CR 611.2a — "Whenever this creature deals damage to a
+    // player, that player can't gain life for the rest of the game": the
+    // `restrictLifeGain` frame on the damaged player,
+    // `DAMAGE_DEALT.damagedPlayer` — a recipient the canned smoke scenario
+    // cannot pick (issue #3239).
+    {
+        rule: "verb frame",
+        card: {
+            oracleId: "7e4a1286-cac6-491f-a32d-64fb98d35de2",
+            name: "Stigma Lasher",
+            manaCost: "{R}{R}",
+            typeLine: "Creature — Elemental Shaman",
+            oracleText:
+                "Wither (This deals damage to creatures in the form of -1/-1 counters.)\nWhenever this creature deals damage to a player, that player can't gain life for the rest of the game.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Stigma Lasher",
+            types: ["Creature"],
+            subtypes: ["Elemental", "Shaman"],
+            manaCost: { R: 2 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Wither (This deals damage to creatures in the form of -1/-1 counters.)\nWhenever this creature deals damage to a player, that player can't gain life for the rest of the game.",
+            staticAbilities: ["wither"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "stigma-lasher-trigger",
+                    oracleText:
+                        "Whenever this creature deals damage to a player, that player can't gain life for the rest of the game.",
+                    head: {
+                        kind: "damage-dealt",
+                        source: "self",
+                        recipient: "player",
+                    },
+                    effects: [
+                        {
+                            op: "restrictLifeGain",
+                            player: { ref: "$event.damagedPlayer" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 120.3 + CR 608.2c — "Whenever this creature deals damage to an
     // opponent, you draw a card and that opponent discards a card": the
     // damaged player CHOOSES the discard (CR 701.9b). Exhibits the two forms
