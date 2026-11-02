@@ -36,6 +36,8 @@ const SCRIPT_PRICED: Record<
     prowess: { declared: "prowess" },
     "battle-cry": { declared: "battle cry" },
     annihilator: { declared: "annihilator 2" },
+    // CR 702.181a — the expanded attack trigger's createToken script.
+    mobilize: { declared: "mobilize 2" },
     ward: {
         declared: "ward {2}",
         triggered: [

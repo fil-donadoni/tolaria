@@ -5307,7 +5307,9 @@ const OP_SCHEMAS: OpSchemaTable = {
     // optional; staticEffects deliberately excluded, not JSON-expressible);
     // `controller` names who gets the tokens (controller / announced slot /
     // forEach `$each`); `count` is an optional EffectValue (default 1) for a
-    // count-scaled token creation.
+    // count-scaled token creation. `bind` snapshots the LAST token; `bindAll`
+    // binds every created token as a PICKS binding (Mobilize's "sacrifice
+    // them", CR 702.181a).
     createToken: {
         required: {
             token: isEffectTokenSpec,
@@ -5316,6 +5318,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         optional: {
             count: isEffectValue,
             bind: bindingDeclaration("snapshot"),
+            bindAll: bindingDeclaration("picks"),
         },
     },
     // CR 707.2 + CR 111.1 (issue #1459) — create token COPIES of a runtime

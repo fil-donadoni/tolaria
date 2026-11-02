@@ -26,6 +26,7 @@ import "./emblems";
 import { expandAnnihilator } from "./abilities/annihilator";
 import { expandCascade } from "./abilities/cascade";
 import { expandFirebending } from "./abilities/firebending";
+import { expandMobilize } from "./abilities/mobilize";
 import { BESTOW_STATIC_EFFECT_KINDS, expandBestow } from "./abilities/bestow";
 import { expandEchoCumulativeUpkeep } from "./abilities/echoCumulativeUpkeep";
 import { expandFadingVanishing } from "./abilities/fadingVanishing";
@@ -612,35 +613,40 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // Impending (CR 702.176) expands from its `"impending N"` keyword string
     // into the entry time counters, the layer-4 "not a creature" removal and
     // the end-step countdown trigger — Bestow's and Vanishing's shapes, joined.
-    const expanded = expandImpending(
-        expandEchoCumulativeUpkeep(
-            expandBestow(
-                expandCascade(
-                    expandFirebending(
-                        expandAnnihilator(
-                            expandHideaway(
-                                expandKeywordTriggers(
-                                    expandFadingVanishing(
-                                        // CR 716.2 (issue #3234) — the Class level bars sit
-                                        // beside `expandChapterAbilities`: both desugar a
-                                        // printed TEXT BOX SECTION declared as data, and
-                                        // both must run before any expander that reads the
-                                        // ability arrays they inject into.
-                                        expandClassLevelBars(
-                                            expandChapterAbilities(
-                                                expandCompiledTriggers(
-                                                    expandCompiledStatics(
-                                                        // CR 614.1a — the compiled
-                                                        // "shuffle it into its owner's
-                                                        // library instead" flag, rebuilt
-                                                        // innermost beside the other
-                                                        // compiled descriptors.
-                                                        expandShuffleFromAnywhere(
-                                                            expandDamagePreventionCounterRemoval(
-                                                                expandControllerDamagePrevention(
-                                                                    expandDamageLifeFloor(
-                                                                        expandDamageAsCounters(
-                                                                            base
+    // Mobilize (CR 702.181, issue #2611) expands from its `"mobilize N"`
+    // keyword string into the attack trigger — annihilator's/firebending's
+    // shape, outermost because it reads only `staticAbilities`.
+    const expanded = expandMobilize(
+        expandImpending(
+            expandEchoCumulativeUpkeep(
+                expandBestow(
+                    expandCascade(
+                        expandFirebending(
+                            expandAnnihilator(
+                                expandHideaway(
+                                    expandKeywordTriggers(
+                                        expandFadingVanishing(
+                                            // CR 716.2 (issue #3234) — the Class level bars sit
+                                            // beside `expandChapterAbilities`: both desugar a
+                                            // printed TEXT BOX SECTION declared as data, and
+                                            // both must run before any expander that reads the
+                                            // ability arrays they inject into.
+                                            expandClassLevelBars(
+                                                expandChapterAbilities(
+                                                    expandCompiledTriggers(
+                                                        expandCompiledStatics(
+                                                            // CR 614.1a — the compiled
+                                                            // "shuffle it into its owner's
+                                                            // library instead" flag, rebuilt
+                                                            // innermost beside the other
+                                                            // compiled descriptors.
+                                                            expandShuffleFromAnywhere(
+                                                                expandDamagePreventionCounterRemoval(
+                                                                    expandControllerDamagePrevention(
+                                                                        expandDamageLifeFloor(
+                                                                            expandDamageAsCounters(
+                                                                                base
+                                                                            )
                                                                         )
                                                                     )
                                                                 )

@@ -31,6 +31,7 @@ const DECLARATIONS = [
     "coinFlipSeries.bindWins:number",
     "counter.bindSource:snapshot",
     "createToken.bind:snapshot",
+    "createToken.bindAll:picks",
     "createTokenCopy.bind:snapshot",
     "dealDamage.bind:snapshot",
     "destroy.bind:snapshot",
