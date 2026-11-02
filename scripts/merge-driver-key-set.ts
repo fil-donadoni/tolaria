@@ -6,7 +6,7 @@
  * `.gitattributes` names it for the files `OTHER_MERGE_DRIVERS` gives it. It
  * merges the three sides as a sorted set of keys ({@link mergeKeySets}), or of
  * rows keyed by `name` ({@link mergeKeyedRows}, issue #6648), or as a keyed
- * map (`mergeKeyedMapFile`, issue #7871), and writes the
+ * map (`mergeKeyedMapFile`), and writes the
  * canonical form, so removals and additions never conflict.
  *
  * Exits non-zero when a side does not parse — a malformed file must reach a

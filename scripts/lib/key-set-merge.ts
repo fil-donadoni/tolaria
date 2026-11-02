@@ -15,7 +15,7 @@
  * that side, a row both changed identically takes it once, and a row both
  * changed DIFFERENTLY is a real disagreement — an error, left to a human.
  *
- * A third shape, a JSON object read as a keyed map (issue #7871), merges the
+ * A third shape, a JSON object read as a keyed map, merges the
  * same way key by key — `data/pick-ratings/*.json`, `{ setCode, ratings }`,
  * where every card PR appends a rating at the tail of `ratings` and two PRs
  * conflict on the moved trailing comma.
