@@ -282,6 +282,7 @@ describe("repair issues on the pivot", () => {
                 baseHealth: health.state,
                 trustedAuthor: "success",
                 lastRequeueAt: () => null,
+                laneRedStale: () => false,
                 now: NOW(),
             })
         ).toBe("requeue");

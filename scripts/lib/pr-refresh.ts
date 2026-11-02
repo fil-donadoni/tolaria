@@ -23,6 +23,9 @@ export interface RefreshPr {
     isCrossRepository: boolean;
     labels: readonly string[];
     files: readonly string[];
+    /** A `queue:held` PR off RED only: its advisory lane is still the red
+     *  the cleared RED put there (`laneRedPredatesRelease`, issue #7843). */
+    laneRedStale?: boolean;
 }
 
 export type RefreshReason = "conflicting" | "base-touched" | "held";
@@ -66,9 +69,13 @@ export interface RefreshOptions {
  * PR is out of the queue, so a push costs it nothing, and while the base is
  * RED a base push that touches one of its files takes it (issue #6651): a RED reds its advisory lane, which tests the
  * PR merged with the base, and that run is pinned to the broken merge — only
- * a new push re-runs the lane on the moved base. Off RED the label is stale,
- * not a reason: rebasing every held PR on every push after a GREEN dequeued
- * green drafts and livelocked the queue (issue #6957).
+ * a new push re-runs the lane on the moved base. Off RED the label alone is
+ * stale, not a reason: rebasing every held PR on every push after a GREEN dequeued
+ * green drafts and livelocked the queue (issue #6957). Off RED a held PR whose
+ * advisory lane is still the RED's red (`laneRedStale`) IS taken, whatever
+ * the push touched: the queue refuses it on that red and nothing else
+ * re-runs the lane. One push clears it — the fresh lane
+ * fails after the GREEN or not at all.
  */
 export function selectRefreshCandidates(
     prs: readonly RefreshPr[],
@@ -98,6 +105,8 @@ export function selectRefreshCandidates(
         if (reason === null) continue;
         if (pr.labels.includes(MERGIFY_QUEUED_LABEL)) {
             opts.onSkip?.(pr, `${reason}: in the merge queue, skipped`);
+        } else if (reason === "held" && !opts.red && pr.laneRedStale) {
+            out.push({ pr, reason, overlap });
         } else if (reason === "held" && !opts.red) {
             opts.onSkip?.(pr, "held label stale, skipped");
         } else if (reason === "held" && overlap.length === 0) {

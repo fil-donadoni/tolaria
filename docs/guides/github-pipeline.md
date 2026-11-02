@@ -447,7 +447,8 @@ left stale reds `queue-lane`'s drift guards and [`pr-fixup`](#pr-fixup)
 regenerates it. A PR Mergify holds `queued` (its draft running or green) is
 never pushed unless `CONFLICTING`, and a `queue:held` PR is refreshed on every
 push only while the base lineage is RED ([a hold](#a-red-dequeue-is-a-hold),
-issue #6957). Per PR:
+issue #6957) — or, off RED, once when its advisory lane is still the RED's
+red (issue #7843). Per PR:
 
 1. rebase its head onto the base in a throwaway worktree of the
    [primary checkout](#g-primary-checkout), with **the same step `land` runs**
@@ -1686,9 +1687,18 @@ moved base. Off RED the label is stale and `pr-refresh` skips it (`held label
 stale, skipped`): rebasing ~30 held PRs on every push after a GREEN dequeued
 the green drafts of the queued ones and livelocked the queue (issue #6957). A
 PR Mergify holds `queued` is never pushed unless `CONFLICTING`. The repair's
-push does this before the GREEN; the GREEN's requeue then finds the lane green
-or pending. If the lane goes red once the hold is lifted, the red is the PR's
-own, and the refusal rule labels it `land-failed`.
+push does this before the GREEN only for a held PR whose files it touched
+(issue #6651); every other held PR reaches the GREEN with the RED's lane red,
+which the queue's `-check-failure=check:lane (advisory)` refuses — on
+2026-11-02 that stranded twelve PRs (issue #7843). So off RED a held PR whose
+newest lane run failed, having STARTED before the GREEN or AMBER was written
+(`laneRedPredatesRelease`, `scripts/lib/pr-gate.ts`) is the exception both
+ways: `pr-refresh` rebases it on the next base push whatever the push
+touched, and `pr-gate` neither requeues nor releases it until that push's
+lane has run (a release would let the refusal rule label the base's red
+`land-failed`). A held PR with a green or pending lane is still skipped. If the
+lane goes red once the hold is lifted, the red is the PR's own, and the
+refusal rule labels it `land-failed`.
 The structure guard's `queue-refusal-hold` row pins both rules: no rule may
 add `land-failed` without the hold exemption.
 
