@@ -158,7 +158,7 @@ describe("Mobilize N — game flow (CR 702.181a / 508.4 / 603.7a)", () => {
             expect(t.power).toBe(1);
             expect(t.toughness).toBe(1);
             // The synthesized token definition is the shared 1/1 red Warrior.
-            const def = getDefinition(t.card.id);
+            const def = getDefinition(t.card.id as string);
             expect(def.name).toBe(WARRIOR_TOKEN.name);
             expect(def.subtypes).toContain("Warrior");
             // The synthesized definition carries the token's red as its
@@ -224,7 +224,7 @@ describe("Mobilize N — game flow (CR 702.181a / 508.4 / 603.7a)", () => {
         const state = boardWith(MOBILIZE_2);
         declareAttackers(state);
         resolveTopOfStack(state);
-        const view = projectPublicState(state, "p2");
+        const view = projectPublicState(state, 0, "p2");
         const projected = view.players[0].battlefield.filter(
             (c) => c.id !== "atk"
         );
