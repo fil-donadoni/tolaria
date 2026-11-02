@@ -289,6 +289,12 @@ export function checkAttachmentSBA(state: GameState): boolean {
             if (!card.subtypes.includes("Equipment")) continue;
             const host = findOnBattlefield(state, card.attachedTo);
             if (
+                // CR 301.5c — an Equipment that's also a creature can't equip a
+                // creature. Scoped to an `animation` (a "becomes a creature"
+                // effect, Iron Man Armor): a Reconfigure Equipment's printed
+                // creature type is removed while attached (CR 702.151b) by a
+                // static the raw `types` here do not yet reflect.
+                (card.animation !== undefined && isCreature(card)) ||
                 !host ||
                 !isCreature(host) ||
                 // CR 702.16d — protection unattaches the Equipment. CR
