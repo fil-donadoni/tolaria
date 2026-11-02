@@ -4,9 +4,11 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import { defineCard, PERMANENT_TYPES } from "../../types";
-import type { SpellContext } from "../../types";
+import type { EffectPredicate, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+import { diedTrigger } from "../../abilities/triggers/diedTrigger";
+import { WHITE_CAT_WARRIOR_TOKEN } from "../../sharedTokens";
 
 // Guide of Souls — {W} Creature — Human Cleric, 1/2 (MH3, issue #1194).
 // "Whenever another creature you control enters, you gain 1 life and get {E}
@@ -368,4 +370,235 @@ export const ocelotPride = defineCard(() => ({
             ],
         }),
     ],
+}));
+
+/** Ajani, Nacatl Avenger's `0` intervening "if" (CR 603.4): "if you control a
+ *  red permanent other than Ajani". Shared by the trigger-time and the
+ *  resolution-time check so the two can never drift apart. */
+const CONTROLS_OTHER_RED_PERMANENT: EffectPredicate = {
+    left: {
+        count: {
+            zone: "battlefield",
+            controller: "controller",
+            filter: { color: "R", excludeSource: true },
+        },
+    },
+    op: "ge",
+    right: 1,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ajani, Nacatl Pariah // Ajani, Nacatl Avenger (MH3 #237, issue #3719)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Front — {1}{W} Legendary Creature — Cat Warrior, 1/2:
+//   • ETB — `enteredTrigger` self + `createToken` of the shared
+//     `WHITE_CAT_WARRIOR_TOKEN` (2/1 white Cat Warrior).
+//   • "Whenever one or more other Cats you control die" — `diedTrigger`
+//     `another-yours` + `filter: { subtypes: "Cat" }`, reading the dying
+//     creature's LAST-KNOWN subtypes off the death event (CR 603.10a, issue
+//     #3719), with `oncePerEventBatch` so a board wipe triggers it once
+//     (CR 603.2c is the per-occurrence default the flag opts out of). "You
+//     may exile Ajani, then return him … transformed" is a bare cost-free
+//     `mayPay` (CR 608.2d — a choice announced as the effect applies)
+//     gating `exileAndReturnTransformed` on `$source` — the Tamiyo,
+//     Inquisitive Student flip (`blue.cards.ts`). If Ajani died in
+//     the same event the look-back still triggers him (CR 603.10a), and the
+//     exile finds no Ajani on the battlefield, so nothing happens (CR 400.7).
+//
+// Back — Legendary Planeswalker — Ajani, loyalty 3, colour indicator R/W:
+//   • +2 — `forEach` over the Cats you control + `counters` (+1/+1).
+//   • 0 — `createToken`, then the reflexive "When you do, if you control a
+//     red permanent other than Ajani, he deals damage equal to the number of
+//     creatures you control to any target" (CR 603.12, the Minsc & Boo −2
+//     shape). The intervening "if" (CR 603.4) is checked twice, as the rule
+//     demands: by the outer `if` when the reflexive ability would trigger
+//     (false → it never triggers), and again by the body's own `if` as it
+//     resolves (false → it does nothing). "Other than Ajani" is the count's
+//     `excludeSource`. The damage amount is counted on resolution.
+//   • −4 — `chooseCategorized` with the battlefield `sacrifice` sweep
+//     (issue #3712): each opponent keeps one artifact, creature, enchantment
+//     and planeswalker among their nonland permanents and sacrifices the
+//     rest, simultaneously (CR 101.4).
+//
+// Hand-written under Guard C: the oracle compiler refuses the transform
+// layout as a whole (the Grammar Gap below); every clause here is DSL.
+// compiler-gap: Legendary Creature — Cat Warrior // Legendary Planeswalker — Ajani (#7217)
+export const ajaniNacatlPariah = defineCard(() => ({
+    id: "0d16e8e0-31b2-4389-afd6-783c501f6fa0",
+    name: "Ajani, Nacatl Pariah",
+    rarity: "mythic",
+    manaCost: { X: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Cat", "Warrior"],
+    supertypes: ["Legendary"],
+    power: 1,
+    toughness: 2,
+    oracleText:
+        "When Ajani enters, create a 2/1 white Cat Warrior creature token.\nWhenever one or more other Cats you control die, you may exile Ajani, then return him to the battlefield transformed under his owner's control.",
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "ajani-nacatl-pariah-etb-token",
+            oracleText:
+                "When Ajani enters, create a 2/1 white Cat Warrior creature token.",
+            scope: "self",
+            effects: [
+                {
+                    op: "createToken",
+                    token: WHITE_CAT_WARRIOR_TOKEN,
+                    controller: "controller",
+                    count: 1,
+                },
+            ],
+        }),
+        diedTrigger({
+            id: "ajani-nacatl-pariah-cats-die-transform",
+            oracleText:
+                "Whenever one or more other Cats you control die, you may exile Ajani, then return him to the battlefield transformed under his owner's control.",
+            scope: "another-yours",
+            filter: { subtypes: "Cat" },
+            oncePerEventBatch: true,
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    prompt: "Exile Ajani, then return him transformed?",
+                    bind: "$flip",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$flip" },
+                    then: [
+                        {
+                            op: "exileAndReturnTransformed",
+                            target: { ref: "$source" },
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+    backFace: {
+        name: "Ajani, Nacatl Avenger",
+        types: ["Planeswalker"],
+        subtypes: ["Ajani"],
+        supertypes: ["Legendary"],
+        // CR 306.5b — starting loyalty, placed as the returning permanent
+        // enters the battlefield.
+        loyalty: 3,
+        // CR 202.2e — the back face is each colour of its own colour
+        // indicator (R/W, Scryfall `card_faces[1].color_indicator`).
+        colors: ["R", "W"],
+        oracleText:
+            "+2: Put a +1/+1 counter on each Cat you control.\n0: Create a 2/1 white Cat Warrior creature token. When you do, if you control a red permanent other than Ajani, he deals damage equal to the number of creatures you control to any target.\n−4: Each opponent chooses an artifact, a creature, an enchantment, and a planeswalker from among the nonland permanents they control, then sacrifices the rest.",
+        imagePrintId: "0d16e8e0-31b2-4389-afd6-783c501f6fa0",
+        activatedAbilities: [
+            {
+                id: "ajani-nacatl-avenger-plus2",
+                cost: { loyalty: 2 },
+                useStack: true,
+                oracleText: "+2: Put a +1/+1 counter on each Cat you control.",
+                effects: [
+                    {
+                        op: "forEach",
+                        select: {
+                            set: "permanents",
+                            zone: "battlefield",
+                            controller: "controller",
+                            filter: { subtype: "Cat" },
+                        },
+                        effects: [
+                            {
+                                op: "counters",
+                                action: "add",
+                                counter: "+1/+1",
+                                target: { ref: "$each" },
+                                count: 1,
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: "ajani-nacatl-avenger-zero",
+                cost: { loyalty: 0 },
+                useStack: true,
+                oracleText:
+                    "0: Create a 2/1 white Cat Warrior creature token. When you do, if you control a red permanent other than Ajani, he deals damage equal to the number of creatures you control to any target.",
+                effects: [
+                    {
+                        op: "createToken",
+                        token: WHITE_CAT_WARRIOR_TOKEN,
+                        controller: "controller",
+                        count: 1,
+                    },
+                    {
+                        op: "if",
+                        predicate: CONTROLS_OTHER_RED_PERMANENT,
+                        then: [
+                            {
+                                op: "reflexiveTrigger",
+                                oracleText:
+                                    "When you do, if you control a red permanent other than Ajani, he deals damage equal to the number of creatures you control to any target.",
+                                targetRequirement: { type: "any", count: 1 },
+                                effects: [
+                                    {
+                                        op: "if",
+                                        predicate: CONTROLS_OTHER_RED_PERMANENT,
+                                        then: [
+                                            {
+                                                op: "dealDamage",
+                                                amount: {
+                                                    count: {
+                                                        zone: "battlefield",
+                                                        controller:
+                                                            "controller",
+                                                        filter: {
+                                                            type: "Creature",
+                                                        },
+                                                    },
+                                                },
+                                                to: { target: 0 },
+                                            },
+                                        ],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: "ajani-nacatl-avenger-minus4",
+                cost: { loyalty: -4 },
+                useStack: true,
+                oracleText:
+                    "−4: Each opponent chooses an artifact, a creature, an enchantment, and a planeswalker from among the nonland permanents they control, then sacrifices the rest.",
+                effects: [
+                    {
+                        op: "chooseCategorized",
+                        player: "opponent",
+                        zone: "battlefield",
+                        categories: [
+                            { label: "Artifact", filter: { type: "Artifact" } },
+                            { label: "Creature", filter: { type: "Creature" } },
+                            {
+                                label: "Enchantment",
+                                filter: { type: "Enchantment" },
+                            },
+                            {
+                                label: "Planeswalker",
+                                filter: { type: "Planeswalker" },
+                            },
+                        ],
+                        onPicked: "keep",
+                        sweep: {
+                            filter: { excludeType: "Land" },
+                            action: "sacrifice",
+                        },
+                    },
+                ],
+            },
+        ],
+    },
 }));

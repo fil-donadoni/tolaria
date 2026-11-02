@@ -194,7 +194,9 @@ export const ironShieldElf = defineCard(() => ({
 // "graveyard"`, the same shape as Master of Death (mh2/multicolor.cards.ts).
 //
 // The second ability is a raw `TriggeredAbility` rather than `enteredTrigger`
-// — that factory exposes neither `oncePerEventBatch` nor `maxTriggersPerTurn`.
+// — written before that factory gained its `oncePerEventBatch` and
+// `maxTriggersPerTurn` passthroughs; both now exist, so the raw shape is
+// history, not necessity (kept as is: no behaviour change owed).
 //   - "another-yours" is the `matches` filter: controller match, self-
 //     exclusion, and a Creature type check (CR 603.2).
 //   - "entered or were cast from a graveyard" is an intervening-if (CR 603.4)

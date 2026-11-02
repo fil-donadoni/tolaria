@@ -392,7 +392,7 @@ describe("DeckZoneSurface — no per-card overlay buttons (issue #2584)", () => 
 // `deckGrouping.test.ts`, now asserted through the engine's `lookup` seam.
 describe("DeckZoneSurface — catalogue-only cards (Tabletop, ADR 0080)", () => {
     const CREATURE: DeckCard = {
-        cardId: "0d16e8e0-31b2-4389-afd6-783c501f6fa0",
+        cardId: "33333333-4444-5555-6666-777777777777",
         cardName: "Unimplemented Creature",
     };
     const LAND: DeckCard = {

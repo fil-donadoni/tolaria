@@ -13,7 +13,8 @@ import {
 
 const BOLT_LEA = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // red, MV 1
 const PLAINS_LEA = "b1623d57-4729-4796-b3f7-f1837a05c6ed"; // basic land
-const UNIMPLEMENTED = "0d16e8e0-31b2-4389-afd6-783c501f6fa0";
+// Synthetic id: a real print id goes stale the day its card ships (issue #3719).
+const UNIMPLEMENTED = "33333333-4444-5555-6666-777777777777";
 
 function row(overrides: Partial<FullCatalogueRow> = {}): FullCatalogueRow {
     return {
