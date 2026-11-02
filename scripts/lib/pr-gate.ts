@@ -194,8 +194,12 @@ export const REQUEUE_GRACE_MS = 10 * 60_000;
  *  - `none` — not held, the lineage cannot be read, this PR's own
  *    `base-health` (red under RED for a non-repair) or `trusted-author` is
  *    not green (an entry gate,
- *    not the PR's red: the label keeps it off the repair-pick rules), or a
- *    requeue is still within its grace.
+ *    not the PR's red: the label keeps it off the repair-pick rules), its
+ *    advisory lane is still the red the cleared RED put there
+ *    (`laneRedPredatesRelease`: the queue's
+ *    `-check-failure=check:lane (advisory)` refuses the requeue, and a
+ *    release would make the base's red a repair pick — `pr-refresh` pushes
+ *    it, and the fresh lane decides), or a requeue is still within its grace.
  */
 export type HeldAction = "none" | "requeue" | "release";
 
@@ -207,6 +211,9 @@ export function heldPrAction(input: {
     /** When the newest requeue since the hold was posted, or null. Read
      *  only when the answer matters: it costs two API calls. */
     lastRequeueAt: () => string | null;
+    /** `laneRedPredatesRelease` on this PR's head. Read only when the
+     *  answer matters: it costs one API call. */
+    laneRedStale: () => boolean;
     now: number;
 }): HeldAction {
     const { labels } = input;
@@ -219,9 +226,51 @@ export function heldPrAction(input: {
     if (!labels.includes(READY_LABEL) || labels.includes(FAILED_LABEL))
         return "release";
     if (input.trustedAuthor !== "success") return "none";
+    if (input.laneRedStale()) return "none";
     const at = input.lastRequeueAt();
     if (at === null) return "requeue";
     return input.now - Date.parse(at) < REQUEUE_GRACE_MS ? "none" : "release";
+}
+
+/**
+ * Whether a held PR's advisory lane red is the base's, left by a RED that has
+ * since cleared (issue #7843): the lane tests the PR merged with the base,
+ * and its run stays pinned to the merge it was cut from — under the RED,
+ * broken — until a push re-runs it. Off RED (`green` / `amber` only), a
+ * failed lane run that STARTED before the newest verdict was written is that
+ * stale red; one started after it ran on the cleared base and is the PR's
+ * own. The newest verdict, not the one that cleared the RED: a PR whose own
+ * red outlives a later GREEN costs one more push, then fails after it.
+ * Unknown times read as not stale: today's rules judge the PR.
+ */
+export function laneRedPredatesRelease(input: {
+    /** `started_at` of the head's newest advisory lane run when it failed
+     *  (`laneFailedAtJq`), else null. Read only off RED: it costs one API
+     *  call. */
+    laneFailedRunStartedAt: () => string | null;
+    lineage: Pick<Lineage, "kind" | "verdict">;
+}): boolean {
+    const { lineage } = input;
+    if (lineage.kind !== "green" && lineage.kind !== "amber") return false;
+    const released = Date.parse(lineage.verdict?.at ?? "");
+    if (Number.isNaN(released)) return false;
+    const startedAt = input.laneFailedRunStartedAt();
+    if (startedAt === null) return false;
+    const started = Date.parse(startedAt);
+    if (Number.isNaN(started)) return false;
+    return started < released;
+}
+
+/** `gh api` path of a commit's check runs — the lane's, read by `pr-gate`
+ *  and `pr-refresh` alike (issue #7843). */
+export function checkRunsApiPath(repo: string, sha: string): string {
+    return `repos/${repo}/commits/${sha}/check-runs?per_page=100`;
+}
+
+/** The head's NEWEST advisory lane run (a re-run supersedes), its
+ *  `started_at` as a JSON string when it failed, else no output. */
+export function laneFailedAtJq(): string {
+    return `[.check_runs[] | select(.name == "${LANE_CHECK_NAME}")] | sort_by(.started_at // "") | last | select(. != null and .conclusion == "failure") | .started_at | tojson`;
 }
 
 /** `TRUSTED_AUTHORS` as the repository variable holds it: logins separated

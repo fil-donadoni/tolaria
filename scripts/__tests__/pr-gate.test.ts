@@ -17,6 +17,7 @@ import {
     gatePrOf,
     healthAdmission,
     heldPrAction,
+    laneRedPredatesRelease,
     holdsBeforeRed,
     isMergifyQueuePr,
     needsRequeue,
@@ -505,6 +506,7 @@ describe("holdsBeforeRed — the hold is labelled before the failure that dequeu
                 baseHealth: "success",
                 trustedAuthor: "success",
                 lastRequeueAt: () => null,
+                laneRedStale: () => false,
                 now,
             });
         expect(dequeued.map(offRed)).toEqual(["requeue", "requeue"]);
@@ -526,6 +528,7 @@ describe("heldPrAction — a queue:held PR off RED (issue #6957)", () => {
         baseHealth: "success" as const,
         trustedAuthor: "success" as const,
         lastRequeueAt: (): string | null => null,
+        laneRedStale: () => false,
         now: NOW,
     };
 
@@ -603,6 +606,112 @@ describe("heldPrAction — a queue:held PR off RED (issue #6957)", () => {
     });
 });
 
+describe("heldPrAction — a held PR whose lane is still the cleared RED's red (issue #7843)", () => {
+    // 2026-11-02: GREEN @ a8590e9c at 09:10Z; twelve held PRs carried a
+    // `check:lane (advisory)` red from 21:39–00:17Z. The requeue could not
+    // take (`-check-failure=check:lane (advisory)`), and the grace's release
+    // would have labelled all twelve `land-failed`.
+    const NOW = Date.parse("2026-11-02T09:30:00Z");
+    const ago = (min: number) => new Date(NOW - min * 60_000).toISOString();
+    const held = {
+        labels: ["ready-to-land", "queue:held"],
+        lineage: { kind: "green" as const },
+        baseHealth: "success" as const,
+        trustedAuthor: "success" as const,
+        lastRequeueAt: (): string | null => null,
+        laneRedStale: () => true,
+        now: NOW,
+    };
+
+    it("never releases it once the requeue grace is over — it waits for pr-refresh's push", () => {
+        expect(
+            heldPrAction({
+                ...held,
+                lastRequeueAt: () => ago(REQUEUE_GRACE_MS / 60_000 + 1),
+            })
+        ).toBe("none");
+    });
+
+    it("posts no requeue the queue would refuse on that red", () => {
+        expect(heldPrAction(held)).toBe("none");
+    });
+
+    it("still releases it once queued, or out of the queue's hands", () => {
+        expect(
+            heldPrAction({ ...held, labels: [...held.labels, "queued"] })
+        ).toBe("release");
+        expect(
+            heldPrAction({ ...held, labels: [...held.labels, "land-failed"] })
+        ).toBe("release");
+    });
+});
+
+describe("laneRedPredatesRelease — the base's red, or the PR's own (issue #7843)", () => {
+    const green = (at?: string): Pick<Lineage, "kind" | "verdict"> => ({
+        kind: "green",
+        verdict: { sha: "a8590e9c", status: "GREEN", at },
+    });
+
+    it("a failed lane run started before the GREEN was written is the RED's", () => {
+        expect(
+            laneRedPredatesRelease({
+                laneFailedRunStartedAt: () => "2026-11-02T00:14:16Z",
+                lineage: green("2026-11-02T09:10:17Z"),
+            })
+        ).toBe(true);
+        expect(
+            laneRedPredatesRelease({
+                laneFailedRunStartedAt: () => "2026-11-02T00:14:16Z",
+                lineage: { ...green("2026-11-02T09:10:17Z"), kind: "amber" },
+            })
+        ).toBe(true);
+    });
+
+    it("a failed lane run started after it ran on the cleared base: the PR's own", () => {
+        expect(
+            laneRedPredatesRelease({
+                laneFailedRunStartedAt: () => "2026-11-02T09:40:00Z",
+                lineage: green("2026-11-02T09:10:17Z"),
+            })
+        ).toBe(false);
+    });
+
+    it("no failed lane, a blocking lineage, or an unknown time is not stale", () => {
+        const at = "2026-11-02T09:10:17Z";
+        expect(
+            laneRedPredatesRelease({
+                laneFailedRunStartedAt: () => null,
+                lineage: green(at),
+            })
+        ).toBe(false);
+        for (const kind of ["red", "second-red", "infra", "none"] as const)
+            expect(
+                laneRedPredatesRelease({
+                    laneFailedRunStartedAt: () => "2026-11-02T00:14:16Z",
+                    lineage: { ...green(at), kind },
+                })
+            ).toBe(false);
+        expect(
+            laneRedPredatesRelease({
+                laneFailedRunStartedAt: () => "2026-11-02T00:14:16Z",
+                lineage: green(undefined),
+            })
+        ).toBe(false);
+    });
+
+    it("reads the head's lane only off RED", () => {
+        let reads = 0;
+        laneRedPredatesRelease({
+            laneFailedRunStartedAt: () => {
+                reads++;
+                return null;
+            },
+            lineage: { ...green("2026-11-02T09:10:17Z"), kind: "red" },
+        });
+        expect(reads).toBe(0);
+    });
+});
+
 describe("heldPrAction — a declared repair held under RED (issue #7140)", () => {
     // 2026-10-27: revert PR #7136 closed repair issue #7135, `base-health`
     // green under RED @ 5ab0781a, `queue:held` — never requeued, so the RED
@@ -615,6 +724,7 @@ describe("heldPrAction — a declared repair held under RED (issue #7140)", () =
         baseHealth: "success" as const,
         trustedAuthor: "success" as const,
         lastRequeueAt: (): string | null => null,
+        laneRedStale: () => false,
         now: NOW,
     };
 

@@ -148,6 +148,25 @@ describe("selectRefreshCandidates", () => {
         ]);
     });
 
+    it("off RED, takes a held PR whose lane is still the cleared RED's red, whatever the push touched (issue #7843)", () => {
+        const held = ["ready-to-land", "queue:held"];
+        const skips: Array<[number, string]> = [];
+        const got = selectRefreshCandidates(
+            [
+                pr({ number: 1, labels: held, laneRedStale: true }),
+                pr({ number: 2, labels: held, laneRedStale: false }),
+                pr({ number: 3, labels: held }),
+            ],
+            new Set(["unrelated.ts"]),
+            { red: false, onSkip: (p, why) => skips.push([p.number, why]) }
+        );
+        expect(got.map((c) => [c.pr.number, c.reason])).toEqual([[1, "held"]]);
+        expect(skips).toEqual([
+            [2, "held label stale, skipped"],
+            [3, "held label stale, skipped"],
+        ]);
+    });
+
     it("never pushes a PR Mergify holds queued unless it conflicts — the push would dequeue its draft (issue #6957)", () => {
         const queued = ["ready-to-land", "queued"];
         const skips: number[] = [];
