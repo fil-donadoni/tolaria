@@ -148,8 +148,10 @@ export const jaceWielderOfMysteries = defineCard(() => ({
                                 controller: "controller",
                             },
                         },
-                        op: "eq",
-                        right: 0,
+                        // "no cards in it": a cardinality below one (a
+                        // literal comparand is a positive integer).
+                        op: "lt",
+                        right: 1,
                     },
                     then: [{ op: "winGame", player: "controller" }],
                 },
