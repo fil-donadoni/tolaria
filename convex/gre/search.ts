@@ -2616,7 +2616,7 @@ function withoutDominatedTriggerTargets(
  *  are announced), or `undefined` when the probe left anything owed — a
  *  further announcement, a choice, a trigger it put on the stack — and so
  *  scored a position the answer has not finished making. */
-function settledAnswerReward(
+export function settledAnswerReward(
     world: GameState,
     pid: string,
     move: Move,
