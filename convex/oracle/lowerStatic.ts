@@ -41,6 +41,7 @@
  */
 
 import { expandAnnihilator } from "../cards/abilities/annihilator";
+import { expandMobilize } from "../cards/abilities/mobilize";
 import { expandFadingVanishing } from "../cards/abilities/fadingVanishing";
 import { expandHideaway } from "../cards/abilities/hideaway";
 import { expandKeywordTriggers } from "../cards/abilities/keywordTriggers";
@@ -245,8 +246,10 @@ export function isDefinitionLevelKeyword(keyword: string): boolean {
     // absent: it reads `chapterAbilities`, not a keyword, so no grant can reach
     // it. Each returns its INPUT unchanged when its keyword is absent, which is
     // what makes identity the honest test.
-    const expanded = expandAnnihilator(
-        expandHideaway(expandFadingVanishing(expandKeywordTriggers(bare)))
+    const expanded = expandMobilize(
+        expandAnnihilator(
+            expandHideaway(expandFadingVanishing(expandKeywordTriggers(bare)))
+        )
     );
     return expanded !== bare;
 }

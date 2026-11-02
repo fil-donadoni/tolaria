@@ -588,6 +588,35 @@ export const fadingRule: Rule<SlotIR> = rule("fading", (span) => {
     });
 });
 
+// ── Mobilize N (CR 702.181a) ───────────────────────────────────────────────
+
+const MOBILIZE = /^Mobilize (\d+)$/;
+
+/**
+ * CR 702.181a — "Mobilize N" means "Whenever this creature attacks, create N
+ * 1/1 red Warrior creature tokens. Those tokens enter tapped and attacking.
+ * Sacrifice them at the beginning of the next end step." The whole trigger is
+ * expanded from the one `staticAbilities` string "mobilize N" at the
+ * `getDefinition` seam (ADR 0054, `expandMobilize`), so the rule emits that
+ * string and nothing else — the `fadingRule` shape.
+ *
+ * Refused: "Mobilize 0" (no printed card), "Mobilize X" (a variable N is a
+ * different printed shape this grammar has no card for).
+ */
+export const mobilizeRule: Rule<SlotIR> = rule("mobilize", (span) => {
+    const match = MOBILIZE.exec(span);
+    if (match === null) return fail('a mobilize line is "Mobilize N"', span);
+    const count = Number(match[1]);
+    if (count < 1) return fail("mobilize counts from 1", span);
+    const row = KEYWORD_VOCABULARY.get("mobilize");
+    if (row === undefined)
+        return fail("the Mechanics Registry names no mobilize row", span);
+    return ok({
+        kind: "keywords" as const,
+        keywords: [{ ...row, ability: `mobilize ${count}` }],
+    });
+});
+
 // ── Impending N—[cost] (CR 702.176a) ──────────────────────────────────────
 
 const IMPENDING = /^Impending (\d+)—(.+)$/;
@@ -698,7 +727,7 @@ export const offspringRule: Rule<SlotIR> = rule("offspring", (span) => {
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker line, or one cost-parameter keyword (cycling, madness, plot,
- * foretell, overload, morph, fading, impending, equip, crew, ninjutsu,
+ * foretell, overload, morph, fading, mobilize, impending, equip, crew, ninjutsu,
  * offspring). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
  * object, and each parameterised rule reads only its own head — and `oneOf`
@@ -718,6 +747,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     echoRule,
     cumulativeUpkeepRule,
     fadingRule,
+    mobilizeRule,
     impendingRule,
     equipRule,
     crewRule,

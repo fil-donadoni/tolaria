@@ -280,6 +280,22 @@ export const REBEL_TOKEN: EffectTokenSpec = {
     colors: ["R"],
 };
 
+/** Warrior token (CR 702.181a, issue #2611) — the "1/1 red Warrior creature
+ *  token" every Mobilize N creature creates (`abilities/mobilize.ts`).
+ *  Vanilla. `entersTapped`/`entersAttacking` are the Mobilize trigger's own
+ *  per-ability flags, NOT baked in here (the `HUMAN_TOKEN` split).
+ *
+ *  Deliberately NO pinned `imagePrintId`, the `REBEL_TOKEN` treatment — art
+ *  resolves per producer from the Card Prints table's Token Prints. */
+export const WARRIOR_TOKEN: EffectTokenSpec = {
+    name: "Warrior",
+    types: ["Creature"],
+    subtypes: ["Warrior"],
+    power: 1,
+    toughness: 1,
+    colors: ["R"],
+};
+
 /** Hero token (CR 707.2, issue #2610) — the "1/1 colorless Hero creature
  *  token" Job select (CR 702.182a) creates: Astrologian's Planisphere
  *  (`fin/blue.ts`). Vanilla; `colors` omitted = colorless (CR 105.2/110.5).

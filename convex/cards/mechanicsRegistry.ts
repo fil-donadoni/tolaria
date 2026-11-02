@@ -2481,7 +2481,10 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Mobilize",
         kind: "keyword-ability",
         cr: "702.181",
-        status: "planned",
+        status: "implemented",
+        bindingPattern: /^mobilize \d+$/,
+        binding: "convex/cards/abilities/mobilize.ts expandMobilize",
+        note: 'Issue #2611 — "mobilize N" is a TRIGGERED ability (CR 702.181a), expanded IMPLICITLY from the `staticAbilities` string at the `getDefinition` seam (`expandMobilize`, `convex/cards/registry.ts`, ADR 0054 — the annihilator/firebending shape). Fully declarative: an `attacksTrigger({ scope: "self" })` whose body is `createToken` (WARRIOR_TOKEN, `count: N`, `entersTapped` + `entersAttacking`, CR 508.4) with `bindAll` naming every token as a picks binding, then ONE `delayedTrigger` (`timing: "next-end-step"`, CR 603.7a) freezing them by a `{ select: { set: "bound" } }` list capture and sacrificing them (picks-form `sacrifice`). The tokens enter attacking without being declared, so they fire no attackers-declared trigger and ignore attack restrictions and costs (CR 508.4c, `joinCombatAttacking`); which defender each attacks is the CR 508.4 as-enters `attack-target` choice. Emitted by the Oracle grammar from the "Mobilize N" keyword line (`mobilizeRule`, `oracle/grammar/slots/keywordLine.ts`). Used by Voice of Victory.',
     },
     // 702.182 Job select (issue #2610) — identical shell to Living Weapon
     // (CR 702.92) with a 1/1 colorless Hero token instead of the 0/0 Germ;
