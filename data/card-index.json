@@ -2214,6 +2214,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Andromedan Automatons",
+        "scryfallId": "fc386662-0fe3-432f-85a8-9a06e1274245",
+        "oracleId": "2da322e6-a8e2-4d7a-bd34-54a3dfa85940",
+        "firstSet": "trk",
+        "firstPrintId": "fc386662-0fe3-432f-85a8-9a06e1274245",
+        "firstPrintSet": "trk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Angel of Despair",
         "scryfallId": "9ae71424-df9c-481c-9305-a0c30adcfda2",
         "oracleId": "02520741-d7f0-46e6-acbe-010b65fc24c0",
@@ -28648,6 +28658,16 @@
         "source": "compiled"
     },
     {
+        "name": "Giant Space Amoeba",
+        "scryfallId": "92791a77-c508-4411-8d5d-abc5c9f881a2",
+        "oracleId": "ff9f3d23-a12f-428b-8001-90dafac0c6d7",
+        "firstSet": "trc",
+        "firstPrintId": "92791a77-c508-4411-8d5d-abc5c9f881a2",
+        "firstPrintSet": "trc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Giant Spectacle",
         "scryfallId": "7c425337-6f1f-494e-a7ae-7d533d7a0b4e",
         "oracleId": "97e34c3a-070e-406a-8505-657f4d57def8",
@@ -38463,6 +38483,16 @@
         "firstPrintId": "1cc6a5e6-0b73-4488-8954-4b168ce7106d",
         "firstPrintSet": "wwk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Khan, Despot by Design",
+        "scryfallId": "fd283ef1-fd8c-4288-8efa-6e81c92b3415",
+        "oracleId": "b7ea2089-abcd-4e60-8201-93801eae5084",
+        "firstSet": "trk",
+        "firstPrintId": "fd283ef1-fd8c-4288-8efa-6e81c92b3415",
+        "firstPrintSet": "trk",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -61235,6 +61265,16 @@
         "firstPrintId": "0fb03437-32cf-4c97-bf91-ea8b2ad3f964",
         "firstPrintSet": "spm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Scotty, Chief Engineer",
+        "scryfallId": "a09834eb-948d-41cf-b79d-f857df6fb853",
+        "oracleId": "3bd553db-2c7d-42cd-8ded-ab2c955b8f4e",
+        "firstSet": "trc",
+        "firstPrintId": "a09834eb-948d-41cf-b79d-f857df6fb853",
+        "firstPrintSet": "trc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
