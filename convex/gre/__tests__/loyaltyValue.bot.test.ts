@@ -46,6 +46,8 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Grist, the Hunger Tide": 6,
     // start 3, spends 1/12
     "Jace, the Mind Sculptor": 13,
+    // start 4, spends 8 (issue #3231)
+    "Jace, Wielder of Mysteries": 9,
     // start 5, spends 1/2
     "Karn, Scion of Urza": 6,
     // start 7, spend 1 — starting count again

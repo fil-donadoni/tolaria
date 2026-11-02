@@ -77,3 +77,85 @@ export const narsetParterOfVeils = defineCard(() => ({
         },
     ],
 }));
+
+// ─────────────────────────────────────────────────────────────────────────
+// Jace, Wielder of Mysteries — {1}{U}{U}{U} Legendary Planeswalker — Jace,
+// starting loyalty 4 (CR 306.5b). Three clauses (issue #3231):
+//   • STATIC — "If you would draw a card while your library has no cards in
+//     it, you win the game instead." A CR 614.1a draw replacement on the
+//     draw seam (ADR 0061), NOT a loss replacement: it fires at the attempted
+//     draw, so the replaced draw never happens (CR 614.6) and the CR 704.5b
+//     loss is never flagged. Scoped to the controller's own draws, read live
+//     from the battlefield — it ends the instant Jace leaves play.
+//   • +1 (CR 606) — "Target player mills two cards. Draw a card." Each draw
+//     funnels through the seam, so drawing from an empty library under the
+//     static wins.
+//   • −8 (CR 606) — "Draw seven cards. Then if your library has no cards in
+//     it, you win the game." The draws that succeed happen; an eighth-card
+//     attempt (a short library) meets the static. The trailing win is a
+//     SEPARATE check read after all seven draws (an `if` over the library
+//     count), not the replacement.
+// hand-tail: If you would draw a card while your library has no cards in it, you win the game instead (#3231)
+export const jaceWielderOfMysteries = defineCard(() => ({
+    id: "6adb7d73-4482-4930-8497-cffd169b57e2",
+    name: "Jace, Wielder of Mysteries",
+    rarity: "rare",
+    manaCost: { X: 1, U: 3 },
+    types: ["Planeswalker"],
+    subtypes: ["Jace"],
+    supertypes: ["Legendary"],
+    loyalty: 4,
+    oracleText:
+        "If you would draw a card while your library has no cards in it, you win the game instead.\n+1: Target player mills two cards. Draw a card.\n−8: Draw seven cards. Then if your library has no cards in it, you win the game.",
+    drawReplacement: {
+        id: "jace-wielder-empty-library-win",
+        oracleText:
+            "If you would draw a card while your library has no cards in it, you win the game instead.",
+        applies: (event, source, state) =>
+            event.drawingPlayer === source.controllerId &&
+            state.players.find((p) => p.id === event.drawingPlayer)
+                ?.librarySize === 0,
+        outcome: { kind: "win" },
+    },
+    activatedAbilities: [
+        {
+            id: "jace-wielder-plus1",
+            // CR 606.2 / 606.4 — loyalty ability; `+1` adds one counter.
+            cost: { loyalty: 1 },
+            useStack: true,
+            oracleText: "+1: Target player mills two cards. Draw a card.",
+            targetRequirement: { type: "player", count: 1 },
+            effects: [
+                { op: "mill", player: { target: 0 }, count: 2 },
+                { op: "draw", player: "controller", count: 1 },
+            ],
+        },
+        {
+            id: "jace-wielder-minus8",
+            // CR 606.2 / 606.4 — loyalty ability; `-8` removes eight counters.
+            cost: { loyalty: -8 },
+            useStack: true,
+            oracleText:
+                "−8: Draw seven cards. Then if your library has no cards in it, you win the game.",
+            effects: [
+                { op: "draw", player: "controller", count: 7 },
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "library",
+                                controller: "controller",
+                            },
+                        },
+                        // "no cards in it": a cardinality below one (a
+                        // literal comparand is a positive integer).
+                        op: "lt",
+                        right: 1,
+                    },
+                    then: [{ op: "winGame", player: "controller" }],
+                },
+            ],
+        },
+    ],
+}));

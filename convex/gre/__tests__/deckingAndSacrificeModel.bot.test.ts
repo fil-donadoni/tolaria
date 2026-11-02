@@ -248,6 +248,54 @@ describe("evaluate sees the library (CR 104.3c / 704.5b)", () => {
     });
 });
 
+// Issue #3231 — a draw replacement whose outcome is a WIN for the drawing
+// player (CR 614.1a — Jace, Wielder of Mysteries) turns the own-library reading
+// upside down: an empty library is one draw from winning, not from losing.
+describe("evaluate under a draw-replacement win (CR 614.1a)", () => {
+    const JACE = "Jace, Wielder of Mysteries";
+    /** My library trimmed to `mine`, the opponent's at 20; `jaceSeat` controls
+     *  Jace (or nobody does). */
+    function jaceBoard(mine: number, jaceSeat?: "me" | "opp"): GameState {
+        const state = board(
+            jaceSeat
+                ? [{ name: JACE, owner: jaceSeat, zone: "battlefield" }]
+                : [],
+            20
+        );
+        const me = seatPlayerId(state, "me");
+        const mePlayer = state.players.find((x) => x.id === me)!;
+        mePlayer.library = mePlayer.library.slice(0, mine);
+        return state;
+    }
+
+    it("reads my empty library in the WON band when my draw from it wins", () => {
+        const state = jaceBoard(0, "me");
+        expect(evaluate(state, seatPlayerId(state, "me"))).toBeGreaterThan(
+            WIN_SCORE / 2
+        );
+    });
+
+    it("keeps it in the LOST band when the opponent controls the replacement", () => {
+        const state = jaceBoard(0, "opp");
+        expect(evaluate(state, seatPlayerId(state, "me"))).toBeLessThan(
+            -WIN_SCORE / 2
+        );
+    });
+
+    it("charges a short library nothing while my empty-library draw wins", () => {
+        const me = (s: GameState) => seatPlayerId(s, "me");
+        const deep = jaceBoard(20, "me");
+        const short = jaceBoard(2, "me");
+        expect(evaluate(short, me(short))).toBe(evaluate(deep, me(deep)));
+        // Control: without the replacement the same trim is a cost.
+        const plainDeep = jaceBoard(20);
+        const plainShort = jaceBoard(2);
+        expect(evaluate(plainShort, me(plainShort))).toBeLessThan(
+            evaluate(plainDeep, me(plainDeep))
+        );
+    });
+});
+
 describe("evaluate values a graveyard a play-from-graveyard engine can cast", () => {
     function withGraveyard(gy: number, breach: boolean): GameState {
         const cards: BladeScenario["spec"]["cards"] = [

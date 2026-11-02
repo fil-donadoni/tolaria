@@ -409,6 +409,13 @@
             "needsSetup": true
         }
     ],
+    "Jace, Wielder of Mysteries": [
+        {
+            "label": "draw-replacement win: mills its own library empty under Jace, Wielder of Mysteries",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Lightning Bolt": [
         {
             "label": "escape: reaches for a Lightning Bolt Underworld Breach made escapable",
