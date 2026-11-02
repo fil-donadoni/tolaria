@@ -357,6 +357,7 @@ type StructuralKey =
     // earlier player pick into `zoneOwnerId` (the real, registered filter) —
     // never itself checked against a candidate.
     | "zoneOwnerOfPriorPlayerTarget"
+    | "zoneOwnerOfPriorPermanentController"
     // CR 702.33g / 601.2c (issue #4220) — a declaration read at ANNOUNCEMENT,
     // deciding whether this group is announced AT ALL on this cast
     // (`castAnnouncedTargetGroups`, `gre/kicker.ts`). A group it drops is
