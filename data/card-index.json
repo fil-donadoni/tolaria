@@ -5070,6 +5070,14 @@
         "source": "compiled"
     },
     {
+        "name": "Baloth Prime",
+        "scryfallId": "2c723fc9-d5c9-4126-a9a6-f80c247a4b6b",
+        "oracleId": "dba3dcc1-2177-4a8c-8cf3-7d4fb83c7a16",
+        "firstSet": "eoc",
+        "firstPrintId": "2c723fc9-d5c9-4126-a9a6-f80c247a4b6b",
+        "firstPrintSet": "eoc"
+    },
+    {
         "name": "Balshan Collaborator",
         "scryfallId": "e23ebd3b-59bf-4f3d-b320-9283871c4540",
         "oracleId": "7cdbc115-cb15-4ada-8229-d40f0b22dd27",
