@@ -5414,6 +5414,16 @@ function lowerFrameChain(
                     count: frame.count,
                 });
                 break;
+            // CR 722.3a — "this permanent": a spell's own text has no
+            // permanent to prepare. The Op's seam refuses a permanent with no
+            // prepare spell or one already prepared.
+            case "becomePrepared":
+                if (site.resolvingSpell === true)
+                    return unlowerable(
+                        "only a permanent's ability has a permanent to prepare"
+                    );
+                ops.push({ op: "becomePrepared", target: { ref: "$source" } });
+                break;
             // CR 122.1 — a counter kind a player holds, added to that player.
             case "playerCounters": {
                 const player = playerRef(frame.player, walk.targets, site);

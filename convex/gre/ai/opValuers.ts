@@ -2676,6 +2676,12 @@ const grantCastFromExile: Valuer<"grantCastFromExile"> = grantCastPermission;
 const grantCastFromGraveyard: Valuer<"grantCastFromGraveyard"> =
     grantCastPermission;
 
+// CR 722.3a/c (issue #3689) — becoming prepared creates an exiled copy of the
+// prepare spell its controller may cast: a cast permission on one known card,
+// priced like the grants above. A refused subject (no prepare spell, already
+// prepared) is a no-op the grounding context cannot see, read at its yield.
+const becomePrepared: Valuer<"becomePrepared"> = grantCastPermission;
+
 const grantFlashback: Valuer<"grantFlashback"> = grantCastPermission;
 
 const grantGraveyardPlay: Valuer<"grantGraveyardPlay"> = () => ({
@@ -3370,6 +3376,7 @@ export const OP_VALUERS: {
     counters,
     setLevel,
     monstrosity,
+    becomePrepared,
     // Backfilled Ops (issue #1430).
     addMana,
     drainManaPool,
@@ -3653,6 +3660,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // permanent itself, nothing taken away: a gift to its controller, the
     // `setLevel` reasoning exactly.
     monstrosity: "beneficial",
+    becomePrepared: "beneficial",
     // CR 614.9 (issue #3810) — the sign is genuinely neutral AT THIS
     // AXIS, and not for want of a decision: a redirect conserves the
     // stake. It takes exactly as much off the recipient it shields as it

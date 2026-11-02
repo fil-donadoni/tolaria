@@ -48,6 +48,7 @@ import { EFFECT_OP_REGISTRY } from "../../cards/mechanicsRegistry";
 // issue #4451 — the amount fields, derived from the tagged Op Schema.
 import { AMOUNT_KEYS } from "./validate";
 import { classLevelOf } from "../../cards/abilities/classLevels";
+import { hasPrepareSpell } from "../prepare";
 import { getEffectivePT } from "../layers";
 import { readPlayerCounters } from "../playerCounters";
 import { registerTokenDefinition } from "../../cards";
@@ -2529,6 +2530,23 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSubject(req, op.target);
             return;
+        case "becomePrepared":
+            // `becomePrepared` (issue #3689, CR 722.3a) gives a permanent the
+            // prepared designation. Modelled like `monstrosity`: an announced
+            // permanent slot or an ability's own `$source`, against the
+            // generic filler permanent — which has no prepare spell, so what
+            // the canned run proves is CR 722.3a's refusal (no designation,
+            // no exiled copy). The gaining half is the Op's interpreter test.
+            if (!subjectModelled(req, op.target)) {
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "becomePrepared" targets $each — covered by the Op's interpreter test`
+                );
+                return;
+            }
+            recordSubject(req, op.target);
+            return;
         case "tapUntap":
             // `tapUntap` (issue #842) taps/untaps a permanent (CR 701.26). The
             // generator can assert a TAP on an announced permanent slot or on
@@ -3780,6 +3798,40 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: actual === expected && perm.monstrous === true,
                     detail: `+1/+1 counters ${actual} (expected ${expected}), monstrous ${perm.monstrous === true}`,
+                };
+            },
+        };
+    },
+    // `becomePrepared` (issue #3689, CR 722.3a) — the subject ends prepared iff
+    // it was already or has a prepare spell, with exactly one exiled copy then
+    // and none otherwise: the seeded filler has none, so the canned run reads
+    // the refusal; a preparation card seeded there reads the gain.
+    becomePrepared(rawOp, scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "becomePrepared" }>;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
+        const permBefore = pre.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === permId);
+        if (!permBefore) return null;
+        const expected =
+            permBefore.prepared === true || hasPrepareSpell(permBefore);
+        return {
+            label: `prepare permanent ${permId} (prepared → ${expected})`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                const copies = post.players
+                    .flatMap((p) => p.exile)
+                    .filter((c) => c.preparedCopyOf === permId).length;
+                const prepared = perm.prepared === true;
+                return {
+                    ok: prepared === expected && copies === (expected ? 1 : 0),
+                    detail: `prepared ${prepared} (expected ${expected}), exiled copies ${copies}`,
                 };
             },
         };

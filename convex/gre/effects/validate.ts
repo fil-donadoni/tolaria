@@ -5167,6 +5167,15 @@ const OP_SCHEMAS: OpSchemaTable = {
             count: isEffectValue,
         },
     },
+    // CR 722.3a (issue #3689) — "<this permanent> becomes prepared". `target`
+    // is an object selector (`$source` — the printed shape — an announced slot
+    // or a forEach `$each`). No other field: the designation is gained or the
+    // CR 722.3a refusal makes it a no-op.
+    becomePrepared: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
     // CR 701.26 (issue #842) — tap/untap a permanent. `action` selects the
     // direction; `target` is an object selector (announced slot, `$source`, or
     // a forEach `$each`). No amount — a permanent is tapped or it isn't.

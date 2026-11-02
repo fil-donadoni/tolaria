@@ -4640,6 +4640,16 @@ export const OP_EXECUTORS: {
         if (count === undefined) return;
         ctx.monstrosity(target, count);
     },
+    // CR 722.3a (issue #3689) — "<this permanent> becomes prepared". A thin
+    // adapter over `SpellContext.becomePrepared`, the seam "enters prepared"
+    // uses: CR 722.3a's refusals (no prepare spell, already prepared) are a
+    // silent no-op there, and the CR 722.3c exiled copy is made in the same
+    // act. Skipped when the permanent is gone (CR 608.2b).
+    becomePrepared(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.becomePrepared(target);
+    },
     // CR 701.26 (issue #842) — tap or untap a permanent. A thin declarative
     // skin over `tap` / `untap`, ONE execution path (ADR 0045). Skipped when
     // the target is gone (CR 608.2b — the permanent left the battlefield;
@@ -7745,6 +7755,7 @@ export const MELD_GROUP_DISPOSITION: Readonly<
     addSubtype: BATTLEFIELD_ONLY,
     animate: BATTLEFIELD_ONLY,
     attach: BATTLEFIELD_ONLY,
+    becomePrepared: BATTLEFIELD_ONLY,
     counters: BATTLEFIELD_ONLY,
     destroy: BATTLEFIELD_ONLY,
     exileAndReturnTransformed: BATTLEFIELD_ONLY,

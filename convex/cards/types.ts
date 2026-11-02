@@ -4701,6 +4701,13 @@ export interface SpellContext {
      *  the target is already monstrous or has left the battlefield
      *  (CR 608.2b). */
     monstrosity: (target: TargetSelection, count: number) => void;
+    /** CR 722.3a — `target` "becomes prepared": it gains the prepared
+     *  designation and its controller creates the CR 722.3c exiled copy of its
+     *  prepare spell, through `becomePrepared` (`gre/prepare.ts`), the seam
+     *  "enters prepared" uses. No-op when the permanent has no prepare spell,
+     *  is already prepared (CR 722.3a), or has left the battlefield
+     *  (CR 608.2b). */
+    becomePrepared: (target: TargetSelection) => void;
     /** Re-writes a permanent's stored modal choice (`chosenModeId`, CR 700.2c)
      *  post-ETB — the "choose a color" half of a re-choosable modal permanent
      *  (Chromatic Armor: "{X}: Put a sleight counter on this Aura and choose a
@@ -17513,6 +17520,26 @@ export type EffectOp =
           op: "monstrosity";
           target: EffectObjectSelector;
           count: EffectValue;
+      }
+    /** CR 722.3a (issue #3689) — "<this permanent> becomes prepared". A thin
+     *  declarative skin over the SpellContext primitive `becomePrepared`, one
+     *  execution path (ADR 0045), routed through `becomePrepared`
+     *  (`gre/prepare.ts`) — the SAME seam "enters prepared"
+     *  (`CardDefinition.entersPrepared`) uses, so CR 722.3a's two refusals and
+     *  CR 722.3c's exiled copy of the prepare spell come from one place.
+     *  `target` names the permanent: the resolving source (`$source` — every
+     *  printed "this creature becomes prepared"), an announced slot or a
+     *  `forEach` `$each`.
+     *
+     *  Silent no-op, never an error, when CR 722.3a refuses: "a permanent
+     *  can't gain this designation unless it has a prepare spell" and "can't
+     *  gain this designation if the permanent already has it" — so no second
+     *  copy is ever made. Skipped when the permanent is gone (CR 608.2b). It
+     *  does NOT unprepare (CR 722.3b), which only casting the copy does today
+     *  (CR 601.2i). */
+    | {
+          op: "becomePrepared";
+          target: EffectObjectSelector;
       }
     /** CR 701.26 (issue #842) — tap or untap a permanent. A thin declarative
      *  skin over the SpellContext primitives `tap` / `untap`, one execution

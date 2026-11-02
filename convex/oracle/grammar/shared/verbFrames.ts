@@ -441,6 +441,14 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 722.3a — "<this permanent> becomes prepared": the permanent the
+           * ability is printed on gains the prepared designation. Self only —
+           * no printed card prepares another permanent.
+           */
+          readonly frame: "becomePrepared";
+      }
+    | {
+          /**
            * CR 122.1 — "<player> gets N poison/experience counters" and
            * "you get {E}{E}" (CR 107.14: one energy counter per symbol): a
            * counter kind a PLAYER holds is added to that player.
@@ -600,6 +608,7 @@ export const VERB_FRAMES: readonly {
     { name: "manifestDread", opens: /^manifest dread\b/i },
     { name: "winGame", opens: /^you win the game\b/i },
     { name: "monstrosity", opens: /^monstrosity \S+$/i },
+    { name: "becomePrepared", opens: /^\S+(?: \S+)? becomes prepared$/i },
     {
         name: "playerCounters",
         // The finite verb behind a player reference, then a counter: the
@@ -705,6 +714,7 @@ const WIN_GAME = "you win the game";
 const MANIFEST_DREAD = "manifest dread";
 /** CR 701.37a — the keyword action and its count, nothing trailing. */
 const MONSTROSITY = /^monstrosity (\S+)$/;
+const BECOMES_PREPARED = /^(.+) becomes prepared$/;
 /**
  * CR 122.1 + CR 107.14 — "<player> gets {E}{E}" (the optional trailing space
  * is what stripping the "(two energy counters)" reminder, CR 207.2a, leaves)
@@ -1814,6 +1824,14 @@ function readMember(
                 refused: `"${member}" — only a printed count is read ("Monstrosity X" names its X elsewhere)`,
             };
         return { frames: [{ frame: "monstrosity", count }], referent };
+    }
+    if (opensFrame("becomePrepared", lower)) {
+        const subject = lower.match(BECOMES_PREPARED)![1]!;
+        if (!isSelfPhrase(subject))
+            return {
+                refused: `"${member}" — only the card itself becomes prepared`,
+            };
+        return { frames: [{ frame: "becomePrepared" }], referent };
     }
     if (opensFrame("playerCounters", lower)) {
         const counters = lower.match(PLAYER_COUNTERS);
