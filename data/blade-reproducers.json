@@ -1706,6 +1706,44 @@
         }
     },
     "granted-flashback: casts the Lightning Bolt Snapcaster Mage's ETB granted flashback, for lethal": null,
+    "graveyard engine: escapes the Black Lotus whose permanent outweighs the option": {
+        "cards": [
+            {
+                "name": "Underworld Breach",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Brain Freeze",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Black Lotus",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "graveyard",
+                "count": 6
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 3,
+        "landCount": 0,
+        "libraryCount": 9,
+        "life": {
+            "me": 20,
+            "opp": 20
+        }
+    },
     "graveyard-cast: flashes back Firebolt from the graveyard for lethal": {
         "cards": [
             {

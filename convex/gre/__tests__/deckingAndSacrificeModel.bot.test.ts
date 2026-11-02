@@ -22,6 +22,7 @@ import { applyMoveForSearch } from "../applyMove";
 import { enumerateMoves, type Move } from "../moves";
 import { evaluate, WIN_SCORE } from "../evaluate";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
+import { latentGraveyardValue } from "../ai/graveyardReach";
 import { tryGetDefinition } from "../../cards";
 import type { CardInstanceState, GameState } from "../state";
 
@@ -268,6 +269,18 @@ describe("evaluate values a graveyard a play-from-graveyard engine can cast", ()
         return board(cards, 20);
     }
 
+    function boltWorth(): number {
+        const s = withGraveyard(1, true);
+        const me = seatPlayerId(s, "me");
+        const card = s.players.find((p) => p.id === me)!.graveyard[0];
+        return (
+            latentGraveyardValue(card, DEFAULT_EVAL_WEIGHTS.latent, {
+                creature: DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount,
+                flash: DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount,
+            }) * DEFAULT_EVAL_WEIGHTS.graveyardEngineFraction
+        );
+    }
+
     it("is EXACTLY zero with no engine on the battlefield, however full the graveyard", () => {
         const me = seatPlayerId(withGraveyard(0, false), "me");
         const base = evaluate(withGraveyard(0, false), me);
@@ -288,8 +301,12 @@ describe("evaluate values a graveyard a play-from-graveyard engine can cast", ()
         // weights in a different order than these sums, one ulp apart (issue
         // #3401). The steps themselves are `graveyardEngineWeight` apart, so
         // the tolerance is orders of magnitude below what is asserted.
-        expect(at(4)).toBeCloseTo(zero + w.graveyardEngineWeight, 6);
-        expect(at(8)).toBeCloseTo(zero + 2 * w.graveyardEngineWeight, 6);
+        // Issue #7783 — a cast is credited at most the latent worth of the
+        // card it casts, so the step is the Bolt's own worth, not the flat
+        // weight (the Bolt is worth less than `graveyardEngineWeight`).
+        const bolt = Math.min(w.graveyardEngineWeight, boltWorth());
+        expect(at(4)).toBeCloseTo(zero + bolt, 6);
+        expect(at(8)).toBeCloseTo(zero + 2 * bolt, 6);
     });
 
     // THE COUNTERWEIGHT to "spending my own library is worth less". Self-milling
@@ -351,7 +368,8 @@ describe("evaluate values a graveyard a play-from-graveyard engine can cast", ()
         const w = DEFAULT_EVAL_WEIGHTS;
         const capped =
             evaluate(withGraveyard(0, true), me) +
-            w.graveyardEngineCap * w.graveyardEngineWeight;
+            w.graveyardEngineCap *
+                Math.min(w.graveyardEngineWeight, boltWorth());
         // `toBeCloseTo`, not `toBe`: the engine and this line reach the same
         // sum by a different association, and a fitted weight (issue #3406)
         // is no longer a round number, so the last bit can differ. The claim
@@ -362,5 +380,101 @@ describe("evaluate values a graveyard a play-from-graveyard engine can cast", ()
         expect(
             evaluate(withGraveyard(4 * w.graveyardEngineCap + 40, true), me)
         ).toBeCloseTo(capped, 6);
+    });
+});
+
+// Issue #7783 — CR 702.138: the engine term prices the OPTION of casting from
+// the graveyard, so spending an escape must never cost more than the escaped
+// permanent earns back. A flat per-cast price made `escape Black Lotus` score
+// below `pass` after Brain Freeze, and the Bot never took the mid-line escape.
+describe("a spent escape is not charged more than the card it casts", () => {
+    function afterBrainFreeze(lotusInGraveyard: boolean): {
+        state: GameState;
+        me: string;
+    } {
+        const state = board(
+            [
+                { name: "Underworld Breach", owner: "me", zone: "battlefield" },
+                { name: "Brain Freeze", owner: "me", zone: "graveyard" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                ...(lotusInGraveyard
+                    ? [
+                          {
+                              name: "Black Lotus",
+                              owner: "me" as const,
+                              zone: "graveyard" as const,
+                          },
+                      ]
+                    : []),
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "graveyard",
+                    count: 6,
+                },
+            ],
+            9
+        );
+        return { state, me: seatPlayerId(state, "me") };
+    }
+
+    it("escaping Black Lotus scores at least as high as passing (1-ply)", () => {
+        const { state, me } = afterBrainFreeze(true);
+        const score = (move: Move): number => {
+            const next = structuredClone(state);
+            return evaluate(applyMoveForSearch(next, me, move), me);
+        };
+        const moves = enumerateMoves(state, me);
+        const pass = moves.find((m) => m.kind === "pass")!;
+        const escape = moves.find(
+            (m): m is Extract<Move, { kind: "cast-spell" }> =>
+                m.kind === "cast-spell" &&
+                m.castFromZone === "graveyard" &&
+                nameOf(
+                    state.players
+                        .find((p) => p.id === me)!
+                        .graveyard.find((c) => c.id === m.cardInstanceId)!
+                ) === "Black Lotus"
+        );
+        expect(escape).toBeDefined();
+        expect(score(escape!)).toBeGreaterThanOrEqual(score(pass));
+    });
+
+    it("credits a cast at the card's own worth, never the flat weight", () => {
+        const credit = (names: string[]): number => {
+            const s = board(
+                [
+                    {
+                        name: "Underworld Breach",
+                        owner: "me",
+                        zone: "battlefield",
+                    },
+                    ...names.map((name) => ({
+                        name,
+                        owner: "me" as const,
+                        zone: "graveyard" as const,
+                    })),
+                ],
+                9
+            );
+            const me = seatPlayerId(s, "me");
+            const bare = board(
+                [
+                    {
+                        name: "Underworld Breach",
+                        owner: "me",
+                        zone: "battlefield",
+                    },
+                ],
+                9
+            );
+            return evaluate(s, me) - evaluate(bare, me);
+        };
+        // Four nonland cards support one cast, credited at the BEST card's
+        // latent worth (capped by the weight); a cheap card in a pile of
+        // equal size must credit less than an expensive one.
+        const cheap = credit(["Black Lotus", "Island", "Island", "Island"]);
+        const dear = credit(["Lightning Bolt", "Island", "Island", "Island"]);
+        expect(cheap).toBeLessThan(dear);
     });
 });
