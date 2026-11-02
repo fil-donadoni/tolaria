@@ -7887,8 +7887,15 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // a kill at 9 cards. Brain Freeze at the Bot itself mills it 3 escape
         // fodder, enough to escape the Bolt too and copy Brain Freeze at storm
         // 3 into the opponent for 12 — so the Bot's own library is EMPTY: that
-        // line mills nothing and stops at 9. The Bot draws nothing this turn,
-        // so its own line never decks it.
+        // line mills nothing and stops at 9. Any library at all keeps a
+        // fodder-for-storm line alive, and even ONE card lets the `library`
+        // term's gradient pick Brain Freeze with no kill on the table.
+        //
+        // The empty library is read, not ignored: the Bot draws nothing this
+        // turn, but every leaf that leaves the opponent a card is lost to
+        // `deckOutDelta` at the Bot's next draw — so passing loses — and only
+        // the kill empties both libraries, which `libraryTerm` resolves for
+        // the Bot because the opponent draws first.
         //
         // The discriminant, measured at 400 iterations: with the opponent at
         // 13 (no line kills) the Brain Freeze lead collapses to a
