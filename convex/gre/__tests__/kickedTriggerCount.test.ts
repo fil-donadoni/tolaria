@@ -9,8 +9,10 @@
 //      (`triggerTargetMinMax`, `gre/rules.ts`);
 //   2. the Effect Script value `{ kickerCount: true }` at the trigger's
 //      resolution (`SpellContext.getKickerCount`, `gre/state.ts`).
-// Both used to read the TRIGGER's own stack item, which carries no payment
-// record — so the bound collapsed to `min` and the value read 0.
+// The value read already worked — `buildTriggerItem` spreads the source
+// permanent, Kicker record included, onto the trigger item — and is pinned
+// here as the companion of the bound. The bound did NOT: the trigger walk
+// collapsed every text-defined `max` to `min`, so "up to X" chose nothing.
 //
 // The definition is Batroc-shaped (Multikicker {2}) but the effect is a plain
 // `dealDamage` of the kick count, so one resolution exercises both reads.
@@ -142,7 +144,7 @@ describe("Kicked permanent's ETB trigger reads its kick count (CR 702.33e, issue
         });
     });
 
-    it("the source leaving before resolution: the kick count is read from its last known information (CR 608.2h)", () => {
+    it("the source leaving before resolution: the kick count still reads the object the ability came from (CR 608.2h)", () => {
         withDefs(() => {
             const state = enterKicked(3);
             expect(state.pendingTarget?.count).toEqual({ min: 0, max: 3 });

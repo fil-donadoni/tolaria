@@ -683,8 +683,9 @@ export interface EnchantRestriction {
  *  of up to X targets, where X is the number of times he was kicked" (Batroc
  *  the Leaper): the trigger is announced (CR 603.3d, incorporating CR 601.2c)
  *  after its source permanent already carries the Kicker record its spell
- *  paid (CR 702.33e), so the count exists at announcement and is read through
- *  `SpellContext.getKickerCount`'s source-record route. Authored on a
+ *  paid (CR 702.33e), so the count exists at announcement: the trigger item
+ *  is built as a spread of its source (`buildTriggerItem`), Kicker record
+ *  included, and `SpellContext.getKickerCount` reads it. Authored on a
  *  `TriggeredAbility.targetRequirement` only — a SPELL's own target walk is
  *  not the surface this was proven on, and the catalogue guard
  *  (`cards/__tests__/triggerVariableTargetCount.test.ts`) keeps it there. */
