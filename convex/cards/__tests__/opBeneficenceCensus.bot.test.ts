@@ -280,6 +280,7 @@ const NEUTRAL_ROWS = [
     "setSubtype",
     "suppressDamagePrevention",
     "transform",
+    "vote",
 ];
 const BINDING_ONLY = [
     "chooseCreatureType",
@@ -290,6 +291,7 @@ const BINDING_ONLY = [
     "nameCard",
     "payVariableMana",
     "selectAtRandom",
+    "vote",
 ];
 const COMPLETE_SCRIPT_FLOOR = 1838;
 

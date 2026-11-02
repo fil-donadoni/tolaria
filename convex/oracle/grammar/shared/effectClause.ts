@@ -4251,6 +4251,35 @@ export function assembleSentences(
             };
             continue;
         }
+        // CR 701.38 — "Exile each permanent with the most votes or tied for
+        // most votes." acts on the vote of the sentence before it and on
+        // nothing else: the two chains are one chain, the vote's outcome
+        // binding read by the frame after it.
+        if (
+            sentence.effect.kind === undefined &&
+            sentence.effect.frames.some(
+                (f) =>
+                    f.frame === "moveZone" && f.object.kind === "vote-winners"
+            )
+        ) {
+            const previous = effects[effects.length - 1];
+            if (
+                sentence.effect.frames.length !== 1 ||
+                sentence.effect.continuation === true ||
+                previous === undefined ||
+                previous.kind !== undefined ||
+                previous.frames[previous.frames.length - 1]?.frame !== "vote"
+            )
+                return {
+                    ok: false,
+                    reason: '"each permanent with the most votes" follows no vote',
+                };
+            effects[effects.length - 1] = {
+                ...previous,
+                frames: [...previous.frames, ...sentence.effect.frames],
+            };
+            continue;
+        }
         // CR 701.24a — "Then that player shuffles." (the `shuffle` frame on
         // the target player, opened by the ". Then" connector) belongs to the
         // target library the sentence before searched; nothing else names it.
