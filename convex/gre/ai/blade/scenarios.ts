@@ -17839,4 +17839,51 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #7587 — plot is a banking special action, `free-development`'s shape: banking and deferring reach the same rollout leaves and the {4} would otherwise empty. The held-option gate is shared with foretell and pinned by its pair half 2.",
     },
+    {
+        // CR 601.2b / 118.9 (issue #7525) — the caster picks among overlapping
+        // cast-from-top permissions. Bolas's Citadel and Mystic Forge both
+        // cover Juggernaut ({4}, an artifact) on top of the library: the
+        // Citadel's cast pays 4 life — exactly the bot's life total, so it
+        // loses on the spot (CR 704.5a) — while the Forge's cast pays the
+        // printed {4} from four untapped Plains. Until issue #7525 the engine
+        // picked the first grant scanned and the Bot had no "pay mana" Move
+        // at all; the only cast it could enumerate was the lethal one.
+        label: "library-top permissions: pays mana under Mystic Forge, not lethal life under Bolas's Citadel",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Bolas's Citadel", owner: "me", zone: "battlefield" },
+                { name: "Mystic Forge", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 4 },
+                {
+                    name: "Juggernaut",
+                    owner: "me",
+                    zone: "library",
+                    position: 0,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            life: { me: 4 },
+            // The drop is spent: a land play is no rival to the cast.
+            landsPlayed: { me: 1 },
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // A PREDICATE: the decision is the announced permission, a field
+            // `MoveMatcher` does not name — a reachability claim.
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                move.castFromZone === "library" &&
+                move.declineManaCostReplacement === true,
+            describe:
+                "casts Juggernaut off the top under Mystic Forge, paying {4}, never 4 life",
+        },
+        note: "Issue #7525 — the `declineManaCostReplacement` Move variant (`gre/moves.ts` library-top block). Without it the only cast is the Citadel's 4-life payment at 4 life.",
+    },
 ];
