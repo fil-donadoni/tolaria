@@ -7944,6 +7944,60 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Guards all three halves of the Underworld Breach probe at once: the search-side sacrifice model (`applyTapPlanInSearch`), the `graveyard` eval term, and the `library` term plus `deckOutDelta`. Red on the parent commit at 400 and 1200 iterations across the same seeds — it cast Lightning Bolt from the graveyard and stopped, leaving the opponent at 8 cards instead of 0. Not paired: a positive `moves` expectation stands alone (ADR 0070 §1 concerns `forbidden` halves).",
     },
     {
+        // Issue #3231 — an empty library is a WIN under a draw-replacement win
+        // (CR 614.1a: "If you would draw a card while your library has no
+        // cards in it, you win the game instead"). Three cards in each
+        // library, Jace at its starting loyalty: the +1 aimed at ITSELF mills
+        // two and draws the third, leaving the bot's library empty — its next
+        // draw wins. Aimed at the opponent it mills them to one card and
+        // leaves the bot at two, a position worth nothing in particular.
+        //
+        // Before the fix both decking terms read the bot's own empty library
+        // as a CR 704.5b loss (`deckOutDelta` = −winScore, `libraryTerm` at its
+        // floor), so the self-mill line was the WORST move on the board, not
+        // the best. The +1 itself does not win (no draw is attempted from an
+        // empty library), so the search cannot reach a terminal leaf that
+        // rescues the reading: only the evaluation can tell the lines apart.
+        label: "draw-replacement win: mills its own library empty under Jace, Wielder of Mysteries",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Jace, Wielder of Mysteries",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                // Three cards for the bot: the +1 aimed at itself mills two
+                // and draws the third. A deep opposing library, so milling
+                // the OPPONENT is never itself a deck-out race the search
+                // could read as won within its horizon.
+                { name: "Island", owner: "me", zone: "library", count: 3 },
+                { name: "Island", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            // Zero filler basics: the explicit library cards above are the
+            // whole libraries (seeding runs before placement).
+            libraryCount: 0,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Jace, Wielder of Mysteries",
+                    target: "me",
+                },
+            ],
+        },
+        note: "Guards `drawFromEmptyLibraryWins` (`gre/replacements.ts`) as read by both decking terms: `deckOutDelta` (`evaluate.ts`) and `libraryTerm` (`ai/decking.ts`). The class is any draw replacement whose outcome is `win` for the drawing player, not this card. Not paired: a positive `moves` expectation stands alone (ADR 0070 §1 concerns `forbidden` halves).",
+    },
+    {
         // Issue #7783 — the mid-line escape of the storm kill above, pinned at
         // the node AFTER Brain Freeze resolved (graveyard: Brain Freeze, Bolt,
         // the Lotus, six Islands). Spending an escape used to cost the flat

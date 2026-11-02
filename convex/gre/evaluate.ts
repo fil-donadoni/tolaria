@@ -143,6 +143,7 @@ import {
     type LatentWeights,
 } from "./ai/evalWeights";
 import { libraryTerm } from "./ai/decking";
+import { drawFromEmptyLibraryWins } from "./replacements";
 import { sourceQuality } from "./ai/sourceQuality";
 import type { LatentLens } from "./ai/grounding";
 import { contextFreeLatentLens } from "./ai/grounding";
@@ -2164,7 +2165,7 @@ function valueFromMargin(
         dangerClock(state, playerId, pass) +
         declaredCombatDelta(state, me.id, weights, pass, memo) +
         lethalUnblockedDelta(state, playerId, weights, pass) +
-        deckOutDelta(me, opp, weights)
+        deckOutDelta(state, me, opp, weights)
     );
 }
 
@@ -2192,12 +2193,23 @@ function hasLostByLifeOrPoison(player: PlayerState): boolean {
  *
  *  Both libraries empty is NOT resolved here — see the note in the body. */
 function deckOutDelta(
+    state: GameState,
     me: PlayerState,
     opp: PlayerState,
     weights: EvalWeights
 ): number {
     const meEmpty = me.library.length === 0;
     const oppEmpty = opp.library.length === 0;
+    if (!meEmpty && !oppEmpty) return 0;
+    // CR 614.1a (issue #3231) — an empty library whose next draw is replaced
+    // by its owner's win (Jace, Wielder of Mysteries) is one draw from a WIN,
+    // not a deck-out: the same terminal band, with the sign flipped. Read only
+    // on an empty library, so no other position pays for the scan.
+    const meWins = meEmpty && drawFromEmptyLibraryWins(state, me.id);
+    const oppWins = oppEmpty && drawFromEmptyLibraryWins(state, opp.id);
+    if (meWins !== oppWins)
+        return meWins ? weights.winScore : -weights.winScore;
+    if (meWins && oppWins) return 0;
     // EXACTLY ONE empty library, and no verdict at all otherwise.
     //
     // Both-empty is deliberately NOT resolved here, though it is the endgame a

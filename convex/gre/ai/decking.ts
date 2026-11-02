@@ -4,6 +4,7 @@
 // costs is what the evaluator charges for the shorter library.
 import type { GameState, PlayerState } from "../state";
 import type { EvalWeights } from "./evalWeights";
+import { drawFromEmptyLibraryWins } from "../replacements";
 
 type DeckingWeights = Pick<EvalWeights, "deckingHorizon" | "deckingWeight">;
 
@@ -62,6 +63,11 @@ export function libraryTerm(
     const effective =
         remaining + (playerDrawingNext(state) === player.id ? 0 : 0.5);
     if (effective >= weights.deckingHorizon) return 0;
+    // CR 614.1a — a player whose empty-library draw is replaced by THEIR win
+    // (Jace, Wielder of Mysteries) is not running out of anything: a short
+    // library is no cost to them. Read only inside the horizon, so an
+    // ordinary game never pays for the battlefield scan.
+    if (drawFromEmptyLibraryWins(state, player.id)) return 0;
     const deficit = weights.deckingHorizon - effective;
     return -weights.deckingWeight * deficit * deficit;
 }
