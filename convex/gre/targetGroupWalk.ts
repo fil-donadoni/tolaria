@@ -15,6 +15,7 @@ import {
 } from "./modeSelection";
 import { refreshRequiredTargetChoiceIds } from "./targetChoiceRequirements";
 import { pendingTargetCountMaxReached } from "./pendingTargetOrigin";
+import { findPermanent } from "./lookup";
 
 /** Loads the next INDEPENDENT target group of a multi-group spell (CR 601.2c —
  *  Fumarole) into `pt` in place: clears every group-specific filter field and
@@ -100,8 +101,19 @@ export function excludingPriorTargets(
  *  the group fails CLOSED rather than offering every graveyard. */
 export function zoneOwnedByPriorPlayerTarget(
     req: TargetRequirement,
-    prior: readonly TargetSelection[]
+    prior: readonly TargetSelection[],
+    state?: GameState
 ): TargetRequirement {
+    if (req.zoneOwnerOfPriorPermanentController) {
+        // CR 601.2c + CR 404.1 (issue #7206) — "target artifact card in THAT
+        // player's graveyard": the player is the controller of the permanent an
+        // earlier group announced. No such permanent (or no state to read its
+        // controller from) fails closed.
+        const perm = prior.find((t) => t.type === "permanent");
+        const controller =
+            perm && state ? findPermanent(state, perm.id)?.controllerId : "";
+        return { ...req, zoneOwnerId: controller ?? "" };
+    }
     if (!req.zoneOwnerOfPriorPlayerTarget) return req;
     const player = prior.find((t) => t.type === "player");
     return { ...req, zoneOwnerId: player?.id ?? "" };
@@ -132,7 +144,8 @@ export function advancePendingTargetGroup(
         pt,
         zoneOwnedByPriorPlayerTarget(
             excludingPriorTargets(next, instancePrior),
-            instancePrior
+            instancePrior,
+            state
         ),
         pt.chosenX,
         instancePrior
