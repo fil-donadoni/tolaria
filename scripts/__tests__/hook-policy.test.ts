@@ -226,14 +226,12 @@ describe("deny-guard — merging goes through land, from the PR's own branch (#2
         expect(denied(r)).toBe(true);
     });
 
-    it("allows other `gh pr` commands from an issue worktree", () => {
-        for (const cmd of [
-            "gh pr create --title x --body y",
-            "gh pr view 123 --json state",
-            "gh pr checks 123",
-        ]) {
-            expect(runHook(DENY_GUARD, bash(cmd, issueWorktree)).code).toBe(0);
-        }
+    it.each([
+        "gh pr create --title x --body y",
+        "gh pr view 123 --json state",
+        "gh pr checks 123",
+    ])("allows other `gh pr` commands from an issue worktree: %s", (cmd) => {
+        expect(runHook(DENY_GUARD, bash(cmd, issueWorktree)).code).toBe(0);
     });
 });
 
@@ -308,79 +306,89 @@ describe("deny-guard — heredoc bodies are data, not commands (#2537)", () => {
 });
 
 describe("deny-guard — nothing force-pushes the base or release branch", () => {
-    it("reads the branch names from tolaria.config.json, not from a literal (ADR 0116)", () => {
+    describe("reads the branch names from tolaria.config.json, not from a literal (ADR 0116)", () => {
         // A fixture project whose base branch is a name this hook has never
         // heard of: the only way the deny can fire is by reading the config.
-        const projectDir = fs.mkdtempSync(
-            path.join(os.tmpdir(), "hook-branches-")
-        );
-        fs.writeFileSync(
-            path.join(projectDir, "tolaria.config.json"),
-            JSON.stringify({
-                branches: { base: "integration", release: "prod" },
-            })
-        );
-        const env = { CLAUDE_PROJECT_DIR: projectDir };
-        for (const cmd of [
+        let projectDir: string;
+        beforeAll(() => {
+            projectDir = fs.mkdtempSync(
+                path.join(os.tmpdir(), "hook-branches-")
+            );
+            fs.writeFileSync(
+                path.join(projectDir, "tolaria.config.json"),
+                JSON.stringify({
+                    branches: { base: "integration", release: "prod" },
+                })
+            );
+        });
+        afterAll(() => {
+            fs.rmSync(projectDir, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
+        });
+
+        it.each([
             "git push --force origin integration",
             "git push origin +integration",
             "git push -f origin prod",
             "git push --force origin HEAD:prod",
-        ]) {
+        ])("denies a force-push naming the configured branch: %s", (cmd) => {
+            const env = { CLAUDE_PROJECT_DIR: projectDir };
             const r = runHook(DENY_GUARD, bash(cmd, mainCheckout), env);
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
             expect(r.stderr).toContain("integration");
-        }
+        });
+
         // And a name that is NOT in that config is a feature branch there.
-        const ok = runHook(
-            DENY_GUARD,
-            bash("git push --force origin main", mainCheckout),
-            env
-        );
-        expect(denied(ok), "main is a feature branch under this config").toBe(
-            false
-        );
-        fs.rmSync(projectDir, {
-            recursive: true,
-            force: true,
-            maxRetries: 10,
-            retryDelay: 100,
+        it("allows force-pushing a name that is not in that config", () => {
+            const env = { CLAUDE_PROJECT_DIR: projectDir };
+            const ok = runHook(
+                DENY_GUARD,
+                bash("git push --force origin main", mainCheckout),
+                env
+            );
+            expect(
+                denied(ok),
+                "main is a feature branch under this config"
+            ).toBe(false);
         });
     });
 
-    it("denies a force-push naming main", () => {
-        for (const cmd of [
-            "git push --force origin main",
-            "git push -f origin main",
-            "git push --force-with-lease origin main",
-            "git push origin +main",
-            "git push --force origin HEAD:main",
-        ]) {
-            const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
-            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
-        }
+    it.each([
+        "git push --force origin main",
+        "git push -f origin main",
+        "git push --force-with-lease origin main",
+        "git push origin +main",
+        "git push --force origin HEAD:main",
+    ])("denies a force-push naming main: %s", (cmd) => {
+        const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+        expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
     });
 
-    it("reads the push command's own arguments, not prose that happens to travel with it", () => {
-        // Observed the first time the rule met a real command: a `git commit`
-        // whose MESSAGE discussed force-pushing main, chained with a `git push`
-        // of a feature branch. Scanning the whole command string denied it.
-        // Prose rides inside commands all the time — commit bodies, PR bodies,
-        // echoed explanations — and a guard that reads it blocks legitimate
-        // work at random, which is how guards end up switched off.
-        const forceWord = "--force";
-        const branch = "ma" + "in";
-        for (const cmd of [
-            // The trailing space after the branch name is deliberate: it is
-            // what makes the prose match the ref pattern, so this case really
-            // does discriminate same-line from any-line matching.
-            `git commit -m 'docs: nothing may ${forceWord} push to ${branch} , ever'\n&& git push -u origin fix/issue-2203`,
-            `git commit -m 'never ${forceWord} push to ${branch} again' && git push -u origin fix/issue-2203`,
-        ]) {
+    // Observed the first time the rule met a real command: a `git commit`
+    // whose MESSAGE discussed force-pushing main, chained with a `git push`
+    // of a feature branch. Scanning the whole command string denied it.
+    // Prose rides inside commands all the time — commit bodies, PR bodies,
+    // echoed explanations — and a guard that reads it blocks legitimate
+    // work at random, which is how guards end up switched off.
+    const forceWord = "--force";
+    const branch = "ma" + "in";
+    it.each([
+        // The trailing space after the branch name is deliberate: it is
+        // what makes the prose match the ref pattern, so this case really
+        // does discriminate same-line from any-line matching.
+        `git commit -m 'docs: nothing may ${forceWord} push to ${branch} , ever'\n&& git push -u origin fix/issue-2203`,
+        `git commit -m 'never ${forceWord} push to ${branch} again' && git push -u origin fix/issue-2203`,
+    ])(
+        "reads the push command's own arguments, not prose that happens to travel with it: %j",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(r.code, `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(0);
         }
-    });
+    );
 
     it("still denies when the force and the ref are in the push command itself, even alongside prose", () => {
         const cmd = [
@@ -392,79 +400,84 @@ describe("deny-guard — nothing force-pushes the base or release branch", () =>
         );
     });
 
-    it("allows force-pushing a FEATURE branch — the merge-train does exactly this after a rebase", () => {
-        for (const cmd of [
-            "git push --force-with-lease",
-            "git push --force-with-lease origin feat/issue-42",
-            "git push -u origin feat/issue-42",
-        ]) {
+    it.each([
+        "git push --force-with-lease",
+        "git push --force-with-lease origin feat/issue-42",
+        "git push -u origin feat/issue-42",
+    ])(
+        "allows force-pushing a FEATURE branch — the merge-train does exactly this after a rebase: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
         }
-    });
+    );
 });
 
 describe("deny-guard § 2b — a session never pushes to the base or release branch (issue #5641)", () => {
-    it("denies a plain push naming the base branch, in every refspec shape", () => {
-        for (const cmd of [
-            "git push origin main",
-            "git push -u origin main",
-            "git push origin HEAD:main",
-            "git push origin feat/issue-42:main",
-            "git push origin main:main",
-            "git -C /tmp/x push origin main",
-            "GIT_TRACE=1 git push origin main",
-            "git push origin HEAD:refs/heads/main",
-            "git push origin refs/heads/main",
-            "git push origin +HEAD:refs/heads/main",
-            'git push origin "main"',
-            "git push origin 'main'",
-            "git -c k=v push origin main",
-            "git --no-pager push origin main",
-            "(cd /tmp/x && git push origin main)",
-            "git push --all",
-            "git push --mirror origin",
-            "git fetch && git push origin main",
-        ]) {
+    it.each([
+        "git push origin main",
+        "git push -u origin main",
+        "git push origin HEAD:main",
+        "git push origin feat/issue-42:main",
+        "git push origin main:main",
+        "git -C /tmp/x push origin main",
+        "GIT_TRACE=1 git push origin main",
+        "git push origin HEAD:refs/heads/main",
+        "git push origin refs/heads/main",
+        "git push origin +HEAD:refs/heads/main",
+        'git push origin "main"',
+        "git push origin 'main'",
+        "git -c k=v push origin main",
+        "git --no-pager push origin main",
+        "(cd /tmp/x && git push origin main)",
+        "git push --all",
+        "git push --mirror origin",
+        "git fetch && git push origin main",
+    ])(
+        "denies a plain push naming the base branch, in every refspec shape: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
             expect(r.stderr).toContain("TOLARIA_ALLOW_BASE_PUSH=1");
         }
-    });
+    );
 
-    it("denies a push with no refspec from a checkout that has the base branch checked out", () => {
-        for (const cmd of [
-            "git push",
-            "git push origin",
-            "git push -u origin",
-            "git push origin 2>&1",
-        ]) {
+    it.each([
+        "git push",
+        "git push origin",
+        "git push -u origin",
+        "git push origin 2>&1",
+    ])(
+        "denies a push with no refspec from a checkout that has the base branch checked out: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
         }
-    });
+    );
 
-    it("allows the same bare push from a feature branch, and a named feature ref from the base checkout", () => {
-        for (const [cmd, cwd] of [
-            ["git push", issueWorktree],
-            ["git push origin", issueWorktree],
-            ["git push -u origin feat/issue-42", mainCheckout],
-            ["git push origin feat/main-menu", issueWorktree],
-            ["git push origin domain", issueWorktree],
-        ] as const) {
+    // The checkouts are built in `beforeAll`: a case names its checkout and
+    // the body resolves it.
+    it.each([
+        ["git push", "issue"],
+        ["git push origin", "issue"],
+        ["git push -u origin feat/issue-42", "main"],
+        ["git push origin feat/main-menu", "issue"],
+        ["git push origin domain", "issue"],
+    ] as const)(
+        "allows the same bare push from a feature branch, and a named feature ref from the base checkout: %s (from the %s checkout)",
+        (cmd, where) => {
+            const cwd = where === "main" ? mainCheckout : issueWorktree;
             const r = runHook(DENY_GUARD, bash(cmd, cwd));
             expect(r.code, `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(0);
         }
-    });
+    );
 
-    it("lets the hatch through, in the command itself", () => {
-        for (const cmd of [
-            "TOLARIA_ALLOW_BASE_PUSH=1 git push origin main",
-            "TOLARIA_ALLOW_BASE_PUSH=1 git push",
-        ]) {
-            const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
-            expect(r.code, `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(0);
-        }
+    it.each([
+        "TOLARIA_ALLOW_BASE_PUSH=1 git push origin main",
+        "TOLARIA_ALLOW_BASE_PUSH=1 git push",
+    ])("lets the hatch through, in the command itself: %s", (cmd) => {
+        const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+        expect(r.code, `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(0);
     });
 
     it("does not mistake prose that travels with a push for a push", () => {
@@ -475,68 +488,81 @@ describe("deny-guard § 2b — a session never pushes to the base or release bra
         expect(runHook(DENY_GUARD, bash(cmd, issueWorktree)).code).toBe(0);
     });
 
-    it("reads the branch names from tolaria.config.json, not from a literal", () => {
-        const projectDir = fs.mkdtempSync(
-            path.join(os.tmpdir(), "hook-push-branches-")
+    describe("reads the branch names from tolaria.config.json, not from a literal", () => {
+        let projectDir: string;
+        beforeAll(() => {
+            projectDir = fs.mkdtempSync(
+                path.join(os.tmpdir(), "hook-push-branches-")
+            );
+            fs.writeFileSync(
+                path.join(projectDir, "tolaria.config.json"),
+                JSON.stringify({
+                    branches: { base: "integration", release: "prod" },
+                })
+            );
+        });
+        afterAll(() => {
+            fs.rmSync(projectDir, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
+        });
+
+        it.each(["git push origin integration", "git push origin HEAD:prod"])(
+            "denies a push naming the configured branch: %s",
+            (cmd) => {
+                const env = { CLAUDE_PROJECT_DIR: projectDir };
+                const r = runHook(DENY_GUARD, bash(cmd, issueWorktree), env);
+                expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+            }
         );
-        fs.writeFileSync(
-            path.join(projectDir, "tolaria.config.json"),
-            JSON.stringify({
-                branches: { base: "integration", release: "prod" },
-            })
-        );
-        const env = { CLAUDE_PROJECT_DIR: projectDir };
-        for (const cmd of [
-            "git push origin integration",
-            "git push origin HEAD:prod",
-        ]) {
-            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree), env);
-            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
-        }
-        const ok = runHook(
-            DENY_GUARD,
-            bash("git push origin main", issueWorktree),
-            env
-        );
-        expect(denied(ok), "main is a feature branch under this config").toBe(
-            false
-        );
-        fs.rmSync(projectDir, {
-            recursive: true,
-            force: true,
-            maxRetries: 10,
-            retryDelay: 100,
+
+        it("allows a push naming a name that is not in that config", () => {
+            const env = { CLAUDE_PROJECT_DIR: projectDir };
+            const ok = runHook(
+                DENY_GUARD,
+                bash("git push origin main", issueWorktree),
+                env
+            );
+            expect(
+                denied(ok),
+                "main is a feature branch under this config"
+            ).toBe(false);
         });
     });
 });
 
 describe("deny-guard — a gate may not be piped into a pager", () => {
-    it("denies a gate command piped into a pager", () => {
-        for (const cmd of [
-            "bun run test | tail -20",
-            "bun run test:app 2>&1 | tail -30",
-            "bun run check:all | head -5",
-            "bun run check:pr | less",
-        ]) {
-            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
-            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
-        }
+    it.each([
+        "bun run test | tail -20",
+        "bun run test:app 2>&1 | tail -30",
+        "bun run check:all | head -5",
+        "bun run check:pr | less",
+    ])("denies a gate command piped into a pager: %s", (cmd) => {
+        const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+        expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
     });
 
-    it("denies the GATE DRIVER's own direct form, which carries no `bun run` (#3698)", () => {
-        // `scripts/gate-run.sh` advertises `sh scripts/gate-run.sh check:lane`
-        // as a supported invocation. That segment contains neither
-        // `scripts/gate.ts` nor a `bun run` token, so the predicate that
-        // decides "this reaches the gate runner" saw nothing — and piping or
-        // backgrounding the very script that exists to make the gate rule
-        // followable slipped through the rule itself.
-        for (const cmd of [
-            "sh scripts/gate-run.sh check:lane | tail -5",
-            "sh scripts/gate-run.sh land 3701 2>&1 | head -20",
-        ]) {
+    // `scripts/gate-run.sh` advertises `sh scripts/gate-run.sh check:lane`
+    // as a supported invocation. That segment contains neither
+    // `scripts/gate.ts` nor a `bun run` token, so the predicate that
+    // decides "this reaches the gate runner" saw nothing — and piping or
+    // backgrounding the very script that exists to make the gate rule
+    // followable slipped through the rule itself.
+    it.each([
+        "sh scripts/gate-run.sh check:lane | tail -5",
+        "sh scripts/gate-run.sh land 3701 2>&1 | head -20",
+    ])(
+        "denies the GATE DRIVER's own direct form, which carries no `bun run` (#3698): %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
         }
+    );
+
+    it("denies the GATE DRIVER's own direct form run in the background (#3698)", () => {
         const bg = runHook(
             DENY_GUARD,
             bashBg("sh scripts/gate-run.sh check:lane", issueWorktree, true)
@@ -552,67 +578,70 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
     // command — the path is an argument — and the denial text sent the caller
     // to `GATE_EXEMPT_SCRIPT_RE`, which cannot help: there is no script name
     // to allowlist. The fix anchors the clause to COMMAND position.
-    it("allows a read-only grep whose ARGUMENT is a gate script, piped into a pager (#4377)", () => {
-        for (const cmd of [
-            'grep -n "tolaria.config.json" -A3 scripts/gate-run.sh | head -12',
-            'grep -n -E "^export" scripts/gate.ts scripts/lib/process-tree.ts | head',
-            "cat scripts/gate.ts | head -20",
-            "wc -l scripts/gate.ts scripts/gate-run.sh | tail -1",
-            'sed -n "1,40p" scripts/gate-run.sh | head -20',
-            "git log --oneline -- scripts/gate.ts | head -5",
-            "time grep -n export scripts/gate.ts | head",
-            "diff scripts/gate.ts scripts/gate-run.sh | head",
-            "head -40 scripts/gate-run.sh | tail -5",
-            // Deleting redirections replaced a skip rule that also ate a bare
-            // digit run, mistruncating any command whose name starts with one.
-            "2to3 scripts/gate.ts | head",
-        ]) {
+    it.each([
+        'grep -n "tolaria.config.json" -A3 scripts/gate-run.sh | head -12',
+        'grep -n -E "^export" scripts/gate.ts scripts/lib/process-tree.ts | head',
+        "cat scripts/gate.ts | head -20",
+        "wc -l scripts/gate.ts scripts/gate-run.sh | tail -1",
+        'sed -n "1,40p" scripts/gate-run.sh | head -20',
+        "git log --oneline -- scripts/gate.ts | head -5",
+        "time grep -n export scripts/gate.ts | head",
+        "diff scripts/gate.ts scripts/gate-run.sh | head",
+        "head -40 scripts/gate-run.sh | tail -5",
+        // Deleting redirections replaced a skip rule that also ate a bare
+        // digit run, mistruncating any command whose name starts with one.
+        "2to3 scripts/gate.ts | head",
+    ])(
+        "allows a read-only grep whose ARGUMENT is a gate script, piped into a pager (#4377): %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
         }
-    });
+    );
 
-    it("still denies the gate script in COMMAND position, however it is wrapped (#4377)", () => {
-        // The fail-closed direction the anchoring must not lose: the head of a
-        // command is read past leading env assignments, wrapper words and
-        // their flags, so the gate is still recognised as the thing being RUN.
-        for (const cmd of [
-            "bun scripts/gate.ts heavy bunx vitest run | tail -20",
-            "./scripts/gate-run.sh check:lane | tail",
-            "env TOLARIA_GATE_RUN_KEY=k bun scripts/gate.ts heavy | tail",
-            "ls -1 | head -3; sh scripts/gate-run.sh check:lane | tail -5",
-            // The skipped-prefix list errs towards denying MORE: a word it
-            // skips can only expose a head further right, never hide one.
-            "time bun scripts/gate.ts heavy | tail",
-            "nohup sh scripts/gate-run.sh check:lane | tail",
-            "command sh scripts/gate-run.sh check:lane | tail",
-            "( bun scripts/gate.ts heavy ) | tail",
-            "echo `bun scripts/gate.ts heavy` | tail",
-            "ls | head -2 && bun scripts/gate.ts heavy | tail",
-            "{ bun scripts/gate.ts heavy | tail -5 ; }",
-            // Every one of the rest was ALLOWED by the first revision of the
-            // anchoring and caught in review — each genuinely RUNS the gate.
-            // A path-qualified wrapper is the same command as the bare one:
-            "/usr/bin/env sh scripts/gate-run.sh check:lane | tail",
-            "/bin/sh scripts/gate-run.sh check:lane | tail",
-            'eval "sh scripts/gate-run.sh check:lane" | tail',
-            "exec sh scripts/gate-run.sh check:lane | tail",
-            "sudo sh scripts/gate-run.sh check:lane | tail",
-            "source scripts/gate-run.sh check:lane | tail",
-            ". scripts/gate-run.sh check:lane | tail",
-            'sh -c "bun scripts/gate.ts heavy" | tail',
-            // `sh <file` with no space runs the script from stdin. The
-            // redirection is DELETED, not skipped as a token, so the glued
-            // path is still read as the head — a one-character bypass
-            // otherwise.
-            "sh <scripts/gate-run.sh check:lane | tail",
-            "sh < scripts/gate-run.sh | tail",
-            "bun scripts/gate.ts heavy 2>&1 | tail",
-        ]) {
+    it.each([
+        "bun scripts/gate.ts heavy bunx vitest run | tail -20",
+        "./scripts/gate-run.sh check:lane | tail",
+        "env TOLARIA_GATE_RUN_KEY=k bun scripts/gate.ts heavy | tail",
+        "ls -1 | head -3; sh scripts/gate-run.sh check:lane | tail -5",
+        // The skipped-prefix list errs towards denying MORE: a word it
+        // skips can only expose a head further right, never hide one.
+        "time bun scripts/gate.ts heavy | tail",
+        "nohup sh scripts/gate-run.sh check:lane | tail",
+        "command sh scripts/gate-run.sh check:lane | tail",
+        "( bun scripts/gate.ts heavy ) | tail",
+        "echo `bun scripts/gate.ts heavy` | tail",
+        "ls | head -2 && bun scripts/gate.ts heavy | tail",
+        "{ bun scripts/gate.ts heavy | tail -5 ; }",
+        // Every one of the rest was ALLOWED by the first revision of the
+        // anchoring and caught in review — each genuinely RUNS the gate.
+        // A path-qualified wrapper is the same command as the bare one:
+        "/usr/bin/env sh scripts/gate-run.sh check:lane | tail",
+        "/bin/sh scripts/gate-run.sh check:lane | tail",
+        'eval "sh scripts/gate-run.sh check:lane" | tail',
+        "exec sh scripts/gate-run.sh check:lane | tail",
+        "sudo sh scripts/gate-run.sh check:lane | tail",
+        "source scripts/gate-run.sh check:lane | tail",
+        ". scripts/gate-run.sh check:lane | tail",
+        'sh -c "bun scripts/gate.ts heavy" | tail',
+        // `sh <file` with no space runs the script from stdin. The
+        // redirection is DELETED, not skipped as a token, so the glued
+        // path is still read as the head — a one-character bypass
+        // otherwise.
+        "sh <scripts/gate-run.sh check:lane | tail",
+        "sh < scripts/gate-run.sh | tail",
+        "bun scripts/gate.ts heavy 2>&1 | tail",
+    ])(
+        "still denies the gate script in COMMAND position, however it is wrapped (#4377): %s",
+        (cmd) => {
+            // The fail-closed direction the anchoring must not lose: the head of a
+            // command is read past leading env assignments, wrapper words and
+            // their flags, so the gate is still recognised as the thing being RUN.
+
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
         }
-    });
+    );
 
     it("explains that the exit code becomes the pager's", () => {
         const r = runHook(
@@ -622,37 +651,41 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
         expect(r.stderr).toMatch(/exit code/i);
     });
 
-    it("allows a TARGETED vitest run piped into a pager — its verdict is not load-bearing", () => {
-        // Measured: 2,295 of 4,189 targeted runs are piped. Denying them would
-        // add a round-trip to more than half of all test invocations for no
-        // safety gain — a targeted false green is caught by the gate anyway.
-        for (const cmd of [
-            "bunx vitest run scripts/__tests__ | tail",
-            "bunx vitest run convex/gre/__tests__/sba.test.ts 2>&1 | tail -30",
-        ]) {
+    it.each([
+        "bunx vitest run scripts/__tests__ | tail",
+        "bunx vitest run convex/gre/__tests__/sba.test.ts 2>&1 | tail -30",
+    ])(
+        "allows a TARGETED vitest run piped into a pager — its verdict is not load-bearing: %s",
+        (cmd) => {
+            // Measured: 2,295 of 4,189 targeted runs are piped. Denying them would
+            // add a round-trip to more than half of all test invocations for no
+            // safety gain — a targeted false green is caught by the gate anyway.
+
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
         }
-    });
+    );
 
-    it("allows a gate redirected to a file followed by a SEPARATE piped grep of that file", () => {
-        // Observed live: the gate and the pager were in different commands, and
-        // the whole-string match denied it anyway. This is the correct way to
-        // read a gate's output, so denying it left no legal way to do the thing
-        // the rule is telling you to do.
-        // Both spellings: separated by a newline, and — the case a line-based
-        // match cannot see — chained with `;` or `&&` on ONE line.
-        for (const cmd of [
-            "bun run check:pr >/tmp/gate.log 2>&1\ngrep -E 'Tests|FAIL' /tmp/gate.log | tail -4",
-            "bun run check:pr >/tmp/gate.log 2>&1; grep -E 'Tests' /tmp/gate.log | tail -4",
-            "bun run test >/tmp/g.log 2>&1 && grep Tests /tmp/g.log | head -3",
-        ]) {
+    it.each([
+        "bun run check:pr >/tmp/gate.log 2>&1\ngrep -E 'Tests|FAIL' /tmp/gate.log | tail -4",
+        "bun run check:pr >/tmp/gate.log 2>&1; grep -E 'Tests' /tmp/gate.log | tail -4",
+        "bun run test >/tmp/g.log 2>&1 && grep Tests /tmp/g.log | head -3",
+    ])(
+        "allows a gate redirected to a file followed by a SEPARATE piped grep of that file: %j",
+        (cmd) => {
+            // Observed live: the gate and the pager were in different commands, and
+            // the whole-string match denied it anyway. This is the correct way to
+            // read a gate's output, so denying it left no legal way to do the thing
+            // the rule is telling you to do.
+            // Both spellings: separated by a newline, and — the case a line-based
+            // match cannot see — chained with `;` or `&&` on ONE line.
+
             expect(
                 runHook(DENY_GUARD, bash(cmd, issueWorktree)).code,
                 `expected ALLOW for: ${cmd}`
             ).toBe(0);
         }
-    });
+    );
 
     it("still denies when the gate and the pager are in the SAME pipeline, alongside other commands", () => {
         const cmd = [
@@ -665,33 +698,35 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
         );
     });
 
-    it("allows a gate redirected to a file, and allows piping NON-gate commands", () => {
-        for (const cmd of [
-            "bun run test >/tmp/gate.log 2>&1",
-            "bun run test",
-            "git log --oneline | head -5",
-            "gh issue list | tail -20",
-            "cat package.json | head -20",
-        ]) {
+    it.each([
+        "bun run test >/tmp/gate.log 2>&1",
+        "bun run test",
+        "git log --oneline | head -5",
+        "gh issue list | tail -20",
+        "cat package.json | head -20",
+    ])(
+        "allows a gate redirected to a file, and allows piping NON-gate commands: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
         }
-    });
+    );
 
     // The regression that started this rewrite: § 3 used to deny by matching a
     // hardcoded allowlist of gate command NAMES. That list was already stale —
     // `land` and `docs:ship` both reach `scripts/gate.ts` (via `scripts/land.ts`
     // and `scripts/docs-lane.ts` → `check:docs`) and neither name was in it, so
     // both of these were run for real against the old guard and sailed through.
-    it("denies `bun run land` and `bun run docs:ship` piped into a pager — both reach scripts/gate.ts and neither was on the old name-list", () => {
-        for (const cmd of [
-            "bun run land 2524 | tail -80",
-            "bun run docs:ship 2>&1 | tail -25",
-        ]) {
+    it.each([
+        "bun run land 2524 | tail -80",
+        "bun run docs:ship 2>&1 | tail -25",
+    ])(
+        "denies `bun run land` and `bun run docs:ship` piped into a pager — both reach scripts/gate.ts and neither was on the old name-list: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
         }
-    });
+    );
 
     // The test that makes the enumerate-the-gates class extinct: a script name
     // nobody has written yet must still be denied when piped, because the rule
@@ -705,15 +740,13 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
         expect(denied(r)).toBe(true);
     });
 
-    it("honours the informational allowlist — these scripts' exit codes are never load-bearing", () => {
-        for (const cmd of [
-            "bun run cr 605.1a | head -20",
-            "bun run findings | head",
-        ]) {
+    it.each(["bun run cr 605.1a | head -20", "bun run findings | head"])(
+        "honours the informational allowlist — these scripts' exit codes are never load-bearing: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
         }
-    });
+    );
 
     // #2527 F1: three ways to pipe a gate past this rule, found on review.
     // `|&` is the live one — it is exactly the shape of the incident that
@@ -786,20 +819,16 @@ describe("deny-guard — a gate may not be run in the BACKGROUND either (#2654)"
     // predicate and its ONE informational allowlist — never a second gate
     // notion, never a second list.
 
-    it("denies a gate script requested to run in the background", () => {
-        for (const cmd of [
-            "bun run test",
-            "bun run test:app",
-            "bun run check:all",
-            "bun run check:pr",
-            "bun run land 2524",
-            "bun run docs:ship",
-        ]) {
-            const r = runHook(DENY_GUARD, bashBg(cmd, issueWorktree, true));
-            expect(denied(r), `expected DENY for backgrounded: ${cmd}`).toBe(
-                true
-            );
-        }
+    it.each([
+        "bun run test",
+        "bun run test:app",
+        "bun run check:all",
+        "bun run check:pr",
+        "bun run land 2524",
+        "bun run docs:ship",
+    ])("denies a gate script requested to run in the background: %s", (cmd) => {
+        const r = runHook(DENY_GUARD, bashBg(cmd, issueWorktree, true));
+        expect(denied(r), `expected DENY for backgrounded: ${cmd}`).toBe(true);
     });
 
     it("names the foreground alternative in the denial message", () => {
@@ -837,17 +866,18 @@ describe("deny-guard — a gate may not be run in the BACKGROUND either (#2654)"
         expect(denied(r)).toBe(true);
     });
 
-    it("allows a script on the exempt-script list to run in the background", () => {
-        for (const cmd of [
-            "bun run cr 605.1a",
-            "bun run findings",
-            "bun run queue:plan --cap 4",
-            "bun run format",
-        ]) {
+    it.each([
+        "bun run cr 605.1a",
+        "bun run findings",
+        "bun run queue:plan --cap 4",
+        "bun run format",
+    ])(
+        "allows a script on the exempt-script list to run in the background: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bashBg(cmd, issueWorktree, true));
             expect(r.code, `expected ALLOW for backgrounded: ${cmd}`).toBe(0);
         }
-    });
+    );
 
     // Review finding #1 (#2735): the allowlist had no long-running SERVER
     // scripts, so §3's deliberate over-approximation ("any non-allowlisted
@@ -861,12 +891,13 @@ describe("deny-guard — a gate may not be run in the BACKGROUND either (#2654)"
     // exists to prevent, through the one producer the issue puts out of
     // scope. `dev`/`preview` now sit on the SAME `GATE_EXEMPT_SCRIPT_RE`, not
     // a second list.
-    it("allows `bun run dev` and `bun run preview` to run in the background — long-running servers, not gates", () => {
-        for (const cmd of ["bun run dev", "bun run preview"]) {
+    it.each(["bun run dev", "bun run preview"])(
+        "allows `bun run dev` and `bun run preview` to run in the background — long-running servers, not gates: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bashBg(cmd, issueWorktree, true));
             expect(r.code, `expected ALLOW for backgrounded: ${cmd}`).toBe(0);
         }
-    });
+    );
 
     // The paired-deny case, as close as possible to the allow above (the
     // header's own rule): a `bun run` script that is NOT on the exempt list
@@ -880,8 +911,9 @@ describe("deny-guard — a gate may not be run in the BACKGROUND either (#2654)"
         expect(denied(r)).toBe(true);
     });
 
-    it("allows a FOREGROUND gate — the flag is what matters, not the command", () => {
-        for (const cmd of ["bun run test", "bun run check:all"]) {
+    it.each(["bun run test", "bun run check:all"])(
+        "allows a FOREGROUND gate — the flag is what matters, not the command: %s",
+        (cmd) => {
             // absent entirely (the ordinary case)
             expect(runHook(DENY_GUARD, bash(cmd, issueWorktree)).code).toBe(0);
             // explicit boolean false
@@ -889,7 +921,7 @@ describe("deny-guard — a gate may not be run in the BACKGROUND either (#2654)"
                 runHook(DENY_GUARD, bashBg(cmd, issueWorktree, false)).code
             ).toBe(0);
         }
-    });
+    );
 
     it("allows backgrounding a NON-gate command — this rule is about gates, not about `&` in general", () => {
         const r = runHook(DENY_GUARD, bashBg("sleep 300", issueWorktree, true));
@@ -1078,15 +1110,16 @@ describe("deny-guard — the joiner is byte-identity for anything it doesn't joi
     // The negative control — proves the corpus above is actually
     // discriminating and not vacuously identical for every input. Anything
     // ending in a bona fide continuation MUST change.
-    it("does NOT pass through a genuine continuation unchanged — the corpus above is not vacuous", () => {
-        for (const input of [
-            Buffer.from("bun run test \\\n  | tail -20", "utf8"),
-            Buffer.from("bun run test |\ntail -20", "utf8"),
-        ]) {
+    it.each([
+        Buffer.from("bun run test \\\n  | tail -20", "utf8"),
+        Buffer.from("bun run test |\ntail -20", "utf8"),
+    ])(
+        "does NOT pass through a genuine continuation unchanged — the corpus above is not vacuous: %j",
+        (input) => {
             const output = runJoinerAsHookWould(input);
             expect(Buffer.compare(output, input)).not.toBe(0);
         }
-    });
+    );
 });
 
 // Round 3 review, #2527 §2: "same evasion class as the `\` hole this PR
@@ -1127,19 +1160,20 @@ describe("deny-guard — a trailing shell operator is a continuation too (§2)",
         expect(r.code, `expected ALLOW for: ${JSON.stringify(cmd)}`).toBe(0);
     });
 
-    it("a benign trailing-operator wrap of a NON-gate command does not blow up", () => {
-        for (const cmd of [
-            "git log --oneline |\nhead -20",
-            "gh issue list |\ntail -20",
-            "echo one &&\necho two",
-            "echo one ||\necho two",
-        ]) {
+    it.each([
+        "git log --oneline |\nhead -20",
+        "gh issue list |\ntail -20",
+        "echo one &&\necho two",
+        "echo one ||\necho two",
+    ])(
+        "a benign trailing-operator wrap of a NON-gate command does not blow up: %j",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(r.code, `expected ALLOW for: ${JSON.stringify(cmd)}`).toBe(
                 0
             );
         }
-    });
+    );
 
     it("does NOT join a trailing `;` — it genuinely terminates a command, unlike the four operators above", () => {
         const cmd = "echo hi;\necho bye";
@@ -1196,44 +1230,41 @@ describe("deny-guard — no discarding git operations in the shared main checkou
         "git add .",
     ];
 
-    it("denies them in the main checkout", () => {
-        for (const cmd of DISCARDING) {
-            const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
-            expect(
-                denied(r),
-                `expected DENY in main checkout for: ${cmd}`
-            ).toBe(true);
-        }
+    it.each(DISCARDING)("denies them in the main checkout: %s", (cmd) => {
+        const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+        expect(denied(r), `expected DENY in main checkout for: ${cmd}`).toBe(
+            true
+        );
     });
 
-    it("allows the SAME commands in a linked worktree — it is yours to discard", () => {
-        // This is the direction that matters most: the guard keys off git's own
-        // main-vs-linked distinction, not off the path. A guard that fired
-        // everywhere would make normal work in a worktree impossible.
-        for (const cmd of DISCARDING) {
+    it.each(DISCARDING)(
+        "allows the SAME commands in a linked worktree — it is yours to discard: %s",
+        (cmd) => {
+            // This is the direction that matters most: the guard keys off git's own
+            // main-vs-linked distinction, not off the path. A guard that fired
+            // everywhere would make normal work in a worktree impossible.
+
             const r = runHook(DENY_GUARD, bash(cmd, linkedWorktree));
             expect(r.code, `expected ALLOW in worktree for: ${cmd}`).toBe(0);
         }
-    });
+    );
 
-    it("allows non-discarding git in the main checkout", () => {
-        // No tolaria.config.json in the fixture: the base falls back to
-        // `main`, so `git checkout main` is a switch to base (§4b).
+    // No tolaria.config.json in the fixture: the base falls back to
+    // `main`, so `git checkout main` is a switch to base (§4b).
+    it.each([
+        "git status --short",
+        "git stash list",
+        "git checkout main",
+        "git commit -m 'msg'",
+        "git pull --ff-only",
+        "git worktree add ../repo-issue-9 -b feat/issue-9",
+        // Naming the path cannot pick up a file you did not mean.
+        "git add src/foo.ts",
+        "git add docs/adr/0101-x.md GLOSSARY.md",
+    ])("allows non-discarding git in the main checkout: %s", (cmd) => {
         const env = { CLAUDE_PROJECT_DIR: mainCheckout };
-        for (const cmd of [
-            "git status --short",
-            "git stash list",
-            "git checkout main",
-            "git commit -m 'msg'",
-            "git pull --ff-only",
-            "git worktree add ../repo-issue-9 -b feat/issue-9",
-            // Naming the path cannot pick up a file you did not mean.
-            "git add src/foo.ts",
-            "git add docs/adr/0101-x.md GLOSSARY.md",
-        ]) {
-            const r = runHook(DENY_GUARD, bash(cmd, mainCheckout), env);
-            expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
-        }
+        const r = runHook(DENY_GUARD, bash(cmd, mainCheckout), env);
+        expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
     });
 });
 
@@ -1265,50 +1296,57 @@ describe("deny-guard § 4b — the main checkout stays on the base branch (issue
         });
     });
     const env = () => ({ CLAUDE_PROJECT_DIR: projectDir });
-    const OFF_BASE = () => [
+    // `headSha` is resolved in `beforeAll`, so the table carries a
+    // placeholder and each case substitutes it when it runs.
+    const HEAD_SHA = "<HEAD_SHA>";
+    const OFF_BASE = [
         "git checkout prod",
         "git switch prod",
         "git checkout -q main",
         "git switch -c feat/x",
         "git checkout -b feat/x origin/integration",
-        `git checkout ${headSha}`,
+        `git checkout ${HEAD_SHA}`,
         "git switch -",
         "git fetch && git checkout prod && git pull --ff-only",
     ];
+    const offBase = (template: string) => template.replace(HEAD_SHA, headSha);
 
-    it("denies a switch off base there, naming the branch and the escape hatch", () => {
-        for (const cmd of OFF_BASE()) {
+    it.each(OFF_BASE)(
+        "denies a switch off base there, naming the branch and the escape hatch: %s",
+        (template) => {
+            const cmd = offBase(template);
             const r = runHook(DENY_GUARD, bash(cmd, mainCheckout), env());
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
             expect(r.stderr).toContain("DEPLOYMENT SOURCE");
             expect(r.stderr).toContain("TOLARIA_PRIMARY_OFF_BASE=1");
         }
-    });
+    );
 
-    it("allows the switch back to base, a bare checkout, and paths after --", () => {
-        for (const cmd of [
-            "git checkout integration",
-            "git switch integration && git pull --ff-only",
-            "git switch -q integration",
-            "git checkout",
-            "git checkout HEAD",
-            "git log --oneline -3",
-            // A restore names a path, and switches nothing (review, PR for
-            // issue #6132): a file, `.`, a ref followed by a path, `--`.
-            "git checkout README.md",
-            "git checkout .",
-            "git checkout prod README.md",
-            "git checkout prod -- README.md",
-            // A word that resolves to no commit names no switch.
-            "git checkout no-such-branch",
-            // `git checkout` inside a message is not a command.
-            'git commit -m "fix git checkout prod bug"',
-            "echo git switch prod",
-        ]) {
+    it.each([
+        "git checkout integration",
+        "git switch integration && git pull --ff-only",
+        "git switch -q integration",
+        "git checkout",
+        "git checkout HEAD",
+        "git log --oneline -3",
+        // A restore names a path, and switches nothing (review, PR for
+        // issue #6132): a file, `.`, a ref followed by a path, `--`.
+        "git checkout README.md",
+        "git checkout .",
+        "git checkout prod README.md",
+        "git checkout prod -- README.md",
+        // A word that resolves to no commit names no switch.
+        "git checkout no-such-branch",
+        // `git checkout` inside a message is not a command.
+        'git commit -m "fix git checkout prod bug"',
+        "echo git switch prod",
+    ])(
+        "allows the switch back to base, a bare checkout, and paths after --: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, mainCheckout), env());
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
         }
-    });
+    );
 
     it("allows the announced escape hatch", () => {
         const r = runHook(
@@ -1319,12 +1357,14 @@ describe("deny-guard § 4b — the main checkout stays on the base branch (issue
         expect(r.code).toBe(0);
     });
 
-    it("allows any switch in a linked worktree — it is not the deployment source", () => {
-        for (const cmd of OFF_BASE()) {
+    it.each(OFF_BASE)(
+        "allows any switch in a linked worktree — it is not the deployment source: %s",
+        (template) => {
+            const cmd = offBase(template);
             const r = runHook(DENY_GUARD, bash(cmd, linkedWorktree), env());
             expect(r.code, `expected ALLOW in worktree for: ${cmd}`).toBe(0);
         }
-    });
+    );
 });
 
 describe("deny-guard — nothing authors a versioned file in the main checkout", () => {
@@ -1339,26 +1379,31 @@ describe("deny-guard — nothing authors a versioned file in the main checkout",
         };
     }
 
-    it("denies authoring a versioned file there, whatever the authoring tool", () => {
-        // The shape that produced ~40 documentation-only commits straight on
-        // main: a discussion writes its ADR wherever the session happens to be.
-        const targets = [
-            "docs/adr/0101-something.md",
-            "GLOSSARY.md",
-            "README.md",
-            "src/components/board/Hand.tsx",
-        ];
-        for (const tool of ["Write", "Edit", "MultiEdit", "NotebookEdit"]) {
-            for (const t of targets) {
-                const r = runHook(
-                    DENY_GUARD,
-                    write(path.join(mainCheckout, t), mainCheckout, tool)
-                );
-                expect(denied(r), `expected DENY for ${tool} ${t}`).toBe(true);
-                expect(r.stderr).toMatch(/worktree/);
-            }
+    // The shape that produced ~40 documentation-only commits straight on
+    // main: a discussion writes its ADR wherever the session happens to be.
+    const AUTHORED_TARGETS = [
+        "docs/adr/0101-something.md",
+        "GLOSSARY.md",
+        "README.md",
+        "src/components/board/Hand.tsx",
+    ];
+    const AUTHORING_CASES = [
+        "Write",
+        "Edit",
+        "MultiEdit",
+        "NotebookEdit",
+    ].flatMap((tool) => AUTHORED_TARGETS.map((t) => ({ tool, t })));
+    it.each(AUTHORING_CASES)(
+        "denies authoring a versioned file there, whatever the authoring tool: $tool $t",
+        ({ tool, t }) => {
+            const r = runHook(
+                DENY_GUARD,
+                write(path.join(mainCheckout, t), mainCheckout, tool)
+            );
+            expect(denied(r), `expected DENY for ${tool} ${t}`).toBe(true);
+            expect(r.stderr).toMatch(/worktree/);
         }
-    });
+    );
 
     it("denies it no matter where the SESSION is — the path decides, not the cwd", () => {
         // A session sitting in its own worktree can still reach across into the
@@ -1383,31 +1428,34 @@ describe("deny-guard — nothing authors a versioned file in the main checkout",
         expect(denied(r)).toBe(true);
     });
 
-    it("ALLOWS the same write inside a linked worktree — that is the whole point", () => {
-        for (const t of ["docs/adr/0101-something.md", "GLOSSARY.md"]) {
+    it.each(["docs/adr/0101-something.md", "GLOSSARY.md"])(
+        "ALLOWS the same write inside a linked worktree — that is the whole point: %s",
+        (t) => {
             const r = runHook(
                 DENY_GUARD,
                 write(path.join(linkedWorktree, t), linkedWorktree)
             );
             expect(r.code, `expected ALLOW in worktree for: ${t}`).toBe(0);
         }
-    });
+    );
 
-    it("ALLOWS gitignored paths in the main checkout — the loop writes them by design", () => {
-        // green-sha, the claim ledger and every subagent receipt live here and
-        // cannot dirty anyone's tree. Denying them would break the loop itself.
-        for (const t of [
-            ".claude/telemetry/green-sha",
-            ".claude/receipts/batch-1/issue-2.json",
-            "settings.local",
-        ]) {
+    it.each([
+        ".claude/telemetry/green-sha",
+        ".claude/receipts/batch-1/issue-2.json",
+        "settings.local",
+    ])(
+        "ALLOWS gitignored paths in the main checkout — the loop writes them by design: %s",
+        (t) => {
+            // green-sha, the claim ledger and every subagent receipt live here and
+            // cannot dirty anyone's tree. Denying them would break the loop itself.
+
             const r = runHook(
                 DENY_GUARD,
                 write(path.join(mainCheckout, t), mainCheckout)
             );
             expect(r.code, `expected ALLOW for gitignored: ${t}`).toBe(0);
         }
-    });
+    );
 
     it("ALLOWS writes outside any repository", () => {
         const r = runHook(
@@ -1439,18 +1487,22 @@ describe("deny-guard — nothing authors a versioned file in the main checkout",
 });
 
 describe("deny-guard — a leading `cd` names the directory the rules judge", () => {
-    it("allows a discarding op in a worktree reached by `cd`, from a session sitting in main", () => {
-        // The normal shape now that every authored file belongs in a worktree.
-        // Judging it by the session's cwd denied a legal stash.
-        for (const cmd of [
-            `cd ${linkedWorktree} && git stash`,
-            `cd ${linkedWorktree} && git reset --hard origin/main`,
-            `cd '${linkedWorktree}' && git checkout -- file.ts`,
-        ]) {
+    // The normal shape now that every authored file belongs in a worktree.
+    // Judging it by the session's cwd denied a legal stash. The worktree
+    // path exists only after `beforeAll`, so a case holds a template.
+    const WORKTREE = "<WORKTREE>";
+    it.each([
+        `cd ${WORKTREE} && git stash`,
+        `cd ${WORKTREE} && git reset --hard origin/main`,
+        `cd '${WORKTREE}' && git checkout -- file.ts`,
+    ])(
+        "allows a discarding op in a worktree reached by `cd`, from a session sitting in main: %s",
+        (template) => {
+            const cmd = template.replace(WORKTREE, linkedWorktree);
             const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
             expect(r.code, `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(0);
         }
-    });
+    );
 
     it("DENIES a discarding op that `cd`s INTO the main checkout from a worktree", () => {
         // The half that matters more: this used to be allowed, because the
@@ -1508,27 +1560,28 @@ describe("deny-guard — scope", () => {
 describe("deny-guard — the hand-off is land:ready, never a raw ready-to-land label (issue #6141)", () => {
     const wt = issueWorktree;
 
-    it("denies every spelling that adds the label to a PR, naming land:ready", () => {
-        for (const cmd of [
-            "gh pr edit 6138 --add-label ready-to-land",
-            "gh pr edit 6138 --add-label=ready-to-land",
-            'gh pr edit 6138 --add-label "ready-to-land"',
-            "gh pr edit 6138 --add-label 'ready-to-land'",
-            "gh pr edit 6138 --add-label bug,ready-to-land",
-            "gh pr edit 6138 --add-label ready-to-land,bug",
-            "gh pr create --title t --body b --label ready-to-land",
-            "gh pr create --title t --label=ready-to-land",
-            "gh pr create --title t -l ready-to-land",
-            "gh issue edit 6138 --add-label ready-to-land",
-            "gh issue edit 6138 --add-label=ready-to-land",
-            "FOO=1 gh pr edit 6138 --add-label ready-to-land",
-            "true | gh pr edit 6138 --add-label ready-to-land",
-        ]) {
+    it.each([
+        "gh pr edit 6138 --add-label ready-to-land",
+        "gh pr edit 6138 --add-label=ready-to-land",
+        'gh pr edit 6138 --add-label "ready-to-land"',
+        "gh pr edit 6138 --add-label 'ready-to-land'",
+        "gh pr edit 6138 --add-label bug,ready-to-land",
+        "gh pr edit 6138 --add-label ready-to-land,bug",
+        "gh pr create --title t --body b --label ready-to-land",
+        "gh pr create --title t --label=ready-to-land",
+        "gh pr create --title t -l ready-to-land",
+        "gh issue edit 6138 --add-label ready-to-land",
+        "gh issue edit 6138 --add-label=ready-to-land",
+        "FOO=1 gh pr edit 6138 --add-label ready-to-land",
+        "true | gh pr edit 6138 --add-label ready-to-land",
+    ])(
+        "denies every spelling that adds the label to a PR, naming land:ready: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, wt));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
             expect(r.stderr).toMatch(/bun run land:ready/);
         }
-    });
+    );
 
     it("allows the hatch in the same segment", () => {
         const r = runHook(
@@ -1541,34 +1594,36 @@ describe("deny-guard — the hand-off is land:ready, never a raw ready-to-land l
         expect(denied(r)).toBe(false);
     });
 
-    it("allows unqueueing, the hand-off itself, and other labels", () => {
-        for (const cmd of [
-            "gh pr edit 6138 --remove-label ready-to-land",
-            "gh pr edit 6138 --remove-label=ready-to-land --add-label land-failed",
-            "bun run land:ready 6138",
-            "gh pr edit 6138 --add-label ready-to-land-later",
-            "gh pr create --title t --label bug",
-            "git commit -m 'never run gh pr edit N --add-label ready-to-land by hand'",
-        ]) {
+    it.each([
+        "gh pr edit 6138 --remove-label ready-to-land",
+        "gh pr edit 6138 --remove-label=ready-to-land --add-label land-failed",
+        "bun run land:ready 6138",
+        "gh pr edit 6138 --add-label ready-to-land-later",
+        "gh pr create --title t --label bug",
+        "git commit -m 'never run gh pr edit N --add-label ready-to-land by hand'",
+    ])(
+        "allows unqueueing, the hand-off itself, and other labels: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, wt));
             expect(denied(r), `expected ALLOW for: ${cmd}`).toBe(false);
         }
-    });
+    );
 });
 
 describe("deny-guard — the claim is the label, typed by hand (ADR 0156)", () => {
     // The locked claim verb is retired: an attended `/next-ticket` claims
     // with `gh issue edit`, the shape `afk-dispatch` uses.
-    it("allows `gh issue edit N --add-label in-progress --add-assignee @me`", () => {
-        for (const cmd of [
-            "gh issue edit 4375 --add-label in-progress --add-assignee @me",
-            "gh issue edit 4375 --add-label in-progress",
-            "gh issue edit 4375 --add-label bug,in-progress",
-        ]) {
+    it.each([
+        "gh issue edit 4375 --add-label in-progress --add-assignee @me",
+        "gh issue edit 4375 --add-label in-progress",
+        "gh issue edit 4375 --add-label bug,in-progress",
+    ])(
+        "allows `gh issue edit N --add-label in-progress --add-assignee @me`: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected ALLOW for: ${cmd}`).toBe(false);
         }
-    });
+    );
 
     it("allows the release that also drops pr-open — the shape `releaseEditArgs` emits (issue #5562)", () => {
         const r = runHook(
@@ -1585,45 +1640,45 @@ describe("deny-guard — the claim is the label, typed by hand (ADR 0156)", () =
 describe("deny-guard — the release is one act: label AND assignee, never half a release (issue #4752)", () => {
     // A label-only release left the `@me` assignee, and the planner deferred
     // the issue as "assigned — someone is working it" on every pass, forever.
-    it("denies `--remove-label in-progress` without `--remove-assignee`, and names the whole release", () => {
-        for (const cmd of [
-            "gh issue edit 4470 --remove-label in-progress",
-            "git fetch && gh issue edit 4470 --remove-label in-progress",
-            "FOO=1 gh issue edit 4470 --remove-label in-progress",
-            "true | gh issue edit 4470 --remove-label in-progress",
-            "gh issue edit 4470 --remove-label=in-progress",
-            'gh issue edit 4470 --remove-label "in-progress"',
-            "gh issue edit 4470 --remove-label in-progress,model:opus",
-            "gh issue edit 4470 --remove-label ready-for-agent,in-progress",
-            // Removing someone ELSE leaves `@me` — still half a release.
-            "gh issue edit 4470 --remove-label in-progress --remove-assignee someone-else",
-        ]) {
+    it.each([
+        "gh issue edit 4470 --remove-label in-progress",
+        "git fetch && gh issue edit 4470 --remove-label in-progress",
+        "FOO=1 gh issue edit 4470 --remove-label in-progress",
+        "true | gh issue edit 4470 --remove-label in-progress",
+        "gh issue edit 4470 --remove-label=in-progress",
+        'gh issue edit 4470 --remove-label "in-progress"',
+        "gh issue edit 4470 --remove-label in-progress,model:opus",
+        "gh issue edit 4470 --remove-label ready-for-agent,in-progress",
+        // Removing someone ELSE leaves `@me` — still half a release.
+        "gh issue edit 4470 --remove-label in-progress --remove-assignee someone-else",
+    ])(
+        "denies `--remove-label in-progress` without `--remove-assignee`, and names the whole release: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
             expect(r.stderr).toMatch(/--remove-assignee @me/);
         }
+    );
+
+    it.each([
+        "gh issue edit 4470 --remove-label in-progress --remove-assignee @me",
+        "gh issue edit 4470 --remove-assignee @me --remove-label in-progress",
+        "gh issue edit 4470 --remove-label in-progress --remove-assignee=@me",
+    ])("allows the release that removes both, in either order: %s", (cmd) => {
+        const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+        expect(denied(r), `expected ALLOW for: ${cmd}`).toBe(false);
     });
 
-    it("allows the release that removes both, in either order", () => {
-        for (const cmd of [
-            "gh issue edit 4470 --remove-label in-progress --remove-assignee @me",
-            "gh issue edit 4470 --remove-assignee @me --remove-label in-progress",
-            "gh issue edit 4470 --remove-label in-progress --remove-assignee=@me",
-        ]) {
+    it.each([
+        "gh issue edit 4470 --remove-label in-progress-review",
+        "git commit -m 'never type gh issue edit N --remove-label in-progress by hand'",
+    ])(
+        "allows a label that merely starts with the claim's name, and prose: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected ALLOW for: ${cmd}`).toBe(false);
         }
-    });
-
-    it("allows a label that merely starts with the claim's name, and prose", () => {
-        for (const cmd of [
-            "gh issue edit 4470 --remove-label in-progress-review",
-            "git commit -m 'never type gh issue edit N --remove-label in-progress by hand'",
-        ]) {
-            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
-            expect(denied(r), `expected ALLOW for: ${cmd}`).toBe(false);
-        }
-    });
+    );
 
     it("allows the repair hatch, on the command itself", () => {
         const r = runHook(
@@ -1684,23 +1739,36 @@ describe("deny-guard — a bare oracle:compile on a Bot diff is ALLOWED: § 7 is
         botUntracked = worktree("3", "src/lib/ai/newThing.ts", false);
     });
 
-    it("allows every spelling of a bare oracle:compile in a worktree whose diff touches a Bot file", () => {
-        for (const dir of [botCommitted, botUncommitted, botUntracked]) {
-            for (const cmd of [
-                "bun run oracle:compile",
-                "bun run gate:run oracle:compile",
-                "bun scripts/oracle-compile.ts",
-                "git fetch && bun run oracle:compile >log 2>&1",
-                "bun run oracle:compile --replay-bot",
-                "bun run oracle:compile --carry-bot",
-            ]) {
-                const r = runHook(DENY_GUARD, bash(cmd, dir), env());
-                expect(denied(r), `expected ALLOW in ${dir} for: ${cmd}`).toBe(
-                    false
-                );
-            }
+    // The three worktrees are built in `beforeAll`, so a case names its
+    // worktree and the body resolves it — a collection-time `[botCommitted, …]`
+    // would be three `undefined`s.
+    const BOT_WORKTREES = {
+        committed: () => botCommitted,
+        uncommitted: () => botUncommitted,
+        untracked: () => botUntracked,
+    };
+    const ORACLE_COMPILE_SPELLINGS = [
+        "bun run oracle:compile",
+        "bun run gate:run oracle:compile",
+        "bun scripts/oracle-compile.ts",
+        "git fetch && bun run oracle:compile >log 2>&1",
+        "bun run oracle:compile --replay-bot",
+        "bun run oracle:compile --carry-bot",
+    ];
+    const ORACLE_COMPILE_CASES = (
+        Object.keys(BOT_WORKTREES) as (keyof typeof BOT_WORKTREES)[]
+    ).flatMap((diff) => ORACLE_COMPILE_SPELLINGS.map((cmd) => ({ diff, cmd })));
+
+    it.each(ORACLE_COMPILE_CASES)(
+        "allows a bare oracle:compile in a worktree whose diff touches a Bot file ($diff): $cmd",
+        ({ diff, cmd }) => {
+            const dir = BOT_WORKTREES[diff]();
+            const r = runHook(DENY_GUARD, bash(cmd, dir), env());
+            expect(denied(r), `expected ALLOW in ${dir} for: ${cmd}`).toBe(
+                false
+            );
         }
-    });
+    );
 
     it("the hook names no sweep hatch any more", () => {
         const hook = fs.readFileSync(DENY_GUARD, "utf8");
@@ -1896,26 +1964,24 @@ describe("Agent spawns declare their role", () => {
         expect(r.stderr).toMatch(/does not start with a role/);
     });
 
-    it("allows every role in the closed vocabulary", () => {
-        for (const role of [
-            "implement",
-            "review",
-            "fixup",
-            "investigate",
-            "research",
-            "verify",
-            "migrate",
-            "audit",
-        ]) {
-            const r = runHook(
-                SPAWN_GUARD,
-                spawn({
-                    description: `${role} #42 — something`,
-                    model: "sonnet",
-                })
-            );
-            expect(denied(r), `${role} was denied`).toBe(false);
-        }
+    it.each([
+        "implement",
+        "review",
+        "fixup",
+        "investigate",
+        "research",
+        "verify",
+        "migrate",
+        "audit",
+    ])("allows every role in the closed vocabulary: %s", (role) => {
+        const r = runHook(
+            SPAWN_GUARD,
+            spawn({
+                description: `${role} #42 — something`,
+                model: "sonnet",
+            })
+        );
+        expect(denied(r), `${role} was denied`).toBe(false);
     });
 
     it("matches the role case-insensitively", () => {
@@ -1994,11 +2060,12 @@ describe("session-origin hook — who started this session (issue #3144)", () =>
         });
     });
 
-    it("writes nothing when the payload names no session, and never fails the session start", () => {
-        // A SessionStart hook that exits non-zero, or prints to stdout, is a
-        // hook that changes the session it was only supposed to observe.
-        const before = fs.readFileSync(journal(), "utf8");
-        for (const payload of [{}, { hook_event_name: "SessionStart" }]) {
+    // A SessionStart hook that exits non-zero, or prints to stdout, is a
+    // hook that changes the session it was only supposed to observe.
+    it.each([{}, { hook_event_name: "SessionStart" }])(
+        "writes nothing when the payload names no session, and never fails the session start: %j",
+        (payload) => {
+            const before = fs.readFileSync(journal(), "utf8");
             const r = spawnSync("sh", [SESSION_ORIGIN], {
                 input: JSON.stringify(payload),
                 encoding: "utf8",
@@ -2006,9 +2073,9 @@ describe("session-origin hook — who started this session (issue #3144)", () =>
             });
             expect(r.status).toBe(0);
             expect(r.stdout).toBe("");
+            expect(fs.readFileSync(journal(), "utf8")).toBe(before);
         }
-        expect(fs.readFileSync(journal(), "utf8")).toBe(before);
-    });
+    );
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2037,11 +2104,12 @@ describe("resident prose pruned to its hook — each denial names the fix (issue
         expect(r.stderr).not.toMatch(/command not found/);
     });
 
-    it("`Every description MUST be role-prefixed` → spawn-guard Rule 2 lists every role", () => {
-        for (const input of [
-            { model: "sonnet" },
-            { model: "sonnet", description: "look around" },
-        ]) {
+    it.each([
+        { model: "sonnet" },
+        { model: "sonnet", description: "look around" },
+    ])(
+        "`Every description MUST be role-prefixed` → spawn-guard Rule 2 lists every role: %s",
+        (input) => {
             const r = runHook(SPAWN_GUARD, spawn(input));
             expect(denied(r)).toBe(true);
             for (const role of [
@@ -2057,7 +2125,7 @@ describe("resident prose pruned to its hook — each denial names the fix (issue
                 expect(r.stderr).toMatch(new RegExp(`\\b${role}\\b`));
             }
         }
-    });
+    );
 
     it("`deny-guard.sh § 0; gitignored paths writable; hatch TOLARIA_ALLOW_MAIN_EDIT=1` → §0 names worktree, exemption and hatch", () => {
         const r = runHook(DENY_GUARD, {
@@ -2089,42 +2157,44 @@ describe("resident prose pruned to its hook — each denial names the fix (issue
 });
 
 describe("deny-guard § 8 — a session hands its PR to the land-runner, never runs `land` (issue #5469)", () => {
-    it("denies every spelling of a land invocation, naming land:ready and the hatch", () => {
-        for (const cmd of [
-            "bun run land 5469",
-            "TOLARIA_GATE_RUN_KEY=land-5469 bun run gate:run land 5469",
-            "bun scripts/land.ts 5469",
-            "sh scripts/gate-run.sh land 5469",
-            "cd /x && bun run land 5469 --red-ok",
-            "env FOO=1 bun run land 5469",
-            "bun run --silent land 5469",
-            "bun run scripts/land.ts 5469",
-            "bash scripts/gate-run.sh land 5469",
-            "/bin/sh /repo/scripts/gate-run.sh land 5469",
-            "(bun run land 5469)",
-            "nohup bun run land 5469",
-            "time bun run land 5469",
-        ]) {
+    it.each([
+        "bun run land 5469",
+        "TOLARIA_GATE_RUN_KEY=land-5469 bun run gate:run land 5469",
+        "bun scripts/land.ts 5469",
+        "sh scripts/gate-run.sh land 5469",
+        "cd /x && bun run land 5469 --red-ok",
+        "env FOO=1 bun run land 5469",
+        "bun run --silent land 5469",
+        "bun run scripts/land.ts 5469",
+        "bash scripts/gate-run.sh land 5469",
+        "/bin/sh /repo/scripts/gate-run.sh land 5469",
+        "(bun run land 5469)",
+        "nohup bun run land 5469",
+        "time bun run land 5469",
+    ])(
+        "denies every spelling of a land invocation, naming land:ready and the hatch: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
             expect(r.stderr).toMatch(/bun run land:ready <PR#>/);
             expect(r.stderr).toMatch(/TOLARIA_LAND_RUNNER=1/);
         }
-    });
+    );
 
-    it("allows land:ready, land:runner, the runner's hatch, and land quoted in a message", () => {
-        for (const cmd of [
-            "bun run land:ready 5469",
-            "bun run land:runner --once --dry-run",
-            "TOLARIA_LAND_RUNNER=1 bun run land 5469",
-            'git commit -m "sessions no longer run bun run land 5469"',
-        ]) {
+    it.each([
+        "bun run land:ready 5469",
+        "bun run land:runner --once --dry-run",
+        "TOLARIA_LAND_RUNNER=1 bun run land 5469",
+        'git commit -m "sessions no longer run bun run land 5469"',
+    ])(
+        "allows land:ready, land:runner, the runner's hatch, and land quoted in a message: %s",
+        (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(
                 false
             );
         }
-    });
+    );
 
     it("the hatch names ONE command: it does not cover a land in another segment", () => {
         const r = runHook(
