@@ -24,10 +24,6 @@ type Read =
     { pin: MachinePin; readIn: string } | { mechanics: string };
 
 const PLATFORM_READS: Record<string, Read> = {
-    "scripts/land-runner.ts": {
-        pin: "TOLARIA_LAND_RUNNER_PLATFORM",
-        readIn: "scripts/lib/land-runner.ts",
-    },
     "scripts/cockpit.ts": {
         mechanics: "browser opener: open vs xdg-open",
     },

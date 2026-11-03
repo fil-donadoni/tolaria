@@ -610,7 +610,7 @@ describe("worktreeQuietMinutes — the resumed-session veto's input (issue #5174
     });
 });
 
-describe("claim-verdict — a PR handed to the land-runner (issue #5469)", () => {
+describe("claim-verdict — a PR handed to the merge queue (issue #5469)", () => {
     const handedOff: ClaimFacts = {
         ...base,
         hasOpenPr: true,
@@ -626,7 +626,7 @@ describe("claim-verdict — a PR handed to the land-runner (issue #5469)", () =>
                 ageHours: 500,
             });
             expect(v.state, `run=${run}`).toBe("pr-open");
-            expect(v.reason).toMatch(/land-runner/);
+            expect(v.reason).toMatch(/merge queue/);
         }
     });
 
@@ -791,7 +791,7 @@ describe("one claim verdict over the union of the evidence (issue #6223)", () =>
             "suspect",
         ],
         [
-            "queued for the land-runner → pr-open",
+            "queued for the merge queue → pr-open",
             {
                 runs: dead,
                 remote: ["refs/heads/fix/issue-7"],

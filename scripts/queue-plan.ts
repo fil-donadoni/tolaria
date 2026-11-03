@@ -238,7 +238,7 @@ function handBackTime(issue: number): number | null {
     }
 }
 
-/** Open PRs the land-runner labelled `land-failed` (issue #5469) — the
+/** Open PRs labelled `land-failed` (issue #5469) — the
  *  `repair` list's source. A failed read is an empty list: a repair pick
  *  missed this time is picked next time, and the batch is still sound. */
 function landFailedPrs(): { number: number; headRefName: string }[] {
@@ -940,7 +940,7 @@ function main(): void {
         ORIGIN_BASE
     );
 
-    // Repair picks FIRST (issue #5469): a PR the land-runner labelled
+    // Repair picks FIRST (issue #5469): a PR the queue labelled
     // `land-failed`. Its claim reads `stranded` too, so it is dropped from
     // `resume` — one issue, one list. One whose claim reads `live` is a
     // repair already under way (a pass re-claimed it): not offered again.

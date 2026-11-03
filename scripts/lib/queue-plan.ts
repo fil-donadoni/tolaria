@@ -545,7 +545,7 @@ export interface BatchPlan {
      */
     resume?: ResumeItem[];
     /**
-     * PRs the land-runner labelled `land-failed` (issue #5469) — the FIRST
+     * PRs labelled `land-failed` (issue #5469) — the FIRST
      * pick, ahead of `resume` and `batch`: a red landing is work already
      * reviewed and one fix away from merging. Set by the wrapper from one
      * `gh pr list --label land-failed`; the dispatcher takes `repair[0]` first.
