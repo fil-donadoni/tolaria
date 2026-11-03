@@ -64,6 +64,9 @@ import ManaChoicePicker from "~/components/board/mana-choice-picker";
 import ManaTapOtherBanner from "~/components/board/mana-tap-other-banner";
 import CastCostDialog from "~/components/cards/cast-cost-dialog";
 import ModePicker from "~/components/cards/mode-picker";
+import PhyrexianPicker from "~/components/cards/phyrexian-picker";
+import { activationPhyrexianChoices } from "~/lib/activation-phyrexian";
+import type { PhyrexianSplitChoice } from "~/lib/card-utils";
 import {
     modeLegalityHint,
     modePickerConstraint,
@@ -246,7 +249,51 @@ export function useBattlefieldInteraction(player: Player) {
         cardName: string;
         oracleText?: string;
         keepPriority: boolean;
+        /** CR 107.4f — the Phyrexian split picked before X, when both apply. */
+        phyrexianLifePips?: number;
     } | null>(null);
+
+    // CR 107.4f / 602.2b — an activated ability whose cost carries Phyrexian
+    // pips: the activator picks, per pip, mana or 2 life as the cost is
+    // determined (CR 601.2f), before X and before `activateAbility` is sent.
+    const [abilityPhyrexianChoiceState, setAbilityPhyrexianChoiceState] =
+        useState<{
+            cardInstanceId: string;
+            abilityId: string;
+            cardName: string;
+            oracleText?: string;
+            keepPriority: boolean;
+            hasX: boolean;
+            choices: PhyrexianSplitChoice[];
+        } | null>(null);
+
+    function commitAbilityPhyrexian(lifePips: number) {
+        const s = abilityPhyrexianChoiceState;
+        if (!s) return;
+        setAbilityPhyrexianChoiceState(null);
+        if (s.hasX) {
+            setAbilityXChoiceState({
+                cardInstanceId: s.cardInstanceId,
+                abilityId: s.abilityId,
+                cardName: s.cardName,
+                oracleText: s.oracleText,
+                keepPriority: s.keepPriority,
+                phyrexianLifePips: lifePips,
+            });
+            return;
+        }
+        guardMutation(
+            activateAbility({
+                gameId,
+                playerId,
+                cardInstanceId: s.cardInstanceId,
+                abilityId: s.abilityId,
+                keepPriority: s.keepPriority || undefined,
+                chosenX: undefined,
+                phyrexianLifePips: lifePips,
+            })
+        );
+    }
 
     // CR 700.2 / 602.2b (issue #1341) — a MODAL activated ability (Umezawa's
     // Jitte) locks its mode in at announcement, BEFORE targets are chosen, so
@@ -1216,6 +1263,22 @@ export function useBattlefieldInteraction(player: Player) {
         const hasX =
             ability?.cost.mana?.X !== undefined &&
             typeof ability.cost.mana.X === "string";
+        const phyrexianChoices = activationPhyrexianChoices(
+            ability,
+            viewer.life
+        );
+        if (phyrexianChoices.length > 0) {
+            setAbilityPhyrexianChoiceState({
+                cardInstanceId,
+                abilityId,
+                cardName: def.name,
+                oracleText: ability?.oracleText,
+                keepPriority,
+                hasX,
+                choices: phyrexianChoices,
+            });
+            return;
+        }
         if (hasX) {
             setAbilityXChoiceState({
                 cardInstanceId,
@@ -1341,6 +1404,14 @@ export function useBattlefieldInteraction(player: Player) {
                     onCancel={() => setAbilityModeChoiceState(null)}
                 />
             )}
+            {abilityPhyrexianChoiceState && (
+                <PhyrexianPicker
+                    choices={abilityPhyrexianChoiceState.choices}
+                    cardName={abilityPhyrexianChoiceState.cardName}
+                    onSelect={commitAbilityPhyrexian}
+                    onCancel={() => setAbilityPhyrexianChoiceState(null)}
+                />
+            )}
             {abilityXChoiceState && (
                 <CastCostDialog
                     open
@@ -1358,6 +1429,7 @@ export function useBattlefieldInteraction(player: Player) {
                                 abilityId: s.abilityId,
                                 keepPriority: s.keepPriority || undefined,
                                 chosenX,
+                                phyrexianLifePips: s.phyrexianLifePips,
                             })
                         );
                     }}
