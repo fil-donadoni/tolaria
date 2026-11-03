@@ -61,6 +61,7 @@ import {
 import { castableInsetKind } from "../cards/insetSpell";
 import {
     castAsSplitHalf,
+    isSplitCastId,
     splitCastAltCostId,
     splitCastOptionsFor,
     splitTwin,
@@ -73,6 +74,7 @@ import {
 import {
     castAsModalBack,
     castableModalBackTwin,
+    isModalBackCastId,
     modalBackCastAltCostId,
     modalBackCastOptionsFor,
 } from "./modalBackCast";
@@ -278,14 +280,50 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
  *  that built its own list is how the third such mode would ship reachable at
  *  three sites out of four. */
 export function independentCastOptionsFor(
-    card: CardInstanceState
+    card: CardInstanceState,
+    /** CR 712.11c — whether the licence this cast rides reaches a modal
+     *  card's back face (`modalBackCastLicensed`, `castCost.ts`). Omitted =
+     *  read off the card alone (`modalBackCastLicensedInZone`). */
+    modalBackLicensed?: boolean
 ): AlternativeCost[] {
     const adventure = adventureCastOptionFor(card);
     return [
         ...(adventure ? [adventure] : []),
         ...splitCastOptionsFor(card),
-        ...modalBackCastOptionsFor(card),
+        ...modalBackCastOptionsFor(card, modalBackLicensed),
     ];
+}
+
+/** CR 709.3 / 712.11b — the cast options on `card` that name WHICH face is
+ *  cast (a split card's two halves, a modal double-faced card's back face),
+ *  the instance-level list {@link isFaceChoiceCastId} recognises. Empty for
+ *  every other card. The client picker reads it to open even under a
+ *  permission that replaces the mana cost, where no alternative cost may ride
+ *  along but a face must still be named. */
+export function faceChoiceCastOptionsFor(
+    card: CardInstanceState
+): AlternativeCost[] {
+    return [...splitCastOptionsFor(card), ...modalBackCastOptionsFor(card)];
+}
+
+/** CR 709.3 / 712.11b — `true` when `alternativeCostId` names WHICH face of
+ *  the card is cast (a split half, a modal double-faced card's back face)
+ *  rather than a price for it. Such an announcement rides the alternative-cost
+ *  channel only because that channel is how a cast says what it is: "a player
+ *  chooses which half of a split card they are casting", "chooses which face
+ *  they are casting before putting it onto the stack". So it is no second
+ *  alternative method of casting (CR 601.2b) — it may ride a permission that
+ *  replaces the mana cost (Bolas's Citadel) — and outside the hand it pays
+ *  what the zone's licence says, never its own printed cost on top
+ *  (`castAlternativeCostForZone`). */
+export function isFaceChoiceCastId(
+    def: CardDefinition | undefined,
+    alternativeCostId: string | undefined
+): boolean {
+    return (
+        isSplitCastId(def, alternativeCostId) !== undefined ||
+        isModalBackCastId(def, alternativeCostId)
+    );
 }
 
 /** The cast mode `alternativeCostId` selects for `def`, or `undefined` for a

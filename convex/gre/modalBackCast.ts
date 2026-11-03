@@ -41,6 +41,7 @@ import {
 import type { AlternativeCost, CardDefinition } from "../cards/types";
 import type { LayerStateView } from "./layers";
 import type { CardInstanceState } from "./state/declarations";
+import { isForetellCast } from "./foretell";
 import { stampModalBackFace } from "./transform";
 
 /** Namespace prefix for the `alternativeCostId` that announces a modal back
@@ -98,21 +99,47 @@ export function modalBackCastAlternativeCost(
     };
 }
 
+/** CR 712.11c — whether the licence a cast of `card` rides reaches its BACK
+ *  face, answered from the card alone: "only the face that will be face up on
+ *  the stack is evaluated to determine if it can be cast."
+ *
+ *  A licence is one of two kinds. A GENERIC permission names the card and no
+ *  characteristic of it (an impulse or free exile grant, a plotted or warped
+ *  card's recast, rebound's "cast this card from exile", a library-top
+ *  permission), so the back face, evaluated alone, is still covered. An
+ *  ability of the FRONT face (madness, foretell) is a characteristic the back
+ *  face does not have, so it licenses the front face only.
+ *
+ *  The HAND needs no licence (CR 601.3). A GRAVEYARD cast is never answered
+ *  here: which mechanism claims the card depends on the board (Underworld
+ *  Breach's escape, a granted retrace), so this fails closed and the
+ *  state-aware `modalBackCastLicensed` (`castCost.ts`) answers it. */
+export function modalBackCastLicensedInZone(card: CardInstanceState): boolean {
+    switch (card.zone) {
+        case "hand":
+        case "library":
+            return true;
+        case "exile":
+            return card.madnessExiled !== true && !isForetellCast(card);
+        default:
+            return false;
+    }
+}
+
 /** The back-face cast option on `card` (zero or one) — the instance-level
  *  entry point `independentCastOptionsFor` (`castMode.ts`) reads, mirroring
  *  `splitCastOptionsFor`.
  *
- *  HAND only. A cast from any other zone is licensed by a permission
- *  (Yawgmoth's Will, Bolas's Citadel, an impulse exile) or by an ability of
- *  the FRONT face (flashback, escape), and CR 712.11c evaluates only the face
- *  being cast — so whether each licence reaches the back face is a per-zone
- *  question this module does not answer yet (issue #7398). Withholding the
- *  option keeps every offering surface and the Bot from reaching a cast
- *  `announceCast` refuses. */
+ *  `licensed` is CR 712.11c's answer for the licence this cast rides: passed
+ *  by every surface that knows it (`modalBackCastLicensed`), else read off the
+ *  card alone ({@link modalBackCastLicensedInZone}). Withholding the option
+ *  where the licence does not reach the back face keeps every offering
+ *  surface and the Bot from reaching a cast `announceCast` refuses. */
 export function modalBackCastOptionsFor(
-    card: CardInstanceState
+    card: CardInstanceState,
+    licensed: boolean = modalBackCastLicensedInZone(card)
 ): AlternativeCost[] {
-    if (card.zone !== "hand") return [];
+    if (!licensed) return [];
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return [];
     const alt = modalBackCastAlternativeCost(

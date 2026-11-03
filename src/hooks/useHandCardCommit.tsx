@@ -36,7 +36,7 @@ import {
 } from "@convex/gre/kicker";
 import AltCostPicker from "~/components/cards/alt-cost-picker";
 import { isCastPermissionAltCostId } from "@convex/gre/castPermissions";
-import { splitCastOptionsFor } from "@convex/gre/splitCast";
+import { faceChoiceCastOptionsFor } from "@convex/gre/castMode";
 import type { PlayLandFace } from "@convex/gre/modalLandPlay";
 import type { CardInstanceState } from "@convex/gre/state";
 import PhyrexianPicker from "~/components/cards/phyrexian-picker";
@@ -492,7 +492,10 @@ export function useHandCardCommit(
         // and `announceCast` refuses an announcement without it. Suppressing
         // the picker under `castManaCostReplaced` therefore left a split card
         // on top of a Bolas's Citadel library uncastable, its click a
-        // guaranteed rejection. `splitCastOptionsFor` is the same instance-level
+        // guaranteed rejection. CR 712.11b — a modal double-faced card's BACK
+        // face is the same kind of choice ("chooses which face they are
+        // casting"), and a library-top permission names the card, not a face
+        // (CR 712.11c). `faceChoiceCastOptionsFor` is the same instance-level
         // authority the server's own offering surfaces read (ADR 0074), and it
         // is empty for every other card, so nothing else moves.
         //
@@ -511,8 +514,9 @@ export function useHandCardCommit(
         // single surviving option dispatches straight through, exactly as a
         // card with no options at all casts on click today.
         const halfChoiceOwed =
-            splitCastOptionsFor(cardInstance as unknown as CardInstanceState)
-                .length > 0;
+            faceChoiceCastOptionsFor(
+                cardInstance as unknown as CardInstanceState
+            ).length > 0;
         // CR 601.3e (issue #7526) — off the library top each option is
         // licensed by its OWN grant: Brazen Borrower may ride Bolas's Citadel
         // while Petty Theft rides an instant-and-sorcery grant that keeps the

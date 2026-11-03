@@ -69,7 +69,7 @@ import { getEffectiveColors } from "../cards/effectiveColors";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import type { CastFromZone } from "./castCost";
-import { exileCastPermitted } from "./castCost";
+import { exileCastPermitted, modalBackCastLicensed } from "./castCost";
 import {
     castOptionAlternativeCosts,
     castPermissionRequired,
@@ -79,13 +79,11 @@ import {
     castSubjectDefinition,
     castSubjectView,
     independentCastOptionsFor,
+    isFaceChoiceCastId,
 } from "./castMode";
 import { landPlayFaces } from "./modalLandPlay";
-import {
-    isSplitCastId,
-    offersPrintedCast,
-    splitCastOptionsFor,
-} from "./splitCast";
+import { modalBackCastOptionsFor } from "./modalBackCast";
+import { offersPrintedCast, splitCastOptionsFor } from "./splitCast";
 import { adventureCastOptionFor } from "./adventure";
 import { morphCastAlternativeCost } from "./morph";
 import { canPayAnyAdditionalCost } from "./additionalCost";
@@ -489,12 +487,13 @@ export function libraryTopCastGrant(
     // CR 601.2b — an Adventure or morph announcement can never ride a grant
     // that replaces the mana cost ({@link libraryTopAnnouncementLicensed}), so
     // where a keeping grant also covers it the choice is forced: absent picks
-    // the grant that can license it. Only the printed cast and a split half
-    // (CR 709.3 — naming the half is no second method) default to the life.
+    // the grant that can license it. Only the printed cast and a face choice
+    // (CR 709.3 / 712.11b — naming the half or the face is no second method)
+    // default to the life.
     const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
     const replacementLicensable =
         alternativeCostId === undefined ||
-        isSplitCastId(def ?? undefined, alternativeCostId) !== undefined;
+        isFaceChoiceCastId(def ?? undefined, alternativeCostId);
     if (!replacementLicensable && keeps) return keeps;
     return (
         covering.find((g) => g.manaCostReplacement !== undefined) ?? covering[0]
@@ -550,8 +549,8 @@ export function libraryTopReplacementDeclinable(
 
 /** CR 601.3e (issue #7526) — every announcement a cast off the top of the
  *  library could make, as the `alternativeCostId` that says which: the
- *  non-hand set ({@link nonHandCastAnnouncements} — the printed cast, or a
- *  split card's two halves) plus the two casts whose SUBJECT differs from the
+ *  non-hand set ({@link nonHandCastAnnouncements} — the printed cast and a
+ *  modal card's back face, or a split card's two halves) plus the two casts whose SUBJECT differs from the
  *  card in its zone, and so may be covered by a filtered permission the
  *  printed card is not: the Adventure (CR 715.3a — "only the alternative
  *  characteristics are evaluated") and the face-down morph cast (CR 702.37c —
@@ -569,7 +568,8 @@ function libraryTopCastAnnouncements(
     const adventure = adventureCastOptionFor(card);
     const morph = morphCastAlternativeCost(def ?? undefined);
     return [
-        ...nonHandCastAnnouncements(card),
+        // CR 712.11c — a library-top permission names the card, not a face.
+        ...nonHandCastAnnouncements(card, true),
         ...(adventure ? [adventure.id] : []),
         ...(morph ? [morph.id] : []),
     ];
@@ -602,9 +602,9 @@ function libraryTopOptionManaCost(
  *  single spell": a morph cast "follows the rules for paying alternative
  *  costs" (CR 702.37c) and never rides on Bolas's Citadel's life payment. The
  *  Adventure is refused there too — the engine's existing reading (issue
- *  #4900), the same refusal `announceCast` and the Bot already make. A split
- *  half is exempt — CR 709.3's choice of half is how the spell is named at
- *  all, not a price.
+ *  #4900), the same refusal `announceCast` and the Bot already make. A face
+ *  choice is exempt — a split half (CR 709.3) or a modal card's back face (CR
+ *  712.11b): choosing it is how the spell is named at all, not a price.
  *
  *  The one predicate the legality gate, the Bot's library-top enumeration and
  *  the client picker ask per announcement, so none of them offers a cast the
@@ -632,7 +632,7 @@ export function libraryTopAnnouncementLicensed(
         return true;
     }
     const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-    return isSplitCastId(def ?? undefined, alternativeCostId) !== undefined;
+    return isFaceChoiceCastId(def ?? undefined, alternativeCostId);
 }
 
 /** Whether `cardInstanceId` is the NONLAND card on top of `player`'s own
@@ -1083,23 +1083,32 @@ export function castPermissionRequiredFor(
 /** CR 709.3 (issue #3344) — every announcement a cast of `card` from a NON-hand
  *  zone could make, as the `alternativeCostId` that says which.
  *
- *  Exactly ONE entry — `undefined`, the printed cast — for every card but a
- *  split one, which offers its two halves and no printed cast at all
+ *  A split card offers its two halves and no printed cast at all
  *  (`offersPrintedCast`, CR 709.3: "a player chooses which half of a split
- *  card they are casting BEFORE putting it onto the stack"). So each non-hand
- *  branch below runs its existing conjunction once per entry and pushes "cast"
- *  when ANY of them passes — byte-identical to the single pass it used to run
- *  for every non-split card.
+ *  card they are casting BEFORE putting it onto the stack"). Every other card
+ *  offers `undefined`, the printed cast — and, when `modalBackLicensed`, a
+ *  modal double-faced card's back face beside it (CR 712.11b): whether the
+ *  licence reaches that face is CR 712.11c's question, answered by
+ *  `modalBackCastLicensed` (`castCost.ts`). So each non-hand branch below
+ *  runs its existing conjunction once per entry and pushes "cast" when ANY of
+ *  them passes.
  *
  *  Deliberately NOT `independentCastOptionsFor`: an ADVENTURE card still has a
  *  printed cast outside the hand (CR 715.3 leaves the choice at play time, and
  *  it is the printed cast every non-hand branch already prices), so widening
  *  the Adventure to these zones is CR 715.3's question and not this one's. */
 function nonHandCastAnnouncements(
-    card: CardInstanceState
+    card: CardInstanceState,
+    modalBackLicensed: boolean
 ): (string | undefined)[] {
     const halves = splitCastOptionsFor(card);
-    return halves.length > 0 ? halves.map((alt) => alt.id) : [undefined];
+    if (halves.length > 0) return halves.map((alt) => alt.id);
+    return [
+        undefined,
+        ...modalBackCastOptionsFor(card, modalBackLicensed).map(
+            (alt) => alt.id
+        ),
+    ];
 }
 
 /** CR 709.3a — run the SUBJECT-level cast gates once per announcement
@@ -1141,12 +1150,27 @@ function anyCastAnnouncementLegal(
             alternativeCostId: string | undefined
         ) => boolean;
         costOpts?: { extraMana?: ManaCost };
-        /** The announcements to walk. Omitted = {@link nonHandCastAnnouncements};
-         *  the library top passes its wider set (CR 601.3e, issue #7526). */
+        /** The announcements to walk. Omitted = {@link nonHandCastAnnouncements}
+         *  for `timingZone`, its back face as far as `modalBackCastLicensed`
+         *  lets the licence reach it (CR 712.11c) — none in the madness window,
+         *  which names no zone: madness is a front-face ability. The library
+         *  top passes its wider set (CR 601.3e, issue #7526). */
         announcements?: (string | undefined)[];
     }
 ): boolean {
-    const announcements = opts.announcements ?? nonHandCastAnnouncements(card);
+    const announcements =
+        opts.announcements ??
+        nonHandCastAnnouncements(
+            card,
+            opts.timingZone !== undefined &&
+                modalBackCastLicensed(
+                    state,
+                    caster,
+                    card,
+                    opts.timingZone,
+                    caster.id
+                )
+        );
     return announcements.some((altCostId) => {
         const subject = castSubjectView(card, altCostId);
         return (

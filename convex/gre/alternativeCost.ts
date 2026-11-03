@@ -75,6 +75,7 @@ import {
     modalBackCastOptionsFor,
 } from "./modalBackCast";
 import { MORPH_CAST_ALT_COST_ID, morphCastAlternativeCost } from "./morph";
+import { modalBackCastLicensed } from "./castCost";
 import { resolveZoneCharacteristics } from "./zoneCharacteristics";
 import type {
     SacrificeRequirement,
@@ -729,8 +730,12 @@ export function affordableAlternativeCosts(
     const variants = [
         ...splitCasts,
         // CR 712.11b — the back face of a modal double-faced card, BESIDE the
-        // printed (front-face) cast rather than instead of it.
-        ...modalBackCastOptionsFor(card),
+        // printed (front-face) cast rather than instead of it — outside the
+        // hand only where the licence reaches that face (CR 712.11c).
+        ...modalBackCastOptionsFor(
+            card,
+            modalBackCastLicensed(state, player, card, card.zone, player.id)
+        ),
         ...(def.alternativeCosts ?? []),
         ...(def.evoke ? [def.evoke] : []),
         ...(def.dash ? [def.dash] : []),

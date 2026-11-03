@@ -74,3 +74,34 @@ for (const probe of [modalCreatureBackProbe, modalInstantBackProbe]) {
     // probe outside the catalogue registers its own.
     registerTokenDefinition(modalBackTwinDefinition(probe)!);
 }
+
+/** CR 712.11c (issue #7398) — the instant-back probe with one FRONT-face
+ *  ability that licenses a cast from outside the hand: flashback, escape,
+ *  retrace, the intrinsic "you may cast this card from your graveyard",
+ *  madness, foretell. The back face is the same {R} instant on every one, and
+ *  has none of them — so each licenses the front face only. */
+export const modalFrontAbilityProbes = {
+    flashback: { flashback: { X: 1, W: 1 } },
+    escape: { escape: { mana: { X: 1, W: 1 }, exile: { count: 1 } } },
+    retrace: { staticAbilities: ["retrace"] },
+    intrinsic: { castableFromOwnGraveyard: true },
+    madness: { madness: { X: 1, W: 1 } },
+    foretell: { foretell: { X: 1, W: 1 } },
+} satisfies Record<string, Partial<CardDefinition>>;
+
+export type ModalFrontAbility = keyof typeof modalFrontAbilityProbes;
+
+/** The registered definition id of the `ability` variant. */
+export function modalFrontAbilityProbeId(ability: ModalFrontAbility): string {
+    return `test:modal-instant-back-probe-${ability}`;
+}
+
+for (const [ability, fields] of Object.entries(modalFrontAbilityProbes)) {
+    const probe: CardDefinition = {
+        ...modalInstantBackProbe,
+        ...fields,
+        id: modalFrontAbilityProbeId(ability as ModalFrontAbility),
+    };
+    registerTokenDefinition(probe);
+    registerTokenDefinition(modalBackTwinDefinition(probe)!);
+}
