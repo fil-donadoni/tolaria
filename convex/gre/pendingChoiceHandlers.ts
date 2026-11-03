@@ -36,6 +36,7 @@ import {
     landEntryActions,
     madnessCastActions,
     mayPayActions,
+    miracleRevealActions,
     nameCardActions,
     noChoiceActions,
     numberPickActions,
@@ -168,6 +169,10 @@ export const PENDING_CHOICE_HANDLERS: Record<
     "rebound-cast": {
         submit: answeredBy("submitReboundDecline"),
         legalActions: reboundCastActions,
+    },
+    "miracle-reveal": {
+        submit: answeredBy("submitMiracleReveal"),
+        legalActions: miracleRevealActions,
     },
     "draw-replacement": {
         submit: answeredBy("submitDrawReplacementPay"),

@@ -1286,6 +1286,19 @@ export function botActionToMove(
             }
             return { kind: "draw-replacement", accept: action.accept };
         }
+        case "miracle-reveal": {
+            // CR 702.94a — routes through `submitMiracleReveal`. Only the
+            // boolean travels; the server reads the head choice.
+            const head = state.pendingChoices?.[0];
+            if (
+                !head ||
+                head.kind !== "miracle-reveal" ||
+                head.playerId !== botId
+            ) {
+                return null;
+            }
+            return { kind: "miracle-reveal", reveal: action.reveal };
+        }
         case "name-card": {
             // CR 202.3 — routes through `submitNameCard`. Only the name travels;
             // the server reads the head choice and validates the name.

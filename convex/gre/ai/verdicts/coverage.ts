@@ -86,6 +86,7 @@ export const CLASS_OF_MOVE_KIND: Record<Move["kind"], DecisionClass> = {
     "madness-decline": "protocol",
     "rebound-decline": "protocol",
     "draw-replacement": "protocol",
+    "miracle-reveal": "protocol",
     "random-reveal-ack": "protocol",
     "summon-companion": "protocol",
     "turn-face-up": "protocol",

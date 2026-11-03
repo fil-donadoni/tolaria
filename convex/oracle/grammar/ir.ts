@@ -306,6 +306,12 @@ export type SlotIR =
      */
     | { readonly kind: "foretell"; readonly cost: ManaCost }
     /**
+     * CR 702.94a — a "Miracle [cost]" line: the cost a card revealed as its
+     * owner's first draw of the turn is cast for, lowered onto
+     * `CardDefinition.miracle`.
+     */
+    | { readonly kind: "miracle"; readonly cost: ManaCost }
+    /**
      * CR 702.96a — an "Overload [cost]" line: the alternative cost that turns
      * every "target" of the spell into "each", lowered onto
      * `CardDefinition.overload`. `description` is the printed line, as the
