@@ -895,6 +895,17 @@ function resolveForEachCountAgainstBoard(
                       .flatMap((p) => p.exile)
                       .filter((c) => c.exiledBySourceId === sourceId).length
                 : 0;
+        // issue #1368 — N repetitions: the count's own pre-cast magnitude
+        // (a literal is exact; a resolution-time binding falls back).
+        case "times":
+            return Math.max(
+                0,
+                resolveValueAgainstBoard(
+                    state,
+                    perspectivePlayerId,
+                    select.count
+                )
+            );
     }
 }
 
