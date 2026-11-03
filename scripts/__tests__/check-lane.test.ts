@@ -91,6 +91,11 @@ import type { LaneSentinels } from "../lib/lane-sentinels";
  * yield `full`. Unknown never means skin.
  */
 
+/**
+ * live-walk-file: the classifier is this file's SUBJECT (issue #7884) — its
+ * pins run against the live tree on purpose, a reach set is what is asserted.
+ * The admission-only tests elsewhere inject `inertClassifyLane`.
+ */
 /** A sentinel set with nothing in it (issue #7651). */
 const EMPTY_SENTINELS: LaneSentinels = {
     $generated: "",

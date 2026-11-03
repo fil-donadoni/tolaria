@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import vitestConfig from "../../vitest.config";
 import { BOT_FAST_LANE, classifyLane } from "../check-lane";
+import { inertClassifyLane } from "./lane-inert-sources.helper";
 
 /**
  * `check:guards` scope guard — the light gate must run the WHOLE node project.
@@ -144,7 +145,7 @@ describe("check:pr:app is check:pr minus the bot fast lane (issue #6149)", () =>
         expect(BOT_FAST_LANE).toBe(
             BOT_SEGMENT.replace("vitest run", "bunx vitest run")
         );
-        const full = classifyLane(["package.json"]);
+        const full = inertClassifyLane(["package.json"]);
         expect(full.run.map((c) => c.command)).toEqual(
             expect.arrayContaining(["bun run check:pr:app", BOT_FAST_LANE])
         );
@@ -243,7 +244,7 @@ describe("the node partitions are the whole backend half of the app suite (ADR 0
 describe("node partitions — which lane runs which (ADR 0136 §5)", () => {
     const vitestCommands = (cmd: string) =>
         cmd.split("&&").filter((seg) => /vitest run/.test(seg));
-    const engine = classifyLane(["convex/gre/engine.ts"]);
+    const engine = inertClassifyLane(["convex/gre/engine.ts"]);
 
     /**
      * ADR 0154 §2 (issue #5464) overturned "whole or not at all": the engine
@@ -252,6 +253,8 @@ describe("node partitions — which lane runs which (ADR 0136 §5)", () => {
      * bot project. Against the live tree: this test file's own subject.
      */
     it("the engine lane scopes the node partitions by the import graph", () => {
+        // live-walk: the claim IS the reach the live import graph derives for
+        // `scripts/lib/test-reach.ts`; no fixture could restate it (issue #7884).
         const plan = classifyLane(["scripts/lib/test-reach.ts"]);
         expect(plan.lane).toBe("engine");
         const node = plan.run.find((c) => c.id === "vitest(related)");
@@ -277,16 +280,16 @@ describe("node partitions — which lane runs which (ADR 0136 §5)", () => {
 
     it("no script and no lane names the retired `node` project", () => {
         const plans = [
-            classifyLane(["src/app.tsx"]),
+            inertClassifyLane(["src/app.tsx"]),
             engine,
-            classifyLane(["scripts/land.ts"]),
-            classifyLane([
+            inertClassifyLane(["scripts/land.ts"]),
+            inertClassifyLane([
                 "convex/cards/sets/lea/red.cards.ts",
                 "data/card-index.json",
             ]),
-            classifyLane(["docs/adr/0111.md"]),
-            classifyLane(["GLOSSARY.md", "convex/gre/engine.ts"]),
-            classifyLane(["package.json"]),
+            inertClassifyLane(["docs/adr/0111.md"]),
+            inertClassifyLane(["GLOSSARY.md", "convex/gre/engine.ts"]),
+            inertClassifyLane(["package.json"]),
         ];
         const commands = [
             ...Object.entries(pkg.scripts).flatMap(([name, cmd]) =>
@@ -335,7 +338,7 @@ describe("the cards lane runs a FIXED partition of node and bot-node (ADR 0136 �
         ...PARTITION,
         "convex/oracle/__tests__/gold.test.ts",
     ];
-    const plan = (files: string[]) => classifyLane(files);
+    const plan = (files: string[]) => inertClassifyLane(files);
     const command = (files: string[], id: string) => {
         const check = plan(files).run.find((c) => c.id === id);
         expect(check, `${id} missing from the cards lane`).toBeTruthy();

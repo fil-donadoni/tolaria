@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
     mkdtempSync,
@@ -51,7 +51,7 @@ import {
     DERIVE_SYNC_COMMIT_SUBJECT,
 } from "../lib/derive-sync";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "../lib/branches";
-import { classifyLane } from "../check-lane";
+import { inertClassifyLane } from "./lane-inert-sources.helper";
 import type { UiScope } from "../lib/ui-scope";
 import {
     classifyScenarioSection,
@@ -1731,48 +1731,65 @@ describe("land.ts — computeSkinReceiptInvalid (issue #2760 review, finding 3)"
 });
 
 describe("land.ts — a skin PR's SCOPED receipt must match the scope of its own diff (issue #3628)", () => {
-    // Real surfaces, real viewport matrix, real import graph of this tree: the scope
-    // is derived from a diff exactly as `land` derives it, never hand-written.
+    // ONE live import-graph walk for the whole describe (issue #7884): the
+    // scope a real diff derives on this tree is derived once, in `beforeAll`,
+    // from the same `landingDiffScope` `land` calls. Every receipt DECISION
+    // below injects a scope instead of walking again.
     const REPO_ROOT = resolve(__dirname, "..", "..");
     const DETAIL_DIFF = ["src/routes/deck-detail.route.tsx"];
     const LOBBY_DIFF = ["src/routes/lobby.route.tsx"];
+    let detail: string[];
 
-    const receiptBody = (surfaces: readonly string[] | null) =>
-        laneReceipt(surfaces);
-
-    function scopedSurfaces(diff: string[]): string[] {
-        const scope = landingDiffScope(diff, REPO_ROOT);
+    beforeAll(() => {
+        // live-walk: the claim is the scope a real diff derives on this tree.
+        const scope = landingDiffScope(DETAIL_DIFF, REPO_ROOT);
         if (scope.kind !== "scoped") {
             throw new Error(
                 `expected a scoped diff, got FULL: ${scope.reason}`
             );
         }
-        return scope.surfaces;
-    }
+        detail = scope.surfaces;
+    });
+
+    const receiptBody = (surfaces: readonly string[] | null) =>
+        laneReceipt(surfaces);
+    const scopedTo = (surfaces: string[]) => (): UiScope => ({
+        kind: "scoped",
+        surfaces,
+    });
+    // The scope the lobby diff would derive: surfaces other than the detail's.
+    const OTHER = ["lobby"];
 
     it("accepts the SCOPED receipt of its own diff, and refuses it for a diff reaching other surfaces", () => {
-        const detail = scopedSurfaces(DETAIL_DIFF);
-        const lobby = scopedSurfaces(LOBBY_DIFF);
         expect(detail.length).toBeGreaterThan(0);
-        expect(detail).not.toEqual(lobby);
-
         const body = receiptBody(detail);
         expect(body).toContain(`SCOPED — diff base ${ORIGIN_BASE}`);
-        expect(skinReceiptInvalidForDiff(DETAIL_DIFF, REPO_ROOT, body)).toBe(
-            false
-        );
-        expect(skinReceiptInvalidForDiff(LOBBY_DIFF, REPO_ROOT, body)).toBe(
-            true
-        );
+        expect(
+            skinReceiptInvalidForDiff(
+                DETAIL_DIFF,
+                REPO_ROOT,
+                body,
+                scopedTo(detail)
+            )
+        ).toBe(false);
+        expect(
+            skinReceiptInvalidForDiff(
+                LOBBY_DIFF,
+                REPO_ROOT,
+                body,
+                scopedTo(OTHER)
+            )
+        ).toBe(true);
     });
 
     it("refuses a SCOPED receipt for a skin diff that also forces the full run", () => {
-        const body = receiptBody(scopedSurfaces(DETAIL_DIFF));
+        const body = receiptBody(detail);
         expect(
             skinReceiptInvalidForDiff(
                 ["src/index.css", ...DETAIL_DIFF],
                 REPO_ROOT,
-                body
+                body,
+                () => ({ kind: "full", reason: "a stylesheet forces the run" })
             )
         ).toBe(true);
     });
@@ -1781,7 +1798,7 @@ describe("land.ts — a skin PR's SCOPED receipt must match the scope of its own
         const throwing = () => {
             throw new Error("import graph unreadable");
         };
-        const scopedBody = receiptBody(scopedSurfaces(DETAIL_DIFF));
+        const scopedBody = receiptBody(detail);
         expect(
             skinReceiptInvalidForDiff(
                 DETAIL_DIFF,
@@ -1802,7 +1819,12 @@ describe("land.ts — a skin PR's SCOPED receipt must match the scope of its own
 
     it("accepts a full RECEIPT for a diff the scoper narrows", () => {
         expect(
-            skinReceiptInvalidForDiff(DETAIL_DIFF, REPO_ROOT, receiptBody(null))
+            skinReceiptInvalidForDiff(
+                DETAIL_DIFF,
+                REPO_ROOT,
+                receiptBody(null),
+                scopedTo(detail)
+            )
         ).toBe(false);
     });
 });
@@ -1890,7 +1912,7 @@ describe("land.ts — the check:ui receipt is owed by the owed predicate, whatev
 
     it("a mixed diff (src + convex, engine since issue #6989) touching an owed glob with no receipt is refused", () => {
         const diff = ["convex/gre/state.ts", "src/index.css"];
-        expect(classifyLane(diff).lane).toBe("engine");
+        expect(inertClassifyLane(diff).lane).toBe("engine");
         expect(
             skinReceiptInvalidForDiff(diff, REPO_ROOT, "no receipt", noScope)
         ).toBe(true);
@@ -1906,10 +1928,10 @@ describe("land.ts — the check:ui receipt is owed by the owed predicate, whatev
 
     it("a mixed diff whose src paths are test-only lands without a receipt", () => {
         const diff = ["convex/gre/state.ts", "src/lib/__tests__/state.test.ts"];
-        expect(classifyLane(diff).lane).toBe("engine");
-        expect(skinReceiptInvalidForDiff(diff, REPO_ROOT, "no receipt")).toBe(
-            false
-        );
+        expect(inertClassifyLane(diff).lane).toBe("engine");
+        expect(
+            skinReceiptInvalidForDiff(diff, REPO_ROOT, "no receipt", noScope)
+        ).toBe(false);
     });
 
     it("an owed verdict that cannot be derived stays owed", () => {
@@ -2021,7 +2043,7 @@ describe("land.ts — a cards-lane landing is treated like engine (ADR 0136 §4,
     ];
 
     it("the card diff really is the cards lane (else the rest proves nothing)", () => {
-        expect(classifyLane(CARD_DIFF).lane).toBe("cards");
+        expect(inertClassifyLane(CARD_DIFF).lane).toBe("cards");
     });
 
     it("owes no check:ui receipt — garbage in the body never refuses, and no scope is derived", () => {

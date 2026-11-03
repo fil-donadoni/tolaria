@@ -7,7 +7,7 @@ import {
     issueLogVerdict,
     issueRefs,
 } from "../lib/issue-log-comments";
-import { classifyLane } from "../check-lane";
+import { inertClassifyLane } from "./lane-inert-sources.helper";
 
 const LOG = [
     "// Does a thing.",
@@ -71,7 +71,7 @@ describe("baselineAdditions", () => {
 
 describe("check-lane admission", () => {
     const ran = (files: string[]) =>
-        classifyLane(files).run.some(
+        inertClassifyLane(files).run.some(
             (c) => c.id === "check:issue-log-comments"
         );
     it("runs on a source edit and on the baseline, not on a non-source file", () => {

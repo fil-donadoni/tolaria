@@ -4,7 +4,7 @@ import {
     baselineNames,
     ROUND_TRIP_BASELINE_PATH,
 } from "../lib/baseline-shrink";
-import { classifyLane } from "../check-lane";
+import { inertClassifyLane } from "./lane-inert-sources.helper";
 
 /** Guard C's baseline only shrinks — the diff half (issue #5942). */
 
@@ -51,7 +51,9 @@ describe("baselineAdditions", () => {
 
 describe("check-lane admits check:baseline-shrink on the baseline alone", () => {
     const planned = (files: string[]) =>
-        classifyLane(files).run.some((c) => c.id === "check:baseline-shrink");
+        inertClassifyLane(files).run.some(
+            (c) => c.id === "check:baseline-shrink"
+        );
 
     it("runs when the baseline changes, not otherwise", () => {
         expect(planned([ROUND_TRIP_BASELINE_PATH])).toBe(true);

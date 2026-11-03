@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { classifyLane, type RelatedTests } from "../check-lane";
+import { type RelatedTests } from "../check-lane";
+import { inertClassifyLane } from "./lane-inert-sources.helper";
 import {
     isTransientPushFailure,
     landRefusals,
@@ -31,7 +32,7 @@ const related = (reach: Partial<RelatedTests>) => () => ({ ...none, ...reach });
 describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => {
     it("keeps every step the engine lane plans except the not-seconds-cost ones", () => {
         const files = ["convex/gre/foo.ts"];
-        const plan = classifyLane(
+        const plan = inertClassifyLane(
             files,
             files,
             related({ "node-engine": ["convex/gre/__tests__/foo.test.ts"] })
@@ -50,7 +51,7 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
         const files = ["convex/gre/types.ts"];
         const at = (n: number) =>
             preQueueSteps(
-                classifyLane(
+                inertClassifyLane(
                     files,
                     files,
                     related({
@@ -79,7 +80,7 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
 
     it("drops a vitest run that resolves to a whole project, with a reason", () => {
         const files = ["scripts/lib/a.ts", "tolaria.config.json"];
-        const plan = classifyLane(files, files, related({}));
+        const plan = inertClassifyLane(files, files, related({}));
         const { skip } = preQueueSteps(plan, [], files);
         expect(skip.find((s) => s.id === "node-tooling")?.reason).toMatch(
             /whole vitest project/
@@ -88,7 +89,7 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
 
     it("drops check:pr from a full-lane diff but keeps its cheap guards", () => {
         const files = ["package.json", "src/a.tsx", "convex/b.ts"];
-        const plan = classifyLane(files, files, related({}));
+        const plan = inertClassifyLane(files, files, related({}));
         const { run } = preQueueSteps(plan, [], files);
         expect(run.map((c) => c.id)).not.toContain("check:pr");
         expect(run.map((c) => c.id)).toEqual(
@@ -99,7 +100,7 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
 
     it("a NEW scripts test file also runs the docs-lane census", () => {
         const added = ["scripts/__tests__/brand-new.test.ts"];
-        const plan = classifyLane(added, added, related({}));
+        const plan = inertClassifyLane(added, added, related({}));
         const { run } = preQueueSteps(plan, added, added);
         const guard = run.find((c) => c.id === "vitest(new-file guards)");
         expect(guard?.command).toContain("scripts/__tests__/docs-lane.test.ts");
@@ -107,7 +108,7 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
 
     it("a NEW data/ file pulls the generated-artifact classification guard (issue #6654)", () => {
         const added = ["data/brand-new.json"];
-        const plan = classifyLane(added, added, related({}));
+        const plan = inertClassifyLane(added, added, related({}));
         const { run } = preQueueSteps(plan, added, added);
         const guard = run.find((c) => c.id === "vitest(new-file guards)");
         expect(guard?.command).toContain(
@@ -117,14 +118,14 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
 
     it("a MODIFIED test file does not pull the new-file guards", () => {
         const files = ["scripts/__tests__/old.test.ts"];
-        const plan = classifyLane(files, files, related({}));
+        const plan = inertClassifyLane(files, files, related({}));
         const { run } = preQueueSteps(plan, [], files);
         expect(run.map((c) => c.id)).not.toContain("vitest(new-file guards)");
     });
 
     it("runs a touched test file the lane did not plan (cards diff)", () => {
         const files = ["convex/cards/sets/x.test.ts"];
-        const plan = classifyLane(files, files, related({}));
+        const plan = inertClassifyLane(files, files, related({}));
         const { run } = preQueueSteps(plan, [], files);
         expect(run.find((c) => c.id === "vitest(touched)")?.command).toContain(
             "convex/cards/sets/x.test.ts"
@@ -134,7 +135,7 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
 
 describe("runPreQueue — red refuses", () => {
     const files = ["convex/gre/foo.ts"];
-    const plan = classifyLane(files, files, related({}));
+    const plan = inertClassifyLane(files, files, related({}));
     const run = (failing: string | null) =>
         runPreQueue({
             plan,
@@ -156,7 +157,7 @@ describe("runPreQueue — red refuses", () => {
     it("an unclassified new test file (docs-lane census red) is reported", () => {
         const added = ["scripts/__tests__/brand-new.test.ts"];
         const r = runPreQueue({
-            plan: classifyLane(added, added, related({})),
+            plan: inertClassifyLane(added, added, related({})),
             added,
             present: added,
             log: () => undefined,
@@ -179,7 +180,7 @@ describe("runPreQueue — red refuses", () => {
 // (`check:lane --regenerate-derived`): rebuilt derived state, restored after.
 describe("runPreQueue — derived state is rebuilt around the steps", () => {
     const files = ["convex/gre/foo.ts"];
-    const plan = classifyLane(files, files, related({}));
+    const plan = inertClassifyLane(files, files, related({}));
     const drive = (opts: { regenOk?: boolean; failing?: string } = {}) => {
         const calls: string[] = [];
         const r = runPreQueue({
@@ -253,7 +254,7 @@ describe("runPreQueue — derived state is rebuilt around the steps", () => {
 // Issue #6620 — cheap refusals first, every red at once.
 describe("runPreQueue — cheap tier first, all reds at once (issue #6620)", () => {
     const files = ["convex/gre/foo.ts", "scripts/__tests__/brand-new.test.ts"];
-    const plan = classifyLane(files, files, related({}));
+    const plan = inertClassifyLane(files, files, related({}));
     const drive = (failing: string[], regenOk = true) => {
         const ran: string[] = [];
         const r = runPreQueue({
