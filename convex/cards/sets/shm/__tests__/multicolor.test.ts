@@ -13,8 +13,13 @@ import {
 } from "../../../__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
+import { preloadDefinitions } from "../../../registry";
+import { manamorphose as manamorphoseCard } from "../multicolor.cards";
 
-const manamorphose = getDefinition("50283122-b8c4-4fb3-8eba-6252b72222f4");
+// The real definition, made resident directly: the packed catalogue a new card
+// reaches `getDefinition` through is derived state the base writes (ADR 0157).
+const manamorphose = manamorphoseCard();
+preloadDefinitions([manamorphose]);
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 function board(): GameState {
