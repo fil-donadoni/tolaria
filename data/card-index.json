@@ -36690,6 +36690,14 @@
         "source": "compiled"
     },
     {
+        "name": "Iron Man Armor",
+        "scryfallId": "361c2f3b-f04e-446b-a683-9195e238daf0",
+        "oracleId": "958d81c2-ca09-4275-890e-3bb595317325",
+        "firstSet": "msh",
+        "firstPrintId": "361c2f3b-f04e-446b-a683-9195e238daf0",
+        "firstPrintSet": "msh"
+    },
+    {
         "name": "Iron Man, Tony Stark",
         "scryfallId": "ec18d8cd-67ed-4338-8ae7-69628469cd43",
         "oracleId": "188e1516-5766-406b-aacb-468f2d9a530a",
