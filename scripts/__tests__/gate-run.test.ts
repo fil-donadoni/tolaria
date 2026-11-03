@@ -374,6 +374,8 @@ describe("gate-run — the run outlives the call that started it (#3698 AC1)", (
                 TOLARIA_GATE_RUN_WAIT_SECS: "60",
             },
         });
+        // A red wait below must not leave this caller running past the test.
+        callers.add(child.pid!);
         // Once the gate is running, kill the caller's whole group.
         expect(await waitForFile(started), "the gate never started").toBe(true);
         process.kill(-child.pid!, "SIGTERM");
