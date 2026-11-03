@@ -107,6 +107,11 @@ const RULES_VOCABULARY_NAMES: ReadonlyArray<{
     },
     { card: "Sacrifice", vocabulary: "keyword action sacrifice (CR 701.21)" },
     {
+        card: "Addle",
+        vocabulary:
+            "keyword ability saddle / the saddled designation (CR 702.171)",
+    },
+    {
         card: "Blessing",
         vocabulary: "the city's blessing, granted by ascend (CR 702.131)",
     },

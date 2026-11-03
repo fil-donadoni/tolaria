@@ -729,6 +729,12 @@ function isCardFilter(
             if (!allowLiveState) return false;
             return typeof v === "boolean";
         }
+        // CR 702.171b — "Only permanents can be or become saddled": the
+        // designation is battlefield state, on the SAME `allowLiveState` gate.
+        if (k === "saddled") {
+            if (!allowLiveState) return false;
+            return typeof v === "boolean";
+        }
         // "…that they controlled since the beginning of the turn" (Keldon
         // Twilight, PLS). Same battlefield-only honesty rule as
         // `hasAbility`/`isAttacking` above: a card in a hidden zone has no

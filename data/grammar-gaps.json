@@ -1141,11 +1141,6 @@
         },
         {
             "kind": "grammar",
-            "key": "keyword-line › keyword ability › Saddle N",
-            "issue": 2088
-        },
-        {
-            "kind": "grammar",
             "key": "keyword-line › keyword ability › ward {…}",
             "issue": 7769
         },

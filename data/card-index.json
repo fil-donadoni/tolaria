@@ -11052,6 +11052,14 @@
         "source": "compiled"
     },
     {
+        "name": "Caustic Bronco",
+        "scryfallId": "e9a268ba-c442-4fe4-90b4-2810c8474f4e",
+        "oracleId": "165bdc68-1da0-47db-a069-978fc4c04b3f",
+        "firstSet": "otj",
+        "firstPrintId": "e9a268ba-c442-4fe4-90b4-2810c8474f4e",
+        "firstPrintSet": "otj"
+    },
+    {
         "name": "Caustic Caterpillar",
         "scryfallId": "f03d4e0d-bddd-4835-91b8-11c2f15e54c3",
         "oracleId": "45d35128-76e6-43f9-8d23-41f7506c3a71",
