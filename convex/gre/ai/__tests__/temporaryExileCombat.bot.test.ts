@@ -18,13 +18,20 @@ import { describeMove } from "../../describeMove";
 import { enumerateMoves } from "../../moves";
 import { cloneGameState } from "../../clone";
 import { evaluate } from "../../evaluate";
+import type { GameState } from "../../state";
 import {
+    answeredTriggerId,
     applyMoveInSearch,
     decidingPlayer,
+    policyProbeState,
     settleStackForBreakdown,
 } from "../../search";
 import type { BladeSetupStep } from "../blade/types";
-import { buildPositionFromSpec } from "../blade/build";
+import { buildBladeState, buildPositionFromSpec } from "../blade/build";
+import { BLADE_SCENARIOS } from "../blade/scenarios";
+import { seatPlayerId } from "../blade/matcher";
+import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
+import { candidateFeatures } from "../verdicts/evalPairs";
 
 type Board = {
     /** The Bot's other creature — able to attack this turn or not. */
@@ -125,5 +132,60 @@ describe("temporary exile — CR 603.7a return window vs this turn's combat", ()
     it("opponent's turn: the creature returns to the active player, no blocker is missed", () => {
         const v = targetValues({ bearsSick: false, turn: "opp" });
         expect(v.get(GIANT)).toBeCloseTo(v.get(MOUNTAIN)!, 6);
+    });
+});
+
+const VANILLA_ENTRY =
+    "audit: cast-blink: Flickerwisp exiles the opposing body when its own creature is vanilla";
+
+/** The blade entry's position — Flickerwisp's enters trigger announcing its
+ *  target (CR 603.3d) — and the seat that owes the answer. */
+function vanillaEntry(): { state: GameState; bot: string } {
+    const scenario = BLADE_SCENARIOS.find((s) => s.label === VANILLA_ENTRY);
+    if (!scenario) throw new Error("blade entry missing");
+    const state = buildBladeState(scenario);
+    expect(state.pendingTarget?.kind).toBe("trigger");
+    return { state, bot: seatPlayerId(state, scenario.bot) };
+}
+
+function answer(state: GameState, bot: string, name: string) {
+    const move = enumerateMoves(state, bot).find(
+        (m) => m.kind === "submit-target" && describeMove(m, state) === name
+    );
+    if (!move) throw new Error(`no answer ${name}`);
+    return move;
+}
+
+describe("1-ply probe — a trigger-target answer reads its trigger resolved (CR 603.3d)", () => {
+    it("the Eval Pair policy separates the opposing blocker's exile from the land's", () => {
+        const { state, bot } = vanillaEntry();
+        const value = (name: string) =>
+            candidateFeatures(state, bot, answer(state, bot, name)).policyValue;
+        expect(value(GIANT)).toBeGreaterThan(value(MOUNTAIN) + 10);
+    });
+
+    it("a stale answer, its selection already completed, settles no trigger", () => {
+        const { state, bot } = vanillaEntry();
+        const giant = answer(state, bot, GIANT);
+        // The selection answered: the trigger sits alone on the stack with
+        // its target written and no selection pending.
+        const answered = cloneGameState(state);
+        applyMoveInSearch(answered, bot, giant);
+        expect(answered.pendingTarget).toBeUndefined();
+        expect(answered.stack).toHaveLength(1);
+        // The same submission replayed there answers nothing
+        // (`raisedPendingTargetOwedBy`), so the lone trigger is not its
+        // payoff and the probe leaves it on the stack.
+        const probe = cloneGameState(answered);
+        applyMoveInSearch(probe, bot, giant);
+        const settled = policyProbeState(
+            probe,
+            giant,
+            DEFAULT_EVAL_WEIGHTS,
+            bot,
+            false,
+            answeredTriggerId(answered, bot, giant)
+        );
+        expect(settled.stack).toHaveLength(1);
     });
 });
