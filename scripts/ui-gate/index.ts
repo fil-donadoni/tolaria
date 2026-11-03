@@ -210,7 +210,7 @@ import {
     renderUiScope,
     renderScopeDecision,
     isAfkSession,
-    UI_SCOPE_UNDECIDED_EXIT,
+    scopeStopExit,
     renderWalkOwed,
     type UiScope,
     type WalkOwed,
@@ -949,24 +949,26 @@ async function main(): Promise<number> {
     let loadAtStart = loadAverage();
     const scope = computeRunScope(opts);
     log(renderUiScope(scope, opts.base));
-    if (opts.scopeOnly) {
-        log(renderWalkOwed(computeWalkOwed(opts)));
-        return 0;
-    }
-
     // A FULL or UNDECIDED scope walks nothing by itself (issue #6144): no path
     // produces `--all` automatically. Only an explicit `--all` / `--surface=`
     // spends browser time; otherwise the impact is printed and the run exits.
-    if (scope.kind !== "scoped" && !opts.all && !opts.surfaces) {
+    const stop = scopeStopExit(scope, {
+        scopeOnly: opts.scopeOnly,
+        all: opts.all,
+        surfaces: opts.surfaces !== null && opts.surfaces !== undefined,
+    });
+    if (stop !== null) {
         log(
-            renderScopeDecision(
-                scope,
-                SURFACE_IDS,
-                VIEWPORT_IDS.length,
-                isAfkSession()
-            )
+            opts.scopeOnly
+                ? renderWalkOwed(computeWalkOwed(opts))
+                : renderScopeDecision(
+                      scope as Exclude<UiScope, { kind: "scoped" }>,
+                      SURFACE_IDS,
+                      VIEWPORT_IDS.length,
+                      isAfkSession()
+                  )
         );
-        return UI_SCOPE_UNDECIDED_EXIT;
+        return stop;
     }
 
     // A run the diff scoped walks exactly its scope and prints SCOPED; a
