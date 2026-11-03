@@ -146,6 +146,13 @@ by `bun run runner prune [--dry-run]`. `bun run machine` lists any it finds.
   `KeepAlive` restarts it when it dies, and it runs `run.sh` **under
   [`caffeinate -i -s`](#g-caffeinate)**: a sleeping MacBook fails every job in
   flight. Log: `~/.cache/tolaria/gh-runner/<name>.log`.
+- **The `lane` runner is `ProcessType` Interactive**, every other role
+  Standard (issue #7925). A Standard agent is scheduled below the owner's
+  apps, level with every other runner, so health's `test` step used to
+  compete on equal terms with the Bot-play replay and the passes. A runner
+  installed before issue #7925 has no `ProcessType`: re-run
+  `bun run runner install` once the `lane` runner is idle (it restarts the
+  idle runners).
 - **`convex dev` becomes a launchd agent** too, the
   [Convex agent](#g-convex-agent) `com.tolaria.convex`
   (`scripts/runner-units/com.tolaria.convex.plist`): `convex dev --local` in
