@@ -17,7 +17,7 @@
 //
 // The gate is discriminated by TIMING: the instant-back probe is a {1}{W}
 // creature // {R} instant, and p1 holds priority in p2's main phase, where
-// only the back face is castable at all (CR 307.1 / 304.1).
+// only the back face is castable at all (CR 302.1 / 304.1).
 
 import { describe, expect, it } from "vitest";
 import { announceCast, selectTarget, tapForPayment } from "../game";
