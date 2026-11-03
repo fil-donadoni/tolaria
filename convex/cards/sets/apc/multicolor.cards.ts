@@ -502,16 +502,11 @@ export const suffocatingBlast = defineCard(() => ({
 // ORDER is one `exile` over an announced attacking creature — the Giant Trap
 // Door Spider target shape (`combatRoleFilter: "attacking"`).
 //
-// CHAOS is `forEach` over every creature on EVERY player's battlefield (no
-// `controller` = both battlefields) and one `restrictCombat` "cant-block" per
-// member, the same per-permanent flag Manacles of Decay writes (CR 509.1a).
-// The flag clears at cleanup (CR 514.2), which is the "this turn" duration.
-//
-// Divergence (tracked-by: #4726): CR 611.2c makes "creatures can't block" a
-// rules-modifying effect (no characteristic changes), so it must also bind a
-// creature that enters after resolution; `forEach` freezes its member set at
-// resolution, so a creature with flash that enters before blockers can still
-// block.
+// CHAOS is the GAME-scoped `restrictCombat` "cant-block-all" mode (CR
+// 509.1b): CR 611.2c makes "creatures can't block" a rules modification (no
+// characteristic changes), so it binds every creature on every battlefield,
+// including one that enters after resolution (a flash creature cast before
+// blockers). The flag clears at cleanup (CR 514.2), the "this turn" duration.
 // hand-tail: Creatures can't block this turn. (#4473)
 export const orderChaos = defineCard(() =>
     defineSplitCard({
@@ -538,21 +533,7 @@ export const orderChaos = defineCard(() =>
                 types: ["Instant"],
                 oracleText: "Creatures can't block this turn.",
                 effects: [
-                    {
-                        op: "forEach",
-                        select: {
-                            set: "permanents",
-                            zone: "battlefield",
-                            filter: { type: "Creature" },
-                        },
-                        effects: [
-                            {
-                                op: "restrictCombat",
-                                restriction: "cant-block",
-                                target: { ref: "$each" },
-                            },
-                        ],
-                    },
+                    { op: "restrictCombat", restriction: "cant-block-all" },
                 ],
             },
         ],

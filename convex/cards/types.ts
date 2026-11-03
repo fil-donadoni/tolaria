@@ -6831,6 +6831,10 @@ export interface SpellContext {
      *  `GameState.cantAttackThisTurn`, read by `validateAttackerEligibility`
      *  alongside the per-instance flag. Cleared at CLEANUP. */
     setAllCreaturesCantAttackThisTurn: () => void;
+    /** CR 509.1b / 611.2c — GAME-scoped "creatures can't block this turn"
+     *  (Chaos): sets `GameState.allCreaturesCantBlockThisTurn`, read live by
+     *  `validateBlockerEligibility`, cleared at CLEANUP (CR 514.2). */
+    setAllCreaturesCantBlockThisTurn: () => void;
     /** Marks a target permanent (an attacker) as unable to be blocked this
      *  turn (CR 509.1b). Read on the attacker side by combat block-validation;
      *  cleared at CLEANUP (CR 514.2). No-op if target is not a permanent on the
@@ -20964,6 +20968,15 @@ export type EffectOp =
     | {
           op: "restrictCombat";
           restriction: "cant-attack-all";
+      }
+    /** CR 509.1b / 611.2c — Chaos's "creatures can't block this turn": the
+     *  blocking twin of `"cant-attack-all"` above, a thin skin over
+     *  `SpellContext.setAllCreaturesCantBlockThisTurn`. No `target`: the
+     *  restriction modifies the rules, so it binds every creature on every
+     *  battlefield, including one entering after resolution. */
+    | {
+          op: "restrictCombat";
+          restriction: "cant-block-all";
       }
     /** CR 509.1c (issue #3713) — Rampant Elephant's "target creature blocks
      *  this creature this turn if able": a turn-scoped, ATTACKER-NAMED block

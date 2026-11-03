@@ -5437,6 +5437,18 @@ export type GameState = {
      *  `preventAllCombatDamageThisTurn` bears to a per-source damage shield.
      *  Cleared at CLEANUP (CR 514.2), same boundary as `allCreaturesMustAttack`. */
     cantAttackThisTurn?: boolean;
+    /** Turn-scoped GLOBAL "creatures can't block this turn" restriction (CR
+     *  509.1b / 611.2c — Chaos, of Order // Chaos). The blocking twin of
+     *  `cantAttackThisTurn` above: CR 611.2c makes a resolved effect that
+     *  changes no characteristic a rules modification, so it binds a creature
+     *  that enters the battlefield AFTER the spell resolved (a flash creature
+     *  cast before blockers), which a `forEach` sweep of per-instance
+     *  `CardInstanceState.cantBlockThisTurn` flags would miss. Player-agnostic:
+     *  no creature on any battlefield can block. Read by
+     *  `validateBlockerEligibility` beside the per-instance flag; set by
+     *  `SpellContext.setAllCreaturesCantBlockThisTurn`; cleared at CLEANUP
+     *  (CR 514.2), surviving END_OF_COMBAT for a second combat phase. */
+    allCreaturesCantBlockThisTurn?: boolean;
     /** CR 608.2 / 603.3 (issue #1189) — per-source, per-turn tally of how many
      *  times a triggered ability has RESOLVED this turn, keyed by
      *  `${triggerSourceId}:${triggeredAbilityId}` (a triggered ability firing
