@@ -573,7 +573,8 @@ export function resolveActivationManaCost(
     }
     const phyrexian = resolvePhyrexianActivationPayment(
         ability.cost.mana,
-        player.life,
+        // CR 119.4 — life covers the WHOLE life payment, printed leg included.
+        player.life - (ability.cost.life ?? 0),
         phyrexianLifePips
     );
     if (Object.keys(phyrexian.manaAdditions).length > 0) {
@@ -2445,7 +2446,7 @@ export function activateAbilityOnState(
         // NOW (announcement), then stash it; finalizeTargetSelection folds it.
         const targetPhyrexian = resolvePhyrexianActivationPayment(
             ability.cost.mana,
-            player.life,
+            player.life - (ability.cost.life ?? 0),
             args.phyrexianLifePips
         );
         // CR 202.2 / 702.16b: the source's colors come from the

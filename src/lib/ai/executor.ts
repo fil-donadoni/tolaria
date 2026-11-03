@@ -142,6 +142,8 @@ export type MoveMutations = {
             chosenX?: number;
             /** CR 700.2c (issue #1341) — mode of a modal activated ability. */
             chosenModeIds?: string[];
+            /** CR 107.4f — Phyrexian pips paid with 2 life each. */
+            phyrexianLifePips?: number;
         }
     ) => Promise<unknown>;
     /** CR 113.1b (issue #2903) — activates a PLAYER-level granted ability
@@ -692,6 +694,8 @@ export async function executeMove(
                 // CR 700.2c (issue #1341) — a modal activated ability locks its
                 // mode as it is announced, before targets are selected below.
                 chosenModeIds: move.chosenModeIds,
+                // CR 107.4f — the Phyrexian split the enumerator funded.
+                phyrexianLifePips: move.phyrexianLifePips,
             });
             // See the matching comment in the "cast-spell" branch above.
             const targetInputs: {

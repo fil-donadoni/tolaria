@@ -158,7 +158,13 @@ import {
     greedyDistinctColorMatch,
     spellHasDelve,
 } from "./payWith";
-import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
+import {
+    PHYREXIAN_LIFE_PER_PIP,
+    foldPhyrexianManaAdditions,
+    phyrexianActivationLifePipOptions,
+    phyrexianManaAdditions,
+    phyrexianPipCount,
+} from "./phyrexian";
 import { getEffectivePower } from "./layers";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { canPayTapOtherCost, crewPowerContribution } from "./tapOtherCost";
@@ -628,6 +634,11 @@ export type Move =
            *  the mana leg in full and then had the whole activation dropped.
            *  See `planManaPayment`'s `barredSourceId`. */
           tapPlan: ManaTap[];
+          /** CR 107.4f — how many of the ability's Phyrexian pips are paid
+           *  with 2 life each; the mana-paid pips are already in `tapPlan`.
+           *  Present whenever the cost has a Phyrexian pip (0 included — the
+           *  server's default without it is most-life), absent otherwise. */
+          phyrexianLifePips?: number;
           /** CR 602.1 / 118 — the cards named to pay the ability's DEFERRED
            *  cost legs (discard / exile-from-graveyard / tap-other). The
            *  server parks a `pendingActivation` for each of them and never
@@ -5257,7 +5268,38 @@ function enumerateAbilityMoves(
             }
             return planManaPayment(state, player, cost, undefined, perm);
         };
-        const tapPlan = hasDerivedX ? null : planFunding(manaCost);
+        // CR 107.4f / 602.2b — the ability's Phyrexian pips: each is one mana
+        // of its colour or 2 life. The Bot takes the most-life split it can
+        // FUND (the cast enumerator's preference), folding the mana-paid pips
+        // AFTER the cost modifiers exactly as `resolveActivationManaCost`
+        // charges them, and names the split on the move — the server's
+        // default when none is named is most-life regardless of mana.
+        const phyrexianOptions = phyrexianActivationLifePipOptions(
+            ability.cost.mana,
+            player.life - (ability.cost.life ?? 0)
+        );
+        const fundWithPhyrexian = (
+            cost: Record<string, number>
+        ): { plan: ManaTap[] | null; lifePips?: number } => {
+            if (phyrexianOptions.length === 0) {
+                return { plan: planFunding(cost) };
+            }
+            for (let i = phyrexianOptions.length - 1; i >= 0; i--) {
+                const lifePips = phyrexianOptions[i];
+                const plan = planFunding(
+                    foldPhyrexianManaAdditions(
+                        { ...cost },
+                        phyrexianManaAdditions(ability.cost.mana, lifePips)
+                    )
+                );
+                if (plan !== null) return { plan, lifePips };
+            }
+            return { plan: null };
+        };
+        const funded = hasDerivedX
+            ? { plan: null, lifePips: undefined }
+            : fundWithPhyrexian(manaCost);
+        const tapPlan = funded.plan;
         if (!hasDerivedX && tapPlan === null) continue;
 
         // Modal activated abilities (CR 700.2 / 602.2b, issue #1341): one
@@ -5414,6 +5456,7 @@ function enumerateAbilityMoves(
                 // not per ability: a cheaper spell target can be affordable
                 // while a pricier one in the same tuple set is not.
                 let tupleTapPlan = tapPlan;
+                let tupleLifePips = funded.lifePips;
                 if (hasDerivedX) {
                     const derivedX = deriveXFromTargetSpellMv(
                         state,
@@ -5439,7 +5482,9 @@ function enumerateAbilityMoves(
                             player.id
                         )
                     );
-                    tupleTapPlan = planFunding(costForTuple);
+                    const tupleFunded = fundWithPhyrexian(costForTuple);
+                    tupleTapPlan = tupleFunded.plan;
+                    tupleLifePips = tupleFunded.lifePips;
                 }
                 if (tupleTapPlan === null) continue;
                 for (const costPicks of pickVariants) {
@@ -5464,6 +5509,9 @@ function enumerateAbilityMoves(
                             announcementOf(state, player, perm, lastGroupPrior)
                         ),
                         tapPlan: tupleTapPlan,
+                        ...(tupleLifePips !== undefined
+                            ? { phyrexianLifePips: tupleLifePips }
+                            : {}),
                         ...(costPicks ? { costPicks } : {}),
                     });
                     if (
