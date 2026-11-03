@@ -126,7 +126,11 @@ import { activatedSlot } from "../slots/activated";
 import { manaAbilitySlot } from "../slots/manaAbility";
 import { triggeredSlot } from "../slots/triggered";
 import type { ParseContext } from "../../types";
-import type { CardType, ManaCost } from "../../../cards/types";
+import type {
+    CardType,
+    CombatCounterpartFilter,
+    ManaCost,
+} from "../../../cards/types";
 import { readManaCost } from "../../manaCost";
 import type { CompiledSpellFilter } from "../../../cards/compiledStatics";
 import type { EffectCardFilter, PermanentFilter } from "../../../cards/types";
@@ -330,6 +334,9 @@ export type StaticClauseIR =
            *  player": the block is legal only while the blocker's controller
            *  controls more creatures than the attacker's controller. */
           readonly unlessControlMoreCreatures?: true;
+          /** CR 509.1b — "… can block only creatures with flying": the block
+           *  is legal only against an attacker matching this filter. */
+          readonly onlyAgainst?: CombatCounterpartFilter;
       }
     /**
      * CR 508.1c — "This creature can't attack unless <condition>": the
@@ -1726,6 +1733,29 @@ const selfCantBlockRule: Rule<StaticClauseIR> = pattern(
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
+const SELF_BLOCKS_ONLY_FLYERS = /^(.+) can block only creatures with flying$/;
+
+/**
+ * "<self> can block only creatures with flying" (Brazen Borrower, Cloud
+ * Sprite, Welkin Tern) — CR 509.1b: a blocker-side restriction the attacker
+ * must satisfy. Only the flying counterpart is read: the filter vocabulary is
+ * closed (`CombatCounterpartFilter`), so "can block only creatures with power
+ * N or greater" or any other tail fails to match and stays refused rather
+ * than being approximated.
+ */
+const selfBlocksOnlyFlyersRule: Rule<StaticClauseIR> = pattern(
+    "self can block only creatures with flying",
+    SELF_BLOCKS_ONLY_FLYERS,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(uncapitalise(match[1]!))
+            ? ok({
+                  kind: "self-block-restriction" as const,
+                  sentence: `${match[1]!} can block only creatures with flying.`,
+                  onlyAgainst: { keyword: "flying" as const },
+              })
+            : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
+);
+
 const SELF_CANT_ATTACK_UNLESS_MORE_CREATURES =
     /^(.+) can't attack unless you control more creatures than defending player$/;
 
@@ -2801,6 +2831,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         doesNotUntapRule,
         selfCantBlockRule,
         selfCantBlockUnlessMoreCreaturesRule,
+        selfBlocksOnlyFlyersRule,
         selfCantAttackUnlessMoreCreaturesRule,
         setDoesNotUntapRule,
         landUntapCapRule,

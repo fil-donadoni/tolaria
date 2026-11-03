@@ -49,6 +49,7 @@ import type {
     CardSupertype,
     CardType,
     Color,
+    CombatCounterpartFilter,
     ManaCost,
     PermanentView,
     StaticActivationRestriction,
@@ -342,6 +343,11 @@ export type CompiledStaticEffect =
            *  predicate compares the creature counts of the blocker's and the
            *  attacker's controllers; absent: unconditional. */
           readonly unlessControlMoreCreatures?: true;
+          /** CR 509.1b — `block-restriction` only: "can block only creatures
+           *  with flying". The block is legal only when the attacker matches;
+           *  carried onto the effect as data (no closure), so Guard C
+           *  compares it (issue #3315). Exclusive with `unlessControlMoreCreatures`. */
+          readonly onlyAgainst?: CombatCounterpartFilter;
           /**
            * CR 508.1c — "can't attack unless <condition>": the attack is legal
            * only while the condition holds. Absent = unconditional.
@@ -821,6 +827,14 @@ export function resolveCompiledStatic(
                 oracleText: descriptor.oracleText,
             };
         case "block-restriction":
+            if (descriptor.onlyAgainst !== undefined)
+                return {
+                    kind: "block-restriction",
+                    id: descriptor.id,
+                    side: "blocker",
+                    onlyAgainst: descriptor.onlyAgainst,
+                    oracleText: descriptor.oracleText,
+                };
             return {
                 kind: "block-restriction",
                 id: descriptor.id,

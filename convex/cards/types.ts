@@ -9561,21 +9561,13 @@ export interface StaticUntapRestriction {
  *  The predicate receives P/T already enriched to effective (post-layer-7c)
  *  values by the combat validator, so predicates that check `opponent.power`
  *  automatically honor static buffs (Crusade, Bad Moon, etc.). */
-export interface StaticBlockRestriction {
+interface StaticBlockRestrictionBase {
     kind: "block-restriction";
     id: string;
     /** "attacker" — restricts which blockers may be assigned to this
      *  creature when it attacks.
      *  "blocker" — restricts which attackers this creature may block. */
     side: "attacker" | "blocker";
-    /** Returns `true` when the block is LEGAL, `false` to reject.
-     *  For side "attacker": `self` = attacker, `opponent` = candidate blocker.
-     *  For side "blocker": `self` = blocker, `opponent` = attacker. */
-    predicate: (
-        self: PermanentView,
-        opponent: PermanentView,
-        state?: StaticEffectStateView
-    ) => boolean;
     /** Optional mana cost that lets the controller BYPASS this restriction
      *  (CR 509.1b — a cost to declare the block). When present, a block that
      *  the `predicate` rejects is still legal provided the blocker's controller
@@ -9587,6 +9579,45 @@ export interface StaticBlockRestriction {
     bypassCost?: ManaCost;
     /** Oracle text displayed as the rejection reason. */
     oracleText: string;
+}
+
+/** The two ways to state WHICH blocks the restriction allows — exactly one
+ *  per restriction, so a closure and a descriptor can never disagree.
+ *
+ *  - `predicate`: a closure, for a rule the descriptor vocabulary cannot state.
+ *  - `onlyAgainst` (issue #3315): the JSON-pure statement — the block is legal
+ *    only when the OTHER creature (`opponent` below) matches. What the Oracle
+ *    compiler emits (a closure cannot reach a serialized catalogue row), and
+ *    what Guard C compares as data rather than as an opaque closure.
+ *
+ *  Every reader evaluates through `blockRestrictionAllows`
+ *  (`cards/abilities/static/blockRestriction.ts`), never `predicate` directly. */
+export type StaticBlockRestriction = StaticBlockRestrictionBase &
+    (
+        | {
+              /** Returns `true` when the block is LEGAL, `false` to reject.
+               *  For side "attacker": `self` = attacker, `opponent` = candidate blocker.
+               *  For side "blocker": `self` = blocker, `opponent` = attacker. */
+              predicate: (
+                  self: PermanentView,
+                  opponent: PermanentView,
+                  state?: StaticEffectStateView
+              ) => boolean;
+              onlyAgainst?: never;
+          }
+        | {
+              onlyAgainst: CombatCounterpartFilter;
+              predicate?: never;
+          }
+    );
+
+/** What a combat restriction requires of the OTHER creature in a block
+ *  (CR 509.1b): "can block only creatures with flying". A CLOSED vocabulary —
+ *  a restriction it cannot state exactly stays a hand-written closure (and the
+ *  compiler leaves its card unparsed) rather than being approximated. */
+export interface CombatCounterpartFilter {
+    /** CR 702.9 — the other creature must have this keyword. */
+    readonly keyword: "flying";
 }
 
 /** Card-level attack restriction (CR 508.1c). Declares that a creature
