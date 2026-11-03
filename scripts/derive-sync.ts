@@ -116,6 +116,12 @@ import { CATALOGUE_DIR, SOURCE_HASH_FILE } from "./lib/catalogue-merge";
 import { DEFINITION_INDEX_PATH } from "./lib/definition-index";
 import { REFIT_ARTIFACT_PATHS, refitPlan } from "./lib/bot-refit";
 import {
+    botReplayCadence,
+    botHashLateSinceMs,
+    parseBotReplayConfig,
+    type BotReplayConfig,
+} from "./lib/bot-replay-cadence";
+import {
     BOT_REGRESSION_LABELS,
     BOT_REPLAY_COMMIT_SUBJECT,
     BOT_REPLAY_PATHS,
@@ -345,6 +351,37 @@ function lateSinceMs(kind: LateKind, headerBotHash: string): number {
         : headCommittedAtMs();
 }
 
+/** `lateSinceMs` for a `bot-hash` lag under the replay's cadence (issue
+ *  #7925): from the first push that landed once the cadence came due, null
+ *  while none has. */
+function cadencedBotHashLateSinceMs(headerBotHash: string): number | null {
+    const movedAtMs = lateSinceMs("bot-hash", headerBotHash);
+    const last = lastWholeSweepAtMs();
+    const dueAtMs =
+        last === null
+            ? null
+            : last + botReplayConfig().minIntervalMinutes * 60_000;
+    const first =
+        dueAtMs === null
+            ? ""
+            : (git([
+                  "log",
+                  "--reverse",
+                  "--format=%ct",
+                  `--since=@${Math.ceil(dueAtMs / 1000)}`,
+                  "HEAD",
+              ])
+                  .stdout.trim()
+                  .split("\n")[0] ?? "");
+    return botHashLateSinceMs({
+        movedAtMs,
+        dueAtMs,
+        firstCommitAtOrAfterDueMs: /^\d+$/.test(first)
+            ? Number(first) * 1000
+            : null,
+    });
+}
+
 /** The open late issues closed with a comment once the Bot state is
  *  current again (ADR 0159): listed by label and title prefix, never
  *  searched (the search index lags). A `gh` failure is said, not fatal. */
@@ -483,12 +520,30 @@ function settled(noFile: boolean): number {
         return 0;
     }
     const lock = readLockfile();
-    const since = lateSinceMs(c.kind, lock.header.botHash);
-    const lateMs = Date.now() - since;
-    console.log(derivedLateLine(c.why, new Date(since).toISOString()));
-    if (lateMs < DERIVED_GRACE_MS)
+    const since =
+        c.kind === "bot-hash"
+            ? cadencedBotHashLateSinceMs(lock.header.botHash)
+            : lateSinceMs(c.kind, lock.header.botHash);
+    if (since === null) {
+        // The cadence holds the replay back and no push has asked since it
+        // came due (issue #7925): owed by the next push or the nightly.
+        console.log(
+            derivedLateLine(
+                c.why,
+                new Date(lateSinceMs(c.kind, lock.header.botHash)).toISOString()
+            )
+        );
         say(
-            `late by ${Math.round(lateMs / 60_000)} min, within the ${Math.round(DERIVED_GRACE_MS / 60_000)}-minute grace — not filed`
+            "the replay is held by `botReplay.minIntervalMinutes` and no push landed past it — not late, not filed"
+        );
+        return 0;
+    }
+    const lateMs = Date.now() - since;
+    const graceMs = DERIVED_GRACE_MS;
+    console.log(derivedLateLine(c.why, new Date(since).toISOString()));
+    if (lateMs < graceMs)
+        say(
+            `late by ${Math.round(lateMs / 60_000)} min, within the ${Math.round(graceMs / 60_000)}-minute grace — not filed`
         );
     else if (noFile) say("past the grace — --no-file, not filed");
     else
@@ -792,6 +847,28 @@ const MAX_TIP_MOVES = 3;
 
 function readLockfile(): Lockfile {
     return parseLockfile(readFileSync(join(ROOT, LOCKFILE_PATH), "utf8"));
+}
+
+/** `tolaria.config.json` `botReplay` (issue #7925); defaults when absent. */
+function botReplayConfig(): BotReplayConfig {
+    const path = join(ROOT, "tolaria.config.json");
+    return parseBotReplayConfig(
+        existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null
+    );
+}
+
+/** When the last whole sweep landed on HEAD's history: its replay commit's
+ *  committer time, ms; null when there is none. */
+function lastWholeSweepAtMs(): number | null {
+    const ct = git([
+        "log",
+        "-1",
+        "--format=%ct",
+        "--fixed-strings",
+        `--grep=${BOT_REPLAY_COMMIT_SUBJECT}`,
+        "HEAD",
+    ]).stdout.trim();
+    return /^\d+$/.test(ct) ? Number(ct) * 1000 : null;
 }
 
 /** The oracle ids `data/oracle-state-regressions.json` acknowledges: a
@@ -1140,8 +1217,20 @@ function replayBot(dryRun: boolean): number {
         );
         return 0;
     }
+    const cadence = botReplayCadence({
+        event: process.env.GITHUB_EVENT_NAME,
+        lastSweepAtMs: lastWholeSweepAtMs(),
+        nowMs: Date.now(),
+        minIntervalMinutes: botReplayConfig().minIntervalMinutes,
+    });
+    if (cadence.kind === "throttled") {
+        say(
+            `${head.slice(0, 10)}: header Bot hash ${headerBotHash.slice(0, 19)} ≠ tree ${treeBotHash.slice(0, 19)}, but the last whole sweep landed ${new Date(cadence.lastSweepAtMs).toISOString()} — next due ${new Date(cadence.nextDueAtMs).toISOString()} (\`botReplay.minIntervalMinutes\`, issue #7925); a later push, the nightly or a dispatch sweeps`
+        );
+        return 0;
+    }
     say(
-        `${head.slice(0, 10)}: header Bot hash ${headerBotHash.slice(0, 19)} ≠ tree ${treeBotHash.slice(0, 19)} — replaying every \`ready\` card`
+        `${head.slice(0, 10)}: header Bot hash ${headerBotHash.slice(0, 19)} ≠ tree ${treeBotHash.slice(0, 19)} — replaying every \`ready\` card (${cadence.why})`
     );
     if (!ensureCorpus()) return 1;
     // `before` is this tree's own compile with the verdicts carried, not the

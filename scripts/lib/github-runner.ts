@@ -136,6 +136,22 @@ export function systemdRunnerUnit(name: string): string {
     return `tolaria-gh-runner@${name}.service`;
 }
 
+/**
+ * A runner role's launchd `ProcessType` (issue #7925). A LaunchAgent with
+ * none set runs Standard, scheduled at priority 20, below the owner's
+ * interactive processes (31). Every runner was Standard, so health's `test`
+ * step and the queue's lane fought the Bot-play replay, three Claude passes
+ * and every other duty on equal terms. Measured 2026-11-03 on the MacBook
+ * (load 40–110), 4 CPU-bound processes run as a LaunchAgent: 5.7–6.6 s alone
+ * and 8.3–11.1 s beside a Standard 4-thread spinner when Standard;
+ * 2.4–2.5 s with or without the spinner when Interactive. `lane` (the
+ * merge's and the verdict's gates, ADR 0160) is Interactive. Every other
+ * role is Standard, written explicitly.
+ */
+export function processTypeFor(role: RunnerRole): "Interactive" | "Standard" {
+    return role === "lane" ? "Interactive" : "Standard";
+}
+
 /** A runner's plist: the per-runner placeholders first, then the shared
  *  launchd render (which throws on a leftover placeholder or a missing node). */
 export function renderRunnerPlist(
@@ -147,7 +163,8 @@ export function renderRunnerPlist(
     const out = renderLaunchdUnit(
         template
             .replaceAll("__RUNNER_NAME__", () => runner.name)
-            .replaceAll("__RUNNER_DIR__", () => runner.dir),
+            .replaceAll("__RUNNER_DIR__", () => runner.dir)
+            .replaceAll("__PROCESS_TYPE__", () => processTypeFor(runner.role)),
         subs,
         exists
     );

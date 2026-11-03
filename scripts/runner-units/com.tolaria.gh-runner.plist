@@ -13,6 +13,9 @@
   the job, and a sleeping MacBook fails every job in flight.
   TOLARIA_PRIMARY_CHECKOUT is the checkout
   every job's worktree is cut from (scripts/ci/job-worktree.sh, issue #5636).
+  ProcessType is substituted per runner role (`processTypeFor`,
+  scripts/lib/github-runner.ts, issue #7925): Interactive for `lane`, which runs
+  health and the queue's checks, Standard for every other role.
 -->
 <plist version="1.0">
 <dict>
@@ -35,6 +38,8 @@
     <integer>30</integer>
     <key>ExitTimeOut</key>
     <integer>60</integer>
+    <key>ProcessType</key>
+    <string>__PROCESS_TYPE__</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
