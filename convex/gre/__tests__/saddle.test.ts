@@ -19,6 +19,7 @@ import {
 import { projectPublicState } from "../../gameProjections";
 import { grizzlyBears, savannahLions } from "../../cards/sets/lea/index.cards";
 import { causticBronco } from "../../cards/sets/otj/index.cards";
+import { getCardByName } from "../../cards";
 import {
     makeInstance,
     makePlayer,
@@ -460,6 +461,67 @@ describe("objectMatchesFilter on $source — last known information is OPT-IN (C
             ],
         });
         expect(errors.length).toBeGreaterThan(0);
+    });
+});
+
+// ===========================================================================
+describe('"attacks while saddled" — a compiled Mount (CR 702.171b)', () => {
+    /** Alacrian Jaguar (compiled from its Oracle text) + two Bears under p1. */
+    function jaguarBoard(): GameState {
+        const jaguar = makeInstance(getCardByName("Alacrian Jaguar").id, {
+            id: "jaguar",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears().id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jaguar, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    function attackWithJaguar(state: GameState): void {
+        state.phase = "DECLARE_ATTACKERS";
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        state.combat = {
+            attackerIds: ["jaguar"],
+            confirmed: false,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+        finalizeConfirmAttackers(state);
+    }
+
+    const jaguarTriggers = (state: GameState) =>
+        state.stack.filter((s) => s.triggerSourceId === "jaguar");
+
+    it("does not trigger when the Mount attacks unsaddled", () => {
+        const state = jaguarBoard();
+        attackWithJaguar(state);
+        expect(jaguarTriggers(state)).toHaveLength(0);
+    });
+
+    it("triggers when the Mount attacks saddled", () => {
+        const state = jaguarBoard();
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "jaguar",
+            abilityId: "alacrian-jaguar-saddle",
+        });
+        selectActivationCostOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "bear",
+        });
+        resolveTopOfStack(state);
+        attackWithJaguar(state);
+        expect(jaguarTriggers(state)).toHaveLength(1);
     });
 });
 

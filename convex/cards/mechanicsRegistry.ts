@@ -4262,9 +4262,8 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // Inquisition of Kozilek / Grief) and the searched-and-found card reveal
     // (`cards: <picks ref>` — the tutor "reveal it" clause, issue #945:
     // Spellseeker, Stoneforge Mystic, Brightglass Gearhulk, Expedition Map).
-    // A private single-knower "look" (Word of Command) is NOT folded; a
-    // single library-top reveal-to-hand (Dark Confidant, Caustic Bronco) is
-    // `digMatchingToHand` — see the registry note.
+    // A private single-knower "look" (Word of Command) and a library-top
+    // reveal (Caustic Bronco-class) are NOT folded — see the registry note.
     // `setColor` SHIPPED (issue #1083) — SpellContext.setColorOverride is now
     // COVERED live via EFFECT_OP_REGISTRY with status "implemented". Unblocks
     // Blind Seer / Rainbow Crow / Tidal Visionary / Metathran Transport / Sway

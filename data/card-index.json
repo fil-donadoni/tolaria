@@ -1394,6 +1394,16 @@
         "source": "compiled"
     },
     {
+        "name": "Alacrian Jaguar",
+        "scryfallId": "2bd40bca-aa54-4e52-8d48-b3709a11e633",
+        "oracleId": "caeb4ec1-a8ba-4ac4-ad32-edbc671e5a39",
+        "firstSet": "dft",
+        "firstPrintId": "2bd40bca-aa54-4e52-8d48-b3709a11e633",
+        "firstPrintSet": "dft",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Aladdin",
         "scryfallId": "db52bad2-a3ec-4f6f-9418-12e8c40703f6",
         "oracleId": "9a410f83-ed92-4b55-834a-c7cec8f5d1e2",
@@ -9189,6 +9199,16 @@
         "firstPrintId": "a052e945-7535-4b0a-b580-cf76377633f3",
         "firstPrintSet": "dka",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Bridled Bighorn",
+        "scryfallId": "fa7bf089-fa9b-4ffc-bf84-45cd51c76463",
+        "oracleId": "6a1ad848-6fda-46dd-aad8-2f6a5c71a696",
+        "firstSet": "otj",
+        "firstPrintId": "fa7bf089-fa9b-4ffc-bf84-45cd51c76463",
+        "firstPrintSet": "otj",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -18908,6 +18928,16 @@
         "source": "compiled"
     },
     {
+        "name": "District Mascot",
+        "scryfallId": "3171b16f-cd67-416d-be5e-5d9cccb8d0a0",
+        "oracleId": "5fa7cf3a-2a4d-4dd7-890b-49c497570b16",
+        "firstSet": "dft",
+        "firstPrintId": "3171b16f-cd67-416d-be5e-5d9cccb8d0a0",
+        "firstPrintSet": "dft",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Diversion Unit",
         "scryfallId": "e04d4fa6-1fa3-4bfd-a462-47c23ccf9124",
         "oracleId": "4d739edc-4e02-4b35-a2a0-e9685c6e2889",
@@ -19290,6 +19320,16 @@
         "firstSet": "m19",
         "firstPrintId": "a353510a-30de-4891-97b9-d7d556531c41",
         "firstPrintSet": "m19",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Dracosaur Auxiliary",
+        "scryfallId": "cf800b8c-d08e-4644-8ed2-11b839153861",
+        "oracleId": "457e3218-b2ef-4280-931a-5320987b9657",
+        "firstSet": "dft",
+        "firstPrintId": "cf800b8c-d08e-4644-8ed2-11b839153861",
+        "firstPrintSet": "dft",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -28933,6 +28973,16 @@
         "firstPrintId": "0a96a608-9237-41c1-824c-89d5fad939ad",
         "firstPrintSet": "ons",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Gila Courser",
+        "scryfallId": "f568803d-65c0-48d7-916f-671267a9e00e",
+        "oracleId": "bc983c67-eb5d-4a85-a12e-a410f85e949e",
+        "firstSet": "otj",
+        "firstPrintId": "f568803d-65c0-48d7-916f-671267a9e00e",
+        "firstPrintSet": "otj",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -62862,6 +62912,16 @@
         "source": "compiled"
     },
     {
+        "name": "Seraphic Steed",
+        "scryfallId": "7ada7ab4-0dee-4ff3-9817-1e61ca3f2ccf",
+        "oracleId": "51622e89-aa5e-4dd6-a078-eb45e8ebb434",
+        "firstSet": "otj",
+        "firstPrintId": "7ada7ab4-0dee-4ff3-9817-1e61ca3f2ccf",
+        "firstPrintSet": "otj",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Serendib Djinn",
         "scryfallId": "0458b733-d689-4cb5-8970-3b675c67fc4d",
         "oracleId": "683e7135-de54-49c8-a978-4f84628a6a91",
@@ -76118,6 +76178,16 @@
         "source": "compiled"
     },
     {
+        "name": "Trained Arynx",
+        "scryfallId": "ef32a5f8-f69d-47dc-a800-4f0ddf4eada5",
+        "oracleId": "bc875500-f6df-4365-b2d6-7cf425daea97",
+        "firstSet": "otj",
+        "firstPrintId": "ef32a5f8-f69d-47dc-a800-4f0ddf4eada5",
+        "firstPrintSet": "otj",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Trained Caracal",
         "scryfallId": "797e45d1-d17d-40c0-bfdf-ec533784e676",
         "oracleId": "a939f01b-afce-4d92-a897-1a6dc3d788c6",
@@ -78158,6 +78228,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Unswerving Sloth",
+        "scryfallId": "12296a74-5d60-4ee3-aa53-2289f84da776",
+        "oracleId": "5e512ce9-5e2e-4ec3-9486-a10c63cff299",
+        "firstSet": "dft",
+        "firstPrintId": "12296a74-5d60-4ee3-aa53-2289f84da776",
+        "firstPrintSet": "dft",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Untamed Hunger",
         "scryfallId": "595deb86-b6cf-4e4f-a6cf-f5ff128b720d",
         "oracleId": "550abd9b-9aae-4812-9bc0-7f131d6dcde8",
@@ -79319,6 +79399,16 @@
         "firstSet": "thb",
         "firstPrintId": "9dc2b661-2f42-419d-837f-bbf097c1153c",
         "firstPrintSet": "thb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Venomsac Lagac",
+        "scryfallId": "9142b1c9-09d7-42e4-8138-6c15d31f2470",
+        "oracleId": "2fac62be-dcbe-409f-a362-f0e519ec14a9",
+        "firstSet": "dft",
+        "firstPrintId": "9142b1c9-09d7-42e4-8138-6c15d31f2470",
+        "firstPrintSet": "dft",
         "rarity": "common",
         "source": "compiled"
     },
