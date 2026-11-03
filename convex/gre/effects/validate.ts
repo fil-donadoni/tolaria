@@ -4470,6 +4470,10 @@ const OP_SCHEMAS: OpSchemaTable = {
             // `AlternativeCostCondition` has more kinds, none of which a
             // standing permission has a card for.
             condition: isControlCondition,
+            // CR 609.4b (issue #7228) — "mana of any type can be spent to cast
+            // that spell": the SpellContext opt's closed breadth literal.
+            manaSubstitution: (v: unknown) =>
+                v === "any-color" || v === "any-type",
             // CR 305.9 (issue #1689) — true iff the grant's Oracle text says
             // "play" (land-inclusive), never for a "cast"-only grant.
             includesLand: isBoolean,

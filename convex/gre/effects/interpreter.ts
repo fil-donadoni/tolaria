@@ -3871,6 +3871,7 @@ export const OP_EXECUTORS: {
                 op.withoutPayingManaCost ||
                     op.includesLand ||
                     op.costIncrease ||
+                    op.manaSubstitution ||
                     op.condition
                     ? {
                           withoutPayingManaCost: !!op.withoutPayingManaCost,
@@ -3880,6 +3881,11 @@ export const OP_EXECUTORS: {
                           // outlives the granting permanent.
                           ...(op.costIncrease
                               ? { costIncrease: op.costIncrease }
+                              : {}),
+                          // CR 609.4b (issue #7228) — the mana-of-any-type
+                          // half of the grant, scoped to this one card.
+                          ...(op.manaSubstitution
+                              ? { manaSubstitution: op.manaSubstitution }
                               : {}),
                           // CR 611.2b (issue #7295) — the board condition,
                           // stamped on the card and re-read at every attempt.
