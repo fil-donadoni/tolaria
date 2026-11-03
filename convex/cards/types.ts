@@ -21364,6 +21364,15 @@ export interface EffectObjectMatchesFilterPredicate {
      *  an unresolvable player ref makes the predicate `false` (CR 608.2b),
      *  never "no constraint". */
     controlledBy?: EffectPlayerRef;
+    /** CR 608.2h / 400.7 — `true`: when `objectMatchesFilter` is `$source`
+     *  and the source has left the battlefield since the ability was put on
+     *  the stack, match the source AS IT LAST EXISTED there (the stack item's
+     *  departure-time `sourceLki`) instead of reading `false`. For a condition
+     *  that is information about the source ("if this creature isn't
+     *  saddled", Caustic Bronco), never for a "the source is still here" gate,
+     *  which is why it is opt-in. A same-id permanent that re-entered is a new
+     *  object and never answers. Valid only on `$source`. */
+    lastKnown?: true;
 }
 
 /** Has-city's-blessing predicate (Ascend, CR 702.131b — issue #1460): true iff

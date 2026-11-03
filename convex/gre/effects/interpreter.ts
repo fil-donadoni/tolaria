@@ -671,14 +671,20 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
     // gone or non-permanent object (CR 608.2b — the effect does as much as it
     // can).
     if ("objectMatchesFilter" in pred) {
-        // CR 608.2h / 400.7 — the resolving ability's OWN source, once it has
-        // left the battlefield, answers with its last known information
-        // ("if this creature isn't saddled" on a Mount killed in response
-        // still reads the designation it had). `sourceLkiMatchesFilter` is
+        // CR 608.2h / 400.7 — OPT-IN (`lastKnown: true`): the resolving
+        // ability's OWN source, once it has left the battlefield, answers with
+        // its last known information ("if this creature isn't saddled" on a
+        // Mount killed in response still reads the designation it had).
+        // Opt-in because the default form doubles as a "the source is still
+        // here" gate ("if you do" riders after a self-sacrifice or a
+        // self-control-swap) that must read false once the source is gone. `sourceLkiMatchesFilter` is
         // `undefined` while the source never departed, and its departure
         // stamp also stops a same-id permanent that re-entered (a new object)
         // from answering for it.
-        if (isSourceSelfRef(pred.objectMatchesFilter)) {
+        if (
+            pred.lastKnown === true &&
+            isSourceSelfRef(pred.objectMatchesFilter)
+        ) {
             const lkiBase = toPermanentFilter(ctx, pred.filter);
             if (lkiBase === UNMATCHABLE_FILTER) return false;
             let lkiController: string | undefined;

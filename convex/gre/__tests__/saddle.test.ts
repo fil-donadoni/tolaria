@@ -29,7 +29,12 @@ import {
     validateAbilityEffectScript,
     validateEffectScript,
 } from "../effects/validate";
-import type { EffectOp } from "../../cards/types";
+import type {
+    CardDefinition,
+    EffectObjectMatchesFilterPredicate,
+    EffectOp,
+} from "../../cards/types";
+import { withTemporaryDefinition } from "../../cards/registry";
 
 const SADDLE_ABILITY_ID = "caustic-bronco-saddle";
 const BRONCO_TRIGGER_ID = "caustic-bronco-attacks";
@@ -382,6 +387,79 @@ describe("Caustic Bronco — attack trigger (CR 701.20a / 702.171b)", () => {
         resolveTopOfStack(state);
         expect(life(state, "p1")).toBe(20);
         expect(life(state, "p2")).toBe(18);
+    });
+});
+
+// ===========================================================================
+describe("objectMatchesFilter on $source — last known information is OPT-IN (CR 608.2h)", () => {
+    /** Caustic Bronco with its saddled check stripped of `lastKnown`: the
+     *  default form, which other cards use as a "the source is still here"
+     *  gate ("if you do" after a self-sacrifice). */
+    function withoutLastKnown(): CardDefinition {
+        const def = causticBronco();
+        const [trigger] = def.triggeredAbilities!;
+        // The trigger's `matches` is a closure; only its JSON script is copied.
+        const effects = JSON.parse(
+            JSON.stringify(trigger.effects)
+        ) as EffectOp[];
+        const branch = effects[1] as Extract<EffectOp, { op: "if" }>;
+        delete (branch.predicate as EffectObjectMatchesFilterPredicate)
+            .lastKnown;
+        return {
+            ...def,
+            triggeredAbilities: [{ ...trigger, effects }],
+        };
+    }
+
+    it("without the opt-in, a departed source reads false — never its last known state", () => {
+        const def = withoutLastKnown();
+        withTemporaryDefinition(def, () => {
+            const state = broncoBoard(
+                [
+                    { id: "bear-a", cardId: grizzlyBears().id },
+                    { id: "bear-b", cardId: grizzlyBears().id },
+                ],
+                { library: [grizzlyBears().id] }
+            );
+            saddleAndResolve(state, ["bear-a", "bear-b"]);
+            attackWithBronco(state);
+            removePermanentTo(state, "bronco", "graveyard", "destroy");
+            resolveTopOfStack(state);
+            // The gate read false: the else branch ran.
+            expect(life(state, "p1")).toBe(18);
+            expect(life(state, "p2")).toBe(20);
+        });
+    });
+
+    it("the opt-in is valid only on $source", () => {
+        const errors = validateEffectScript({
+            id: "test-host",
+            name: "Test Host",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                objectMatchesFilter: { ref: "$each" },
+                                filter: { saddled: true },
+                                lastKnown: true,
+                            },
+                            then: [
+                                { op: "draw", player: "controller", count: 1 },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        });
+        expect(errors.length).toBeGreaterThan(0);
     });
 });
 

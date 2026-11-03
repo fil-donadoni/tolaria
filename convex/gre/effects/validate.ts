@@ -778,6 +778,15 @@ function filterUsesHasAbility(value: unknown): boolean {
     );
 }
 
+/** Whether `value` is the reserved resolving-source selector `{ ref: "$source" }`. */
+function isSourceRef(value: unknown): boolean {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        (value as { ref?: unknown }).ref === "$source"
+    );
+}
+
 /** Whether an `EffectCardFilter` uses LIVE battlefield state — `isAttacking`
  *  (issue #1097) or `tapped` (issue #3244) — directly or nested inside an
  *  `any` clause: the sibling of `filterUsesHasAbility` right above, same
@@ -3580,11 +3589,13 @@ function isPredicate(value: unknown): boolean {
     // shape to test its LIVE, layer-materialised characteristics against. The
     // selector position is what separates it from `boundMatchesFilter`'s bare
     // snapshot ref: this form reads the battlefield now, not a snapshot.
+    // CR 608.2h — the optional `lastKnown: true` opt-in (a `$source` that
+    // left answers with its last known information) is one more optional key.
+    const optionalKeys = ["controlledBy", "lastKnown"].filter((k) =>
+        keys.includes(k)
+    ).length;
     if (
-        (keys.length === 2 ||
-            // CR 109.5 (issue #2388) — the optional `controlledBy` player
-            // scope ("attached to a creature you control").
-            (keys.length === 3 && keys.includes("controlledBy"))) &&
+        keys.length === 2 + optionalKeys &&
         keys.includes("objectMatchesFilter") &&
         keys.includes("filter")
     ) {
@@ -3603,6 +3614,11 @@ function isPredicate(value: unknown): boolean {
         return (
             isObjectSelector(obj.objectMatchesFilter) &&
             (obj.controlledBy === undefined || isPlayerRef(obj.controlledBy)) &&
+            // Only `$source` has a last known record to read (the stack
+            // item's departure-time `sourceLki`).
+            (obj.lastKnown === undefined ||
+                (obj.lastKnown === true &&
+                    isSourceRef(obj.objectMatchesFilter))) &&
             isCardFilter(obj.filter, {
                 allowHasAbility: true,
                 allowLiveState: true,

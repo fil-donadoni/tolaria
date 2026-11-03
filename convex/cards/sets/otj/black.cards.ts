@@ -15,8 +15,9 @@ import { withSaddle } from "../../abilities/mount";
 // (CR 202.3). "If this creature isn't saddled" is NOT an intervening-if
 // (CR 603.4 — it does not follow the trigger condition), so it is read on
 // resolution through `objectMatchesFilter` on `$source` with
-// `filter.saddled` (CR 702.171b); a Bronco that left the battlefield in
-// response answers with its last known information (CR 608.2h). An empty
+// `filter.saddled` (CR 702.171b), opted into `lastKnown`: a Bronco that left
+// the battlefield in response answers with its last known information
+// (CR 608.2h). An empty
 // library binds nothing, so neither branch loses any life (CR 609.3).
 // hand-tail: Reveal the top card of your library and put it into your hand (#2088)
 export const causticBronco = defineCard(() =>
@@ -54,6 +55,7 @@ export const causticBronco = defineCard(() =>
                             predicate: {
                                 objectMatchesFilter: { ref: "$source" },
                                 filter: { saddled: true },
+                                lastKnown: true,
                             },
                             then: [
                                 {
