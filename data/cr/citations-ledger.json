@@ -8735,7 +8735,7 @@
         {"id":"119.4","line":"* life pick past what life covers throws (CR 119.4). */","sites":1,"status":"confirmed","ruleHash":"5b6b678c4ac3f6c9"},
         {"id":"119.4","line":"* mana-paid pips is payable AND life covers the `2 × lifePips` (CR 119.4).","sites":1,"status":"baseline"},
         {"id":"119.4","line":"* member (Toxic Deluge's chosen-cost X, CR 118.4 / 119.4 pay-X-life).","sites":1,"status":"baseline"},
-        {"id":"119.4","line":"* morph cast is, or (CR 119.4, issue #7570) when its life is more than the","sites":1,"status":"confirmed","ruleHash":"5b6b678c4ac3f6c9"},
+        {"id":"119.4","line":"* morph cast is, or (CR 119.4) when its life is more than the caster has","sites":1,"status":"confirmed","ruleHash":"5b6b678c4ac3f6c9"},
         {"id":"119.4","line":"* per-turn tally (`recordLifeLost`). Affordability (CR 119.4's \"only if","sites":1,"status":"confirmed","ruleHash":"5b6b678c4ac3f6c9"},
         {"id":"119.4","line":"* purposes (CR 119.4 / 614). The override is applied inside","sites":1,"status":"baseline"},
         {"id":"119.4","line":"* reveal it\"), and the affordability gate (CR 119.4) already ran there — a","sites":1,"status":"baseline"},

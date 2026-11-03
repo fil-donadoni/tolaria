@@ -488,9 +488,7 @@ export function useHandCardCommit(
         //
         // `castManaCostReplaced` stays: CR 601.2b — a library-top cast under a
         // cost-replacing permission (Bolas's Citadel) IS an alternative method
-        // of casting, and no second one may ride along. The Adventure is none
-        // (`ridesManaCostReplacement`, issue #7570): its row reaches the picker
-        // through `licensedLibraryAlt` below.
+        // of casting, and no second one may ride along.
         //
         // CR 709.3 (issue #3344) — with ONE exception, and it is not an
         // alternative cost at all: WHICH HALF of a split card is being cast.
@@ -526,7 +524,8 @@ export function useHandCardCommit(
         // while Petty Theft rides an instant-and-sorcery grant that keeps the
         // mana cost. `affordableAltCostsForCard` already drops every row the
         // replacing grant forbids (CR 601.2b), so a surviving row is a legal
-        // announcement the replaced-cost flag must not hide.
+        // announcement the replaced-cost flag must not hide. The Adventure
+        // under the Citadel itself is one (`ridesManaCostReplacement`).
         const affordableAlts = affordableAltCostsForCard(
             cardInstance,
             playerId,

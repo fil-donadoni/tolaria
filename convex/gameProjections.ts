@@ -260,8 +260,8 @@ export type SlimLibraryCard = SlimCardInstance & {
      *  board permission's mandatory free cast, which is hand-only by
      *  construction). Also true (CR 601.3e, issue #7526) when the top card's
      *  printed cast is covered by no grant while its Adventure or face-down
-     *  morph cast is, or (CR 119.4, issue #7570) when its life is more than the
-     *  caster has while the Adventure's is not
+     *  morph cast is, or (CR 119.4) when its life is more than the caster has
+     *  while the Adventure's is not
      *  (`libraryTopAnnouncementChoices`). */
     printedCostCastUnavailable?: true;
 };
