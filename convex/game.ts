@@ -273,6 +273,7 @@ import {
 } from "./gre/hybridGeneric";
 import {
     PHYREXIAN_LIFE_PER_PIP,
+    assertNoUnsplitPhyrexianPip,
     phyrexianManaAdditions,
     phyrexianPipCount,
 } from "./gre/phyrexian";
@@ -586,7 +587,7 @@ import {
     graveyardCardMatchesExileCost,
     locateCastSource,
     minTargetCount,
-    resolveAbilityManaCost,
+    resolveActivationManaCost,
     resolveActivatedAbility,
     resolveTargetCount,
     sacrificeSnapshotFromSelection,
@@ -1224,6 +1225,7 @@ export function applyManaAbilityManaCost(
     card?: CardInstanceState
 ): void {
     if (!ability?.cost.mana) return;
+    assertNoUnsplitPhyrexianPip(ability.cost.mana);
     const cost = normalizeManaCost(ability.cost.mana);
     // CR 601.2f / 605.1a (issue #1339, Forensic Gadgeteer) — a mana ability's
     // OWN cost is reduced exactly like any other activated ability's; nothing
@@ -2743,6 +2745,7 @@ export function beginNonStackFilterCostActivation(
     // refuses.
     assertDiscardFilterCostAffordable(player, ability);
     assertPermanentGiveUpCostAffordable(state, player, card, ability);
+    assertNoUnsplitPhyrexianPip(ability.cost.mana);
     const manaCost = normalizeManaCost(ability.cost.mana ?? {});
     // CR 601.2g / 605.3a — float the mana this ability's own cost needs from the
     // player's other sources (Bog Witch's {B}), the same convenience
@@ -5038,18 +5041,19 @@ export function finalizeTargetSelection(
         if (hasXInCost && abilityChosenX === undefined) {
             throw new Error("This ability requires a chosen X value");
         }
-        const manaCost = resolveAbilityManaCost(state, card, ability, {
-            chosenX: abilityChosenX,
-        });
-        if (manaCost) {
-            applyCostModifiers(
-                manaCost,
-                // ADR 0096 — the announced ABILITY is handed to the collector
-                // so its own `cost.selfReduction` (CR 601.2f, the self-host
-                // arm's ability twin) is folded alongside the battlefield scan.
-                getCostModifiers(state, card, "ability", ability, player.id)
-            );
-        }
+        // ADR 0096 / CR 107.4f — the same total `activateAbilityOnState`
+        // charges: printed cost, cost modifiers (the announced ABILITY's own
+        // `cost.selfReduction` included), then the Phyrexian pips the
+        // activator chose to pay with mana at announcement (stashed on
+        // `pendingTarget.phyrexianLifePips`, re-validated against life here).
+        const { manaCost, phyrexianLife } = resolveActivationManaCost(
+            state,
+            player,
+            card,
+            ability,
+            abilityChosenX,
+            pt.phyrexianLifePips ?? 0
+        );
         // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
         // (Drought: "Activated abilities cost an additional 'Sacrifice a Swamp'
         // for each black mana symbol"). Gate on affordability at announcement;
@@ -5124,6 +5128,7 @@ export function finalizeTargetSelection(
                     ...(activationSac
                         ? { sacrificeSelection: activationSac }
                         : {}),
+                    phyrexianLife,
                 }),
                 targets,
                 // CR 601.2d — carry the divide-as-you-choose split through the
@@ -5183,6 +5188,8 @@ export function finalizeTargetSelection(
         if (ability.cost.life !== undefined) {
             player.life -= ability.cost.life;
         }
+        // CR 107.4f — the Phyrexian pips paid with life (2 each).
+        player.life -= phyrexianLife;
         // CR 606.4 — pay a targeted loyalty ability's signed loyalty cost as it
         // goes on the stack (Liliana's "-2"). No-op for a non-loyalty ability.
         payLoyaltyCost(card, ability);
@@ -13611,6 +13618,10 @@ export const activateAbility = mutation({
          *  entry per mode instance. Required when the ability declares
          *  `modes`, rejected otherwise. */
         chosenModeIds: v.optional(v.array(v.string())),
+        /** CR 107.4f / 602.2b — how many of the ability's Phyrexian pips the
+         *  activator pays with 2 life each; absent → the most-life split life
+         *  covers. Validated server-side against life (CR 119.4). */
+        phyrexianLifePips: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         // SECURITY (issue #1645 review): seat-addressed mutation — the
@@ -14706,6 +14717,7 @@ export const activateManaAbility = mutation({
             );
         }
 
+        assertNoUnsplitPhyrexianPip(ability.cost.mana);
         const manaCost = normalizeManaCost(ability.cost.mana ?? {});
         // CR 602.1 / 605.1a / 609.4b (issue #2944) — a mana ability's own cost
         // is an ACTIVATION cost like any other, so it reads the ability seam.
@@ -15002,6 +15014,7 @@ export const activatePlayerAbility = mutation({
             );
         }
 
+        assertNoUnsplitPhyrexianPip(ability.cost.mana);
         if (ability.cost.mana) {
             const manaCost = normalizeManaCost(ability.cost.mana);
             // CR 602.1 / 609.4b (issue #2944) — deliberately the UNSCOPED set,
