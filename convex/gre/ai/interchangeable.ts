@@ -150,6 +150,7 @@ export function mapMoveCardRefs(
         case "mulligan":
         case "land-entry":
         case "draw-replacement":
+        case "miracle-reveal":
         case "madness-decline":
         case "rebound-decline":
         case "name-card":

@@ -7638,6 +7638,128 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: { moves: [{ kind: "madness-decline" }] },
         note: "Issue #2983, the discriminating twin of `madness-cast-when-affordable`. The generator must FAIL CLOSED: with the madness cost unaffordable it emits the decline ALONE, never a cast the `announceCast` mutation would reject. Its twin proves the same generator does offer the cast when the mana is there — one entry alone would pass for a bot that hardcodes either answer.",
     },
+
+    // -----------------------------------------------------------------------
+    // The MIRACLE reveal window (CR 702.94a) — issue #1267.
+    //
+    // A DISCRIMINATING PAIR: the same card drawn the same way, with two
+    // Islands untapped for its {1}{U} miracle cost, differing only in WHOSE
+    // board the mass bounce would empty. The policy is "reveal iff the Bot
+    // will cast": a bot that hardcodes "reveal" fails the twin, the
+    // hide-everything default fails the first.
+    // -----------------------------------------------------------------------
+    {
+        label: "miracle-reveal-bounce-their-board",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Devastation Tide",
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+                { name: "Ancestral Recall", owner: "me", zone: "hand" },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+        },
+        setup: [
+            // Ancestral Recall targeting the bot resolves through the real
+            // pipeline: Devastation Tide is its FIRST draw this turn, so the
+            // resolution parks on the private reveal window (CR 702.94a).
+            { kind: "cast", card: "Ancestral Recall", target: "me" },
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "miracle-reveal", accept: true }] },
+        note: "Issue #1267. Devastation Tide drawn first with {1}{U} open, three opposing creatures and none of the bot's own: casting it for its miracle cost returns the opponent's whole board for two mana, so revealing (the step that makes the cast possible at all) is right.",
+    },
+    {
+        label: "miracle-hide-bounce-own-board",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "whose nonland permanents the bounce returns",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Devastation Tide",
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+                { name: "Ancestral Recall", owner: "me", zone: "hand" },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+        },
+        setup: [
+            // Ancestral Recall targeting the bot resolves through the real
+            // pipeline: Devastation Tide is its FIRST draw this turn, so the
+            // resolution parks on the private reveal window (CR 702.94a).
+            { kind: "cast", card: "Ancestral Recall", target: "me" },
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "miracle-reveal", accept: false }] },
+        note: "Issue #1267, the discriminating twin of `miracle-reveal-bounce-their-board`. Same draw, same open mana, but the board the bounce would empty is the BOT's own: the cast is a loss, so the bot does not intend it, and revealing a card it will not cast only hands the opponent information. Its twin proves the same policy does reveal when the cast is worth it.",
+    },
     // -----------------------------------------------------------------------
     // STORM counts inside the search tree (CR 702.40a, ADR 0052) — issue #3026.
     //

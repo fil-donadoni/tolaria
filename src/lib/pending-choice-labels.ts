@@ -77,6 +77,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "rebound-cast": "Rebound",
     // draw-reveal pay-choice (CR 614, issue #735 — Zur's Weirding)
     "draw-replacement": "Pay life",
+    // CR 702.94a — the miracle reveal window
+    "miracle-reveal": "Miracle",
 };
 
 export function pendingChoiceLabel(kind: PendingChoiceKind): string {

@@ -243,6 +243,7 @@ export type MoveMutations = {
     ) => Promise<unknown>;
     submitLandEntryChoice: (a: GP & { accept: boolean }) => Promise<unknown>;
     submitDrawReplacementPay: (a: GP & { accept: boolean }) => Promise<unknown>;
+    submitMiracleReveal: (a: GP & { reveal: boolean }) => Promise<unknown>;
     submitMadnessDecline: (a: GP) => Promise<unknown>;
     submitReboundDecline: (a: GP) => Promise<unknown>;
     submitNameCard: (a: GP & { cardName: string }) => Promise<unknown>;
@@ -396,6 +397,16 @@ export async function executeMove(
             await mutations.submitDrawReplacementPay({
                 ...base,
                 accept: move.accept,
+            });
+            return;
+
+        case "miracle-reveal":
+            // CR 702.94a — the miracle reveal window, its own entry point
+            // (`submitMiracleReveal`) for both its stack-coupled and stackless
+            // shapes. Only the boolean travels.
+            await mutations.submitMiracleReveal({
+                ...base,
+                reveal: move.reveal,
             });
             return;
 

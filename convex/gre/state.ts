@@ -335,6 +335,14 @@ import {
     markMadnessExiled,
     openMadnessCastWindow,
 } from "./madness";
+import {
+    isStacklessMiracleReveal,
+    miracleRevealCandidate,
+    miracleRevealChoice,
+    offerStacklessMiracleReveal,
+    revealForMiracle,
+    drawnThisTurnCount,
+} from "./miracle";
 import { markReboundExiled, openReboundCastWindow } from "./rebound";
 import { applyWarpExile, scheduleWarpExile } from "./warp";
 import {
@@ -1754,6 +1762,13 @@ function resolveManaAbilityTriggerImmediately(
  *  step that tapped the land — no intervening priority pass, and the player is
  *  never forced to commit "pay"/"skip" before the bonus mana arrives. */
 export function processPendingActionTriggers(state: GameState): void {
+    // CR 702.94a / 603.3 — an open STACKLESS miracle reveal window belongs to
+    // the draw that raised it: its linked trigger, if the card is revealed,
+    // triggered on that same draw, so it must join the SAME batch as the
+    // draw's own triggers (APNAP, CR 603.3b). The events wait in
+    // `pendingEvents` (persisted) until `applyMiracleRevealSubmit` answers
+    // the window and flushes them.
+    if (state.pendingChoices?.some(isStacklessMiracleReveal)) return;
     // CR 603.12 — reflexive abilities created during the resolution that just
     // ended are "waiting to be put on the stack" exactly like the event-derived
     // triggers below, so they join the SAME batch and are APNAP-ordered with
@@ -2555,6 +2570,10 @@ function resolutionSuspendedOnChoice(
 ): boolean {
     return (state.pendingChoices ?? []).some((c) => {
         if (isStacklessLandEntryPay(c)) return false;
+        // CR 702.94a — a stackless miracle reveal raised by a synchronous
+        // draw inside this resolution is answered after it, like the
+        // land-entry pay above.
+        if (isStacklessMiracleReveal(c)) return false;
         if (shape === "completed" && isStacklessEntryPark(c)) return false;
         return true;
     });
@@ -2571,6 +2590,7 @@ export function isResolutionSuspendedOnChoice(state: GameState): boolean {
     return (state.pendingChoices ?? []).some(
         (c) =>
             !isStacklessLandEntryPay(c) &&
+            !isStacklessMiracleReveal(c) &&
             c.kind !== "trigger-order" &&
             c.kind !== "trigger-mode"
     );
@@ -14674,6 +14694,10 @@ export function buildSpellContext(
         // graveyard") fires on effect-driven draws too, one card at a time.
         drawCards(playerId: string, amount: number): void {
             for (let i = 0; i < amount; i++) {
+                // CR 702.94a — this primitive cannot suspend, so a miracle
+                // reveal window for the card a draw makes eligible is raised
+                // STACKLESS and answered once the resolution completes.
+                const drawnBefore = drawnThisTurnCount(state, playerId);
                 const plan = planDrawStep(state, playerId, amount, false);
                 if (plan.kind === "may-pay-bin") {
                     // By design (ADR 0061, issue #1264): this raw SYNCHRONOUS
@@ -14699,11 +14723,13 @@ export function buildSpellContext(
                         isTurnBasedDrawStepDraw: false,
                         paid: false,
                     });
+                    offerStacklessMiracleReveal(state, playerId, drawnBefore);
                     continue;
                 }
                 commitDrawPlan(state, playerId, plan, {
                     isTurnBasedDrawStepDraw: false,
                 });
+                offerStacklessMiracleReveal(state, playerId, drawnBefore);
             }
         },
         planDraw(playerId, requestedCount): DrawStepPlan {
@@ -14716,6 +14742,38 @@ export function buildSpellContext(
                 isTurnBasedDrawStepDraw: false,
                 paid,
             });
+        },
+        drawnThisTurnCount(playerId): number {
+            return drawnThisTurnCount(state, playerId);
+        },
+        miracleRevealCandidate(playerId, drawnBefore): string | undefined {
+            return miracleRevealCandidate(state, playerId, drawnBefore)?.id;
+        },
+        requestMiracleReveal(req): boolean | undefined {
+            const step = item.resolutionStep ?? 0;
+            const key = `${step}:${req.choiceId}`;
+            const stored = item.collectedChoices?.[key];
+            if (stored) return stored[0] === "yes";
+            const card = getPlayer(state, req.playerId).hand.find(
+                (c) => c.id === req.cardInstanceId
+            );
+            if (!card) return false; // no longer in hand — nothing to reveal
+            // ADR 0037 — a controlled player's decision is the acting
+            // player's.
+            const routed = routeActingPlayer(req.playerId);
+            const entry = miracleRevealChoice(card, routed.playerId, {
+                stackItemId: item.id,
+                step,
+                choiceId: req.choiceId,
+            });
+            if (routed.actingPlayerId) {
+                entry.actingPlayerId = routed.actingPlayerId;
+            }
+            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            return undefined;
+        },
+        revealForMiracle(playerId, cardInstanceId): void {
+            revealForMiracle(state, playerId, cardInstanceId);
         },
         // CR 701.17: mill the top `amount` cards library → graveyard, one at a
         // time — re-reading the LIVE top each pass so successive mills chase the
@@ -19798,6 +19856,15 @@ export function buildSpellContext(
             );
             const found = owner[zone].find((c) => c.id === cardInstanceId);
             if (!found) return undefined;
+            // CR 400.2 — a hand card is hidden; it is public only once EVERY
+            // player knows it (a Miracle reveal, CR 702.94b). Fails closed.
+            if (zone === "hand") {
+                const known = found.knownTo ?? [];
+                if (!state.players.every((p) => known.includes(p.id))) {
+                    return undefined;
+                }
+                return (found.card as { id?: string }).id;
+            }
             // The SHARED predicate (`gre/faceDown.ts`), not a fourth copy of
             // it: `projectExileCard` gates the wire on exactly this, so
             // "public enough to pin" and "public on the opponent's screen"
@@ -20176,32 +20243,16 @@ export function buildSpellContext(
             // own lands into their pool; the Cast Commit below pays from it.
             let cost: Record<string, number> = {};
             if (!free) {
-                // CR 107.3 — fold the chosen X into the generic cost (xFactor
-                // honored). CR 601.2f — apply cost modifiers, mirroring a normal
-                // cast (announceCast). Pay the mana ONLY from lands the
-                // controlled player controls (the oracle's mana restriction):
-                // auto-tap over THEIR battlefield and THEIR floating pool;
-                // unpayable => the card is not played ("if able", CR 117.3 /
-                // 608.2).
-                cost = normalizeManaCost(def.manaCost ?? {}, { chosenX });
-                applyCostModifiers(
-                    cost,
-                    getCostModifiers(state, handCard, "spell")
+                const payment = planResolutionCastPayment(
+                    state,
+                    owner,
+                    handCard,
+                    opts?.alternativeCost ?? def.manaCost ?? {},
+                    chosenX
                 );
-                const subs = getManaSubstitutions(state, controllerId);
-                const sources = buildAutoTapSources(
-                    owner.battlefield,
-                    manaGateBattlefields(state),
-                    undefined,
-                    state
-                );
-                const plan = solveSmartAutoTap(
-                    owner.manaPool,
-                    cost,
-                    subs,
-                    sources
-                );
-                if (plan === null) return false; // unpayable — not played
+                if (payment === null) return false; // unpayable — not played
+                cost = payment.cost;
+                const { sources, plan } = payment;
 
                 // Execute the plan against the controlled player's own pool:
                 // tap the chosen lands and add their mana (CR 605.1a).
@@ -20300,6 +20351,40 @@ export function buildSpellContext(
  *  which keeps the card known to one player only — deliberately bypasses this
  *  mover via `exileFaceDownCard` rather than gating it.) */
 const PUBLIC_ZONES = new Set<Zone>(["battlefield", "graveyard", "exile"]);
+
+/** The mana payment of a cast made DURING RESOLUTION (CR 608.2g) —
+ *  `castChosenSpell`'s pay path, and the one authority anything asking "could
+ *  that cast be paid right now" reads (the Bot's miracle reveal policy):
+ *  `printedOrAlternative` with the chosen X folded in (CR 107.3, xFactor
+ *  honoured), the cost modifiers applied exactly as a normal cast applies them
+ *  (CR 601.2f), and an auto-tap plan over ONLY `payer`'s own battlefield and
+ *  floating pool (the oracle's mana restriction for a controlled cast).
+ *  `null` when no plan covers the cost: the cast is not made ("if able"). */
+export function planResolutionCastPayment(
+    state: GameState,
+    payer: PlayerState,
+    card: CardInstanceState,
+    printedOrAlternative: ManaCost,
+    chosenX: number | undefined
+): {
+    cost: Record<string, number>;
+    sources: ReturnType<typeof buildAutoTapSources>;
+    plan: NonNullable<ReturnType<typeof solveSmartAutoTap>>;
+} | null {
+    // CR 118.9 — an alternative cost (the miracle cost, CR 702.94a) is paid
+    // "rather than its mana cost"; the cost modifiers still apply to it.
+    const cost = normalizeManaCost(printedOrAlternative, { chosenX });
+    applyCostModifiers(cost, getCostModifiers(state, card, "spell"));
+    const subs = getManaSubstitutions(state, payer.id);
+    const sources = buildAutoTapSources(
+        payer.battlefield,
+        manaGateBattlefields(state),
+        undefined,
+        state
+    );
+    const plan = solveSmartAutoTap(payer.manaPool, cost, subs, sources);
+    return plan === null ? null : { cost, sources, plan };
+}
 
 /** CR 601.3 / 400.7 (issue #1156) — the player whose zone actually holds a
  *  card being cast/played, which may differ from the CASTER (`player`) for a
