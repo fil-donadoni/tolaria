@@ -64,6 +64,8 @@ export type MoveMutations = {
         a: GP & {
             cardInstanceId: string;
             chosenX?: number;
+            /** CR 601.2b (issue #7525) — `Move.declineManaCostReplacement`. */
+            declineManaCostReplacement?: boolean;
             /** CR 107.3a / 601.2h (issue #4506) — the DISTINCT colours the
              *  Bot picked for X on a `xSpendDistinctColors` Kicker leg
              *  (Emblazoned Golem), computed by `enumerateCastMovesFromZone`
@@ -567,6 +569,12 @@ export async function executeMove(
                 // cast is an Aura spell and the target group the executor
                 // sends next is the one `announceCast` derives from this id.
                 alternativeCostId: move.alternativeCostId,
+                // CR 601.2b / 118.9 (issue #7525) — the library-top permission
+                // choice the enumerator priced (mana under Mystic Forge rather
+                // than life under Bolas's Citadel).
+                ...(move.declineManaCostReplacement
+                    ? { declineManaCostReplacement: true }
+                    : {}),
                 // CR 601.2b — the leg the search actually valued and charged
                 // (`applyAdditionalCostLegForSearch`). Omitting it here would
                 // make `announceCast` throw "must choose which additional cost

@@ -111,6 +111,8 @@ import {
     libraryTopCastGrant,
     isCastableLibraryTopSpell,
     libraryTopCastLifeCost,
+    libraryTopReplacementChoices,
+    libraryTopReplacementDeclinable,
     getLegalTargets,
     getProducibleManaSourceView,
     maxAffordableX,
@@ -535,6 +537,11 @@ export type Move =
            *  further alt-cost variant needs its own enumeration and its own
            *  cost here, plus a row there if it is a mode rather than a price. */
           alternativeCostId?: string;
+          /** CR 601.2b / 118.9 (issue #7525) — forwarded verbatim to
+           *  `announceCast.declineManaCostReplacement`: this library-top cast
+           *  rides a permission that keeps the mana cost (Mystic Forge) rather
+           *  than the covering one that replaces it (Bolas's Citadel). */
+          declineManaCostReplacement?: true;
           /** CR 601.2b / 118.8 — which leg of a CASTER-CHOSEN additional cost
            *  ("discard a card or pay 3 life", Bitter Triumph) this variant
            *  pays, by `AdditionalCostLeg.id`. One Move per PAYABLE leg, the
@@ -3178,6 +3185,10 @@ export function enumerateCastMoves(
     opts?: {
         lifeInsteadOfMana?: number;
         castFromZone?: CastFromZone;
+        /** CR 601.2b / 118.9 (issue #7525) — a library-top cast announced
+         *  under a permission that KEEPS the mana cost although another
+         *  covering one replaces it: priced at the printed cost, never `{}`. */
+        declineManaCostReplacement?: true;
         /** Issue #2265 — receives every mode combination whose moves hit
          *  `modeCombinationBudget`. */
         onTruncated?: (t: ModeCombinationTruncation) => void;
@@ -3463,6 +3474,10 @@ function enumerateCastMovesFromZone(
     opts?: {
         lifeInsteadOfMana?: number;
         castFromZone?: CastFromZone;
+        /** CR 601.2b / 118.9 (issue #7525) — a library-top cast announced
+         *  under a permission that KEEPS the mana cost although another
+         *  covering one replaces it: priced at the printed cost, never `{}`. */
+        declineManaCostReplacement?: true;
         /** CR 118.9 — this pass prices the cast under ONE chosen alternative
          *  cost: a board permission's free cast (`castPermissionAltCosts`,
          *  no mana leg) or the card's own (`alternativeCosts[]` / Evoke, issue
@@ -3539,7 +3554,13 @@ function enumerateCastMovesFromZone(
             ? (chosenAltCost.mana ?? {})
             : lifeInsteadOfMana !== undefined
               ? {}
-              : (castRawManaCost(state, card, castFromZone) ?? {});
+              : (castRawManaCost(
+                    state,
+                    card,
+                    castFromZone,
+                    undefined,
+                    opts?.declineManaCostReplacement
+                ) ?? {});
     // CR 107.4e — a `{2/W}` pip is paid with its cheapest AFFORDABLE leg; the
     // Bot enumerates the cast with those legs folded into ordinary pips, and
     // none affordable means no cast, exactly as the castability gate decides.
@@ -4705,7 +4726,13 @@ function enumerateCastMovesFromZone(
         // answer through the same predicate.
         if (
             castFromZone === "library"
-                ? !libraryTopAnnouncementLicensed(state, player, card, alt.id)
+                ? !libraryTopAnnouncementLicensed(
+                      state,
+                      player,
+                      card,
+                      alt.id,
+                      opts?.declineManaCostReplacement
+                  )
                 : lifeInsteadOfMana !== undefined &&
                   isSplitCastId(def ?? undefined, alt.id) === undefined
         ) {
@@ -4727,7 +4754,8 @@ function enumerateCastMovesFromZone(
             card,
             castFromZone,
             alt.id,
-            alt
+            alt,
+            opts?.declineManaCostReplacement
         );
         const altCost = normalizeManaCost(zoneAlt?.mana ?? {}, { chosenX: 0 });
         foldFlashSurchargeCost(altCost, flashSurcharge, flashSurchargeOwed);
@@ -4757,7 +4785,13 @@ function enumerateCastMovesFromZone(
         // `castRawManaCost` and `announceCast` charge (CR 601.3e).
         const altPayLife =
             castFromZone === "library"
-                ? libraryTopCastLifeCost(state, player, card, alt.id)
+                ? libraryTopCastLifeCost(
+                      state,
+                      player,
+                      card,
+                      alt.id,
+                      opts?.declineManaCostReplacement
+                  )
                 : 0;
         if (altPayLife > player.life) continue;
         const altReq = subjectDef?.targetRequirement;
@@ -6180,7 +6214,8 @@ export function enumerateMoves(
                 state,
                 player,
                 libraryTop,
-                m.alternativeCostId
+                m.alternativeCostId,
+                m.declineManaCostReplacement
             ) &&
                 // CR 119.4 — and the announcement's OWN life payment is
                 // coverable (the whole-card refusal skips the library zone).
@@ -6189,10 +6224,14 @@ export function enumerateMoves(
                         state,
                         player,
                         libraryTop,
-                        m.alternativeCostId
+                        m.alternativeCostId,
+                        m.declineManaCostReplacement
                     ));
-        moves.push(
-            ...enumerateCastMoves(state, player, libraryTop, {
+        const lifeOrDefaultMoves = enumerateCastMoves(
+            state,
+            player,
+            libraryTop,
+            {
                 // CR 601.3 — the zone, stated: without it the wrapper's
                 // permission scan defaults to the HAND and offers this
                 // library-top cast a `cast-permission` free cast that
@@ -6209,8 +6248,46 @@ export function enumerateMoves(
                     ?.manaCostReplacement === "life-equal-to-mana-value"
                     ? { lifeInsteadOfMana: lifeCost }
                     : {}),
-            }).filter(licensed)
-        );
+            }
+        ).filter(licensed);
+        // CR 601.2b / 118.9 (issue #7525) — the OTHER permission choice: with
+        // Bolas's Citadel and Mystic Forge both covering an artifact, the
+        // caster may pay its mana cost instead of life. A separate pass priced
+        // at the printed cost (no `lifeInsteadOfMana`), stamped so the
+        // executor announces it and `licensed` re-asks it under that choice.
+        // Only announcements where the decline is a real choice keep it
+        // (`libraryTopReplacementChoices`): a morph or Adventure cast the
+        // Citadel cannot license already rides the Forge by default in the
+        // pass above, and `announceCast` refuses the flag on it.
+        const declineIsChoice = (m: Move) =>
+            m.kind !== "cast-spell" ||
+            libraryTopReplacementChoices(
+                state,
+                player,
+                libraryTop,
+                m.alternativeCostId
+            ).includes(true);
+        const declinedMoves = libraryTopReplacementDeclinable(
+            state,
+            player,
+            libraryTop
+        )
+            ? enumerateCastMoves(state, player, libraryTop, {
+                  castFromZone: "library",
+                  onTruncated,
+                  declineManaCostReplacement: true,
+              })
+                  .map((m) =>
+                      m.kind === "cast-spell"
+                          ? { ...m, declineManaCostReplacement: true as const }
+                          : m
+                  )
+                  .filter(declineIsChoice)
+                  .filter(licensed)
+            : [];
+        // One push for both choices: the same library-top move source
+        // `onlyPassIsLegal` already rules out.
+        moves.push(...lifeOrDefaultMoves, ...declinedMoves);
     }
     for (const perm of player.battlefield) {
         moves.push(
