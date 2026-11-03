@@ -3071,6 +3071,61 @@
         "landCount": 2,
         "libraryCount": 20
     },
+    "saddles its Mount rather than attack with the saddlers when the drain outweighs their damage": {
+        "cards": [
+            {
+                "name": "Caustic Bronco",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "library"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0
+    },
     "scry: bottoms two dead cards to draw off a deck of bombs": null,
     "scry: keeps two bombs on top of a deck of blanks": null,
     "self-sacrificing ETB: casts Phlage from hand for lethal": {

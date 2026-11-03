@@ -1026,6 +1026,8 @@ export interface ClientPermanentFilter {
     excludeAbility?: string;
     colors?: string | string[];
     tapped?: boolean;
+    /** CR 702.171b — mirrors `PermanentFilter.saddled`. */
+    saddled?: boolean;
     /** OR ACROSS filter dimensions (issue #897) — mirrors
      *  `PermanentFilter.any` (`convex/cards/filters.ts`). A non-empty array
      *  of full clauses of this same shape; the permanent matches if it
@@ -1155,6 +1157,13 @@ export function matchesPermanentFilter(
     if (
         filter.tapped !== undefined &&
         (card.isTapped === true) !== filter.tapped
+    ) {
+        return false;
+    }
+    // CR 702.171b — the saddled designation, mirroring `matchesPermanentFilter`.
+    if (
+        filter.saddled !== undefined &&
+        (card.saddled === true) !== filter.saddled
     ) {
         return false;
     }
@@ -1882,6 +1891,10 @@ export function buildTriggerStateView(
                     power: getEffectivePower(layerState, permanentView),
                     toughness: getEffectiveToughness(layerState, permanentView),
                     isTapped: c.isTapped === true,
+                    // CR 702.171b — the saddled designation, for a cost filter
+                    // narrowed by it (none shipped; populated so it never
+                    // fails open).
+                    saddled: c.saddled === true,
                     // CR 202.2 / 613.1d — effective colours for a tapOtherFilter
                     // colour clause (Hand of Justice), via the single colour
                     // authority: layer-5 override SETS, `grantedColors` UNION.
@@ -4109,6 +4122,8 @@ export function toMatchablePermanent(
         isAttacking: card.isAttacking,
         isBlocking: card.isBlocking,
         isTapped: card.isTapped,
+        // CR 702.171b — the saddled designation crosses the wire verbatim.
+        saddled: card.saddled,
         // CR 111.5 / 701.21 — token-ness, for a permanent leg's `isToken`
         // clause ("sacrifice a nontoken permanent"). `card.isToken` crosses
         // the wire (`slimCard` forwards it unchanged) — populated so a filter
@@ -4184,6 +4199,7 @@ export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
     excludeAbility: "mirrored",
     colors: "mirrored",
     tapped: "mirrored",
+    saddled: "mirrored",
     any: "mirrored",
     // Mirrored on BOTH paths (issue #2373 fixup). `id` is always populated on
     // `MatchablePermanent`, so the engine-matcher path has always worked; the
@@ -4328,6 +4344,7 @@ export const TRIGGER_STATE_VIEW_CENSUS: Record<
     excludeColors: "populated",
     colorCountAtLeast: "populated",
     tapped: "populated",
+    saddled: "populated",
     isToken: "populated",
     isAttacking: "populated",
     isBlocking: "populated",

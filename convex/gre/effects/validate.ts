@@ -729,6 +729,12 @@ function isCardFilter(
             if (!allowLiveState) return false;
             return typeof v === "boolean";
         }
+        // CR 702.171b — "Only permanents can be or become saddled": the
+        // designation is battlefield state, on the SAME `allowLiveState` gate.
+        if (k === "saddled") {
+            if (!allowLiveState) return false;
+            return typeof v === "boolean";
+        }
         // "…that they controlled since the beginning of the turn" (Keldon
         // Twilight, PLS). Same battlefield-only honesty rule as
         // `hasAbility`/`isAttacking` above: a card in a hidden zone has no
@@ -772,6 +778,15 @@ function filterUsesHasAbility(value: unknown): boolean {
     );
 }
 
+/** Whether `value` is the reserved resolving-source selector `{ ref: "$source" }`. */
+function isSourceRef(value: unknown): boolean {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        (value as { ref?: unknown }).ref === "$source"
+    );
+}
+
 /** Whether an `EffectCardFilter` uses LIVE battlefield state — `isAttacking`
  *  (issue #1097) or `tapped` (issue #3244) — directly or nested inside an
  *  `any` clause: the sibling of `filterUsesHasAbility` right above, same
@@ -782,7 +797,12 @@ function filterUsesLiveState(value: unknown): boolean {
         return false;
     }
     const f = value as Record<string, unknown>;
-    if (typeof f.isAttacking === "boolean" || typeof f.tapped === "boolean") {
+    if (
+        typeof f.isAttacking === "boolean" ||
+        typeof f.tapped === "boolean" ||
+        // CR 702.171b — only permanents can be saddled.
+        typeof f.saddled === "boolean"
+    ) {
         return true;
     }
     return (
@@ -3569,11 +3589,13 @@ function isPredicate(value: unknown): boolean {
     // shape to test its LIVE, layer-materialised characteristics against. The
     // selector position is what separates it from `boundMatchesFilter`'s bare
     // snapshot ref: this form reads the battlefield now, not a snapshot.
+    // CR 608.2h — the optional `lastKnown: true` opt-in (a `$source` that
+    // left answers with its last known information) is one more optional key.
+    const optionalKeys = ["controlledBy", "lastKnown"].filter((k) =>
+        keys.includes(k)
+    ).length;
     if (
-        (keys.length === 2 ||
-            // CR 109.5 (issue #2388) — the optional `controlledBy` player
-            // scope ("attached to a creature you control").
-            (keys.length === 3 && keys.includes("controlledBy"))) &&
+        keys.length === 2 + optionalKeys &&
         keys.includes("objectMatchesFilter") &&
         keys.includes("filter")
     ) {
@@ -3592,6 +3614,11 @@ function isPredicate(value: unknown): boolean {
         return (
             isObjectSelector(obj.objectMatchesFilter) &&
             (obj.controlledBy === undefined || isPlayerRef(obj.controlledBy)) &&
+            // Only `$source` has a last known record to read (the stack
+            // item's departure-time `sourceLki`).
+            (obj.lastKnown === undefined ||
+                (obj.lastKnown === true &&
+                    isSourceRef(obj.objectMatchesFilter))) &&
             isCardFilter(obj.filter, {
                 allowHasAbility: true,
                 allowLiveState: true,
@@ -5198,6 +5225,14 @@ const OP_SCHEMAS: OpSchemaTable = {
             count: isEffectValue,
         },
     },
+    // CR 702.171a — "This permanent becomes saddled until end of turn".
+    // `target` is an object selector (`$source` — the printed shape — an
+    // announced slot or a forEach `$each`); nothing else to parametrise.
+    becomeSaddled: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
     // CR 722.3a (issue #3689) — "<this permanent> becomes prepared". `target`
     // is an object selector (`$source` — the printed shape — an announced slot
     // or a forEach `$each`). No other field: the designation is gained or the
@@ -6154,8 +6189,9 @@ const OP_SCHEMAS: OpSchemaTable = {
     //  - `zone: "hand"` — reveal `player`'s whole hand (Thoughtseize/Duress).
     //  - `cards: <bare picks ref>` — reveal the SPECIFIC card(s) a preceding
     //    search-library `choice` bound (issue #945, the "search …, reveal it,
-    //    put it into your hand" tutor clause). A library-top positional reveal
-    //    (Caustic Bronco-class) is still a distinct future Op.
+    //    put it into your hand" tutor clause). A single library-top
+    //    reveal-to-hand (Dark Confidant, Caustic Bronco) is
+    //    `digMatchingToHand`, not this Op.
     reveal: {
         required: { player: isPlayerRef },
         optional: {
@@ -6482,7 +6518,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                 filterUsesLiveState(entry.filter)
             ) {
                 errors.push(
-                    '"filter.isAttacking" / "filter.tapped" are valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no combat role or tapped status to match against'
+                    '"filter.isAttacking" / "filter.tapped" / "filter.saddled" are valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no combat role, tapped status or saddled designation to match against'
                 );
             }
             // `controlledSinceTurnStart` — the `hasAbility`/`isAttacking` rule

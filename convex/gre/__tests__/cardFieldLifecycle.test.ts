@@ -400,6 +400,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "mustBlockAllThisTurn",
             "mustBlockAttackersThisTurn",
             "regenerationShields",
+            "saddled",
         ],
         "zone-change": [
             "abilitiesSuppressedBy",
@@ -459,6 +460,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "regenerationShields",
             "removedSupertypes",
             "returnToHandAtUntapOf",
+            "saddled",
             "skipNextUntap",
             "sourceTappedPTMods",
             "staticSeq",

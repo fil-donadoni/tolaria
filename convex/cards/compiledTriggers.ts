@@ -33,6 +33,7 @@ import { countControlledMatching } from "./controlledCount";
 import type { PermanentFilter, SpellFilter } from "./filters";
 import type {
     AdditionalCostTwin,
+    AttackersDeclaredEvent,
     CardType,
     Color,
     EffectOp,
@@ -304,7 +305,13 @@ export type CompiledTriggerHead =
      * `scope` absent is the source itself, the only reading before issue #4151
      * and the one a hand-written `attacksTrigger({ scope: "self" })` writes.
      */
-    | { readonly kind: "attacks"; readonly scope?: PermanentScope }
+    | {
+          readonly kind: "attacks";
+          readonly scope?: PermanentScope;
+          /** CR 702.171b — "attacks while saddled": fires only while the
+           *  source is saddled as it is declared an attacker. Self only. */
+          readonly whileSaddled?: true;
+      }
     /**
      * CR 508.3a / 509.3a — "whenever a creature attacks or blocks": ONE Oracle
      * line spanning two events, firing once per attacking or blocking
@@ -723,6 +730,16 @@ function resolveCompiledTriggerHead(
                 scope: head.scope ?? "self",
                 ...(head.scope !== undefined && head.scope !== "self"
                     ? { perAttacker: true as const }
+                    : {}),
+                // CR 702.171b — a trigger condition on the source's saddled
+                // designation, checked as the attack is declared.
+                ...(head.whileSaddled === true
+                    ? {
+                          condition: (
+                              _event: AttackersDeclaredEvent,
+                              self: PermanentView
+                          ) => self.saddled === true,
+                      }
                     : {}),
             });
         case "attacks-or-blocks":

@@ -4146,6 +4146,22 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
                 expected: true,
             },
         ],
+        // CR 702.171b — the saddled designation, both polarities.
+        saddled: [
+            {
+                card: makeCardInstance({
+                    types: ["Creature"],
+                    saddled: true,
+                }),
+                filter: { saddled: true },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({ types: ["Creature"] }),
+                filter: { saddled: true },
+                expected: false,
+            },
+        ],
         any: [
             {
                 card: makeCardInstance({

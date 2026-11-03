@@ -56,6 +56,7 @@ import { equipAbility } from "../cards/abilities/equipment";
 import { ninjutsuAbility } from "../cards/abilities/ninjutsu";
 import { offspringTriggerParts } from "../cards/abilities/offspring";
 import { crewAbility, crewKeyword } from "../cards/abilities/vehicle";
+import { saddleAbility, saddleKeyword } from "../cards/abilities/mount";
 import { keywordVocabulary } from "./grammar/shared/keywordVocabulary";
 import { CREATURE_SUBTYPES } from "./grammar/shared/subtypes";
 
@@ -187,6 +188,8 @@ interface Accumulator {
     equipLine?: string;
     /** CR 702.122a — the crew line, checked against the Vehicle subtype. */
     crewLine?: string;
+    /** CR 702.171a — the saddle line, checked against the Mount subtype. */
+    saddleLine?: string;
     /** CR 301.7a — a Vehicle's printed P/T, which crew animates it to. */
     vehiclePt?: { power: number; toughness: number };
     /**
@@ -927,6 +930,16 @@ function lowerLine(
             );
             return null;
         }
+        case "saddle": {
+            if (acc.saddleLine !== undefined)
+                return "a card declares saddle twice (one ability id per card)";
+            acc.saddleLine = parsed.line;
+            acc.staticAbilities.push(saddleKeyword(ir.count));
+            acc.activatedAbilities.push(
+                saddleAbility({ name: card.name, n: ir.count })
+            );
+            return null;
+        }
         case "ninjutsu": {
             // The factory's ability id is the keyword's own ("ninjutsu").
             if (acc.activatedAbilities.some((a) => a.id === "ninjutsu"))
@@ -1259,6 +1272,18 @@ export function lowerCard(
         definition.power = acc.vehiclePt!.power;
         definition.toughness = acc.vehiclePt!.toughness;
     }
+    // CR 702.171a — every printed Saddle sits on a creature Mount; another
+    // shape is one no fixture reads.
+    if (
+        acc.saddleLine !== undefined &&
+        (!typeLine.subtypes.includes("Mount") ||
+            !typeLine.types.includes("Creature"))
+    )
+        return {
+            ok: false,
+            reason: "saddle on a card that is not a creature Mount (CR 702.171a)",
+            fragment: acc.saddleLine,
+        };
     // CR 612.6 — "has the text "<ability>"" keeps the card's OWN activated
     // ability with that text; it must exist, or the clause retains nothing.
     if (acc.fullText !== undefined) {

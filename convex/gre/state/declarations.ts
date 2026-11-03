@@ -802,6 +802,15 @@ export type CardInstanceState = {
      *  `applyCopy` rewrites only copiable values, so a copy keeps its own
      *  designation and a fresh token copy has none. */
     monstrous?: boolean;
+    /** CR 702.171b — the SADDLED designation, stamped by the `becomeSaddled`
+     *  Op through `becomeSaddledOnCard` (`gre/state.ts`), its single writer.
+     *  A marker with no rules meaning of its own, read by "if this creature is
+     *  saddled" through `EffectCardFilter.saddled`. "It stays saddled until the
+     *  end of the turn or it leaves the battlefield": cleared at cleanup with
+     *  the other "until end of turn" effects (CR 514.2) and on every zone
+     *  change (CR 400.7). Not a counter and not a copiable value (CR 702.171b),
+     *  which needs no code: `applyCopy` rewrites only copiable values. */
+    saddled?: boolean;
     /** CR 608.2h last-known information: the `counters` map this permanent had
      *  at the instant it left the battlefield. The counters themselves cease
      *  to exist on a zone change (CR 122.2) — this is the read-only memory of

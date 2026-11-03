@@ -113,6 +113,8 @@ const SOURCE_CONFINED_OPS: ReadonlySet<string> = new Set([
     // CR 701.37a (issue #3217) — the counters and the designation both land
     // on the permanent `target` names, the `counters` shape exactly.
     "monstrosity",
+    // CR 702.171a — the designation lands on the permanent `target` names.
+    "becomeSaddled",
     "tapUntap",
     "skipNextUntap",
     "grantAbility",

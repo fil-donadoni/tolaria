@@ -220,6 +220,10 @@ export interface PermanentFilter {
      *  tapped permanents (Magnetic Mountain — "tapped blue creatures").
      *  Omitted = no constraint. */
     tapped?: boolean;
+    /** Filter by the saddled designation (CR 702.171b). `true` keeps only
+     *  saddled permanents, `false` only unsaddled ones. Omitted = no
+     *  constraint. */
+    saddled?: boolean;
     /** Token-provenance match (CR 111, 707.1). Keeps only tokens whose
      *  `createdBy` equals this instance id — "tokens created with this
      *  creature" (Tetravus). Omitted = no constraint. */
@@ -369,6 +373,9 @@ export interface MatchablePermanent {
     isAttacking?: boolean;
     isBlocking?: boolean;
     isTapped?: boolean;
+    /** CR 702.171b — the saddled designation. Read by
+     *  `PermanentFilter.saddled`. */
+    saddled?: boolean;
     /** Instance id of the permanent that created this token (CR 111). Read by
      *  `PermanentFilter.createdBy`. Undefined for non-tokens and tokens with no
      *  provenance link. */
@@ -495,6 +502,10 @@ export function matchesPermanentFilter(
     if (filter.tapped !== undefined) {
         const cardIsTapped = card.isTapped === true;
         if (filter.tapped !== cardIsTapped) return false;
+    }
+    if (filter.saddled !== undefined) {
+        const cardIsSaddled = card.saddled === true;
+        if (filter.saddled !== cardIsSaddled) return false;
     }
     if (filter.createdBy !== undefined && card.createdBy !== filter.createdBy) {
         return false;

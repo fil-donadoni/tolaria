@@ -57,6 +57,7 @@ const COVERAGE: Record<keyof EffectCardFilter, Coverage> = {
     excludeAbility: "battlefield",
     isAttacking: "battlefield",
     tapped: "battlefield",
+    saddled: "battlefield",
     excludeSource: "battlefield",
     any: "battlefield",
 };
