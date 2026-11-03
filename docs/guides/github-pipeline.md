@@ -45,13 +45,14 @@ new feature outside PRD #5620 (`docs/agents/quality-gates.md`).
 A machine declares how many [runners](#g-runner) of each
 [role label](#g-label) it offers. Defaults:
 
-| [Label](#g-label)   | MacBook | Huawei | What it runs                                                                     |
-| ------------------- | ------- | ------ | -------------------------------------------------------------------------------- |
-| [`pass`](#g-pass)   | 2       | 2      | one Claude Code session (`/next-ticket`) per job                                 |
-| [`lane`](#g-lane)   | 1       | 0      | the gates a merge or a verdict waits on: queue checks, health, release           |
-| [`maint`](#g-maint) | 1       | 1      | every other duty: post-merge, the Bot-play replay, `pr-refresh`, fixups, reports |
-| [`seed`](#g-seed)   | 1       | 0      | jobs that need the owner's Convex deployment (scenario seeds) — the MacBook's    |
-| `host:<name>`       | all     | all    | pins a job to one machine when it must                                           |
+| [Label](#g-label)   | MacBook | Huawei | What it runs                                                                                   |
+| ------------------- | ------- | ------ | ---------------------------------------------------------------------------------------------- |
+| [`pass`](#g-pass)   | 2       | 2      | one Claude Code session (`/next-ticket`) per job                                               |
+| [`lane`](#g-lane)   | 1       | 0      | the gates a merge or a verdict waits on: queue checks, health, release                         |
+| [`maint`](#g-maint) | 1       | 1      | every other duty: post-merge sync, the Bot-play replay, nightly, `pr-refresh`, fixups, reports |
+| [`seed`](#g-seed)   | 1       | 0      | jobs that need the owner's Convex deployment (scenario seeds) — the MacBook's                  |
+| `derive`            | 1       | 1      | the short post-merge duties something waits on: `housekeeping`, `repair-watch`                 |
+| `host:<name>`       | all     | all    | pins a job to one machine when it must                                                         |
 
 GitHub adds `self-hosted`, the OS and the architecture to every runner by
 itself. Each [runner](#g-runner) is named `<host>-<role>-<n>` (e.g.
@@ -81,7 +82,7 @@ bun run runner install --host macbook             # do it
 bun run runner status                             # local services + GitHub's view
 ```
 
-On the Huawei, `--host huawei`. Flags: `--pass N`, `--lane N`, `--maint N`, `--seed N`,
+On the Huawei, `--host huawei`. Flags: `--pass N`, `--lane N`, `--maint N`, `--seed N`, `--derive N`,
 `--no-convex` (MacBook: skip the [Convex agent](#g-convex-agent)). The first
 run remembers host and counts in the [machine declaration](#g-declaration);
 a later bare `bun run runner install` declares the same runners.
@@ -616,10 +617,10 @@ decision sees the same `outcomes` the queue's lane does.
 | `sync`         | every push to the base  | `[self-hosted, maint, host:<m>]`, amatrix              | `bun run post-merge sync`: fast-forward the [primary checkout](#g-primary-checkout) to the pushed tip when it is derived-fresh, remove the merged PR's worktree, telemetry ingest                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `sweep`        | hourly at `:17`         | `[self-hosted, maint, host:<m>]`, amatrix              | `bun run post-merge sweep`: remove the issue worktrees no merge cleans up ([§ Worktree removal](#worktree-removal))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `seed`         | after `sync`, on a push | `[self-hosted, seed]`                                  | `bun run post-merge seed`: fast-forward to the pushed tip, or — stale — to `derive:sync`'s commit on top of it (waited for), then each merged PR's `## Preset scenario`; `seed:preset --all` when the push changed `convex/cards/sets/**`                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `housekeeping` | a push; hourly at `:17` | `[self-hosted, maint]`, one run at time                | `bun run housekeeping`: `gaps:sync` with its direct push, `derive:sync` (the base regenerates its derived state and pushes once), grammar residue, claim release, umbrella detach — in a worktree of its own                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `housekeeping` | a push; hourly at `:17` | `[self-hosted, derive]`, one run at time               | `bun run housekeeping`: `gaps:sync` with its direct push, `derive:sync` (the base regenerates its derived state and pushes once), grammar residue, claim release, umbrella detach — in a worktree of its own                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `nightly`      | 03:40 UTC               | `[self-hosted, maint]`, one run at time                | `bun run health:nightly`: Bot Findings refresh when the Bot moved, the weekly audits when due                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `bot-replay`   | a push; 03:40 UTC       | `[self-hosted, maint, host:macbook], one run at a time | `bun run derive:sync --replay-bot` (issue #6463): lockfile header Bot hash vs tree's — equal, seconds and no push; else ONE whole Bot-play sweep on the tip, pushed as one commit when no card left `ready` (the push retries a transient refusal three times with backoff, a still-failing sweep is the run's `bot-replay-lockfile` artifact and a late issue, ADR 0159 § 3), filed as a `bug` (`area:game-bot`) when one did. Pinned to the fast host (ADR 0159 § 2, `HOST_PINNED_JOBS`): 15 min there against 75 on the Huawei, and nothing waits on it. The sweep holds the heavy mutex; a landing on the same machine waits behind it like behind any heavy run |
-| `repair-watch` | every 15 min (`:05`)    | `[self-hosted, maint, host:huawei]`                    | `bun run repair:watch` (issue #7142): a RED standing past `repairWatch.stallMinutes` with none of its declared repairs merged notifies the owner once per state — the RED sha and age, each repair issue's PR and queue state (`queued` / `held` / `dequeued` / `land-failed` / no PR), the `lane` runner online / busy / offline, or a line saying no repair is declared at all; a GREEN or AMBER clears the dedupe. Pinned off the `lane` runner's host (`HOST_PINNED_JOBS`) so the alert outlives the MacBook asleep                                                                                                                                              |
+| `repair-watch` | every 15 min (`:05`)    | `[self-hosted, derive]`                                | `bun run repair:watch` (issue #7142): a RED standing past `repairWatch.stallMinutes` with none of its declared repairs merged notifies the owner once per state — the RED sha and age, each repair issue's PR and queue state (`queued` / `held` / `dequeued` / `land-failed` / no PR), the `lane` runner online / busy / offline, or a line saying no repair is declared at all; a GREEN or AMBER clears the dedupe. Any `derive` runner, no host pin, so the alert outlives either machine offline (issue #7855)                                                                                                                                                   |
 
 The `host` matrix of `sync` lists the machines by their `host:<name>` label
 (`macbook`, `huawei`); a third machine is a third entry. On the MacBook the
@@ -649,10 +650,22 @@ that is offline or broken therefore costs exactly its own `sync` leg. The
 one exception is `bot-replay` (ADR 0159 § 2, issue #6990): pinned to the
 fast host by `HOST_PINNED_JOBS`, because health never waits on it — a late
 replay is a line on the GREEN verdict and an issue past the grace, never a
-RED or a hold — and its sweep is 15 min there against 75 on the Huawei. The
-other is `repair-watch` (issue #7142), pinned to the Huawei: it reports on a
-repair waiting for the `lane` runner, which is the MacBook's (ADR 0160), so on
-the MacBook it would sleep with the host it reports on.
+RED or a hold — and its sweep is 15 min there against 75 on the Huawei.
+
+**The derive slot (issue #7855).** A runner takes one job at a time, and a
+machine has ONE [`maint`](#g-maint) runner that the Bot-play replay (up to an
+hour or more) and `health:nightly` (38 min and more) hold. `housekeeping`
+— the job that commits `derive:sync` — therefore runs on its own `derive`
+role, one runner per machine, together with `repair-watch`: with only the
+MacBook online and a replay running, a push's derive commit starts at once,
+and the stalled-repair alert is not pinned to a host that may be the one
+offline. The structure guard's `derive-slot` rule refuses `housekeeping` /
+`repair-watch` off the `derive` role alone, and `bot-replay` / `nightly` on
+it. Declare the runner on each machine with `bun run runner install` (a
+`machine.json` written before the role gets one `derive` runner by default).
+When a stale tip is past the grace and a `housekeeping` job is still `queued`,
+health's RED at `derive:sync` says `housekeeping queued N min, no runner`
+instead of only naming the step.
 
 **The base writes its own derived state (ADR 0157 § Option 1b, issue
 #6247).** The Oracle lockfile's header hashes and the four `data/catalogue/*`
@@ -1879,6 +1892,7 @@ lane, issue #4963). Each line it prints names a rule:
 | `queue-superseded`             | `queue-lane.yml`'s `queue-lane` (`SUPERSEDED_JOBS`) lacks exactly the job-level `concurrency: { group: SUPERSEDED_GROUP, cancel-in-progress: true }` — a superseded draft's run holds a `lane` runner the live draft waits for (issue #6020)                                                                                                                   |
 | `dispatcher-serialised`        | a job of `afk-dispatch.yml` or `health-fix.yml`, or `post-merge.yml`'s `housekeeping` / `nightly` / `bot-replay` or `health.yml`'s `gate` (`SERIALISED_JOBS`), lacks a job-level `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice, spawn two fixers, move one watermark twice, or gate one tip twice         |
 | `host-pinned`                  | a self-hosted job's `runs-on` names one machine by a literal `host:<name>` (issue #5873) — that machine offline holds the job for 24 h; a per-machine duty is a matrix (`host:${{ matrix.host }}`) or an input, a shared duty names no host; `HOST_PINNED_JOBS` waives it for a job nothing waits on (`bot-replay`, ADR 0159)                                  |
+| `derive-slot`                  | `housekeeping` or `repair-watch` (`DERIVE_JOBS`) whose `runs-on` is not the `derive` role alone, or `bot-replay` / `nightly` (`LONG_JOBS`) reaching it — a duty sharing a runner with an hour-long job queues behind it until the tip is derived-stale and health reds the base (issue #7855)                                                                  |
 | `lane-role`                    | a self-hosted job outside `LANE_JOBS` (`queue-lane`, `health`'s `gate`, `release`) whose `runs-on` may reach a [`lane`](#g-lane) runner: names the role, a runner group or a whole-label expression, and no literal other role (ADR 0160, issue #6653) — maintenance runs on [`maint`](#g-maint)                                                               |
 | `self-hosted-clone`            | a self-hosted job uses `actions/checkout`                                                                                                                                                                                                                                                                                                                      |
 | `job-worktree`                 | a self-hosted job does not create the [job worktree](#g-job-worktree) first and remove it last `if: always()`, both under `shell: bash`                                                                                                                                                                                                                        |

@@ -144,11 +144,15 @@ jobs:
     housekeeping:
         name: housekeeping
         if: ${{ github.event_name == 'push' || github.event.schedule == '17 * * * *' || inputs.job == 'housekeeping' }}
-        # Any `maint` runner (issue #5873, ADR 0160): its state is shared and its work
-        # happens in a throwaway worktree, so no host is required. One run at
+        # Any `derive` runner (issue #5873, ADR 0160, issue #7855): its state is
+        # shared and its work happens in a throwaway worktree, so no host is
+        # required. NOT `maint`: the replay and the nightly hold a machine's one
+        # `maint` slot for an hour or more, and the derive commit queued behind
+        # them until the tip was derived-stale past the grace (RED). The guard
+        # `derive-slot` keeps both long jobs off this role. One run at
         # a time across machines; a RUNNING run is never cancelled, a pending
         # one dropped loses nothing (the next run re-reads every fact).
-        runs-on: [self-hosted, maint]
+        runs-on: [self-hosted, derive]
         concurrency:
             group: post-merge-housekeeping
             cancel-in-progress: false
@@ -267,17 +271,14 @@ jobs:
     repair-watch:
         name: stalled-repair alert
         if: ${{ github.event.schedule == '5,20,35,50 * * * *' || inputs.job == 'repair-watch' }}
-        # The Huawei (`HOST_PINNED_JOBS` waives `host-pinned`, issue #7142):
-        # the alert is about a repair waiting on the `lane` runner, which is
-        # the MacBook's (ADR 0160) — run there, the alert would sleep with the
-        # host it reports on. The Huawei offline costs the alert only; nothing
-        # waits on it. Its dedupe marker is this host's
-        # (`.claude/telemetry/repair-watch/` in the primary checkout), so one
-        # host keeps it. Ticks queued behind a long `maint` job (nightly) run
-        # in seconds once it ends; the marker makes them one notice at most.
+        # Any `derive` runner (issue #7855, rule `derive-slot`): no host pin,
+        # so the alert survives one machine offline, and never behind the
+        # replay or the nightly. Its dedupe marker is the running host's
+        # (`.claude/telemetry/repair-watch/` in the primary checkout): after a
+        # host change one repeated notice at most.
         # Cost: seconds — a verdict-store read off RED; under a RED, one `gh`
         # call per declared repair and its PR, one runners read. No mutex.
-        runs-on: [self-hosted, maint, "host:huawei"]
+        runs-on: [self-hosted, derive]
         timeout-minutes: 10
         steps:
             - name: Job worktree

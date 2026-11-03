@@ -26,13 +26,17 @@ import {
  *  the batch health, the release — and nothing else; `maint` runs every
  *  other duty (housekeeping, the Bot-play replay, `pr-refresh`, nightly,
  *  sweeps), so maintenance never holds a runner the queue needs (ADR 0160,
- *  issue #6653). */
-export type RunnerRole = "pass" | "lane" | "maint" | "seed";
+ *  issue #6653). `derive` is the short-duty slot of the post-merge
+ *  workflow: `housekeeping` (the derive commit that keeps the base's tip
+ *  fresh, ADR 0157) and `repair-watch` run there, never behind the Bot-play
+ *  replay or `health:nightly` that hold `maint` for an hour (issue #7855). */
+export type RunnerRole = "pass" | "lane" | "maint" | "seed" | "derive";
 export const RUNNER_ROLES: readonly RunnerRole[] = [
     "pass",
     "lane",
     "maint",
     "seed",
+    "derive",
 ];
 
 export type RunnerPlatform = "darwin" | "linux";
@@ -47,13 +51,13 @@ export interface RunnerSpec {
 /** How many runners of each role this machine declares. */
 export type RoleCounts = Record<RunnerRole, number>;
 
-/** The defaults: two Claude passes and one maintenance runner per machine;
+/** The defaults: two Claude passes, one maintenance and one `derive` runner per machine;
  *  the lane runner and the seed runner only on the MacBook — the fast host
  *  sets the queue's pace (ADR 0160), and the owner's Convex deployment lives
  *  there (ADR 0156 §7). */
 export function defaultCounts(platform: RunnerPlatform): RoleCounts {
     const mac = platform === "darwin" ? 1 : 0;
-    return { pass: 2, lane: mac, maint: 1, seed: mac };
+    return { pass: 2, lane: mac, maint: 1, seed: mac, derive: 1 };
 }
 
 /** A runner/label-safe host name: lower case, `[a-z0-9-]`, no domain. */
@@ -384,6 +388,12 @@ export function parseDeclaration(
         // none: the owner adds it with `install --maint 1`, never silently.
         if (d.counts !== undefined && d.counts.maint === undefined)
             d.counts = { ...d.counts, maint: 0 };
+        // The `derive` role (issue #7855) is the exception: the post-merge
+        // `housekeeping` job waits on it, so a declaration written before it
+        // gets the default one — a missing runner would queue the derive
+        // commit forever.
+        if (d.counts !== undefined && d.counts.derive === undefined)
+            d.counts = { ...d.counts, derive: 1 };
         const ok =
             typeof d.host === "string" &&
             d.counts !== undefined &&

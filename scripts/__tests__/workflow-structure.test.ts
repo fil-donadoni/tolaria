@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 import {
     checkStructure,
     formatViolation,
+    DERIVE_JOBS,
     HOST_PINNED_JOBS,
+    LONG_JOBS,
     LANE_JOBS,
     isSelfHosted,
     JOB_SETUP_FILE,
@@ -592,7 +594,9 @@ describe("workflow structure guard", () => {
             SELF_HOSTED,
             "    timeout-minutes: 30\n",
             `    timeout-minutes: 30\n${group}`
-        ).replace("  lane:\n", "  housekeeping:\n");
+        )
+            .replace("  lane:\n", "  housekeeping:\n")
+            .replace("self-hosted, maint]", "self-hosted, derive]");
         const postMerge = (text: string): StructureInput => ({
             ...fixture(),
             workflows: [
@@ -604,7 +608,12 @@ describe("workflow structure guard", () => {
         // No group: two machines could move one watermark twice.
         expect(
             rules(
-                postMerge(SELF_HOSTED.replace("  lane:\n", "  housekeeping:\n"))
+                postMerge(
+                    SELF_HOSTED.replace(
+                        "  lane:\n",
+                        "  housekeeping:\n"
+                    ).replace("self-hosted, maint]", "self-hosted, derive]")
+                )
             )
         ).toEqual(["dispatcher-serialised"]);
         // A job of the same workflow that is not a shared duty keeps the ban.
@@ -700,7 +709,6 @@ describe("workflow structure guard", () => {
     it("waives host-pinned for a HOST_PINNED_JOBS job only — the replay pins the fast host (ADR 0159, issue #6990)", () => {
         expect([...HOST_PINNED_JOBS.keys()]).toEqual([
             ".github/workflows/post-merge.yml#bot-replay",
-            ".github/workflows/post-merge.yml#repair-watch",
             ".github/workflows/bot-costs-refresh.yml#refresh",
         ]);
         const pinned = edit(
@@ -722,6 +730,52 @@ describe("workflow structure guard", () => {
         expect(rules(asPostMerge)).toEqual([]);
         // …and under any other id or path the pin is still refused.
         expect(rules(fixture({ self: replay }))).toContain("host-pinned");
+    });
+
+    it("keeps the derive slot clear: derive-slot refuses housekeeping off the derive role and a long job on it (issue #7855)", () => {
+        expect([...DERIVE_JOBS.keys()]).toEqual([
+            ".github/workflows/post-merge.yml#housekeeping",
+            ".github/workflows/post-merge.yml#repair-watch",
+        ]);
+        expect([...LONG_JOBS]).toEqual([
+            ".github/workflows/post-merge.yml#bot-replay",
+            ".github/workflows/post-merge.yml#nightly",
+        ]);
+        const asJob = (runsOn: string, id: string) => {
+            const text = edit(
+                SELF_HOSTED,
+                "runs-on: [self-hosted, maint]",
+                `runs-on: ${runsOn}\n    concurrency:\n      group: g\n      cancel-in-progress: false`
+            );
+            const input = fixture({
+                self: edit(text, "jobs:\n  lane:", `jobs:\n  ${id}:`),
+            });
+            return {
+                ...input,
+                workflows: input.workflows.map((w) =>
+                    w.path === ".github/workflows/self.yml"
+                        ? { ...w, path: ".github/workflows/post-merge.yml" }
+                        : w
+                ),
+            } as StructureInput;
+        };
+        // The derive commit on the shared `maint` slot is the 2026-11-02 RED.
+        expect(rules(asJob("[self-hosted, maint]", "housekeeping"))).toContain(
+            "derive-slot"
+        );
+        expect(
+            rules(asJob("[self-hosted, derive]", "housekeeping"))
+        ).not.toContain("derive-slot");
+        expect(
+            rules(asJob("[self-hosted, derive, host:huawei]", "repair-watch"))
+        ).not.toContain("derive-slot");
+        // A long job reaching the derive role holds the slot the commit needs.
+        expect(rules(asJob("[self-hosted, derive]", "nightly"))).toContain(
+            "derive-slot"
+        );
+        expect(rules(asJob("[self-hosted, maint]", "nightly"))).not.toContain(
+            "derive-slot"
+        );
     });
 
     it("keeps the lane runner for the gates: lane-role refuses any other job reaching it (ADR 0160, issue #6653)", () => {
