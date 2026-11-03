@@ -73,18 +73,6 @@ export function landEntryActions(
 
 // CR 201.2 / 202.3 — name a card: the domain is the whole registry, so a
 // single open-payload action represents the family.
-// CR 702.94a — a miracle reveal costs nothing to make: both answers are legal.
-export function miracleRevealActions(
-    _state: GameState,
-    _head: PendingChoice,
-    { wrap }: ChoiceActionContext
-): LegalAction[] {
-    return [
-        wrap({ kind: "submit-miracle-reveal", reveal: true }),
-        wrap({ kind: "submit-miracle-reveal", reveal: false }),
-    ];
-}
-
 export function nameCardActions(
     _state: GameState,
     _head: PendingChoice,

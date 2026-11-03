@@ -1,5 +1,5 @@
-// Cost-parameter keyword lines: Cycling, Madness, Morph, Fading and Miracle
-// (CR 702.29a, 702.35a, 702.37, 702.32a, 702.94a; issue #4539).
+// Cost-parameter keyword lines: Cycling, Madness, Morph and Fading
+// (CR 702.29a, 702.35a, 702.37, 702.32a; issue #4539).
 //
 // Two layers, each watching a different way a parameterised keyword goes wrong:
 //
@@ -290,83 +290,6 @@ describe("Foretell [cost] (CR 702.143a)", () => {
         ["a variable cost", "Foretell {X}{R}"],
         ["a hybrid pip", "Foretell {W/U}"],
         ["a non-mana cost", "Foretell—Discard a card."],
-    ])("REFUSES %s", (_why, line) => {
-        expect(readLine(line).ok).toBe(false);
-    });
-});
-
-describe("Miracle [cost] (CR 702.94a)", () => {
-    it("Devastation Tide: the cost lands on `miracle`, the spell compiles whole", () => {
-        expect(
-            compiled(
-                oracleCard({
-                    name: "Devastation Tide",
-                    manaCost: "{3}{U}{U}",
-                    typeLine: "Sorcery",
-                    oracleText:
-                        "Return all nonland permanents to their owners' hands.\nMiracle {1}{U} (You may cast this card for its miracle cost when you draw it if it's the first card you drew this turn.)",
-                })
-            )
-        ).toEqual({
-            name: "Devastation Tide",
-            types: ["Sorcery"],
-            manaCost: { X: 3, U: 2 },
-            oracleText:
-                "Return all nonland permanents to their owners' hands.\nMiracle {1}{U} (You may cast this card for its miracle cost when you draw it if it's the first card you drew this turn.)",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { excludeType: "Land" },
-                    },
-                    effects: [
-                        {
-                            op: "moveZone",
-                            target: { ref: "$each" },
-                            to: "hand",
-                        },
-                    ],
-                },
-            ],
-            miracle: { X: 1, U: 1 },
-        });
-    });
-
-    it("a mono-coloured cost on a creature: Miracle {B}", () => {
-        expect(
-            compiled(
-                oracleCard({
-                    name: "Miraculous Bear",
-                    manaCost: "{4}{B}",
-                    typeLine: "Creature — Bear",
-                    power: "4",
-                    toughness: "4",
-                    oracleText: "Miracle {B}",
-                })
-            )?.miracle
-        ).toEqual({ B: 1 });
-    });
-
-    it("a card declaring miracle twice is refused whole", () => {
-        const outcome = compileCard(
-            oracleCard({
-                name: "Double Miracle",
-                manaCost: "{2}{U}",
-                typeLine: "Sorcery",
-                oracleText: "Draw a card.\nMiracle {U}\nMiracle {1}{U}",
-            })
-        );
-        expect(outcome.state).toBe("unparsed");
-    });
-
-    it.each([
-        // Entreat the Angels' X miracle cost is outside this rule: the cast
-        // during resolution prompts X only for a printed-cost cast.
-        ["a variable cost", "Miracle {X}{W}{W}"],
-        ["a hybrid pip", "Miracle {W/U}"],
-        ["a non-mana cost", "Miracle—Discard a card."],
     ])("REFUSES %s", (_why, line) => {
         expect(readLine(line).ok).toBe(false);
     });

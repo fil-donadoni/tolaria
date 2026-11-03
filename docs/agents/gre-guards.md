@@ -342,13 +342,6 @@ Safety is per-site instead:
   does not re-verify each allowlisted site derives the id correctly (that is
   each site's own reference test's job), only that a new one can't land
   unnoticed.
-- **The one projection-level drop: a Private Choice.** A choice whose mere
-  EXISTENCE is the leak (the Miracle reveal window, CR 702.94a — raised only
-  when a miracle card was drawn) carries `privateToChooser`, and
-  `projectPublicState` drops the whole entry for a viewer who cannot act for
-  its chooser (`viewerMayActForChooser`). Such an entry may name or pin a
-  hidden card — `gre/miracle.ts` is the audited producer — because no other
-  viewer receives it. It is a per-site opt-in, never the blanket scrub above.
 
 **What this does NOT close.** Issue #1982 also names the PRESENCE channel — a
 hidden LAND raises no prompt at all on the opponent's turn (CR 305.3 silent

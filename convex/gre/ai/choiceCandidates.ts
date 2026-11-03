@@ -99,12 +99,10 @@ import {
 } from "./choicePriors";
 import { pruneTapDominatedAnswers } from "./dominance";
 import {
-    contextAwareGroundingForChoice,
     graveyardRecursionAccessFor,
     libraryTargetWorth,
     permanentWorth,
     prospectiveCardWorth,
-    scriptOpValueOf,
 } from "./candidateValue";
 import {
     choiceFindDestination,
@@ -113,9 +111,6 @@ import {
 } from "./searchDestination";
 import { DEFAULT_EVAL_WEIGHTS } from "./evalWeights";
 import { findPermanent } from "../lookup";
-import { canPayMiracleCost } from "../miracle";
-import { handLatentLens } from "../evaluate";
-import { withLatentLens } from "./grounding";
 import { landTypeCanMatter } from "./futileShield";
 
 /** One opened branch of a choice node. */
@@ -658,55 +653,6 @@ const drawReplacementCandidates: ChoiceCandidateGenerator = (state, choice) => {
     }
     return out;
 };
-
-/** `miracle-reveal` (CR 702.94a): reveal the just-drawn card for its miracle
- *  ability, or keep it hidden. The policy is the brief's, and it is ONE
- *  candidate, never a searched pair: reveal IFF the Bot intends to cast —
- *  the miracle cost is payable now (`canPayMiracleCost`, the same auto-tap
- *  plan the linked trigger's cast pays through) AND the cast is worth
- *  something to it (`miracleCastWorthIt`). Otherwise decline, which is also
- *  what keeps the card hidden: a reveal that is never followed by a cast
- *  only hands the opponent information. */
-const miracleRevealCandidates: ChoiceCandidateGenerator = (state, choice) => {
-    const card = choice.cardInstanceId
-        ? getPlayer(state, choice.playerId).hand.find(
-              (c) => c.id === choice.cardInstanceId
-          )
-        : undefined;
-    const reveal =
-        card !== undefined &&
-        canPayMiracleCost(state, choice.playerId, card) &&
-        miracleCastWorthIt(state, choice.playerId, card);
-    return [
-        {
-            key: reveal ? "miracle-reveal:yes" : "miracle-reveal:no",
-            move: { kind: "miracle-reveal", reveal },
-        },
-    ];
-};
-
-/** Whether casting `card` now is worth something to `playerId`: a creature
- *  card always is (a body for its miracle cost), any other card when its
- *  spell script values positive on THIS board — the hand term's own lens
- *  (`handLatentLens`, attached through `withLatentLens`), so a mass bounce is
- *  worth casting only when it takes more from the opponent than from the
- *  caster. */
-function miracleCastWorthIt(
-    state: GameState,
-    playerId: string,
-    card: CardInstanceState
-): boolean {
-    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-    if (!def) return false;
-    if ((def.types ?? []).includes("Creature")) return true;
-    const base = contextAwareGroundingForChoice(state, playerId);
-    const lens = handLatentLens(state, playerId, card);
-    const value = scriptOpValueOf(
-        card,
-        lens ? withLatentLens(base, lens) : base
-    );
-    return value !== undefined && value.points > 0;
-}
 
 // ---------------------------------------------------------------------------
 // Random reveal (coin flip / future dice) — degenerate acknowledge
@@ -2681,9 +2627,6 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     "number-pick": numberPickCandidates,
     "land-entry-tapped": landEntryCandidates,
     "draw-replacement": drawReplacementCandidates,
-    // CR 702.94a — the miracle reveal: one policy candidate (see the
-    // generator), so the kind is a node that never returns `[]`.
-    "miracle-reveal": miracleRevealCandidates,
     "option-pick": optionPickCandidates,
     // CR 603.3c (issue #2461) — announcing a modal trigger's mode IS a real
     // decision (which half of Deceiver Exarch's "untap yours / tap theirs" the

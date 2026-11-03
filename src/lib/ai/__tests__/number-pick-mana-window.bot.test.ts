@@ -161,7 +161,6 @@ function serverMutations(ctx: Parameters<typeof runMutation>[1]): {
         submitMadnessDecline: reject,
         submitReboundDecline: reject,
         submitDrawReplacementPay: reject,
-        submitMiracleReveal: reject,
         submitLandEntryChoice: reject,
         submitNameCard: reject,
         submitNumberChoice: async (a: { playerId: string; amount: number }) => {

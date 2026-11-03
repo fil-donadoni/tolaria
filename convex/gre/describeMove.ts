@@ -102,10 +102,6 @@ export function describeMove(move: Move, state: GameState): string {
             return move.accept
                 ? "pay life to bin revealed card"
                 : "let them draw (decline)";
-        case "miracle-reveal":
-            return move.reveal
-                ? "reveal for miracle"
-                : "keep it hidden (decline miracle)";
         case "name-card":
             return `name a card (${move.cardName})`;
         case "number-choice":

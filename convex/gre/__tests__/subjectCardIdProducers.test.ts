@@ -58,12 +58,6 @@ const CONVEX_ROOT = path.join(__dirname, "..", "..");
 //    producers; the card was already made public by the PRECEDING step in
 //    the same turn (a public discard, a public stack object) before either
 //    file ever sees it.
-//  - `gre/miracle.ts` (1) — the Miracle reveal window (CR 702.94a) pins the
-//    just-drawn HAND card, which is NOT public. Safe for a different reason:
-//    the entry is a PRIVATE CHOICE (`privateToChooser: true`, set on the same
-//    object literal), which `projectPublicState` drops for every viewer who
-//    cannot act for its chooser, so the pin never reaches the opponent
-//    (`miracle.test.ts` § "Private Choice on the wire").
 //  - `gre/state.ts` (2) — TWO roles: (1) the generic `requestChoice`
 //    plumbing FORWARDS a caller-supplied `req.subjectCardId` verbatim (the
 //    caller already did the public-identity check); (2) the as-enters
@@ -73,7 +67,6 @@ const CONVEX_ROOT = path.join(__dirname, "..", "..");
 const ALLOWLIST: Record<string, number> = {
     "gre/effects/interpreter.ts": 1,
     "gre/madness.ts": 1,
-    "gre/miracle.ts": 1,
     "gre/rebound.ts": 1,
     "gre/state.ts": 2,
 };
