@@ -82,7 +82,6 @@ import {
     dealDamageFromPermanentToPlayer,
     loseLifeEmitting,
     endGame,
-    payLifeCost,
 } from "./gre/state";
 import type { ContinuousEffect } from "./gre/continuousEffects";
 import {
@@ -5192,10 +5191,10 @@ export function finalizeTargetSelection(
         // CR 119.4 — pay the life cost as the targeted ability goes on the
         // stack. Validated up-front in activateAbility before pendingTarget.
         if (ability.cost.life !== undefined) {
-            payLifeCost(state, player, ability.cost.life);
+            player.life -= ability.cost.life;
         }
         // CR 107.4f — the Phyrexian pips paid with life (2 each).
-        payLifeCost(state, player, phyrexianLife);
+        player.life -= phyrexianLife;
         // CR 606.4 — pay a targeted loyalty ability's signed loyalty cost as it
         // goes on the stack (Liliana's "-2"). No-op for a non-loyalty ability.
         payLoyaltyCost(card, ability);
@@ -15070,7 +15069,7 @@ export const activatePlayerAbility = mutation({
             // Pay life after mana, then run the effect via a minimal context
             // exposing only addMana (ActivatedAbilityContext).
             if (ability.cost.life !== undefined) {
-                payLifeCost(state, player, ability.cost.life);
+                player.life -= ability.cost.life;
             }
             ability.effect?.({
                 addMana: (amount) => {
@@ -15094,7 +15093,7 @@ export const activatePlayerAbility = mutation({
             // source card reference. Not exercised by Channel yet, but kept
             // for future granted stack abilities.
             if (ability.cost.life !== undefined) {
-                payLifeCost(state, player, ability.cost.life);
+                player.life -= ability.cost.life;
             }
             const stackItem: StackItem = {
                 id: `granted-${instance.id}`,

@@ -482,32 +482,3 @@ registerEmblemDefinition({
         },
     ],
 });
-
-/** Kaito, Bane of Nightmares +1 emblem (DSK, issue #3237): "Ninjas you control
- *  get +1/+1." An owner-scoped layer-7c `pt-buff` (CR 613.4c) with Sorin's
- *  predicate shape (CR 114.3 — the synthetic source's controller is the
- *  emblem's owner). `ctx.hasSubtype` reads the LIVE layer-4 subtype line, so
- *  Kaito himself — a Ninja only while his own conditional static makes him one
- *  — gets the bonus exactly while he is a Ninja creature. */
-export const KAITO_BANE_OF_NIGHTMARES_EMBLEM_ID =
-    "kaito-bane-of-nightmares-emblem";
-
-registerEmblemDefinition({
-    id: KAITO_BANE_OF_NIGHTMARES_EMBLEM_ID,
-    name: "Kaito, Bane of Nightmares emblem",
-    text: "Ninjas you control get +1/+1.",
-    // Scryfall print of the emblem card (set `tdsk`, layout `emblem`) — the
-    // DSK emblem printing matching Kaito's own set.
-    imagePrintId: "435e707c-2b1d-48a7-ba75-c3c67824b50d",
-    staticEffects: [
-        {
-            kind: "pt-buff",
-            applies: (target, source, ctx) =>
-                ctx.isCreature(target) &&
-                ctx.hasSubtype(target, "Ninja") &&
-                target.controllerId === source.controllerId,
-            power: 1,
-            toughness: 1,
-        },
-    ],
-});
