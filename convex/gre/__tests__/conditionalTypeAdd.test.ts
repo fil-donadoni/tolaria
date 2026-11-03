@@ -133,9 +133,14 @@ describe("CR 611.3a conditional layer-4 type line (issue #3237)", () => {
 
     it("during the opponent's turn none of the grant applies", () => {
         withTemporaryDefinition(walkerDefinition, () => {
-            const { walker } = board("p2", 4);
+            const { state, walker } = board("p2", 4);
             expect(walker.types).toEqual(["Planeswalker"]);
             expect(walker.subtypes).toEqual(["Kaito"]);
+            // CR 613.4b — the base-P/T set is gated too: no 3/4 off-turn.
+            expect(getEffectivePower(view(state), asView(walker))).not.toBe(3);
+            expect(getEffectiveToughness(view(state), asView(walker))).not.toBe(
+                4
+            );
             expect(walker.staticAbilities ?? []).not.toContain("hexproof");
         });
     });
