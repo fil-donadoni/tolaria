@@ -123,6 +123,8 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             // written: a compiled "whenever this creature attacks" must stay
             // the same descriptor it has always been, byte for byte, or every
             // such card churns in the lockfile for no behaviour change.
+            if (head.whileSaddled === true)
+                return { kind: "attacks", whileSaddled: true };
             return head.scope === "self"
                 ? { kind: "attacks" }
                 : { kind: "attacks", scope: head.scope };

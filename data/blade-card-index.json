@@ -83,6 +83,13 @@
             "needsSetup": true
         }
     ],
+    "Caustic Bronco": [
+        {
+            "label": "saddles its Mount rather than attack with the saddlers when the drain outweighs their damage",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Chainer's Edict": [
         {
             "label": "opponent's choice: casts Chainer's Edict at the opponent's only creature",

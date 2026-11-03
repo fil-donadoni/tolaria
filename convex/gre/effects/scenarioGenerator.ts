@@ -2555,6 +2555,21 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSubject(req, op.target);
             return;
+        case "becomeSaddled":
+            // `becomeSaddled` (CR 702.171a) stamps the saddled designation.
+            // Modelled like `monstrosity`: an announced permanent slot or an
+            // ability's own `$source`, against the generic filler permanent
+            // (never saddled — nothing seeds the designation).
+            if (!subjectModelled(req, op.target)) {
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "becomeSaddled" targets $each — covered by the Op's interpreter test`
+                );
+                return;
+            }
+            recordSubject(req, op.target);
+            return;
         case "becomePrepared":
             // `becomePrepared` (issue #3689, CR 722.3a) gives a permanent the
             // prepared designation. Modelled like `monstrosity`: an announced
@@ -3849,6 +3864,28 @@ const OP_ASSERTORS: AssertorTable = {
     // it was already or has a prepare spell, with exactly one exiled copy then
     // and none otherwise: the seeded filler has none, so the canned run reads
     // the refusal; a preparation card seeded there reads the gain.
+    // `becomeSaddled` (CR 702.171a) — the seeded filler permanent ends the
+    // resolution saddled. `$each` targets are skipped upstream in `analyseOp`.
+    becomeSaddled(rawOp, scenario) {
+        const op = rawOp as Extract<EffectOp, { op: "becomeSaddled" }>;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
+        return {
+            label: `saddle permanent ${permId}`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                return {
+                    ok: perm.saddled === true,
+                    detail: `saddled ${perm.saddled === true}`,
+                };
+            },
+        };
+    },
     becomePrepared(rawOp, scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "becomePrepared" }>;
         const permId = subjectPermanentId(scenario, op.target);

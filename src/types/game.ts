@@ -302,6 +302,10 @@ export interface CardInstance {
      *  the CR 716.2a activation gate in `isActivationTimingAllowed`. Never a
      *  counter (CR 716.4 / 711.7), so it is NOT in `counters` above. */
     classLevel?: number;
+    /** CR 702.171b — true while this permanent is saddled (until end of turn
+     *  or it leaves the battlefield). Rides `slimCard` intact; drives the
+     *  saddled badge. */
+    saddled?: boolean;
     /** One-shot P/T modifications scoped to a phase boundary (CR 611.1).
      *  Each entry adds to effective P/T at read time. */
     temporaryPTMods?: ReadonlyArray<{ power: number; toughness: number }>;

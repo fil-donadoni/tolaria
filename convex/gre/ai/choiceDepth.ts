@@ -126,6 +126,8 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     // controller nothing.
     setLevel: false,
     monstrosity: false,
+    // CR 702.171a — stamps a designation; it asks the controller nothing.
+    becomeSaddled: false,
     becomePrepared: false,
     createToken: false,
     createTokenCopy: false,

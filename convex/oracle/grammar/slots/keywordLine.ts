@@ -656,6 +656,7 @@ const EQUIP_HEAD = "Equip ";
 const NINJUTSU_HEAD = "Ninjutsu ";
 const OFFSPRING_HEAD = "Offspring ";
 const CREW = /^Crew (\d+)$/;
+const SADDLE = /^Saddle (\d+)$/;
 
 /**
  * CR 702.6a — "Equip [cost]" means "[Cost]: Attach this permanent to target
@@ -693,6 +694,23 @@ export const crewRule: Rule<SlotIR> = rule("crew", (span) => {
 });
 
 /**
+ * CR 702.171a — "Saddle N" means "Tap any number of other untapped creatures
+ * you control with total power N or greater: This permanent becomes saddled
+ * until end of turn. Activate only as a sorcery." Lowered through the
+ * catalogue's `saddleAbility` factory.
+ *
+ * Refused: "Saddle 0" (no printed card; a saddle that taps nothing is a
+ * different shape this grammar has no card for).
+ */
+export const saddleRule: Rule<SlotIR> = rule("saddle", (span) => {
+    const match = SADDLE.exec(span);
+    if (match === null) return fail('a saddle line is "Saddle N"', span);
+    const count = Number(match[1]);
+    if (count < 1) return fail("saddle counts from 1", span);
+    return ok({ kind: "saddle" as const, count });
+});
+
+/**
  * CR 702.49a — "Ninjutsu [cost]": an activated ability that functions only
  * while the card is in its owner's hand. Lowered through the catalogue's
  * `ninjutsuAbility` factory.
@@ -727,8 +745,8 @@ export const offspringRule: Rule<SlotIR> = rule("offspring", (span) => {
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker line, or one cost-parameter keyword (cycling, madness, plot,
- * foretell, overload, morph, fading, mobilize, impending, equip, crew, ninjutsu,
- * offspring). They are disjoint by construction — no registry keyword name
+ * foretell, overload, morph, fading, mobilize, impending, equip, crew, saddle,
+ * ninjutsu, offspring). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
  * object, and each parameterised rule reads only its own head — and `oneOf`
  * enforces it rather than trusting it.
@@ -751,6 +769,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     impendingRule,
     equipRule,
     crewRule,
+    saddleRule,
     ninjutsuRule,
     offspringRule,
 ]);

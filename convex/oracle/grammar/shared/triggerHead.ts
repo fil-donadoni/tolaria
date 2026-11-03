@@ -158,7 +158,14 @@ export type TriggerHeadIR =
      * names its own ("…, IT gets +2/+2"). Under `self` that is one firing
      * either way, which is why the head shipped without a scope at all.
      */
-    | { readonly kind: "attacks"; readonly scope: TriggerSubjectScope }
+    | {
+          readonly kind: "attacks";
+          readonly scope: TriggerSubjectScope;
+          /** CR 702.171b — "attacks while saddled": the source must be saddled
+           *  as it is declared an attacker (a trigger condition, read when the
+           *  event fires — not an intervening-if). Self only. */
+          readonly whileSaddled?: true;
+      }
     /**
      * CR 603.2 + CR 603.6a + CR 508.3a — "whenever this permanent enters or
      * attacks": ONE Oracle line over the source's own entry and its own
@@ -632,6 +639,13 @@ export const SELF_HEADS: readonly {
         opener: "whenever ",
         tail: " attacks",
         ir: { kind: "attacks", scope: "self" },
+    },
+    // CR 702.171b — the Mount's "attacks while saddled": the source's own
+    // attack, triggering only while it carries the saddled designation.
+    {
+        opener: "whenever ",
+        tail: " attacks while saddled",
+        ir: { kind: "attacks", scope: "self", whileSaddled: true },
     },
     // CR 603.2 — the source's own entry OR its own attack, one line.
     {

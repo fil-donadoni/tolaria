@@ -7320,6 +7320,11 @@ export function removePermanentTo(
     // CR 701.37b — "it stays monstrous until it leaves the battlefield": the
     // designation goes with the object on every departure, like the level.
     delete creature.monstrous;
+    // CR 702.171b — "it stays saddled until the end of the turn or it leaves
+    // the battlefield": the designation goes with the object on every
+    // departure. Cleared AFTER the `sourceLki` stamp above, so an ability whose
+    // source left still reads the saddled state it last had (CR 608.2h).
+    delete creature.saddled;
     const owner = getPlayer(state, creature.ownerId);
     // CR 404.3 (issue #1967) — APPEND, never prepend. This is the funnel for
     // every battlefield departure (death, sacrifice, bounce, tuck), so it is
@@ -8936,6 +8941,16 @@ export function becomeMonstrousOnCard(
             subtypes: [...card.subtypes],
         },
     ];
+}
+
+/** CR 702.171a — "This permanent becomes saddled until end of turn." The
+ *  single writer of `CardInstanceState.saddled`. Saddling an already-saddled
+ *  permanent changes nothing (the designation is a boolean, not a count); the
+ *  cleanup step clears it (CR 514.2) and so does any zone change (CR 400.7).
+ *  Only permanents can become saddled (CR 702.171b) — the caller hands a
+ *  battlefield card. */
+export function becomeSaddledOnCard(card: CardInstanceState): void {
+    card.saddled = true;
 }
 
 /** CR 702.90a/b — Infect (creature half) and Wither: a source with either
@@ -12603,6 +12618,36 @@ export function buildSpellContext(
         // bounced in response to its own ETB) and the CR 400.7 gate — a
         // same-id permanent that has since re-entered is a NEW object whose
         // choice this ability must not read.
+        // CR 608.2h / 400.7 — match the resolving ability's source AS IT LAST
+        // EXISTED on the battlefield, when it has left since the ability was
+        // put on the stack. `item.sourceLki` is the departure-time raw record
+        // (stamped by `removePermanentTo` before it clears any battlefield
+        // designation), and its presence is also the CR 400.7 gate: a same-id
+        // permanent that has since re-entered is a new object this ability
+        // must not read. `undefined` = the source never departed, so the
+        // caller reads the live battlefield instead. Matched by the same
+        // `matchesPermanentFilter` the live scan uses, over the raw record:
+        // the departed object's continuous effects no longer apply, so its
+        // last raw state is what is left to read.
+        sourceLkiMatchesFilter(
+            filter: PermanentFilter,
+            controllerId?: string
+        ): boolean | undefined {
+            const lki = item.sourceLki;
+            if (!lki) return undefined;
+            if (controllerId !== undefined && lki.controllerId !== controllerId)
+                return false;
+            const cardId = (lki.card as { id?: string }).id;
+            return matchesPermanentFilter(
+                {
+                    ...lki,
+                    name: cardId ? tryGetDefinition(cardId)?.name : undefined,
+                    manaValue: permanentManaValue(lki),
+                },
+                filter,
+                { supertypesOf: liveSupertypesOf }
+            );
+        },
         getChosenSubtypes(): string[] | undefined {
             if (item.sourceLki) return item.sourceLki.chosenSubtypes;
             const src = findOnBattlefield(
@@ -13550,6 +13595,16 @@ export function buildSpellContext(
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             becomePrepared(state, found.card);
+        },
+        // CR 702.171a — "This permanent becomes saddled until end of turn."
+        // Routed through `becomeSaddledOnCard`, the single writer of the
+        // designation; a permanent that has left the battlefield is skipped
+        // (CR 609.3).
+        becomeSaddled(target: TargetSelection): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            becomeSaddledOnCard(found.card);
         },
         // CR 700.2c — re-write a permanent's stored modal colour post-ETB. The
         // "choose a color" half of a re-choosable modal permanent (Chromatic

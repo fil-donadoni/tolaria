@@ -47,7 +47,7 @@ import type {
 } from "../types";
 
 /** Slug used to namespace a Vehicle's generated ability ids. */
-function slugify(name: string): string {
+export function slugify(name: string): string {
     return (
         name
             .toLowerCase()

@@ -117,6 +117,7 @@ export const CARD_FIELD_LIFECYCLE = {
     damageMarked:               { codec: "scalar",  reset: TURN_ZONE },
     classLevel:                 { codec: "scalar",  reset: ZONE },
     monstrous:                  { codec: "flag",    reset: ZONE },
+    saddled:                    { codec: "flag",    reset: TURN_ZONE },
     // Legacy shape on expand (`loyaltyActivatedThisTurn`, issue #3339);
     // cleared at turn start, not at cleanup.
     loyaltyActivationsThisTurn: { codec: "custom",  reset: ["custom:turn"] },

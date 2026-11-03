@@ -110,6 +110,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         counters: { "+1/+1": 2 },
         classLevel: 2,
         monstrous: true,
+        saddled: true,
         countersAtLeave: { "+1/+1": 1 },
         capturedBindings: { exiled: ["inst-x"] },
         worldSeq: 12,
