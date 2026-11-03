@@ -1,10 +1,8 @@
 import { spawnSync } from "node:child_process";
 import {
     appendFileSync,
-    existsSync,
     mkdirSync,
     mkdtempSync,
-    readdirSync,
     rmSync,
     writeFileSync,
 } from "node:fs";
@@ -13,13 +11,17 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+    CARD_INDEX_GUARD_INPUTS,
     decide,
     defaultCacheDir,
     GUARD_CACHE_BYPASS_ENV,
     recordPass,
+    STUB_COVERAGE_GUARD_INPUTS,
     type GuardInputs,
 } from "../lib/guard-cache";
 import { healthGateEnv } from "../lib/health-step";
+import { crLintInputs } from "../check-cr-citations";
+import { oracleGuardInputs } from "../check-oracle-lockfile";
 
 /**
  * The content-hash cache for the pure drift guards (issue #3646). A cache that
@@ -210,43 +212,67 @@ function decisionIn(out: string, guard: string) {
 }
 
 describe("each pure drift guard consults the cache (issue #3646)", () => {
-    const GUARDS = [
-        ["check:index", "scripts/check-card-index.ts"],
-        ["check:stubs", "scripts/check-stub-coverage.ts"],
-        ["check:oracle", "scripts/check-oracle-lockfile.ts"],
-        ["cr:lint", "scripts/check-cr-citations.ts"],
-    ] as const;
+    // The generic contract (red never recorded, green recorded, next run skips)
+    // is proven on a fixture above. What a real guard owes is the WIRING: it
+    // calls `enterGuardCache` with its declared inputs, before paying its body,
+    // and exits on a cached decision. So the test seeds a green record for the
+    // hash the guard's OWN exported inputs give, then runs the guard once: a
+    // wired guard prints "cached" and exits 0 without running its body; a guard
+    // that never consults the cache runs in full and prints nothing (issue
+    // #7858 — the old test paid two full bodies per guard and timed out under
+    // batch-health load).
+    const GUARDS: ReadonlyArray<readonly [string, string, () => GuardInputs]> =
+        [
+            [
+                "check:index",
+                "scripts/check-card-index.ts",
+                () => CARD_INDEX_GUARD_INPUTS,
+            ],
+            [
+                "check:stubs",
+                "scripts/check-stub-coverage.ts",
+                () => STUB_COVERAGE_GUARD_INPUTS,
+            ],
+            [
+                "check:oracle",
+                "scripts/check-oracle-lockfile.ts",
+                oracleGuardInputs,
+            ],
+            ["cr:lint", "scripts/check-cr-citations.ts", crLintInputs],
+        ];
 
     // These run against the live checkout, which other test workers and
-    // processes write to: an input can change between the two runs (issue
-    // #6349). So every expectation is keyed on the hash each run PRINTS —
-    // a skip is owed exactly when the second run hashed what the first
-    // recorded green — never on the tree holding still.
+    // processes write to: an input can change between the seed and the run
+    // (issue #6349). So the expectation is keyed on the hash the run PRINTS —
+    // a skip is owed exactly when it hashed what was seeded — never on the
+    // tree holding still. A changed hash is the accepted race: the guard then
+    // runs, under a hash that is not the seeded one.
     it.each(GUARDS)(
-        "%s prints ran/cached with the hash, and skips only after a green run",
-        (guard, script) => {
-            const records = join(
-                defaultCacheDir({ CLAUDE_PROJECT_DIR: join(cacheDir, "..") }),
-                guard.replace(/[^A-Za-z0-9_.-]/g, "_")
-            );
-            const recordedAs = (short: string) =>
-                existsSync(records)
-                    ? readdirSync(records).filter((h) => h.startsWith(short))
-                    : [];
+        "%s skips on a seeded green record, keyed on the printed hash",
+        (guard, script, inputsOf) => {
+            const projectCache = defaultCacheDir({
+                CLAUDE_PROJECT_DIR: join(cacheDir, ".."),
+            });
+            const seeded = decide(inputsOf(), {
+                root: REPO,
+                cacheDir: projectCache,
+                env: { [GUARD_CACHE_BYPASS_ENV]: "" },
+            });
+            expect(seeded.hash, "guard inputs must be hashable").not.toBeNull();
+            recordPass(projectCache, guard, seeded.hash!);
 
-            const first = runBun(script, REPO);
-            const ran = decisionIn(first.out, guard);
-            expect(ran.kind).toBe("ran");
-            expect(recordedAs(ran.short)).toHaveLength(
-                first.status === 0 ? 1 : 0
-            );
+            const run = runBun(script, REPO);
+            const printed = decisionIn(run.out, guard);
 
-            const second = decisionIn(runBun(script, REPO).out, guard);
-            expect(second.kind).toBe(
-                first.status === 0 && second.short === ran.short
-                    ? "cached"
-                    : "ran"
-            );
+            if (printed.short === seeded.hash!.slice(0, 12)) {
+                expect(printed.kind).toBe("cached");
+                expect(run.status).toBe(0);
+                // Nothing but the decision line: a guard that consulted the
+                // cache AFTER paying its body would print that body first.
+                expect(run.out.trim().split("\n")).toHaveLength(1);
+            } else {
+                expect(printed.kind).toBe("ran");
+            }
         },
         60_000
     );
