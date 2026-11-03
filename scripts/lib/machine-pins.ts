@@ -15,15 +15,19 @@
  *
  * Dependency-free: the test setup imports it.
  */
-export const MACHINE_PINS = {
-    // The land-runner (issue #5469): runs nowhere — no test merges.
-    TOLARIA_LAND_RUNNER_PLATFORM: "",
-} as const;
+// Empty since the land-runner's `TOLARIA_LAND_RUNNER_PLATFORM` went with it
+// (issue #5654); the next role decision a script takes from its host adds
+// its pin here.
+export const MACHINE_PINS = {} as const satisfies Readonly<
+    Record<string, string>
+>;
 
 export type MachinePin = keyof typeof MACHINE_PINS;
 
 /** Set every pin `env` does not already carry. */
 export function applyMachinePins(env: NodeJS.ProcessEnv = process.env): void {
-    for (const [name, value] of Object.entries(MACHINE_PINS))
+    for (const [name, value] of Object.entries(
+        MACHINE_PINS as Readonly<Record<string, string>>
+    ))
         env[name] ??= value;
 }

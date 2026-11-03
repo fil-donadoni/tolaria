@@ -97,7 +97,6 @@
         "pr:fixup": "bun scripts/pr-fixup.ts",
         "merge:manual": "bun scripts/merge-manual.ts",
         "post-merge": "bun scripts/post-merge.ts",
-        "land:runner": "bun scripts/land-runner.ts",
         "housekeeping": "bun scripts/housekeeping.ts",
         "repair:watch": "bun scripts/repair-watch.ts",
         "release": "bun scripts/release.ts",

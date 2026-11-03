@@ -193,7 +193,7 @@ gh pr create …            # base must be the base branch; `land` refuses other
 TOLARIA_LAND_RUNNER=1 bun run land <PR#>   # add --repair when no repair issue is recorded
 ```
 
-Not the land-runner (issue #5469): § 7 reports a LANDING, so `/health-fix`
+Not the merge queue (issue #5469): § 7 reports a LANDING, so `/health-fix`
 lands its own repair through `deny-guard.sh` § 8's hatch.
 
 The PR body names: the step you reproduced and how, the cause, the fix, the

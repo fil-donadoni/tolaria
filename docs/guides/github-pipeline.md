@@ -1766,17 +1766,13 @@ gets. The web UI's merge button skips the check. A repair goes to the queue too,
 (issue #5986). The command's last line names the merger. It also makes
 sure GitHub links the PR as closing the issue its branch names (a bare
 `Closes #N`, appended when `closingIssuesReferences` lacks it), so the issue
-closes at merge whoever merges. The fallback, should the queue stall, is
-[the cut-over's rollback](#the-cut-over).
+closes at merge whoever merges. The decisions are
+`scripts/lib/queue-hand-off.ts` (`handsToQueue`, `bodyWithClosingRef`,
+`labelArgs`). There is no fallback merger any more: the land-runner's
+two-week fallback window closed and its code was deleted (issue #5654).
 
-Should [the rollback](#the-cut-over) bring the land-runner back, it only
-lands a `merge:manual` PR — never a queue PR, not to unlabel it once Mergify
-merged it: its `gh pr list` searches for the label and
-`planTick` skips any that slips through (`scripts/lib/land-runner.ts`,
-pinned by `scripts/__tests__/land-runner.test.ts`). So a PR has exactly one
-merger. What the land-runner does after a merge — closing the issue,
-releasing the claim, seeding the preset scenario — it does not do for a
-shadow PR: GitHub closes the issue through the closing ref `land:ready`
+So a PR has exactly one merger. Nothing is owed after a hand merge:
+GitHub closes the issue through the closing ref `land:ready`
 ensured, and [`post-merge`](#post-merge) does the rest for every merge,
 whoever merged (`housekeeping` releases the claim, `seed` seeds the preset
 scenario). So `merge:manual` / a hand `pr-merge` leaves the owner nothing to
@@ -1801,8 +1797,9 @@ acts, in this order:
    skips the queue's drafts. The PR touches both files, so the owner merges
    it by hand.
 2. **The land-runner retired.** On the MacBook:
-   `launchctl bootout gui/$(id -u)/com.tolaria.land-runner`. `land` and the
-   runner's code stay in the tree two weeks as the fallback.
+   `launchctl bootout gui/$(id -u)/com.tolaria.land-runner`. Its code stayed
+   in the tree two weeks as the fallback, then was deleted (issue #5654);
+   `land` stays only as `/health-fix`'s repair path.
 3. **The ruleset on the base branch** (`staging: merges through the queue`):
    no deletion, no force-push, a pull request required (no review, squash
    only), the [`trusted-author`](#g-trusted-author) status required. Bypass:
@@ -1811,9 +1808,8 @@ acts, in this order:
    turns green only after Mergify's merge. A direct push from any other
    identity is refused.
 
-**Rollback**, should the queue stall: revert the config PR, then
-`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.tolaria.land-runner.plist`
-— the runner lands every `ready-to-land` `merge:manual` PR again.
+**Rollback**: none since issue #5654 deleted the land-runner. Should the
+queue stall, the owner merges by hand with `bun run merge:manual <PR#>`.
 
 ## A pass inside a job
 
@@ -2053,27 +2049,26 @@ of its own sha.
 
 ## Troubleshooting
 
-| Symptom                                             | Look at                                                                                                                                                                               |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| (rollback only) the land-runner acts on stale rules | its process predates the change: it exits 75 between ticks when its sources change (issue #5941); if not, `launchctl kickstart -k gui/$(id -u)/com.tolaria.land-runner`               |
-| `could not get a registration token`                | the `gh` login is not the repository's admin: `gh auth status`                                                                                                                        |
-| `node not resolvable on the rendered PATH`          | run `install` from a shell where `command -v node` resolves                                                                                                                           |
-| a [runner](#g-runner) offline on GitHub             | `bun run runner status`; `paused` = expected; `STOPPED` = its log (MacBook) or `journalctl` (Huawei)                                                                                  |
-| the loop idle, no `afk-dispatch` run for hours      | `bun run machine`: heartbeat `DEAD` → `bun run runner install` (or its log); `dispatch FAILED` → the `gh` login                                                                       |
-| the [Convex agent](#g-convex-agent) restarts        | `~/.cache/tolaria/convex/agent.log` — usually a second `convex dev` holding the port                                                                                                  |
-| `TOLARIA_PRIMARY_CHECKOUT is unset`                 | the runner predates issue #5636: `bun run runner install` on that machine                                                                                                             |
-| `deny-guard` blocks a `git push` of a session       | the push names the base/release branch, or is a bare push from a checkout on it: push the feature branch, or use `TOLARIA_ALLOW_BASE_PUSH=1` on purpose                               |
-| `refusing workspace …`                              | `job-worktree.sh` ran outside a runner's `_work/<repo>/<repo>` directory — never point it at a checkout by hand                                                                       |
-| a `sync` leg red: `could not fast-forward …`        | that machine's primary checkout diverged by the owner's own commits (the notice names them); `gaps:sync` strandings heal themselves. Pull it by hand                                  |
-| `housekeeping` red: `shared state … moved`          | two runs raced (a hand run beside the job — the group keeps jobs apart): the loser dropped its watermark; the next hourly run re-reads. `git ls-remote origin 'refs/tolaria/state/*'` |
-| `pr-check` red, the lane green locally              | the receipt in the run's log; a dirty-tree refusal there = `worktree:init` changed a tracked file (e.g. `bun.lock`)                                                                   |
-| `trusted-author` red on the owner's PR              | it touches `.github/` or `.mergify.yml`: the owner merges it by hand — the [`owner-merge`](#owner-merge) email says so; otherwise `TRUSTED_AUTHORS` is unset or misspelt              |
-| a shadow PR sits unqueued, its gates green          | Mergify dropped it when a queue condition failed on its draft or its own head: `@mergifyio requeue` ([the merge queue](#the-merge-queue))                                             |
-| `base-health` red with the base green               | the re-gate did not run: Actions → pr-gate → Run workflow (or `--pr <N>`)                                                                                                             |
-| `health` red, `health:status` names a flake         | the ladder could not write the GREEN (store unreachable): re-run the job, or `bun run health:bisect ladder --sha <sha>`                                                               |
-| an early RED, no `ladder` run                       | `health.yml` is not on the default branch yet (a dispatch needs it there): run the ladder by hand                                                                                     |
-| `health` INFRA `deployment-skew`                    | the primary checkout serves `convex dev`: off base, dirty or behind. Switch it to base, ff it, wait for the push, re-run (issues #6132, #6133)                                        |
-| jobs fail when the MacBook lid closes               | [`caffeinate`](#g-caffeinate) cannot stop a clamshell sleep on battery: keep it on power, or [pause](#g-pause) before closing                                                         |
+| Symptom                                        | Look at                                                                                                                                                                               |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `could not get a registration token`           | the `gh` login is not the repository's admin: `gh auth status`                                                                                                                        |
+| `node not resolvable on the rendered PATH`     | run `install` from a shell where `command -v node` resolves                                                                                                                           |
+| a [runner](#g-runner) offline on GitHub        | `bun run runner status`; `paused` = expected; `STOPPED` = its log (MacBook) or `journalctl` (Huawei)                                                                                  |
+| the loop idle, no `afk-dispatch` run for hours | `bun run machine`: heartbeat `DEAD` → `bun run runner install` (or its log); `dispatch FAILED` → the `gh` login                                                                       |
+| the [Convex agent](#g-convex-agent) restarts   | `~/.cache/tolaria/convex/agent.log` — usually a second `convex dev` holding the port                                                                                                  |
+| `TOLARIA_PRIMARY_CHECKOUT is unset`            | the runner predates issue #5636: `bun run runner install` on that machine                                                                                                             |
+| `deny-guard` blocks a `git push` of a session  | the push names the base/release branch, or is a bare push from a checkout on it: push the feature branch, or use `TOLARIA_ALLOW_BASE_PUSH=1` on purpose                               |
+| `refusing workspace …`                         | `job-worktree.sh` ran outside a runner's `_work/<repo>/<repo>` directory — never point it at a checkout by hand                                                                       |
+| a `sync` leg red: `could not fast-forward …`   | that machine's primary checkout diverged by the owner's own commits (the notice names them); `gaps:sync` strandings heal themselves. Pull it by hand                                  |
+| `housekeeping` red: `shared state … moved`     | two runs raced (a hand run beside the job — the group keeps jobs apart): the loser dropped its watermark; the next hourly run re-reads. `git ls-remote origin 'refs/tolaria/state/*'` |
+| `pr-check` red, the lane green locally         | the receipt in the run's log; a dirty-tree refusal there = `worktree:init` changed a tracked file (e.g. `bun.lock`)                                                                   |
+| `trusted-author` red on the owner's PR         | it touches `.github/` or `.mergify.yml`: the owner merges it by hand — the [`owner-merge`](#owner-merge) email says so; otherwise `TRUSTED_AUTHORS` is unset or misspelt              |
+| a shadow PR sits unqueued, its gates green     | Mergify dropped it when a queue condition failed on its draft or its own head: `@mergifyio requeue` ([the merge queue](#the-merge-queue))                                             |
+| `base-health` red with the base green          | the re-gate did not run: Actions → pr-gate → Run workflow (or `--pr <N>`)                                                                                                             |
+| `health` red, `health:status` names a flake    | the ladder could not write the GREEN (store unreachable): re-run the job, or `bun run health:bisect ladder --sha <sha>`                                                               |
+| an early RED, no `ladder` run                  | `health.yml` is not on the default branch yet (a dispatch needs it there): run the ladder by hand                                                                                     |
+| `health` INFRA `deployment-skew`               | the primary checkout serves `convex dev`: off base, dirty or behind. Switch it to base, ff it, wait for the push, re-run (issues #6132, #6133)                                        |
+| jobs fail when the MacBook lid closes          | [`caffeinate`](#g-caffeinate) cannot stop a clamshell sleep on battery: keep it on power, or [pause](#g-pause) before closing                                                         |
 
 ## Glossary
 

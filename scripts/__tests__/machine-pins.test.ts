@@ -24,10 +24,6 @@ type Read =
     { pin: MachinePin; readIn: string } | { mechanics: string };
 
 const PLATFORM_READS: Record<string, Read> = {
-    "scripts/land-runner.ts": {
-        pin: "TOLARIA_LAND_RUNNER_PLATFORM",
-        readIn: "scripts/lib/land-runner.ts",
-    },
     "scripts/cockpit.ts": {
         mechanics: "browser opener: open vs xdg-open",
     },
@@ -63,7 +59,8 @@ function platformReaders(): string[] {
 
 describe("machine pins — no test inherits the host's role (issue #5590)", () => {
     it("scans the scripts tree (an empty walk would pass vacuously)", () => {
-        expect(platformReaders().length).toBeGreaterThanOrEqual(5);
+        // 4 since the land-runner's read went with it (issue #5654).
+        expect(platformReaders().length).toBeGreaterThanOrEqual(4);
     });
 
     it("every process.platform read in scripts/** is a pinned role or named mechanics", () => {
@@ -84,9 +81,16 @@ describe("machine pins — no test inherits the host's role (issue #5590)", () =
     });
 
     it("every role row's pin is registered and honoured where it says", () => {
+        // Registered pins and role rows are one set: a pin no row honours is
+        // dead, a row whose pin is unregistered is never applied to a test.
+        const rowPins = Object.values(PLATFORM_READS).flatMap((read) =>
+            "pin" in read ? [read.pin as string] : []
+        );
+        expect(Object.keys(MACHINE_PINS).sort()).toEqual(
+            [...new Set(rowPins)].sort()
+        );
         for (const [file, read] of Object.entries(PLATFORM_READS)) {
             if (!("pin" in read)) continue;
-            expect(MACHINE_PINS, file).toHaveProperty(read.pin);
             expect(
                 stripComments(
                     readFileSync(join(REPO_ROOT, read.readIn), "utf8")

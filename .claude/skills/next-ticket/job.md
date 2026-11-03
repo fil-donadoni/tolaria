@@ -54,7 +54,7 @@ long output in a file under `$SCRATCHPAD`, as § Context hygiene says.
 
 ## A repair pick
 
-The queue (Mergify, or the land-runner while it stands) labelled the PR
+The Mergify queue labelled the PR
 `land-failed` and commented the reason. In a job the failing run's log is on
 GitHub, not on a machine's disk:
 

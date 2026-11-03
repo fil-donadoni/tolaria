@@ -2,37 +2,25 @@
 
 How to set up the two machines of topology B' (ADR 0154): the Huawei's
 one-time [setup for the batch gates](#set-up-the-huawei-for-the-batch-gates),
-its Convex backend, a systemd unit ([Convex on the Huawei](#convex-on-the-huawei)),
-and the MacBook's [land-runner agent](#install-the-land-runner-on-the-macbook).
+and its Convex backend, a systemd unit ([Convex on the Huawei](#convex-on-the-huawei)).
 The unit files live beside the scripts they run, in
 [`scripts/runner-units/`](../../scripts/runner-units/). The hourly and nightly
 jobs are [The crons](#the-crons). The full health gate is no longer a unit
 here: it is `.github/workflows/health.yml` (ADR 0156 §4, issue #5655). The
 reaper and the health runner that this page once installed were deleted by
-that issue.
+that issue; the MacBook's land-runner agent by issue #5654
+([removed](#the-land-runner-agent-removed)).
 
-## Install the land-runner on the MacBook
+## The land-runner agent, removed
 
-From the primary checkout:
+The MacBook's land-runner agent was deleted with its script (issue #5654):
+the Mergify queue merges every `ready-to-land` PR. A MacBook that still holds
+the agent removes it by hand:
 
 ```bash
-mkdir -p ~/.cache/tolaria/land-runner
-out=~/Library/LaunchAgents/com.tolaria.land-runner.plist
-bun scripts/launchd-render.ts scripts/runner-units/com.tolaria.land-runner.plist \
-    > "$out.tmp" && mv "$out.tmp" "$out"
-launchctl bootstrap "gui/$(id -u)" "$out"
-launchctl print "gui/$(id -u)/com.tolaria.land-runner" | grep -E 'state|last exit'
+launchctl bootout "gui/$(id -u)/com.tolaria.land-runner"
+rm ~/Library/LaunchAgents/com.tolaria.land-runner.plist
 ```
-
-Omit it on a machine that does not merge. `scripts/launchd-render.ts`
-substitutes `__REPO__`, `__BUN__`, `__HOME__` and `__NODE_BIN__` (the directory
-of `command -v node`: launchd's PATH does not carry nvm/mise, and `land`'s
-`convex codegen` dies with `env: node: No such file or directory` without it,
-issue #5598). It exits 1, and the installed plist is left untouched, when a
-placeholder is left over or `node` is not on the rendered PATH. Verify the live
-agent: `ps eww -p <pid> | tr ' ' '\n' | grep ^PATH=` shows the node directory.
-Remove it with `launchctl bootout "gui/$(id -u)/com.tolaria.land-runner"` and
-delete the plist.
 
 ## Set up the Huawei for the batch gates
 

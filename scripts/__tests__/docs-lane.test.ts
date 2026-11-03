@@ -309,7 +309,7 @@ describe("docs-lane — the doc gate covers every guard that reads prose", () =>
     });
 });
 
-describe("docs-lane — the merge is the land-runner's, never the lane's (issue #5469)", () => {
+describe("docs-lane — the merge is the queue's, never the lane's (issue #5469)", () => {
     const src = fs.readFileSync(
         path.join(__dirname, "..", "docs-lane.ts"),
         "utf8"
@@ -318,7 +318,7 @@ describe("docs-lane — the merge is the land-runner's, never the lane's (issue 
     it("hands the PR off through land-ready.ts and runs no merge of its own", () => {
         // Before issue #5469 `docs:ship` merged inside `gate.ts heavy` and
         // queued 8+ min behind a `land` for a merge measured in seconds. The
-        // runner now re-runs the `docs` lane on the rebased tree and merges;
+        // queue now re-runs the `docs` lane on the rebased tree and merges;
         // a second merge path here would be a second writer to the base.
         expect(src).toMatch(/resolve\(__dirname, "land-ready\.ts"\)/);
         expect(src).not.toMatch(/pr-merge\.ts/);
