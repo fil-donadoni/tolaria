@@ -250,6 +250,10 @@ Three decisions, following the ones above.
    `dig-to-hand`, the scry's `order-top-<item id>`, an ambiguous name) or an
    object the spec cannot place. `stack-mid-resolution` retires; its name is
    never reused (the frozen-union rule in `lowering.ts`).
+   A suspended TRIGGERED ability always refuses today, through
+   `abilityResolutionRecorded` (not allowlisted — re-recording on resume would
+   double-count CR 603.3's per-turn tally), so the checkpoint lowers spells and
+   activated abilities; the trigger case is counted under that field.
 
 Measured on the default sweep protocol (mono-red-burn vs channel-fireball, six
 games, seeds 1..6, 60 iterations) the corpus is unchanged — 300 of 2322

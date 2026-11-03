@@ -241,10 +241,10 @@ type Cursor = { pos: number; readonly resume: number };
  *  is needed. */
 const SNAP_POWER = 0;
 const SNAP_TOUGHNESS = 1;
-const SNAP_CONTROLLER = 2;
-const SNAP_ID = 3;
+export const SNAP_CONTROLLER = 2;
+export const SNAP_ID = 3;
 const SNAP_MANA_VALUE = 4;
-const SNAP_OWNER = 5;
+export const SNAP_OWNER = 5;
 /** CR 205 / 110.1 (issue #1311) — "1" if the snapshotted object was a
  *  permanent card (its types included at least one permanent type) at bind
  *  time, else "0". Read via `.isPermanentCard` in a numeric ref (Lion Sash:

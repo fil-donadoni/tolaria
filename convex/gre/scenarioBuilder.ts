@@ -4085,8 +4085,10 @@ function lowerStack(
         top !== undefined &&
         top.resolutionStep !== undefined &&
         pending.every((choice) => choice.stackItemId === top.id);
+    // The blocker alone refuses the decision; the stack itself is still
+    // lowered when its own fields allow (a checkpointed item refuses per
+    // field below), so the debug export keeps what it kept before.
     if (pending.length > 0 && !resumable) {
-        refused = true;
         blockers.push({
             item: `${pending.length} choice(s) awaiting input`,
             field: "pendingChoices",

@@ -29,6 +29,7 @@ import { tryGetDefinition } from "../cards";
 import type { StackItem } from "./state";
 import { bindingDeclarationsOf } from "./effects/validate";
 import { childOpArrays } from "./ai/effectOpChildren";
+import { SNAP_CONTROLLER, SNAP_ID, SNAP_OWNER } from "./effects/interpreter";
 import type {
     ScenarioEventValue,
     ScenarioObjectRef,
@@ -45,12 +46,12 @@ type BindingFamily = ReturnType<
  *  entry (`seedSourceBindings`): never declared by an Op, always a snapshot. */
 const IMPLICIT_SNAPSHOT_BINDINGS = new Set(["$source", "$host"]);
 
-/** Snapshot slots holding a PLAYER id (`bindSnapshot`: controller, owner —
- *  `""` when the snapshotted object had none). */
-const SNAPSHOT_PLAYER_SLOTS = new Set([2, 5]);
-/** The snapshot slot holding the snapshotted object's own id — an instance
- *  id for a permanent / card target, the PLAYER's id for a player target. */
-const SNAPSHOT_ID_SLOT = 3;
+/** Snapshot slots holding a PLAYER id (controller, owner — `""` when the
+ *  snapshotted object had none) and the slot holding the snapshotted object's
+ *  own id (an instance id for a permanent / card target, the PLAYER's id for a
+ *  player target) — the interpreter's own layout constants, never a copy. */
+const SNAPSHOT_PLAYER_SLOTS = new Set([SNAP_CONTROLLER, SNAP_OWNER]);
+const SNAPSHOT_ID_SLOT = SNAP_ID;
 
 export type CollectedAnswerLoweringPorts = {
     /** One live instance id → the spec's reference, or `undefined` when the
