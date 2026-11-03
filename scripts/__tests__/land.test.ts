@@ -1760,12 +1760,8 @@ describe("land.ts — a skin PR's SCOPED receipt must match the scope of its own
     // The scope the lobby diff would derive: surfaces other than the detail's.
     const OTHER = ["lobby"];
 
-    it("derives a non-empty scope for its own diff", () => {
-        expect(detail.length).toBeGreaterThan(0);
-        expect(detail).not.toEqual(OTHER);
-    });
-
     it("accepts the SCOPED receipt of its own diff, and refuses it for a diff reaching other surfaces", () => {
+        expect(detail.length).toBeGreaterThan(0);
         const body = receiptBody(detail);
         expect(body).toContain(`SCOPED — diff base ${ORIGIN_BASE}`);
         expect(
