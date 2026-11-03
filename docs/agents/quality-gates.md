@@ -1136,14 +1136,15 @@ run record): success / failure / error / pending for
 GREEN / RED / infra / AMBER; description `STATUS · step · machine` plus the
 failing test files while they fit 140 characters; target URL the log when it
 is one). `scripts/lib/health-verdict-store.ts` is the only reader. `bun run
-health:status --json` prints the lineage as one line. **AMBER**: a repair landing (`--repair`, or a PR closing the
-`/health-fix` issue) runs, after its lane, the failing test files the RED
-verdict names (`land`'s repair proof — red refuses the landing); green there
-turns the lineage AMBER at the merged tip, and picks and non-repair landings
+health:status --json` prints the lineage as one line. **AMBER**: `pr-check`'s `repair-proof` refuses a PR closing the
+`/health-fix` issue whose failing tests all stay red; on its merge,
+`health-early`'s `amber` job runs the failing test files the RED verdict names
+on the merged tip (`repairAmberDecision`, issue #7990, ADR 0156 Amendment VIII).
+All green turns the lineage AMBER at that tip, and picks and non-repair landings
 resume without waiting for the confirming health run. The next GREEN clears
 it; a RED on an AMBER lineage is the SECOND RED, which the
-[RED ladder](../guides/github-pipeline.md#g-red-ladder) reverts. A RED verdict that names no test file earns no AMBER: the RED
-stands until health, as before.
+[RED ladder](../guides/github-pipeline.md#g-red-ladder) reverts. A RED verdict that names no test file, or one naming a corpus test the
+hosted job cannot judge, earns no AMBER: the RED stands until health.
 
 **Branch names are not literals.** `scripts/lib/branches.ts` is the one
 reader; `deny-guard.sh` reads the same JSON with `jq`;

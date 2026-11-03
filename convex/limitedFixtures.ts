@@ -59,7 +59,7 @@ import type {
 import { SCORER_VERSION } from "./limited/scorerVersion";
 // The labels live in a dependency-free leaf module, not here: this file is a
 // registered Convex function module, so a `scripts/`-side importer of them
-// would drag gitignored `convex/_generated` into `bun run land`. See that
+// would drag gitignored `convex/_generated` into every PR check. See that
 // file's header (issue #2822 review round 2).
 import {
     uiGateDraftLabel,

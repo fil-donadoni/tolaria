@@ -14,17 +14,14 @@
 //       and exits 1 (issue #6003).
 //   flakes --lane <lane.json>
 //       The flakes the lane recorded, as job-summary markdown (empty if none).
-//   run --pr <N> --fixes <k,k> [--requeue] [--in-place --lease <sha>]
+//   run --pr <N> --fixes <k,k> [--requeue]
 //       The fixup job: in the job worktree, check out the PR head, REBASE it
 //       onto the base tip (the staleness the queue finds appears only there:
 //       a whole-tree artefact regenerated on the old head reproduces the
 //       committed file, issue #5955), regenerate the named artefacts, commit,
 //       push to the PR's branch under a lease on the head it fetched.
 //       `--requeue`: the queue had rejected the PR on this red — after the
-//       push, `land-failed` → `ready-to-land`. `--in-place` (the land-runner):
-//       the current checkout IS the PR's branch as `land` left it — rebased
-//       — so no checkout; `--lease <sha>` is what origin held when the
-//       runner reset the worktree, never a shared tracking ref.
+//       push, `land-failed` → `ready-to-land`.
 //
 // WHAT COUNTS AS REGENERABLE is the table below and nothing else: a lane step
 // whose red is "the committed file is not what its generator writes today".
@@ -528,13 +525,7 @@ function runMain(argv: string[]): void {
     const fixes = parseFixes(argOf(argv, "--fixes") ?? "");
     if (!fixes) die("run needs --fixes naming rows of the FIXES table");
 
-    const inPlace = argv.includes("--in-place");
     const requeue = argv.includes("--requeue");
-    const leaseArg = argOf(argv, "--lease");
-    if (inPlace && !/^[0-9a-f]{40}$/.test(leaseArg ?? ""))
-        die(
-            "--in-place needs --lease <full sha> — what origin held when the worktree was reset"
-        );
     const view = ghJson([
         "pr",
         "view",
@@ -569,39 +560,28 @@ function runMain(argv: string[]): void {
         return;
     }
 
-    // The tree to regenerate on is the PR REBASED onto the base tip — in
-    // place, `land` already did that; in the job, done here — and the push
-    // is leased on the exact head sha this run started from (in place: the
-    // one the runner reset the worktree to; in the job: the head it fetched),
-    // never on a tracking ref another worktree's fetch can move: a session's
-    // push that crossed this run is refused, never clobbered.
-    let lease = leaseArg ?? "";
-    if (inPlace) {
-        const branch = run("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
-        if (branch.out.trim() !== facts.headRefName)
-            die(
-                `--in-place: HEAD is ${branch.out.trim() || "detached"}, not ${facts.headRefName}`
-            );
-    } else {
-        for (const step of [
-            ["git", "fetch", "--no-tags", "origin", `pull/${pr}/head`],
-            ["git", "checkout", "--detach", "FETCH_HEAD"],
-        ]) {
-            const r = run(step[0], step.slice(1));
-            if (!r.ok) die(`${step.join(" ")} failed: ${r.out.slice(-400)}`);
-        }
-        lease = run("git", ["rev-parse", "HEAD"]).out.trim();
-        const rebase = [
-            ["git", "fetch", "--no-tags", "origin", view.baseRefName],
-            ["git", "rebase", "FETCH_HEAD"],
-            ["bun", "run", "worktree:init"],
-        ];
-        for (const step of rebase) {
-            const r = run(step[0], step.slice(1));
-            if (!r.ok) {
-                if (step[1] === "rebase") run("git", ["rebase", "--abort"]);
-                die(`${step.join(" ")} failed: ${r.out.slice(-400)}`);
-            }
+    // The tree to regenerate on is the PR REBASED onto the base tip, and the
+    // push is leased on the exact head sha this run fetched, never on a
+    // tracking ref another worktree's fetch can move: a session's push that
+    // crossed this run is refused, never clobbered.
+    for (const step of [
+        ["git", "fetch", "--no-tags", "origin", `pull/${pr}/head`],
+        ["git", "checkout", "--detach", "FETCH_HEAD"],
+    ]) {
+        const r = run(step[0], step.slice(1));
+        if (!r.ok) die(`${step.join(" ")} failed: ${r.out.slice(-400)}`);
+    }
+    const lease = run("git", ["rev-parse", "HEAD"]).out.trim();
+    const rebase = [
+        ["git", "fetch", "--no-tags", "origin", view.baseRefName],
+        ["git", "rebase", "FETCH_HEAD"],
+        ["bun", "run", "worktree:init"],
+    ];
+    for (const step of rebase) {
+        const r = run(step[0], step.slice(1));
+        if (!r.ok) {
+            if (step[1] === "rebase") run("git", ["rebase", "--abort"]);
+            die(`${step.join(" ")} failed: ${r.out.slice(-400)}`);
         }
     }
     const push = [

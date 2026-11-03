@@ -1072,7 +1072,6 @@ describe("the sweep never runs inside a gate (ADR 0105 § 7.2)", () => {
 
     it("the gate scripts never name the write path", () => {
         for (const file of [
-            "land.ts",
             "check-lane.ts",
             "gate.ts",
             "health-main.ts",

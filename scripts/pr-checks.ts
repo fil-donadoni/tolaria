@@ -1,12 +1,10 @@
 #!/usr/bin/env bun
-// `bun run pr:checks <name|all>` — the refusals `land` applies before a merge,
+// `bun run pr:checks <name|all>` — the refusals a PR answers before it merges,
 // as PR checks (PRD issue #5620, issue #5639; ADR 0156 Amendment I).
 //
-// Each check is the SAME pure function `land` calls, fed the same facts, and
-// answers with the same refusal string — one reading, three callers
-// (`.github/workflows/pr-check.yml` runs one job per check, `land` keeps its
-// copy until the migration retires it, `docs/guides/github-pipeline.md`;
-// `land:ready` runs them all before it queues a PR, issue #5956).
+// One reading, two callers: `.github/workflows/pr-check.yml` runs one job per
+// check (`docs/guides/github-pipeline.md`), `land:ready` runs them all before
+// it queues a PR (issue #5956).
 //
 //   ui-receipt          the `check:ui` receipt, re-derived from the diff's scope
 //   scenario            the `## Preset scenario` block (ADR 0044)
@@ -20,15 +18,10 @@
 // `origin/<base>...HEAD` of the working tree — on a runner, the merge ref.
 // Exit 0 = every named check passed, 1 = at least one refused (one line each).
 
-import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { ROBUSTNESS_BASELINE } from "../convex/gre/ai/blade/robustnessBaseline";
-import { corpusExcluded, readsLockedCorpus } from "./lib/corpus-exclusion";
-import { FITTED_WEIGHTS_PATH } from "./lib/bot-refit";
-import { DERIVED_PATHS } from "./lib/derive-sync";
-import { createImportGraph } from "./lib/import-graph";
-import { TEST_ALIASES } from "./lib/test-reach";
+import { corpusExcluded } from "./lib/corpus-exclusion";
 import { ORIGIN_BASE } from "./lib/branches";
 import { gh } from "./lib/gh";
 import {
@@ -38,21 +31,25 @@ import {
 } from "./lib/red-land-gate";
 import {
     lineageBlocks,
+    readVerdictLineage,
     verdictStore,
     type Lineage,
     type VerdictStore,
 } from "./lib/health-verdict-store";
 import { robustnessBaselineRefusal } from "./lib/robustness-baseline-refusal";
+import { pivotRepairIssues } from "./lib/health-pivot";
 import {
     SKIN_RECEIPT_REFUSAL,
-    landHealthLineage,
-    readRepairIssues,
-    repairProofOf,
     safeRetirementRefusal,
     safeScenarioRefusal,
     safeSkinReceiptInvalid,
+} from "./lib/pr-refusals";
+import {
+    fileReadsCorpus,
+    repairProofOf,
+    repairProofRun,
     type RepairProof,
-} from "./land";
+} from "./lib/repair-proof";
 
 export const PR_CHECK_NAMES = [
     "ui-receipt",
@@ -87,42 +84,7 @@ export interface PrCheckResult {
     note?: string;
 }
 
-/** One command of the repair proof's run; the exit code (null → 1). */
-export type ProofExec = (argv: readonly string[], cwd: string) => number;
-
-function spawnExec(argv: readonly string[], cwd: string): number {
-    const [cmd, ...args] = argv;
-    return spawnSync(cmd, args, { cwd, stdio: "inherit" }).status ?? 1;
-}
-
-/** Runs the failing tests of a repaired RED, ONE FILE PER RUN: the exit code
- *  of each, in order (every one `derive:regenerate`'s when the tree cannot be
- *  rebuilt). Per file because a RED can have several culprits, each repair
- *  turning only its own share green (issue #7448) — one vitest run over them
- *  all would read as red whichever repair landed first. The ones the repair
- *  deleted or moved are skipped, as `repairProofStep` does.
- *
- *  On the derived state REBUILT, like the queue's draft (`check:lane
- *  --regenerate-derived`): a PR stops carrying it (ADR 0157),
- *  so the merge-base's bytes still index a card a revert removed and every
- *  catalogue-freezing suite crashes on a stale Definition Index — the repair
- *  could never prove itself (issue #7489). Restored after, whatever the
- *  verdict: `land:ready` runs this in the PR's own worktree. */
-export function repairProofRun(
-    tests: readonly string[],
-    cwd: string,
-    exec: ProofExec = spawnExec
-): number[] {
-    const regen = exec(["bun", "run", "derive:regenerate"], cwd);
-    try {
-        if (regen !== 0) return tests.map(() => regen);
-        return tests.map((t) => exec(["bunx", "vitest", "run", t], cwd));
-    } finally {
-        exec(["git", "checkout", "-q", "HEAD", "--", ...DERIVED_PATHS], cwd);
-    }
-}
-
-/** The repair proof (issue #5639, `land`'s `repairProofStep`): a PR that
+/** The repair proof (issue #5639, `lib/repair-proof.ts`): a PR that
  *  closes a `/health-fix` issue of the standing RED must make at least one of
  *  the verdict's failing test files pass — its share of a RED that may have
  *  several culprits (issue #7448); the rest stay red in a note, and the RED
@@ -141,10 +103,8 @@ export function repairProofCheck(ctx: PrCheckContext): PrCheckResult {
         red,
         prBody: ctx.prBody,
         repairIssues: red
-            ? (ctx.repairIssues ?? (() => readRepairIssues(ctx.cwd)))()
+            ? (ctx.repairIssues ?? (() => pivotRepairIssues(ctx.cwd)))()
             : [],
-        repairFlag: false,
-        redOkFlag: false,
     });
     const kind: LandingKind | undefined =
         gate.kind === "proceed" ? gate.landing : undefined;
@@ -158,8 +118,8 @@ export function repairProofCheck(ctx: PrCheckContext): PrCheckResult {
         };
     // Hosted, no reader key (issue #6563): a test over the locked corpus
     // cannot be proved here, and a skip must not read as green — so it is
-    // not run at all, and named in the note. `land`, or a keyed self-hosted
-    // run, stays the authority on it.
+    // not run at all, and named in the note. `land:ready`, or a keyed
+    // self-hosted run, stays the authority on it.
     const hosted = (ctx.corpusExcluded ?? corpusExcluded)();
     const readsCorpus = ctx.readsCorpus ?? fileReadsCorpus;
     const unprovable = hosted
@@ -168,7 +128,7 @@ export function repairProofCheck(ctx: PrCheckContext): PrCheckResult {
     const provable = tests.filter((t) => !unprovable.includes(t));
     const unprovableNote =
         unprovable.length > 0
-            ? `repair proof: ${unprovable.join(", ")} read the locked verdict corpus or the weights fitted from it, and this check holds no reader key — not provable here; \`land\` runs them`
+            ? `repair proof: ${unprovable.join(", ")} read the locked verdict corpus or the weights fitted from it, and this check holds no reader key — not provable here; land:ready and health run them`
             : undefined;
     if (provable.length === 0) return { refusal: null, note: unprovableNote };
     const status = (ctx.runTests ?? repairProofRun)(provable, ctx.cwd);
@@ -185,22 +145,8 @@ export function repairProofCheck(ctx: PrCheckContext): PrCheckResult {
     return { refusal: null, ...(note ? { note } : {}) };
 }
 
-/** Whether a test's verdict rests on the locked verdict corpus: it reads the
- *  corpus fixture itself, or its import closure reaches the fitted weights —
- *  fitted FROM the corpus, so a hosted `derive:regenerate` (no reader key)
- *  leaves them at their committed bytes instead of refitting them
- *  (`refitPlan`, issue #7819). Such a test, run there, judges the PR against
- *  the base's weights, not its own: a weight-floor test a repair turns green
- *  only through the refit reads red, and the proof refuses a sound repair. */
-export function fileReadsCorpus(file: string, cwd: string): boolean {
-    if (readsLockedCorpus(readFileSync(resolve(cwd, file), "utf8")))
-        return true;
-    const graph = createImportGraph({ root: cwd, aliases: TEST_ALIASES });
-    return graph.closureOf(file).has(FITTED_WEIGHTS_PATH);
-}
-
 function defaultLineage(cwd: string): () => Lineage & { error?: string } {
-    return () => landHealthLineage((): VerdictStore => verdictStore(cwd));
+    return () => readVerdictLineage((): VerdictStore => verdictStore(cwd));
 }
 
 /** One check by name. Pure but for the git/gh/vitest reads each reaches. */

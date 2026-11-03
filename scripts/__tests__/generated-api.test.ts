@@ -11,11 +11,6 @@ import {
     refreshGeneratedApi,
     type Codegen,
 } from "../lib/generated-api";
-import {
-    buildLockedCommand,
-    rebaseStep,
-    refreshGeneratedApiStep,
-} from "../land";
 
 /**
  * Issue #5077: a worktree's `convex/_generated/` is COPIED from the primary
@@ -161,26 +156,5 @@ describe("convexModules agrees with the Convex CLI's own generator", () => {
         expect(convexModules(path.join(root, "convex"))).toEqual(
             generatedApiModules(api())
         );
-    });
-});
-
-describe("land refreshes the generated API on the rebased tree", () => {
-    it("between the rebase and the lane gate", () => {
-        const cmd = buildLockedCommand({
-            branch: "fix/issue-5077",
-            gatedGreen: [],
-            laneRecordDir: null,
-            pr: 1,
-            primaryCheckout: "/repo",
-            worktree: "/repo/wt",
-            merge: true,
-            teardown: true,
-        });
-        const rebaseAt = cmd.indexOf(rebaseStep());
-        const refreshAt = cmd.indexOf(refreshGeneratedApiStep());
-        const gateAt = cmd.indexOf("bun run check:lane");
-        expect(rebaseAt).toBeGreaterThanOrEqual(0);
-        expect(refreshAt).toBeGreaterThan(rebaseAt);
-        expect(gateAt).toBeGreaterThan(refreshAt);
     });
 });

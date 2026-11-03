@@ -572,7 +572,7 @@ It has two blocks (ADR 0132 §6):
   Readings, the infra signatures with their load and reason, the machine load,
   console errors, screenshots and wall time.
 
-This is not a style preference — `bun run land` re-derives the verdict block
+This is not a style preference — `land:ready` re-derives the verdict block
 from the PR's own diff (the all-`PASS` block of that scope, rendered by the
 real evaluator) and refuses to merge a `skin`-lane PR whose paste differs from
 it or carries any line that is not `PASS`

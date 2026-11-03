@@ -14,7 +14,7 @@ import {
 } from "../land-ready";
 import { ORIGIN_BASE } from "../lib/branches";
 import type { Lineage } from "../lib/health-verdict-store";
-import { SKIN_RECEIPT_REFUSAL } from "../land";
+import { SKIN_RECEIPT_REFUSAL } from "../lib/pr-refusals";
 import {
     EXCLUDED_FROM_PRE_QUEUE,
     PRE_QUEUE_RELATED_MAX,
@@ -374,7 +374,7 @@ describe("pushWithRetry — the hand-off push (issue #6620)", () => {
     });
 });
 
-// Issue #5956 — `land:ready` refuses what `land` would refuse, through the
+// Issue #5956 — `land:ready` refuses what the PR checks would refuse, through the
 // SAME `pr-checks` functions, on a real git diff (`origin/<base>...HEAD`).
 describe("landRefusals — land's refusals before the PR is queued", () => {
     const repos: string[] = [];
@@ -416,15 +416,15 @@ describe("landRefusals — land's refusals before the PR is queued", () => {
             () => undefined
         );
 
-    it("a DOM-reaching PR with no check:ui receipt is refused in land's words", () => {
+    it("a DOM-reaching PR with no check:ui receipt is refused in the check's words", () => {
         const r = refusalsOf(["src/components/game/Thing.tsx"], "Closes #1");
-        expect(r).toEqual([`land: refusing — ${SKIN_RECEIPT_REFUSAL}`]);
+        expect(r).toEqual([`land:ready: refusing — ${SKIN_RECEIPT_REFUSAL}`]);
     });
 
     it("a convex/gre PR with no preset scenario is refused", () => {
         const r = refusalsOf(["convex/gre/thing.ts"], "Closes #1");
         expect(r).toHaveLength(1);
-        expect(r[0]).toMatch(/^land: refusing — .*[Pp]reset scenario/);
+        expect(r[0]).toMatch(/^land:ready: refusing — .*[Pp]reset scenario/);
     });
 
     it("a PR that passes every refusal yields none", () => {

@@ -1,11 +1,11 @@
 ---
 name: health-fix
-description: "Repair a RED base tip: reproduce, fix forward, land, record the verdict."
+description: "Repair a RED base tip: reproduce, fix forward, hand off to the queue, record the verdict."
 disable-model-invocation: true
 argument-hint: "<base-tip-sha> [--headless]"
 ---
 
-# /health-fix — turn a RED verdict into a landed repair
+# /health-fix — turn a RED verdict into a queued repair
 
 `$1` is the base tip that went red. `bun run health:fix` passes it (PRD issue
 #3197); typed by hand without it, read it from `bun run health:status` and
@@ -13,12 +13,12 @@ confirm it is the sha the RED verdict names — never guess.
 
 **`$2` = `--headless`** (issue #5589): you are `claude -p` for the unattended
 loop — read `headless.md` beside this file first: every **grill** below is
-`stuck`, and § 6's `land` runs through `gate:run`.
+`stuck`.
 
 You were spawned because the full offline gate (ADR 0116) failed on that tip
-and everything downstream is blocked: `release` refuses, `land` warns,
-the AFK dispatcher holds. Your deliverable is a landed fix **plus a test that
-closes the class of the failure**, and a verdict file saying which.
+and everything downstream is blocked: `release` refuses, the queue holds, the
+AFK dispatcher holds. Your deliverable is a fix handed to the queue **plus a
+test that closes the class of the failure**, and a verdict file saying which.
 
 ## The four prohibitions — contract, not advice
 
@@ -36,9 +36,7 @@ closes the class of the failure**, and a verdict file saying which.
 
 You start in the **primary checkout** — `health:fix` spawns you there, because
 that is where the health telemetry lives. **Write its absolute path down now**
-(`pwd`): § 7 needs it after `land` has deleted the worktree you will be
-standing in, and a shell variable does not survive from one command to the
-next.
+(`pwd`): § 7 needs it, and a shell variable does not survive between commands.
 
 The RED may come from the OTHER machine, or a hosted runner (`health-early`).
 Its evidence is on the **pivot** (issue #5589), readable from either:
@@ -118,11 +116,11 @@ cd "$(bun run --silent wt:new <N> --fix)"
 ```
 
 `repair-issue` records `<N>` on the pivot as the repair of the
-standing RED (issue #4964): under RED, `land` refuses every PR that is not a
-declared repair unless it is run with `--red-ok`, and the PR that closes `<N>`
-is how it recognises yours — with no flag — and fires the health gate on its
-tip at once instead of waiting out a batch. A repair with no recorded issue
-lands with `--repair` (§ 6).
+standing RED (issue #4964): under RED the queue holds every PR that is not a
+declared repair (`pr-gate`'s `base-health`), and the PR that closes `<N>` is how
+it recognises yours, gives it priority (issue #7658) and fires the health gate
+on its tip at once instead of waiting out a batch. **No recorded issue, no
+admission.**
 
 The shared checkout is read-only (`deny-guard.sh` § 0); the repro worktree is
 for reading, not for authoring.
@@ -153,7 +151,7 @@ restates the instance is not a class guard.
 **Where the class guard runs is its measured cost, never its phase** (issue
 #4963): a guard that costs ≤ 10 s on the heavy tier goes in `check:lane`
 (`CHEAP_GUARDS`, admitted by the diff), so the next instance is refused at
-`land` instead of becoming the next RED tip; only a guard that costs more is
+landing instead of becoming the next RED tip; only a guard that costs more is
 health-only, listed in `HEALTH_ONLY_GUARDS` with its cost. State the measured
 cost in the PR. A red from a cheap guard already in the lane means the lane
 did not admit it for that diff — the admission path is the class to fix.
@@ -172,6 +170,9 @@ Prove **each** guard, the fix's and the class's:
 4. revert, re-run, watch it go green;
 5. **state what you broke**, in the PR body.
 
+`bun run proof --break <file>:<pattern> --test <path>` does steps 2–4 and prints
+the `proof-receipt` a code-lane PR owes (§ 6); run it on the committed head.
+
 Re-run every proof after ALL edits are in: two fixes proven red in isolation
 can defeat each other.
 
@@ -184,21 +185,26 @@ so it is not exempt. Spawn exactly **one** reviewer subagent, routed as
 docs-only diff. Fix blocking findings here, re-run the targeted tests, and do
 not re-review.
 
-## 6. Land — through `land`, never by hand
+## 6. Hand off — `land:ready`, like every other PR
 
 ```bash
-G="${SCRATCHPAD:-$(mktemp -d)}/check-lane.log"
-bun run check:lane >"$G" 2>&1; echo "exit=$?"; grep -E 'Tests|FAIL|✗' "$G"
-gh pr create …            # base must be the base branch; `land` refuses otherwise
-TOLARIA_LAND_RUNNER=1 bun run land <PR#>   # add --repair when no repair issue is recorded
+git push -u origin <branch>
+gh pr create …            # base must be the base branch
+bun run land:ready <PR#>  # refused → fix it here, re-run
 ```
 
-Not the merge queue (issue #5469): § 7 reports a LANDING, so `/health-fix`
-lands its own repair through `deny-guard.sh` § 8's hatch.
+The queue admits it under RED because it closes the recorded `<N>` (§ 3),
+rebases it in a draft, runs `check:lane` there and merges;
+`pr-check`'s `repair-proof` job refuses a repair that turns none of the RED's
+failing tests green. Do not wait: the ladder (or `release`) watches the PR. A repair touching `.github/`
+or `.mergify.yml` cannot pass the queue: owner's (`merge:manual`); say so in the
+verdict's `note`.
 
 The PR body names: the step you reproduced and how, the cause, the fix, the
 class guard, and what you broke to prove each — plus `Closes #<N>` for the
-issue you opened, and the two sections `land` REFUSES a merge without:
+issue you opened, and the three sections `land:ready` REFUSES a hand-off without:
+
+- a `proof` receipt per guarding test, for the pushed head, on a code-lane PR;
 
 - a ```json `{ label, spec }`fence under a`## Preset scenario`heading
 whenever the diff touches`convex/gre/**`or`convex/cards/sets/**` — "none
@@ -206,42 +212,37 @@ whenever the diff touches`convex/gre/**`or`convex/cards/sets/**` — "none
 - a byte-exact `bun run check:ui` receipt whenever the diff can reach the DOM,
   or one line saying it cannot.
 
-`land` rebases, re-gates and merges — a hand-typed
-`gh pr merge` is denied (`deny-guard.sh` § 1). It can gate and push and still
-fail at the MERGE step: the retry is `bun scripts/pr-merge.ts <PR#>`, never a
-second `land`, which re-pays the whole gate. Close the issue by hand if the
-merge did not.
+A hand-typed `gh pr merge` is denied (`deny-guard.sh` § 1).
 
-**Never remove the `RED` marker by hand.** Only a green health run clears it,
-and clearing it yourself is exactly the promotion-of-an-unfixed-tip this
-protocol is fail-closed against.
+**Never remove the `RED` marker by hand.** Only a green health run, or a proved
+repair's AMBER on its merge, clears it; clearing it yourself is exactly the
+promotion-of-an-unfixed-tip this protocol is fail-closed against.
 
 ## 7. The verdict — your last act, always
 
 An interactive `claude` exits 0 whatever happened inside it, so the return
-channel is a file. **`land` deletes the worktree you were standing in**, so
-write the verdict in the **primary checkout** — the path you wrote down in § 0
-— by its absolute path, never relative to where you stand. The telemetry
+channel is a file. Write the verdict in the **primary checkout** — the path you
+wrote down in § 0 — by its absolute path. The telemetry
 directory is gitignored, so authoring there is not the shared-checkout write
 `deny-guard.sh` § 0 refuses.
 
 The verdict is about the sha you were **asked** about — `$1`, the full red tip
-— never the new tip your landing created, and never an abbreviated one:
+— never a later tip, and never an abbreviated one:
 `parseVerdict` compares for exact equality and a mismatch reads as `stuck`.
 
 ```bash
 jq -n --arg sha "$1" --argjson pr <PR#> --arg note '<one line>' \
-  '{sha:$sha, outcome:"landed", pr:$pr, note:$note}' \
+  '{sha:$sha, outcome:"handed-off", pr:$pr, note:$note}' \
   > <primary>/.claude/telemetry/health/fix-verdict.json
 ```
 
-`outcome` is `landed` or `stuck` (`landed-partial`: `headless.md`), nothing else — `parseVerdict` in
+`outcome` is `handed-off` or `stuck` (`handed-off-partial`: `headless.md`), nothing else — `parseVerdict` in
 `scripts/health-fix.ts` is fail-closed: an absent file, unparsable JSON, an
-unknown outcome or another sha all read as `stuck`.
+unknown outcome, another sha or a hand-off naming no PR all read as `stuck`.
 
-- **`landed`** — the PR is genuinely merged into the base branch. Verify it,
-  do not assume it: `gh pr view <PR#> --json state --jq .state` must print
-  `MERGED`. Only then.
+- **`handed-off`** — `bun run land:ready <PR#>` reported the PR labelled
+  `ready-to-land`. Only then. The ladder reads the PR (issue #7990); a refused
+  one is a used attempt.
 - **`stuck`** — anything else: no reproduction, no class guard you believe in,
   a repair you would not defend, a grill the maintainer ended. Put the analysis
   in the issue (or print it if none was opened) and a one-line summary in

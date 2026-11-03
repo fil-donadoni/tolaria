@@ -1,5 +1,5 @@
 /**
- * `land` reinstalls dependencies after a rebase that changed the manifests
+ * A rebase that changed the manifests reinstalls dependencies
  * (issue #6000): PR #5932 rebased onto a base that added `@mergifyio/vitest`,
  * nothing reinstalled, and `tsc` redded the lane on a module the worktree
  * lacked.
@@ -16,8 +16,6 @@ import {
     readDepsState,
     writeDepsStamp,
 } from "../lib/deps-stamp";
-import { buildLockedCommand } from "../land";
-import { ensureDepsStep, rebaseStep } from "../lib/rebase-resolve";
 
 describe("depsInstallNeeded — the pure decision", () => {
     const lock = depsFingerprint({ "package.json": "{}", "bun.lock": "a" });
@@ -82,25 +80,5 @@ describe("ensureDeps on a tree whose bun.lock a rebase moved", () => {
         fs.writeFileSync(path.join(root, "bun.lock"), "lock v2");
         expect(ensureDeps(root, () => false)).toBe("failed");
         expect(ensureDeps(root, install)).toBe("installed");
-    });
-});
-
-describe("land installs between the rebase and every later step", () => {
-    it("ensure-deps runs right after the rebase, before the lane", () => {
-        const cmd = buildLockedCommand({
-            branch: "fix/issue-6000",
-            gatedGreen: [],
-            laneRecordDir: null,
-            pr: 1,
-            primaryCheckout: "/repo",
-            worktree: "/repo/wt",
-            merge: true,
-            teardown: true,
-        });
-        const rebaseAt = cmd.indexOf(rebaseStep());
-        const depsAt = cmd.indexOf(ensureDepsStep());
-        expect(rebaseAt).toBeGreaterThanOrEqual(0);
-        expect(depsAt).toBe(rebaseAt + rebaseStep().length + " && ".length);
-        expect(cmd.indexOf("bun run check:lane")).toBeGreaterThan(depsAt);
     });
 });

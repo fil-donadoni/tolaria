@@ -117,8 +117,8 @@ KEEP_DAYS="${TOLARIA_GATE_RUN_KEEP_DAYS:-7}"
 REAP_SECS="${TOLARIA_GATE_RUN_REAP_SECS:-7200}"
 IDLE_SECS="${TOLARIA_GATE_RUN_IDLE_SECS:-3600}"
 KILL_GRACE="${TOLARIA_GATE_RUN_KILL_GRACE:-10}"
-# NOT inside the worktree: `bun run land` removes the worktree (with anything
-# written in it) the moment it merges, and a run's log is most wanted exactly
+# NOT inside the worktree: post-merge removes the worktree (with anything
+# written in it) once the PR merges, and a run's log is most wanted exactly
 # when the pass that produced it is gone.
 RUN_ROOT="${TOLARIA_GATE_RUN_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/tolaria/gate-runs}"
 

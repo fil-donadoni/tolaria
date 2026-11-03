@@ -114,24 +114,39 @@ describe("health:fix — parseVerdict", () => {
     it("reads an unambiguous landed verdict about the expected sha", () => {
         expect(
             parseVerdict(
-                json({ sha, outcome: "landed", pr: 3199, note: "two lines" }),
+                json({
+                    sha,
+                    outcome: "handed-off",
+                    pr: 3199,
+                    note: "two lines",
+                }),
                 sha
             )
-        ).toEqual({ sha, outcome: "landed", pr: 3199, note: "two lines" });
+        ).toEqual({ sha, outcome: "handed-off", pr: 3199, note: "two lines" });
     });
 
-    it("reads a landed verdict with no PR — a fix can land without one being recorded", () => {
-        const v = parseVerdict(json({ sha, outcome: "landed" }), sha);
-        expect(v.outcome).toBe("landed");
-        expect(v.pr).toBeUndefined();
+    it("a hand-off names its PR — the ladder watches the queue through it (issue #7990)", () => {
+        for (const pr of [undefined, 0, -1, 1.5, "7990"]) {
+            const v = parseVerdict(
+                json({ sha, outcome: "handed-off", pr }),
+                sha
+            );
+            expect(v.outcome).toBe("stuck");
+            expect(v.note).toMatch(/names no PR number/);
+        }
     });
 
-    it("reads a landed-partial verdict that names its class-guard issue (issue #6552)", () => {
+    it("the old `landed` outcome is stuck — a verdict never claims a merge (issue #7990)", () => {
+        const v = parseVerdict(json({ sha, outcome: "landed", pr: 42 }), sha);
+        expect(v.outcome).toBe("stuck");
+    });
+
+    it("reads a handed-off-partial verdict that names its class-guard issue (issue #6552)", () => {
         expect(
             parseVerdict(
                 json({
                     sha,
-                    outcome: "landed-partial",
+                    outcome: "handed-off-partial",
                     pr: 6600,
                     classGuardIssue: 6548,
                     note: "guard placement is the owner's",
@@ -140,19 +155,20 @@ describe("health:fix — parseVerdict", () => {
             )
         ).toEqual({
             sha,
-            outcome: "landed-partial",
+            outcome: "handed-off-partial",
             pr: 6600,
             classGuardIssue: 6548,
             note: "guard placement is the owner's",
         });
     });
 
-    it("a landed-partial verdict without a valid class-guard issue is stuck — fail-closed", () => {
+    it("a handed-off-partial verdict without a valid class-guard issue is stuck — fail-closed", () => {
         for (const guard of [undefined, 0, -3, 1.5, "6548", null]) {
             const v = parseVerdict(
                 json({
                     sha,
-                    outcome: "landed-partial",
+                    outcome: "handed-off-partial",
+                    pr: 42,
                     classGuardIssue: guard,
                 }),
                 sha
@@ -196,7 +212,12 @@ describe("health:fix — parseVerdict", () => {
     });
 
     it("valid JSON that is not an object is stuck", () => {
-        for (const raw of ["null", "42", '"landed"', '[{"outcome":"landed"}]'])
+        for (const raw of [
+            "null",
+            "42",
+            '"handed-off"',
+            '[{"outcome":"handed-off"}]',
+        ])
             expect(parseVerdict(raw, sha).outcome).toBe("stuck");
     });
 
@@ -211,24 +232,27 @@ describe("health:fix — parseVerdict", () => {
     });
 
     it("a verdict about ANOTHER sha is stuck — a stale file cannot promote today's tip", () => {
-        const v = parseVerdict(json({ sha: other, outcome: "landed" }), sha);
+        const v = parseVerdict(
+            json({ sha: other, outcome: "handed-off" }),
+            sha
+        );
         expect(v.outcome).toBe("stuck");
         expect(v.note).toMatch(/dddddddd/);
         expect(v.note).toMatch(/cccccccc/);
     });
 
     it("a verdict naming no sha is stuck", () => {
-        expect(parseVerdict(json({ outcome: "landed" }), sha).outcome).toBe(
+        expect(parseVerdict(json({ outcome: "handed-off" }), sha).outcome).toBe(
             "stuck"
         );
         expect(
-            parseVerdict(json({ sha: 42, outcome: "landed" }), sha).note
+            parseVerdict(json({ sha: 42, outcome: "handed-off" }), sha).note
         ).toMatch(/no sha/);
     });
 
     it("always reports the sha it was ASKED about, never the one it read", () => {
         expect(
-            parseVerdict(json({ sha: other, outcome: "landed" }), sha).sha
+            parseVerdict(json({ sha: other, outcome: "handed-off" }), sha).sha
         ).toBe(sha);
         expect(parseVerdict(null, sha).sha).toBe(sha);
     });

@@ -230,7 +230,7 @@ export interface SinceRedCommit {
 
 /** The PR commits since the RED a repair tip may hold (generated commits —
  *  `derive:sync`, `bot-replay` — not counted): under a RED the queue admits
- *  declared repairs and `--red-ok` landings, so a longer run is not a repair
+ *  declared repairs, so a longer run is not a repair
  *  tip (fail closed). */
 export const MAX_PR_COMMITS_SINCE_RED = 20;
 

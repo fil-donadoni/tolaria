@@ -559,7 +559,7 @@ export function landableScope(
     if (!expected) {
         return {
             problems: [
-                "a SCOPED receipt covers only what its diff reaches, and no landing diff was given to re-derive that scope — verify it through `bun run land`, or paste a full RECEIPT",
+                "a SCOPED receipt covers only what its diff reaches, and no landing diff was given to re-derive that scope — verify it through `bun run verify:ui-receipt <PR#>`, or paste a full RECEIPT",
             ],
         };
     }

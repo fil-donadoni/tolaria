@@ -71,9 +71,9 @@ export const MAX_REVERT_SET = 3;
 /** The prefix of a revert record's note when the set the revert needs is
  *  past `MAX_REVERT_SET`; the rest of the note names every commit in it. */
 export const CAP_NOTE = "cap: ";
-/** A repair recorded `landed` that has not moved the tip after this long
+/** A repair recorded `handed-off` that has not moved the tip after this long
  *  (its PR dequeued, or the verdict wrong) counts as a used attempt. */
-export const LANDED_WAIT_MS = 8 * 60 * 60 * 1000;
+export const HANDED_OFF_WAIT_MS = 8 * 60 * 60 * 1000;
 /** A revert PR still in the queue after this long — held by a check it
  *  cannot pass — stops the ladder. */
 export const REVERT_QUEUE_MAX_MS = 12 * 60 * 60 * 1000;
@@ -131,8 +131,8 @@ export interface EpisodeRed {
     culprits: Culprit[];
 }
 
-/** The revert PR's live state, read from GitHub. */
-export interface RevertPr {
+/** The live state of a PR an episode's record names, read from GitHub. */
+export interface EpisodePr {
     number: number;
     state: "open" | "merged" | "closed";
     /** The queue dequeued it (`land-failed`). */
@@ -145,7 +145,7 @@ export interface RevertPr {
 export interface ForeignRepair {
     issue: number;
     /** The newest PR closing `issue`, or null when none was opened. */
-    pr: (RevertPr & { createdAt: number | null }) | null;
+    pr: (EpisodePr & { createdAt: number | null }) | null;
 }
 
 /** One first-parent commit between the standing RED and the base tip. */
@@ -192,7 +192,10 @@ export interface LadderFacts {
     episode: readonly EpisodeRed[];
     /** The live state of every PR the episode's revert records name — one
      *  per culprit (issue #7656) — newest record first. */
-    revertPrs: readonly RevertPr[];
+    revertPrs: readonly EpisodePr[];
+    /** The live state of every PR the episode's fix records name: the
+     *  fixer's hand-off (issue #7990). */
+    fixPrs: readonly EpisodePr[];
     /** Repairs declared on the pivot by someone other than the ladder. */
     foreignRepairs: readonly ForeignRepair[];
     /** An open escalation issue for the standing RED, by number. */
@@ -342,7 +345,7 @@ export function lineageHold(facts: LadderFacts): string | null {
 }
 
 /** `#7701, #7702` — the PRs a text names. */
-const prRefs = (prs: readonly RevertPr[]) =>
+const prRefs = (prs: readonly EpisodePr[]) =>
     prs.map((p) => `#${p.number}`).join(", ");
 
 /**
@@ -402,6 +405,42 @@ function revertInFlight(facts: LadderFacts, revert: FixAttempt): Rung {
     return { kind: "wait", why: `the revert PR ${queued} in the queue` };
 }
 
+/** The live PR a fix record handed off, when one was read. */
+function handOffPr(a: FixAttempt, facts: LadderFacts): EpisodePr | undefined {
+    return facts.fixPrs.find((p) => p.number === a.pr);
+}
+
+/**
+ * Is a fix record NOT a repair the ladder should wait on (issue #7990)? Any
+ * record but `handed-off`, and a hand-off the queue refused (closed unmerged,
+ * `land-failed`), or that has not moved the tip within the bound (a merged PR
+ * on the RED's own sha: health never confirmed; an open one: something holds
+ * it). A hand-off older than the standing RED is the second-RED case, unless
+ * it never merged. Spent means a used attempt: the next rung decides.
+ */
+function handOffSpent(a: FixAttempt, facts: LadderFacts): boolean {
+    if (a.outcome !== "handed-off") return true;
+    const pr = handOffPr(a, facts);
+    if (pr?.state === "closed" || (pr?.state === "open" && pr.landFailed))
+        return true;
+    return (
+        (a.sha === facts.red || pr?.state === "open") &&
+        olderThan(a, HANDED_OFF_WAIT_MS, facts.now)
+    );
+}
+
+/** The open PRs of the episode's spent hand-offs: the next rung must not land
+ *  beside them. Only what a fix record names, never another session's PR, nor
+ *  a revert in flight. */
+export function spentHandOffs(facts: LadderFacts): number[] {
+    return fixRecordsOf(facts.episode)
+        .filter((a) => a.outcome === "handed-off" && handOffSpent(a, facts))
+        .flatMap((a) => {
+            const pr = handOffPr(a, facts);
+            return pr?.state === "open" ? [pr.number] : [];
+        });
+}
+
 /** Revert the culprit, or stop: no culprit to revert, or the revert was
  *  already tried and did not apply (`revertSpent`). */
 function revertOrStop(
@@ -436,6 +475,8 @@ function revertOrStop(
  *    still RED, or unable to land → stop; a revert that does not apply
  *    (conflict) falls through to the fixer (ADR 0158 § 3);
  *  - a repair another session declared, its PR open → wait for it;
+ *  - a fixer's hand-off in the queue → wait; refused by it or held past the
+ *    bound → a used attempt, its PR withdrawn (issue #7990);
  *  - a repair that landed and left a RED (a second RED) → revert;
  *  - a named culprit → revert it FIRST (ADR 0158 § 3);
  *  - no culprit, or the revert did not apply: fixer attempts left → the next
@@ -531,23 +572,25 @@ export function ladderRung(facts: LadderFacts): Rung {
             kind: "wait",
             why: `fixer attempt ${running.attempt ?? 1} is running${running.machine ? ` on ${running.machine}` : ""}`,
         };
-    const landed = fixes.find(
-        (a) =>
-            a.outcome === "landed" &&
-            // A `landed` that never moved the tip is a used attempt.
-            (a.sha !== red || !olderThan(a, LANDED_WAIT_MS, facts.now))
-    );
-    if (landed !== undefined && landed.sha !== red)
-        return revertOrStop(
-            facts,
-            `a second RED follows the repair${landed.pr ? ` PR #${landed.pr}` : ""}`,
-            revertSpent
-        );
-    if (landed !== undefined)
+    const handedOff = fixes.find((a) => !handOffSpent(a, facts));
+    if (handedOff !== undefined) {
+        const pr = handOffPr(handedOff, facts);
+        if (pr?.state === "open")
+            return {
+                kind: "wait",
+                why: `the repair PR #${pr.number} against ${short(handedOff.sha)} is in the queue`,
+            };
+        if (handedOff.sha !== red)
+            return revertOrStop(
+                facts,
+                `a second RED follows the repair${handedOff.pr ? ` PR #${handedOff.pr}` : ""}`,
+                revertSpent
+            );
         return {
             kind: "wait",
-            why: `a repair${landed.pr ? ` (PR #${landed.pr})` : ""} landed against ${short(red)}${landed.classGuard ? ` (its class guard is the owner's: issue #${landed.classGuard})` : ""} — health confirms on its tip`,
+            why: `a repair${handedOff.pr ? ` (PR #${handedOff.pr})` : ""} landed against ${short(red)}${handedOff.classGuard ? ` (its class guard is the owner's: issue #${handedOff.classGuard})` : ""} — health confirms on its tip`,
         };
+    }
     if (facts.secondRed)
         return revertOrStop(
             facts,
@@ -617,6 +660,13 @@ export function walkEpisode(
         });
     }
     return { episode, standingEvidence };
+}
+
+/** Every fix record of the episode, newest first. */
+export function fixRecordsOf(episode: readonly EpisodeRed[]): FixAttempt[] {
+    return episode
+        .map((r) => r.attempt)
+        .filter((a): a is FixAttempt => a !== null && rungOf(a) === "fix");
 }
 
 /** Every revert record of the episode, newest first — one per RED it was

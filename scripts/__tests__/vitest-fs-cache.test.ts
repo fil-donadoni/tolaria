@@ -128,7 +128,6 @@ describe("every gate reaches scripts/gate.ts", () => {
     // Indirect: a runner that spawns gate.ts for every check it runs.
     for (const [name, file] of [
         ["check:lane", "scripts/check-lane.ts"],
-        ["land", "scripts/land.ts"],
     ] as const) {
         it(`${name} spawns its checks through scripts/gate.ts`, () => {
             expect(scripts[name]).toBe(`bun ${file}`);

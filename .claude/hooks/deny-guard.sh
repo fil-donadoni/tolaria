@@ -373,30 +373,25 @@ segment_reaches_gate() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. A merge to the base branch goes through `bun run land`. Nothing else merges.
+# 1. A merge to the base branch goes through the merge queue. Nothing else merges.
 #
-# Merging is the orchestrator's job, behind the serial merge lock: the train
-# rebases onto the current tip and re-gates the tree that actually lands. A
-# merge that skips it can land a PR on a base its gate never saw — silent red
+# The queue rebases onto the current tip and gates the tree that actually
+# lands. A merge that skips it can land a PR on a base its gate never saw — silent red
 # on main, the one invariant the whole loop exists to protect.
 #
-# WIDENED FROM "issue worktree" TO EVERYWHERE (issue #2537). `scripts/gate.ts`
-# holds a machine-wide mutex over GATING; `land` extends it to cover the merge
-# (#2517). A merge made any other way — a hand-typed `gh pr merge` from the
-# main checkout, the GitHub web UI — takes no lock at all, so `main` moves
+# WIDENED FROM "issue worktree" TO EVERYWHERE (issue #2537). A merge made any
+# other way — a hand-typed `gh pr merge` from the main checkout, the GitHub web
+# UI — goes behind the queue's back, so `main` moves
 # under a session that is mid-gate and that session's gated tree stops being
 # the tree that lands. The old rule keyed on `$cwd` matching `*-issue-N*`,
 # which is precisely why the three such merges on 2026-08-18 went uncaught:
-# two of them were typed from the main checkout as recovery after `land`
-# failed. `land` converges now (#2536), and its own merge is `pr-merge.ts`,
-# which retries the transient case instead of dropping the caller into
-# hand-merging — so the recovery path this rule used to leave open is no
-# longer the only one.
+# two of them were typed from the main checkout as recovery after a failed
+# landing. The queue converges now (#2537), and `pr-merge.ts` retries the
+# transient case for the owner's `merge:manual`.
 #
-# `land`'s own merge is untouched by construction: this hook inspects Bash
-# TOOL calls, never the child processes a script spawns, so the merge inside
-# `land`'s locked command is invisible here BY DESIGN. Do not weaken the hook
-# to accommodate it (`scripts/land.ts` header says the same).
+# A script's own merge is untouched by construction: this hook inspects Bash
+# TOOL calls, never the child processes a script spawns. Do not weaken the hook
+# to accommodate one.
 #
 # The web UI cannot be reached from here at all — no hook sees it. That gap is
 # documented in `docs/agents/quality-gates.md`, not closable in this file.
@@ -409,20 +404,15 @@ segment_reaches_gate() {
 # ─────────────────────────────────────────────────────────────────────────────
 MERGE_INVOKE='(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'
 if seg_has "$MERGE_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_MERGE=1' "$MERGE_INVOKE"; then
-    deny "BLOCKED: \`gh pr merge\` — merging goes through \`land\`, from the PR's own branch.
+    deny "BLOCKED: \`gh pr merge\` — merging goes through the merge queue.
 
-\`scripts/gate.ts\` locks GATING machine-wide; \`bun run land <PR#>\` extends that
-lock across rebase → gate → push → merge, so the tree that lands is the tree
-that was gated. A merge typed by hand takes no lock: \`main\` moves under whoever
-is mid-gate, and their verified tree is no longer the one landing.
+The queue rebases the PR in a draft, gates that tree and merges it, so the tree
+that lands is the tree that was gated. A merge typed by hand gates nothing:
+\`main\` moves under whoever is mid-gate, and their verified tree is no longer
+the one landing.
 
-  bun run land:ready <PR#>  # a session labels its PR \`ready-to-land\` (§ 8); the
+  bun run land:ready <PR#>  # a session labels its PR \`ready-to-land\`; the
                             # merge queue (ADR 0156) rebases, gates and merges it
-
-If \`land\` already gated and pushed and only the MERGE failed, retry just the
-merge — it never re-runs the suite:
-
-  bun scripts/pr-merge.ts <PR#>
 
 A \`merge:manual\` PR (one the Mergify queue refuses) merges through the command
 that waits for its advisory lane, green on its up-to-date head:
@@ -520,12 +510,12 @@ fi
 # matters. Redirect to a file and grep it instead.
 #
 # **Inverted, on purpose, after this held a stale hand-maintained allowlist of
-# gate command NAMES.** That list was already wrong the moment `bun run land`
-# shipped: `land` (→ `scripts/land.ts`, spawns `gate.ts heavy`), `docs:ship`
+# gate command NAMES.** That list was already wrong the moment `land` (retired,
+# issue #7990) shipped: `land` (spawned `gate.ts heavy`), `docs:ship`
 # (→ `scripts/docs-lane.ts`, runs `check:docs`, itself a `gate.ts light`
 # wrapper), `check:docs`, `ladder` (`scripts/ladder.ts:102` runs the same
 # heavy gate) and `wt:docs` all reach `scripts/gate.ts` and none of them was
-# in the list — `bun run land 2524 | tail -80` and
+# in the list — `land` piped into `tail -80` and
 # `bun run docs:ship 2>&1 | tail -25` both sailed straight through it.
 # Patching the list with those five names would only reload the same gun for
 # the next gate wrapper. So the rule is now: deny `bun run <script>` piped
@@ -1016,47 +1006,6 @@ queue to fail on an error the check catches in seconds. Hand off with:
 Unqueueing (\`--remove-label ready-to-land\`) is never denied. Labelling by hand,
 as the owner:
   TOLARIA_ALLOW_MANUAL_READY=1 gh pr edit <PR#> --add-label ready-to-land"
-fi
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 8. A session never runs `land` — it hands its PR off `ready-to-land`.
-#
-# (Issue #5641, ADR 0156: the label is the whole hand-off; the merge queue reads
-# it — the land-runner that read it first was deleted, issue #5654. Inside an
-# `afk-pass` job the session still ends at `land:ready`.)
-#
-# Landing is asynchronous (issue #5469, ADR 0154 topology B'): a session ends
-# at push + `bun run land:ready <PR#>` (label `ready-to-land`, claim
-# `pr-open`), and the merge queue serializes rebase → lane → merge. A session
-# that runs `land` itself spends 8–9 of its ~35 minutes polling it at a
-# full-context message per poll, and makes the base branch a second writer
-# beside the queue.
-#
-# Denied as an INVOCATION — start of a segment or after a `|` (or a `(`),
-# env-var / `env` / `nohup` / `time` prefixes allowed —
-# `bun run [--flags] land`, through `gate:run` or any
-# `sh`/`bash` of `gate-run.sh`, or `bun [run] scripts/land.ts`; `land:ready`
-# is another script and passes. The hatch is an env var (named after the
-# retired land-runner, which set it), in the SAME segment, so it names the one
-# command it authorises:
-#   TOLARIA_LAND_RUNNER=1 bun run land <PR#>
-# (the owner asking for a landing by hand; `/health-fix`'s `--repair` with no
-# recorded repair issue).
-# ─────────────────────────────────────────────────────────────────────────────
-LAND_INVOKE='(^|\|)[[:space:]]*\(?[[:space:]]*((env|nohup|time|command|exec)[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bun[[:space:]]+run([[:space:]]+-[^[:space:]]+)*[[:space:]]+(gate:run[[:space:]]+)?land|bun[[:space:]]+(run[[:space:]]+)?[^[:space:]]*scripts/land\.ts|[^[:space:]]*sh[[:space:]]+[^[:space:]]*gate-run\.sh[[:space:]]+land)([[:space:]]|\)|$)'
-if seg_has "$LAND_INVOKE" && ! seg_has 'TOLARIA_LAND_RUNNER=1' "$LAND_INVOKE"; then
-    deny "BLOCKED: a session does not run \`land\` — it hands the PR off as \`ready-to-land\` (issue #5469).
-
-  git push && bun run land:ready <PR#>
-
-labels the PR \`ready-to-land\` and moves the claim to \`pr-open\`; the landing
-side (the merge queue) rebases, gates and merges it. A
-red landing comes back as \`land-failed\` + a comment, and the next pass picks
-it up as a repair.
-
-A landing by hand, on explicit request (the hatch):
-  TOLARIA_LAND_RUNNER=1 bun run land <PR#>"
 fi
 
 exit 0

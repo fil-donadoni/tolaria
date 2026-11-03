@@ -3,7 +3,7 @@
  * `bun scripts/pr-merge.ts <PR#>` — squash-merge a PR that a force-push has
  * just updated, tolerating GitHub's asynchronous settle.
  *
- * WHY THIS EXISTS (issue #2536). `land` (scripts/land.ts) chained
+ * WHY THIS EXISTS (issue #2536). `land` (retired, issue #7990) chained
  * `git push --force-with-lease && gh pr merge --squash` with nothing between
  * them. A force-push invalidates GitHub's cached view of the PR: the API
  * answers `mergeable: null` / `mergeStateStatus: UNKNOWN` until a background
@@ -153,14 +153,10 @@ export function mergeArgs(pr: number, head?: string, admin = false): string[] {
  * This script only merges. `post-merge.yml` fires on every push to the base,
  * whoever merged, and owns the rest: primary-checkout fast-forward, worktree
  * teardown, telemetry ingest, preset-scenario seed, claim release,
- * `gaps:sync` / `derive:sync`. Nothing is owed by hand, and `land` is refused
- * to a session, so the notice names that pipeline and where its run is.
- *
- * Empty when `land` is the caller (`--from-land`): a line about the pipeline
- * in the tail of a green landing only trains a reader to skip it.
+ * `gaps:sync` / `derive:sync`. Nothing is owed by hand, so the notice names
+ * that pipeline and where its run is.
  */
-export function followUpNotice(pr: number, fromLand: boolean): string[] {
-    if (fromLand) return [];
+export function followUpNotice(pr: number): string[] {
     return [
         `pr-merge: merged — the post-merge steps (primary-checkout fast-forward, worktree teardown, ` +
             `telemetry ingest, preset-scenario seed, claim release, gaps:sync / derive:sync) are ` +
@@ -170,11 +166,10 @@ export function followUpNotice(pr: number, fromLand: boolean): string[] {
     ];
 }
 
-/** `--from-land` is `land`'s own marker (see `followUpNotice`); everything
- *  else on the argv is ignored, and the PR number is the first positional. */
+/** Unknown flags on the argv are ignored; the PR number is the first
+ *  positional. */
 export function parseArgs(argv: string[]): {
     pr: number;
-    fromLand: boolean;
     head?: string;
     admin?: boolean;
 } {
@@ -182,7 +177,6 @@ export function parseArgs(argv: string[]): {
     const head = argv.find((a) => a.startsWith("--head="));
     return {
         pr: Number((positional[0] ?? "").replace(/^#/, "")),
-        fromLand: argv.includes("--from-land"),
         ...(head ? { head: head.slice("--head=".length) } : {}),
         ...(argv.includes("--admin") ? { admin: true } : {}),
     };
@@ -263,12 +257,12 @@ function attemptMerge(
 }
 
 async function main(): Promise<void> {
-    const { pr, fromLand, head, admin } = parseArgs(process.argv.slice(2));
+    const { pr, head, admin } = parseArgs(process.argv.slice(2));
     if (!Number.isInteger(pr) || pr <= 0) {
-        fail("usage: bun scripts/pr-merge.ts <PR#> [--from-land]");
+        fail("usage: bun scripts/pr-merge.ts <PR#>");
     }
     const sayWhatIsOwed = (): void => {
-        for (const line of followUpNotice(pr, fromLand)) console.log(line);
+        for (const line of followUpNotice(pr)) console.log(line);
     };
 
     for (let attempt = 1; attempt <= MERGE_ATTEMPTS; attempt++) {

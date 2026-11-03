@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
-    fileReadsCorpus,
     repairProofCheck,
-    repairProofRun,
     runPrCheck,
     type PrCheckContext,
 } from "../pr-checks";
+import { fileReadsCorpus, repairProofRun } from "../lib/repair-proof";
 import { DERIVED_PATHS } from "../lib/derive-sync";
 import type { Lineage } from "../lib/health-verdict-store";
 
-// The PR checks ported from `land` (issue #5639). Each check is the pure
-// function `land` already tests; what is pinned here is the wiring — the
+// The PR checks (issue #5639). Each check is a pure function tested beside it
+// (`pr-refusals.test.ts`); what is pinned here is the wiring — the
 // dispatch and the repair proof, whose store and test runner are injected.
 
 const RED_SHA = "a".repeat(40);
@@ -215,7 +214,7 @@ describe("repair-proof (issue #5462)", () => {
 // reverted by its own repair; the proof demanded each revert turn BOTH failing
 // tests green, so neither could land first.
 describe("repair-proof of a two-culprit RED (issue #7448)", () => {
-    const OTHER = "scripts/__tests__/land.test.ts";
+    const OTHER = "scripts/__tests__/pr-merge.test.ts";
     const twoCulprits = () => redLineage([THIS_FILE, OTHER]);
     /** A repair whose diff turns `share` green and leaves the rest red. */
     const repairing =

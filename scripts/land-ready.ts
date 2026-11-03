@@ -25,10 +25,10 @@
  * the tests behind a red cheap tier never start. The hand-off push retries a
  * transient rejection (3 attempts, never a non-fast-forward).
  *
- * It also runs `land`'s body/diff refusals FIRST (`pr-checks.ts`
- * — the same functions `land` calls, never a copy): a missing `check:ui`
- * receipt or preset scenario refuses here, with `land`'s own words, while the
- * session can still edit the PR body. No escape: a refusal is the PR's.
+ * It also runs the PR's body/diff refusals FIRST (`pr-checks.ts`, the same
+ * functions `pr-check`'s jobs call, never a copy): a missing `check:ui`
+ * receipt or preset scenario refuses here while the session can still edit the
+ * PR body. No escape: a refusal is the PR's.
  *
  * BEFORE the pre-queue check it puts the derived whole-file state back
  * (ADR 0157 § Option 1b, issue #6248): the generators write the lockfile's
@@ -47,10 +47,9 @@
  *
  * A code-lane PR (`engine`, `skin`, `full`) owes a `bun run proof` receipt
  * for its head in the body (`lib/proof-receipt.ts`); its refusal stands
- * beside `land`'s, and the queue never reads it.
+ * beside the others, and the queue never reads it.
  *
- * Refuses a PR that is not open or does not target the base branch — the
- * queue would refuse it anyway, later, as a `land-failed`.
+ * Refuses a PR that is not open or does not target the base branch.
  * The decisions are `lib/queue-hand-off.ts` and `lib/claim-labels.ts`; this file
  * is the I/O.
  */
@@ -242,9 +241,9 @@ export function runPreQueue(deps: PreQueueDeps): {
 }
 
 /**
- * `land`'s refusals of the PR's body and diff (issue #5956): every
- * `pr-checks` check, through `runPrCheck`. Returns each refusal as `land`
- * would print it (`land: refusing — <reason>`); empty = none. A note (a
+ * The refusals of the PR's body and diff (issue #5956): every `pr-checks`
+ * check, through `runPrCheck`. Returns each refusal as
+ * `land:ready: refusing — <reason>`; empty = none. A note (a
  * check that could not decide) is logged, never a refusal.
  */
 export function landRefusals(
@@ -259,7 +258,7 @@ export function landRefusals(
     for (const name of PR_CHECK_NAMES) {
         const r = check(name, ctx);
         if (r.note) log(`land:ready: ${name} — NOTE: ${r.note}`);
-        if (r.refusal) refusals.push(`land: refusing — ${r.refusal}`);
+        if (r.refusal) refusals.push(`land:ready: refusing — ${r.refusal}`);
     }
     return refusals;
 }
@@ -672,7 +671,7 @@ function preQueueGate(
                 `✗ land:ready: red steps: ${failedAll.map((id) => `\`${id}\``).join(", ")} (${result.outcomes.map((o) => `${o.id}:${o.status}`).join(" ")}, ${seconds}s)`
             );
         console.error(
-            `✗ land:ready: PR #${pr} NOT queued — \`land\` would refuse it. Fix the PR body or diff, push, re-run.`
+            `✗ land:ready: PR #${pr} NOT queued — its checks refuse it. Fix the PR body or diff, push, re-run.`
         );
         process.exit(1);
     }

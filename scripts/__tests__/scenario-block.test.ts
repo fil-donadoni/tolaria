@@ -394,7 +394,7 @@ describe("owesScenario", () => {
         expect(
             owesScenario([
                 "docs/adr/0044-x.md",
-                "scripts/land.ts",
+                "scripts/land-ready.ts",
                 "src/components/board/Hand.tsx",
                 "package.json",
             ])

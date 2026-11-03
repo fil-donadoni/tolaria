@@ -9,6 +9,7 @@ import {
     DEFAULT_FIX_ATTEMPTS,
     HEALTH_GATE_ARGS,
     loopDecision,
+    repairQueueStep,
     parseFixBound,
     publishVerdict,
     pushRefusal,
@@ -213,7 +214,7 @@ describe("release — loopDecision", () => {
             ...gated(red),
             verdict: {
                 sha: tip,
-                outcome: "landed",
+                outcome: "handed-off",
                 pr: 3187,
                 note: "two lines",
             },
@@ -223,12 +224,12 @@ describe("release — loopDecision", () => {
         expect(d.kind === "retry" && d.note).toMatch(/PR #3187/);
     });
 
-    it("a landed-partial verdict buys another round and names the class-guard issue (issue #6552)", () => {
+    it("a handed-off-partial verdict buys another round and names the class-guard issue (issue #6552)", () => {
         const d = loopDecision({
             ...gated(red),
             verdict: {
                 sha: tip,
-                outcome: "landed-partial",
+                outcome: "handed-off-partial",
                 pr: 3187,
                 classGuardIssue: 6548,
             },
@@ -531,5 +532,40 @@ describe("release — refuses in seconds with the primary off the base branch (i
                 retryDelay: 100,
             });
         }
+    });
+});
+
+// Issue #7990: `landed` no longer means the base moved. The next round gates
+// the repair's tip, so `release` waits on the queue first.
+describe("repairQueueStep — what the queue made of the fixer's PR", () => {
+    const at = (
+        state: "open" | "merged" | "closed",
+        landFailed = false,
+        waitedMs = 0
+    ) =>
+        repairQueueStep({
+            pr: { number: 7, state, landFailed },
+            waitedMs,
+            maxMs: 1000,
+        });
+
+    it("merged → the next round", () => {
+        expect(at("merged").kind).toBe("merged");
+    });
+
+    it("open within the bound → wait", () => {
+        expect(at("open", false, 999).kind).toBe("wait");
+    });
+
+    it("closed, land-failed or past the bound → stop, naming the PR", () => {
+        for (const step of [
+            at("closed"),
+            at("open", true),
+            at("open", false, 1000),
+        ])
+            expect(step).toMatchObject({
+                kind: "stop",
+                reason: expect.stringContaining("#7"),
+            });
     });
 });

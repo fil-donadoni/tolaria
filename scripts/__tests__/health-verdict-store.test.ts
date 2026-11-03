@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { spawnSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -20,13 +19,7 @@ import {
 } from "../lib/health-verdict-store";
 import { readHealthMarker, readHealthInfra } from "../queue-plan";
 import { redRefusal } from "../lib/queue-plan";
-import {
-    buildLockedCommand,
-    landHealthLineage,
-    markAmberStep,
-    repairProofOf,
-    repairProofStep,
-} from "../land";
+import { repairProofOf } from "../lib/repair-proof";
 import { redLandGate } from "../lib/red-land-gate";
 import { readRedFromStore, spawnDecision } from "../health-fix";
 
@@ -515,7 +508,7 @@ describe("consumers — queue:plan refuses a RED in the store", () => {
     });
 });
 
-describe("consumers — land refuses a non-repair PR on a RED in the store", () => {
+describe("consumers — a non-repair PR is refused on a RED in the store", () => {
     it("refuses on a remote RED; AMBER lets it through", () => {
         const { store } = remoteRed();
         const gate = (red: boolean) =>
@@ -523,142 +516,23 @@ describe("consumers — land refuses a non-repair PR on a RED in the store", () 
                 red,
                 prBody: "Closes #1",
                 repairIssues: [],
-                repairFlag: false,
-                redOkFlag: false,
             });
         expect(
-            gate(lineageBlocks(landHealthLineage(() => store).kind)).kind
+            gate(lineageBlocks(readVerdictLineage(() => store).kind)).kind
         ).toBe("refuse");
         store.write(v(T3, "amber", { repairOf: T2 }));
         expect(
-            gate(lineageBlocks(landHealthLineage(() => store).kind)).kind
+            gate(lineageBlocks(readVerdictLineage(() => store).kind)).kind
         ).toBe("proceed");
     });
 
-    it("a declared repair owes the proof: the RED's failing tests, after the lane, before the push", () => {
+    it("a declared repair owes the proof: the RED's failing tests", () => {
         const { store } = remoteRed();
-        const proof = repairProofOf(store.lineage(), "repair");
-        expect(proof).toEqual({
+        expect(repairProofOf(store.lineage(), "repair")).toEqual({
             redSha: T2,
             tests: ["scripts/__tests__/a.test.ts"],
         });
-        expect(repairProofOf(store.lineage(), "red-ok")).toBeUndefined();
         expect(repairProofOf(store.lineage(), undefined)).toBeUndefined();
-        const cmd = buildLockedCommand({
-            branch: "feat/issue-9",
-            pr: 9,
-            primaryCheckout: "/p",
-            worktree: null,
-            teardown: false,
-            landingKind: "repair",
-            repairProof: proof,
-            gatedGreen: [],
-            laneRecordDir: null,
-            merge: true,
-        });
-        const lane = cmd.indexOf("check:lane");
-        const run = cmd.indexOf("repair proof: $*");
-        const push = cmd.indexOf("git push --force-with-lease");
-        const record = cmd.indexOf(`--repair-of=${T2}`);
-        expect(lane).toBeGreaterThan(-1);
-        expect(run).toBeGreaterThan(lane);
-        expect(push).toBeGreaterThan(run);
-        expect(record).toBeGreaterThan(push);
-    });
-
-    it("no repair, no proof, no AMBER step", () => {
-        expect(markAmberStep("/p", "red-ok", T2)).toBe("");
-        expect(markAmberStep("/p", "repair")).toBe("");
-    });
-
-    it("the proof step sets REPAIR_PROVED only when the named tests ran and passed", () => {
-        withRoot((root) => {
-            const bin = path.join(root, "bin");
-            fs.mkdirSync(bin);
-            fs.writeFileSync(
-                path.join(bin, "bunx"),
-                `#!/bin/sh\necho "$@" >> "${root}/bunx.calls"\nexit \${FAKE_VITEST_EXIT:-0}\n`,
-                { mode: 0o755 }
-            );
-            fs.mkdirSync(path.join(root, "t"));
-            fs.writeFileSync(path.join(root, "t", "a.test.ts"), "");
-            const step = repairProofStep(["t/a.test.ts", "t/gone.test.ts"]);
-            const sh = (exit: string) =>
-                spawnSync(
-                    "sh",
-                    ["-c", `${step} && echo "proved=\${REPAIR_PROVED:-no}"`],
-                    {
-                        cwd: root,
-                        encoding: "utf8",
-                        env: {
-                            ...process.env,
-                            PATH: `${bin}:${process.env.PATH}`,
-                            FAKE_VITEST_EXIT: exit,
-                        },
-                    }
-                );
-            const green = sh("0");
-            expect(green.status).toBe(0);
-            expect(green.stdout).toMatch(/proved=1/);
-            // Only the file that still exists is run, explicitly.
-            expect(fs.readFileSync(path.join(root, "bunx.calls"), "utf8")).toBe(
-                "vitest run t/a.test.ts\n"
-            );
-            const red = sh("1");
-            expect(red.status).not.toBe(0);
-            expect(red.stdout).not.toMatch(/proved=/);
-            const none = spawnSync(
-                "sh",
-                [
-                    "-c",
-                    `${repairProofStep(["t/gone.test.ts"])} && echo "proved=\${REPAIR_PROVED:-no}"`,
-                ],
-                { cwd: root, encoding: "utf8" }
-            );
-            expect(none.status).toBe(0);
-            expect(none.stdout).toMatch(/proved=no/);
-        });
-    });
-
-    it("a repair of a two-culprit RED lands on its share, without AMBER (issue #7448)", () => {
-        withRoot((root) => {
-            const bin = path.join(root, "bin");
-            fs.mkdirSync(bin);
-            // The fake vitest fails exactly the file named in FAKE_RED.
-            fs.writeFileSync(
-                path.join(bin, "bunx"),
-                `#!/bin/sh\necho "$@" >> "${root}/bunx.calls"\n[ "$3" = "\${FAKE_RED:-}" ] && exit 1\nexit 0\n`,
-                { mode: 0o755 }
-            );
-            fs.mkdirSync(path.join(root, "t"));
-            fs.writeFileSync(path.join(root, "t", "a.test.ts"), "");
-            fs.writeFileSync(path.join(root, "t", "b.test.ts"), "");
-            const step = repairProofStep(["t/a.test.ts", "t/b.test.ts"]);
-            const sh = (red: string) =>
-                spawnSync(
-                    "sh",
-                    ["-c", `${step} && echo "proved=\${REPAIR_PROVED:-no}"`],
-                    {
-                        cwd: root,
-                        encoding: "utf8",
-                        env: {
-                            ...process.env,
-                            PATH: `${bin}:${process.env.PATH}`,
-                            FAKE_RED: red,
-                            REPAIR_PROVED: "",
-                        },
-                    }
-                );
-            const share = sh("t/b.test.ts");
-            expect(share.status).toBe(0);
-            expect(share.stdout).toMatch(/still red: t\/b\.test\.ts/);
-            expect(share.stdout).toMatch(/proved=no/);
-            // One vitest run per file, so one culprit's red never masks the other's green.
-            expect(fs.readFileSync(path.join(root, "bunx.calls"), "utf8")).toBe(
-                "vitest run t/a.test.ts\nvitest run t/b.test.ts\n"
-            );
-            expect(sh("").stdout).toMatch(/proved=1/);
-        });
     });
 });
 

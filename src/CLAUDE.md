@@ -53,7 +53,7 @@ runs axe, and fails on any broken Floor (`scripts/ui-gate/floors.ts`, ADR
 the run; that is a coverage failure, not a pass. Drive CDP by hand only for
 what the lane does not cover, or to diagnose what it flagged.
 
-**Paste it byte-exact** (#2760): `bun run land` re-derives the verdict block
+**Paste it byte-exact** (#2760): `land:ready` re-derives the verdict block
 and refuses a mismatch or a non-`PASS` line; the diagnostic block is never read
 (`bun run verify:ui-receipt <PR#>` by hand). `RECEIPT` or `SCOPED`, never
 `DIAGNOSTIC`; never reflow a line.

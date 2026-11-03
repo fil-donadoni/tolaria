@@ -42,12 +42,12 @@
 // The return channel is a FILE, not an exit code: an interactive `claude`
 // exits 0 whatever happened inside it, so `/health-fix` writes
 // `fix-verdict.json` beside `last.json` as its last act. Everything that is
-// not an unambiguous `landed` about the sha we asked about reads as `stuck`
+// not an unambiguous hand-off about the sha we asked about reads as `stuck`
 // — no file, unparsable JSON, an unknown outcome, a verdict about another
 // sha. Fail-closed, because the failure mode of the alternative is promoting
 // a tip nobody fixed.
 //
-// Exit code: 0 when there is nothing to fix or the fixer landed its repair;
+// Exit code: 0 when there is nothing to fix or the fixer handed off its repair;
 // 1 on any refusal and on any `stuck` verdict.
 //
 // `release`'s loop around this and the skill itself import what is
@@ -89,6 +89,7 @@ import {
     escalationTitle,
     FIX_ATTEMPT_TIMEOUT_MS,
     hostOfRunnerName,
+    fixRecordsOf,
     inFlightForeignRepair,
     ladderRung,
     ownRepairPrs,
@@ -96,11 +97,12 @@ import {
     mayRedispatch,
     revertRecordsOf,
     REVERT_UNRECORDED,
+    spentHandOffs,
     walkEpisode,
     type ForeignRepair,
     type LadderFacts,
     type LineageCommit,
-    type RevertPr,
+    type EpisodePr,
 } from "./lib/health-ladder";
 import { closingIssueRefs } from "./lib/red-land-gate";
 import {
@@ -120,6 +122,13 @@ import {
     verdictStore,
     type VerdictStore,
 } from "./lib/health-verdict-store";
+import { corpusExcluded } from "./lib/corpus-exclusion";
+import { pushMergesDeclaredRepair } from "./lib/health-repair-merge";
+import {
+    fileReadsCorpus,
+    repairAmberDecision,
+    repairProofRun,
+} from "./lib/repair-proof";
 
 /** Health telemetry directory, relative to the primary checkout. */
 export const HEALTH_DIR = join(".claude", "telemetry", "health");
@@ -143,19 +152,22 @@ export interface HealthRecord {
 export interface FixVerdict {
     /** The sha the session was asked about. */
     sha: string;
-    /** `landed-partial` (issue #6552): the instance fix is merged, the class
-     *  guard needs the owner and was filed as `classGuardIssue`. */
-    outcome: "landed" | "landed-partial" | "stuck";
-    /** The PR that carried the repair, when there is one. */
+    /** `handed-off` (issue #7990): the repair PR is labelled `ready-to-land`;
+     *  the queue merges it after the fixer exits, and the ladder watches it.
+     *  `handed-off-partial` (issue #6552): the same for the instance fix, the
+     *  class guard needs the owner and was filed as `classGuardIssue`. */
+    outcome: "handed-off" | "handed-off-partial" | "stuck";
+    /** The PR that carries the repair: required off `stuck`. */
     pr?: number;
-    /** The `ready-for-human` class-guard issue; set with `landed-partial`. */
+    /** The `ready-for-human` class-guard issue; set with
+     *  `handed-off-partial`. */
     classGuardIssue?: number;
     note?: string;
 }
 
-/** Did the repair merge? `landed-partial` did: only its class guard is the
- *  owner's. */
-export const isLanded = (v: FixVerdict): boolean => v.outcome !== "stuck";
+/** Is the repair in the queue? `handed-off-partial` is: only its class guard
+ *  is the owner's. */
+export const isHandedOff = (v: FixVerdict): boolean => v.outcome !== "stuck";
 
 export type SpawnDecision =
     | { kind: "spawn"; sha: string; failedStep?: string }
@@ -233,7 +245,7 @@ export function spawnDecision(input: SpawnInputs): SpawnDecision {
 
 /**
  * Parse the fixer's verdict, fail-closed. Anything that is not an
- * unambiguous `landed` about `expectedSha` is `stuck` — the note says which
+ * unambiguous hand-off about `expectedSha`, naming its PR, is `stuck` — the note says which
  * of the failure shapes it was, because "stuck" with no reason is what a
  * maintainer would have to reconstruct by hand.
  */
@@ -276,28 +288,33 @@ export function parseVerdict(
             note: note ?? "the fixer declared itself stuck",
         };
     }
-    if (record.outcome === "landed-partial") {
+    if (
+        record.outcome !== "handed-off" &&
+        record.outcome !== "handed-off-partial"
+    )
+        return stuck(
+            `the verdict outcome is ${JSON.stringify(record.outcome)}, which is not 'handed-off'`
+        );
+    // Fail-closed: the ladder watches a hand-off through its PR.
+    if (pr === undefined || !Number.isInteger(pr) || pr <= 0)
+        return stuck(`a '${record.outcome}' verdict names no PR number`);
+    if (record.outcome === "handed-off-partial") {
         const guard = record.classGuardIssue;
-        // Fail-closed: a partial landing owes the issue that carries the
+        // Fail-closed: a partial hand-off owes the issue that carries the
         // class guard; without a real number it is not provably filed.
         if (typeof guard !== "number" || !Number.isInteger(guard) || guard <= 0)
             return stuck(
-                "a 'landed-partial' verdict names no class-guard issue number"
+                "a 'handed-off-partial' verdict names no class-guard issue number"
             );
         return {
             sha: expectedSha,
-            outcome: "landed-partial",
+            outcome: "handed-off-partial",
             pr,
             classGuardIssue: guard,
             note,
         };
     }
-    if (record.outcome !== "landed") {
-        return stuck(
-            `the verdict outcome is ${JSON.stringify(record.outcome)}, which is not 'landed'`
-        );
-    }
-    return { sha: expectedSha, outcome: "landed", pr, note };
+    return { sha: expectedSha, outcome: "handed-off", pr, note };
 }
 
 /** The argv that spawns the fixer session on the skill: interactive, or
@@ -428,36 +445,67 @@ function repairIssueMain(args: readonly string[], cwd: string): number {
     return 0;
 }
 
-/** `amber --sha=<tip> --repair-of=<red sha>` — a PROVED repair landed (issue
- *  #5462): its lane ran the failing tests the RED verdict names, and they
- *  passed. The lineage turns AMBER at the tip the repair created — picks and
- *  landings resume, the next health run confirms (GREEN clears it) or refutes
- *  (the SECOND RED). Non-gating: the PR is merged whatever happens here. */
+/**
+ * `amber --sha=<tip>` — `health-early`'s act on a push that merged a declared
+ * repair (issue #7990): AMBER at the tip when `repairAmberDecision` says the
+ * repair is proved, then `amber=true` on `$GITHUB_OUTPUT`, so the job re-gates
+ * the queue (a status written with a job's token fires no event). The lineage
+ * turns AMBER — picks and landings resume, the next health run confirms (GREEN
+ * clears it) or refutes (the SECOND RED). Non-gating: the PR is merged
+ * whatever happens here, so every outcome exits 0 but a bad argument.
+ */
 function amberMain(args: readonly string[], cwd: string): number {
     const sha = args.find((a) => a.startsWith("--sha="))?.slice(6);
-    const repairOf = args.find((a) => a.startsWith("--repair-of="))?.slice(12);
-    if (!sha || !FULL_SHA.test(sha) || !repairOf || !FULL_SHA.test(repairOf)) {
-        console.error(
-            "health:fix: amber needs --sha=<40-hex tip> and --repair-of=<40-hex RED sha>"
-        );
+    if (!sha || !FULL_SHA.test(sha)) {
+        console.error("health:fix: amber needs --sha=<40-hex tip>");
         return 2;
     }
     try {
-        const out = verdictStore(cwd).write({
+        const store = verdictStore(cwd);
+        const decision = repairAmberDecision({
+            tip: sha,
+            lineage: readVerdictLineage(() => store),
+            stored: () => store.read(sha),
+            descendsFrom: (red) =>
+                spawnSync("git", ["merge-base", "--is-ancestor", red, sha], {
+                    cwd,
+                }).status === 0,
+            mergesRepair: () => pushMergesDeclaredRepair(cwd, sha),
+            exists: (t) => existsSync(join(cwd, t)),
+            unprovable: (tests) =>
+                corpusExcluded()
+                    ? tests.filter((t) => fileReadsCorpus(t, cwd))
+                    : [],
+            run: (tests) => repairProofRun(tests, cwd),
+        });
+        if (decision.kind === "none") {
+            console.log(`health:fix: no AMBER — ${decision.why}`);
+            return 0;
+        }
+        // The proof takes minutes: health may have judged the tip since.
+        if (store.read(sha) !== null) {
+            console.log(
+                `health:fix: no AMBER — ${sha.slice(0, 8)} received a verdict during the proof`
+            );
+            return 0;
+        }
+        const out = store.write({
             sha,
             status: "amber",
-            repairOf,
+            repairOf: decision.repairOf,
             machine: machineName(),
             at: new Date().toISOString(),
         });
         console.log(
             out.written
-                ? `health:fix: lineage AMBER @ ${sha.slice(0, 8)} — repair of RED @ ${repairOf.slice(0, 8)} proved; picks and landings resume, health confirms`
+                ? `health:fix: lineage AMBER @ ${sha.slice(0, 8)} — repair of RED @ ${decision.repairOf.slice(0, 8)} proved (${decision.tests.join(", ")}); picks and landings resume, health confirms`
                 : `health:fix: AMBER not written — ${out.reason}`
         );
+        if (out.written && process.env.GITHUB_OUTPUT)
+            appendFileSync(process.env.GITHUB_OUTPUT, "amber=true\n");
     } catch (err) {
         console.error(
-            `health:fix: AMBER not written — the verdict store failed: ${String(err)}`
+            `health:fix: AMBER not written — ${(err as Error).message}`
         );
     }
     return 0;
@@ -529,7 +577,7 @@ function main(): void {
         headless,
         extra: extraClaudeArgs(argv),
     });
-    if (verdict === null || !isLanded(verdict)) process.exit(1);
+    if (verdict === null || !isHandedOff(verdict)) process.exit(1);
 }
 
 /** Where a job's quiet fixer writes its transcript: `run-quiet.sh`'s
@@ -580,7 +628,7 @@ function runFixer(input: {
     // prevents; a human at a terminal is warned and goes on.
     const attempts = fixAttemptStore(cwd);
     const record = (
-        outcome: "attempting" | "landed" | "stuck",
+        outcome: "attempting" | "handed-off" | "stuck",
         extra: { pr?: number; classGuard?: number; note?: string } = {}
     ): string | null => {
         try {
@@ -663,8 +711,8 @@ function runFixer(input: {
             note: `${verdict.note} (the session was ended: ${spawned.error.message})`,
         };
     const unrecordedOutcome = record(
-        // The pivot knows `landed`; the partial one is `landed` + its guard.
-        verdict.outcome === "stuck" ? "stuck" : "landed",
+        // The pivot knows `handed-off`; the partial one is that + its guard.
+        verdict.outcome === "stuck" ? "stuck" : "handed-off",
         {
             pr: verdict.pr,
             classGuard: verdict.classGuardIssue,
@@ -675,9 +723,9 @@ function runFixer(input: {
         console.error(
             `health:fix: the fix outcome could not be recorded on the pivot — ${unrecordedOutcome}`
         );
-    if (isLanded(verdict)) {
+    if (isHandedOff(verdict)) {
         console.log(
-            `health:fix: LANDED${verdict.classGuardIssue ? ` (class guard left to the owner: issue #${verdict.classGuardIssue})` : ""} @ ${verdict.sha.slice(0, 8)}${verdict.pr ? ` (PR #${verdict.pr})` : ""}${verdict.note ? ` — ${verdict.note}` : ""}`
+            `health:fix: HANDED OFF${verdict.classGuardIssue ? ` (class guard left to the owner: issue #${verdict.classGuardIssue})` : ""} @ ${verdict.sha.slice(0, 8)}${verdict.pr ? ` (PR #${verdict.pr})` : ""}${verdict.note ? ` — ${verdict.note}` : ""}`
         );
         return verdict;
     }
@@ -723,7 +771,7 @@ function escalationIssue(cwd: string, red: string): number | null {
     return list.find((i) => i.title === title)?.number ?? null;
 }
 
-function revertPrState(cwd: string, pr: number): RevertPr {
+export function episodePrState(cwd: string, pr: number): EpisodePr {
     const r = gh(["pr", "view", String(pr), "--json", "state,labels"], cwd);
     if (!r.ok) throw new Error(`gh pr view ${pr} failed: ${r.out}`);
     const doc = JSON.parse(r.out) as {
@@ -874,6 +922,7 @@ export function readLadderFacts(cwd: string, tip: string): LadderFacts {
         repairPrs: [],
         episode: [],
         revertPrs: [],
+        fixPrs: [],
         foreignRepairs: [],
         escalated: null,
         now,
@@ -902,7 +951,11 @@ export function readLadderFacts(cwd: string, tip: string): LadderFacts {
         // the episode names, each read once.
         const revertPrs = [
             ...new Set(revertRecordsOf(episode).flatMap(prsOf)),
-        ].map((pr) => revertPrState(cwd, pr));
+        ].map((pr) => episodePrState(cwd, pr));
+        // A fixer's hand-off (issue #7990): the queue decides what it became.
+        const fixPrs = [...new Set(fixRecordsOf(episode).flatMap(prsOf))].map(
+            (pr) => episodePrState(cwd, pr)
+        );
         // Only a moved tip asks whether the RED still stands on it (issue
         // #6766): the commits since, and the PRs that are declared repairs.
         const moved = red !== tip;
@@ -915,6 +968,7 @@ export function readLadderFacts(cwd: string, tip: string): LadderFacts {
             repairPrs: moved ? declaredRepairPrs(cwd, episode) : [],
             episode,
             revertPrs,
+            fixPrs,
             foreignRepairs: readForeignRepairs(cwd),
             escalated: escalationIssue(cwd, red),
         };
@@ -965,14 +1019,22 @@ function withdrawRepairPrs(cwd: string, attempt: number): void {
         );
         return;
     }
-    for (const number of ownRepairPrs(prs, ladder)) {
+    withdrawPrs(
+        cwd,
+        ownRepairPrs(prs, ladder),
+        `fixer attempt ${attempt} ended stuck`
+    );
+}
+
+function withdrawPrs(cwd: string, prs: readonly number[], why: string): void {
+    for (const number of prs) {
         const closed = gh(
             [
                 "pr",
                 "close",
                 String(number),
                 "--comment",
-                `Closed by the RED ladder: fixer attempt ${attempt} ended stuck, and the next rung must not land beside this repair.`,
+                `Closed by the RED ladder: ${why}, and the next rung must not land beside this repair.`,
             ],
             cwd
         );
@@ -1024,6 +1086,9 @@ function ladderRun(argv: readonly string[]): number {
         return 0;
     }
     const red = facts.red as string;
+    // A hand-off the queue refused or sat on: spent, and the rung below must
+    // not land beside it (issue #7990).
+    withdrawPrs(cwd, spentHandOffs(facts), "a spent hand-off");
     if (rung.kind === "fix") {
         // Belt and braces: a repair declared since the facts were read
         // (issue #6554) — read again, fresh, before a fixer is spawned.
@@ -1048,7 +1113,7 @@ function ladderRun(argv: readonly string[]): number {
         // Not recorded: nothing changed on the pivot, so a re-dispatch
         // would take the same rung — health's next run asks again.
         if (verdict === null) return 0;
-        if (!isLanded(verdict)) {
+        if (!isHandedOff(verdict)) {
             withdrawRepairPrs(cwd, rung.attempt);
             redispatch(hop);
         }

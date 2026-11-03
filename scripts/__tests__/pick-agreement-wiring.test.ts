@@ -71,7 +71,7 @@ describe("held-out pick agreement wiring (issue #3982)", () => {
     });
 
     it("the PR-phase gates never name it", () => {
-        for (const file of ["scripts/check-lane.ts", "scripts/land.ts"]) {
+        for (const file of ["scripts/check-lane.ts", "scripts/land-ready.ts"]) {
             const src = readFileSync(join(ROOT, file), "utf8");
             expect(src, file).not.toMatch(
                 /verdicts:pick-agreement|BLADE_VERDICT_SEARCH_SIDE/

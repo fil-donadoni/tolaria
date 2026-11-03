@@ -87,7 +87,6 @@
         "issues:orphans": "bun scripts/issues-orphans.ts",
         "ladder": "bun scripts/ladder.ts",
         "smoke:tier1": "bun scripts/tier1-smoke.ts",
-        "land": "bun scripts/land.ts",
         "land:ready": "bun scripts/land-ready.ts",
         "proof": "bun scripts/proof.ts",
         "base:drift": "bun scripts/base-drift.ts",

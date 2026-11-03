@@ -368,21 +368,16 @@ export type HealthAdmission =
     | { admit: false };
 
 /**
- * The land-runner's RED rule, extracted (issue #5637): off RED every PR is
- * admitted; under RED (`lineageBlocks`) only a PR closing one of the
- * standing RED's declared repair issues — `redLandGate` with neither
- * `--repair` nor `--red-ok`, which no queued PR can pass.
+ * The queue's RED rule (issue #5637): off RED every PR is admitted; under RED
+ * (`lineageBlocks`) only a PR closing one of the standing RED's declared
+ * repair issues (`redLandGate`).
  */
 export function healthAdmission(input: {
     red: boolean;
     prBody: string;
     repairIssues: readonly number[];
 }): HealthAdmission {
-    const gate = redLandGate({
-        ...input,
-        repairFlag: false,
-        redOkFlag: false,
-    });
+    const gate = redLandGate(input);
     if (gate.kind !== "proceed") return { admit: false };
     if (gate.landing !== "repair") return { admit: true, repairOf: null };
     const closed = closingIssueRefs(input.prBody).find((n) =>

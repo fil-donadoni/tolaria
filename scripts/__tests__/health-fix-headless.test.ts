@@ -10,7 +10,7 @@ import {
     encodeFixDescription,
     FIX_CONTEXT,
     githubFixAttemptStore,
-    LANDED_WAIT_MAX_MS,
+    HANDED_OFF_WAIT_MAX_MS,
     LOOP_FIX_ATTEMPTS,
     loopFixDecision,
     type FixAttempt,
@@ -96,12 +96,14 @@ describe("loopFixDecision — one attempt per tip, bounded", () => {
         expect(decide(at("attempting")).kind).toBe("stop");
     });
 
-    it("landed → wait for health on the repair's tip, then stop past the batch window", () => {
-        expect(decide(at("landed"))).toMatchObject({
+    it("handed off → wait for the queue and health on the repair's tip, then stop past the batch window", () => {
+        expect(decide(at("handed-off"))).toMatchObject({
             kind: "wait",
             why: expect.stringMatching(/PR #42/),
         });
-        expect(decide(at("landed", LANDED_WAIT_MAX_MS + 1)).kind).toBe("stop");
+        expect(decide(at("handed-off", HANDED_OFF_WAIT_MAX_MS + 1)).kind).toBe(
+            "stop"
+        );
     });
 
     it("an unreadable record stops — never a second fixer it cannot see", () => {
@@ -139,14 +141,14 @@ describe("the fix-attempt record — on the pivot", () => {
     it("round-trips through a commit status description", () => {
         const a: FixAttempt = {
             sha: SHA,
-            outcome: "landed",
+            outcome: "handed-off",
             machine: "MacBook",
             pr: 5591,
             note: "pinned ui-walk · gating",
         };
         const desc = encodeFixDescription(a);
         expect(desc).toBe(
-            "LANDED · MacBook · PR #5591 · pinned ui-walk · gating"
+            "HANDED-OFF · MacBook · PR #5591 · pinned ui-walk · gating"
         );
         expect(
             decodeFixStatus({

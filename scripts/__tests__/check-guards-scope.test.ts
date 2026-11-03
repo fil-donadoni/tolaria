@@ -282,7 +282,7 @@ describe("node partitions — which lane runs which (ADR 0136 §5)", () => {
         const plans = [
             inertClassifyLane(["src/app.tsx"]),
             engine,
-            inertClassifyLane(["scripts/land.ts"]),
+            inertClassifyLane(["scripts/land-ready.ts"]),
             inertClassifyLane([
                 "convex/cards/sets/lea/red.cards.ts",
                 "data/card-index.json",
