@@ -388,6 +388,63 @@ const DATA_PATTERNS: RegExp[] = [/^data\//];
 const CARDS_PATTERNS: RegExp[] = [/^convex\/cards\/sets\//];
 
 /**
+ * The CARDS PARTITION — ONE definition, run by the `cards` lane always and by
+ * the `engine` lane whenever `admitsCardsPartition` holds (issue #7964).
+ *
+ * A FIXED partition, not the import graph: the catalogue-wide
+ * census tests load every card through `getAllCards()` — the lazy registry
+ * hydrated from the Definition Index — so NO static import edge joins a test
+ * to a set file, and the walk relates none of them to a card diff. The
+ * `convex/cards/` partition is the catalogue guards plus EVERY set's tests —
+ * 425 files, 18 s at load 25 — and a card borrowed by another set's test is
+ * still proven. Plus the gold harness: it pins the set of
+ * incomparable cards, so a card PR that retires a closure to `effects[]`
+ * moves that set. `bot[cards]`: the three bot censuses (aiEffectsGuard,
+ * opValuerCoverage, opBeneficenceCensus) plus the sets' own bot files —
+ * 16 files, 8 s.
+ */
+export const CARDS_PARTITION: readonly PlannedCheck[] = [
+    {
+        id: "node[cards]",
+        command:
+            "bunx vitest run --project node-engine convex/cards/ convex/oracle/__tests__/gold.test.ts",
+    },
+    {
+        id: "bot[cards]",
+        command: "bunx vitest run --project bot-node convex/cards/",
+    },
+];
+
+/** Whether `CARDS_PARTITION` runs `file` in `project` — so no other step of
+ *  the plan (reach, bot admission, sentinels) runs it a second time. */
+export function inCardsPartition(file: string, project: string): boolean {
+    if (project === "node-engine")
+        return (
+            file.startsWith("convex/cards/") ||
+            file === "convex/oracle/__tests__/gold.test.ts"
+        );
+    if (project === "bot-node") return file.startsWith("convex/cards/");
+    return false;
+}
+
+/**
+ * The paths that move what a catalogue census reads (issue #7964): a card
+ * definition, or the Definition Index / packed corpus under
+ * `data/catalogue/` the lazy registry hydrates from.
+ */
+const CARDS_PARTITION_INPUTS: RegExp[] = [
+    ...CARDS_PATTERNS,
+    /^data\/catalogue\//,
+];
+
+/** Whether an `engine`-lane diff owes `CARDS_PARTITION` (issue #7964). The
+ *  `full` lane needs no admission: `check:pr:app` runs `node-engine` whole
+ *  and its bot half the bot fast lane whole. */
+export function admitsCardsPartition(files: readonly string[]): boolean {
+    return files.some((p) => CARDS_PARTITION_INPUTS.some((re) => re.test(p)));
+}
+
+/**
  * Prose-only paths: markdown under `docs/**` and the root-level markdown that
  * is resident agent context (`CLAUDE.md`, `GLOSSARY.md`, `README.md`).
  *
@@ -511,8 +568,8 @@ export function laneFor(classes: PathClass[]): DiffLane {
     // and `convex|scripts|data/**` used to be `full` — `check:pr` verbatim,
     // whole-repo prettier, whole-tree `cr:lint` and both bundle builds, the
     // health run under another name (measured in ADR 0154 §14). A `cards`
-    // path in the mix goes with it: the walk, not the `cards` partitions,
-    // proves it, as beside any engine path. It is the `engine` lane — whole
+    // path in the mix goes with it: the `engine` lane admits the cards
+    // partition for it (issue #7964), as beside any engine path. The `engine` lane — whole
     // type-check, every guard reading `data/**` — with the `dom` tests the
     // walk reaches added; what no import edge reaches is health's (ADR 0154
     // §2). Affirmative over every code path: `full` is the terminal below.
@@ -867,30 +924,11 @@ export function classifyLane(
             { id: "check:oracle", command: "bun run check:oracle" },
             CONVEX_BUNDLE,
             { id: "cr:lint", command: "bun run cr:lint" },
-            // A FIXED partition, not the import graph (issue #5464): every
-            // test that loads the catalogue imports the set barrel, so the
-            // walk would call half the suite related to any card. The
-            // `convex/cards/` partition is the catalogue guards plus EVERY
-            // set's tests — 425 files, 18s at load 25 — and a card borrowed
-            // by another set's test is still proven. Plus the gold harness
-            // (issue #6648): it pins the set of incomparable cards, so a card
-            // PR that retires a closure to `effects[]` moves that set, and
-            // only this lane sees it before the base does.
-            {
-                id: "node[cards]",
-                command:
-                    "bunx vitest run --project node-engine convex/cards/ convex/oracle/__tests__/gold.test.ts",
-            },
-            // The three bot censuses (aiEffectsGuard, opValuerCoverage,
-            // opBeneficenceCensus) plus the sets' own bot files: 16 files, 8s.
-            {
-                id: "bot[cards]",
-                command: "bunx vitest run --project bot-node convex/cards/",
-            }
+            ...CARDS_PARTITION
         );
         // Beyond `bot[cards]`, the reached bot files by cost (issue #6943).
         const bot = admittedBotTests(files, botReach, (f) =>
-            f.startsWith("convex/cards/")
+            inCardsPartition(f, "bot-node")
         );
         run.push(...bot.run);
         skip.push(...bot.skip);
@@ -950,7 +988,15 @@ export function classifyLane(
     // A mixed diff (issue #6989) owes the `dom` tests the whole diff
     // reaches; an engine-only diff's reached `dom` tests stay health's.
     const mixed = files.some((p) => classOf(p) === "skin");
-    const reach = related(files);
+    // ADMITTED, NOT SCOPED (issue #7964): a card definition beside engine
+    // code owes the catalogue censuses the `cards` lane runs — no import
+    // edge reaches them (`CARDS_PARTITION`). PR #7935 merged a card whose
+    // counter-gated statics `counterGatedStatics` would have refused.
+    const cardsPartition = admitsCardsPartition(files);
+    if (cardsPartition) run.push(...CARDS_PARTITION);
+    const inPartition = (f: string, p: string) =>
+        cardsPartition && inCardsPartition(f, p);
+    const reach = withoutPartition(related(files), inPartition);
     const scoped: (keyof RelatedTests)[] = toolingWhole
         ? ["node-engine"]
         : ["node-engine", "node-tooling"];
@@ -963,7 +1009,10 @@ export function classifyLane(
     const ranWhole = alreadyRunBy(files, guards);
     const sent = plannedSentinels(
         sentinels,
-        (f, p) => ranWhole(f, p) || (toolingWhole && p === "node-tooling")
+        (f, p) =>
+            ranWhole(f, p) ||
+            (toolingWhole && p === "node-tooling") ||
+            inPartition(f, p)
     );
     pushRelated(
         withoutSentinels(withoutFiles(reach, guards), sent.files),
@@ -972,7 +1021,11 @@ export function classifyLane(
         skip
     );
     appendScanGuards(guards, run);
-    const bot = admittedBotTests(files, botReach, (f) => sent.files.has(f));
+    const bot = admittedBotTests(
+        files,
+        botReach,
+        (f) => sent.files.has(f) || inPartition(f, "bot-node")
+    );
     run.push(...bot.run, ...sent.run);
     skip.push(...bot.skip, ...sent.skip);
     if (!mixed)
@@ -989,7 +1042,9 @@ export function classifyLane(
     appendDocsGuards(files, run);
     return {
         lane,
-        rationale: mixed ? mixedRationale(files) : engineRationale(files),
+        rationale: `${mixed ? mixedRationale(files) : engineRationale(files)}${
+            cardsPartition ? CARDS_PARTITION_ADMITTED : ""
+        }`,
         files,
         run,
         skip,
@@ -1457,6 +1512,19 @@ function plannedSentinels(
     };
 }
 
+/** The reached tests minus the files `CARDS_PARTITION` runs (issue #7964). */
+function withoutPartition(
+    reach: RelatedTests,
+    inPartition: (file: string, project: string) => boolean
+): RelatedTests {
+    return Object.fromEntries(
+        Object.entries(reach).map(([p, fs]) => [
+            p,
+            fs.filter((f) => !inPartition(f, p)),
+        ])
+    ) as RelatedTests;
+}
+
 /** The reached tests minus the files the sentinel step runs. */
 function withoutSentinels(
     reach: RelatedTests,
@@ -1791,6 +1859,10 @@ function engineRationale(files: string[]): string {
         "convex/**, scripts/**, data/**, .claude/** or a tooling config file"
     );
 }
+
+/** The engine lane's rationale suffix when it admits `CARDS_PARTITION`. */
+export const CARDS_PARTITION_ADMITTED =
+    " — plus the cards partition (node[cards], bot[cards]): a card definition or data/catalogue/** path is in the diff, and no import edge reaches the catalogue censuses (issue #7964)";
 
 /** The mixed case (issue #6989): the `engine` lane plus the reached `dom`. */
 function mixedRationale(files: string[]): string {
