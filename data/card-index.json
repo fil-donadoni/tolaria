@@ -23032,6 +23032,14 @@
         "source": "compiled"
     },
     {
+        "name": "Etali, Primal Conqueror",
+        "scryfallId": "95c14c4d-6c16-4826-8d93-d89ad04aee09",
+        "oracleId": "7514e401-7aa1-405d-9f7a-312b4e630cc2",
+        "firstSet": "mom",
+        "firstPrintId": "95c14c4d-6c16-4826-8d93-d89ad04aee09",
+        "firstPrintSet": "mom"
+    },
+    {
         "name": "Etched Monstrosity",
         "scryfallId": "ff9c4451-dd17-4859-a31d-62ed2430c63c",
         "oracleId": "d0dd582a-ac35-4a46-beca-6304fdd2d358",
