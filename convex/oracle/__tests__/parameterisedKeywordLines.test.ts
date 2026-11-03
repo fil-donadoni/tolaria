@@ -1,6 +1,6 @@
 // Parameterised keyword lines on implemented keywords (issue #7214):
-// Equip (CR 702.6a), Crew (CR 702.122a), Saddle (CR 702.171a), Ninjutsu
-// (CR 702.49a), Offspring (CR 702.175a).
+// Equip (CR 702.6a), Crew (CR 702.122a), Saddle (CR 702.171a),
+// Ninjutsu (CR 702.49a), Offspring (CR 702.175a).
 //
 // Three layers, each watching a different way a parameterised keyword goes
 // wrong:
