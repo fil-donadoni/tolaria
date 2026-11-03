@@ -20,11 +20,9 @@ import {
     normalizeMayPayCost,
     numberChoiceRange,
     findStagedEntry,
-    processPendingActionTriggers,
     type GameState,
     type PendingChoice,
 } from "./state";
-import { revealForMiracle } from "./miracle";
 import {
     definitionMatchesFilter,
     handCardMatchesFilter,
@@ -256,54 +254,6 @@ export function applyMayPaySubmit(
     commitChoiceAnswer(state, head, answer);
     dequeueHead(state, queue);
     resumeAfterChoice(state, RESUME_WITH_RETARGET);
-}
-
-export type SubmitMiracleRevealArgs = {
-    playerId: string;
-    reveal: boolean;
-};
-
-/** Validates and applies a `miracle-reveal` answer (CR 702.94a) against the
- *  head pending choice. Two shapes, one answer:
- *  - stack-coupled (raised by the DSL `draw` Op mid-resolution): the answer
- *    is committed into the resolving item's `collectedChoices` and the
- *    resolution resumes — the Op reveals the card and draws the next one;
- *  - STACKLESS (`stackItemId: ""` — the turn-based draw or a synchronous
- *    draw): the reveal is applied here, then the triggers the draw and the
- *    reveal produced are flushed as ONE batch (CR 603.3b) and priority is
- *    handed on.
- *  Throws on identity mismatch or a non-`miracle-reveal` head. Extracted from
- *  the `submitMiracleReveal` mutation so the mutation and the bot's search
- *  drive the SAME primitive. */
-export function applyMiracleRevealSubmit(
-    state: GameState,
-    args: SubmitMiracleRevealArgs
-): void {
-    const queue = state.pendingChoices ?? [];
-    if (queue.length === 0) throw new Error("No pending choice");
-    const head = queue[0];
-    if (head.kind !== "miracle-reveal") {
-        throw new Error("Pending choice is not a miracle-reveal");
-    }
-    if (head.playerId !== args.playerId) {
-        throw new Error("Not your pending choice");
-    }
-    if (!head.cardInstanceId) throw new Error("Malformed miracle-reveal");
-
-    if (head.stackItemId !== "") {
-        commitChoiceAnswer(state, head, [args.reveal ? "yes" : "no"]);
-        dequeueHead(state, queue);
-        resumeAfterChoice(state, RESUME_WITH_RETARGET);
-        return;
-    }
-
-    dequeueHead(state, queue);
-    // The drawing player chooses about their own hand.
-    if (args.reveal)
-        revealForMiracle(state, head.playerId, head.cardInstanceId);
-    processPendingActionTriggers(state);
-    handPriorityOn(state, false);
-    checkStateBasedActions(state);
 }
 
 export type SubmitLandEntryArgs = {

@@ -4567,13 +4567,9 @@ const OP_SCHEMAS: OpSchemaTable = {
         optional: {
             card: (v: unknown) =>
                 isExiledWithSourceSelector(v) || isBarePicksRef(v),
-            source: (v: unknown) =>
-                v === "graveyard" || v === "exile" || v === "hand",
+            source: (v: unknown) => v === "graveyard" || v === "exile",
             fromTopOfLibrary: (v: unknown) => v === true,
             free: isBoolean,
-            // CR 118.9 — "by paying [cost] rather than its mana cost"
-            // (Miracle, CR 702.94a).
-            alternativeCost: isManaCost,
             // CR 116.2a / 305.9 (issue #1961) — true iff the granting Oracle
             // text says "play" (land-inclusive), never for a "cast"-only grant.
             includesLand: isBoolean,
@@ -4596,24 +4592,13 @@ const OP_SCHEMAS: OpSchemaTable = {
                         'field "anyNumber" requires "card" to be a bare picks ref naming the set of cards'
                     );
                 }
-                for (const field of [
-                    "includesLand",
-                    "resultBind",
-                    "alternativeCost",
-                ] as const) {
+                for (const field of ["includesLand", "resultBind"] as const) {
                     if (field in entry) {
                         errors.push(
                             `field "${field}" is not valid with "anyNumber"`
                         );
                     }
                 }
-            }
-            if (entry.free === true && "alternativeCost" in entry) {
-                // CR 118.9 — one cost replaces the mana cost: either nothing
-                // ("without paying") or the alternative one, never both.
-                errors.push(
-                    'field "alternativeCost" is not valid with "free: true"'
-                );
             }
             if (fromTop) {
                 if (hasCard) {
@@ -4642,12 +4627,6 @@ const OP_SCHEMAS: OpSchemaTable = {
                     // permanent EXILED, so it can only be played from exile.
                     errors.push(
                         'field "source" must be "exile" with { exiledWithSource: true }'
-                    );
-                } else if (entry.source === "hand" && entry.includesLand) {
-                    // CR 305.1 — a land is played from hand by the ordinary
-                    // special action; no grant here plays one.
-                    errors.push(
-                        'field "includesLand" is not valid with source "hand"'
                     );
                 }
             }

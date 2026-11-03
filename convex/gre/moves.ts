@@ -362,14 +362,6 @@ export type Move =
           accept: boolean;
       }
     | {
-          /** Yes/no answer to a `miracle-reveal` pending choice (CR 702.94a),
-           *  realised through the dedicated `submitMiracleReveal` mutation.
-           *  Only the boolean travels; the choice identity is read from the
-           *  active pending choice. */
-          kind: "miracle-reveal";
-          reveal: boolean;
-      }
-    | {
           /** Decline a reflexive `madness-cast` pending choice (CR 702.35a),
            *  realised through the dedicated `submitMadnessDecline` mutation. No
            *  data travels; the choice identity is read from the active pending

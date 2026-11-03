@@ -357,10 +357,6 @@ export function heuristicChoicePrior(
         case "draw-replacement":
             // Denying an UNKNOWN card for life: speculative, opens second.
             return accept ? clampPrior(0.35 - lifeDrag) : 0.65;
-        case "miracle-reveal":
-            // CR 702.94a — the generator emits ONE policy candidate (reveal
-            // iff the Bot will cast), so there is nothing to order.
-            return NEUTRAL_PRIOR;
         // Issue #4441 — every other kind is listed, so a NEW `PendingChoiceKind`
         // reds `check:ts` here until its author decides its prior rather than
         // inheriting the flat one by omission. None of these has an accept /

@@ -31,7 +31,6 @@ import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 import PendingChoiceOptions from "~/components/board/pending-choice-options";
 import CardNameInput from "~/components/board/card-name-input";
-import MiracleRevealButtons from "~/components/board/miracle-reveal-buttons";
 import NumberAmountInput from "~/components/board/number-amount-input";
 import CardImage from "~/components/cards/card-image";
 import RandomRevealOverlay from "~/components/board/random-reveal-overlay";
@@ -81,7 +80,6 @@ export default function PendingChoicePrompt({
     const submitDrawReplacementPay = useMutation(
         api.game.submitDrawReplacementPay
     );
-    const submitMiracleReveal = useMutation(api.game.submitMiracleReveal);
     const submitMadnessDecline = useMutation(api.game.submitMadnessDecline);
     const submitReboundDecline = useMutation(api.game.submitReboundDecline);
     const announceCast = useMutation(api.game.announceCast);
@@ -128,9 +126,6 @@ export default function PendingChoicePrompt({
     // recast is always free, so there is no cost to display.
     const isReboundCast = choice.kind === "rebound-cast";
     const isReflexiveCastChoice = isMadnessCast || isReboundCast;
-    // CR 702.94a — the miracle reveal window: Reveal / Don't reveal, through
-    // its own mutation. A private choice, so only its chooser ever sees it.
-    const isMiracleReveal = choice.kind === "miracle-reveal";
     // ADR 0053 pile division (`divide-piles` / `pick-pile`) is NOT handled here:
     // the chooser's surface is owned by `PileDivisionPicker` (this component
     // returns null for the chooser of those kinds, above); the non-chooser gets
@@ -376,24 +371,7 @@ export default function PendingChoicePrompt({
                                     {formatOracleText(choice.prompt)}
                                 </p>
                             </div>
-                            {isMiracleReveal ? (
-                                <MiracleRevealButtons
-                                    disabled={isBusy}
-                                    onAnswer={async (reveal) => {
-                                        if (isBusy) return;
-                                        setIsBusy(true);
-                                        try {
-                                            await submitMiracleReveal({
-                                                gameId,
-                                                playerId,
-                                                reveal,
-                                            });
-                                        } finally {
-                                            setIsBusy(false);
-                                        }
-                                    }}
-                                />
-                            ) : isReflexiveCastChoice ? (
+                            {isReflexiveCastChoice ? (
                                 <div className="flex gap-2 mt-1">
                                     <Button
                                         type="button"

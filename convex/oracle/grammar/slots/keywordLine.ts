@@ -436,7 +436,6 @@ const CYCLING_HEAD = "Cycling ";
 const MADNESS_HEAD = "Madness ";
 const PLOT_HEAD = "Plot ";
 const FORETELL_HEAD = "Foretell ";
-const MIRACLE_HEAD = "Miracle ";
 const OVERLOAD_HEAD = "Overload ";
 const MORPH_HEAD = "Morph ";
 
@@ -489,18 +488,6 @@ export const foretellRule: Rule<SlotIR> = rule("foretell", (span) => {
     const cost = costParameter(FORETELL_HEAD, span);
     if (!cost.ok) return cost;
     return ok({ kind: "foretell" as const, cost: cost.value });
-});
-
-/**
- * CR 702.94a — "Miracle [cost]": the cost a card may be cast for when its
- * owner reveals it as the first card they drew this turn. The engine reads it
- * off `CardDefinition.miracle` (`gre/miracle.ts`), which also opens the reveal
- * window; the linked triggered ability is the keyword's, never the card's.
- */
-export const miracleRule: Rule<SlotIR> = rule("miracle", (span) => {
-    const cost = costParameter(MIRACLE_HEAD, span);
-    if (!cost.ok) return cost;
-    return ok({ kind: "miracle" as const, cost: cost.value });
 });
 
 /**
@@ -773,7 +760,6 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     madnessRule,
     plotRule,
     foretellRule,
-    miracleRule,
     overloadRule,
     morphRule,
     echoRule,

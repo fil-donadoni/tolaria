@@ -1261,7 +1261,6 @@ function applyProbeChoice(
         case "mulligan-bottom":
         case "land-entry":
         case "draw-replacement":
-        case "miracle-reveal":
         case "madness-decline":
         case "rebound-decline":
         case "name-card":
@@ -1722,7 +1721,6 @@ export function isProbeEligibleMove(
         case "may-pay":
         case "land-entry":
         case "draw-replacement":
-        case "miracle-reveal":
         case "madness-decline":
         case "rebound-decline":
         case "name-card":

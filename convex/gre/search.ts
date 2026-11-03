@@ -237,7 +237,6 @@ import {
 } from "./ai/searchVariant";
 import {
     applyLandEntrySubmit,
-    applyMiracleRevealSubmit,
     applyMayPaySubmit,
     applyNameCardSubmit,
     applyNumberChoiceSubmit,
@@ -878,16 +877,6 @@ export function applyMoveInSearch(
             // CR 614.12 / ADR 0051 — shock land: no stack item, the resolver
             // resumes the active player's priority window itself.
             applyLandEntrySubmit(state, { playerId, accept: move.accept });
-            drainAutoPasses(state);
-            checkStateBasedActions(state);
-            return;
-        }
-
-        case "miracle-reveal": {
-            // CR 702.94a — both shapes (stack-coupled resume / stackless
-            // flush + priority) run through the SAME resolver the
-            // `submitMiracleReveal` mutation drives.
-            applyMiracleRevealSubmit(state, { playerId, reveal: move.reveal });
             drainAutoPasses(state);
             checkStateBasedActions(state);
             return;

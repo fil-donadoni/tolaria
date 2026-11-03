@@ -8,7 +8,7 @@ import type {
 } from "./gre/state";
 import { getPendingChoiceMax, getPlayer } from "./gre/state";
 import type { CardAction } from "./gre/types";
-import type { Duration, PendingChoice } from "./gre/state";
+import type { Duration } from "./gre/state";
 import type { WireCharacteristics } from "./gre/wireCharacteristics";
 import {
     applyWireCharacteristics,
@@ -1461,36 +1461,6 @@ function computeHandRevealedPlayers(state: GameState): Set<string> {
  * Projects GameState into the public view: viewer's own hand has slim cards + legalActions,
  * opponent's hand is an array of nulls of equal length, libraries are reduced to { count }.
  */
-/** May `viewerId` act for the chooser of `choice`? The SAME predicate the
- *  board uses to render a choice as actionable (`isChooser` in
- *  `<PendingChoicePrompt>`: the rendered seat is the chooser). It holds in a
- *  solo game too, where one user drives both seats: the projection's viewer
- *  there is `computeSoloViewerId`, which follows the HEAD choice's chooser,
- *  so the seat that owes a private choice is always the seat it is projected
- *  to — the board and this filter never disagree about who may answer. */
-export function viewerMayActForChooser(
-    choice: Pick<PendingChoice, "playerId">,
-    viewerId: string
-): boolean {
-    return choice.playerId === viewerId;
-}
-
-/** Whether `choice` reaches `viewerId`'s projection at all: every choice
- *  does, except a PRIVATE CHOICE (`privateToChooser`) the viewer cannot act
- *  for. */
-export function choiceVisibleTo(
-    choice: Pick<PendingChoice, "playerId" | "privateToChooser">,
-    viewerId: string
-): boolean {
-    return !choice.privateToChooser || viewerMayActForChooser(choice, viewerId);
-}
-
-/** An emptied list as `undefined`, so a field the projection filtered to
- *  nothing stays absent on the wire. */
-function nonEmpty<T>(list: T[] | undefined): T[] | undefined {
-    return list && list.length > 0 ? list : undefined;
-}
-
 export function projectPublicState(
     state: GameState,
     seq: number,
@@ -1843,22 +1813,12 @@ export function projectPublicState(
         // CR 400.2 / 701.23a (issue #6475) — a distinct search's key table
         // names every pickable library card, hidden information: only the
         // searching player receives it.
-        //
-        // A PRIVATE CHOICE (`privateToChooser` — the Miracle reveal window,
-        // CR 702.94a) is dropped outright for a viewer who cannot act for its
-        // chooser: its existence is the leak. Dropped, never emptied, so the
-        // field stays absent when nothing else is queued.
-        pendingChoices: nonEmpty(
-            state.pendingChoices
-                ?.filter((c) => choiceVisibleTo(c, viewerId))
-                .map((c) =>
-                    c.kind === "choose-outside-game-card" &&
-                    c.playerId !== viewerId
-                        ? { ...c, candidateIds: undefined }
-                        : c.distinctKeys && c.playerId !== viewerId
-                          ? { ...c, distinctKeys: undefined }
-                          : c
-                )
+        pendingChoices: state.pendingChoices?.map((c) =>
+            c.kind === "choose-outside-game-card" && c.playerId !== viewerId
+                ? { ...c, candidateIds: undefined }
+                : c.distinctKeys && c.playerId !== viewerId
+                  ? { ...c, distinctKeys: undefined }
+                  : c
         ),
         // CR 613 (ADR 0082, PRD #2064 S5) — the Continuous Effects Registry
         // crosses the wire. It is PUBLIC by construction: every entry describes
