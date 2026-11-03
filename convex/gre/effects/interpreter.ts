@@ -7950,6 +7950,7 @@ export const MELD_GROUP_DISPOSITION: Readonly<
     animate: BATTLEFIELD_ONLY,
     attach: BATTLEFIELD_ONLY,
     becomePrepared: BATTLEFIELD_ONLY,
+    becomeSaddled: BATTLEFIELD_ONLY,
     counters: BATTLEFIELD_ONLY,
     destroy: BATTLEFIELD_ONLY,
     exileAndReturnTransformed: BATTLEFIELD_ONLY,
