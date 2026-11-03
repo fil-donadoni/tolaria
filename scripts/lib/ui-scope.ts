@@ -521,6 +521,24 @@ export function walkImpact(
     };
 }
 
+/**
+ * The exit `check:ui` takes BEFORE any browser, decided from the derived scope
+ * alone (issue #6144, issue #7884 — pure, so the claim is tested over an
+ * injected scope instead of a real process over the live tree): `0` for
+ * `--scope-only` (print and stop), `UI_SCOPE_UNDECIDED_EXIT` for a `full` or
+ * `undecided` scope nobody chose to walk, `null` when the run proceeds.
+ */
+export function scopeStopExit(
+    scope: UiScope,
+    opts: { scopeOnly: boolean; all: boolean; surfaces: boolean }
+): number | null {
+    if (opts.scopeOnly) return 0;
+    if (scope.kind !== "scoped" && !opts.all && !opts.surfaces) {
+        return UI_SCOPE_UNDECIDED_EXIT;
+    }
+    return null;
+}
+
 /** The lines `check:ui` prints when it starts no browser on a `full` or
  *  `undecided` scope (issue #6144): the question, the impact, the ways out. */
 export function renderScopeDecision(

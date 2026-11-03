@@ -35,7 +35,8 @@ import {
     type LatencySpan,
     type LatencyTurn,
 } from "../lib/telemetry-latency";
-import { classifyLane, renderPlan } from "../check-lane";
+import { renderPlan } from "../check-lane";
+import { inertClassifyLane } from "./lane-inert-sources.helper";
 
 /**
  * `scripts/lib/telemetry-latency.ts` (issue #3079) — the wall/tool/model/idle
@@ -554,7 +555,7 @@ describe("parseLaneForcingPath (issue #4376)", () => {
      * format moves.
      */
     const receipt = (files: string[]) =>
-        renderPlan(classifyLane(files), "abc1234def56");
+        renderPlan(inertClassifyLane(files), "abc1234def56");
 
     it("names the first path outside every lane rule", () => {
         const log = receipt([".agents/hooks/guard.sh", "src/App.tsx"]);
@@ -588,7 +589,10 @@ describe("parseLaneForcingPath (issue #4376)", () => {
      */
     it("ignores a `(first: …)` that is not the lane line's own", () => {
         const log =
-            renderPlan(classifyLane(["convex/gre/sba.ts"]), "abc1234def56") +
+            renderPlan(
+                inertClassifyLane(["convex/gre/sba.ts"]),
+                "abc1234def56"
+            ) +
             "\n FAIL  scripts/__tests__/x.test.ts > paths (first: docs/img/a.png)\n";
         expect(parseLaneLine(log)).toBe("engine");
         expect(parseLaneForcingPath(log)).toBeNull();

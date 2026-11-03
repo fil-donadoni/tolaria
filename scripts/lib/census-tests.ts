@@ -49,6 +49,11 @@ export const DIRECTORY_WALK =
     /\b(?:readdir|opendir|glob)(?:Sync)?\(|["']ls-files["']|\bgit (?:ls-files|grep)\b/;
 
 export const CENSUS_TESTS: readonly CensusTest[] = [
+    // scripts/__tests__/**/*.test.ts and the guard's own rule — no test pays the live lane-source walk unmarked
+    {
+        test: "scripts/__tests__/lane-sources-injected.test.ts",
+        admits: /^scripts\/(__tests__\/.*\.test\.ts|lib\/live-lane-source-calls\.ts)$/,
+    },
     // .claude/, docs/agents/ and CLAUDE.md — agent-facing names in resident docs
     {
         test: "scripts/__tests__/action-space.test.ts",
