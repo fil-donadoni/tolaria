@@ -5865,12 +5865,6 @@ export interface SpellContext {
      *  Used by the `{ lifeGainedThisTurn: { of } }` EffectValue grammar member
      *  and by imperative "if you gained life this turn" conditions. */
     getLifeGainedThisTurn: (playerId: string) => number;
-    /** CR 119.3 / 119.4 (issue #3237) — the total life `playerId` has LOST so
-     *  far this turn, 0 when none: the `getLifeGainedThisTurn` twin. Reads
-     *  back `GameState.lifeLostThisTurn`, the tally `recordLifeLost` keeps
-     *  from damage, "lose life" effects and paid life alike. Used by the
-     *  `{ lifeLostThisTurn: { of } }` EffectValue grammar member. */
-    getLifeLostThisTurn: (playerId: string) => number;
     /** CR 121.1 (issue #3240) — how many cards `playerId` has DRAWN so far
      *  this turn, 0 when none. Reads back `PlayerState.drawnThisTurn.length`,
      *  the ordered tally every draw path already appends to (`drawCard` and
@@ -9184,15 +9178,6 @@ export type StaticPTSet = {
         source: PermanentView,
         ctx: StaticEffectContext
     ) => boolean;
-    /** Optional source-level gate (CR 611.3a — "as long as ..."), the
-     *  `StaticPTBuff.condition` twin, evaluated once per source at every
-     *  layer-7 read: "During your turn, as long as ..., he's a 3/4 ...
-     *  creature" (issue #3237) sets base P/T only while the gate holds. */
-    condition?: (
-        source: PermanentView,
-        state: StaticEffectStateView,
-        ctx: StaticEffectContext
-    ) => boolean;
 } & PTAmount;
 
 /** Continuous static ability that grants a keyword to the enchanted
@@ -9408,13 +9393,15 @@ export interface StaticTriggeredGrant {
 }
 
 /** Continuous static ability that adds card type(s) to a permanent
- *  (layer 4 type-changing effects). DERIVED, never
- *  stamped: the layer-4 walk (`gre/layers2to5.ts`, CR 613.1d) recomputes the
- *  affected permanent's type line from its printed one at EVERY read, so
- *  `applies` and `condition` are re-evaluated continuously (CR 611.3a) and a
- *  grant that stops applying leaves nothing to restore. Used by Animate
- *  Artifact ("the enchanted artifact is an artifact creature") and by the
- *  "during your turn, ... is a creature" planeswalkers (issue #3237). */
+ *  (CR 205, 611, 1.3 — layer 4 type-setting effects). Mutates the affected
+ *  permanent's `types` array imperatively on apply (and reverses on
+ *  unapply), tracking origin in `grantedTypes` so duplicates from multiple
+ *  sources don't double-add and removal only takes effect when the last
+ *  granting source detaches. Used by Animate Artifact ("the enchanted
+ *  artifact is an artifact creature"). The `applies` predicate is read at
+ *  apply time and is not re-evaluated continuously — for LEA's scope this
+ *  is sufficient (no card revokes a type-add mid-life), but the model is
+ *  intentionally simpler than CR's layer-1-through-7 recompute. */
 export interface StaticTypeAdd extends ZoneScopedStaticEffect {
     kind: "type-add";
     /** Predicate: does this grant apply to `target` given `source`? For
@@ -9425,19 +9412,6 @@ export interface StaticTypeAdd extends ZoneScopedStaticEffect {
     applies: (
         target: PermanentView,
         source: PermanentView,
-        ctx: StaticEffectContext
-    ) => boolean;
-    /** Optional source-level gate (CR 611.3a — "as long as ..."), the
-     *  `StaticPTBuff.condition` / `StaticKeywordGrant.condition` twin.
-     *  Evaluated once per source against the whole board at every layer-4
-     *  derivation: when present and false the grant adds nothing this read,
-     *  regardless of `applies`. Reads live state `applies` cannot see — the
-     *  active player and the source's own counters ("During your turn, as
-     *  long as Kaito has one or more loyalty counters on him, he's a ...
-     *  creature", issue #3237). */
-    condition?: (
-        source: PermanentView,
-        state: StaticEffectStateView,
         ctx: StaticEffectContext
     ) => boolean;
     /** Types to add to the target. Duplicates against printed `types` or
@@ -9468,16 +9442,6 @@ export interface StaticTypeRemove extends ZoneScopedStaticEffect {
     applies: (
         target: PermanentView,
         source: PermanentView,
-        ctx: StaticEffectContext
-    ) => boolean;
-    /** Optional source-level gate (CR 611.3a — "as long as ..."), exactly
-     *  `StaticTypeAdd.condition`: re-evaluated at every layer-4 derivation.
-     *  "During your turn, ... he's a 3/4 Ninja creature" SETS the type line
-     *  (CR 205.1a), so the printed Planeswalker type is removed under the same
-     *  gate that adds Creature (issue #3237). */
-    condition?: (
-        source: PermanentView,
-        state: StaticEffectStateView,
         ctx: StaticEffectContext
     ) => boolean;
     /** Types to strip from the target while `applies` holds. */
@@ -10134,15 +10098,6 @@ export interface StaticSubtypeSet extends ZoneScopedStaticEffect {
         ctx: StaticEffectContext
     ) => boolean;
     subtypes?: string[];
-    /** Optional source-level gate (CR 611.3a), exactly
-     *  `StaticTypeAdd.condition`: re-evaluated at every layer-4 derivation,
-     *  for either output form ("he's a 3/4 NINJA creature" replaces the
-     *  subtypes only while the gate holds, issue #3237). */
-    condition?: (
-        source: PermanentView,
-        state: StaticEffectStateView,
-        ctx: StaticEffectContext
-    ) => boolean;
     /** Computed-output form (Illusionary Terrain, ADR 0050): subsumes both
      *  `applies` and `subtypes`. Returns the replacement subtypes for `target`,
      *  or `null` to leave the target untouched. Reads per-source stored state
@@ -10171,13 +10126,6 @@ export interface StaticSubtypeAdd extends ZoneScopedStaticEffect {
     applies: (
         target: PermanentView,
         source: PermanentView,
-        ctx: StaticEffectContext
-    ) => boolean;
-    /** Optional source-level gate (CR 611.3a), exactly
-     *  `StaticTypeAdd.condition`: re-evaluated at every layer-4 derivation. */
-    condition?: (
-        source: PermanentView,
-        state: StaticEffectStateView,
         ctx: StaticEffectContext
     ) => boolean;
     subtypes: string[];
@@ -15614,7 +15562,6 @@ export type EffectValue =
     | EffectEscapedValue
     | EffectAbilityResolutionCountValue
     | EffectLifeGainedThisTurnValue
-    | EffectLifeLostThisTurnValue
     | EffectCardsDrawnThisTurnValue
     | EffectNontokenCreaturesToGraveyardThisTurnValue
     | EffectPlayerCountersValue
@@ -15700,23 +15647,6 @@ export type EffectBoundCountValue = {
  *  ("draw cards equal to the life you gained this turn"). */
 export type EffectLifeGainedThisTurnValue = {
     lifeGainedThisTurn: { of: EffectPlayerRef };
-};
-
-/** lifeLostThisTurn — the total life a PLAYER has LOST so far this turn
- *  (CR 119.3 / 119.4, issue #3237), a thin JSON-pure skin over
- *  `SpellContext.getLifeLostThisTurn`: the exact twin of `lifeGainedThisTurn`
- *  one direction over, with the same PLAYER `of` selector, and like it NOT an
- *  Op and NOT a structural construct (ADR 0045 stays closed).
- *
- *  Its reason to exist is the retrospective life-loss question no LIFE_LOST
- *  event can answer after the fact: "draw a card for each opponent who lost
- *  life this turn" (Kaito, Bane of Nightmares), written as an `if` predicate
- *  `{ left: { lifeLostThisTurn: { of: "opponent" } }, op: "ge", right: 1 }`
- *  around the per-opponent draw — the predicate counts PLAYERS, never loss
- *  instances. Damage (CR 120.3a), "lose life" effects and paid life (CR 119.4)
- *  all enter the tally; losing 0 life never does. */
-export type EffectLifeLostThisTurnValue = {
-    lifeLostThisTurn: { of: EffectPlayerRef };
 };
 
 /** cardsDrawnThisTurn — how many cards a PLAYER has drawn so far this turn

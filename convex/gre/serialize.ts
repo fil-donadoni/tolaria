@@ -1410,9 +1410,6 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // life this turn" intervening-ifs at any later point in the SAME turn, so
     // it must survive every stable-point DB round-trip within the turn.
     "lifeGainedThisTurn",
-    // Its life-LOSS twin (issue #3237) — "each opponent who lost life this
-    // turn" is read on resolution, any stable point later in the same turn.
-    "lifeLostThisTurn",
     "damageRedirections",
     "combatBlockRestrictions",
     "camouflageCombat",
