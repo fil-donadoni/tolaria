@@ -5134,6 +5134,111 @@ function lowerSentenceBody(
 }
 
 /**
+ * CR 608.2c + CR 608.2h + CR 701.23h — a frame chain performed by every
+ * player who controlled one of the objects the sentence before acted on
+ * ("For each creature exiled this way, its controller searches their library
+ * for a basic land card. Those players put those cards onto the battlefield
+ * tapped, then shuffle.").
+ *
+ * The acted-on `exile` binds what it moved (`bind` snapshots the object's
+ * last-known controller before it leaves, CR 608.2h); `boundCount` of that
+ * binding filtered by controller is how many objects a player lost. Each
+ * player with at least one runs the chain ONCE: CR 701.23h makes one search
+ * instruction per object, before the shuffle, a single search for all those
+ * cards — so the `choice` finds up to that count (a stated quality never
+ * compels the find, CR 701.23b), then the move and the shuffle are theirs. A
+ * player who lost nothing neither searches nor shuffles.
+ *
+ * The chain is lowered by the ordinary frame lowering for the controller,
+ * then handed to `$each`: only the three Ops a search chain emits — the
+ * search `choice`, the `moveZone` of its find, the shuffle — are rewritten,
+ * and any other Op refuses the chain (a frame whose actor this rewrite has not
+ * been taught). The `boundCount` reads a binding of an earlier `forEach` body
+ * only, so the removal must be a sweep — the overload body's — or
+ * `validateEffectScript` refuses the script.
+ */
+function lowerPerActedOnController(
+    sentence: FrameChainIR,
+    per: NonNullable<FrameChainIR["perActedOnController"]>,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    const { noun, verb } = per;
+    const actedOn = walk.actedOn;
+    if (
+        actedOn === null ||
+        actedOn.op.op !== verb ||
+        actedOn.requirement.type !== noun ||
+        actedOn.requirement.count !== 1
+    )
+        return unlowerable(
+            `"For each ${noun.toLowerCase()} ${verb}d this way" names no ${noun.toLowerCase()} the sentence before ${verb}d (CR 608.2c)`
+        );
+    // The fold builds the chain from frames alone (`foldActedOnControllers`).
+    const inner = lowerFrameChain({ frames: sentence.frames }, walk, site);
+    if (!inner.ok) return inner;
+    const bind = actedOn.op.bind ?? walk.nextBind("exiled");
+    actedOn.op.bind = bind;
+    const each: EffectPlayerRef = { ref: "$each" };
+    const lost: EffectValue = {
+        boundCount: { of: { ref: bind }, controller: { ref: "$each" } },
+    };
+    const ops: EffectOp[] = [];
+    for (const op of inner.value) {
+        if (
+            op.op === "choice" &&
+            op.kind === "search-library" &&
+            op.player === "controller" &&
+            typeof op.count === "object" &&
+            "min" in op.count &&
+            op.count.min === 0 &&
+            op.count.max === 1
+        ) {
+            ops.push({
+                ...op,
+                player: each,
+                count: { min: 0, max: structuredClone(lost) },
+                prompt: `${op.prompt.replace(/\.$/, "")} for each of your ${noun.toLowerCase()}s ${verb}d this way.`,
+            });
+            continue;
+        }
+        if (
+            op.op === "moveZone" &&
+            "cards" in op &&
+            op.player === "controller" &&
+            op.from === "library"
+        ) {
+            ops.push({ ...op, player: each });
+            continue;
+        }
+        if (
+            op.op === "libraryLook" &&
+            op.action === "shuffle" &&
+            op.player === "controller"
+        ) {
+            ops.push({ ...op, player: each });
+            continue;
+        }
+        return unlowerable(
+            `"${op.op}" is not an Op the per-controller chain hands to each player`
+        );
+    }
+    return lowered([
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                {
+                    op: "if",
+                    predicate: { left: lost, op: "ge", right: 1 },
+                    then: ops,
+                },
+            ],
+        },
+    ]);
+}
+
+/**
  * Lower a sentence behind a gate ("you may", "if this spell was kicked").
  *
  * A library looked at behind a gate may never have been looked at, so it is
@@ -5178,6 +5283,13 @@ function lowerFrameChain(
     walk: SentenceWalk,
     site: SiteOptions
 ): Lowered<EffectOp[]> {
+    if (sentence.perActedOnController !== undefined)
+        return lowerPerActedOnController(
+            sentence,
+            sentence.perActedOnController,
+            walk,
+            site
+        );
     const ops: EffectOp[] = [];
     let found: string | null = null;
     // CR 701.38 — a vote's outcome binding, waiting for the frame that acts

@@ -50,6 +50,12 @@ import {
     subGrammar,
 } from "../../rule";
 import { readFrameChain, type FrameChainIR } from "./verbFrames";
+import {
+    foldActedOnControllers,
+    readActedOnControllersSentence,
+    type ActedOnControllersSearchIR,
+    type ThosePlayersChainIR,
+} from "./actedOnControllers";
 import { keywordVocabulary } from "./keywordVocabulary";
 import { readQuotedAbilityOf } from "./quotedAbilityReader";
 import type { QuotedAbilityIR } from "./staticClause";
@@ -2438,6 +2444,9 @@ export type ModifierIR =
 
 export type SentenceIR =
     | { readonly role: "effect"; readonly effect: EffectSentenceIR }
+    /** CR 608.2c — the per-controller tail of a removal (`actedOnControllers.ts`). */
+    | ActedOnControllersSearchIR
+    | ThosePlayersChainIR
     | {
           readonly role: "restriction";
           readonly restrictions: readonly RestrictionIR[];
@@ -2983,11 +2992,39 @@ export function assembleSentences(
     // gains trample…"); the folded `then` holds one sentence, so a follower is
     // refused rather than read as part of the resolving ability.
     let afterReflexive = false;
+    // CR 608.2c — "For each <noun> exiled this way, its controller searches
+    // …" waits for the "Those players …" sentence that finishes its chain.
+    let actedOnSearch: ActedOnControllersSearchIR | null = null;
     for (const sentence of sentences) {
         if (afterReflexive)
             return {
                 ok: false,
                 reason: '"When you do, …" is followed by a sentence, which belongs to the reflexive ability',
+            };
+        if (actedOnSearch !== null) {
+            if (sentence.role !== "those-players-chain")
+                return {
+                    ok: false,
+                    reason: '"…, its controller searches their library for …" is followed by no "Those players …" sentence that puts the find anywhere',
+                };
+            const folded = foldActedOnControllers(
+                effects[effects.length - 1],
+                actedOnSearch,
+                sentence
+            );
+            if (!folded.ok) return folded;
+            effects.push(folded.effect);
+            actedOnSearch = null;
+            continue;
+        }
+        if (sentence.role === "acted-on-controllers-search") {
+            actedOnSearch = sentence;
+            continue;
+        }
+        if (sentence.role === "those-players-chain")
+            return {
+                ok: false,
+                reason: '"Those players …" follows no per-controller search',
             };
         if (firstPlayerReveal !== null) {
             if (
@@ -4471,6 +4508,11 @@ export function assembleSentences(
         return {
             ok: false,
             reason: '"Choose a color." is the last sentence and reads no effect',
+        };
+    if (actedOnSearch !== null)
+        return {
+            ok: false,
+            reason: '"…, its controller searches their library for …" is the last sentence and puts the find nowhere',
         };
     if (effects.length === 0)
         return { ok: false, reason: `the ${opts.site} has no effect sentence` };
@@ -6639,6 +6681,9 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
 
         const library = libraryHalf(span, ctx);
         if (library !== null) return library;
+
+        const perController = readActedOnControllersSentence(span, ctx);
+        if (perController !== null) return perController;
 
         const impulse = readImpulsePlaySentence(span);
         if (impulse !== null) {
