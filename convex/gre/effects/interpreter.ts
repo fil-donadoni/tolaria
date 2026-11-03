@@ -7820,7 +7820,7 @@ export const OP_EXECUTORS: {
             ctx.setAllCreaturesCantAttackThisTurn();
             return;
         }
-        // CR 509.1a / 611.2c — its blocking twin (Chaos), same global shape.
+        // CR 509.1b / 611.2c — its blocking twin (Chaos), same global shape.
         if (op.restriction === "cant-block-all") {
             ctx.setAllCreaturesCantBlockThisTurn();
             return;

@@ -3210,7 +3210,7 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // turn, so — like `allCreaturesMustAttack` above — it must survive
     // END_OF_COMBAT and still apply to a second combat phase (CR 500.8).
     "cantAttackThisTurn",
-    // CR 509.1a / 514.2 — the GAME-scoped "creatures can't block this turn"
+    // CR 509.1b / 514.2 — the GAME-scoped "creatures can't block this turn"
     // restriction (Chaos), the blocking twin of `cantAttackThisTurn` above:
     // it must still apply in a second combat phase's declare blockers step.
     "allCreaturesCantBlockThisTurn",

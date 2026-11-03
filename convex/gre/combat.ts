@@ -830,7 +830,7 @@ export function validateBlockerEligibility(
         };
     }
 
-    // Pass 0' — CR 509.1a / 611.2c: the GAME-scoped twin of the flag above
+    // Pass 0' — CR 509.1b / 611.2c: the GAME-scoped twin of the flag above
     // (Chaos: "creatures can't block this turn"). A rules modification, so it
     // binds every creature, including one that entered after the effect
     // resolved.

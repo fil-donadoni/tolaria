@@ -390,7 +390,7 @@ export function useBattlefieldVisualState(
 
     function canBlockAnyAttacker(blocker: CardInstance): boolean {
         if (!combat) return false;
-        // CR 509.1a / 611.2c — a game-wide "creatures can't block this turn"
+        // CR 509.1b / 611.2c — a game-wide "creatures can't block this turn"
         // (Chaos) leaves no legal blocker at all.
         if (allCreaturesCantBlockThisTurn) return false;
         const hasFlying = blocker.staticAbilities?.includes("flying") ?? false;

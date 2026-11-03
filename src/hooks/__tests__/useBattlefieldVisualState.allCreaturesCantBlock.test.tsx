@@ -1,5 +1,5 @@
 // Frontend wiring for the GAME-scoped "creatures can't block this turn"
-// restriction (CR 509.1a / 611.2c — Chaos, of Order // Chaos).
+// restriction (CR 509.1b / 611.2c — Chaos, of Order // Chaos).
 //
 // The GRE refuses every block while `GameState.allCreaturesCantBlockThisTurn`
 // stands; the board must gray every would-be blocker out instead of offering
@@ -105,7 +105,7 @@ function renderOppBoard(boards: ReturnType<typeof projectAfter>) {
     });
 }
 
-describe("creatures can't block this turn on the board (CR 509.1a / 611.2c)", () => {
+describe("creatures can't block this turn on the board (CR 509.1b / 611.2c)", () => {
     it("after Chaos resolves, an untapped would-be blocker is NOT clickable", () => {
         const boards = projectAfter(true);
         const { result } = renderOppBoard(boards);

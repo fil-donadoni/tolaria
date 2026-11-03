@@ -17496,7 +17496,7 @@ export function buildSpellContext(
         },
 
         setAllCreaturesCantBlockThisTurn(): void {
-            // CR 509.1a / 611.2c — the GAME-scoped sibling of
+            // CR 509.1b / 611.2c — the GAME-scoped sibling of
             // `setCantBlockThisTurn`: covers every creature on every
             // battlefield, including one that enters LATER this turn, before
             // blockers are declared. Read by `validateBlockerEligibility`;

@@ -6831,7 +6831,7 @@ export interface SpellContext {
      *  `GameState.cantAttackThisTurn`, read by `validateAttackerEligibility`
      *  alongside the per-instance flag. Cleared at CLEANUP. */
     setAllCreaturesCantAttackThisTurn: () => void;
-    /** CR 509.1a / 611.2c — GAME-scoped "creatures can't block this turn"
+    /** CR 509.1b / 611.2c — GAME-scoped "creatures can't block this turn"
      *  (Chaos): sets `GameState.allCreaturesCantBlockThisTurn`, read live by
      *  `validateBlockerEligibility`, cleared at CLEANUP (CR 514.2). */
     setAllCreaturesCantBlockThisTurn: () => void;
@@ -20964,7 +20964,7 @@ export type EffectOp =
           op: "restrictCombat";
           restriction: "cant-attack-all";
       }
-    /** CR 509.1a / 611.2c — Chaos's "creatures can't block this turn": the
+    /** CR 509.1b / 611.2c — Chaos's "creatures can't block this turn": the
      *  blocking twin of `"cant-attack-all"` above, a thin skin over
      *  `SpellContext.setAllCreaturesCantBlockThisTurn`. No `target`: the
      *  restriction modifies the rules, so it binds every creature on every

@@ -507,8 +507,8 @@ describe("Gerrard's Verdict — 3 life per land discarded this way (CR 608.2h, i
 // Order // Chaos — Chaos: "Creatures can't block this turn." CR 611.2c: an
 // effect from a resolved spell that changes no characteristic modifies the
 // rules, so it binds creatures that were not on the battlefield when it
-// resolved. CR 509.1a / 514.2: the restriction lasts until cleanup.
-describe("Order // Chaos — Chaos binds creatures entering later (CR 611.2c, 509.1a)", () => {
+// resolved. CR 509.1b / 514.2: the restriction lasts until cleanup.
+describe("Order // Chaos — Chaos binds creatures entering later (CR 611.2c, 509.1b)", () => {
     const ORDER_CHAOS = getDefinition("14e4f5a4-b1ea-4816-b2d7-cf148468a388");
     const CHAOS = getDefinition(splitHalfDefinitionId(ORDER_CHAOS.id, "right"));
     const bear = (id: string, controller: string) =>

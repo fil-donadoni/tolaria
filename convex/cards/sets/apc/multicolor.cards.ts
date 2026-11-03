@@ -503,7 +503,7 @@ export const suffocatingBlast = defineCard(() => ({
 // Door Spider target shape (`combatRoleFilter: "attacking"`).
 //
 // CHAOS is the GAME-scoped `restrictCombat` "cant-block-all" mode (CR
-// 509.1a): CR 611.2c makes "creatures can't block" a rules modification (no
+// 509.1b): CR 611.2c makes "creatures can't block" a rules modification (no
 // characteristic changes), so it binds every creature on every battlefield,
 // including one that enters after resolution (a flash creature cast before
 // blockers). The flag clears at cleanup (CR 514.2), the "this turn" duration.

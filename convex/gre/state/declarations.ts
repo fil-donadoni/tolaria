@@ -5438,7 +5438,7 @@ export type GameState = {
      *  Cleared at CLEANUP (CR 514.2), same boundary as `allCreaturesMustAttack`. */
     cantAttackThisTurn?: boolean;
     /** Turn-scoped GLOBAL "creatures can't block this turn" restriction (CR
-     *  509.1a / 611.2c — Chaos, of Order // Chaos). The blocking twin of
+     *  509.1b / 611.2c — Chaos, of Order // Chaos). The blocking twin of
      *  `cantAttackThisTurn` above: CR 611.2c makes a resolved effect that
      *  changes no characteristic a rules modification, so it binds a creature
      *  that enters the battlefield AFTER the spell resolved (a flash creature
