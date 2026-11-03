@@ -1115,16 +1115,6 @@ function resolveValue(
         if (playerId === undefined) return undefined;
         return ctx.getLifeGainedThisTurn(playerId);
     }
-    // lifeLostThisTurn (CR 119.3 / 119.4, issue #3237) — the exact twin of
-    // lifeGainedThisTurn above, one direction over: total life a PLAYER has
-    // LOST so far this turn, through the SAME resolvePlayerRef path. Powers
-    // "draw a card for each opponent who lost life this turn" (Kaito, Bane of
-    // Nightmares) as an `if` over the tally.
-    if ("lifeLostThisTurn" in value) {
-        const playerId = resolvePlayerRef(ctx, value.lifeLostThisTurn.of);
-        if (playerId === undefined) return undefined;
-        return ctx.getLifeLostThisTurn(playerId);
-    }
     // cardsDrawnThisTurn (CR 121.1, issue #3240) — how many cards a PLAYER has
     // drawn so far this turn, a thin skin over ctx.getCardsDrawnThisTurn. The
     // exact twin of lifeGainedThisTurn above: `of` is a PLAYER selector

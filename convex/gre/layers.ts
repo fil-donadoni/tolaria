@@ -613,15 +613,17 @@ function layer7EffectsFor(
         const sublayer = LAYER_7_STATIC_EFFECT_KINDS[effect.kind];
         if (!effect.applies(target, source, STATIC_EFFECT_CTX)) continue;
         // CR 611.2c source-level gate ("as long as ..."): evaluated once
-        // per source against the whole board (Jihad). `pt-buff` and
-        // `pt-set` carry one ("During your turn, ... he's a 3/4 ...
-        // creature", issue #3237) — a characteristic-defining ability has
-        // no such gate (CR 604.3: it applies in every zone, at all times).
-        // Keyed on the KIND because the narrowed union does not carry
-        // `condition` on every member: a kind that declared one would need
-        // its own arm here, and nothing but this comment would say so.
+        // per source against the whole board (Jihad). Only `pt-buff`
+        // carries one — a characteristic-defining ability has no such gate
+        // (CR 604.3: it applies in every zone, at all times), and
+        // `StaticPTSet` declares no `condition` field at all, so an "as
+        // long as ..." base-P/T set is not expressible today (neither
+        // Humility nor Life and Limb is conditional). Keyed on the KIND
+        // because the narrowed union no longer carries `condition` on
+        // every member: a FOURTH kind that declared one would need its own
+        // arm here, and nothing but this comment would say so.
         if (
-            (effect.kind === "pt-buff" || effect.kind === "pt-set") &&
+            effect.kind === "pt-buff" &&
             effect.condition &&
             !effect.condition(source, state, STATIC_EFFECT_CTX)
         ) {
@@ -917,16 +919,8 @@ function resolveLayer7Payload(
     // pair or a `computeFor` result), so the entry sets power AND toughness,
     // never one of the two the way a `pt-set` PAYLOAD may.
     if (effect?.kind === "pt-set") {
-        if (!derived) {
-            if (!effect.applies(target, source, STATIC_EFFECT_CTX))
-                return undefined;
-            // CR 611.3a — the source-level gate, as `pt-buff`'s above.
-            if (
-                effect.condition &&
-                !effect.condition(source, state, STATIC_EFFECT_CTX)
-            ) {
-                return undefined;
-            }
+        if (!derived && !effect.applies(target, source, STATIC_EFFECT_CTX)) {
+            return undefined;
         }
         return resolvePTAmount(effect, source, state, target);
     }

@@ -157,7 +157,6 @@ import {
     type PlayerState,
     type StackItem,
     isManaPaymentChoiceWindow,
-    payLifeCost,
 } from "./state";
 import type { ManaRiders, SpellManaRiders } from "./state";
 import { canPayTapOtherCost } from "./tapOtherCost";
@@ -1106,7 +1105,7 @@ export function tryAutoCommitPendingActivation(
     // CR 119.4 — pay the life cost at commit (deferred so a dropped/cancelled
     // payment leaves the total untouched). Validated up-front at announcement.
     if (pa.lifeCost !== undefined) {
-        payLifeCost(state, player, pa.lifeCost);
+        player.life -= pa.lifeCost;
     }
     // CR 118.1 + CR 608.2h — the source's own last-known characteristics,
     // taken BEFORE it leaves the battlefield ("It deals damage equal to its
@@ -2900,10 +2899,10 @@ export function activateAbilityOnState(
     // CR 119.4 — pay the life cost (fetch lands: "Pay 1 life"). Validated
     // up-front; deducted here as the ability goes on the stack.
     if (ability.cost.life !== undefined) {
-        payLifeCost(state, player, ability.cost.life);
+        player.life -= ability.cost.life;
     }
     // CR 107.4f — the Phyrexian pips paid with life (2 each).
-    payLifeCost(state, player, phyrexianLife);
+    player.life -= phyrexianLife;
     // CR 606.4 — pay a non-targeted loyalty ability's signed loyalty cost as
     // it goes on the stack (Liliana's "+1", Garruk's "-4"). No-op otherwise.
     payLoyaltyCost(card, ability);

@@ -602,9 +602,6 @@ export function buildStateFromScenario(
     state.damageDealtToPlayerThisTurn = undefined;
     state.artifactDamageToPlayerThisTurn = undefined;
     state.lifeGainedThisTurn = undefined;
-    // Its life-loss twin (issue #3237) has no spec field yet, so it is only
-    // ever cleared here — a stale tally must not leak into a loaded position.
-    state.lifeLostThisTurn = undefined;
     state.abilityResolutionCounts = undefined;
     // NOT exhaustive, and deliberately so: the cast tallies issue #3449
     // widened (`state.spellsCastThisTurn`, the two per-seat pairs) are NOT
