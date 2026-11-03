@@ -23,11 +23,6 @@
             "issue": 4537
         },
         {
-            "key": "(op) › emblem",
-            "op": "emblem",
-            "issue": 7549
-        },
-        {
             "key": "(op) › exileAndReturnTransformed",
             "op": "exileAndReturnTransformed",
             "issue": 7374
