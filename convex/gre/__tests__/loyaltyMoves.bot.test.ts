@@ -115,6 +115,16 @@ function boardWith(walker: string, loyalty?: number): ScenarioSpec {
                 zone: "battlefield",
                 summoningSick: false,
             },
+            // A TAPPED opponent creature, for a requirement that names the
+            // tap state (The Wandering Emperor's "-2: Exile target tapped
+            // creature", CR 115.1) — same reason as the big creature above.
+            {
+                name: "Grizzly Bears",
+                owner: "opp",
+                zone: "battlefield",
+                summoningSick: false,
+                tapped: true,
+            },
             { name: "Jayemdae Tome", owner: "me", zone: "battlefield" },
             { name: "Jayemdae Tome", owner: "opp", zone: "battlefield" },
             { name: "Forest", owner: "me", zone: "graveyard" },
@@ -188,8 +198,8 @@ describe("loyalty abilities reach the bot's move enumerator (CR 606.2)", () => {
         expect(missing).toEqual([
             "Sorin, Lord of Innistrad :: sorin-lord-of-innistrad-minus6",
         ]);
-        expect(totalCount).toBe(55);
-        expect(offeredCount).toBe(54);
+        expect(totalCount).toBe(58);
+        expect(offeredCount).toBe(57);
     });
 
     it("never offers a loyalty move the server's own gate would reject", () => {
@@ -396,5 +406,39 @@ describe("the allowance reaches the bot's enumerator (CR 606.3, issue #3339)", (
         const printed = build(boardWith(LILIANA, 9));
         find(printed, LILIANA).loyaltyActivationsThisTurn = 1;
         expect(loyaltyAbilityIdsOffered(printed).size).toBe(0);
+    });
+});
+
+// CR 606.3's TIMING window widened to CR 117.1a's instant window (issue
+// #2606): The Wandering Emperor's "as long as ~ entered this turn, you may
+// activate her loyalty abilities any time you could cast an instant". The
+// enumerator reads the same `loyaltyActivationViolation` as the mutation, so
+// the bot must see her abilities on the OPPONENT's turn the turn she entered —
+// the flash-in-at-end-step play the card exists for — and must not the turn
+// after. A DISCRIMINATING PAIR: an enumerator that ignored the grant fails
+// half 1, one that ignored its "entered this turn" condition fails half 2.
+describe("instant-speed loyalty reaches the bot's enumerator (CR 606.3 / 117.1a, issue #2606)", () => {
+    const EMPEROR = "The Wandering Emperor";
+
+    /** The Emperor on p1's side; it is p2's END STEP and p1 holds priority. */
+    function opponentsEndStep(enteredThisTurn: boolean): GameState {
+        const state = build(boardWith(EMPEROR));
+        state.activePlayerId = state.players[1].id;
+        state.phase = "END_STEP";
+        state.priorityPlayerId = state.players[0].id;
+        find(state, EMPEROR).enteredOnTurn = enteredThisTurn
+            ? state.turn
+            : state.turn - 1;
+        return state;
+    }
+
+    it("HALF 1 — offers her loyalty abilities on the opponent's turn, the turn she entered", () => {
+        const offered = loyaltyAbilityIdsOffered(opponentsEndStep(true));
+        expect(offered).toContain("the-wandering-emperor-plus1");
+        expect(offered).toContain("the-wandering-emperor-minus1");
+    });
+
+    it("HALF 2 — offers none the turn after (the grant lapsed; CR 606.3 applies)", () => {
+        expect(loyaltyAbilityIdsOffered(opponentsEndStep(false)).size).toBe(0);
     });
 });

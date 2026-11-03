@@ -24,7 +24,8 @@
  * The client's UI hint (`src/lib/card-utils.ts` `getStackAbilities`) reads the
  * two STATE-ONLY clauses from here as well; it cannot use the full predicate
  * because its `TriggerStateView` carries no stack length or priority holder,
- * so its timing check stays a documented narrowing (the server is the gate).
+ * so its timing check stays a documented narrowing (the server is the gate) —
+ * escaped by the same `loyaltyInstantTimingGranted` the server reads.
  *
  * PURE: `loyaltyActivationViolation` mutates nothing; `payLoyaltyCost` mutates
  * only the card instance it is handed.
@@ -57,7 +58,8 @@ export type LoyaltyViolation =
      *  static effect on the permanent raises it). */
     | "already-activated"
     /** CR 606.3 — outside the controller's own main phase with an empty stack
-     *  while they hold priority. */
+     *  while they hold priority (or, under a `loyalty-activation-timing`
+     *  grant, outside CR 117.1a's instant window: not holding priority). */
     | "timing"
     /** CR 606.6 — a negative loyalty cost with fewer counters on the permanent
      *  than the cost removes. */
@@ -171,6 +173,55 @@ export function loyaltyActivationsExhausted(
     return used >= loyaltyActivationAllowance(card);
 }
 
+/** Does this permanent's own text widen CR 606.3's timing window to the
+ *  instant window of CR 117.1a ("any time they have priority")? The
+ *  STATE-ONLY half of the timing escape — the server adds the priority check
+ *  (`loyaltyActivationViolation`), the client's UI hint (`getStackAbilities`)
+ *  reads this alone because its view carries no priority holder.
+ *
+ *  True when any `loyalty-activation-timing` static effect on the permanent's
+ *  EFFECTIVE static effects (card-level plus the chosen mode's, CR 700.2) has
+ *  its condition met. `enteredThisTurn` is the caller's own derivation of
+ *  CR 400.7's "entered this turn" (server: `enteredOnTurn === state.turn`;
+ *  client: the turn-scoped `TriggerStateView` row), so a caller that cannot
+ *  derive it passes `false` and a conditional grant fails CLOSED.
+ *
+ *  Self-scoped and read-time, like {@link loyaltyActivationAllowance}: no
+ *  board scan, nothing materialized, so the grant lapses with its condition. */
+export function loyaltyInstantTimingGranted(
+    card: LoyaltyAllowanceSource,
+    enteredThisTurn: boolean
+): boolean {
+    const cardId = card.card?.id;
+    if (!cardId) return false;
+    const def = tryGetDefinition(cardId);
+    if (!def) return false;
+    for (const effect of getEffectiveStaticEffects(def, card.chosenModeId)) {
+        if (effect.kind !== "loyalty-activation-timing") continue;
+        if (effect.condition === undefined) return true;
+        if (effect.condition === "entered-this-turn" && enteredThisTurn) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** CR 606.3's timing clause, with its one escape. Open when the controller is
+ *  inside the printed window (`isSorceryTimingFor`: own main phase, empty
+ *  stack, holding priority), or — when the permanent's own text grants
+ *  instant timing ({@link loyaltyInstantTimingGranted}) — any time the
+ *  controller holds priority (CR 117.1a: "A player may cast an instant spell
+ *  any time they have priority"). The sorcery check runs first so every
+ *  permanent without the grant pays no registry lookup inside the window. */
+export function loyaltyTimingOpen(
+    state: GameState,
+    card: CardInstanceState
+): boolean {
+    if (isSorceryTimingFor(state, card.controllerId)) return true;
+    if (state.priorityPlayerId !== card.controllerId) return false;
+    return loyaltyInstantTimingGranted(card, card.enteredOnTurn === state.turn);
+}
+
 /** CR 606.6 — "A loyalty ability with a negative loyalty cost … can't be
  *  activated unless the permanent has at least that many loyalty counters on
  *  it." Landing on exactly 0 is legal (the CR forbids going BELOW); the
@@ -200,7 +251,8 @@ export function loyaltyCostPayable(
  *   - CR 606.3, the timing window — `isSorceryTimingFor(state, controllerId)`
  *     is exactly "any time they have priority and the stack is empty during a
  *     main phase of their turn" (`gre/phases.ts`, the engine's one authority on
- *     that window);
+ *     that window), widened to CR 117.1a's instant window by the permanent's
+ *     own `loyalty-activation-timing` static ({@link loyaltyTimingOpen});
  *   - CR 606.6, the negative-cost floor.
  *
  * `controllerId` on the card is the subject of the timing clause: CR 606.3
@@ -214,7 +266,7 @@ export function loyaltyActivationViolation(
 ): LoyaltyViolation | null {
     if (!isLoyaltyAbility(ability)) return null;
     if (loyaltyActivationsExhausted(card)) return "already-activated";
-    if (!isSorceryTimingFor(state, card.controllerId)) return "timing";
+    if (!loyaltyTimingOpen(state, card)) return "timing";
     if (!loyaltyCostPayable(card, ability)) return "insufficient-loyalty";
     return null;
 }

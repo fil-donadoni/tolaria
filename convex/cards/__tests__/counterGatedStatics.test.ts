@@ -85,6 +85,7 @@ const KIND_MATERIALIZATION: Record<
     "target-choice-requirement": "recomputed",
     "hand-size-override": "recomputed",
     "loyalty-activation-allowance": "recomputed",
+    "loyalty-activation-timing": "recomputed",
     "cost-modifier": "recomputed",
     "additional-cost": "recomputed",
     "mana-substitution": "recomputed",

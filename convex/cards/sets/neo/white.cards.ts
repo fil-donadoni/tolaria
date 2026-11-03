@@ -123,3 +123,96 @@ export const lionSash = defineCard(() => ({
         },
     ],
 }));
+
+// The Wandering Emperor (issue #2606) — {2}{W}{W} Legendary Planeswalker,
+// loyalty 3.
+//   Flash — the implemented keyword (CR 702.8a).
+//   "As long as The Wandering Emperor entered this turn, you may activate her
+//   loyalty abilities any time you could cast an instant." — the
+//   `loyalty-activation-timing` static, conditioned on `entered-this-turn`:
+//   CR 606.3's sorcery-speed window widens to CR 117.1a's "any time they have
+//   priority" while her `enteredOnTurn` stamp is the current turn, and lapses
+//   on the next. CR 606.3's once-per-turn allowance is untouched.
+//   +1 — "up to one target creature" is min 0 (CR 601.2c, a variable number of targets): the counter and the
+//   CR 611.2a first-strike grant land on the same target, or on nothing.
+//   −1 — a 2/2 white Samurai token with vigilance (NEO token print, resolved
+//   off the creator's print, ADR 0140).
+//   −2 — "target tapped creature" (any controller's), then 2 life.
+// hand-tail: As long as {self} entered this turn, you may activate her loyalty abilities any time you could cast an instant (#2606)
+export const theWanderingEmperor = defineCard(() => ({
+    id: "fab2d8a9-ab4c-4225-a570-22636293c17d",
+    name: "The Wandering Emperor",
+    rarity: "mythic",
+    oracleText:
+        "Flash\nAs long as The Wandering Emperor entered this turn, you may activate her loyalty abilities any time you could cast an instant.\n+1: Put a +1/+1 counter on up to one target creature. It gains first strike until end of turn.\n−1: Create a 2/2 white Samurai creature token with vigilance.\n−2: Exile target tapped creature. You gain 2 life.",
+    manaCost: { X: 2, W: 2 },
+    types: ["Planeswalker"],
+    supertypes: ["Legendary"],
+    loyalty: 3,
+    staticAbilities: ["flash"],
+    staticEffects: [
+        { kind: "loyalty-activation-timing", condition: "entered-this-turn" },
+    ],
+    activatedAbilities: [
+        {
+            id: "the-wandering-emperor-plus1",
+            cost: { loyalty: 1 },
+            useStack: true,
+            oracleText:
+                "+1: Put a +1/+1 counter on up to one target creature. It gains first strike until end of turn.",
+            targetRequirement: { type: "Creature", count: { min: 0, max: 1 } },
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { target: 0 },
+                    count: 1,
+                },
+                {
+                    op: "grantAbility",
+                    ability: "first strike",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+        {
+            id: "the-wandering-emperor-minus1",
+            cost: { loyalty: -1 },
+            useStack: true,
+            oracleText:
+                "−1: Create a 2/2 white Samurai creature token with vigilance.",
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Samurai",
+                        types: ["Creature"],
+                        subtypes: ["Samurai"],
+                        power: 2,
+                        toughness: 2,
+                        colors: ["W"],
+                        staticAbilities: ["vigilance"],
+                    },
+                    controller: "controller",
+                },
+            ],
+        },
+        {
+            id: "the-wandering-emperor-minus2",
+            cost: { loyalty: -2 },
+            useStack: true,
+            oracleText: "−2: Exile target tapped creature. You gain 2 life.",
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                tappedFilter: "tapped",
+            },
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "exile" },
+                { op: "gainLife", player: "controller", amount: 2 },
+            ],
+        },
+    ],
+}));
