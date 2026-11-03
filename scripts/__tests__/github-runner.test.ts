@@ -295,6 +295,24 @@ describe("runner units", () => {
         );
     });
 
+    it("the lane runner is Interactive, every other role Standard — health outranks the replay and the passes (issue #7925)", () => {
+        const specs = runnerSpecs(
+            "mac",
+            { pass: 1, lane: 1, maint: 1, seed: 1, derive: 1 },
+            ROOT
+        );
+        const typeOf = (role: string): string | undefined => {
+            const r = specs.find((s) => s.role === role)!;
+            const out = renderRunnerPlist(plistTpl, r, subs, hasNodeAndClaude);
+            return /<key>ProcessType<\/key>\s*<string>([^<]+)<\/string>/.exec(
+                out
+            )?.[1];
+        };
+        expect(typeOf("lane")).toBe("Interactive");
+        for (const role of ["pass", "maint", "seed", "derive"])
+            expect(typeOf(role)).toBe("Standard");
+    });
+
     it("convex dev is a launchd agent restarted when it dies", () => {
         const out = renderLaunchdUnit(convexTpl, subs, hasNode);
         expect(out).toContain(

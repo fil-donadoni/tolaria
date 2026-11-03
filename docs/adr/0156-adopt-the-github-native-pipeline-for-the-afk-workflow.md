@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted, amended six times (Amendment I, the gap review, same day; Amendment II, the revert's receipt, 2026-10-21; Amendment III, a PR's own red under a RED, 2026-10-27; Amendment IV, the heartbeat, 2026-10-29; Amendment V, a declared repair's tip is GREEN on the RED's evidence, 2026-10-31; Amendment VI, a pure revert's lane and a repair's queue priority, 2026-10-31) — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.
+accepted, amended seven times (Amendment I, the gap review, same day; Amendment II, the revert's receipt, 2026-10-21; Amendment III, a PR's own red under a RED, 2026-10-27; Amendment IV, the heartbeat, 2026-10-29; Amendment V, a declared repair's tip is GREEN on the RED's evidence, 2026-10-31; Amendment VI, a pure revert's lane and a repair's queue priority, 2026-10-31; Amendment VII, the lane runner outranks the machine, 2026-11-03) — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.
 accetta l'ADR e apri il PRD"), written at the owner's request as the LAST
 iteration of the workflow discussion ("arrivare a una soluzione che mi
 permetta di concentrarmi sul prodotto"). The repository stays **personal and
@@ -867,6 +867,51 @@ longer holds (the RED cleared, the body dropped its closing line) is
 withdrawn as `failure`; an ordinary PR never wears the context. Amendment
 III's hold on every other PR stands; the dispatcher's `red` hold still
 admits the repair pass (`holdAdmitsRepairs`).
+
+## Amendment VII (2026-11-03, issue #7925) — the lane runner outranks the machine; the replay keeps a cadence
+
+**What the shadow phase measured.** Amendment I retired the gate mutex on
+the premise that "one `lane` runner per machine serialises heavy jobs by
+construction", and promised a load wait only if red lanes appeared under
+load. The premise holds for the `lane` runner and nothing else. On the
+MacBook (8 cores, 16 GB) the `maint` runner's Bot-play replay (a 4-worker
+sweep of every `ready` card), three `pass` runners and the owner's sessions
+all ran beside health's `test` step. Before PR #7519 the replay yielded to
+the mutex (issue #6524); afterwards it did not. From 2026-11-02 12:00Z to
+11-03 07:00Z the replay ran 18 whole sweeps in 19 h, nearly back to back:
+the Bot hash moved about 15 times a day, 101 of the week's 103 moves on real
+code. Health's `test:app` went from a ~290 s median (10-20 → 10-30) to
+680–2,511 s whenever the replay overlapped, and to 304 s on the one run it
+did not. Two of those runs were RED on timeouts that cleared on re-run
+(issue #7858, issue #7859, issue #7884).
+
+**Decision — priority, not a wait.** Every runner was a launchd agent with
+no `ProcessType`, so all were Standard, scheduled level with one another
+and below the owner's apps. Measured the same day, as LaunchAgents on the
+loaded MacBook (load 40–110), 4 CPU-bound processes took 5.7–6.6 s alone
+and 8.3–11.1 s beside a 4-thread Standard spinner when Standard. When
+Interactive they took 2.4–2.5 s, with or without the spinner. The `lane`
+runner's unit is therefore `ProcessType` Interactive and every other role
+Standard (`processTypeFor`, `scripts/lib/github-runner.ts`). Health and the
+queue's lane take the cores they need first, and nothing waits, so no exit 77
+and no machine admission come back. Lowering the sweep instead
+(`taskpolicy -c utility`) protected a Standard health less and slowed the
+sweep 1.6–9× under load, towards its 120-minute wall.
+
+**Decision — the replay keeps a cadence.** A push-triggered replay sweeps
+only when the base's last whole-sweep commit is at least
+`botReplay.minIntervalMinutes` (240) old. The nightly, a dispatch and a
+by-hand run always sweep (`scripts/lib/bot-replay-cadence.ts`). ADR 0159's
+late Bot state is unchanged in kind. A held-back replay is owed only once a
+push lands past the interval, so a `bot-hash` lag counts as late from that
+push (`botHashLateSinceMs`). A quiet base waits for the nightly unfiled.
+
+**What would change the answer.** A health `test:app` beside live passes
+still past 1.5× the quiet median with the lane Interactive (then the
+`pass` runners' concurrency, or a lane wait, is next); the owner's
+interactive sessions, which share the lane's level, becoming the contender;
+the replay's verdict lag of up to 4 h hiding a Bot regression a sweep
+would have attributed to one PR.
 
 ## What would change the answer
 
