@@ -34,18 +34,10 @@
  */
 import { spawn, spawnSync } from "node:child_process";
 import { cpus } from "node:os";
-import {
-    TrackedTree,
-    parsePsRows,
-    survivorLines,
-    type PsRow,
-} from "./lib/process-tree";
+import { killTree, survivorLines } from "./lib/process-tree";
 import { gateChildEnv } from "./lib/vitest-fs-cache";
 
 const KILL_GRACE_MS = Number(process.env.TOLARIA_GATE_KILL_GRACE_MS ?? 2000);
-const KILL_VERIFY_MS = 3000;
-const TEARDOWN_POLL_MS = 50;
-const SPAWN_CWD = "/";
 
 /** Heavy-tier worker count: `min(ncpu - 1, cap)`, at least 2. */
 const HEAVY_WORKERS_CAP = Number(process.env.TOLARIA_HEAVY_WORKERS_CAP ?? 4);
@@ -105,83 +97,6 @@ if (
         ].join("\n")
     );
     process.exit(1);
-}
-
-// ── tree teardown ───────────────────────────────────────────────────────────
-function psRows(): PsRow[] | null {
-    // `-ww`: off a terminal `ps` cuts a row at 79 columns, and the command is
-    // what a survivor is diagnosed by.
-    const r = spawnSync("ps", ["-ww", "-Ao", "pid=,ppid=,pgid=,stat=,args="], {
-        encoding: "utf8",
-        cwd: SPAWN_CWD,
-        maxBuffer: 16 * 1024 * 1024,
-    });
-    if (r.status !== 0 || !r.stdout) return null;
-    return parsePsRows(r.stdout);
-}
-
-/** What a teardown SAW. `survivors` is the last pass's — null when `ps` gave
- *  no pass to read them from. */
-type TreeKill = { gone: true } | { gone: false; survivors: PsRow[] | null };
-
-function signalQuietly(target: number, signal: NodeJS.Signals) {
-    try {
-        process.kill(target, signal);
-    } catch {
-        /* already gone — the outcome we wanted */
-    }
-}
-
-/**
- * Kill the process tree rooted at `root` — every descendant, in every process
- * group — and report whether it was SEEN to be gone (issue #4965). `signal`
- * first, SIGKILL once `graceMs` has passed, then up to KILL_VERIFY_MS for `ps`
- * to show nothing left. SYNCHRONOUS on purpose: it runs inside signal and
- * `exit` handlers.
- */
-function killTree(
-    root: number,
-    signal: NodeJS.Signals,
-    graceMs: number
-): TreeKill {
-    let rows = psRows();
-    if (!rows) {
-        // No `ps`: the group of the direct child is the only handle there is.
-        signalQuietly(-root, signal);
-        if (signal !== "SIGKILL") {
-            Bun.sleepSync(graceMs);
-            signalQuietly(-root, "SIGKILL");
-        }
-        return { gone: false, survivors: null };
-    }
-    const own = rows.find((r) => r.pid === process.pid)?.pgid;
-    const tree = new TrackedTree(root, new Set(own === undefined ? [] : [own]));
-    // Each target gets the polite signal ONCE: a second SIGTERM is, to more
-    // than one tool, "stop cleaning up and die".
-    const sent = new Set<number>();
-    const send = (target: number, sig: NodeJS.Signals) => {
-        if (sig !== "SIGKILL") {
-            if (sent.has(target)) return;
-            sent.add(target);
-        }
-        signalQuietly(target, sig);
-    };
-    const t0 = Date.now();
-    for (;;) {
-        const survivors = tree.absorb(rows);
-        if (survivors.length === 0) return { gone: true };
-        const elapsed = Date.now() - t0;
-        if (elapsed > graceMs + KILL_VERIFY_MS)
-            return { gone: false, survivors };
-        const sig =
-            signal === "SIGKILL" || elapsed >= graceMs ? "SIGKILL" : signal;
-        for (const pgid of tree.groups) send(-pgid, sig);
-        for (const r of survivors)
-            if (!tree.groups.has(r.pgid)) send(r.pid, sig);
-        Bun.sleepSync(TEARDOWN_POLL_MS);
-        rows = psRows();
-        if (!rows) return { gone: false, survivors: null };
-    }
 }
 
 // ── run ─────────────────────────────────────────────────────────────────────

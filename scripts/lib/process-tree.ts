@@ -1,7 +1,10 @@
 /**
  * Process-tree teardown for the gate runner (`scripts/gate.ts`, issue #4965):
- * what a wrapped command's tree is, and how a survivor is named.
+ * what a wrapped command's tree is, and how a survivor is named. Also the
+ * bounded synchronous spawn (`runBounded`, issue #7937) that `pr-refresh`
+ * runs its prepare path through.
  */
+import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 
 /** One row of `ps -Ao pid=,ppid=,pgid=,stat=,args=`. */
 export interface PsRow {
@@ -137,4 +140,151 @@ export class TrackedTree {
                 !r.zombie && (this.pids.has(r.pid) || this.groups.has(r.pgid))
         );
     }
+}
+
+// ── teardown + bounded spawn ────────────────────────────────────────────────
+const KILL_VERIFY_MS = 3000;
+const TEARDOWN_POLL_MS = 50;
+/** `ps` runs from a directory that cannot vanish under it. */
+const SPAWN_CWD = "/";
+
+/** Synchronous sleep that needs neither Bun nor a timer: teardown runs inside
+ *  `exit` handlers and sync callers, where neither a promise nor a loop tick
+ *  is available. */
+function sleepSync(ms: number): void {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function psRows(): PsRow[] | null {
+    // `-ww`: off a terminal `ps` cuts a row at 79 columns, and the command is
+    // what a survivor is diagnosed by.
+    const r = spawnSync("ps", ["-ww", "-Ao", "pid=,ppid=,pgid=,stat=,args="], {
+        encoding: "utf8",
+        cwd: SPAWN_CWD,
+        maxBuffer: 16 * 1024 * 1024,
+    });
+    if (r.status !== 0 || !r.stdout) return null;
+    return parsePsRows(r.stdout);
+}
+
+/** What a teardown SAW. `survivors` is the last pass's — null when `ps` gave
+ *  no pass to read them from. */
+export type TreeKill =
+    | { gone: true }
+    | { gone: false; survivors: PsRow[] | null };
+
+function signalQuietly(target: number, signal: NodeJS.Signals) {
+    try {
+        process.kill(target, signal);
+    } catch {
+        /* already gone — the outcome we wanted */
+    }
+}
+
+/**
+ * Kill the process tree rooted at `root` — every descendant, in every process
+ * group — and report whether it was SEEN to be gone (issue #4965). `signal`
+ * first, SIGKILL once `graceMs` has passed, then up to KILL_VERIFY_MS for `ps`
+ * to show nothing left. SYNCHRONOUS on purpose: it runs inside signal and
+ * `exit` handlers.
+ */
+export function killTree(
+    root: number,
+    signal: NodeJS.Signals,
+    graceMs: number
+): TreeKill {
+    let rows = psRows();
+    if (!rows) {
+        // No `ps`: the group of the direct child is the only handle there is.
+        signalQuietly(-root, signal);
+        if (signal !== "SIGKILL") {
+            sleepSync(graceMs);
+            signalQuietly(-root, "SIGKILL");
+        }
+        return { gone: false, survivors: null };
+    }
+    const own = rows.find((r) => r.pid === process.pid)?.pgid;
+    const tree = new TrackedTree(root, new Set(own === undefined ? [] : [own]));
+    // Each target gets the polite signal ONCE: a second SIGTERM is, to more
+    // than one tool, "stop cleaning up and die".
+    const sent = new Set<number>();
+    const send = (target: number, sig: NodeJS.Signals) => {
+        if (sig !== "SIGKILL") {
+            if (sent.has(target)) return;
+            sent.add(target);
+        }
+        signalQuietly(target, sig);
+    };
+    const t0 = Date.now();
+    for (;;) {
+        const survivors = tree.absorb(rows);
+        if (survivors.length === 0) return { gone: true };
+        const elapsed = Date.now() - t0;
+        if (elapsed > graceMs + KILL_VERIFY_MS)
+            return { gone: false, survivors };
+        const sig =
+            signal === "SIGKILL" || elapsed >= graceMs ? "SIGKILL" : signal;
+        for (const pgid of tree.groups) send(-pgid, sig);
+        for (const r of survivors)
+            if (!tree.groups.has(r.pgid)) send(r.pid, sig);
+        sleepSync(TEARDOWN_POLL_MS);
+        rows = psRows();
+        if (!rows) return { gone: false, survivors: null };
+    }
+}
+
+export interface BoundedResult {
+    status: number | null;
+    stdout: string;
+    stderr: string;
+    /** The deadline passed and the tree was killed. */
+    timedOut: boolean;
+}
+
+/**
+ * `spawnSync` that cannot outlive `timeoutMs` nor leave a tree behind (issue
+ * #7937). The child leads its own process group, so when the
+ * deadline passes — or the child exits leaving grandchildren — the whole tree
+ * is killed and seen to be gone, the way the gate tears down its command.
+ * `spawnSync` alone signals only the direct child: `bun run x` dying left its
+ * `bun scripts/y.ts` spinning, reparented to pid 1.
+ */
+export function runBounded(
+    cmd: string,
+    args: string[],
+    options: Pick<SpawnSyncOptions, "cwd" | "env"> & {
+        timeoutMs: number;
+        /** `ignore` discards output (the default captures it). */
+        stdio?: "ignore" | "capture";
+    }
+): BoundedResult {
+    const capture = options.stdio !== "ignore";
+    // The child leads a group of its own, made by `perl` before it `exec`s the
+    // command: Bun's `spawnSync` ignores `detached`, and a child left in the
+    // caller's group is one `killTree` must protect, so nothing would be
+    // killed (the runtime `pr-refresh` runs under). Same pid before and after
+    // the `exec`, so `r.pid` is the group's leader on either runtime.
+    const r = spawnSync(
+        "perl",
+        ["-e", "setpgrp(0,0); exec @ARGV or die qq(exec: $!\\n)", cmd, ...args],
+        {
+            cwd: options.cwd,
+            env: options.env,
+            encoding: "utf8",
+            stdio: capture ? "pipe" : "ignore",
+            timeout: options.timeoutMs,
+            killSignal: "SIGKILL",
+            maxBuffer: 64 * 1024 * 1024,
+        }
+    );
+    // Whatever the child left running is not part of its result.
+    if (r.pid) killTree(r.pid, "SIGKILL", 0);
+    const timedOut =
+        (r.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT";
+    return {
+        status: timedOut ? null : r.status,
+        stdout: capture ? String(r.stdout ?? "") : "",
+        stderr: capture ? String(r.stderr ?? "") : "",
+        timedOut,
+    };
 }

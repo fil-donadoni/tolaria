@@ -22,7 +22,7 @@ import {
     type RefreshPr,
 } from "../lib/pr-refresh";
 import { CORPUS_CACHE_REL } from "../lib/generated-artifacts";
-import { refreshPr, seedCorpus } from "../pr-refresh";
+import { prepareWith, refreshPr, seedCorpus } from "../pr-refresh";
 
 const GREEN = { red: false };
 const RED = { red: true };
@@ -394,6 +394,38 @@ describe("refreshPr — real git, a bare origin", () => {
         });
         expect(git(["rev-parse", "feat/issue-9"], origin)).toBe(oid);
     });
+
+    // Issue #7937: a hung `oracle:corpus` in the prepare path ended nothing —
+    // the refresh blocked, and the chain it started outlived it. Now it is a
+    // `skipped` with its reason, and the whole tree is gone.
+    it("a hung oracle:corpus ends as a skipped refresh naming it, its tree killed (issue #7937)", () => {
+        const oid = queuedBranch("pr.txt");
+        baseMoves("other.txt");
+        const pidFile = join(tmpdir(), `tolaria-hung-corpus-${process.pid}`);
+        const out = refreshPr(
+            primary,
+            { headRefName: "feat/issue-9", headRefOid: oid },
+            {
+                push: true,
+                prepare: prepareWith({
+                    init: { cmd: "true", args: [], timeoutMs: 10_000 },
+                    corpus: {
+                        cmd: "sh",
+                        args: ["-c", `sleep 300 & echo $! > ${pidFile}; wait`],
+                        timeoutMs: 500,
+                    },
+                }),
+            }
+        );
+        expect(out).toMatchObject({ kind: "skipped" });
+        expect((out as { reason: string }).reason).toMatch(
+            /oracle:corpus timed out/
+        );
+        const orphan = Number(readFileSync(pidFile, "utf8"));
+        rmSync(pidFile, { force: true });
+        expect(() => process.kill(orphan, 0)).toThrow();
+        expect(git(["rev-parse", "feat/issue-9"], origin)).toBe(oid);
+    }, 30_000);
 
     it("leaves a PR whose head moved since it was read", () => {
         const oid = queuedBranch("pr.txt");
