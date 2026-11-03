@@ -294,18 +294,6 @@ export function independentCastOptionsFor(
     ];
 }
 
-/** CR 709.3 / 712.11b — the cast options on `card` that name WHICH face is
- *  cast (a split card's two halves, a modal double-faced card's back face),
- *  the instance-level list {@link isFaceChoiceCastId} recognises. Empty for
- *  every other card. The client picker reads it to open even under a
- *  permission that replaces the mana cost, where no alternative cost may ride
- *  along but a face must still be named. */
-export function faceChoiceCastOptionsFor(
-    card: CardInstanceState
-): AlternativeCost[] {
-    return [...splitCastOptionsFor(card), ...modalBackCastOptionsFor(card)];
-}
-
 /** CR 709.3 / 712.11b — `true` when `alternativeCostId` names WHICH face of
  *  the card is cast (a split half, a modal double-faced card's back face)
  *  rather than a price for it. Such an announcement rides the alternative-cost
