@@ -65872,6 +65872,16 @@
         "source": "compiled"
     },
     {
+        "name": "Skyline Despot",
+        "scryfallId": "86f74736-0557-4b73-a8ad-5abaa34ccd94",
+        "oracleId": "c0ce54a1-14a1-45f3-91d0-c57b581afc63",
+        "firstSet": "cn2",
+        "firstPrintId": "86f74736-0557-4b73-a8ad-5abaa34ccd94",
+        "firstPrintSet": "cn2",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Skyline Predator",
         "scryfallId": "5839556c-6635-44c4-96ed-666e4466b929",
         "oracleId": "9bc6d4ac-6fca-4574-9cd8-10a5528575b3",
@@ -74771,6 +74781,16 @@
         "firstPrintId": "22766d81-21ca-429a-b2e2-fdb338a33aa4",
         "firstPrintSet": "cn2",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Throne Warden",
+        "scryfallId": "cd1408a3-ddba-4837-b930-9663c5c83007",
+        "oracleId": "b50c1dd3-0495-427f-b5a9-9ac44a4554d1",
+        "firstSet": "cn2",
+        "firstPrintId": "cd1408a3-ddba-4837-b930-9663c5c83007",
+        "firstPrintSet": "cn2",
+        "rarity": "common",
         "source": "compiled"
     },
     {

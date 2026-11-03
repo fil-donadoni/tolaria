@@ -131,6 +131,11 @@ export type TriggerConditionIR =
      * with the ability on the stack makes the intervening-if false.
      */
     | { readonly kind: "self-on-battlefield" }
+    /**
+     * CR 725.1 + CR 603.4 — "if you're the monarch": the ability's controller
+     * holds the monarch designation, re-read as the trigger resolves.
+     */
+    | { readonly kind: "you-are-monarch" }
     /** CR 603.4 — "if an opponent controls more lands than you". */
     | ComparativeControlsIR
     /**
@@ -220,6 +225,8 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
                 : fail(`"${selfType[1]}" is not the source itself`, span);
         if (SELF_ON_BATTLEFIELD.test(clause))
             return ok({ kind: "self-on-battlefield" as const });
+        if (YOU_ARE_MONARCH.test(clause))
+            return ok({ kind: "you-are-monarch" as const });
         if (NO_MANA_ADDED_BY_THIS_ABILITY.test(clause))
             return ok({
                 kind: "no-mana-added-by-this-ability-this-turn" as const,
@@ -308,6 +315,14 @@ const SELF_HAS_TYPE = /^(.+) is an enchantment$/;
  * a named or typed subject waits for a card that prints it.
  */
 const SELF_ON_BATTLEFIELD = /^it's on the battlefield$/;
+
+/**
+ * CR 725.1 — the monarch designation, held by "you" (CR 109.5, the ability's
+ * controller). Only the positive form the corpus prints after a trigger head;
+ * "if you aren't the monarch" / "if an opponent is the monarch" wait for a
+ * card that prints them.
+ */
+const YOU_ARE_MONARCH = /^you're the monarch$/;
 
 /** CR 305.6 — the domain count, over the triggering player's lands. */
 const BASIC_LAND_TYPES =
