@@ -27,7 +27,6 @@
  *
  * The decisions are `lib/pr-refresh.ts`; this file is the I/O.
  */
-import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -61,6 +60,7 @@ import {
     laneRedPredatesRelease,
 } from "./lib/pr-gate";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { runBounded } from "./lib/process-tree";
 import {
     rebaseStep,
     resolveGeneratedArtifactsStep,
@@ -73,12 +73,15 @@ export type RefreshOutcome =
     | { kind: "semantic"; check: string; detail: string }
     | { kind: "skipped"; reason: string };
 
+/** `false` = failed for no named reason; a `reason` is told in the outcome. */
+export type PrepareVerdict = boolean | { ok: false; reason: string };
+
 export interface RefreshDeps {
     /**
      * Make the worktree runnable (`convex/_generated`, `node_modules`, the
      * gitignored Card Corpus cache the artefact resolver re-derives from).
      */
-    prepare: (dir: string, primary: string) => boolean;
+    prepare: (dir: string, primary: string) => PrepareVerdict;
     /**
      * The first seconds-cost semantic check the rebased tree fails (issue
      * #6651); defaults to the real cheap-guard run.
@@ -88,26 +91,42 @@ export interface RefreshDeps {
     push: boolean;
 }
 
+/**
+ * Deadlines of the refresh's spawns (issue #7937). A step that passes its
+ * deadline is killed as a tree and reads as a failure, so the refresh ends as
+ * `skipped` with its reason instead of blocking — or orphaning a chain that
+ * spun a core for 25 h. Sized from a measured run: `worktree:init` ~1 min,
+ * `oracle:corpus` (pinned bulk download + reduce) ~1 min, a git step seconds;
+ * each is a multiple of that, never a guess at the best case.
+ */
+export const GIT_TIMEOUT_MS = 5 * 60_000;
+export const PREPARE_TIMEOUT_MS = 10 * 60_000;
+export const CORPUS_TIMEOUT_MS = 10 * 60_000;
+
 function run(
     cmd: string,
     args: string[],
-    cwd: string
+    cwd: string,
+    timeoutMs: number = GIT_TIMEOUT_MS
 ): { status: number | null; stdout: string; stderr: string } {
-    const r = spawnSync(cmd, args, {
-        cwd,
-        encoding: "utf8",
-        env: netEnv(),
-    });
-    return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+    const r = runBounded(cmd, args, { cwd, env: netEnv(), timeoutMs });
+    return {
+        status: r.status,
+        stdout: r.stdout,
+        stderr: r.timedOut
+            ? `${r.stderr}\ntimed out after ${Math.round(timeoutMs / 1000)}s`
+            : r.stderr,
+    };
 }
 
 const lastLine = (s: string): string => s.trim().split("\n").slice(-1)[0] ?? "";
 
 const fetchCorpus = (dir: string): boolean =>
-    spawnSync("bun", ["run", "oracle:corpus"], {
+    runBounded("bun", ["run", "oracle:corpus"], {
         cwd: dir,
-        stdio: "ignore",
         env: netEnv(),
+        stdio: "ignore",
+        timeoutMs: CORPUS_TIMEOUT_MS,
     }).status === 0;
 
 /**
@@ -129,9 +148,64 @@ export function seedCorpus(
     }).ok;
 }
 
-export const defaultPrepare = (dir: string, primary: string): boolean =>
-    spawnSync("bun", ["run", "worktree:init"], { cwd: dir, stdio: "ignore" })
-        .status === 0 && seedCorpus(primary, dir);
+export interface PrepareSpec {
+    init: { cmd: string; args: string[]; timeoutMs: number };
+    corpus: { cmd: string; args: string[]; timeoutMs: number };
+}
+
+export const DEFAULT_PREPARE: PrepareSpec = {
+    init: {
+        cmd: "bun",
+        args: ["run", "worktree:init"],
+        timeoutMs: PREPARE_TIMEOUT_MS,
+    },
+    corpus: {
+        cmd: "bun",
+        args: ["run", "oracle:corpus"],
+        timeoutMs: CORPUS_TIMEOUT_MS,
+    },
+};
+
+/**
+ * `worktree:init`, then the Card Corpus cache — each bounded and killed as a
+ * tree on its deadline (issue #7937); a deadline is the failure's reason.
+ */
+export const prepareWith =
+    (spec: PrepareSpec) =>
+    (dir: string, primary: string): PrepareVerdict => {
+        const init = runBounded(spec.init.cmd, spec.init.args, {
+            cwd: dir,
+            env: netEnv(),
+            stdio: "ignore",
+            timeoutMs: spec.init.timeoutMs,
+        });
+        if (init.timedOut)
+            return {
+                ok: false,
+                reason: `worktree:init timed out after ${Math.round(spec.init.timeoutMs / 1000)}s (tree killed)`,
+            };
+        if (init.status !== 0) return false;
+        let corpusTimedOut = false;
+        const ok = seedCorpus(primary, dir, (d) => {
+            const r = runBounded(spec.corpus.cmd, spec.corpus.args, {
+                cwd: d,
+                env: netEnv(),
+                stdio: "ignore",
+                timeoutMs: spec.corpus.timeoutMs,
+            });
+            corpusTimedOut ||= r.timedOut;
+            return r.status === 0;
+        });
+        if (ok) return true;
+        return corpusTimedOut
+            ? {
+                  ok: false,
+                  reason: `oracle:corpus timed out after ${Math.round(spec.corpus.timeoutMs / 1000)}s (tree killed)`,
+              }
+            : false;
+    };
+
+export const defaultPrepare = prepareWith(DEFAULT_PREPARE);
 
 /**
  * Rebase ONE PR's head in a throwaway worktree of `primary` and push it. Never
@@ -203,10 +277,14 @@ export function refreshPr(
                       reason: `rebase failed: ${lastLine(rebased.stderr)}`,
                   };
         }
-        if (!deps.prepare(dir, primary)) {
+        const prepared = deps.prepare(dir, primary);
+        if (prepared !== true) {
             return {
                 kind: "skipped",
-                reason: "worktree prepare failed (worktree:init or Card Corpus cache)",
+                reason:
+                    typeof prepared === "object"
+                        ? `worktree prepare failed: ${prepared.reason}`
+                        : "worktree prepare failed (worktree:init or Card Corpus cache)",
             };
         }
         const resolved = run(
