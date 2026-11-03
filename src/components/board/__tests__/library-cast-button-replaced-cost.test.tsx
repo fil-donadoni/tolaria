@@ -213,11 +213,35 @@ describe("library-top cast with a REPLACED mana cost — illegal announcement ch
         });
     });
 
-    it("CR 601.3e (issue #7526) — the flag does not hide an Adventure a NON-replacing grant licenses", () => {
+    it("CR 601.2b (issue #7570) — Bolas's Citadel alone: the picker offers Petty Theft for life, and the printed row reads as life", () => {
+        withDefs(() => {
+            renderButton(
+                topCard(BRAZEN_BORROWER.id, true),
+                players(getCardByName("Bolas's Citadel"))
+            );
+            fireEvent.click(screen.getByRole("button", { name: "Cast" }));
+
+            expect(screen.queryByText("Pay mana cost")).toBeNull();
+            expect(
+                screen.getAllByText("Pay life equal to its mana value")
+            ).toHaveLength(2);
+            fireEvent.click(screen.getByText(/Petty Theft/));
+            expect(announceCast).toHaveBeenCalledTimes(1);
+            expect(announceCast.mock.calls[0][0]).toMatchObject({
+                cardInstanceId: "top",
+                alternativeCostId: adventureCastAltCostId(BRAZEN_BORROWER),
+            });
+            expect(
+                announceCast.mock.calls[0][0].declineManaCostReplacement
+            ).toBeUndefined();
+        });
+    });
+
+    it("CR 601.3e / 601.2b (issues #7526, #7570) — beside a NON-replacing grant Petty Theft is offered for life AND for mana", () => {
         withDefs(() => {
             // Brazen Borrower rides Bolas's Citadel (flag set); Petty Theft
-            // rides the instant-and-sorcery grant scanned first, which keeps
-            // the mana cost — a legal announcement the picker must offer.
+            // rides the Citadel or the instant-and-sorcery grant, which keeps
+            // the mana cost — both legal announcements the picker must offer.
             const citadel = getCardByName("Bolas's Citadel");
             const board = players(INSTANTS_AND_SORCERIES);
             board[0].battlefield.push({
@@ -228,11 +252,13 @@ describe("library-top cast with a REPLACED mana cost — illegal announcement ch
             renderButton(topCard(BRAZEN_BORROWER.id, true), board);
             fireEvent.click(screen.getByRole("button", { name: "Cast" }));
 
-            fireEvent.click(screen.getByText(/Petty Theft/));
+            expect(screen.getAllByText(/Petty Theft/)).toHaveLength(2);
+            fireEvent.click(screen.getByText("Pay its mana cost"));
             expect(announceCast).toHaveBeenCalledTimes(1);
             expect(announceCast.mock.calls[0][0]).toMatchObject({
                 cardInstanceId: "top",
                 alternativeCostId: adventureCastAltCostId(BRAZEN_BORROWER),
+                declineManaCostReplacement: true,
             });
         });
     });
@@ -247,7 +273,9 @@ describe("library-top cast with a REPLACED mana cost — illegal announcement ch
         );
         fireEvent.click(screen.getByRole("button", { name: "Cast" }));
 
-        expect(screen.getByText("Pay mana cost")).toBeTruthy();
+        expect(
+            screen.getAllByText("Pay life equal to its mana value")
+        ).toHaveLength(2);
         fireEvent.click(screen.getByText(/Cast Modal Probe Behemoth/));
         expect(announceCast).toHaveBeenCalledTimes(1);
         expect(announceCast.mock.calls[0][0]).toMatchObject({

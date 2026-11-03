@@ -45,6 +45,7 @@ import {
 } from "./flashback";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import { hasRetrace } from "./retrace";
+import { isAdventureCastId } from "./adventure";
 import { castSubjectView, isFaceChoiceCastId } from "./castMode";
 import {
     castableModalBackTwin,
@@ -231,6 +232,11 @@ export function libraryTopCastPayment(
  *  mana — otherwise the caster pays the half's printed cost on top of, or
  *  instead of, what the permission demands.
  *
+ *  The Adventure joins them only under a permission that replaces the mana cost
+ *  (issue #7570, `ridesManaCostReplacement`): its `{1}{U}` would otherwise be
+ *  charged on top of the life. In every other zone it keeps its own cost, which
+ *  CR 715.3a makes the only one evaluated.
+ *
  *  Applied at the ONE place both commit paths resolve the announced option
  *  (`resolveCastAlternativeCost`'s two call sites in `convex/game.ts`), so the
  *  legality gate, the payment and the park cannot disagree. */
@@ -248,9 +254,17 @@ export function castAlternativeCostForZone(
 ): AlternativeCost | undefined {
     if (!resolved || zone === "hand") return resolved;
     const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-    if (!isFaceChoiceCastId(def ?? undefined, alternativeCostId)) {
-        return resolved;
-    }
+    const zonePriced =
+        isFaceChoiceCastId(def ?? undefined, alternativeCostId) ||
+        (isAdventureCastId(def ?? undefined, alternativeCostId) &&
+            libraryTopCastPayment(
+                state,
+                card,
+                zone,
+                alternativeCostId,
+                declineManaCostReplacement
+            ) !== undefined);
+    if (!zonePriced) return resolved;
     const mana = castRawManaCost(
         state,
         card,

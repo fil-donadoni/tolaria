@@ -18,9 +18,9 @@ import type { ActivatedAbility, ManaCost, TextChange } from "./cards/types";
 import {
     canCastFromGraveyardByPermission,
     canPlayLandsFromGraveyard,
-    libraryTopAnnouncementLicensed,
+    libraryTopAnnouncementChoices,
     libraryTopCastGrant,
-    libraryTopReplacementDeclinable,
+    libraryTopReplacementChoices,
     isCastableLibraryTopSpell,
     isPlayableLibraryTopLand,
     getLegalActions,
@@ -234,7 +234,8 @@ export type SlimLibraryCard = SlimCardInstance & {
      *  cast, so both must be suppressed where they are OFFERED and not only
      *  rejected at the mutation: an `{X}` value (CR 107.3b — "the only legal
      *  choice for X is 0") and an alternative cost (CR 601.2b — "a player can't
-     *  apply two alternative methods of casting … to a single spell"). Derived
+     *  apply two alternative methods of casting … to a single spell"; the
+     *  Adventure is none, `ridesManaCostReplacement`, issue #7570). Derived
      *  from the GRANT's `manaCostReplacement` being present at all, so a future
      *  replacement shape inherits both suppressions without a second field. */
     castManaCostReplaced?: true;
@@ -243,7 +244,10 @@ export type SlimLibraryCard = SlimCardInstance & {
      *  the one that replaces it (Mystic Forge beside Bolas's Citadel, an
      *  artifact on top): the caster picks "pay life" or "pay mana", and the
      *  picker offers both rows. Set only alongside `castManaCostReplaced`;
-     *  the second row announces `declineManaCostReplacement`. */
+     *  the second row announces `declineManaCostReplacement`. About the PRINTED
+     *  cast alone (issue #7570): a grant keeping the cost of the Adventure only
+     *  licenses no printed "pay mana" row, and the picker asks each option's
+     *  own choices (`libraryTopCastChoices`). */
     castManaCostReplacementDeclinable?: true;
     /** CR 709.3 (issue #3344) — true when this card has NO printed cast, so
      *  the cast-option picker must not offer a "Pay mana cost" row: a SPLIT
@@ -256,7 +260,9 @@ export type SlimLibraryCard = SlimCardInstance & {
      *  board permission's mandatory free cast, which is hand-only by
      *  construction). Also true (CR 601.3e, issue #7526) when the top card's
      *  printed cast is covered by no grant while its Adventure or face-down
-     *  morph cast is (`libraryTopAnnouncementLicensed`). */
+     *  morph cast is, or (CR 119.4, issue #7570) when its life is more than the
+     *  caster has while the Adventure's is not
+     *  (`libraryTopAnnouncementChoices`). */
     printedCostCastUnavailable?: true;
 };
 
@@ -1105,7 +1111,10 @@ function libraryTopAffordance(
     // KEEPS the mana cost, the caster may decline the replacement: the picker
     // then offers "pay life" and "pay mana" side by side.
     const declinable =
-        replaced && libraryTopReplacementDeclinable(state, player, top);
+        replaced &&
+        libraryTopReplacementChoices(state, player, top, undefined).includes(
+            true
+        );
     // CR 601.3e (issue #7526) — the PRINTED cast is one announcement among
     // several off the top: under a Melek-shaped grant Giant Killer is castable
     // only as Chop Down, and under a creature-only grant a noncreature morph
@@ -1113,7 +1122,8 @@ function libraryTopAffordance(
     // exactly as for a split card (`withPrintedCastAvailability`).
     const printedUnlicensed =
         castable &&
-        !libraryTopAnnouncementLicensed(state, player, top, undefined);
+        libraryTopAnnouncementChoices(state, player, top, undefined).length ===
+            0;
     const projected = withPrintedCastAvailability(
         {
             legalActions: getLegalActions(state, player, top, allActions),

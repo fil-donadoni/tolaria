@@ -18028,6 +18028,44 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #7587 — plot is a banking special action, `free-development`'s shape: banking and deferring reach the same rollout leaves and the {4} would otherwise empty. The held-option gate is shared with foretell and pinned by its pair half 2.",
     },
     {
+        // CR 601.2b / 715.3b (issue #7570) — an Adventure may ride a permission
+        // that replaces the mana cost: "Casting a card as an Adventure isn't
+        // casting it for an alternative cost." No land in play, so the Citadel's
+        // life is the only way to pay: Stomp costs 2 life and deals the last 2
+        // damage (absolute: the game ends now), while the Giant costs 3 and
+        // wins nothing. Until issue #7570 the Stomp Move was never enumerated.
+        label: "library-top Adventure: Stomp for life under Bolas's Citadel is lethal",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Bolas's Citadel", owner: "me", zone: "battlefield" },
+                {
+                    name: "Bonecrusher Giant",
+                    owner: "me",
+                    zone: "library",
+                    position: 0,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            life: { me: 10, opp: 2 },
+            landsPlayed: { me: 1 },
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.alternativeCostId ?? "").startsWith("adventure:"),
+            describe: "casts Bonecrusher Giant as Stomp off the library top",
+        },
+        note: "Issue #7570 — reachability of the Adventure Move under a mana-cost-replacing grant. `MoveMatcher` has no field for `alternativeCostId`, so the predicate shape, as for the hand-cast Adventure entry.",
+    },
+    {
         // CR 601.2b / 118.9 (issue #7525) — the caster picks among overlapping
         // cast-from-top permissions. Bolas's Citadel and Mystic Forge both
         // cover Juggernaut ({4}, an artifact) on top of the library: the

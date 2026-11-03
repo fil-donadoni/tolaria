@@ -2,6 +2,7 @@ import type { AlternativeCost } from "@convex/cards/types";
 import AnchoredPicker, {
     AnchoredPickerRow,
 } from "@/components/ui/anchored-picker";
+import type { LibraryTopCastChoice } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 
 type AltCostPickerProps = {
@@ -22,12 +23,20 @@ type AltCostPickerProps = {
      *  row pays the mana cost. Server-projected
      *  (`castManaCostReplacementDeclinable`), never re-derived here. */
     replacementDeclinable?: boolean;
+    /** CR 119.4 (issue #7570) — the printed row pays life rather than mana
+     *  (Bolas's Citadel), with or without a second row. */
+    printedPaysLife?: boolean;
+    /** CR 601.2b / 118.9 (issue #7570) — how each `altCosts` entry may be paid
+     *  off the top of the library, one row per choice: Petty Theft for life,
+     *  and for mana under a second grant keeping its cost. Absent = one plain
+     *  row each. */
+    altCostChoices?: Record<string, LibraryTopCastChoice[]>;
     cardName: string;
     /** Anchor position (client px) — the picker opens next to the cast card. */
     position: { x: number; y: number };
     /** Called with the chosen alternative-cost id, or `undefined` to pay the
      *  normal mana cost; the second argument is `true` for the
-     *  {@link replacementDeclinable} "Pay mana cost" row. */
+     *  row that declines the replacement and pays the mana cost. */
     onSelect: (
         altCostId: string | undefined,
         declineManaCostReplacement?: true
@@ -46,16 +55,24 @@ export default function AltCostPicker({
     altCosts,
     printedCostAvailable,
     replacementDeclinable = false,
+    printedPaysLife = false,
+    altCostChoices,
     cardName,
     position,
     onSelect,
     onCancel,
 }: AltCostPickerProps) {
+    const altRows = altCosts.flatMap((alt) =>
+        (altCostChoices?.[alt.id] ?? [{ paysLife: false }]).map((choice) => ({
+            alt,
+            choice,
+        }))
+    );
     return (
         <AnchoredPicker
             position={position}
             rowCount={
-                altCosts.length +
+                altRows.length +
                 (printedCostAvailable ? 1 : 0) +
                 (replacementDeclinable ? 1 : 0)
             }
@@ -65,7 +82,7 @@ export default function AltCostPicker({
             {printedCostAvailable ? (
                 <AnchoredPickerRow onSelect={() => onSelect(undefined)}>
                     <span className="text-display text-sm text-text">
-                        {replacementDeclinable
+                        {replacementDeclinable || printedPaysLife
                             ? "Pay life equal to its mana value"
                             : "Pay mana cost"}
                     </span>
@@ -78,10 +95,10 @@ export default function AltCostPicker({
                     </span>
                 </AnchoredPickerRow>
             ) : null}
-            {altCosts.map((alt) => (
+            {altRows.map(({ alt, choice }) => (
                 <AnchoredPickerRow
-                    key={alt.id}
-                    onSelect={() => onSelect(alt.id)}
+                    key={`${alt.id}:${choice.decline ? "mana" : "default"}`}
+                    onSelect={() => onSelect(alt.id, choice.decline)}
                 >
                     <span className="text-display text-sm text-text">
                         {formatOracleText(alt.description)}
@@ -91,9 +108,13 @@ export default function AltCostPicker({
                             DIFFERENT amount (`alt.mana`), unlike every other
                             alt cost here (Gush/evoke give up a
                             permanent/life/hand card instead of mana). */}
-                        {alt.mana
-                            ? "Alternative cost — a different mana cost"
-                            : "Alternative cost — instead of paying mana"}
+                        {choice.decline
+                            ? "Pay its mana cost"
+                            : choice.paysLife
+                              ? "Pay life equal to its mana value"
+                              : alt.mana
+                                ? "Alternative cost — a different mana cost"
+                                : "Alternative cost — instead of paying mana"}
                     </span>
                 </AnchoredPickerRow>
             ))}

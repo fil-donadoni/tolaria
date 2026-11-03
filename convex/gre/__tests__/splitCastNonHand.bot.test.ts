@@ -20,6 +20,7 @@
 // announced option through (`castAlternativeCostForZone`), so a future
 // divergence reds here rather than in a game.
 
+import { adventureCastAltCostId } from "../adventure";
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import {
@@ -165,13 +166,11 @@ describe("CR 709.3 — the Bot reaches a split half outside the hand (issue #334
         expect(right).toMatchObject({ payLife: 3, tapPlan: [] });
     });
 
-    it("does NOT enumerate an ADVENTURE off a cost-replacing library top (CR 601.2b, PR review finding 1)", () => {
-        // The half-loop's `lifeInsteadOfMana` gate had to be relaxed for the
-        // split half, and relaxing it for EVERY independent option let the
-        // Adventure through: CR 601.2b forbids two alternative methods of
-        // casting on one spell, so `announceCast` refuses that Move outright —
-        // the #2283/#2284 bot-freeze shape. Only the split half is exempt,
-        // because CR 709.3's choice of half is not a price at all.
+    it("enumerates an ADVENTURE off a cost-replacing library top, for its own life and no mana (issue #7570)", () => {
+        // "Casting a card as an Adventure isn't casting it for an alternative
+        // cost" (the 2019-10-04 ruling), so CR 601.2b does not refuse it, and
+        // `announceCast` commits this Move. Priced at Stomp's mana value 2 (CR
+        // 715.3b), never Bonecrusher Giant's 3, with no tap plan on top.
         const card = makeInstance(bonecrusherGiant().id, {
             id: "giant-card",
             controllerId: "p1",
@@ -208,9 +207,13 @@ describe("CR 709.3 — the Bot reaches a split half outside the hand (issue #334
             castFromZone: "library",
             lifeInsteadOfMana: libraryTopCastLifeCost(state, player, card),
         });
-        // The printed cast alone — the Adventure carries no way to say it is
-        // riding the life substitution, so it is not offered.
-        expect(castIds(moves)).toEqual(new Set([undefined]));
+        const stomp = adventureCastAltCostId(bonecrusherGiant());
+        expect(castIds(moves)).toEqual(new Set([undefined, stomp]));
+        expect(
+            moves.find(
+                (m) => m.kind === "cast-spell" && m.alternativeCostId === stomp
+            )
+        ).toMatchObject({ payLife: 2, tapPlan: [] });
     });
 
     it("offers only the half the caster's life can pay for (CR 119.4)", () => {

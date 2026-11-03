@@ -57,6 +57,7 @@ import {
     adventureCastOptionFor,
     adventureTwin,
     castAsAdventure,
+    isAdventureCastId,
 } from "./adventure";
 import { castableInsetKind } from "../cards/insetSpell";
 import {
@@ -311,6 +312,30 @@ export function isFaceChoiceCastId(
     return (
         isSplitCastId(def, alternativeCostId) !== undefined ||
         isModalBackCastId(def, alternativeCostId)
+    );
+}
+
+/** CR 601.2b (issue #7570) — `true` when the announcement `alternativeCostId`
+ *  may ride a permission that replaces the mana cost (Bolas's Citadel), because
+ *  it is no second alternative method of casting: a face choice
+ *  ({@link isFaceChoiceCastId}), or the Adventure. The official Adventure
+ *  ruling (Gatherer, 2019-10-04):
+ *
+ *    "Casting a card as an Adventure isn't casting it for an alternative cost.
+ *    Effects that allow you to cast a spell for an alternative cost or without
+ *    paying its mana cost may allow you to apply those to the Adventure."
+ *
+ *  The price is then the Adventure's own: CR 715.3b, "while on the stack as an
+ *  Adventure, the spell has only its alternative characteristics". A morph
+ *  cast stays out: CR 702.37c, "this follows the rules for paying alternative
+ *  costs". */
+export function ridesManaCostReplacement(
+    def: CardDefinition | undefined,
+    alternativeCostId: string | undefined
+): boolean {
+    return (
+        isFaceChoiceCastId(def, alternativeCostId) ||
+        isAdventureCastId(def, alternativeCostId)
     );
 }
 
