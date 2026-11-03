@@ -15224,4 +15224,73 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.27a / 712.8e — "Transform this creature.": the `transform` Op
+    // on `$source`, which the canned smoke scenario cannot stage (its
+    // source has no back face to turn up). The card is a TRANSFORM layout
+    // whose back face's colours (green-red, its colour indicator, CR 202.2e)
+    // differ from the front face's, as Scryfall's `card_faces` reports them.
+    {
+        rule: "transform-self",
+        card: {
+            oracleId: "b06067e7-330e-47de-be59-c2874eedba1d",
+            name: "Bonded Herdbeast // Plated Kilnbeast",
+            manaCost: "",
+            typeLine: "Creature — Beast // Creature — Phyrexian Beast",
+            oracleText: "",
+            layout: "transform",
+            faces: [
+                {
+                    name: "Bonded Herdbeast",
+                    manaCost: "{4}{G}",
+                    typeLine: "Creature — Beast",
+                    oracleText:
+                        "{4}{R/P}: Transform this creature. Activate only as a sorcery. ({R/P} can be paid with either {R} or 2 life.)",
+                    power: "4",
+                    toughness: "5",
+                },
+                {
+                    name: "Plated Kilnbeast",
+                    manaCost: "",
+                    typeLine: "Creature — Phyrexian Beast",
+                    oracleText:
+                        "Menace (This creature can't be blocked except by two or more creatures.)",
+                    power: "7",
+                    toughness: "5",
+                    colors: ["G", "R"],
+                },
+            ],
+        },
+        expected: {
+            name: "Bonded Herdbeast",
+            types: ["Creature"],
+            subtypes: ["Beast"],
+            manaCost: { X: 4, G: 1 },
+            power: 4,
+            toughness: 5,
+            oracleText:
+                "{4}{R/P}: Transform this creature. Activate only as a sorcery. ({R/P} can be paid with either {R} or 2 life.)",
+            activatedAbilities: [
+                {
+                    id: "bonded-herdbeast-ability",
+                    oracleText:
+                        "{4}{R/P}: Transform this creature. Activate only as a sorcery.",
+                    cost: { mana: { X: 4, phyrexian: { R: 1 } } },
+                    useStack: true,
+                    effects: [{ op: "transform", target: { ref: "$source" } }],
+                    sorcerySpeedOnly: true,
+                },
+            ],
+            backFace: {
+                name: "Plated Kilnbeast",
+                types: ["Creature"],
+                subtypes: ["Phyrexian", "Beast"],
+                power: 7,
+                toughness: 5,
+                colors: ["G", "R"],
+                staticAbilities: ["menace"],
+                oracleText:
+                    "Menace (This creature can't be blocked except by two or more creatures.)",
+            },
+        },
+    },
 ]);

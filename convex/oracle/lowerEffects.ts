@@ -5474,6 +5474,17 @@ function lowerFrameChain(
                     );
                 ops.push({ op: "becomePrepared", target: { ref: "$source" } });
                 break;
+            // CR 701.27a / 701.27f — "this permanent" turns over; a spell's own
+            // text has no permanent to transform. The engine's `transform`
+            // primitive ignores a permanent that already transformed since
+            // the ability was put on the stack.
+            case "transform":
+                if (site.resolvingSpell === true)
+                    return unlowerable(
+                        "only a permanent's ability has a permanent to transform"
+                    );
+                ops.push({ op: "transform", target: { ref: "$source" } });
+                break;
             // CR 122.1 — a counter kind a player holds, added to that player.
             case "playerCounters": {
                 const player = playerRef(frame.player, walk.targets, site);

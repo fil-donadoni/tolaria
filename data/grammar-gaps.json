@@ -63,11 +63,6 @@
             "issue": 7374
         },
         {
-            "key": "(op) › transform",
-            "op": "transform",
-            "issue": 7374
-        },
-        {
             "key": "(op) › unattach",
             "op": "unattach",
             "issue": 5185

@@ -46,6 +46,7 @@ import {
     compileCard,
     MODAL_DFC_LAYOUT,
     oracleLayoutForInsetKind,
+    TRANSFORM_LAYOUT,
 } from "./compile";
 import { canonicaliseShorthands, sortKeys } from "./gates";
 import { printManaCost } from "./manaCost";
@@ -504,7 +505,44 @@ export function goldOracleCard(definition: CardDefinition): OracleCard {
                         layout: MELD_LAYOUT,
                         meldBack: backFaceAsOracleFace(definition.backFace),
                     }
-                  : { layout: "normal" }),
+                  : definition.backFace
+                    ? {
+                          // CR 712.8a — a NONMODAL (transform) card's text
+                          // lives in `card_faces` like a modal card's; the
+                          // back face also carries its colours, which a
+                          // transform face's colour indicator states and no
+                          // rules text does (CR 202.2e). An absent `colors`
+                          // is the hand-written card's claim of colourless.
+                          layout: TRANSFORM_LAYOUT,
+                          faces: [
+                              {
+                                  name: definition.name,
+                                  manaCost: printManaCost(definition.manaCost),
+                                  typeLine:
+                                      subtypes.length > 0
+                                          ? `${head} — ${subtypes.join(" ")}`
+                                          : head,
+                                  oracleText: definition.oracleText ?? "",
+                                  ...(definition.power === undefined
+                                      ? {}
+                                      : { power: String(definition.power) }),
+                                  ...(definition.toughness === undefined
+                                      ? {}
+                                      : {
+                                            toughness: String(
+                                                definition.toughness
+                                            ),
+                                        }),
+                              },
+                              {
+                                  ...backFaceAsOracleFace(definition.backFace),
+                                  colors: [
+                                      ...(definition.backFace.colors ?? []),
+                                  ],
+                              },
+                          ],
+                      }
+                    : { layout: "normal" }),
     };
 }
 

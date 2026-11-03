@@ -468,6 +468,15 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 701.27a — "Transform <this permanent>": the permanent the
+           * ability is printed on turns over to its other face. Self only —
+           * a transform aimed at another object ("transform it", "transform
+           * target …") is a subject no fixture evidences.
+           */
+          readonly frame: "transform";
+      }
+    | {
+          /**
            * CR 122.1 — "<player> gets N poison/experience counters" and
            * "you get {E}{E}" (CR 107.14: one energy counter per symbol): a
            * counter kind a PLAYER holds is added to that player.
@@ -669,6 +678,7 @@ export const VERB_FRAMES: readonly {
     { name: "winGame", opens: /^you win the game\b/i },
     { name: "monstrosity", opens: /^monstrosity \S+$/i },
     { name: "becomePrepared", opens: /^\S+(?: \S+)? becomes prepared$/i },
+    { name: "transform", opens: /^transform \S/i },
     {
         name: "playerCounters",
         // The finite verb behind a player reference, then a counter: the
@@ -797,6 +807,7 @@ const VOTE_FIELDS: ReadonlySet<string> = new Set([
     "controller",
 ]);
 const BECOMES_PREPARED = /^(.+) becomes prepared$/;
+const TRANSFORM_OBJECT = /^transform (.+)$/;
 /**
  * CR 122.1 + CR 107.14 — "<player> gets {E}{E}" (the optional trailing space
  * is what stripping the "(two energy counters)" reminder, CR 207.2a, leaves)
@@ -1951,6 +1962,14 @@ function readMember(
                 refused: `"${member}" — only the card itself becomes prepared`,
             };
         return { frames: [{ frame: "becomePrepared" }], referent };
+    }
+    if (opensFrame("transform", lower)) {
+        const object = lower.match(TRANSFORM_OBJECT)![1]!;
+        if (!isSelfPhrase(object))
+            return {
+                refused: `"${member}" — only the card itself transforms`,
+            };
+        return { frames: [{ frame: "transform" }], referent };
     }
     if (opensFrame("playerCounters", lower)) {
         const counters = lower.match(PLAYER_COUNTERS);
