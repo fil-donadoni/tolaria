@@ -314,6 +314,60 @@ function favoursItsTarget(
     );
 }
 
+/** The toughness the position's global enchantment (Castle) gives its
+ *  controller's untapped creatures. */
+const TOUGHNESS_BOOST = 2;
+
+/** The literal damage the script deals to its first target — every
+ *  `dealDamage` naming `{ target: 0 }` with a numeric amount, summed. A
+ *  computed amount (X, a count, a ref) is not read: the pose cannot size it. */
+function damageToFirstTarget(node: unknown): number {
+    if (Array.isArray(node))
+        return node.reduce((n: number, c) => n + damageToFirstTarget(c), 0);
+    if (node === null || typeof node !== "object") return 0;
+    const record = node as Record<string, unknown>;
+    const own =
+        record.op === "dealDamage" &&
+        typeof record.amount === "number" &&
+        (record.to as { target?: unknown } | undefined)?.target === 0
+            ? record.amount
+            : 0;
+    return (
+        own +
+        Object.values(record).reduce(
+            (n: number, c) => n + damageToFirstTarget(c),
+            0
+        )
+    );
+}
+
+/**
+ * CR 704.5g — does the toughness boost ALONE keep the opposing creature the
+ * spell is cast at alive through the damage its script deals it? Then the
+ * damage is a toughness ceiling exactly like "toughness N or less": with the
+ * boost the spell kills nothing, the Bot rightly holds it, and the verdict
+ * reads `never-chosen` about a position that never posed the removal. A
+ * requirement that can also name an enchantment keeps the boost: the
+ * enchantment filler is its target.
+ */
+function boostOutlastsDamage(
+    def: CardDefinition,
+    target: CardDefinition["targetRequirement"],
+    later: readonly TargetRequirement[],
+    effects: unknown,
+    modeId: string | undefined
+): boolean {
+    const req = creatureRequirement(target);
+    if (!req || favoursItsTarget(def, req, modeId)) return false;
+    const groups = [req, ...later];
+    if (groups.some((g) => asList(g.type).includes("Enchantment")))
+        return false;
+    const toughness = creatureFor(req)?.toughness;
+    if (typeof toughness !== "number") return false;
+    const damage = damageToFirstTarget(effects);
+    return damage >= toughness && damage < toughness + TOUGHNESS_BOOST;
+}
+
 /** Does the spell's script raise a creature's power or toughness with a
  *  literal amount — the shape of a combat trick? (A `negate`d or computed
  *  amount is not read: it is not a trick the pose can size.) */
@@ -616,19 +670,37 @@ export function targetPose(def: CardDefinition): TargetPose {
 function spellPose(def: CardDefinition): TargetPose {
     const modes = def.targetRequirement ? [] : (def.modes ?? []);
     if (modes.length === 0)
-        return withLaterCombatants(
-            requirementPose(def, def.targetRequirement, undefined),
-            def.targetRequirement,
-            def.additionalTargetRequirements ?? []
+        return withDamageCeiling(
+            withLaterCombatants(
+                requirementPose(def, def.targetRequirement, undefined),
+                def.targetRequirement,
+                def.additionalTargetRequirements ?? []
+            ),
+            boostOutlastsDamage(
+                def,
+                def.targetRequirement,
+                def.additionalTargetRequirements ?? [],
+                def.effects,
+                undefined
+            )
         );
     // A modal spell states its targets per mode (CR 700.2a): the position holds
     // what EACH mode needs, so whichever the Bot picks has a legal target
     // (issue #4268). A combat a mode's role names is the first such mode's.
     const poses = modes.map((m) =>
-        withLaterCombatants(
-            requirementPose(def, m.targetRequirement, m.id),
-            m.targetRequirement,
-            m.additionalTargetRequirements ?? []
+        withDamageCeiling(
+            withLaterCombatants(
+                requirementPose(def, m.targetRequirement, m.id),
+                m.targetRequirement,
+                m.additionalTargetRequirements ?? []
+            ),
+            boostOutlastsDamage(
+                def,
+                m.targetRequirement,
+                m.additionalTargetRequirements ?? [],
+                m.effects,
+                m.id
+            )
         )
     );
     return {
@@ -636,6 +708,14 @@ function spellPose(def: CardDefinition): TargetPose {
         omitToughnessBoost: poses.some((p) => p.omitToughnessBoost),
         position: poses.find((p) => p.position.phase)?.position ?? {},
     };
+}
+
+/** `pose`, left without the toughness boost when the spell's damage is a
+ *  ceiling the boost lifts its target over ({@link boostOutlastsDamage}). */
+function withDamageCeiling(pose: TargetPose, ceiling: boolean): TargetPose {
+    return ceiling && !pose.omitToughnessBoost
+        ? { ...pose, omitToughnessBoost: true }
+        : pose;
 }
 
 /**
