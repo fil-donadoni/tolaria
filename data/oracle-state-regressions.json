@@ -1,4 +1,71 @@
 {
     "note": "Acknowledged `ready` -> lesser state transitions, read by `bun run check:oracle` (issue #2696). An entry lets ONE card leave the compiled pool in ONE change; once that change lands on the base branch the entry matches nothing and should be deleted. Every entry names its disposition: `trackedBy` (the issue that undoes the loss) or `intended: true` (a deliberate drop). Written by `bun run oracle:mark-regressions --acknowledge`; stale entries are pruned after merge by `oracle:prune-regressions`, never by a PR author (issue #6061).",
-    "acknowledged": []
+    "acknowledged": [
+        {
+            "oracleId": "a6898364-c29e-4b97-a500-344efa3ec24a",
+            "name": "Banishing Stroke",
+            "reason": "RED-ladder revert of PR #7945 drops it from ready; the fresh pass of issue #1267 re-ships it",
+            "trackedBy": 1267
+        },
+        {
+            "oracleId": "1e77cf90-ac51-4ac7-b123-be04aabe1688",
+            "name": "Blessings of Nature",
+            "reason": "RED-ladder revert of PR #7945 drops it from ready; the fresh pass of issue #1267 re-ships it",
+            "trackedBy": 1267
+        },
+        {
+            "oracleId": "85b8902f-2515-4ded-b28a-a83334f089f1",
+            "name": "Boompile",
+            "reason": "RED-ladder revert of PR #7945 drops it from ready; the fresh pass of issue #1267 re-ships it",
+            "trackedBy": 1267
+        },
+        {
+            "oracleId": "70dbe8a9-505d-41c2-9b5b-a991d13ab459",
+            "name": "Child of Alara",
+            "reason": "RED-ladder revert of PR #7945 drops it from ready; the fresh pass of issue #1267 re-ships it",
+            "trackedBy": 1267
+        },
+        {
+            "oracleId": "4245ee98-2d4c-49d1-8d07-80760cae2bf9",
+            "name": "Devastation Tide",
+            "reason": "RED-ladder revert of PR #7945 drops it from ready; the fresh pass of issue #1267 re-ships it",
+            "trackedBy": 1267
+        },
+        {
+            "oracleId": "2b3fc609-7b19-441a-ab7e-58ccd70d955b",
+            "name": "Displacement Wave",
+            "reason": "RED-ladder revert of PR #7945 drops it from ready; the fresh pass of issue #1267 re-ships it",
+            "trackedBy": 1267
+        },
+        {
+            "oracleId": "103d9ad0-d655-4bd5-a899-e9f8869e333d",
+            "name": "Gaze of Granite",
+            "reason": "RED-ladder revert of PR #7945 drops it from ready; the fresh pass of issue #1267 re-ships it",
+            "trackedBy": 1267
+        },
+        {
+            "oracleId": "a98c2d81-4add-4292-bbdd-e1b69ff936d4",
+            "name": "Planar Cleansing",
+            "reason": "RED-ladder revert of PR #7945 drops it from ready; the fresh pass of issue #1267 re-ships it",
+            "trackedBy": 1267
+        },
+        {
+            "oracleId": "5c58b8e6-c572-461e-893e-a8c05f20ba17",
+            "name": "Temporal Mastery",
+            "reason": "RED-ladder revert of PR #7945 drops it from ready; the fresh pass of issue #1267 re-ships it",
+            "trackedBy": 1267
+        },
+        {
+            "oracleId": "78260893-c443-44c8-ab45-ce86ef347d98",
+            "name": "Thunderous Wrath",
+            "reason": "RED-ladder revert of PR #7945 drops it from ready; the fresh pass of issue #1267 re-ships it",
+            "trackedBy": 1267
+        },
+        {
+            "oracleId": "a2ae1a1b-5c4f-46ed-90da-bd50ca914e7c",
+            "name": "Vanishment",
+            "reason": "RED-ladder revert of PR #7945 drops it from ready; the fresh pass of issue #1267 re-ships it",
+            "trackedBy": 1267
+        }
+    ]
 }

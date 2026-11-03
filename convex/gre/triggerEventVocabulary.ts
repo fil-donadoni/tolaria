@@ -296,12 +296,6 @@ export const EVENT_FIELD_KINDS: {
         types: "scalar",
         subtypes: "scalar",
     },
-    // CR 702.94a — a card revealed through its miracle window (the linked
-    // trigger's event; no card-def ability watches it).
-    MIRACLE_REVEALED: {
-        playerId: "player",
-        cardInstanceId: "object",
-    },
     // CR 115.1 / 702.21a — something became a target (Ward watches it).
     BECAME_TARGET: {
         target: "target",

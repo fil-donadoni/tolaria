@@ -422,20 +422,6 @@ export type ReboundCastChoiceKind = "rebound-cast";
  *  this family covers only the turn-based draw. */
 export type DrawReplacementChoiceKind = "draw-replacement";
 
-/** Miracle reveal choice (CR 702.94a). A yes/no decision — "reveal this card
- *  as you draw it" — raised for the drawing player the instant a card with a
- *  miracle cost is drawn as the FIRST card they have drawn this turn, before
- *  the drawing effect proceeds to any further draw (`gre/miracle.ts`). Its
- *  own family because it is raised at TWO kinds of site: by the DSL `draw` Op
- *  mid-resolution (stack-coupled — the answer is committed into the resolving
- *  item's `collectedChoices` and the resolution resumes at the next card) and
- *  by the phase-level turn-based draw or a synchronous engine draw
- *  (STACKLESS, `stackItemId: ""` — the answer is applied directly). Both flow
- *  through the one `submitMiracleReveal` mutation. Always
- *  `privateToChooser`: the prompt exists only when a miracle card was in fact
- *  drawn, so its mere presence would disclose the draw. */
-export type MiracleRevealChoiceKind = "miracle-reveal";
-
 /** Numeric-nomination family (CR 107.1b / 107.3f, issue #1701). The chooser
  *  answers with a NUMBER, not a set of instance ids: "choose a number", and —
  *  with `paysMana` set — "pay any amount of mana" / "you may pay {X}", where
@@ -474,5 +460,4 @@ export type PendingChoiceKind =
     | MadnessCastChoiceKind
     | ReboundCastChoiceKind
     | NumberChoiceKind
-    | DrawReplacementChoiceKind
-    | MiracleRevealChoiceKind;
+    | DrawReplacementChoiceKind;

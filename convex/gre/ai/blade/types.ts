@@ -57,7 +57,7 @@ export type MoveMatcher = {
      *  target. Matches when ANY of the move's targets resolves to it. */
     target?: string;
     /** Expected boolean for the yes/no move kinds (`may-pay`, `land-entry`,
-     *  `draw-replacement`, `miracle-reveal` — there it is the reveal). */
+     *  `draw-replacement`). */
     accept?: boolean;
     /** An OPTION id that must be among a `resolution-choice` move's submitted
      *  `cardInstanceIds` (issue #2306) — an `option-pick` / `trigger-mode`

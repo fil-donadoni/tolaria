@@ -164,7 +164,6 @@ vi.mock("@convex/_generated/api", () => ({
             submitMayPay: "submitMayPay",
             submitLandEntryChoice: "submitLandEntryChoice",
             submitDrawReplacementPay: "submitDrawReplacementPay",
-            submitMiracleReveal: "submitMiracleReveal",
             submitMadnessDecline: "submitMadnessDecline",
             submitReboundDecline: "submitReboundDecline",
             submitNameCard: "submitNameCard",

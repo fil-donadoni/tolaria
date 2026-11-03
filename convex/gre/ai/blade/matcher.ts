@@ -141,9 +141,6 @@ export function moveAccept(move: Move): boolean | undefined {
         case "land-entry":
         case "draw-replacement":
             return move.accept;
-        // CR 702.94a — the reveal is this kind's yes.
-        case "miracle-reveal":
-            return move.reveal;
         default:
             return undefined;
     }

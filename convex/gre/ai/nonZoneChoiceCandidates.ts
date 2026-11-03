@@ -127,7 +127,6 @@ export const NON_ZONE_CANDIDATE_SOURCE: Record<
     // acknowledgement.
     "may-pay": "none",
     "land-entry-tapped": "none",
-    "miracle-reveal": "none",
     "draw-replacement": "none",
     "random-reveal": "none",
     "name-card": "none",
