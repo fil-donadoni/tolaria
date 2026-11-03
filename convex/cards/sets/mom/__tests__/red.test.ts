@@ -27,15 +27,15 @@ import { legalActions } from "../../../../gre/legalActions";
 import { projectPublicState } from "../../../../gameProjections";
 import { activateAbilityOnState } from "../../../../game";
 import { transformPermanent } from "../../../../gre/transform";
-import { getCardByName } from "../../../index";
+import { getDefinition } from "../../../index";
 import { withTemporaryDefinition } from "../../../registry";
 import type { CardDefinition, EffectOp } from "../../../types";
 
-const ETALI = getCardByName("Etali, Primal Conqueror");
-const BEARS = getCardByName("Grizzly Bears");
-const MOUNTAIN = getCardByName("Mountain");
-const SWAMP = getCardByName("Swamp");
-const DISENCHANT = getCardByName("Disenchant");
+const ETALI = getDefinition("95c14c4d-6c16-4826-8d93-d89ad04aee09"); // Etali, Primal Conqueror
+const BEARS = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870"); // Grizzly Bears
+const MOUNTAIN = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56"); // Mountain
+const SWAMP = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8"); // Swamp
+const DISENCHANT = getDefinition("2722d7e2-61c6-4934-9c21-875ee78fd06c"); // Disenchant
 
 function card(
     defId: string,
