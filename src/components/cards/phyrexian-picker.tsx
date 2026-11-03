@@ -8,8 +8,9 @@ type PhyrexianPickerProps = {
     /** The affordable mana-vs-life split options (CR 107.4f). */
     choices: PhyrexianSplitChoice[];
     cardName: string;
-    /** Anchor position (client px) — the picker opens next to the cast card. */
-    position: { x: number; y: number };
+    /** Anchor position (client px) — the picker opens next to the cast card;
+     *  absent (an ability activated from a menu) → centred. */
+    position?: { x: number; y: number };
     /** Called with the chosen number of `{C/P}` pips to pay with life. */
     onSelect: (lifePips: number) => void;
     onCancel: () => void;

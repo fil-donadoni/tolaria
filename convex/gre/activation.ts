@@ -77,6 +77,10 @@ import { effectivePermanentView } from "./permanentView";
 import { drainAutoPasses, isSorceryTimingFor } from "./phases";
 import { findRetraceCastable } from "./retrace";
 import {
+    foldPhyrexianManaAdditions,
+    resolvePhyrexianActivationPayment,
+} from "./phyrexian";
+import {
     effectiveRequirementForSource,
     getLegalTargets,
     isCastableLibraryTopSpell,
@@ -545,6 +549,43 @@ export function deriveXFromTargetSpellMv(
  *  (normally none). Returns `undefined` when there is no mana cost at all, and
  *  throws when the dynamic cost is declared but the source isn't attached to a
  *  permanent on the battlefield (illegal activation). */
+/** CR 602.2b / 601.2f — the TOTAL mana an activation is charged, the one
+ *  authority both commit paths (`activateAbilityOnState` here and
+ *  `finalizeTargetSelection` in `game.ts`) read: the resolved printed cost,
+ *  cost modifiers (ADR 0096), then the Phyrexian pips the activator pays with
+ *  mana (CR 107.4f) — folded AFTER the modifiers, so a generic reduction never
+ *  touches a pip. Returns the cost and the life the Phyrexian split owes; a
+ *  life pick past what life covers throws (CR 119.4). */
+export function resolveActivationManaCost(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    ability: ActivatedAbility,
+    chosenX: number | undefined,
+    phyrexianLifePips: number | undefined
+): { manaCost: Record<string, number> | undefined; phyrexianLife: number } {
+    let manaCost = resolveAbilityManaCost(state, card, ability, { chosenX });
+    if (manaCost) {
+        applyCostModifiers(
+            manaCost,
+            getCostModifiers(state, card, "ability", ability, player.id)
+        );
+    }
+    const phyrexian = resolvePhyrexianActivationPayment(
+        ability.cost.mana,
+        // CR 119.4 — life covers the WHOLE life payment, printed leg included.
+        player.life - (ability.cost.life ?? 0),
+        phyrexianLifePips
+    );
+    if (Object.keys(phyrexian.manaAdditions).length > 0) {
+        manaCost = foldPhyrexianManaAdditions(
+            manaCost ?? {},
+            phyrexian.manaAdditions
+        );
+    }
+    return { manaCost, phyrexianLife: phyrexian.payLife };
+}
+
 export function resolveAbilityManaCost(
     state: GameState,
     card: CardInstanceState,
@@ -684,8 +725,15 @@ export function buildPendingActivation(opts: {
     /** Unified filtered-sacrifice choice (own cost + static Drought), built by
      *  the caller which has `state` (CR 701.21a). */
     sacrificeSelection?: SacrificeSelection;
+    /** CR 107.4f — life owed for Phyrexian pips the activator chose to pay
+     *  with life (2 each); joins `lifeCost`, paid at commit. */
+    phyrexianLife?: number;
 }): PendingActivation {
     const { ability } = opts;
+    const lifeCost =
+        ability.cost.life !== undefined || (opts.phyrexianLife ?? 0) > 0
+            ? (ability.cost.life ?? 0) + (opts.phyrexianLife ?? 0)
+            : undefined;
     return {
         playerId: opts.playerId,
         cardInstanceId: opts.cardInstanceId,
@@ -723,9 +771,7 @@ export function buildPendingActivation(opts: {
         ...(ability.cost.addCounter
             ? { addCounterCost: { ...ability.cost.addCounter } }
             : {}),
-        ...(ability.cost.life !== undefined
-            ? { lifeCost: ability.cost.life }
-            : {}),
+        ...(lifeCost !== undefined ? { lifeCost } : {}),
         ...(ability.cost.discardLastDrawn
             ? { discardLastDrawnSource: true }
             : {}),
@@ -2099,6 +2145,10 @@ export function activateAbilityOnState(
          *  Required when the ability declares `modes`, rejected when it does
          *  not. */
         chosenModeIds?: string[];
+        /** CR 107.4f / 602.2b — how many of the ability's Phyrexian pips the
+         *  activator pays with 2 life each (the rest with mana). Absent → the
+         *  most-life split life covers. Rejected past what life covers. */
+        phyrexianLifePips?: number;
     }
 ): void {
     assertGameNotOver(state);
@@ -2392,6 +2442,13 @@ export function activateAbilityOnState(
         }
         const targetChosenX =
             targetHasXInCost && !xIsDerived ? args.chosenX : undefined;
+        // CR 107.4f / 119.4 — validate the Phyrexian life pick against life
+        // NOW (announcement), then stash it; finalizeTargetSelection folds it.
+        const targetPhyrexian = resolvePhyrexianActivationPayment(
+            ability.cost.mana,
+            player.life - (ability.cost.life ?? 0),
+            args.phyrexianLifePips
+        );
         // CR 202.2 / 702.16b: the source's colors come from the
         // permanent owning the activated ability.
         // Issue #1378 — the activating permanent's LIVE effective power (CR
@@ -2553,6 +2610,9 @@ export function activateAbilityOnState(
                 ? { divideKind: effectiveTargetReq.divideAsChosen.kind }
                 : {}),
             ...(targetChosenX !== undefined ? { chosenX: targetChosenX } : {}),
+            ...(targetPhyrexian.lifePips > 0
+                ? { phyrexianLifePips: targetPhyrexian.lifePips }
+                : {}),
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
             ...(grantedAbilityOrigin ? { grantedAbilityOrigin } : {}),
             // Same shared filter builder as the spell-cast path
@@ -2704,18 +2764,14 @@ export function activateAbilityOnState(
         throw new Error("This ability requires a chosen X value");
     }
     const chosenX = hasXInCost ? args.chosenX : undefined;
-    const manaCost = resolveAbilityManaCost(state, card, ability, {
+    const { manaCost, phyrexianLife } = resolveActivationManaCost(
+        state,
+        player,
+        card,
+        ability,
         chosenX,
-    });
-    if (manaCost) {
-        // ADR 0096 — same collector, same ability argument as the
-        // `finalizeTargetSelection` commit path: the two must charge the same
-        // reduced total for the same activation.
-        applyCostModifiers(
-            manaCost,
-            getCostModifiers(state, card, "ability", ability, player.id)
-        );
-    }
+        args.phyrexianLifePips
+    );
     // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
     // (Drought). Gate on affordability at announcement; pip count comes from
     // the ability's PRINTED activation cost.
@@ -2782,6 +2838,7 @@ export function activateAbilityOnState(
             fromGraveyard,
             fromHand,
             ...(activationSac ? { sacrificeSelection: activationSac } : {}),
+            phyrexianLife,
         });
         state.pendingActivation = pending;
         // CR 302.1 — a {T}-cost ability still needs the source untapped at
@@ -2844,6 +2901,8 @@ export function activateAbilityOnState(
     if (ability.cost.life !== undefined) {
         player.life -= ability.cost.life;
     }
+    // CR 107.4f — the Phyrexian pips paid with life (2 each).
+    player.life -= phyrexianLife;
     // CR 606.4 — pay a non-targeted loyalty ability's signed loyalty cost as
     // it goes on the stack (Liliana's "+1", Garruk's "-4"). No-op otherwise.
     payLoyaltyCost(card, ability);
