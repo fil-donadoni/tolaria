@@ -37935,6 +37935,7 @@
         {"id":"613.4b","line":"// CR 613.4b — base power and toughness each equal to mana value.","sites":1,"status":"confirmed","ruleHash":"b11fe04161c70ac8"},
         {"id":"613.4b","line":"// CR 613.4b — sublayer 7b, the base-P/T set.","sites":2,"status":"baseline"},
         {"id":"613.4b","line":"// CR 613.4b — the `pt-set` STATIC kind (issue #3161).","sites":1,"status":"baseline"},
+        {"id":"613.4b","line":"// CR 613.4b — the base-P/T set is gated too: no 3/4 off-turn.","sites":1,"status":"confirmed","ruleHash":"b11fe04161c70ac8"},
         {"id":"613.4b","line":"// CR 613.4b — the base-P/T set. Both halves are always present (a literal","sites":1,"status":"confirmed","ruleHash":"b11fe04161c70ac8"},
         {"id":"613.4b","line":"// CR 613.4b-d — layer 7's three P/T shapes. Scalars, and the decisive","sites":1,"status":"baseline"},
         {"id":"613.4b","line":"// Dynamic base-P/T set (layer 7b) with a stated duration (#487, CR 613.4b)","sites":2,"status":"baseline"},
