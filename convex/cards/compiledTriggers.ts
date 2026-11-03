@@ -198,6 +198,13 @@ export type CompiledTriggerCondition =
      */
     | { readonly kind: "self-on-battlefield" }
     /**
+     * CR 725.1 + CR 603.4 — "if you're the monarch": the ability's controller
+     * holds the monarch designation (`TriggerStateView.monarchId`), checked as
+     * the trigger would trigger and again as it resolves. No monarch in the
+     * game (CR 725.1) and an absent view both fail closed.
+     */
+    | { readonly kind: "you-are-monarch" }
+    /**
      * CR 404.2 + CR 603.4 — "if this card is in your graveyard with a
      * creature card directly above it": the card on top of the source in its
      * owner's pile is a creature card. Read off the state view, so an absent
@@ -450,6 +457,11 @@ function conditionHolds(
     if (condition.kind === "self-on-battlefield")
         return state.players.some((p) =>
             p.battlefield.some((permanent) => permanent.id === self.id)
+        );
+    if (condition.kind === "you-are-monarch")
+        return (
+            state.monarchId !== undefined &&
+            state.monarchId === self.controllerId
         );
     if (condition.kind === "graveyard-creature-above")
         return creatureCardDirectlyAboveInGraveyard(state, self);
