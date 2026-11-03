@@ -133,6 +133,12 @@ export type CostAtomIR =
      *  there. Lowers to `cost.exileThis` + `activateFromHand`, which only the
      *  slot can set — `lowerActivationCost` emits the leg, the slot the zone. */
     | { readonly kind: "exile-self-from-hand" }
+    /** CR 113.6m — "Exile this card from your graveyard" (Seasoned
+     *  Pyromancer): the cost moves the card out of the GRAVEYARD, so the
+     *  ability functions only there. Lowers to `cost.exileThis` +
+     *  `activateFromGraveyard`; the leg is `lowerActivationCost`'s, the zone
+     *  the activated slot's (`lowerActivatedAbility`). */
+    | { readonly kind: "exile-self-from-graveyard" }
     /** CR 602.1a — "Return this enchantment to its owner's hand" as a cost
      *  (Attunement). Self only: a return cost naming any OTHER object is a
      *  different leg this grammar deliberately does not read. */
@@ -311,7 +317,12 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
             const object = span.slice("Sacrifice ".length);
             if (isSelfPhrase(object))
                 return ok({ kind: "sacrifice-self" as const });
-            const counted = splitCount(object);
+            // CR 109.2 — "another creature" is "an other creature": one
+            // permanent on the battlefield, any but the source, read by the
+            // descriptor's own "other".
+            const counted = object.startsWith("another ")
+                ? { count: 1, rest: `other ${object.slice("another ".length)}` }
+                : splitCount(object);
             if (counted === null)
                 return fail("sacrifice cost has no count word", span);
             const descriptor = descriptorRule.run(counted.rest, ctx);
@@ -338,6 +349,12 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
                 isSelfPhrase(span.slice("Exile ".length, -fromHand.length))
             )
                 return ok({ kind: "exile-self-from-hand" as const });
+            const fromGraveyard = " from your graveyard";
+            if (
+                span.endsWith(fromGraveyard) &&
+                isSelfPhrase(span.slice("Exile ".length, -fromGraveyard.length))
+            )
+                return ok({ kind: "exile-self-from-graveyard" as const });
             const match = span.match(EXILE_GRAVEYARD);
             if (match === null)
                 return fail("not an exile cost this grammar knows", span);
@@ -569,6 +586,22 @@ export const activationCostRule: Rule<ActivationCostIR> = subGrammar(
                 "a cost paid from the hand reads only mana beside exiling the card (CR 113.6m)",
                 span
             );
+        // CR 113.6m — with the card in the graveyard, mana is the one
+        // companion leg this grammar reads beside exiling it: a tap, a
+        // counter or a sacrifice of the source names a permanent the card is
+        // not, and no corpus line prints another leg beside it.
+        if (
+            seen.has("exile-self-from-graveyard") &&
+            atoms.value.some(
+                (atom) =>
+                    atom.kind !== "exile-self-from-graveyard" &&
+                    atom.kind !== "mana"
+            )
+        )
+            return fail(
+                "a cost paid from the graveyard reads only mana beside exiling the card (CR 113.6m)",
+                span
+            );
         // CR 118.3 — with `{T}` in the cost the source is already tapped, so it
         // cannot also be one of the untapped permanents it taps. Without it the
         // source may pay with itself, which the engine's pool cannot express.
@@ -669,6 +702,7 @@ export function lowerActivationCost(
                 );
             case "exile-self":
             case "exile-self-from-hand":
+            case "exile-self-from-graveyard":
                 cost.exileThis = true;
                 break;
             case "exile-top-of-library":
