@@ -48041,6 +48041,7 @@
         {"id":"702.171a","line":"// CR 702.171a — \"This permanent becomes saddled until end of turn.\"","sites":1,"status":"confirmed","ruleHash":"cf2caf9d79c4297d"},
         {"id":"702.171a","line":"// CR 702.171a — \"This permanent becomes saddled until end of turn.\" A thin","sites":1,"status":"confirmed","ruleHash":"cf2caf9d79c4297d"},
         {"id":"702.171a","line":"// CR 702.171a — a designation on the permanent itself, nothing taken","sites":1,"status":"confirmed","ruleHash":"cf2caf9d79c4297d"},
+        {"id":"702.171a","line":"// CR 702.171a — an activated ability (Crew's cost shape); its worth is","sites":1,"status":"confirmed","ruleHash":"cf2caf9d79c4297d"},
         {"id":"702.171a","line":"// CR 702.171a — every printed Saddle sits on a creature Mount; another","sites":1,"status":"confirmed","ruleHash":"cf2caf9d79c4297d"},
         {"id":"702.171a","line":"// CR 702.171a — stamps a designation; it asks the controller nothing.","sites":1,"status":"confirmed","ruleHash":"cf2caf9d79c4297d"},
         {"id":"702.171a","line":"// CR 702.171a — the designation lands on the permanent `target` names.","sites":1,"status":"confirmed","ruleHash":"cf2caf9d79c4297d"},
