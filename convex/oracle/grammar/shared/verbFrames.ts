@@ -619,6 +619,20 @@ export interface FrameChainIR {
     readonly then?: EffectSentenceIR;
     /** CR 603.12 — the sentence text when `then` is a reflexive ability. */
     readonly reflexive?: string;
+    /**
+     * CR 608.2c + CR 608.2h + CR 701.23h — "For each <noun> <verb>ed this
+     * way, its controller searches their library for <a card>. Those players
+     * put those cards …, then shuffle.": the chain is performed once by EACH
+     * player who controlled (last known) one of the objects the sentence
+     * before acted on, its search for that card once per such object — one
+     * search for all of them (CR 701.23h). Folded in by `assembleSentences`
+     * from the two sentences of `actedOnControllers.ts`; the lowering reads
+     * the acted-on object off the walk and refuses any other antecedent.
+     */
+    readonly perActedOnController?: {
+        readonly noun: CardType;
+        readonly verb: "exile";
+    };
 }
 
 export type FrameName = FrameIR["frame"];
@@ -1655,6 +1669,57 @@ function readSearchQuantity(rest: string):
 }
 
 /**
+ * CR 701.23a — the argument of a `search` frame: "<quantity> <descriptor>"
+ * after "search <library> for ". Shared by the imperative member ("Search your
+ * library for …") and the third-person one a per-player sentence prints ("its
+ * controller searches their library for …", `actedOnControllers.ts`).
+ */
+export function readSearchFrame(
+    rest: string,
+    ctx: unknown
+): Extract<FrameIR, { frame: "search" }> | { readonly refused: string } {
+    const quantity = readSearchQuantity(rest);
+    if ("refused" in quantity) return quantity;
+    const { count, upTo } = quantity;
+    // CR 201.2 — "a card named <Name>": the name is split off before the
+    // descriptor reads the noun, and joins the filter after it.
+    const named = quantity.noun.match(NAMED);
+    const descriptor = descriptorRule.run(
+        named === null ? quantity.noun : named[1]!,
+        ctx
+    );
+    if (!descriptor.ok) return { refused: descriptor.reason };
+    if ((descriptor.value.plural === true) !== (count === "X" || count > 1))
+        return {
+            refused: `"${rest}" pairs the quantity with the wrong number`,
+        };
+    const filter = librarySearchFilterFromDescriptor(descriptor.value);
+    if (!filter.ok) return { refused: filter.reason };
+    if (named !== null && NAME_LIST.test(named[2]!))
+        return {
+            refused: `"named ${named[2]}" names more than one card name — a search filter carries one name (CR 201.2)`,
+        };
+    if (
+        named !== null &&
+        named[2]!.includes(SELF_MARKER) &&
+        named[2] !== SELF_MARKER
+    )
+        return {
+            refused: `"named ${named[2]}" puts the card's own name beside other words — not a name any card prints`,
+        };
+    return {
+        frame: "search",
+        filter:
+            named === null
+                ? filter.value
+                : { ...filter.value, name: named[2]! },
+        phrase: rest,
+        count,
+        upTo,
+    };
+}
+
+/**
  * Read one member of the chain. Returns the frames it adds (a member may add
  * two: "shuffle and put that card on top"), the reveal it attaches to the
  * last search (`reveal`), or the reason it is refused. `null` when the member
@@ -1676,50 +1741,17 @@ function readMember(
     const lower = member[0]!.toLowerCase() + member.slice(1);
 
     if (VERB_FRAMES[0]!.opens.test(lower)) {
-        const rest = lower.slice("search your library for ".length);
-        const quantity = readSearchQuantity(rest);
-        if ("refused" in quantity) return quantity;
-        const { count, upTo } = quantity;
-        // CR 201.2 — "a card named <Name>": the name is split off before the
-        // descriptor reads the noun, and joins the filter after it.
-        const named = quantity.noun.match(NAMED);
-        const descriptor = descriptorRule.run(
-            named === null ? quantity.noun : named[1]!,
+        const search = readSearchFrame(
+            lower.slice("search your library for ".length),
             ctx
         );
-        if (!descriptor.ok) return { refused: descriptor.reason };
-        if ((descriptor.value.plural === true) !== (count === "X" || count > 1))
-            return {
-                refused: `"${rest}" pairs the quantity with the wrong number`,
-            };
-        const filter = librarySearchFilterFromDescriptor(descriptor.value);
-        if (!filter.ok) return { refused: filter.reason };
-        if (named !== null && NAME_LIST.test(named[2]!))
-            return {
-                refused: `"named ${named[2]}" names more than one card name — a search filter carries one name (CR 201.2)`,
-            };
-        if (
-            named !== null &&
-            named[2]!.includes(SELF_MARKER) &&
-            named[2] !== SELF_MARKER
-        )
-            return {
-                refused: `"named ${named[2]}" puts the card's own name beside other words — not a name any card prints`,
-            };
+        if ("refused" in search) return search;
         return {
-            frames: [
-                {
-                    frame: "search",
-                    filter:
-                        named === null
-                            ? filter.value
-                            : { ...filter.value, name: named[2]! },
-                    phrase: rest,
-                    count,
-                    upTo,
-                },
-            ],
-            referent: { plural: count === "X" || count > 1, consumed: false },
+            frames: [search],
+            referent: {
+                plural: search.count === "X" || search.count > 1,
+                consumed: false,
+            },
         };
     }
 
@@ -2213,14 +2245,26 @@ function splitMembers(body: string): string[] {
  */
 export function readFrameChain(
     span: string,
-    ctx: unknown
+    ctx: unknown,
+    opts: {
+        /**
+         * CR 608.2c — a find the sentence BEFORE made, still in the library:
+         * the chain's pronoun binds to it as to a find of its own first
+         * member (the per-player chain of `actedOnControllers.ts`, whose
+         * search is printed one sentence earlier).
+         */
+        readonly found?: { readonly plural: boolean };
+    } = {}
 ): RuleResult<FrameChainIR> | null {
     const continuation = /^Then /.test(span);
     const body = continuation ? span.slice("Then ".length) : span;
     const members = splitMembers(body);
     if (members.length === 0 || frameOf(members[0]!) === null) return null;
     const frames: FrameIR[] = [];
-    let referent: Referent | null = null;
+    let referent: Referent | null =
+        opts.found === undefined
+            ? null
+            : { plural: opts.found.plural, consumed: false };
     const refuse = (reason: string, member: string, at: number) => {
         const trace: FailureTrace = {
             path: [VERB_FRAME],
