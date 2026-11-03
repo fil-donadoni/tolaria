@@ -4220,6 +4220,11 @@ export type PendingTarget = {
      *  is paid at cast commit (`finalizeTargetSelection`) instead of the mana
      *  cost. Used by targeted alt-cost spells (Thwart, Fireblast). */
     alternativeCostId?: string;
+    /** CR 601.2b / 118.9 (issue #7525) — the caster announced the cast off
+     *  the top of the library under a permission that KEEPS the mana cost
+     *  (`announceCast.declineManaCostReplacement`), propagated so the commit
+     *  prices the cast the way it was announced. */
+    declineManaCostReplacement?: true;
     /** CR 601.2b / 118.8 — id of the ADDITIONAL-cost leg the caster picked out
      *  of `CardDefinition.additionalCosts.oneOf` ("discard a card OR pay 3
      *  life", Bitter Triumph). Chosen at ANNOUNCEMENT, before targets and

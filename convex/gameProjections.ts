@@ -20,6 +20,7 @@ import {
     canPlayLandsFromGraveyard,
     libraryTopAnnouncementLicensed,
     libraryTopCastGrant,
+    libraryTopReplacementDeclinable,
     isCastableLibraryTopSpell,
     isPlayableLibraryTopLand,
     getLegalActions,
@@ -237,6 +238,13 @@ export type SlimLibraryCard = SlimCardInstance & {
      *  from the GRANT's `manaCostReplacement` being present at all, so a future
      *  replacement shape inherits both suppressions without a second field. */
     castManaCostReplaced?: true;
+    /** CR 601.2b / 118.9 / 601.3 (issue #7525) — true when this cast may ALSO
+     *  be made under a covering permission that KEEPS the mana cost, beside
+     *  the one that replaces it (Mystic Forge beside Bolas's Citadel, an
+     *  artifact on top): the caster picks "pay life" or "pay mana", and the
+     *  picker offers both rows. Set only alongside `castManaCostReplaced`;
+     *  the second row announces `declineManaCostReplacement`. */
+    castManaCostReplacementDeclinable?: true;
     /** CR 709.3 (issue #3344) — true when this card has NO printed cast, so
      *  the cast-option picker must not offer a "Pay mana cost" row: a SPLIT
      *  card, whose two halves are the whole menu ("a player chooses which half
@@ -1093,6 +1101,11 @@ function libraryTopAffordance(
         castable &&
         libraryTopCastGrant(state, player, top)?.manaCostReplacement !==
             undefined;
+    // CR 601.2b / 118.9 (issue #7525) — and when another covering grant
+    // KEEPS the mana cost, the caster may decline the replacement: the picker
+    // then offers "pay life" and "pay mana" side by side.
+    const declinable =
+        replaced && libraryTopReplacementDeclinable(state, player, top);
     // CR 601.3e (issue #7526) — the PRINTED cast is one announcement among
     // several off the top: under a Melek-shaped grant Giant Killer is castable
     // only as Chop Down, and under a creature-only grant a noncreature morph
@@ -1105,6 +1118,9 @@ function libraryTopAffordance(
         {
             legalActions: getLegalActions(state, player, top, allActions),
             ...(replaced ? { castManaCostReplaced: true as const } : {}),
+            ...(declinable
+                ? { castManaCostReplacementDeclinable: true as const }
+                : {}),
         },
         top
     );

@@ -231,6 +231,7 @@ import {
     castPermissionRequiredFor,
     castTimingBaseLegal,
     libraryTopCastGrant,
+    libraryTopReplacementChoices,
 } from "./gre/rules";
 // CR 601.2c — the single authority on "an effect says an object must be chosen
 // as a target" (Flagbearer). The mutation re-derives the narrowing per pick;
@@ -5354,7 +5355,8 @@ export function finalizeTargetSelection(
                   pt.alternativeCostId,
                   getAlternativeCost(cardDef, pt.alternativeCostId),
                   castZone
-              )
+              ),
+              pt.declineManaCostReplacement
           )
         : undefined;
     // CR 601.2f / 601.2h — the total cost was LOCKED IN at announcement, and a
@@ -5440,7 +5442,8 @@ export function finalizeTargetSelection(
         state,
         cardInHand,
         castZone,
-        pt.alternativeCostId
+        pt.alternativeCostId,
+        pt.declineManaCostReplacement
     );
     const extraPer = cardDef.additionalGenericPerExtraTarget ?? 0;
     const additionalGeneric =
@@ -5579,7 +5582,8 @@ export function finalizeTargetSelection(
             state,
             cardInHand,
             castZone,
-            pt.alternativeCostId
+            pt.alternativeCostId,
+            pt.declineManaCostReplacement
         )?.life ?? 0) +
         // CR 702.34a / 119.4 — the LIFE leg of the flashback cost ("Flashback—
         // {1}{U}, Pay 3 life."), owed only on a graveyard flashback cast.
@@ -6273,6 +6277,12 @@ export const announceCast = mutation({
          *  it is collected by a client-side picker exactly like the modal mode
          *  and the alternative cost. */
         additionalCostLegId: v.optional(v.string()),
+        /** CR 601.2b / 118.9 / 601.3 (issue #7525) — off the top of the
+         *  library, cast under a permission that KEEPS the mana cost rather
+         *  than one that replaces it (Mystic Forge beside Bolas's Citadel:
+         *  pay mana, not life). Legal only when a covering grant replaces the
+         *  mana cost AND another keeps it (`libraryTopReplacementChoices`). */
+        declineManaCostReplacement: v.optional(v.boolean()),
         /** CR 107.4f — how many of this cast's Phyrexian pips ({C/P}) to pay
          *  with LIFE (2 each); the rest are paid with the pip's colour of mana.
          *  Omitted → the engine auto-resolves to the most-life affordable split
@@ -6354,6 +6364,26 @@ export const announceCast = mutation({
         // for Ice Cauldron, or graveyard for Flashback). Used at commit for
         // `removeFromZone` and to override the cost with the flashback cost.
         const castFromZone = castSource.zone;
+        // CR 601.2b / 118.9 (issue #7525) — the announced permission choice
+        // off the top of the library. Refused wherever it chooses nothing: off
+        // the library, or where no covering grant replaces the mana cost while
+        // another keeps it — so every commit path below may read it blindly.
+        const declineManaCostReplacement =
+            args.declineManaCostReplacement === true ? true : undefined;
+        if (
+            declineManaCostReplacement &&
+            (castFromZone !== "library" ||
+                !libraryTopReplacementChoices(
+                    state,
+                    player,
+                    cardInHand,
+                    args.alternativeCostId
+                ).includes(true))
+        ) {
+            throw new Error(
+                "No permission lets you cast that spell from your library paying its mana cost"
+            );
+        }
 
         // CR 702.47a (issue #2394) — the splice seam; see the twin call in
         // `finalizeTargetSelection` for why the augmentation lives at the
@@ -6387,7 +6417,8 @@ export const announceCast = mutation({
                       args.alternativeCostId,
                       getAlternativeCost(cardDef, args.alternativeCostId),
                       castFromZone
-                  )
+                  ),
+                  declineManaCostReplacement
               )
             : undefined;
         if (args.alternativeCostId && !chosenAltCost) {
@@ -6404,7 +6435,8 @@ export const announceCast = mutation({
                 state,
                 player,
                 cardInHand,
-                args.alternativeCostId
+                args.alternativeCostId,
+                declineManaCostReplacement
             ) === undefined
         ) {
             throw new Error(
@@ -6457,7 +6489,8 @@ export const announceCast = mutation({
             state,
             cardInHand,
             castFromZone,
-            args.alternativeCostId
+            args.alternativeCostId,
+            declineManaCostReplacement
         );
         // CR 709.3 (issue #3344) — a SPLIT half is the one announcement that
         // rides this channel without being an alternative cost: "a player
@@ -7273,6 +7306,11 @@ export const announceCast = mutation({
                 ...(args.alternativeCostId
                     ? { alternativeCostId: args.alternativeCostId }
                     : {}),
+                // CR 601.2b (issue #7525) — carry the permission choice too:
+                // the commit re-prices the library-top cast from it.
+                ...(declineManaCostReplacement
+                    ? { declineManaCostReplacement: true as const }
+                    : {}),
                 // CR 601.2b / 118.8 — carry the chosen ADDITIONAL-cost leg
                 // through target selection: the leg was picked at announcement
                 // (CR 601.2b, before targets), but the cost is assembled and
@@ -7424,7 +7462,8 @@ export const announceCast = mutation({
                 state,
                 cardInHand,
                 castFromZone,
-                args.alternativeCostId
+                args.alternativeCostId,
+                declineManaCostReplacement
             );
             assertStaticAdditionalCostAffordable(
                 state,
@@ -7713,7 +7752,13 @@ export const announceCast = mutation({
         // 601.2f) or directly to mana payment / cast if no additional cost.
         // CR 702.34a — a Flashback cast pays the flashback cost from the
         // graveyard instead of the printed mana cost.
-        const rawCost = castRawManaCost(state, cardInHand, castFromZone);
+        const rawCost = castRawManaCost(
+            state,
+            cardInHand,
+            castFromZone,
+            undefined,
+            declineManaCostReplacement
+        );
 
         const manaCost = rawCost
             ? // CR 107.4e — a `{2/W}` pip is folded into its chosen leg first.
@@ -7798,7 +7843,8 @@ export const announceCast = mutation({
                 state,
                 cardInHand,
                 castFromZone,
-                args.alternativeCostId
+                args.alternativeCostId,
+                declineManaCostReplacement
             )?.life ?? 0) +
             // CR 702.34a / 119.4 — the flashback cost's LIFE leg (Deep
             // Analysis), the same seam the targeted commit folds.

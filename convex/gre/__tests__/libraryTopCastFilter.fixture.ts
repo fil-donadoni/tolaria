@@ -112,7 +112,18 @@ export const NONCREATURE_MORPH: CardDefinition = {
     toughness: undefined,
 };
 
+/** An ARTIFACT card with morph (issue #7525): its printed cast is covered by
+ *  both Bolas's Citadel and the Forge (a real permission choice), while its
+ *  face-down cast only the Forge can license (CR 601.2b). */
+export const ARTIFACT_MORPH: CardDefinition = {
+    ...EXALTED_ANGEL,
+    id: "test-artifact-morph",
+    name: "Test Artifact Morph",
+    types: ["Artifact", "Creature"],
+};
+
 const TEST_DEFS = [
+    ARTIFACT_MORPH,
     FORGE,
     BLUE_ARTIFACT,
     COLORLESS_BEAR,
