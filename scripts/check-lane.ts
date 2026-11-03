@@ -391,13 +391,13 @@ const CARDS_PATTERNS: RegExp[] = [/^convex\/cards\/sets\//];
  * The CARDS PARTITION — ONE definition, run by the `cards` lane always and by
  * the `engine` lane whenever `admitsCardsPartition` holds (issue #7964).
  *
- * A FIXED partition, not the import graph (issue #5464): the catalogue-wide
+ * A FIXED partition, not the import graph: the catalogue-wide
  * census tests load every card through `getAllCards()` — the lazy registry
  * hydrated from the Definition Index — so NO static import edge joins a test
  * to a set file, and the walk relates none of them to a card diff. The
  * `convex/cards/` partition is the catalogue guards plus EVERY set's tests —
  * 425 files, 18 s at load 25 — and a card borrowed by another set's test is
- * still proven. Plus the gold harness (issue #6648): it pins the set of
+ * still proven. Plus the gold harness: it pins the set of
  * incomparable cards, so a card PR that retires a closure to `effects[]`
  * moves that set. `bot[cards]`: the three bot censuses (aiEffectsGuard,
  * opValuerCoverage, opBeneficenceCensus) plus the sets' own bot files —
