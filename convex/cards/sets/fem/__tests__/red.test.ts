@@ -295,8 +295,8 @@ describe("Brassclaw Orcs — can't block power 2+ (CR 509.1b, ADR 0006)", () => 
             const weak = { power: 1 } as never;
             const strong = { power: 2 } as never;
             const self = {} as never;
-            expect(restriction.predicate(self, weak)).toBe(true);
-            expect(restriction.predicate(self, strong)).toBe(false);
+            expect(restriction.predicate!(self, weak)).toBe(true);
+            expect(restriction.predicate!(self, strong)).toBe(false);
         }
         expect(brassclawOrcs.power).toBe(3);
         expect(brassclawOrcs.toughness).toBe(2);

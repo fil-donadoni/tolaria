@@ -113,20 +113,9 @@ export const emryLurkerOfTheLoch = defineCard(() => ({
 // exists for it (the Mechanics Registry is the name authority, and it censuses
 // none) and because CR 509.1b is where the combat validator reads it.
 //
-// Guard C — the LAYOUT is not the gap. `SUPPORTED_INSET_LAYOUTS` admits
-// `"adventure"` as of this slice, and Petty Theft's own half compiles cleanly
-// (its `moveZone` bounce and target requirement below ARE what the grammar
-// lowered). What grammar v0 has no slot for is the BLOCK RESTRICTION, which is
-// why every other `block-restriction` card in the catalogue (Metathran
-// Transport, Stone Spirit, Hipparion, …) sits in Guard C's baseline. A new card
-// cannot be added to that baseline, so it names the fragment instead — the
-// fragment being the deliverable that ranks the next grammar rule (PRD #2693
-// user story 9). A compiled block restriction needs a NEW member on the closed
-// `CompiledStaticEffect` union — a JSON-pure descriptor, since a closure cannot
-// reach a serialized catalogue row — which is a mechanic of its own and belongs
-// on its own diff, the same split ADR 0120 §6 made for Bonecrusher Giant. That
-// work is issue #3315; this marker retires with it.
-// compiler-gap: "This creature can block only creatures with flying." (#3315)
+// The restriction is stated as DATA (`onlyAgainst`, issue #3315) rather than a
+// `predicate` closure — the same shape the Oracle compiler emits, so the card
+// round-trips through Guard C on that data instead of being `incomparable`.
 export const brazenBorrower = defineCard(() => ({
     id: "c2089ec9-0665-448f-bfe9-d181de127814",
     rarity: "mythic",
@@ -140,21 +129,15 @@ export const brazenBorrower = defineCard(() => ({
     toughness: 1,
     staticAbilities: ["flash", "flying"],
     staticEffects: [
+        // CR 509.1b — self = Brazen Borrower (blocker), opponent = the
+        // attacker it wants to block; the block is legal only when that
+        // attacker flies.
         {
             kind: "block-restriction",
             id: "brazen-borrower-blocks-only-flying",
-            side: "blocker" as const,
-            // CR 509.1b — self = Brazen Borrower (blocker), opponent = the
-            // attacker it wants to block; the block is legal only when that
-            // attacker flies. The block-restriction `PermanentView` carries
-            // keywords on `staticAbilities` (cast, mirroring Stone Spirit's
-            // mirror-image check in `ice/red.cards.ts`).
-            predicate: (_self, opponent) =>
-                (
-                    (opponent as { staticAbilities?: string[] })
-                        .staticAbilities ?? []
-                ).includes("flying"),
-            oracleText: "Brazen Borrower can block only creatures with flying.",
+            side: "blocker",
+            onlyAgainst: { keyword: "flying" },
+            oracleText: "This creature can block only creatures with flying.",
         },
     ],
     // CR 715.2 — the inset frame. `kind: "adventure"` is what makes the parent

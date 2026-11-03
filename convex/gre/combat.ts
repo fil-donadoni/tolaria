@@ -13,6 +13,7 @@ import type {
     StaticDeclaredBlockRestriction,
     StaticBlockRequirement,
 } from "../cards/types";
+import { blockRestrictionAllows } from "../cards/abilities/static/blockRestriction";
 import { isProtectedFromSource } from "./protection";
 import { getEffectivePower, STATIC_EFFECT_CTX } from "./layers";
 import { tryGetDefinition } from "../cards";
@@ -914,7 +915,7 @@ export function validateBlockerEligibility(
             ? { ...blocker, power: getEffectivePower(state, blocker) }
             : blocker;
         for (const r of attackerRestrictions) {
-            if (!r.predicate(effAttacker, effBlocker, state)) {
+            if (!blockRestrictionAllows(r, effAttacker, effBlocker, state)) {
                 // CR 509.1b — a restriction with a `bypassCost` (Hipparion) does
                 // not forbid the block outright; the controller may pay to
                 // declare it. Allow the assignment here and charge the cost at
@@ -924,7 +925,7 @@ export function validateBlockerEligibility(
             }
         }
         for (const r of blockerRestrictions) {
-            if (!r.predicate(effBlocker, effAttacker, state)) {
+            if (!blockRestrictionAllows(r, effBlocker, effAttacker, state)) {
                 if (r.bypassCost) continue;
                 return { eligible: false, reason: r.oracleText };
             }
@@ -1262,7 +1263,8 @@ export function collectBlockBypassCharges(
                 // The cost applies only when the restriction is actually
                 // triggered (e.g. the blocked attacker has power 3+). A block
                 // the predicate already permits costs nothing.
-                if (r.predicate(effBlocker, effAttacker, state)) continue;
+                if (blockRestrictionAllows(r, effBlocker, effAttacker, state))
+                    continue;
                 charges.push({
                     controllerId: blocker.controllerId,
                     cost: r.bypassCost!,
