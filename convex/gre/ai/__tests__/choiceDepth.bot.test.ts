@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { registeredDefinitions } from "../../../cards";
+import { catalogueDefinitions } from "../../../cards";
 import { getCardByName } from "../../../cards";
 import type { CardDefinition, EffectOp } from "../../../cards/types";
 import {
@@ -23,7 +23,7 @@ import {
     scriptChoiceDepth,
 } from "../choiceDepth";
 
-const CATALOGUE: CardDefinition[] = [...registeredDefinitions()];
+const CATALOGUE: CardDefinition[] = [...catalogueDefinitions()];
 
 describe("resolution-choice depth", () => {
     it("no shipped card chains deeper than the bound the probes use", () => {

@@ -17,7 +17,7 @@
 // Readings run through the PRODUCTION leaf (`permanentRealisedValue`,
 // `cardValue` with the hand term's lens) over real registry definitions.
 import { describe, expect, it } from "vitest";
-import { registeredDefinitions } from "../../../cards";
+import { catalogueDefinitions } from "../../../cards";
 import type { CardDefinition } from "../../../cards/types";
 import type { CardInstanceState, GameState } from "../../state";
 import {
@@ -143,7 +143,7 @@ describe("a standing each-step edict reads the board (issue #5575)", () => {
  *  carrying that trigger alone — so no other ability of the card speaks. */
 function scopedEngines(): { name: string; def: CardDefinition }[] {
     const out: { name: string; def: CardDefinition }[] = [];
-    for (const def of registeredDefinitions()) {
+    for (const def of catalogueDefinitions()) {
         for (const t of def.triggeredAbilities ?? []) {
             const script = t.effects ?? t.aiEffects;
             if (t.phaseScope !== "each" || !script) continue;
@@ -168,7 +168,7 @@ const BOUND_MILL = "a bound mill";
  *  reader prices (`isStepSideOp`: a bound mill feeds a later Op), so the
  *  census below keeps an unread member once every shipped family is read. */
 function boundMillEngine(): { name: string; def: CardDefinition } {
-    const beads = [...registeredDefinitions()].find(
+    const beads = [...catalogueDefinitions()].find(
         (d) => d.name === "Worry Beads"
     )!;
     const trigger = beads.triggeredAbilities![0];

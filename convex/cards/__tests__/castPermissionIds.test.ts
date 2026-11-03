@@ -31,7 +31,7 @@
 // sentence was read. This test is what closes that loop instead.
 
 import { describe, expect, it } from "vitest";
-import { registeredDefinitions } from "../registry";
+import { catalogueDefinitions } from "../registry";
 import { declaredCastPermissions } from "../../gre/castPermissions";
 import {
     castPermissionTerms,
@@ -44,7 +44,7 @@ describe("cast-permission ids (CR 601.3)", () => {
         const wrong: string[] = [];
         let scanned = 0;
         let permissions = 0;
-        for (const def of registeredDefinitions()) {
+        for (const def of catalogueDefinitions()) {
             scanned += 1;
             for (const permission of declaredCastPermissions(def)) {
                 permissions += 1;
@@ -80,7 +80,7 @@ describe("cast-permission ids (CR 601.3)", () => {
         // correct and must not red here.
         const clauses = new Map<string, { owner: string; json: string }>();
         const collisions: string[] = [];
-        for (const def of registeredDefinitions()) {
+        for (const def of catalogueDefinitions()) {
             for (const permission of declaredCastPermissions(def)) {
                 // `sortKeys`, not a `JSON.stringify` key-array replacer: the
                 // replacer is an allow-list at EVERY nesting depth, so the
@@ -110,7 +110,7 @@ describe("cast-permission ids (CR 601.3)", () => {
         // inert: it would be scanned, matched and then change nothing. Almost
         // certainly a dropped field rather than an intent.
         const inert: string[] = [];
-        for (const def of registeredDefinitions()) {
+        for (const def of catalogueDefinitions()) {
             for (const permission of declaredCastPermissions(def)) {
                 if (
                     !permission.withoutPayingManaCost &&
