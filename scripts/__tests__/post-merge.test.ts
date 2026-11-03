@@ -278,13 +278,22 @@ describe("seedPlan", () => {
 function copyFixture(template: string, to: string): void {
     cpSync(template, to, { recursive: true });
     for (const who of ["primary", "pusher"]) {
-        spawnSync(
+        const r = spawnSync(
             "git",
             ["remote", "set-url", "origin", join(to, "origin.git")],
-            { cwd: join(to, who) }
+            { cwd: join(to, who), encoding: "utf8" }
         );
+        // A silent failure would leave the copy pushing into the template.
+        if (r.status !== 0) {
+            throw new Error(
+                `copyFixture: set-url failed for ${who}: ${r.stderr}`
+            );
+        }
     }
 }
+
+/** The template build is ~17 git spawns: give it its own budget, not the 10 s hook default. */
+const FIXTURE_BUILD_TIMEOUT_MS = 60_000;
 
 const removeDir = (path: string) =>
     rmSync(path, {
@@ -328,7 +337,7 @@ describe("fastForward", () => {
         git(["add", "."], join(dir, "pusher"));
         git(["commit", "-qm", "c"], join(dir, "pusher"));
         git(["push", "-q", "origin", BASE_BRANCH], join(dir, "pusher"));
-    });
+    }, FIXTURE_BUILD_TIMEOUT_MS);
     afterAll(() => removeDir(template));
 
     beforeEach(() => {
@@ -587,7 +596,7 @@ describe("seed — a stale tip waits for derive:sync's commit and fast-forwards 
         git(["add", "."], primary);
         git(["commit", "-qm", "a"], primary);
         git(["push", "-q", "origin", BASE_BRANCH], primary);
-    });
+    }, FIXTURE_BUILD_TIMEOUT_MS);
     afterAll(() => removeDir(template));
 
     beforeEach(() => {
