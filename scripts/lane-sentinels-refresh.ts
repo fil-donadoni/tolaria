@@ -17,7 +17,9 @@
  * base's `health` commit statuses (a RED's `tests`) and the red `queue-lane`
  * runs' `lane.json` artifacts (their failing files). A file is a candidate
  * when it is still a test of a lane project in this tree. `--pr` exits 0
- * without a PR when a refresh PR is open or the set is unchanged.
+ * without a PR when a refresh PR is in flight or the set is unchanged; one
+ * open for `STALL_HOURS` or more is closed and re-derived, and the run ends
+ * red (`lib/refresh-pr-stall.ts`, issue #7927).
  */
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -41,6 +43,7 @@ import {
 } from "./lib/lane-sentinels";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { proofNoneOwedLine } from "./lib/proof-receipt";
+import { settleRefreshPr, stallFailure } from "./lib/refresh-pr-stall";
 import { botTests, generalTests } from "./lib/test-reach";
 import { laneRecord } from "./lib/workflow-trends";
 import {
@@ -172,27 +175,6 @@ function recap(): void {
     );
 }
 
-function openRefreshPr(): string | null {
-    const open = JSON.parse(
-        gh([
-            "pr",
-            "list",
-            "--state",
-            "open",
-            "--base",
-            BASE_BRANCH,
-            "--limit",
-            "200",
-            "--json",
-            "number,headRefName",
-        ])
-    ) as { number: number; headRefName: string }[];
-    const hit = open.find((p) =>
-        p.headRefName.startsWith(SENTINELS_BRANCH_PREFIX)
-    );
-    return hit === undefined ? null : `PR #${hit.number} (${hit.headRefName})`;
-}
-
 async function refreshPr(): Promise<void> {
     if (primaryCheckout(ROOT) === ROOT)
         fail("refusing to run in the primary checkout — use a worktree");
@@ -207,11 +189,19 @@ async function refreshPr(): Promise<void> {
         );
         process.exit(again.status ?? 1);
     }
-    const open = openRefreshPr();
-    if (open !== null) {
-        say(`${open} is still open — one refresh at a time; nothing to do`);
-        return;
-    }
+    const stalled = settleRefreshPr(
+        SENTINELS_BRANCH_PREFIX,
+        "lane:sentinels --pr",
+        say
+    );
+    if (stalled === null) return;
+    await refreshOnce();
+    const stall = stallFailure(stalled);
+    if (stall !== null) fail(stall);
+}
+
+/** Derive, and when the set changed open the data PR and `land:ready` it. */
+async function refreshOnce(): Promise<void> {
     const next = await derive();
     if (sameSentinels(next, readLaneSentinels(ROOT))) {
         say("the set is unchanged — nothing to do");

@@ -4,7 +4,9 @@
  * #6999, ADR 0154 §13), run by `.github/workflows/bot-costs-refresh.yml` in a
  * job worktree on the machine health gates on.
  *
- *   1. stop (exit 0) when a refresh PR is still open;
+ *   1. stop (exit 0) when a refresh PR is in flight; one open for
+ *      `STALL_HOURS` or more is closed instead (`lib/refresh-pr-stall.ts`,
+ *      issue #7927) and the run ends red once it has done its work;
  *   2. `bot:costs --refresh` over the newest sealed health runs of the PRIMARY
  *      checkout (`lib/bot-test-costs.ts`); no changed row → stop (exit 0);
  *   3. commit `data/bot-test-costs.json` on `chore/bot-costs-refresh-<date>`,
@@ -20,6 +22,7 @@ import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { gh } from "./lib/gh";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { proofNoneOwedLine } from "./lib/proof-receipt";
+import { settleRefreshPr, stallFailure } from "./lib/refresh-pr-stall";
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const ON_BASE = "--on-base";
@@ -41,27 +44,6 @@ function run(cmd: string, args: string[], inherit = false): string {
     return (r.stdout ?? "").trim();
 }
 
-function openRefreshPr(): string | null {
-    const open = JSON.parse(
-        gh([
-            "pr",
-            "list",
-            "--state",
-            "open",
-            "--base",
-            BASE_BRANCH,
-            "--limit",
-            "200",
-            "--json",
-            "number,headRefName",
-        ])
-    ) as { number: number; headRefName: string }[];
-    const hit = open.find((p) =>
-        p.headRefName.startsWith(REFRESH_BRANCH_PREFIX)
-    );
-    return hit === undefined ? null : `PR #${hit.number} (${hit.headRefName})`;
-}
-
 function main(): void {
     if (primaryCheckout(ROOT) === ROOT)
         fail("refusing to run in the primary checkout — use a worktree");
@@ -77,11 +59,19 @@ function main(): void {
         process.exit(again.status ?? 1);
     }
 
-    const open = openRefreshPr();
-    if (open !== null) {
-        say(`${open} is still open — one refresh at a time; nothing to do`);
-        return;
-    }
+    const stalled = settleRefreshPr(
+        REFRESH_BRANCH_PREFIX,
+        "bot:costs:refresh",
+        say
+    );
+    if (stalled === null) return;
+    refreshOnce();
+    const stall = stallFailure(stalled);
+    if (stall !== null) fail(stall);
+}
+
+/** Derive, and when a row changed open the data PR and `land:ready` it. */
+function refreshOnce(): void {
     run("bun", ["scripts/bot-test-costs.ts", "--refresh"], true);
     if (run("git", ["status", "--porcelain", "--", COSTS_PATH]) === "") {
         say("the table is unchanged — nothing to do");
