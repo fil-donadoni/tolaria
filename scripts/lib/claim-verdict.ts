@@ -54,7 +54,7 @@ export type ClaimFacts = {
     /** An open PR whose head branch ends in `issue-N`. */
     hasOpenPr: boolean;
     /**
-     * Where that PR stands in the land-runner's queue (issue #5469):
+     * Where that PR stands in the merge queue (issue #5469):
      * `ready` = labelled `ready-to-land` (the session handed off, the runner
      * lands it), `failed` = labelled `land-failed` (a repair pick), `null` =
      * neither, or no open PR. Optional so every caller that predates the
@@ -137,7 +137,7 @@ export const CLAIM_VERDICT_STATES = [
 /** What the `afk-pass` runs say about one claim — see `ClaimFacts.run`. */
 export type PassRunState = "active" | "ended" | "none" | "unknown";
 
-/** A PR's place in the land-runner's queue, by label (issue #5469). */
+/** A PR's place in the merge queue, by label (issue #5469). */
 export type LandQueueState = "ready" | "failed";
 
 export type ClaimVerdictState = (typeof CLAIM_VERDICT_STATES)[number];
@@ -204,14 +204,14 @@ export function classifyClaim(
     unprovenHours = UNPROVEN_CLAIM_HOURS
 ): ClaimVerdict {
     const run = facts.run ?? "none";
-    // Handed to the land-runner (issue #5469): the session ended at push +
+    // Handed to the merge queue (issue #5469): the session ended at push +
     // `ready-to-land` BY DESIGN, so a dead owner here is the normal shape, not
-    // a corpse. Not `stranded` (nothing to resume — the runner lands it), not
+    // a corpse. Not `stranded` (nothing to resume — the queue lands it), not
     // `orphan` (the label must stand until the merge).
     if (facts.hasOpenPr && facts.landQueue === "ready") {
         return {
             state: "pr-open",
-            reason: "PR queued for the land-runner (`ready-to-land`) — holds no slot; the runner releases the claim at merge",
+            reason: "PR queued for the merge queue (`ready-to-land`) — holds no slot; the claim is released at merge",
         };
     }
     // The pipeline's own pass is at work: nothing else needs reading.
@@ -231,7 +231,7 @@ export function classifyClaim(
     if (facts.hasOpenPr && facts.landQueue === "failed") {
         return {
             state: "stranded",
-            reason: "the land-runner labelled its PR `land-failed` — a repair pick for the next pass; the label is NOT released",
+            reason: "its PR is labelled `land-failed` — a repair pick for the next pass; the label is NOT released",
         };
     }
     // Work that left this machine — an open PR, a pushed branch — is live
@@ -435,7 +435,7 @@ export type OpenPrRow = {
     isDraft?: boolean;
 };
 
-/** Every open PR, with the labels the land-runner's queue lives in
+/** Every open PR, with the labels the merge queue lives in
  *  (issue #5469) — ONE `gh pr list` feeds both `fetchOpenPrs` and
  *  `landQueueByBranch`. */
 export function fetchOpenPrRows(runner: ShRunner = sh): OpenPrRow[] {

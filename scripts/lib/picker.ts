@@ -76,7 +76,7 @@ export interface PickResult {
     resume: ResumeItem[];
     /** Orphan claims: `classifyClaim` proved nothing will release them. */
     release: number[];
-    /** Claims held: live, suspect, or queued for the land-runner. */
+    /** Claims held: live, suspect, or queued for the merge queue. */
     live: number[];
     /** Skipped for provenance; never reached `planBatch`. */
     untrusted: number[];

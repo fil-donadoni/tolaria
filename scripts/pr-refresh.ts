@@ -20,7 +20,7 @@
  * The push goes out under the OWNER's credentials (`GITHUB_TOKEN` stripped,
  * like `land`'s): a push made with the workflow token does not trigger other
  * workflows, so the PR's checks would never re-run. The lease on the head sha
- * the PR was read at means a push the land-runner or a session made meanwhile
+ * the PR was read at means a push the queue or a session made meanwhile
  * wins, and this one is dropped.
  *
  *   bun run pr-refresh [--before <sha> --after <sha>] [--pr N] [--dry-run]
@@ -44,8 +44,8 @@ import {
     readVerdictLineage,
 } from "./lib/health-verdict-store";
 import { issueOfBranch } from "./lib/issue-worktree";
-import { FAILED_LABEL } from "./lib/land-labels";
-import { labelArgs, READY_LABEL } from "./lib/land-runner";
+import { FAILED_LABEL, READY_LABEL } from "./lib/land-labels";
+import { labelArgs } from "./lib/queue-hand-off";
 import {
     conflictComment,
     parseConflictPaths,

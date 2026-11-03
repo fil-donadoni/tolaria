@@ -5,7 +5,7 @@ Op/mechanic or Bot Gap (any `/next-ticket` on a gap issue).
 
 A ticket is not reported done until each such hole is **checked, never
 assumed from `gaps:sync`'s log**. `land` no longer files gaps: the hourly
-`housekeeping` cron does (issue #5457), after the land-runner merges — and the
+`housekeeping` cron does (issue #5457), after the merge queue merges — and the
 pass ends BEFORE the merge (issue #5469). So the holes are checked here, at
 hand-off: a hole this PR leaves that has no open issue yet is filed by hand
 now (`filing.md`), never left for the cron to discover. Never run
