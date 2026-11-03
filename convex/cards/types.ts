@@ -16966,7 +16966,25 @@ export type EffectOp =
      *  entered), `false` on decline / silent pass / unmeetable-or-unpayable cost
      *  — that a downstream `if` predicate reads (Chandra's "If you don't [cast
      *  it], Chandra deals 2 damage to each opponent": `{ not: { binding:
-     *  "$cast" } }`). Mirrors `mayPay`'s `["yes"]`/`["no"]` payload. */
+     *  "$cast" } }`). Mirrors `mayPay`'s `["yes"]`/`["no"]` payload.
+     *
+     *  `anyNumber` (issue #2608) — "you may cast ANY NUMBER of spells from
+     *  among <the cards>" (Etali, Primal Conqueror). `card` is then a bare
+     *  picks ref naming a SET, and instead of one Cast/Decline offer the
+     *  caster is asked, repeatedly, which of the still-castable cards to cast
+     *  NEXT or to stop: zero, some or all, in the order they choose (CR
+     *  608.2g — the permission still lives only during this resolution, so an
+     *  uncast card simply stays where it is). Each pick runs the SAME per-card
+     *  mode / X / additional-cost / target / commit tail as the single-card
+     *  shape — one execution path — and a card that tail refuses (no legal
+     *  target, an unmeetable sacrifice) is skipped without ending the loop.
+     *  Each spell becomes the topmost object below the resolving ability and
+     *  the resolution goes on "casting other spells this way" (CR 608.2g),
+     *  so the LAST one cast resolves FIRST. Ownership is not consulted: a
+     *  card in another player's exile is cast by `player`, who controls the
+     *  resulting spell (CR 601.2a / 112.2). Not valid with
+     *  `fromTopOfLibrary`, `exiledWithSource`, `includesLand` or
+     *  `resultBind`. */
     | {
           op: "castDuringResolution";
           card?: EffectRef | EffectExiledWithSourceSelector;
@@ -16976,6 +16994,7 @@ export type EffectOp =
           free?: boolean;
           includesLand?: boolean;
           resultBind?: string;
+          anyNumber?: true;
       }
     /** CR 702.85a (issue #3216) — the CASCADE keyword's entire triggered
      *  ability, in one Op: "exile cards from the top of your library until you
@@ -16995,7 +17014,7 @@ export type EffectOp =
      *  § Primitive reuse). Decompose: the three clauses are one atomic
      *  sequence — the middle one SUSPENDS on a live Cast/Decline, and the third
      *  must run after it with the SAME exiled set in hand, which no binding can
-     *  carry (`revealUntilMatch` deliberately has no `bind`, and a `forEach`
+     *  carry (`revealUntilMatch` had no `bind` then, and a `forEach`
      *  walks a fixed set computed up front rather than a library with a stop
      *  condition). Generalize: the nearest neighbour, `castDuringResolution`
      *  `fromTopOfLibrary`, exiles exactly ONE card and stops — widening it to a
@@ -18542,13 +18561,17 @@ export type EffectOp =
      *  nothing and fire no dialog, and a revealed id that is somehow no longer
      *  in the library when it is routed is skipped.
      *
-     *  NO `bind`: the matching card's destination is a per-card parameter, so
-     *  the snapshot's `TargetSelection` kind would vary with `match` (a
-     *  `"permanent"` on the battlefield, a `"graveyard-card"` in a graveyard)
-     *  — a binding whose TYPE depends on a sibling field is exactly the
-     *  card-shaped seam ADR 0045 keeps out of the vocabulary. A card that
-     *  needs the revealed card afterwards earns the field then, with the
-     *  disambiguation it forces. */
+     *  `bind` (issue #2608) is a PICKS binding — the matching card's
+     *  instance id, nothing else — never a snapshot: a snapshot's
+     *  `TargetSelection` kind would vary with `match` (a `"permanent"` on the
+     *  battlefield, a `"graveyard-card"` in a graveyard), a binding whose TYPE
+     *  depends on a sibling field. An id is the same whatever the zone, and a
+     *  picks reader re-checks the zone it acts from (CR 608.2b). Captured only
+     *  when a card matched; a walk that reached the bottom leaves it
+     *  uncaptured, so every reader skips. Declared inside a `forEach` body
+     *  ("each player exiles … until …"), the captures of every iteration are
+     *  read past the construct as ONE set — "the nonland cards exiled this
+     *  way" (Etali, Primal Conqueror). */
     | {
           op: "revealUntilMatch";
           player: EffectPlayerRef;
@@ -18561,6 +18584,8 @@ export type EffectOp =
           /** Where every OTHER revealed card goes ("all other cards revealed
            *  this way into their graveyard"). */
           rest: RevealRouteDestination;
+          /** Picks binding of the matching card's id (issue #2608). */
+          bind?: string;
       }
     /** CR 701.44 (issue #2376) — the Explore keyword action: "Target creature
      *  you control explores." A thin declarative skin composed of primitives

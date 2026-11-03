@@ -4553,11 +4553,32 @@ const OP_SCHEMAS: OpSchemaTable = {
             // text says "play" (land-inclusive), never for a "cast"-only grant.
             includesLand: isBoolean,
             resultBind: bindingDeclaration("boolean"),
+            // Issue #2608 — "cast any number of spells from among <set>".
+            anyNumber: (v: unknown) => v === true,
         },
         check: (entry) => {
             const errors: string[] = [];
             const hasCard = "card" in entry;
             const fromTop = entry.fromTopOfLibrary === true;
+            // CR 608.2g — "any number" iterates a SET of cards an earlier Op
+            // bound; the single-card shapes name exactly one card (the top of
+            // the library, the one CR 607 linked card), a land PLAY is a
+            // special action the loop does not offer, and there is no single
+            // cast/not-cast outcome to bind.
+            if (entry.anyNumber === true) {
+                if (!hasCard || !isBarePicksRef(entry.card)) {
+                    errors.push(
+                        'field "anyNumber" requires "card" to be a bare picks ref naming the set of cards'
+                    );
+                }
+                for (const field of ["includesLand", "resultBind"] as const) {
+                    if (field in entry) {
+                        errors.push(
+                            `field "${field}" is not valid with "anyNumber"`
+                        );
+                    }
+                }
+            }
             if (fromTop) {
                 if (hasCard) {
                     errors.push(
@@ -5857,6 +5878,10 @@ const OP_SCHEMAS: OpSchemaTable = {
             match: isRevealRouteDestination,
             rest: isRevealRouteDestination,
         },
+        // Issue #2608 — the matching card's id, a PICKS binding whatever
+        // `match` is (an id names the card in any zone; a snapshot's kind
+        // would vary with the destination).
+        optional: { bind: bindingDeclaration("picks") },
     },
     // CR 701.44 (issue #2376) — the Explore keyword action. ONE field: the
     // exploring permanent (`target`), an object selector like `counters`'
@@ -8799,9 +8824,16 @@ function checkOpListRefs(
             // their per-iteration captures is readable by `boundCount` ("for
             // each creature exiled this way"): declared here as `iterated`,
             // which also makes the name unique against any later binding.
+            // Issue #2608 — a body PICKS binding (card ids, no per-object
+            // characteristics) reads past the construct as the UNION of every
+            // iteration's picks: "each player exiles … until …. You may cast
+            // … from among the nonland cards exiled this way" (Etali, Primal
+            // Conqueror). Ids from many iterations are still one set of ids,
+            // so it stays the `picks` family every picks position accepts.
             for (const [name, family] of bodyScope) {
                 if (name === "$each" || declared.has(name)) continue;
                 if (family === "snapshot") declared.set(name, "iterated");
+                if (family === "picks") declared.set(name, "picks");
             }
         }
 
