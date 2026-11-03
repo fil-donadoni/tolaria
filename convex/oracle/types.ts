@@ -22,6 +22,10 @@ export interface OracleFace {
     readonly power?: string;
     readonly toughness?: string;
     readonly loyalty?: string;
+    /** CR 202.2e / 204.1 — Scryfall `card_faces[].colors`: a back face's
+     *  colour indicator (it has no mana cost). Absent = UNKNOWN, never
+     *  colourless. */
+    readonly colors?: readonly string[];
 }
 
 /** A card as the compiler receives it: Scryfall's oracle row, nothing more. */

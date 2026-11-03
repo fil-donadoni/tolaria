@@ -87,6 +87,9 @@ export interface CorpusFace {
     power?: string;
     toughness?: string;
     loyalty?: string;
+    /** Scryfall `card_faces[].colors` (CR 202.2e colour indicator for a
+     *  back face). Face rows only; absent = UNKNOWN, never "colourless". */
+    colors?: string[];
 }
 
 /** A corpus row: exactly the fields the compiler and the report read. */
@@ -124,7 +127,10 @@ export interface CorpusPin {
     sha256: string;
 }
 
-function reduceFace(raw: Record<string, unknown>): CorpusFace {
+export function reduceFace(
+    raw: Record<string, unknown>,
+    withColors = false
+): CorpusFace {
     const face: CorpusFace = {
         name: String(raw.name ?? ""),
         manaCost: String(raw.mana_cost ?? ""),
@@ -134,6 +140,11 @@ function reduceFace(raw: Record<string, unknown>): CorpusFace {
     if (raw.power !== undefined) face.power = String(raw.power);
     if (raw.toughness !== undefined) face.toughness = String(raw.toughness);
     if (raw.loyalty !== undefined) face.loyalty = String(raw.loyalty);
+    // CR 202.2e / 204.1 — a back face has no mana cost, so its colour is its
+    // colour indicator, stated by no rules text. Only `card_faces[]` rows
+    // carry it (a top-level row's colours derive from its cost).
+    if (withColors && Array.isArray(raw.colors))
+        face.colors = raw.colors.map(String);
     return face;
 }
 
@@ -187,7 +198,9 @@ function reduceCard(raw: Record<string, unknown>): CorpusCard | null {
     };
     const faces = raw.card_faces;
     if (Array.isArray(faces) && faces.length > 0) {
-        card.faces = faces.map((f) => reduceFace(f as Record<string, unknown>));
+        card.faces = faces.map((f) =>
+            reduceFace(f as Record<string, unknown>, true)
+        );
     }
     return card;
 }
@@ -322,8 +335,14 @@ export function corpusIsCached(): boolean {
 
 async function main(): Promise<void> {
     const repin = process.argv.includes("--repin");
+    // `--rereduce`: the reducer changed on purpose (issue #7905). Re-reduce THE
+    // PINNED bulk and rewrite only `sha256`; downloadUri / updatedAt /
+    // cardCount stay, so the lockfile's fragment indices do not renumber.
+    const rereduce = process.argv.includes("--rereduce");
+    if (rereduce && repin)
+        throw new Error("oracle-corpus: --rereduce and --repin are exclusive");
     // `--force` re-downloads; it does NOT decide WHICH bulk (that is `--repin`).
-    const force = process.argv.includes("--force") || repin;
+    const force = process.argv.includes("--force") || repin || rereduce;
     const current = readPin();
     if (!force && corpusIsCached() && current) {
         // A cache that is present but not the pin's (issue #6381) is treated
@@ -348,13 +367,14 @@ async function main(): Promise<void> {
     // pin was written by a different version of this script) — either way the
     // corpus is NOT the one the committed lockfile was compiled from, and
     // silently compiling against it is how a wrong lockfile gets committed.
-    if (!repin && existingPin && existingPin.sha256 !== sha256) {
+    if (!repin && !rereduce && existingPin && existingPin.sha256 !== sha256) {
         throw new Error(
             `oracle-corpus: pinned bulk reproduced a DIFFERENT payload\n` +
                 `  pin:   ${existingPin.sha256} (${existingPin.cardCount} cards)\n` +
                 `  built: ${sha256} (${cards.length} cards)\n` +
                 `The committed lockfile was not compiled from this corpus. If the ` +
-                `reducer changed on purpose, re-pin deliberately: bun run oracle:corpus --repin`
+                `reducer changed on purpose, keep the bulk and rewrite only the sha: ` +
+                `bun run oracle:corpus --rereduce (or take a new bulk: --repin)`
         );
     }
 
@@ -366,7 +386,17 @@ async function main(): Promise<void> {
     // Only a deliberate `--repin` rewrites the COMMITTED pin. The default path
     // has just proved it reproduces the existing one, so rewriting it would be
     // a no-op that still dirties the working tree.
-    if (repin || !existingPin) {
+    if (rereduce && existingPin) {
+        if (existingPin.cardCount !== cards.length)
+            throw new Error(
+                `oracle-corpus: --rereduce changed the card count ` +
+                    `(${existingPin.cardCount} → ${cards.length}); that is a re-pin`
+            );
+        writeFileSync(
+            PIN_PATH,
+            JSON.stringify({ ...existingPin, sha256 }, null, 4) + "\n"
+        );
+    } else if (repin || !existingPin) {
         writeFileSync(
             PIN_PATH,
             JSON.stringify({ ...pin, sha256 }, null, 4) + "\n"
@@ -374,7 +404,7 @@ async function main(): Promise<void> {
     }
     process.stderr.write(
         `oracle-corpus: ${cards.length} cards → ${CORPUS_PATH} ` +
-            `(updated_at ${pin.updatedAt}${repin ? ", RE-PINNED" : ", pinned"})\n`
+            `(updated_at ${pin.updatedAt}${repin ? ", RE-PINNED" : rereduce ? ", RE-REDUCED" : ", pinned"})\n`
     );
 }
 
