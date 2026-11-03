@@ -14,7 +14,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 //     multikicker cost is a kicker cost).
 //   - The counters are a replacement on how he enters (CR 614.1c / 122.1): one
 //     `entersWith.counters` row with COUNT "kicker" reads the paid count
-//     (CR 702.33e), so he is already 2+N power when the trigger is announced.
+//     (CR 702.33d), so he is already 2+N power when the trigger is announced.
 //   - The trigger's target bound `{ kickerCount: true }` is fixed at
 //     announcement (CR 601.2c via 603.3d); "up to" gives `min: 0`. Damage is
 //     his EFFECTIVE power at resolution (CR 613), counters included.
@@ -35,7 +35,7 @@ export const batrocTheLeaper = defineCard(() => ({
     toughness: 2,
     kickers: [
         {
-            id: "multikicker",
+            id: "kicker",
             description: "Multikicker {2}",
             mana: { X: 2 },
             multi: true,
