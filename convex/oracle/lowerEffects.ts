@@ -5134,13 +5134,6 @@ function lowerSentenceBody(
 }
 
 /**
- * Lower a sentence behind a gate ("you may", "if this spell was kicked").
- *
- * A library looked at behind a gate may never have been looked at, so it is
- * no antecedent for a "That player" after the gate: the walk's referent is
- * restored to what it was before the gated sentence.
- */
-/**
  * CR 608.2c + CR 608.2h + CR 701.23h — a frame chain performed by every
  * player who controlled one of the objects the sentence before acted on
  * ("For each creature exiled this way, its controller searches their library
@@ -5245,6 +5238,13 @@ function lowerPerActedOnController(
     ]);
 }
 
+/**
+ * Lower a sentence behind a gate ("you may", "if this spell was kicked").
+ *
+ * A library looked at behind a gate may never have been looked at, so it is
+ * no antecedent for a "That player" after the gate: the walk's referent is
+ * restored to what it was before the gated sentence.
+ */
 /**
  * The Verb Frame chain (`verbFrames.ts`, issue #6557), one Op per frame in
  * printed order (CR 608.2c). The chain's referent — the find of the last
