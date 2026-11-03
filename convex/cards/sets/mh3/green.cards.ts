@@ -8,6 +8,7 @@ import { defineCard, PERMANENT_TYPES } from "../../types";
 import { ELDRAZI_SPAWN_TOKEN, GREEN_INSECT_TOKEN } from "../../sharedTokens";
 import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 import { eternalizeAbility } from "../../abilities/eternalize";
+import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 
 /** CR 111 — Fanatic of Rhonas's own printed eternalize token (tmh3 #15, a 4/4
  *  black Token Creature — Zombie Snake Druid). Pinned by hand: an eternalize token
@@ -235,6 +236,77 @@ export const springheartNantuko = defineCard(() => ({
                             controller: "controller",
                         },
                     ],
+                },
+            ],
+        }),
+    ],
+}));
+
+// Six — {2}{G} Legendary Creature — Treefolk, 2/4 (issue #2377).
+// "Reach / Whenever Six attacks, mill three cards. You may put a land card
+// from among them into your hand. / During your turn, nonland permanent cards
+// in your graveyard have retrace."
+//
+//  - The attack trigger is the shipped "from among them" mill pick (issue
+//    #2600): `mill` with `bindAll` records exactly the three milled cards, and
+//    the optional `choice` is scoped to them through `candidates` — never the
+//    whole graveyard. All three are milled first (CR 701.17a), so a
+//    milled-matters trigger sees every card reach the graveyard.
+//  - The retrace clause is the battlefield producer of the shared
+//    `RetraceGrant` (CR 702.81a, `convex/gre/retrace.ts`): "nonland permanent
+//    cards" = the permanent card types (CR 110.4a), the land half gated off by
+//    `grantReaches` (a land is never cast, CR 305.1), and "During your turn"
+//    = `duringYourTurnOnly`. Retrace adds the land discard to the card's own
+//    mana cost and never exiles it on resolution.
+//
+// hand-tail: "During your turn, nonland permanent cards in your graveyard have retrace." (#2377)
+export const six = defineCard(() => ({
+    id: "f9246b68-580f-4f53-883d-7900880e4b0d",
+    rarity: "rare",
+    name: "Six",
+    oracleText:
+        "Reach\nWhenever Six attacks, mill three cards. You may put a land card from among them into your hand.\nDuring your turn, nonland permanent cards in your graveyard have retrace. (You may cast permanent cards from your graveyard by discarding a land card in addition to paying their other costs.)",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Treefolk"],
+    power: 2,
+    toughness: 4,
+    staticAbilities: ["reach"],
+    grantsRetraceToOwnGraveyard: {
+        cardTypes: [...PERMANENT_TYPES],
+        duringYourTurnOnly: true,
+    },
+    triggeredAbilities: [
+        attacksTrigger({
+            id: "six-attack-mill",
+            oracleText:
+                "Whenever Six attacks, mill three cards. You may put a land card from among them into your hand.",
+            scope: "self",
+            effects: [
+                {
+                    op: "mill",
+                    player: "controller",
+                    count: 3,
+                    bindAll: "$milled",
+                },
+                {
+                    op: "choice",
+                    kind: "choose-graveyard-card",
+                    player: "controller",
+                    zone: "graveyard",
+                    candidates: [{ ref: "$milled" }],
+                    filter: { type: "Land" },
+                    count: { min: 0, max: 1 },
+                    prompt: "You may put a land card from among the milled cards into your hand.",
+                    bind: "$land",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$land" },
+                    player: "controller",
+                    from: "graveyard",
+                    to: "hand",
                 },
             ],
         }),

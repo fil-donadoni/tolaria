@@ -13413,29 +13413,34 @@ export interface TapManaBonusForPotential {
 // mirroring how a permanent references its `card.id`.
 
 /** CR 702.81 — one "<cards> in your graveyard have retrace" grant, in the ONE
- *  shape every producer of the grant declares it in. Exactly ONE producer ships
- *  today, a command-zone EMBLEM
- *  ({@link EmblemDefinition.grantsRetraceToOwnGraveyard}, Wrenn and Six's −7),
- *  and it is read through the single sweep `collectRetraceGrants`
- *  (`convex/gre/retrace.ts`). A second producer — an Underworld-Breach-shaped
- *  battlefield permanent granting retrace to the cards in its controller's
- *  graveyard (Six, BLB) — adds a loop to that ONE sweep and nothing else; it is
- *  deliberately NOT declared ahead of the card that needs it, because an
- *  unreachable grant field is exactly the fail-open shape the producer census
- *  exists to prevent.
+ *  shape every producer of the grant declares it in. Two producers ship, both
+ *  read through the single sweep `collectRetraceGrants`
+ *  (`convex/gre/retrace.ts`):
+ *    - a command-zone EMBLEM
+ *      ({@link EmblemDefinition.grantsRetraceToOwnGraveyard}, Wrenn and
+ *      Six's −7), whose abilities function in the command zone (CR 114.4);
+ *    - a BATTLEFIELD permanent granting retrace to the cards in its
+ *      controller's graveyard ({@link CardDefinition.grantsRetraceToOwnGraveyard},
+ *      Six, MH3), live only while it is on the battlefield.
  *
- *  `cardTypes` is a FAIL-CLOSED filter and is not part of CR 702.81 itself
- *  (which restricts nothing — the printed keyword simply sits on a card): it is
- *  the granting object's OWN Oracle wording. A grant with no `cardTypes` reaches
- *  every nonland card; a land never receives the grant under any wording,
- *  because a land is played and is never a spell (CR 305.1), so "cast it from
- *  your graveyard" can never apply to one. */
+ *  `cardTypes` and `duringYourTurnOnly` are FAIL-CLOSED filters and are not
+ *  part of CR 702.81 itself (which restricts nothing — the printed keyword
+ *  simply sits on a card): they are the granting object's OWN Oracle wording.
+ *  A grant with no `cardTypes` reaches every nonland card; a land never
+ *  receives the grant under any wording, because a land is played and is
+ *  never a spell (CR 305.1), so "cast it from your graveyard" can never apply
+ *  to one. */
 export interface RetraceGrant {
     /** Card types the grant reaches (CR 205.2a type words); the graveyard card
      *  must have at least ONE of them. Wrenn and Six's emblem: "Instant and
      *  sorcery cards in your graveyard have retrace" = `["Instant","Sorcery"]`.
      *  Omitted = every nonland card. */
     cardTypes?: CardType[];
+    /** "During your turn, …" — the grant is live only while the graveyard's
+     *  owner (the grant's "you") is the active player. Six: "During your
+     *  turn, nonland permanent cards in your graveyard have retrace."
+     *  Omitted = live on every turn. */
+    duringYourTurnOnly?: boolean;
 }
 
 /** The closure-bearing definition of an emblem's granted abilities (CR 114.3).
@@ -22528,8 +22533,16 @@ export interface CardDefinition {
     // what makes a card shipping the keyword simultaneously live in the engine
     // and visible to the Mechanics Registry's keyword-must-be-implemented guard.
     // The GRANTED half ("<cards> in your graveyard have retrace") is
-    // {@link RetraceGrant}, declared today only on
-    // {@link EmblemDefinition.grantsRetraceToOwnGraveyard}.
+    // {@link RetraceGrant}, declared by an emblem
+    // ({@link EmblemDefinition.grantsRetraceToOwnGraveyard}) or by the
+    // battlefield permanent below.
+    /** CR 702.81a — a static ability granting retrace to the cards in its
+     *  CONTROLLER's graveyard that match the {@link RetraceGrant} (Six: "During
+     *  your turn, nonland permanent cards in your graveyard have retrace").
+     *  Functions only while this permanent is on the battlefield; read by
+     *  `collectRetraceGrants` (`convex/gre/retrace.ts`) alongside the emblem
+     *  producer of the identical shape. */
+    grantsRetraceToOwnGraveyard?: RetraceGrant;
     /** CR 702.27 — Buyback. An OPTIONAL additional cost the caster may choose
      *  to pay as they cast this spell ("You may pay an additional [cost] as
      *  you cast this spell. If you do, put this card into its owner's hand

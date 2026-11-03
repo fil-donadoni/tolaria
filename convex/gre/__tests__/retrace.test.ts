@@ -65,6 +65,7 @@ import {
 } from "../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../_generated/dataModel";
 import { WRENN_AND_SIX_EMBLEM_ID } from "../../cards/emblems";
+import { six } from "../../cards/sets/mh3/green.cards";
 import { lightningBolt } from "../../cards/sets/lea/red.cards";
 import { firebolt } from "../../cards/sets/ody/red.cards";
 import {
@@ -788,5 +789,139 @@ describe("castExtraHandCostLegs is the ONE authority every cast-commit path read
                 "`castExtraHandCostLegs` charges no retrace discard (CR 702.81a) " +
                 "and no card-declared discard cost (CR 118.8). Call the seam."
         ).toEqual([]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// The BATTLEFIELD producer (issue #2377): Six — "During your turn, nonland
+// permanent cards in your graveyard have retrace." The second loop of
+// `collectRetraceGrants`, read live off its controller's battlefield, with the
+// grant's own fail-closed `cardTypes` (permanent cards, CR 110.4a) and
+// `duringYourTurnOnly` clauses.
+// ---------------------------------------------------------------------------
+describe("Retrace — battlefield grant (Six, CR 702.81a, issue #2377)", () => {
+    const GREEN_MANA = { W: 0, U: 0, B: 0, R: 1, G: 2, C: 0 };
+
+    function sixBoard(opts: {
+        sixController?: "p1" | "p2" | "none";
+        activePlayerId?: "p1" | "p2";
+        graveyardCard?: () => { id: string };
+    }) {
+        const gyCard = makeInstance((opts.graveyardCard ?? grizzlyBears)().id, {
+            zone: "graveyard",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(mountain().id, {
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const controller = opts.sixController ?? "p1";
+        const sixPerm =
+            controller === "none"
+                ? undefined
+                : makeInstance(six().id, {
+                      zone: "battlefield",
+                      controllerId: controller,
+                      ownerId: controller,
+                  });
+        const p1 = makePlayer("p1", {
+            graveyard: [gyCard],
+            hand: [land],
+            battlefield: controller === "p1" && sixPerm ? [sixPerm] : [],
+            manaPool: GREEN_MANA,
+        });
+        const p2 = makePlayer("p2", {
+            battlefield: controller === "p2" && sixPerm ? [sixPerm] : [],
+        });
+        const active = opts.activePlayerId ?? "p1";
+        const state = makeState({
+            players: [p1, p2],
+            activePlayerId: active,
+            priorityPlayerId: active,
+        });
+        return { state, gyCard, land };
+    }
+
+    function gyActions(state: GameState, id: string) {
+        const p1 = getPlayer(state, "p1");
+        const card = p1.graveyard.find((c) => c.id === id)!;
+        return getLegalActions(state, p1, card);
+    }
+
+    it("grants retrace to a nonland permanent card in its controller's graveyard during their turn", () => {
+        const { state, gyCard } = sixBoard({});
+        expect(hasGrantedRetrace(state, gyCard as never)).toBe(true);
+        expect(gyActions(state, gyCard.id)).toEqual(["cast"]);
+    });
+
+    it('is OFF outside its controller\'s turn ("During your turn")', () => {
+        const { state, gyCard } = sixBoard({ activePlayerId: "p2" });
+        expect(hasRetrace(state, gyCard as never)).toBe(false);
+        expect(gyActions(state, gyCard.id)).toEqual([]);
+    });
+
+    it("never reaches an instant (not a permanent card, CR 110.4a)", () => {
+        const { state, gyCard } = sixBoard({ graveyardCard: lightningBolt });
+        expect(hasRetrace(state, gyCard as never)).toBe(false);
+    });
+
+    it("never reaches a land (CR 305.1 — a land is never cast)", () => {
+        const { state, gyCard } = sixBoard({ graveyardCard: mountain });
+        expect(hasRetrace(state, gyCard as never)).toBe(false);
+    });
+
+    it("needs Six on ITS CONTROLLER's battlefield: absent, or controlled by the opponent, grants nothing", () => {
+        const absent = sixBoard({ sixController: "none" });
+        expect(hasRetrace(absent.state, absent.gyCard as never)).toBe(false);
+        const theirs = sixBoard({
+            sixController: "p2",
+            activePlayerId: "p1",
+        });
+        expect(hasRetrace(theirs.state, theirs.gyCard as never)).toBe(false);
+    });
+
+    it("a retraced creature resolves onto the battlefield, never into exile (CR 608.3a)", () => {
+        const { state, gyCard } = sixBoard({});
+        const src = locateCastSource(state, getPlayer(state, "p1"), gyCard.id);
+        expect(src.viaRetrace).toBe(true);
+        // ADDITIONAL cost: the creature's own {1}{G} is still the mana cost.
+        expect(castRawManaCost(state, src.card!, src.zone)).toEqual({
+            X: 1,
+            G: 1,
+        });
+        const flags = graveyardCastStackFlags(state, src.card!, src.zone);
+        expect(flags.exileOnResolve).toBeUndefined();
+        const removed = removeFromZone(
+            state,
+            getPlayer(state, "p1"),
+            gyCard.id,
+            src.zone,
+            "p1"
+        );
+        state.stack.push({ ...removed, castById: "p1", ...flags });
+        resolveTopOfStack(state);
+        const p1 = getPlayer(state, "p1");
+        expect(p1.battlefield.some((c) => c.id === gyCard.id)).toBe(true);
+        expect(p1.exile.some((c) => c.id === gyCard.id)).toBe(false);
+    });
+
+    it('projects castKind: "retrace" on the viewer\'s graveyard card only on their turn', () => {
+        const on = sixBoard({});
+        const slimOn = projectPublicState(
+            on.state,
+            1,
+            "p1"
+        ).players[0].graveyard.find((c) => c.id === on.gyCard.id)!;
+        expect(slimOn.castKind).toBe("retrace");
+        expect(slimOn.legalActions).toEqual(["cast"]);
+        const off = sixBoard({ activePlayerId: "p2" });
+        const slimOff = projectPublicState(
+            off.state,
+            1,
+            "p1"
+        ).players[0].graveyard.find((c) => c.id === off.gyCard.id)!;
+        expect(slimOff.castKind).toBeUndefined();
     });
 });

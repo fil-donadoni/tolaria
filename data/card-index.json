@@ -65280,6 +65280,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Six",
+        "scryfallId": "f9246b68-580f-4f53-883d-7900880e4b0d",
+        "oracleId": "dbcbdf37-c40f-4068-b4a7-a849cab1056c",
+        "firstSet": "mh3",
+        "firstPrintId": "f9246b68-580f-4f53-883d-7900880e4b0d",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Sixth Sense",
         "scryfallId": "e564db6b-0b8b-4c67-9135-5da76d2225fe",
         "oracleId": "25d35e3e-ece8-4c94-9dbc-d076a52fca0d",

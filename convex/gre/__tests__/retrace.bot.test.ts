@@ -33,10 +33,12 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { WRENN_AND_SIX_EMBLEM_ID } from "../../cards/emblems";
 import {
+    forest,
     grizzlyBears,
     lightningBolt,
     mountain,
 } from "../../cards/sets/lea/index.cards";
+import { six } from "../../cards/sets/mh3/green.cards";
 
 /** p1 has the Wrenn and Six emblem, a Lightning Bolt in the graveyard, two
  *  untapped Mountains, and `handLands` Mountains (plus `handOther` non-lands)
@@ -190,5 +192,73 @@ describe("Retrace — Bot visibility (CR 702.81a)", () => {
         }
         expect(getPlayer(state, "p1").hand).toEqual([]);
         expect(retraceCasts(state)).toEqual([]);
+    });
+});
+
+// Issue #2377 — the BATTLEFIELD producer (Six: "During your turn, nonland
+// permanent cards in your graveyard have retrace"). The Bot must see the
+// retrace cast of a CREATURE card, and its sandbox must resolve it onto the
+// battlefield (CR 608.3a) after charging the land discard (CR 702.81a).
+describe("Retrace — Bot visibility of a battlefield grant (Six, issue #2377)", () => {
+    function sixBoard(activePlayerId: "p1" | "p2"): GameState {
+        const p1Cards = {
+            hand: [
+                makeInstance(mountain().id, {
+                    id: "handLand0",
+                    zone: "hand",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+            ],
+            battlefield: [
+                makeInstance(six().id, {
+                    id: "six",
+                    zone: "battlefield",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+                ...[0, 1].map((i) =>
+                    makeInstance(forest().id, {
+                        id: `bfForest${i}`,
+                        zone: "battlefield",
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    })
+                ),
+            ],
+            graveyard: [
+                makeInstance(grizzlyBears().id, {
+                    id: "gyBears",
+                    zone: "graveyard",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                }),
+            ],
+        };
+        return makeState({
+            players: [makePlayer("p1", p1Cards), makePlayer("p2")],
+            activePlayerId,
+            priorityPlayerId: "p1",
+        });
+    }
+
+    function bearsCasts(state: GameState) {
+        return enumerateMoves(state, "p1").filter(
+            (m) => m.kind === "cast-spell" && m.cardInstanceId === "gyBears"
+        );
+    }
+
+    it("enumerates the retrace cast of a creature card on its controller's turn", () => {
+        expect(bearsCasts(sixBoard("p1")).length).toBeGreaterThan(0);
+    });
+
+    it("the GREEDY sandbox charges the land and puts the creature onto the battlefield", () => {
+        const state = sixBoard("p1");
+        const after = applyMoveForSearch(state, "p1", bearsCasts(state)[0]!);
+        const p1 = getPlayer(after, "p1");
+        expect(p1.hand.some((c) => c.id === "handLand0")).toBe(false);
+        expect(p1.graveyard.some((c) => c.id === "handLand0")).toBe(true);
+        expect(p1.battlefield.some((c) => c.id === "gyBears")).toBe(true);
+        expect(p1.exile.some((c) => c.id === "gyBears")).toBe(false);
     });
 });

@@ -85,19 +85,23 @@ export function hasPrintedRetrace(card: CardInstanceState): boolean {
  *  through: a new producer of "<cards> in your graveyard have retrace" adds a
  *  loop here and nothing else changes.
  *
- *  The ONE producer today is a command-zone EMBLEM the graveyard's owner owns
- *  (Wrenn and Six's −7, `EmblemDefinition.grantsRetraceToOwnGraveyard`). It is
- *  worth a sweep rather than an inline lookup precisely because of WHERE it
- *  lives: an emblem is NOT a permanent (CR 114.1) and never appears on a
- *  battlefield, so the battlefield-permanent scan that every other
- *  graveyard-cast grant in the engine uses (`getGrantedEscape`, `escape.ts`)
- *  structurally cannot see it. The next producer — an Underworld-Breach-shaped
- *  battlefield permanent (Six, BLB) — is a second loop here, reading
- *  `owner.battlefield` for the identical `RetraceGrant` shape.
+ *  Two producers ship:
  *
- *  An emblem is never removed from the command zone (CR 114.4), so once created
- *  its grant is live for the rest of the game; the sweep is still re-run per
- *  query rather than cached, so the emblem-created turn needs no invalidation. */
+ *    1. A command-zone EMBLEM the graveyard's owner owns (Wrenn and Six's −7,
+ *       `EmblemDefinition.grantsRetraceToOwnGraveyard`). An emblem is NOT a
+ *       permanent (CR 114.1) and never appears on a battlefield, so the
+ *       battlefield-permanent scan every other graveyard-cast grant in the
+ *       engine uses (`getGrantedEscape`, `escape.ts`) structurally cannot see
+ *       it. Its abilities function in the command zone (CR 114.4), so once
+ *       created its grant is live for the rest of the game.
+ *    2. A BATTLEFIELD permanent the graveyard's owner controls (Six, MH3,
+ *       `CardDefinition.grantsRetraceToOwnGraveyard`) — "your graveyard" is
+ *       its controller's, and `owner.battlefield` is exactly the permanents
+ *       that player controls. Read live, so the grant ends the instant the
+ *       permanent leaves play.
+ *
+ *  The sweep is re-run per query rather than cached, so neither producer
+ *  needs an invalidation. */
 function collectRetraceGrants(
     state: GameState,
     ownerId: string
@@ -110,18 +114,34 @@ function collectRetraceGrants(
         )?.grantsRetraceToOwnGraveyard;
         if (grant) grants.push(grant);
     }
+    const owner = state.players.find((p) => p.id === ownerId);
+    for (const perm of owner?.battlefield ?? []) {
+        const grant = definitionOf(perm)?.grantsRetraceToOwnGraveyard;
+        if (grant) grants.push(grant);
+    }
     return grants;
 }
 
-/** Whether one {@link RetraceGrant} reaches `card` right now. Every clause is
- *  FAIL-CLOSED: an unmatched card type or an out-of-turn "during your turn"
- *  grant simply does not apply, so a new grant wording that this predicate does
- *  not understand withholds the permission rather than handing it out. */
-function grantReaches(grant: RetraceGrant, card: CardInstanceState): boolean {
+/** Whether one {@link RetraceGrant} reaches `card` (in `ownerId`'s graveyard)
+ *  right now. Every clause is FAIL-CLOSED: an unmatched card type or an
+ *  out-of-turn "during your turn" grant simply does not apply, so a new grant
+ *  wording that this predicate does not understand withholds the permission
+ *  rather than handing it out. */
+function grantReaches(
+    state: GameState,
+    grant: RetraceGrant,
+    card: CardInstanceState
+): boolean {
     // CR 305.1 — a land is played, never cast ("Since the land doesn't go on
     // the stack, it is never a spell"), so no retrace grant can ever reach one
     // however it is worded.
     if (isLand(card)) return false;
+    // "During your turn" — the grant's "you" is the graveyard's owner (the
+    // emblem's owner, the permanent's controller), so it is live only while
+    // that player is the active player.
+    if (grant.duringYourTurnOnly && state.activePlayerId !== card.ownerId) {
+        return false;
+    }
     if (
         grant.cardTypes &&
         !grant.cardTypes.some((t) =>
@@ -134,15 +154,14 @@ function grantReaches(grant: RetraceGrant, card: CardInstanceState): boolean {
 }
 
 /** CR 702.81 — retrace GRANTED to `card` by any producer reaching the graveyard
- *  it sits in. Today that is exactly one producer, a command-zone emblem
- *  (`EmblemDefinition.grantsRetraceToOwnGraveyard`); see
- *  {@link collectRetraceGrants} for why the sweep is shaped for more. */
+ *  it sits in — a command-zone emblem or a battlefield permanent; see
+ *  {@link collectRetraceGrants}. */
 export function hasGrantedRetrace(
     state: GameState,
     card: CardInstanceState
 ): boolean {
     return collectRetraceGrants(state, card.ownerId).some((g) =>
-        grantReaches(g, card)
+        grantReaches(state, g, card)
     );
 }
 
