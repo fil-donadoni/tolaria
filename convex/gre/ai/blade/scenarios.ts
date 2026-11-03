@@ -7876,11 +7876,31 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         //
         // Breach is out, one untapped Black Lotus is the entire mana base, and
         // the graveyard holds a Lightning Bolt plus six inert lands as escape
-        // fodder. The opponent is at 9 cards. The kill is NOT the Bolt: it is
+        // fodder. The opponent is at 10 cards. The kill is NOT the Bolt: it is
         // to cast Brain Freeze, let the Lotus reach the GRAVEYARD paying for
         // it, escape the Lotus, tap it a SECOND time for a different colour,
-        // and escape Brain Freeze itself with a storm count — which mills the
-        // opponent out (CR 104.3c / 704.5b).
+        // and escape Brain Freeze itself with a storm count — 3 + 3×3 = 12
+        // cards, which mills the opponent out (CR 104.3c / 704.5b).
+        //
+        // 10 is the depth where that is the UNIQUE kill. Bolt first (escape
+        // Bolt, escape the Lotus, Brain Freeze from hand at storm 2) mills 9,
+        // a kill at 9 cards. Brain Freeze at the Bot itself mills it 3 escape
+        // fodder, enough to escape the Bolt too and copy Brain Freeze at storm
+        // 3 into the opponent for 12 — so the Bot's own library is EMPTY: that
+        // line mills nothing and stops at 9. Any library at all keeps a
+        // fodder-for-storm line alive, and even ONE card lets the `library`
+        // term's gradient pick Brain Freeze with no kill on the table.
+        //
+        // The empty library is read, not ignored: the Bot draws nothing this
+        // turn, but every leaf that leaves the opponent a card is lost to
+        // `deckOutDelta` at the Bot's next draw — so passing loses — and only
+        // the kill empties both libraries, which `libraryTerm` resolves for
+        // the Bot because the opponent draws first.
+        //
+        // The discriminant, measured at 400 iterations: with the opponent at
+        // 13 (no line kills) the Brain Freeze lead collapses to a
+        // `material-tiebreak` within `outcomeEps`; at 10 it settles by
+        // `mean-reward` on seeds 0–19 and 0xb1ade.
         //
         // Every piece of that needs something this entry guards:
         //   - the Lotus reaches the graveyard at all: `applyTapPlanInSearch` models a
@@ -7889,11 +7909,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         //   - milling the opponent out is a WIN: the `library` term and
         //     `deckOutDelta`.
         //
-        // MEASURED on the parent commit (all three absent), same board, same
-        // seeds, at 400 AND 1200 iterations: the bot cast the Lightning Bolt
-        // from the graveyard and then had nothing, leaving the opponent at 8
-        // cards. On this branch it plays the line above on every seed and every
-        // budget measured, and the opponent's library reaches 0.
+        // MEASURED on the commit that added the three (all absent), on the
+        // entry's first pose (both libraries at 9), at 400 AND 1200
+        // iterations: the bot cast the Lightning Bolt from the graveyard and
+        // then had nothing, leaving the opponent at 8 cards.
         label: "decking: casts the storm kill that recurs its own Black Lotus",
         classification: {
             kind: "conditional",
@@ -7917,31 +7936,26 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 // grant never makes them castable and they only ever pay an
                 // exile cost.
                 { name: "Island", owner: "me", zone: "graveyard", count: 6 },
+                // The opponent's whole library (`libraryCount: 0` empties the
+                // Bot's, above).
+                { name: "Island", owner: "opp", zone: "library", count: 10 },
             ],
             phase: "PRECOMBAT_MAIN",
             turn: 3,
             landCount: 0,
-            // NOTE: `libraryCount` seeds BOTH libraries, so the bot is as close
-            // to decking as its opponent. That is not a weakness of the entry —
-            // it means the `library` term cannot be passed by a sign error, and
-            // milling the opponent has to be chosen over milling nobody.
-            libraryCount: 9,
+            libraryCount: 0,
             life: { me: 20, opp: 20 },
         },
         bot: "me",
         budget: { iterations: 400 },
-        // Issue #7705 — re-seeded off 0xb1ade: that seed settles by
-        // `material-tiebreak` (noise) even on the pre-refit weights, and the
-        // refit the issue's pairs owe flips it (and seed 18 of 0–19). Seeds
-        // 1–3 settle by `mean-reward` under both vectors. Follow-up: issue #7713.
-        seeds: [1, 2, 3],
+        seeds: [0xb1ade, 1, 2, 3],
         tier: "must",
         expect: {
             moves: [
                 { kind: "cast-spell", card: "Brain Freeze", target: "opp" },
             ],
         },
-        note: "Guards all three halves of the Underworld Breach probe at once: the search-side sacrifice model (`applyTapPlanInSearch`), the `graveyard` eval term, and the `library` term plus `deckOutDelta`. Red on the parent commit at 400 and 1200 iterations across the same seeds — it cast Lightning Bolt from the graveyard and stopped, leaving the opponent at 8 cards instead of 0. Not paired: a positive `moves` expectation stands alone (ADR 0070 §1 concerns `forbidden` halves).",
+        note: "Guards all three halves of the Underworld Breach probe at once: the search-side sacrifice model (`applyTapPlanInSearch`), the `graveyard` eval term, and the `library` term plus `deckOutDelta`. Red before them at 400 and 1200 iterations on the first pose (both libraries at 9) — it cast Lightning Bolt from the graveyard and stopped, leaving the opponent at 8 cards instead of 0. Not paired: a positive `moves` expectation stands alone (ADR 0070 §1 concerns `forbidden` halves).",
     },
     {
         // Issue #3231 — an empty library is a WIN under a draw-replacement win
