@@ -114,6 +114,18 @@ describe("the reporter seam — collectDurations", () => {
         expect(r.timeoutMs).toBe(120_000);
     });
 
+    it("a test with no timeout of its own (0) reads against its project's budget (issue #6567)", () => {
+        const [r] = collectDurations(
+            [
+                fakeModule("/repo/blade.spec.ts", "blade", 120_000, [
+                    { name: "entry", duration: 60_000, timeout: 0 },
+                ]),
+            ],
+            "/repo"
+        );
+        expect(r?.timeoutMs).toBe(120_000);
+    });
+
     it("drops tests below the floor and tests that never ran", () => {
         const out = collectDurations(
             [
