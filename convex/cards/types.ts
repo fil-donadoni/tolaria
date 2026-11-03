@@ -4748,7 +4748,7 @@ export interface SpellContext {
     /** CR 702.171a — "This permanent becomes saddled until end of turn":
      *  stamps `CardInstanceState.saddled` through `becomeSaddledOnCard`. A
      *  legal no-op on an already-saddled permanent; skipped when the target
-     *  has left the battlefield (CR 608.2b). */
+     *  has left the battlefield (CR 609.3). */
     becomeSaddled: (target: TargetSelection) => void;
     /** CR 722.3a — `target` "becomes prepared": it gains the prepared
      *  designation and its controller creates the CR 722.3c exiled copy of its
@@ -17762,7 +17762,7 @@ export type EffectOp =
      *  NOT `animate` (Crew's effect half): a Mount is already a creature, and
      *  saddling changes no characteristic — the designation is a marker other
      *  abilities identify (`EffectCardFilter.saddled`), never a type, a P/T or
-     *  a counter. Already saddled: a legal no-op. Gone (CR 608.2b): nothing. */
+     *  a counter. Already saddled: a legal no-op. Gone: nothing (CR 609.3). */
     | {
           op: "becomeSaddled";
           target: EffectObjectSelector;

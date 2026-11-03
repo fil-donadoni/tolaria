@@ -17,7 +17,7 @@ import { withSaddle } from "../../abilities/mount";
 // resolution through `objectMatchesFilter` on `$source` with
 // `filter.saddled` (CR 702.171b); a Bronco that left the battlefield in
 // response answers with its last known information (CR 608.2h). An empty
-// library binds nothing, so neither branch loses any life (CR 608.2b).
+// library binds nothing, so neither branch loses any life (CR 609.3).
 // hand-tail: Reveal the top card of your library and put it into your hand (#2088)
 export const causticBronco = defineCard(() =>
     withSaddle(

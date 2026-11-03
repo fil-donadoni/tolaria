@@ -3401,7 +3401,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         cr: "702.171",
         mechanicId: "saddle",
         binding: "SpellContext.becomeSaddled",
-        note: 'Becomes saddled (CR 702.171a) — "This permanent becomes saddled until end of turn", the effect half of Saddle N. A thin declarative skin over the SpellContext primitive `becomeSaddled`, one execution path (ADR 0045), routed through `becomeSaddledOnCard`, the single writer of the CR 702.171b designation `CardInstanceState.saddled` (cleared at cleanup, CR 514.2, and on any zone change, CR 400.7). NOT `animate` (Crew\'s effect half): a Mount is already a creature and saddling changes no characteristic — the designation is a marker other abilities read through `EffectCardFilter.saddled`. `target` is `$source` in the printed form, an announced slot or a forEach `$each`. Already saddled: a legal no-op. Target gone (CR 608.2b): nothing.',
+        note: 'Becomes saddled (CR 702.171a) — "This permanent becomes saddled until end of turn", the effect half of Saddle N. A thin declarative skin over the SpellContext primitive `becomeSaddled`, one execution path (ADR 0045), routed through `becomeSaddledOnCard`, the single writer of the CR 702.171b designation `CardInstanceState.saddled` (cleared at cleanup, CR 514.2, and on any zone change, CR 400.7). NOT `animate` (Crew\'s effect half): a Mount is already a creature and saddling changes no characteristic — the designation is a marker other abilities read through `EffectCardFilter.saddled`. `target` is `$source` in the printed form, an announced slot or a forEach `$each`. Already saddled: a legal no-op. Target gone: nothing — the effect does only as much as possible (CR 609.3).',
     },
     {
         op: "monstrosity",

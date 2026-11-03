@@ -4778,7 +4778,7 @@ export const OP_EXECUTORS: {
     },
     // CR 702.171a — "This permanent becomes saddled until end of turn." A thin
     // declarative skin over `SpellContext.becomeSaddled`, ONE execution path
-    // (ADR 0045). Skipped when the target is gone (CR 608.2b); re-saddling a
+    // (ADR 0045). Skipped when the target is gone (CR 609.3); re-saddling a
     // saddled permanent is a no-op in the primitive.
     becomeSaddled(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);

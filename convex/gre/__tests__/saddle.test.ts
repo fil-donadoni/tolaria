@@ -160,7 +160,7 @@ describe("Saddle N (CR 702.171a)", () => {
         expect(broncoOf(state)!.saddled).toBe(true);
     });
 
-    it("total power below N cannot be announced (CR 602.5b)", () => {
+    it("total power below N cannot be announced (CR 601.2h — unpayable costs can't be paid)", () => {
         const state = broncoBoard([{ id: "lion", cardId: savannahLions().id }]);
         expect(() =>
             activateAbilityOnState(state, {
@@ -335,7 +335,7 @@ describe("Caustic Bronco — attack trigger (CR 701.20a / 702.171b)", () => {
         expect(life(state, "p2")).toBe(18);
     });
 
-    it("an empty library reveals nothing and nobody loses life (CR 608.2b)", () => {
+    it("an empty library reveals nothing and nobody loses life (CR 609.3)", () => {
         const state = broncoBoard([]);
         attackWithBronco(state);
         resolveTopOfStack(state);

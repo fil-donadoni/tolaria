@@ -13599,7 +13599,7 @@ export function buildSpellContext(
         // CR 702.171a — "This permanent becomes saddled until end of turn."
         // Routed through `becomeSaddledOnCard`, the single writer of the
         // designation; a permanent that has left the battlefield is skipped
-        // (CR 608.2b).
+        // (CR 609.3).
         becomeSaddled(target: TargetSelection): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
