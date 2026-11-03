@@ -14,7 +14,10 @@ const STUN = "stun";
 
 /** CR 611.3a — the "During your turn, as long as Kaito has one or more loyalty
  *  counters on him" gate, re-read at every layer derivation: the source's
- *  controller is the active player AND the source has a loyalty counter. */
+ *  controller is the active player AND the source has a loyalty counter.
+ *  Because it reads counters, every MATERIALIZED kind gated on it declares
+ *  `dependsOnCounters: true` (`CounterGatedStatic`), so a loyalty change
+ *  re-runs the grant; `pt-set` is recomputed at read and needs nothing. */
 const duringYourTurnWithLoyalty = (
     source: PermanentView,
     state: StaticEffectStateView
@@ -66,18 +69,21 @@ export const kaitoBaneOfNightmares = defineCard(() => ({
             kind: "type-add",
             applies: EFFECT_AFFECTS_SELF,
             condition: duringYourTurnWithLoyalty,
+            dependsOnCounters: true,
             types: ["Creature"],
         },
         {
             kind: "type-remove",
             applies: EFFECT_AFFECTS_SELF,
             condition: duringYourTurnWithLoyalty,
+            dependsOnCounters: true,
             types: ["Planeswalker"],
         },
         {
             kind: "subtype-set",
             applies: EFFECT_AFFECTS_SELF,
             condition: duringYourTurnWithLoyalty,
+            dependsOnCounters: true,
             subtypes: ["Ninja"],
         },
         {
@@ -91,6 +97,7 @@ export const kaitoBaneOfNightmares = defineCard(() => ({
             kind: "keyword-grant",
             applies: EFFECT_AFFECTS_SELF,
             condition: duringYourTurnWithLoyalty,
+            dependsOnCounters: true,
             keyword: "hexproof",
         },
     ],
