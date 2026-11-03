@@ -2271,6 +2271,31 @@ function resolveRedirectEnd(
     return resolveObjectRef(ctx, ref);
 }
 
+/** CR 701.3a/701.3b / 301.5c (issue #3248) — may `attachment` legally be
+ *  attached to `host`? Read off LIVE characteristics (CR 613 layer 4). An
+ *  object that is not an Aura, Equipment or Fortification can't be attached at
+ *  all (CR 701.3b); an Equipment equips a creature other than itself and a
+ *  Fortification fortifies a land (CR 701.3a: it "can't be attached to an
+ *  object … it couldn't equip, or fortify"). An Aura's enchant restriction is
+ *  not re-read here: no explicit-`attachment` caller attaches an Aura, and the
+ *  CR 704.5m state-based action already sweeps an illegally attached one. */
+function canAttachTo(
+    ctx: SpellContext,
+    attachment: TargetSelection,
+    host: TargetSelection
+): boolean {
+    const what = ctx.getCharacteristics(attachment);
+    const onto = ctx.getCharacteristics(host);
+    if (!what || !onto) return false;
+    if (what.subtypes.includes("Equipment")) {
+        return attachment.id !== host.id && onto.types.includes("Creature");
+    }
+    if (what.subtypes.includes("Fortification")) {
+        return onto.types.includes("Land");
+    }
+    return what.subtypes.includes("Aura");
+}
+
 /** Resolves an object selector to a TargetSelection: the announced target
  *  slot, or — inside a `forEach` over permanents (issue #807) — the bare
  *  `{ ref: "$each" }` naming the current member. Returns undefined when the
@@ -4143,10 +4168,25 @@ export const OP_EXECUTORS: {
     // announced target permanent. Only a "permanent" TargetSelection is a
     // legal attach host (the ability's targetRequirement already restricts
     // to "Creature"); any other resolved kind is a no-op.
+    //
+    // Issue #3248 — an explicit `attachment` attaches THAT object instead of
+    // `$source` (Thieving Skydiver: the stolen Equipment onto the Skydiver).
+    // CR 701.3b: "If an effect tries to attach an object that isn't an Aura,
+    // Equipment, or Fortification to another object or player, the effect
+    // does nothing", and an attachment onto an object it couldn't equip /
+    // fortify doesn't move (CR 301.5c — an Equipment equips a creature, never
+    // itself). Both read the LIVE characteristics (CR 613 layer 4).
     attach(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target || target.type !== "permanent") return;
-        ctx.attachTo(ctx.sourceInstanceId, target.id);
+        if (op.attachment === undefined) {
+            ctx.attachTo(ctx.sourceInstanceId, target.id);
+            return;
+        }
+        const attachment = resolveObjectRef(ctx, op.attachment);
+        if (!attachment || attachment.type !== "permanent") return;
+        if (!canAttachTo(ctx, attachment, target)) return;
+        ctx.attachTo(attachment.id, target.id);
     },
     // CR 701.3d (ADR 0065, issue #1311) — unattach $source from whatever
     // it's currently attached to. No-op if it isn't attached.

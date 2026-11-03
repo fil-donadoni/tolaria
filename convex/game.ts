@@ -353,6 +353,7 @@ import {
     kickedCountOfPayments,
     kickerLifeCost,
     paidKickersAnnounceX,
+    assertKickerMinX,
     paidKickersRequireDistinctColorX,
     resolveCastPermanentSelection,
     resolveKickerPayments,
@@ -6753,6 +6754,9 @@ export const announceCast = mutation({
         ) {
             throw new Error("Must choose X (≥ 0) for this spell");
         }
+        // CR 107.3 / 601.2b (issue #3248) — a paid Kicker's lower bound on the
+        // one announced X ("Kicker {X}. X can't be 0.", Thieving Skydiver).
+        assertKickerMinX(cardDef, kickerPayments, args.chosenX);
         // CR 107.3 — a board-count upper bound on X ("X can't be greater than
         // the number of snow lands you control", Winter's Chill). Announcing a
         // larger X is illegal; the Bot's X enumeration (moves.ts) caps to the

@@ -450,6 +450,15 @@ export type KickerCost = CostLegs & {
      *  the spell is CAST. The entry is the one thing that exists at both the
      *  announcement that resolved the reveal and the commit that snapshots it. */
     splicedCardId?: string;
+    /** CR 107.3 / 601.2b (issue #3248) — the smallest X the caster may
+     *  announce when THIS Kicker is paid: "Kicker {X}. X can't be 0."
+     *  (Thieving Skydiver) is `minX: 1`. Meaningful only on a Kicker whose
+     *  mana leg announces X (`kickerAnnouncesX`); an UNPAID Kicker imposes
+     *  nothing, so the bound is a fact of the kicked cast, not of the card —
+     *  kicking for 0 is illegal while not kicking at all stays legal. Omitted =
+     *  0. Read through `paidKickersMinX` (`gre/kicker.ts`), the one authority
+     *  for the cast mutation, the Bot's X enumeration and the cost dialog. */
+    minX?: number;
 };
 
 /** CR 702.47 — "Splice onto [subtype] [cost]" as a card declares it
@@ -17122,8 +17131,21 @@ export type EffectOp =
      *  you control"); a future plain-Equip card (#776) reuses the SAME Op —
      *  Equip is just the ability shell (`sorcerySpeedOnly` + `targetRequirement`),
      *  this Op is the CR 701.3 keyword action underneath it. No-op if the
-     *  target has left the battlefield (CR 608.2b). */
-    | { op: "attach"; target: EffectObjectSelector }
+     *  target has left the battlefield (CR 608.2b).
+     *
+     *  `attachment` (issue #3248) names the object being attached when it is
+     *  NOT the resolving source — Thieving Skydiver's "If that artifact is an
+     *  Equipment, attach it to this creature" attaches the stolen TARGET to
+     *  `$source`. Omitted = `$source`, the form every pre-existing caller
+     *  uses. With an explicit `attachment` the CR 701.3b legality is checked
+     *  at resolution: an object that is not an Aura, Equipment or
+     *  Fortification does nothing, and an Equipment never moves onto a
+     *  non-creature or onto itself (CR 301.5c). */
+    | {
+          op: "attach";
+          target: EffectObjectSelector;
+          attachment?: EffectObjectSelector;
+      }
     /** CR 701.3d (ADR 0065, issue #1311) — unattach `$source` from whatever
      *  it's currently attached to, leaving it on the battlefield unattached.
      *  A thin declarative skin over `SpellContext.detachFrom`, one execution

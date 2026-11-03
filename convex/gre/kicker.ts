@@ -704,6 +704,40 @@ export function paidKickersAnnounceX(
     );
 }
 
+/** CR 107.3 / 601.2b (issue #3248) — the smallest X THIS cast may announce
+ *  because of a paid Kicker's `minX` ("Kicker {X}. X can't be 0.", Thieving
+ *  Skydiver). The largest bound among the paid Kickers that announce X; 0 when
+ *  none does — an unpaid Kicker's bound never applies (CR 601.2b announces X
+ *  only for a cost that will be paid). The one authority the cast mutation,
+ *  the Bot's X enumeration and the cost dialog read. */
+export function paidKickersMinX(
+    cardDef: CardDefinition,
+    payments: KickerPayments | undefined
+): number {
+    let min = 0;
+    for (const { kicker } of paidKickers(cardDef, payments)) {
+        if (kickerAnnouncesX(kicker)) min = Math.max(min, kicker.minX ?? 0);
+    }
+    return min;
+}
+
+/** CR 107.3 / 601.2b (issue #3248) — refuse an announcement whose X is below
+ *  the paid Kickers' floor (`paidKickersMinX`). Kicking for less is an illegal
+ *  announcement; not kicking at all stays legal, because an unpaid Kicker
+ *  imposes no floor. A missing X is the caller's own "Must choose X" rung. */
+export function assertKickerMinX(
+    cardDef: CardDefinition,
+    payments: KickerPayments | undefined,
+    chosenX: number | undefined
+): void {
+    const floor = paidKickersMinX(cardDef, payments);
+    if (floor > 0 && chosenX !== undefined && chosenX < floor) {
+        throw new Error(
+            `X can't be less than ${floor} for a kicked ${cardDef.name}`
+        );
+    }
+}
+
 /** CR 702.33a / 601.2f — fold every paid Kicker's MANA leg into a normalized
  *  mana-cost record, mutating it in place. A Multikicker paid N times contributes
  *  its mana leg N times (CR 702.33e). No-op when nothing was kicked. Applied to
