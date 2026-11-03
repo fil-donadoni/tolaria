@@ -1257,7 +1257,10 @@ of 21 on 8 cores, and at that contention the default reds CORRECT code — it di
 so in at least 10 of 23 RED health runs. The `node` and `dom` projects therefore
 carry `testTimeout: 30_000`, which is far beyond anything a unit test here
 legitimately takes and still tight enough to catch a genuine hang. (`bot-node` /
-`bot-dom` already had 60s, blade 120s, for the same reason.)
+`bot-dom` already had 60s, for the same reason. A blade entry has no timeout at
+all, issue #6567: its search is synchronous, so vitest cannot interrupt it and
+only fails the finished verdict afterwards. Its project's 120s is the budget of
+the headroom advisory.)
 
 **A wall-clock assertion is a measurement of the machine**, so it may not run in
 a gate at all. `*.perf.test.ts` is its own vitest project, `perf`, excluded from

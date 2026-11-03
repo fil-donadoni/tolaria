@@ -88,6 +88,19 @@ const VARIANT_SUFFIX = VARIANT ? ` [variant: ${VARIANT.name}]` : "";
 
 const tierScenarios = bladeScenariosForTier(TIER);
 
+/**
+ * vitest's "no timeout" (issue #6567): a blade verdict depends on `iterations`
+ * and seeds, never on how long the machine took to compute it.
+ *
+ * `searchWithTrace` is synchronous, so a timeout cannot interrupt it: vitest
+ * lets the body finish, then fails the test for having taken too long. That is
+ * a wall-clock assertion on an already-computed verdict, and it catches no hang
+ * (a loop in sync code never reaches the check). The project's `testTimeout`
+ * stays the budget of health's headroom advisory (issue #5484), where an
+ * entry's cost remains visible, and the ceiling of this suite's cheap tests.
+ */
+const NO_WALL_CLOCK_CEILING = { timeout: 0 } as const;
+
 /** Register shard `shard` (0-based) of the blade suite in the calling spec file. */
 export function registerBladeShard(shard: number): void {
     const scenarios = bladeShardSlice(tierScenarios, shard);
@@ -188,6 +201,25 @@ export function registerBladeShard(shard: number): void {
                 }
             });
 
+            it("no entry's verdict carries a wall-clock ceiling (issue #6567)", ({
+                task,
+            }) => {
+                const entries = task.file.tasks
+                    .filter(
+                        (t) =>
+                            t.type === "suite" &&
+                            t.name.includes(` ${TIER} tier`)
+                    )
+                    .flatMap((t) => (t.type === "suite" ? t.tasks : []));
+                expect(entries.length).toBeGreaterThan(0);
+                for (const entry of entries) {
+                    expect(
+                        entry.type === "test" ? entry.timeout : undefined,
+                        `${entry.name}: a sync search cannot be interrupted, a timeout only fails a finished verdict`
+                    ).toBe(NO_WALL_CLOCK_CEILING.timeout);
+                }
+            });
+
             it("every discriminating-pair entry names its partner (issue #1487)", () => {
                 // A pair half is only meaningful WITH its partner: a bot that never
                 // casts passes the forbidden half, one that always casts passes the
@@ -244,6 +276,7 @@ export function registerBladeShard(shard: number): void {
 
             it.each(PROBE_LABELS)(
                 "re-running %s yields the identical chosen move",
+                NO_WALL_CLOCK_CEILING,
                 (label) => {
                     const probe = findBladeScenario(label);
                     expect(
@@ -269,7 +302,7 @@ export function registerBladeShard(shard: number): void {
         }
 
         for (const scenario of scenarios) {
-            it(scenario.label, () => {
+            it(scenario.label, NO_WALL_CLOCK_CEILING, () => {
                 const result = runBladeScenario(scenario, VARIANT);
                 if (TIER === "stretch") {
                     // Report-only: a stretch entry documents a position the bot is
