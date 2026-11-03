@@ -943,6 +943,17 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         );
         return;
     }
+    // lifeLostThisTurn (CR 119.3 / 119.4, issue #3237): the life-gain twin —
+    // the canned generator opens a fresh turn and loses no life before the
+    // spell resolves, so it cannot size a declared outcome; skip-with-reason.
+    if ("lifeLostThisTurn" in value) {
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads a player's life lost this turn — the canned generator does not lose life before resolving`
+        );
+        return;
+    }
     // cardsDrawnThisTurn (CR 121.1, issue #3240): the amount reads how many
     // cards a player has drawn this turn. The canned generator opens a fresh
     // turn and never draws before the spell resolves, so it cannot size a
@@ -3190,6 +3201,7 @@ function predictAmount(value: EffectValue, scenario: Scenario): number | null {
     if ("domain" in value) return null; // skipped earlier — defensive
     if ("devotion" in value) return null; // skipped earlier — defensive
     if ("lifeGainedThisTurn" in value) return null; // skipped earlier
+    if ("lifeLostThisTurn" in value) return null; // skipped earlier
     if ("cardsDrawnThisTurn" in value) return null; // skipped earlier
     if ("nontokenCreaturesToGraveyardThisTurn" in value) return null; // skipped earlier
     if ("playerCounters" in value) return null; // skipped earlier — defensive

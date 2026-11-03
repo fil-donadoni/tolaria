@@ -4992,6 +4992,14 @@ export type GameState = {
      *  resolution. Also exposed to the DSL as the
      *  `{ lifeGainedThisTurn: { of } }` EffectValue grammar member. */
     lifeGainedThisTurn?: Record<string, number>;
+    /** CR 119.3 / 119.4 per-turn life-LOSS tally keyed by player id (issue
+     *  #3237), the `lifeGainedThisTurn` twin. Total life each player has
+     *  LOST so far this turn — from damage, "lose life" effects and paid life
+     *  alike (`recordLifeLost`, `gre/state.ts`). Reset at the start of every
+     *  turn. "Each opponent who lost life this turn" counts the players whose
+     *  entry is above 0, never the instances. Exposed to the DSL as the
+     *  `{ lifeLostThisTurn: { of } }` EffectValue grammar member. */
+    lifeLostThisTurn?: Record<string, number>;
     /** Transient one-shot damage redirections (CR 614). Distinct from
      *  permanent-bound `replacementEffects` (CardDefinition) — these are
      *  state-level shields produced by spells / activated abilities
