@@ -52,7 +52,6 @@ import {
     savannahLions,
     solRing,
 } from "../../cards/sets/lea/index.cards";
-import { getTriggeredAbilityOracleText } from "../../../src/lib/card-utils";
 
 const RIDER_ID = "serra-paragon-granted-exile";
 const RIDER_TEXT =
@@ -380,12 +379,20 @@ describe("Serra Paragon — graveyard play permission rider (issue #1239)", () =
             const trigger = projectPublicState(state, 2, "p1").stack[0];
             expect(trigger).toBeDefined();
             expect(
-                getTriggeredAbilityOracleText(
-                    (trigger.card as { id: string }).id,
-                    trigger.triggeredAbilityId!,
-                    trigger.grantedTriggeredAbilities
-                )
-            ).toBe(RIDER_TEXT);
+                // The lookup the client's stack row makes
+                // (`getTriggeredAbilityOracleText`, src/lib/card-utils.ts):
+                // the projected trigger's own grant entry names the template.
+                (trigger.grantedTriggeredAbilities ?? [])
+                    .filter((g) => g.abilityId === trigger.triggeredAbilityId)
+                    .map(
+                        (g) =>
+                            getDefinition(
+                                g.sourceCardId
+                            ).triggeredGrantTemplates?.find(
+                                (a) => a.id === g.abilityId
+                            )?.oracleText
+                    )
+            ).toEqual([RIDER_TEXT]);
         });
     });
 });
