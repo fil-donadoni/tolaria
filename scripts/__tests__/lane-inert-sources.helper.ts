@@ -5,7 +5,7 @@
 //
 // A test whose subject IS the live walk does not use this helper; it calls
 // `classifyLane` bare AND carries the `live-walk:` marker comment (see
-// `lane-sources-injected.guard.test.ts`).
+// `lane-sources-injected.test.ts`).
 import {
     classifyLane,
     type BotReachSource,
