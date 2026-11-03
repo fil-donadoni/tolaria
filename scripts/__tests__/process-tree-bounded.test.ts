@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -61,4 +62,25 @@ describe("runBounded — a spawn that cannot outlive its deadline (issue #7937)"
             timedOut: false,
         });
     });
+
+    // Bun is the runtime `pr-refresh` runs under, and its `spawnSync` ignores
+    // `detached`: vitest (Node) alone would have passed with the tree-kill dead.
+    it("kills the tree under Bun too", () => {
+        const dir = mkdtempSync(join(tmpdir(), "tolaria-bounded-"));
+        const pidFile = join(dir, "grandchild");
+        try {
+            const lib = join(__dirname, "../lib/process-tree.ts");
+            const script = `import { runBounded } from ${JSON.stringify(lib)};
+const r = runBounded("sh", ["-c", "sleep 300 & echo $! > ${pidFile}; wait"], { timeoutMs: 500 });
+console.log(JSON.stringify({ timedOut: r.timedOut }));`;
+            const out = spawnSync("bun", ["-e", script], {
+                encoding: "utf8",
+                timeout: 60_000,
+            });
+            expect(out.stdout.trim()).toBe('{"timedOut":true}');
+            expect(alive(Number(readFileSync(pidFile, "utf8")))).toBe(false);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    }, 90_000);
 });

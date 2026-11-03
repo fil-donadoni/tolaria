@@ -243,7 +243,7 @@ export interface BoundedResult {
 
 /**
  * `spawnSync` that cannot outlive `timeoutMs` nor leave a tree behind (issue
- * #7937). The child leads its own process group (`detached`), so when the
+ * #7937). The child leads its own process group, so when the
  * deadline passes — or the child exits leaving grandchildren — the whole tree
  * is killed and seen to be gone, the way the gate tears down its command.
  * `spawnSync` alone signals only the direct child: `bun run x` dying left its
@@ -259,16 +259,24 @@ export function runBounded(
     }
 ): BoundedResult {
     const capture = options.stdio !== "ignore";
-    const r = spawnSync(cmd, args, {
-        cwd: options.cwd,
-        env: options.env,
-        encoding: "utf8",
-        stdio: capture ? "pipe" : "ignore",
-        detached: true,
-        timeout: options.timeoutMs,
-        killSignal: "SIGKILL",
-        maxBuffer: 64 * 1024 * 1024,
-    });
+    // The child leads a group of its own, made by `perl` before it `exec`s the
+    // command: Bun's `spawnSync` ignores `detached`, and a child left in the
+    // caller's group is one `killTree` must protect, so nothing would be
+    // killed (the runtime `pr-refresh` runs under). Same pid before and after
+    // the `exec`, so `r.pid` is the group's leader on either runtime.
+    const r = spawnSync(
+        "perl",
+        ["-e", "setpgrp(0,0); exec @ARGV or die qq(exec: $!\\n)", cmd, ...args],
+        {
+            cwd: options.cwd,
+            env: options.env,
+            encoding: "utf8",
+            stdio: capture ? "pipe" : "ignore",
+            timeout: options.timeoutMs,
+            killSignal: "SIGKILL",
+            maxBuffer: 64 * 1024 * 1024,
+        }
+    );
     // Whatever the child left running is not part of its result.
     if (r.pid) killTree(r.pid, "SIGKILL", 0);
     const timedOut =
