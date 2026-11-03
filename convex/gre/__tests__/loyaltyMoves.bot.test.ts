@@ -198,8 +198,11 @@ describe("loyalty abilities reach the bot's move enumerator (CR 606.2)", () => {
         expect(missing).toEqual([
             "Sorin, Lord of Innistrad :: sorin-lord-of-innistrad-minus6",
         ]);
-        expect(totalCount).toBe(60);
-        expect(offeredCount).toBe(59);
+        // Derived, never a catalogue-wide literal: every new walker moved a
+        // hand-kept total, so two walker PRs always conflicted on this line
+        // (PR #7815 vs PR #7935). `missing` above pins exactly what is not
+        // offered; the rest of the catalogue must be.
+        expect(offeredCount).toBe(totalCount - missing.length);
     });
 
     it("never offers a loyalty move the server's own gate would reject", () => {
