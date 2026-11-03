@@ -48,6 +48,7 @@ import type { EvalTerms } from "../../evaluate";
 import type { Move } from "../../moves";
 import type { GameState } from "../../state";
 import {
+    answeredTriggerId,
     applyMoveInSearch,
     decidingPlayer,
     moveKey,
@@ -139,7 +140,8 @@ export function candidateFeatures(
         move,
         weights,
         botId,
-        passEndsStep(state, botId)
+        passEndsStep(state, botId),
+        answeredTriggerId(state, botId, move)
     );
     return featuresOfSettled(settled, botId, weights);
 }
@@ -431,7 +433,8 @@ export function sequencingPairClassifier(
             moves[index],
             weights,
             botId,
-            passEndsStep(state, botId)
+            passEndsStep(state, botId),
+            answeredTriggerId(state, botId, moves[index])
         );
         // CR 117.3b — the active player receives priority after a spell or
         // ability resolves. The probe resolves without handing priority back
