@@ -736,6 +736,11 @@
         },
         {
             "kind": "grammar",
+            "key": "(card) › transform back face colour indicator (CR 202.2e) is not in the corpus",
+            "issue": 7905
+        },
+        {
+            "kind": "grammar",
             "key": "(card) › modal double-faced card with a nonland back face is CR 712.11b's cast option, out of scope",
             "issue": 7200
         },
