@@ -224,6 +224,56 @@ function reduceCard(raw: Record<string, unknown>): CorpusCard | null {
  *  existed. */
 type BulkChoice = "pinned" | "latest";
 
+/**
+ * Bounds of the bulk download (issue #7937). One run, orphaned under a dead
+ * `pr-refresh`, sat on a stalled stream for 25 h at ~97 % of a core: a
+ * download with no deadline has no failure mode but "never". The stream is
+ * dead after `DOWNLOAD_STALL_MS` without a chunk; the whole fetch after
+ * `DOWNLOAD_TOTAL_MS` (the ~100 MB bulk takes about a minute).
+ */
+export const DOWNLOAD_STALL_MS = 60_000;
+export const DOWNLOAD_TOTAL_MS = 10 * 60_000;
+const INDEX_TIMEOUT_MS = 30_000;
+
+/**
+ * `source`'s chunks, failing instead of waiting past `stallMs` for the next
+ * one. The wait is a race against a timer, so a source that stops emitting —
+ * or never settles `next()` — still ends in an error; the source is released
+ * best-effort (a stalled one may never answer `return()`).
+ */
+export async function* withStallGuard<T>(
+    source: AsyncIterable<T>,
+    stallMs: number
+): AsyncGenerator<T> {
+    const it = source[Symbol.asyncIterator]();
+    try {
+        for (;;) {
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const stalled = new Promise<never>((_, reject) => {
+                timer = setTimeout(
+                    () =>
+                        reject(
+                            new Error(
+                                `oracle-corpus: download stalled — no data for ${Math.round(stallMs / 1000)}s`
+                            )
+                        ),
+                    stallMs
+                );
+            });
+            let step: IteratorResult<T>;
+            try {
+                step = await Promise.race([it.next(), stalled]);
+            } finally {
+                clearTimeout(timer);
+            }
+            if (step.done) return;
+            yield step.value;
+        }
+    } finally {
+        void Promise.resolve(it.return?.()).catch(() => {});
+    }
+}
+
 async function resolveBulk(
     choice: BulkChoice
 ): Promise<{ uri: string; updatedAt: string }> {
@@ -237,7 +287,10 @@ async function resolveBulk(
         }
         return { uri: pin.downloadUri, updatedAt: pin.updatedAt };
     }
-    const indexRes = await fetch(BULK_INDEX, { headers: HEADERS });
+    const indexRes = await fetch(BULK_INDEX, {
+        headers: HEADERS,
+        signal: AbortSignal.timeout(INDEX_TIMEOUT_MS),
+    });
     if (!indexRes.ok) throw new Error(`Scryfall bulk index ${indexRes.status}`);
     const meta = (await indexRes.json()) as Record<string, unknown>;
     // Scryfall now serves `jsonl_download_uri` (gzipped JSONL) and has dropped
@@ -255,15 +308,26 @@ async function download(choice: BulkChoice): Promise<{
     const { uri, updatedAt } = await resolveBulk(choice);
 
     process.stderr.write(`oracle-corpus: downloading ${uri}\n`);
-    const res = await fetch(uri, { headers: HEADERS });
+    const res = await fetch(uri, {
+        headers: HEADERS,
+        signal: AbortSignal.timeout(DOWNLOAD_TOTAL_MS),
+    });
     if (!res.ok || !res.body)
         throw new Error(`Scryfall bulk download ${res.status}`);
 
     const cards: CorpusCard[] = [];
     if (uri.endsWith(".jsonl") || uri.endsWith(".jsonl.gz")) {
+        const gunzip = createGunzip();
+        const body = Readable.from(
+            withStallGuard(
+                res.body as unknown as AsyncIterable<Uint8Array>,
+                DOWNLOAD_STALL_MS
+            )
+        );
+        // `pipe` does not forward an error: a stall must reach the reader.
         const stream = uri.endsWith(".gz")
-            ? Readable.fromWeb(res.body as never).pipe(createGunzip())
-            : Readable.fromWeb(res.body as never);
+            ? body.on("error", (e) => gunzip.destroy(e)).pipe(gunzip)
+            : body;
         for await (const line of createInterface({
             input: stream,
             crlfDelay: Infinity,
