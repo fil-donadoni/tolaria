@@ -336,7 +336,7 @@ function resolveEventRef(
  *  too). Snapshot bindings were written by `bindSnapshot`; picks bindings are
  *  the `requestChoice` entry keyed by the binding name. */
 function readBinding(ctx: SpellContext, name: string): string[] | undefined {
-    return ctx.recallChoice(name);
+    return ctx.recallChoice(name) ?? readIteratedPicks(ctx, name);
 }
 
 /** Resolves an `EffectCardFilter.name` bare ref (issue #1085 / #1104) to a
@@ -5353,6 +5353,12 @@ export const OP_EXECUTORS: {
                 ctx.moveCardById(playerId, id, "library", destination);
             }
         }
+        // Issue #2608 — "that card", named for a later Op by its id (a picks
+        // binding). No match → no referent, the binding stays uncaptured and
+        // every reader skips (CR 609.3).
+        if (op.bind !== undefined && matchId !== undefined) {
+            ctx.noteChoice(op.bind, [matchId]);
+        }
     },
     // CR 701.44 (issue #2376) — the Explore keyword action. A thin declarative
     // skin composed of primitives that already exist, ONE execution path (ADR
@@ -7737,7 +7743,15 @@ export const OP_EXECUTORS: {
     // iteration (CR 608.3). Like `if`, forEach holds no position of its own:
     // it always re-descends on a re-walk.
     forEach(ctx, op, cursor) {
-        return execForEach(ctx, op, cursor);
+        // Captured BEFORE the body runs: the body's `runOpList` overwrites
+        // the checkpoint per Op.
+        const pos = ctx.getScriptCheckpoint() ?? 0;
+        const outcome = execForEach(ctx, op, cursor);
+        // Issue #2608 — every iteration has run: the body's picks bindings
+        // are now readable past the construct as one set (`readIteratedPicks`).
+        if (outcome !== "suspend")
+            ctx.noteChoice(forEachDoneKey(pos), ["done"]);
+        return outcome;
     },
     // CR 104.2a — an alternate win condition set by a resolving spell/ability
     // (issue #1066, Coalition Victory). A thin declarative skin over
@@ -8419,6 +8433,48 @@ function readIteratedSnapshots(ctx: SpellContext, name: string): string[][] {
         }
     }
     return rows;
+}
+
+/** Issue #2608 — the UNION of every iteration's capture of the picks binding
+ *  `name`, declared inside the body of an EARLIER, COMPLETED `forEach` of this
+ *  script: "each player exiles cards … until they exile a nonland card. You
+ *  may cast … from among the nonland cards exiled this way" (Etali, Primal
+ *  Conqueror). The validator makes such a body picks binding visible past its
+ *  construct (`checkOpListRefs`), so only an authored, unscoped `$`-name ever
+ *  reaches here, and only after its own unscoped read missed.
+ *
+ *  COMPLETED is the guard, not a nicety: a reader INSIDE that body whose own
+ *  iteration left the binding uncaptured (the walk found no match, CR 609.3)
+ *  must read nothing, never an earlier iteration's card — the enclosing
+ *  construct has no `#forEach:<pos>:done` marker yet, so it is not probed.
+ *  Ids are kept in iteration order (APNAP for a players set, CR 101.4), once
+ *  each; no capture anywhere is `undefined`, the uncaptured binding every
+ *  reader already skips on. */
+function readIteratedPicks(
+    ctx: SpellContext,
+    name: string
+): string[] | undefined {
+    if (!name.startsWith("$") || name.includes("@")) return undefined;
+    const ids: string[] = [];
+    let captured = false;
+    const current = ctx.getScriptCheckpoint() ?? 0;
+    for (let pos = 0; pos < current; pos++) {
+        if (ctx.recallChoice(forEachDoneKey(pos)) === undefined) continue;
+        const members = ctx.recallChoice(`#forEach:${pos}:set`) ?? [];
+        for (let k = 0; k < members.length; k++) {
+            const row = ctx.recallChoice(scopeBindingName(name, pos, k));
+            if (row === undefined) continue;
+            captured = true;
+            for (const id of row) if (!ids.includes(id)) ids.push(id);
+        }
+    }
+    return captured ? ids : undefined;
+}
+
+/** The marker a `forEach` construct writes once its LAST iteration has run
+ *  (issue #2608), read by {@link readIteratedPicks}. */
+function forEachDoneKey(pos: number): string {
+    return `#forEach:${pos}:done`;
 }
 
 /** The inverse of {@link scopeBindingName}: the AUTHORED name a (possibly
@@ -9219,6 +9275,25 @@ function runCastDuringResolution(
         }
     };
 
+    // Issue #2608 — "you may cast any number of spells from among <set>": a
+    // loop of next-card picks over the bound set instead of one offer.
+    if (
+        op.anyNumber === true &&
+        op.card !== undefined &&
+        !("exiledWithSource" in op.card)
+    ) {
+        const outcome = runCastAnyNumber(ctx, {
+            playerId,
+            card: op.card,
+            sourceZone: op.source ?? "exile",
+            free: op.free,
+            pos,
+        });
+        if (outcome === "suspend") return "suspend";
+        ctx.noteChoice(doneKey, ["done"]);
+        return;
+    }
+
     // Resolve the card to offer and its effective SOURCE zone. Three shapes:
     //  - `fromTopOfLibrary` (Chandra +1) — exile the top card
     //    of the caster's library UNCONDITIONALLY as the first thing the Op
@@ -9405,6 +9480,128 @@ function runCastDuringResolution(
         return;
     }
 
+    switch (
+        castPickedCard(ctx, playerId, cardInstanceId, sourceZone, op.free, "")
+    ) {
+        case "suspend":
+            return "suspend";
+        case "cast":
+            finish(true, "cast");
+            return;
+        case "pass":
+            finish(false, "pass");
+            return;
+        case "abort":
+            return;
+    }
+}
+
+/** The option id that ends a {@link runCastAnyNumber} loop. A card instance
+ *  id is never this string. */
+const CAST_ANY_NUMBER_STOP = "stop";
+
+/** CR 608.2g (issue #2608) — "you may cast any number of spells from among
+ *  <set>" (Etali, Primal Conqueror). The caster is asked, one card at a time,
+ *  which still-castable member to cast NEXT, or to stop: zero, some or all,
+ *  in the order they choose, each cast during the resolution with no priority
+ *  in between (the resolution "may include casting other spells this way").
+ *
+ *  Each pick runs {@link castPickedCard}, the one per-card cast path, under
+ *  its own step suffix. A card it refuses (no legal target, an unmeetable
+ *  additional cost, an unpayable cost) is not cast and the loop goes on with
+ *  the others; a card no longer in its zone or no longer castable (CR 601.3a)
+ *  drops out of the offer. Whatever is not cast stays where it is — the
+ *  permission dies with this resolution.
+ *
+ *  SUSPENDS on every pick: the bound set is frozen under the Op's checkpoint
+ *  at first entry, and each finished step is recorded, so a re-walk replays
+ *  finished steps from the record and never casts a card twice (CR 608.3). */
+function runCastAnyNumber(
+    ctx: SpellContext,
+    args: {
+        playerId: string;
+        card: { ref: string };
+        sourceZone: "graveyard" | "exile";
+        free: boolean | undefined;
+        pos: number;
+    }
+): OpOutcome {
+    const { playerId, sourceZone, free, pos } = args;
+    const setKey = `#cdrAnySet:${pos}`;
+    let set = ctx.recallChoice(setKey);
+    if (set === undefined) {
+        set = resolvePicks(ctx, args.card) ?? [];
+        ctx.noteChoice(setKey, set);
+    }
+    const handled = new Set<string>();
+    for (let k = 0; ; k++) {
+        const stepKey = `#cdrAnyStep:${pos}:${k}`;
+        const finished = ctx.recallChoice(stepKey)?.[0];
+        if (finished !== undefined) {
+            handled.add(finished);
+            continue;
+        }
+        const remaining = set.filter(
+            (id) =>
+                !handled.has(id) &&
+                ctx.getChosenCardCastable(playerId, id, sourceZone)
+        );
+        if (remaining.length === 0) return undefined;
+        const pick = ctx.requestOptionChoice({
+            playerId,
+            choiceId: `cdr:any:${pos}:${k}`,
+            options: [
+                ...remaining.map((id) => ({
+                    id,
+                    label: ctx.getCardName(id) ?? "Card",
+                })),
+                { id: CAST_ANY_NUMBER_STOP, label: "Stop casting" },
+            ],
+            prompt: free
+                ? "You may cast any number of these spells without paying their mana costs. Choose the next one, or stop."
+                : "You may cast any number of these spells. Choose the next one, or stop.",
+        });
+        if (pick === undefined) return "suspend";
+        if (!remaining.includes(pick)) return undefined; // stop
+        const outcome = castPickedCard(
+            ctx,
+            playerId,
+            pick,
+            sourceZone,
+            free,
+            `:${pos}:${k}`
+        );
+        if (outcome === "suspend") return "suspend";
+        ctx.noteChoice(stepKey, [pick]);
+        handled.add(pick);
+    }
+}
+
+/** The outcome of {@link castPickedCard}: `"suspend"` (a pick is pending),
+ *  `"cast"` (the spell reached the stack), `"pass"` (the card is not cast —
+ *  an unmeetable additional cost, no legal target, an unpayable mana cost),
+ *  or `"abort"` (an answer that no longer fits, CR 608.2b, recorded as no
+ *  terminal outcome — the single-card shape's long-standing behaviour). */
+type PickedCastOutcome = "suspend" | "cast" | "pass" | "abort";
+
+/** CR 608.2g / 601.2a–i — cast ONE already-chosen card during a resolution:
+ *  its mode (CR 700.2c), X (CR 107.3), sacrifice additional cost (CR 118.8),
+ *  targets (CR 601.2c), then the commit through `castChosenSpell`. The ONE
+ *  execution path for every resolve-time cast (ADR 0045): the single-card
+ *  offer, cascade and the "any number" loop (issue #2608) all end here.
+ *
+ *  `idSuffix` keeps one call's picks apart from another's: `recallChoice`
+ *  returns the first stored key whose suffix matches, so two cards cast in
+ *  one resolution must not both ask `cdr:mode`. The single-card shape passes
+ *  `""` (its ids unchanged). */
+function castPickedCard(
+    ctx: SpellContext,
+    playerId: string,
+    cardInstanceId: string,
+    sourceZone: "graveyard" | "exile",
+    free: boolean | undefined,
+    idSuffix: string
+): PickedCastOutcome {
     // MODE (CR 700.2c) — a modal card's chosen mode drives its targeting
     // (CR 700.2d). Non-modal cards skip this.
     const modes = ctx.getCardModes(playerId, cardInstanceId);
@@ -9412,7 +9609,7 @@ function runCastDuringResolution(
     if (modes.length > 0) {
         const pickedMode = ctx.requestOptionChoice({
             playerId,
-            choiceId: "cdr:mode",
+            choiceId: `cdr:mode${idSuffix}`,
             options: modes,
             prompt: "Choose a mode for the card you are casting.",
         });
@@ -9423,7 +9620,7 @@ function runCastDuringResolution(
     // X (CR 107.3) — only for a PAID cast. A free cast waives the mana
     // cost, so X in that waived cost is 0 (CR 107.3b) — no prompt.
     let chosenX: number | undefined;
-    if (!op.free && ctx.cardHasXCost(playerId, cardInstanceId)) {
+    if (!free && ctx.cardHasXCost(playerId, cardInstanceId)) {
         const maxX = ctx.getMaxAffordableX(
             playerId,
             cardInstanceId,
@@ -9435,7 +9632,7 @@ function runCastDuringResolution(
         }));
         const pickedX = ctx.requestOptionChoice({
             playerId,
-            choiceId: "cdr:x",
+            choiceId: `cdr:x${idSuffix}`,
             options: xOptions,
             prompt: "Choose the value of X.",
         });
@@ -9456,12 +9653,11 @@ function runCastDuringResolution(
             sacrificeCost.filter
         );
         if (candidateIds.length < sacrificeCost.count) {
-            finish(false, "pass"); // unmeetable — not cast
-            return;
+            return "pass"; // unmeetable — not cast
         }
         const pickedSac = ctx.requestChoice({
             playerId,
-            choiceId: "cdr:sacrifice",
+            choiceId: `cdr:sacrifice${idSuffix}`,
             kind: "choose-permanents",
             zone: "battlefield",
             zoneOwnerId: playerId,
@@ -9474,7 +9670,7 @@ function runCastDuringResolution(
                     : `Choose ${sacrificeCost.count} permanents to sacrifice.`,
         });
         if (pickedSac === undefined) return "suspend";
-        if (pickedSac.length !== sacrificeCost.count) return;
+        if (pickedSac.length !== sacrificeCost.count) return "abort";
         additionalSacrificeIds = pickedSac;
     }
 
@@ -9497,8 +9693,7 @@ function runCastDuringResolution(
             targetReq
         );
         if (legal.length === 0) {
-            finish(false, "pass"); // no legal target — not cast
-            return;
+            return "pass"; // no legal target — not cast
         }
         const candidatePlayerIds = legal
             .filter((t) => t.type === "player")
@@ -9508,7 +9703,7 @@ function runCastDuringResolution(
             .map((t) => t.id);
         const pickedTarget = ctx.requestChoice({
             playerId,
-            choiceId: "cdr:target",
+            choiceId: `cdr:target${idSuffix}`,
             kind: "choose-damage-target",
             zone: "battlefield",
             count: 1,
@@ -9518,9 +9713,9 @@ function runCastDuringResolution(
         });
         if (pickedTarget === undefined) return "suspend";
         const pickedId = pickedTarget[0];
-        if (!pickedId) return;
+        if (!pickedId) return "abort";
         const selected = legal.find((t) => t.id === pickedId);
-        if (!selected) return; // pick no longer legal (CR 608.2b)
+        if (!selected) return "abort"; // pick no longer legal (CR 608.2b)
         chosenTargets = [selected];
     }
 
@@ -9539,7 +9734,7 @@ function runCastDuringResolution(
         chosenModeIds: chosenModeId ? [chosenModeId] : undefined,
         additionalSacrificeIds,
         sourceZone,
-        free: op.free,
+        free,
     });
-    finish(cast, cast ? "cast" : "pass");
+    return cast ? "cast" : "pass";
 }

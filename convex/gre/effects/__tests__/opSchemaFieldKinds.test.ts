@@ -54,6 +54,7 @@ const DECLARATIONS = [
     "payVariableMana.bind:number",
     "recallCapturedBinding.bind:snapshot",
     "reveal.bind:picks",
+    "revealUntilMatch.bind:picks",
     "sacrifice.bind:snapshot",
     "selectAtRandom.bind:picks",
     "tapUntap.bind:snapshot",

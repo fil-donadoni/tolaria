@@ -2559,22 +2559,49 @@ describe("validateEffectScript — forEach construct (ADR 0045, issue #807)", ()
         ).toBe(true);
     });
 
-    it("scopes body bindings to the construct — a later top-level ref to them dangles", () => {
+    it("scopes a body SNAPSHOT binding to the construct — a later single-object ref to it is refused", () => {
         const errors = validateEffectScript(
             host({
                 effects: [
-                    eachPlayerSac,
                     {
-                        op: "discard",
+                        op: "forEach",
+                        select: { set: "players" },
+                        effects: [
+                            {
+                                op: "destroy",
+                                target: { target: 0 },
+                                bind: "$gone",
+                            },
+                        ],
+                    },
+                    {
+                        op: "gainLife",
                         player: "controller",
-                        cards: { ref: "$sac" },
+                        amount: { ref: "$gone.power" },
                     },
                 ] as never,
             })
         );
+        expect(errors.some((e) => /\$gone/.test(e))).toBe(true);
+    });
+
+    it("reads a body PICKS binding past the construct, as one set (issue #2608)", () => {
+        // "Each player exiles … until …. You may cast … from among the
+        // nonland cards exiled this way" — every iteration's picks, unioned.
         expect(
-            errors.some((e) => /references undefined binding "\$sac"/.test(e))
-        ).toBe(true);
+            validateEffectScript(
+                host({
+                    effects: [
+                        eachPlayerSac,
+                        {
+                            op: "discard",
+                            player: "controller",
+                            cards: { ref: "$sac" },
+                        },
+                    ] as never,
+                })
+            )
+        ).toEqual([]);
     });
 
     it("keeps OUTER bindings readable inside the body (bind across iterations)", () => {
