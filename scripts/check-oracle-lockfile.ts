@@ -694,7 +694,7 @@ function main(): void {
  * `checkStateRegressions` — the merge-base commit its baseline is read at,
  * which no file in the tree records.
  */
-function oracleGuardInputs(): GuardInputs {
+export function oracleGuardInputs(): GuardInputs {
     const mergeBase = runGit(["merge-base", "HEAD", ORIGIN_BASE]);
     return {
         guard: "check:oracle",

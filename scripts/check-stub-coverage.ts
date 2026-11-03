@@ -43,14 +43,11 @@
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, join } from "node:path";
-import { CARD_REGISTRY_GLOBS, enterGuardCache } from "./lib/guard-cache";
+import { enterGuardCache, STUB_COVERAGE_GUARD_INPUTS } from "./lib/guard-cache";
 import { SET_MODULE_SUFFIX } from "./lib/set-module-suffix";
 
 // Before the registry import below: a cached PASS never pays for loading it.
-enterGuardCache({
-    guard: "check:stubs",
-    globs: [...CARD_REGISTRY_GLOBS, "scripts/check-stub-coverage.ts"],
-});
+enterGuardCache(STUB_COVERAGE_GUARD_INPUTS);
 const { getAllCards } = await import("../convex/cards/index");
 
 const SETS_DIR = resolve("convex/cards/sets");

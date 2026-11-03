@@ -91,6 +91,22 @@ export const CARD_REGISTRY_GLOBS = [
 ] as const;
 
 /**
+ * What `check:index` reads, declared beside the globs it is built from so a
+ * test can compute the guard's decision without importing (and so running) the
+ * script, whose cache seam fires at module top level (issue #7858).
+ */
+export const CARD_INDEX_GUARD_INPUTS: GuardInputs = {
+    guard: "check:index",
+    globs: [...CARD_REGISTRY_GLOBS, "scripts/check-card-index.ts"],
+};
+
+/** What `check:stubs` reads — same reason as `CARD_INDEX_GUARD_INPUTS`. */
+export const STUB_COVERAGE_GUARD_INPUTS: GuardInputs = {
+    guard: "check:stubs",
+    globs: [...CARD_REGISTRY_GLOBS, "scripts/check-stub-coverage.ts"],
+};
+
+/**
  * What a guard over the test corpus reads (`check:test-hygiene`): every test
  * file, plus the test-support modules a test file imports from beside it.
  * Both spellings are needed — a `__tests__/` helper is not a `*.test.ts`, and
