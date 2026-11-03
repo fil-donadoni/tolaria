@@ -6,10 +6,9 @@
 //  1. GOLDEN — real corpus rows compiled whole: the front face is the card,
 //     the back face its nonmodal `backFace`, its colours read off the corpus
 //     face (CR 202.2e), never off the front.
-//  2. REFUSALS — a back face whose colours the corpus does not report (the
-//     pinned corpus today, issue #7905), a back face carrying what a
-//     `CardBackFace` cannot hold, a face count other than two, and a
-//     transform aimed at anything but the source.
+//  2. REFUSALS — a back face whose colours the corpus does not report, a
+//     back face carrying what a `CardBackFace` cannot hold, a face count
+//     other than two, and a transform aimed at anything but the source.
 //  3. GAP AGGREGATION — both faces' gaps and the colour gap are reported
 //     together, so the backlog ranks every line of a refused card.
 //  4. GOLD round trip — `goldOracleCard` rebuilds a transform card's input
@@ -33,8 +32,8 @@ import { oracleCard } from "./oracle.fixture";
 
 const HERDBEAST = GOLDEN_FIXTURES.find((f) => f.rule === "transform-self")!;
 
-/** Thraben Gargoyle // Stonewing Antagonizer, as the pinned corpus has it:
- *  no `colors` on either face. */
+/** Thraben Gargoyle // Stonewing Antagonizer with no `colors` on either
+ *  face — a corpus row whose reducer did not keep them. */
 const GARGOYLE: OracleCard = {
     oracleId: "9b5cf592-8385-4115-b27a-98f42bdf6329",
     name: "Thraben Gargoyle // Stonewing Antagonizer",

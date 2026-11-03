@@ -63,11 +63,6 @@
             "issue": 7374
         },
         {
-            "key": "(op) › transform",
-            "op": "transform",
-            "issue": 7374
-        },
-        {
             "key": "(op) › unattach",
             "op": "unattach",
             "issue": 5185
@@ -733,11 +728,6 @@
             "kind": "grammar",
             "key": "(card) › layout \"transform\" is not in grammar v0 (multi-faced cards)",
             "issue": 7217
-        },
-        {
-            "kind": "grammar",
-            "key": "(card) › transform back face colour indicator (CR 202.2e) is not in the corpus",
-            "issue": 7905
         },
         {
             "kind": "grammar",
