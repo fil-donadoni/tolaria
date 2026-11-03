@@ -73,7 +73,6 @@ import {
     processPendingActionTriggers,
     removeFromZone,
     removePermanentTo,
-    payLifeCost,
 } from "./state";
 import type {
     GameState,
@@ -374,7 +373,7 @@ export function commitCast(
     // validated at announcement; SBA handles a fatal payment. Paid AFTER every
     // leg whose pick can have vanished, so a stale commit costs no life.
     if (legs.payLife && legs.payLife > 0) {
-        payLifeCost(state, caster, legs.payLife);
+        caster.life -= legs.payLife;
     }
     // CR 601.3 (ADR 0093) — this cast is enabled by a graveyard play
     // permission: spend the selected permission's once-per-turn use now, at
