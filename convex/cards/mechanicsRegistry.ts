@@ -2963,6 +2963,14 @@ export interface EffectOpRow {
      *  game actions with no keyword. */
     mechanicId?: string;
     note?: string;
+    /** Set ONLY on an Op whose argument is a KEY into a closure-backed
+     *  registry: its body carries closures a JSON-pure Op cannot hold,
+     *  so no Grammar Rule can lower Oracle text to it without
+     *  minting a per-card key. The value is the reason, citing the ADR that
+     *  decided it (ADR 0162). The derived Op census (`check:gaps`, ADR 0105
+     *  § 7.3) owes such an Op no Grammar Gap row, and reds the day a Compiled
+     *  Definition emits it anyway. */
+    notGrammarEmittable?: string;
 }
 
 /** Starter Op vocabulary (issue #800 — flat-sequence core). Grows freely,
@@ -3763,6 +3771,8 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "114.2",
         binding: "SpellContext.createEmblem",
+        notGrammarEmittable:
+            "`emblem` names an entry of `convex/cards/emblems.ts`, whose abilities are closures; a Grammar Rule could only mint a key per planeswalker (ADR 0162).",
         note: "Create a command-zone emblem (CR 114, issue #1221). A thin declarative skin over the single SpellContext primitive `createEmblem`, one execution path (ADR 0045). `emblem` is a KEY into the emblem registry (`convex/cards/emblems.ts`) — the granted continuous/triggered abilities carry closures (`applies`/`matches`/`resolve`), so they can't be inlined in a JSON-pure Op body (ADR 0046); the emblem is referenced by id exactly as a token references its synthesized card def, and game state stores only the pure-data `EmblemInstance` (key + owner + display fields). `controller` (default \"controller\") is the emblem's owner (CR 114.3). The emblem's OWN body reuses existing machinery: a continuous ability is a `pt-buff`/other `StaticEffect` collected owner-scoped by the layer system with no permanent source (Sorin, Lord of Innistrad's \"Creatures you control get +1/+0\" anthem, the shipped tracer); a triggered ability is collected owner-scoped by the trigger scanner and resolves through the same interpreter seam as any trigger — so the emblem's effect can itself be an Effect Script of existing sub-Ops. Emblems can't be targeted/removed and persist the rest of the game (CR 114.4), so there is no permanent source to leave play. Not a CR-701 keyword action, so no `mechanicId` (like `dealDamage`).",
     },
     {

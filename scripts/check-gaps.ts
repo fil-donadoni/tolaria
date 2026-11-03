@@ -21,6 +21,12 @@
  *     forbidding its addition is the same demand stated twice, deliberately:
  *     it is what stops the allowlist from becoming a parking lot.
  *
+ * One registry declaration takes an Op out of the census instead (ADR 0162):
+ * `notGrammarEmittable`, set on an Op whose argument is a key into a
+ * closure-backed registry, so no Grammar Rule can emit it without minting a
+ * per-card key. The reason must cite an ADR, and an Op so declared that a
+ * Compiled Definition does emit reds — the declaration was wrong.
+ *
  * Shrink is proven against the allowlist's PREVIOUS REVISION in HEAD's own
  * history, not against a hand-kept count: a row this commit has and its
  * predecessor did not is a row that was added. Only the commit that introduces
@@ -56,7 +62,10 @@ import { loadBladeMustCovered } from "./lib/blade-must-covered";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { EFFECT_OP_REGISTRY } from "../convex/cards/mechanicsRegistry";
+import {
+    EFFECT_OP_REGISTRY,
+    type EffectOpRow,
+} from "../convex/cards/mechanicsRegistry";
 import {
     computedGapKeys,
     inScopeBotGapKeys,
@@ -145,11 +154,42 @@ export type Violation =
     | { kind: "unknown-op"; op: string }
     | { kind: "duplicate"; op: string }
     | { kind: "malformed"; op: string; detail: string }
-    | { kind: "grown"; op: string };
+    | { kind: "grown"; op: string }
+    | { kind: "exempt-emitted"; op: string };
+
+/** An Op the registry declares no Grammar Rule can emit (ADR 0162). */
+export interface CensusExemption {
+    readonly op: string;
+    readonly reason: string;
+}
+
+/** The citation a `notGrammarEmittable` reason must carry: the decision. */
+const EXEMPTION_CITATION = /\bADR \d{4}\b/;
+
+/**
+ * Split the registry's `implemented` Ops into the ones the census owes a
+ * Grammar Rule and the ones declared `notGrammarEmittable` (ADR 0162). A
+ * `planned` row is neither: no card may use it, so nothing can emit it.
+ */
+export function censusedOps(
+    rows: readonly Pick<EffectOpRow, "op" | "status" | "notGrammarEmittable">[]
+): { implemented: string[]; exempt: CensusExemption[] } {
+    const implemented: string[] = [];
+    const exempt: CensusExemption[] = [];
+    for (const r of rows) {
+        if (r.status !== "implemented") continue;
+        if (r.notGrammarEmittable === undefined) implemented.push(r.op);
+        else exempt.push({ op: r.op, reason: r.notGrammarEmittable });
+    }
+    return { implemented, exempt };
+}
 
 export interface CensusInput {
-    /** Ops the registry marks `implemented` — the only ones a card may use. */
+    /** Ops the registry marks `implemented` — the only ones a card may use —
+     *  minus the `exempt` ones. */
     readonly implemented: readonly string[];
+    /** Implemented Ops declared `notGrammarEmittable` (ADR 0162). */
+    readonly exempt?: readonly CensusExemption[];
     /** Ops emitted by at least one `ready`/`quarantine` Compiled Definition. */
     readonly emitted: ReadonlySet<string>;
     readonly allowlist: Allowlist;
@@ -162,6 +202,7 @@ export interface CensusResult {
     readonly implementedCount: number;
     readonly emittedCount: number;
     readonly allowlistedCount: number;
+    readonly exemptCount: number;
     readonly baselineChecked: boolean;
 }
 
@@ -171,6 +212,7 @@ export interface CensusResult {
  */
 export function auditOpCensus(input: CensusInput): CensusResult {
     const { implemented, emitted, allowlist, baseline } = input;
+    const exempt = input.exempt ?? [];
     const violations: Violation[] = [];
     const implementedSet = new Set(implemented);
     const seen = new Set<string>();
@@ -223,6 +265,19 @@ export function auditOpCensus(input: CensusInput): CensusResult {
         }
     }
 
+    for (const { op, reason } of [...exempt].sort((a, b) =>
+        a.op < b.op ? -1 : a.op > b.op ? 1 : 0
+    )) {
+        if (!EXEMPTION_CITATION.test(reason)) {
+            violations.push({
+                kind: "malformed",
+                op,
+                detail: "`notGrammarEmittable` cites no ADR (want `ADR NNNN`)",
+            });
+        }
+        if (emitted.has(op)) violations.push({ kind: "exempt-emitted", op });
+    }
+
     if (baseline !== null) {
         const before = new Set(baseline.ops.map((r) => r.op));
         for (const op of [...seen].sort()) {
@@ -235,6 +290,7 @@ export function auditOpCensus(input: CensusInput): CensusResult {
         implementedCount: implemented.length,
         emittedCount: emitted.size,
         allowlistedCount: allowlist.ops.length,
+        exemptCount: exempt.length,
         baselineChecked: baseline !== null,
     };
 }
@@ -636,13 +692,17 @@ const EXITS: Record<Violation["kind"], string> = {
         "now emitted by a Compiled Definition — its rule landed.\n" +
         "    Delete the row: the allowlist only shrinks.",
     "unknown-op":
-        "allowlisted but not an `implemented` row of EFFECT_OP_REGISTRY.\n" +
-        "    Delete the row (the Op was renamed, retired, or is `planned`).",
+        "allowlisted but not a censused `implemented` row of EFFECT_OP_REGISTRY.\n" +
+        "    Delete the row (the Op was renamed, retired, is `planned`, or is\n" +
+        "    declared `notGrammarEmittable`, ADR 0162).",
     duplicate: "allowlisted twice — one row per Op.",
     malformed: "malformed row.",
     grown:
         "added to the allowlist on this branch.\n" +
         "    The allowlist only shrinks (ADR 0105 § 7.3): a new Op never enters it.",
+    "exempt-emitted":
+        "declared `notGrammarEmittable`, yet a Compiled Definition emits it.\n" +
+        "    The declaration is wrong: drop it from the registry row (ADR 0162).",
 };
 
 /** Whether `grown` was evaluated at all — printed on BOTH verdicts, so a green
@@ -658,7 +718,8 @@ export function render(result: CensusResult): string {
         return (
             `✓ gaps: ${result.implementedCount} implemented Ops — ` +
             `${result.emittedCount} grammar-covered, ` +
-            `${result.allowlistedCount} allowlisted; ${baselineLine(result)}`
+            `${result.allowlistedCount} allowlisted, ` +
+            `${result.exemptCount} not grammar-emittable; ${baselineLine(result)}`
         );
     }
     const lines = [
@@ -681,12 +742,11 @@ async function main(): Promise<void> {
     const root = resolve(".");
     const lock = parseLockfile(readFileSync(LOCKFILE_PATH, "utf8"));
     const allowlist = parseAllowlist(readFileSync(ALLOWLIST_PATH, "utf8"));
-    const implemented = EFFECT_OP_REGISTRY.filter(
-        (r) => r.status === "implemented"
-    ).map((r) => r.op);
+    const { implemented, exempt } = censusedOps(EFFECT_OP_REGISTRY);
     const emitted = emittedOps(lock.cards);
     const result = auditOpCensus({
         implemented,
+        exempt,
         emitted,
         allowlist,
         baseline: baselineAllowlist(root),
