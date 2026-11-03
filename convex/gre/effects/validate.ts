@@ -782,7 +782,12 @@ function filterUsesLiveState(value: unknown): boolean {
         return false;
     }
     const f = value as Record<string, unknown>;
-    if (typeof f.isAttacking === "boolean" || typeof f.tapped === "boolean") {
+    if (
+        typeof f.isAttacking === "boolean" ||
+        typeof f.tapped === "boolean" ||
+        // CR 702.171b — only permanents can be saddled.
+        typeof f.saddled === "boolean"
+    ) {
         return true;
     }
     return (
@@ -5198,6 +5203,14 @@ const OP_SCHEMAS: OpSchemaTable = {
             count: isEffectValue,
         },
     },
+    // CR 702.171a — "This permanent becomes saddled until end of turn".
+    // `target` is an object selector (`$source` — the printed shape — an
+    // announced slot or a forEach `$each`); nothing else to parametrise.
+    becomeSaddled: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
     // CR 722.3a (issue #3689) — "<this permanent> becomes prepared". `target`
     // is an object selector (`$source` — the printed shape — an announced slot
     // or a forEach `$each`). No other field: the designation is gained or the
@@ -6154,8 +6167,9 @@ const OP_SCHEMAS: OpSchemaTable = {
     //  - `zone: "hand"` — reveal `player`'s whole hand (Thoughtseize/Duress).
     //  - `cards: <bare picks ref>` — reveal the SPECIFIC card(s) a preceding
     //    search-library `choice` bound (issue #945, the "search …, reveal it,
-    //    put it into your hand" tutor clause). A library-top positional reveal
-    //    (Caustic Bronco-class) is still a distinct future Op.
+    //    put it into your hand" tutor clause). A single library-top
+    //    reveal-to-hand (Dark Confidant, Caustic Bronco) is
+    //    `digMatchingToHand`, not this Op.
     reveal: {
         required: { player: isPlayerRef },
         optional: {
@@ -6482,7 +6496,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                 filterUsesLiveState(entry.filter)
             ) {
                 errors.push(
-                    '"filter.isAttacking" / "filter.tapped" are valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no combat role or tapped status to match against'
+                    '"filter.isAttacking" / "filter.tapped" / "filter.saddled" are valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no combat role, tapped status or saddled designation to match against'
                 );
             }
             // `controlledSinceTurnStart` — the `hasAbility`/`isAttacking` rule

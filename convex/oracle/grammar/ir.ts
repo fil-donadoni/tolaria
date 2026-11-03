@@ -358,6 +358,12 @@ export type SlotIR =
      */
     | { readonly kind: "crew"; readonly count: number }
     /**
+     * CR 702.171a — a "Saddle N" line: the Mount's activated ability, lowered
+     * through the catalogue's `saddleAbility` factory, plus the `"saddle N"`
+     * keyword string.
+     */
+    | { readonly kind: "saddle"; readonly count: number }
+    /**
      * CR 702.49a — a "Ninjutsu [cost]" line: an activated ability usable from
      * the hand, lowered through the catalogue's `ninjutsuAbility` factory.
      */

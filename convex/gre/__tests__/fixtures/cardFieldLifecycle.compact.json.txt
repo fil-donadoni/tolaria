@@ -35,6 +35,8 @@
           "damageMarked": 1,
           "classLevel": 2,
           "monstrous": true,
+      "saddled": true,
+          "saddled": true,
           "loyaltyActivationsThisTurn": 1,
           "dealtDeathtouchDamage": true,
           "regenerationShields": 1,

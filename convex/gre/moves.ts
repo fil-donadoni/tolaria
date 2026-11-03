@@ -5006,6 +5006,13 @@ function enumerateAbilityMoves(
         if (ability.animatesSelf && perm.animation) {
             continue;
         }
+        // CR 702.171a/b — saddling an already-saddled permanent is legal but
+        // changes nothing (the designation is held until end of turn), so
+        // paying the tap-other cost again is pure loss — the self-animate
+        // reasoning right above, for the designation.
+        if (perm.saddled === true && onlySaddlesSelf(ability)) {
+            continue;
+        }
         // CR 117.1b — phase/turn restrictions.
         if (
             ability.activationPhaseRestriction &&
@@ -6545,4 +6552,23 @@ export function onlyPassIsLegal(state: GameState, playerId: string): boolean {
     // Player-level granted abilities.
     if ((player.grantedAbilities?.length ?? 0) > 0) return false;
     return true;
+}
+
+/** True iff every effect of `ability` is `becomeSaddled` on its own source —
+ *  the Saddle N shape (CR 702.171a), whose whole effect is already in place
+ *  on a saddled permanent. */
+function onlySaddlesSelf(ability: ActivatedAbility): boolean {
+    const effects = ability.effects;
+    return (
+        effects !== undefined &&
+        effects.length > 0 &&
+        effects.every(
+            (op) =>
+                op.op === "becomeSaddled" &&
+                typeof op.target === "object" &&
+                op.target !== null &&
+                "ref" in op.target &&
+                op.target.ref === "$source"
+        )
+    );
 }

@@ -671,6 +671,27 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
     // gone or non-permanent object (CR 608.2b — the effect does as much as it
     // can).
     if ("objectMatchesFilter" in pred) {
+        // CR 608.2h / 400.7 — the resolving ability's OWN source, once it has
+        // left the battlefield, answers with its last known information
+        // ("if this creature isn't saddled" on a Mount killed in response
+        // still reads the designation it had). `sourceLkiMatchesFilter` is
+        // `undefined` while the source never departed, and its departure
+        // stamp also stops a same-id permanent that re-entered (a new object)
+        // from answering for it.
+        if (isSourceSelfRef(pred.objectMatchesFilter)) {
+            const lkiBase = toPermanentFilter(ctx, pred.filter);
+            if (lkiBase === UNMATCHABLE_FILTER) return false;
+            let lkiController: string | undefined;
+            if (pred.controlledBy !== undefined) {
+                lkiController = resolvePlayerRef(ctx, pred.controlledBy);
+                if (!lkiController) return false;
+            }
+            const lki = ctx.sourceLkiMatchesFilter(
+                lkiBase ?? {},
+                lkiController
+            );
+            if (lki !== undefined) return lki;
+        }
         const target = resolveObjectRef(ctx, pred.objectMatchesFilter);
         if (!target || target.type !== "permanent") return false;
         const base = toPermanentFilter(ctx, pred.filter);
@@ -1416,6 +1437,11 @@ function toPermanentFilter(
         // candidate scan, the submit re-check and the client all already read
         // (Magnetic Mountain). Battlefield-only, exactly like `isAttacking`.
         tapped: filter.tapped,
+        // CR 702.171b — the saddled designation, propagated 1:1 onto
+        // `PermanentFilter.saddled`; `CardInstanceState.saddled` is spread into
+        // every `getBattlefieldIds` candidate. Battlefield-only, exactly like
+        // `tapped`.
+        saddled: filter.saddled,
         // CR 201.2 — a FIXED literal name, or the resolved value of a dynamic
         // `{ ref }` name (see the resolution block at the top of this
         // function; an unresolvable one never reaches here).
@@ -4749,6 +4775,15 @@ export const OP_EXECUTORS: {
         const count = resolveValue(ctx, op.count);
         if (count === undefined) return;
         ctx.monstrosity(target, count);
+    },
+    // CR 702.171a — "This permanent becomes saddled until end of turn." A thin
+    // declarative skin over `SpellContext.becomeSaddled`, ONE execution path
+    // (ADR 0045). Skipped when the target is gone (CR 608.2b); re-saddling a
+    // saddled permanent is a no-op in the primitive.
+    becomeSaddled(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.becomeSaddled(target);
     },
     // CR 722.3a (issue #3689) — "<this permanent> becomes prepared". A thin
     // adapter over `SpellContext.becomePrepared`, the seam "enters prepared"

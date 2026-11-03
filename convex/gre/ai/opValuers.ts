@@ -2234,6 +2234,19 @@ const monstrosity: Valuer<"monstrosity"> = (op, ctx) => {
     };
 };
 
+/** CR 702.171a/b — "becomes saddled" changes no characteristic: the
+ *  designation has no rules meaning of its own (CR 702.171b). What it buys is
+ *  the Mount's own "if this creature is saddled" payoff, which the SEARCH
+ *  measures by applying the activation through the real GRE and playing the
+ *  attack out — exactly how `setLevel` leaves its section's abilities to the
+ *  search. Priced as a small pump so the static read is never neutral: the
+ *  activation is a gift to its controller, and the tapped saddlers (the real
+ *  cost) are priced by the cost side. */
+const becomeSaddled: Valuer<"becomeSaddled"> = (_op, ctx) => ({
+    points: priced(ctx, "pump", 1),
+    tags: ["pump"],
+});
+
 // -------------------------------------------------------------------------
 // Backfill-Op valuers (issue #1430). Each maps its Op onto the SAME fixed
 // feature basis the charter Ops use — no per-card shapes, no new dimensions.
@@ -3403,6 +3416,7 @@ export const OP_VALUERS: {
     setLevel,
     monstrosity,
     becomePrepared,
+    becomeSaddled,
     // Backfilled Ops (issue #1430).
     addMana,
     drainManaPool,
@@ -3690,6 +3704,9 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // `setLevel` reasoning exactly.
     monstrosity: "beneficial",
     becomePrepared: "beneficial",
+    // CR 702.171a — a designation on the permanent itself, nothing taken
+    // away: a gift to its controller, the `setLevel` reasoning exactly.
+    becomeSaddled: "beneficial",
     // CR 614.9 (issue #3810) — the sign is genuinely neutral AT THIS
     // AXIS, and not for want of a decision: a redirect conserves the
     // stake. It takes exactly as much off the recipient it shields as it

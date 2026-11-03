@@ -4407,6 +4407,17 @@ export interface SpellContext {
      *  Undefined when no choice was made. Read by the Effect Script's reserved
      *  `$source.chosenSubtype` ref. */
     getChosenSubtypes: () => string[] | undefined;
+    /** CR 608.2h / 400.7 — whether the resolving ability's SOURCE, as it last
+     *  existed on the battlefield, matches `filter` (and, when given, was
+     *  controlled by `controllerId`). Answers only when the source has LEFT
+     *  the battlefield since the ability was put on the stack (the stack
+     *  item's departure-time `sourceLki`); `undefined` otherwise, meaning the
+     *  caller reads the live permanent. A same-id permanent that has since
+     *  re-entered is a new object and is never read. */
+    sourceLkiMatchesFilter: (
+        filter: PermanentFilter,
+        controllerId?: string
+    ) => boolean | undefined;
     /** True if the given permanent currently has a keyword removal record
      *  for `keyword` (set by a keyword-remove static effect). */
     hasRemovedKeyword: (permanentId: string, keyword: string) => boolean;
@@ -4734,6 +4745,11 @@ export interface SpellContext {
      *  the target is already monstrous or has left the battlefield
      *  (CR 608.2b). */
     monstrosity: (target: TargetSelection, count: number) => void;
+    /** CR 702.171a — "This permanent becomes saddled until end of turn":
+     *  stamps `CardInstanceState.saddled` through `becomeSaddledOnCard`. A
+     *  legal no-op on an already-saddled permanent; skipped when the target
+     *  has left the battlefield (CR 608.2b). */
+    becomeSaddled: (target: TargetSelection) => void;
     /** CR 722.3a — `target` "becomes prepared": it gains the prepared
      *  designation and its controller creates the CR 722.3c exiled copy of its
      *  prepare spell, through `becomePrepared` (`gre/prepare.ts`), the seam
@@ -8632,6 +8648,10 @@ export interface PermanentView {
      *  other spells and abilities can identify". Mirrors
      *  `CardInstanceState.monstrous`. */
     monstrous?: boolean;
+    /** CR 702.171b — true while this permanent is saddled (until end of turn
+     *  or until it leaves the battlefield); absent otherwise. Mirrors
+     *  `CardInstanceState.saddled`; drives the board's saddled badge. */
+    saddled?: boolean;
     /** Per-turn activation tally keyed by ability id (CR 602.5). Mirrors
      *  `CardInstanceState.activationsThisTurn`; the activation validator passes
      *  the raw `CardInstanceState` as `source` to `canActivate`, so this is
@@ -14983,6 +15003,16 @@ export interface EffectCardFilter {
      *  field is rejected anywhere a battlefield read is not structurally
      *  guaranteed rather than validating and then matching every card. */
     tapped?: boolean;
+    /** CR 702.171b — the SADDLED designation: `true` keeps only saddled
+     *  permanents ("if this creature is saddled"), `false` only unsaddled ones
+     *  ("if this creature isn't saddled"). Propagated 1:1 by
+     *  `toPermanentFilter` onto `PermanentFilter.saddled`, read off
+     *  `CardInstanceState.saddled` (spread into every `getBattlefieldIds`
+     *  candidate). Only permanents can be saddled, so the field is
+     *  battlefield-only and gated by the same validator rule as `tapped`: a
+     *  card in a hidden zone carries no designation, and accepting the field
+     *  there would validate and then match every card. */
+    saddled?: boolean;
     /** Reflexive self-EXCLUDE (issue #2373, Gut, True Soul Zealot —
      *  "sacrifice ANOTHER creature or an artifact"): a battlefield permanent
      *  matches only if it is NOT the resolving ability's own source
@@ -17721,6 +17751,22 @@ export type EffectOp =
           target: EffectObjectSelector;
           count: EffectValue;
       }
+    /** CR 702.171a — "This permanent becomes saddled until end of turn", the
+     *  effect half of Saddle N. A thin declarative skin over the SpellContext
+     *  primitive `becomeSaddled`, one execution path (ADR 0045), which stamps
+     *  the CR 702.171b designation `CardInstanceState.saddled` — cleared at
+     *  cleanup (CR 514.2) and on any zone change (CR 400.7). `target` is the
+     *  resolving source (`$source` — the Saddle ability is printed on the Mount
+     *  it saddles), an announced slot or a `forEach` `$each`.
+     *
+     *  NOT `animate` (Crew's effect half): a Mount is already a creature, and
+     *  saddling changes no characteristic — the designation is a marker other
+     *  abilities identify (`EffectCardFilter.saddled`), never a type, a P/T or
+     *  a counter. Already saddled: a legal no-op. Gone (CR 608.2b): nothing. */
+    | {
+          op: "becomeSaddled";
+          target: EffectObjectSelector;
+      }
     /** CR 722.3a (issue #3689) — "<this permanent> becomes prepared". A thin
      *  declarative skin over the SpellContext primitive `becomePrepared`, one
      *  execution path (ADR 0045), routed through `becomePrepared`
@@ -19711,9 +19757,8 @@ export type EffectOp =
      *     than asserted by the author. Guided Passage's opponent picks from
      *     the library it was just shown, and from nothing else.
      *
-     *  A library-top reveal (Caustic Bronco-class) is a distinct
-     *  positional-order case left for a future Op (`EFFECT_OP_BACKLOG`'s
-     *  broader "reveal" note, `mechanicsRegistry.ts`) — that one is about a
+     *  A single library-top reveal-to-hand (Dark Confidant, Caustic Bronco)
+     *  is `digMatchingToHand` with `look: 1` — that one is about a
      *  POSITION, which this whole-zone stamp says nothing about. */
     | { op: "reveal"; player: EffectPlayerRef; zone: "hand" }
     /** CR 701.20a — "reveal a card at random from your hand" (Cursed Scroll,
