@@ -62128,6 +62128,14 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Seasoned Cryomancer",
+        "scryfallId": "51d86875-420d-4e82-b69c-4feeb99c9428",
+        "oracleId": "c3936db3-d3b6-4a92-9773-6f3c52dc419d",
+        "firstSet": "fra",
+        "firstPrintId": "51d86875-420d-4e82-b69c-4feeb99c9428",
+        "firstPrintSet": "fra"
+    },
+    {
         "name": "Seasoned Marshal",
         "scryfallId": "17db0060-3667-4c8c-ae9b-d62dceac64e3",
         "oracleId": "0c7239bf-dc8a-4d79-867e-7a4225568c49",
