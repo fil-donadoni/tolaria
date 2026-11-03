@@ -170,6 +170,7 @@ import * as dmc from "./sets/dmc/index.cards";
 import * as gtc from "./sets/gtc/index.cards";
 import * as dst from "./sets/dst/index.cards";
 import * as eoc from "./sets/eoc/index.cards";
+import * as msc from "./sets/msc/index.cards";
 
 /** Set modules paired with their lowercase Set code, in catalogue order. The
  *  dev server's Set bundle reads this list off the import lines above
@@ -326,6 +327,7 @@ const setModules: { code: string; exports: SetModuleExports }[] = [
     { code: "gtc", exports: gtc },
     { code: "dst", exports: dst },
     { code: "eoc", exports: eoc },
+    { code: "msc", exports: msc },
 ];
 
 const byCode = new Map(setModules.map((m) => [m.code, m.exports]));
