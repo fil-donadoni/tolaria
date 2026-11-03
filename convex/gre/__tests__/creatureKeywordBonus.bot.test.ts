@@ -109,6 +109,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     "equip",
     "reconfigure",
     "crew",
+    // CR 702.171a — an activated ability (Crew's cost shape); its worth is
+    // the `becomeSaddled` valuer and the Mount's own payoff, never the body.
+    "saddle",
     "living-weapon",
     "for-mirrodin",
     "backup",
