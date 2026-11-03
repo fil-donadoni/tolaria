@@ -11497,6 +11497,110 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 608.2c + CR 608.2h + CR 701.23h — "For each creature exiled this
+    // way, its controller searches their library for a basic land card. Those
+    // players put those cards onto the battlefield tapped, then shuffle.": the
+    // exile binds what it moved inside the overload sweep, and one `forEach`
+    // over the players runs the search chain for each player who lost a
+    // creature. Exhibits `boundCount` over a sweep's captures and Ops acting
+    // on `$each`, which the canned smoke scenario does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "499a4715-6776-461b-bee4-22ed172d455e",
+            name: "Winds of Abandon",
+            manaCost: "{1}{W}",
+            typeLine: "Sorcery",
+            oracleText:
+                'Exile target creature you don\'t control. For each creature exiled this way, its controller searches their library for a basic land card. Those players put those cards onto the battlefield tapped, then shuffle.\nOverload {4}{W}{W} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+            layout: "normal",
+        },
+        expected: {
+            name: "Winds of Abandon",
+            types: ["Sorcery"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                'Exile target creature you don\'t control. For each creature exiled this way, its controller searches their library for a basic land card. Those players put those cards onto the battlefield tapped, then shuffle.\nOverload {4}{W}{W} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+            overload: {
+                id: "overload",
+                description: "Overload {4}{W}{W}",
+                mana: { X: 4, W: 2 },
+            },
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "exile",
+                            target: { ref: "$each" },
+                            bind: "$exiled2",
+                        },
+                    ],
+                },
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: {
+                                    boundCount: {
+                                        of: { ref: "$exiled2" },
+                                        controller: { ref: "$each" },
+                                    },
+                                },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "choice",
+                                    kind: "search-library",
+                                    player: { ref: "$each" },
+                                    zone: "library",
+                                    filter: {
+                                        type: "Land",
+                                        supertype: "Basic",
+                                    },
+                                    count: {
+                                        min: 0,
+                                        max: {
+                                            boundCount: {
+                                                of: { ref: "$exiled2" },
+                                                controller: { ref: "$each" },
+                                            },
+                                        },
+                                    },
+                                    prompt: "Search your library for a basic land card for each of your creatures exiled this way.",
+                                    bind: "$found1",
+                                },
+                                {
+                                    op: "moveZone",
+                                    cards: { ref: "$found1" },
+                                    player: { ref: "$each" },
+                                    from: "library",
+                                    to: "battlefield",
+                                    tapped: true,
+                                },
+                                {
+                                    op: "libraryLook",
+                                    action: "shuffle",
+                                    player: { ref: "$each" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 608.2c + CR 400.7 + CR 701.23a — "Exile all cards from target
     // player's graveyard other than basic land cards. For each card exiled this
     // way, search that player's library for all cards with the same name …":
