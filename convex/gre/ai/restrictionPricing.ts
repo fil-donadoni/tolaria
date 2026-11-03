@@ -106,6 +106,7 @@ import type {
     StaticBlockRestriction,
     StaticGlobalAttackRestriction,
 } from "../../cards/types";
+import { blockRestrictionAllows } from "../../cards/abilities/static/blockRestriction";
 import { ATTACK_RESTRICTION_CTX } from "../../cards/attackRestrictions";
 import { matchesPermanentFilter } from "../../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../../cards";
@@ -395,7 +396,15 @@ function buildRestrictionPlan(
                     collectBlock
                 )) {
                     for (const probe of probes) {
-                        if (restriction.predicate(self, probe, state)) continue;
+                        if (
+                            blockRestrictionAllows(
+                                restriction,
+                                self,
+                                probe,
+                                state
+                            )
+                        )
+                            continue;
                         let rejected = blockRejectsBy.get(sourceId);
                         if (!rejected) {
                             rejected = new Set<string>();

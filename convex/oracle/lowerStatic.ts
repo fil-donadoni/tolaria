@@ -695,7 +695,11 @@ export function lowerStaticClause(
                     effects: [
                         {
                             kind: "block-restriction",
-                            id: nextId("cant-block"),
+                            id: nextId(
+                                clause.onlyAgainst === undefined
+                                    ? "cant-block"
+                                    : `blocks-only-${clause.onlyAgainst.keyword}`
+                            ),
                             oracleText: clause.sentence,
                             ...(clause.unlessControlMoreCreatures === true
                                 ? { unlessControlMoreCreatures: true as const }

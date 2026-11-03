@@ -40,7 +40,6 @@ import {
     hasNonManaActivatedAbility,
     untapRestriction,
 } from "./abilities/static/untapRestriction";
-import { counterpartBlockRestriction } from "./abilities/static/blockRestriction";
 import { getCardsExiledWith } from "../gre/exileLinks";
 import { matchesPermanentFilter } from "./filters";
 import type { PermanentFilter } from "./filters";
@@ -346,9 +345,8 @@ export type CompiledStaticEffect =
           readonly unlessControlMoreCreatures?: true;
           /** CR 509.1b — `block-restriction` only: "can block only creatures
            *  with flying". The block is legal only when the attacker matches;
-           *  rebuilt by `counterpartBlockRestriction`, which keeps this filter
-           *  on the effect so Guard C compares data, not a closure (issue
-           *  #3315). Exclusive with `unlessControlMoreCreatures`. */
+           *  carried onto the effect as data (no closure), so Guard C
+           *  compares it (issue #3315). Exclusive with `unlessControlMoreCreatures`. */
           readonly onlyAgainst?: CombatCounterpartFilter;
           /**
            * CR 508.1c — "can't attack unless <condition>": the attack is legal
@@ -830,11 +828,13 @@ export function resolveCompiledStatic(
             };
         case "block-restriction":
             if (descriptor.onlyAgainst !== undefined)
-                return counterpartBlockRestriction({
+                return {
+                    kind: "block-restriction",
                     id: descriptor.id,
+                    side: "blocker",
                     onlyAgainst: descriptor.onlyAgainst,
                     oracleText: descriptor.oracleText,
-                });
+                };
             return {
                 kind: "block-restriction",
                 id: descriptor.id,

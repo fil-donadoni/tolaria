@@ -1188,9 +1188,9 @@ describe("Goblin Mutant — trample + conditional attack/block restrictions (CR 
             const small = [
                 { types: ["Creature"], isTapped: false, power: 2 },
             ] as never;
-            expect(restriction.predicate(self, bigUntapped)).toBe(false);
-            expect(restriction.predicate(self, bigTapped)).toBe(true);
-            expect(restriction.predicate(self, small)).toBe(true);
+            expect(restriction.predicate!(self, bigUntapped)).toBe(false);
+            expect(restriction.predicate!(self, bigTapped)).toBe(true);
+            expect(restriction.predicate!(self, small)).toBe(true);
         }
         expect(goblinMutant.staticAbilities).toContain("trample");
     });
@@ -1203,10 +1203,10 @@ describe("Goblin Mutant — trample + conditional attack/block restrictions (CR 
         if (restriction?.kind === "block-restriction") {
             expect(restriction.side).toBe("blocker");
             const self = {} as never;
-            expect(restriction.predicate(self, { power: 2 } as never)).toBe(
+            expect(restriction.predicate!(self, { power: 2 } as never)).toBe(
                 true
             );
-            expect(restriction.predicate(self, { power: 3 } as never)).toBe(
+            expect(restriction.predicate!(self, { power: 3 } as never)).toBe(
                 false
             );
         }

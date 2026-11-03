@@ -5,7 +5,6 @@
 
 import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { counterpartBlockRestriction } from "../../abilities/static/blockRestriction";
 import { PERMANENT_TYPES } from "../../../gre/constants";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -114,9 +113,9 @@ export const emryLurkerOfTheLoch = defineCard(() => ({
 // exists for it (the Mechanics Registry is the name authority, and it censuses
 // none) and because CR 509.1b is where the combat validator reads it.
 //
-// The restriction is built by `counterpartBlockRestriction`, the same factory
-// the Oracle compiler's expander calls (issue #3315), so the card round-trips
-// through Guard C on its `onlyAgainst` data rather than on an opaque closure.
+// The restriction is stated as DATA (`onlyAgainst`, issue #3315) rather than a
+// `predicate` closure — the same shape the Oracle compiler emits, so the card
+// round-trips through Guard C on that data instead of being `incomparable`.
 export const brazenBorrower = defineCard(() => ({
     id: "c2089ec9-0665-448f-bfe9-d181de127814",
     rarity: "mythic",
@@ -133,11 +132,13 @@ export const brazenBorrower = defineCard(() => ({
         // CR 509.1b — self = Brazen Borrower (blocker), opponent = the
         // attacker it wants to block; the block is legal only when that
         // attacker flies.
-        counterpartBlockRestriction({
+        {
+            kind: "block-restriction",
             id: "brazen-borrower-blocks-only-flying",
+            side: "blocker",
             onlyAgainst: { keyword: "flying" },
             oracleText: "This creature can block only creatures with flying.",
-        }),
+        },
     ],
     // CR 715.2 — the inset frame. `kind: "adventure"` is what makes the parent
     // offer the cast option at all (CR 715.3); a `"prepare"` half never would

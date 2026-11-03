@@ -1,28 +1,28 @@
 /**
- * A block restriction stated as DATA (issue #3315) — "This creature can block
- * only creatures with flying" (CR 509.1b).
+ * The one evaluator of a card-level block restriction (CR 509.1b, issue #3315).
  *
- * `StaticBlockRestriction.predicate` is a closure, and a closure cannot reach a
- * serialized catalogue row nor be compared by Guard C (`sortKeys` renders every
- * function as the same sentinel, so two different closures look equal). This
- * factory is the one place the predicate is DERIVED from a JSON-pure
- * {@link CombatCounterpartFilter}, and it keeps that filter on the effect as
- * `onlyAgainst`. A hand-written card and the Oracle compiler's expander
- * (`resolveCompiledStatic`) both call it, so the closure is the same code on
- * both sides and the comparison reads the filter.
+ * A `StaticBlockRestriction` states which blocks it allows in exactly one of
+ * two ways: a `predicate` closure, or an `onlyAgainst` descriptor — JSON-pure
+ * data ("can block only creatures with flying") the Oracle compiler can emit
+ * and Guard C can compare (`sortKeys` renders every closure as the same
+ * sentinel, so two different closures look alike and a card holding one is
+ * only ever `incomparable`). Every reader — the block validator, the bypass-cost
+ * charger, the Brain's restriction pricing — asks this function, so a
+ * descriptor-sourced restriction is honoured exactly where a closure is.
  */
 
 import type {
     CombatCounterpartFilter,
     PermanentView,
     StaticBlockRestriction,
+    StaticEffectStateView,
 } from "../../types";
 
 /**
- * Does `other` satisfy the filter? The combat validator hands the predicate the
- * live `CardInstanceState` (cast to `PermanentView`), whose `staticAbilities`
- * the layer system maintains — so a granted flying counts and a removed one
- * does not (CR 613.1f).
+ * Does `other` satisfy the filter? The combat validator hands the restriction
+ * the live `CardInstanceState` (typed as `PermanentView`), whose
+ * `staticAbilities` the layer system maintains — so a granted flying counts and
+ * a removed one does not (CR 613.1f).
  */
 export function matchesCombatCounterpart(
     filter: CombatCounterpartFilter,
@@ -35,22 +35,18 @@ export function matchesCombatCounterpart(
 }
 
 /**
- * CR 509.1b — a BLOCKER-side restriction: the creature carrying it may block
- * only an attacker matching `onlyAgainst`.
+ * Is this block LEGAL under `restriction`? `self` is the creature carrying (or
+ * enchanted by) the restriction, `other` the creature on the far side of the
+ * block — the attacker for `side: "blocker"`, the candidate blocker for
+ * `side: "attacker"`.
  */
-export function counterpartBlockRestriction(args: {
-    readonly id: string;
-    readonly onlyAgainst: CombatCounterpartFilter;
-    readonly oracleText: string;
-}): StaticBlockRestriction {
-    const { id, onlyAgainst, oracleText } = args;
-    return {
-        kind: "block-restriction",
-        id,
-        side: "blocker",
-        onlyAgainst,
-        predicate: (_self, attacker) =>
-            matchesCombatCounterpart(onlyAgainst, attacker),
-        oracleText,
-    };
+export function blockRestrictionAllows(
+    restriction: StaticBlockRestriction,
+    self: PermanentView,
+    other: PermanentView,
+    state?: StaticEffectStateView
+): boolean {
+    if (restriction.onlyAgainst !== undefined)
+        return matchesCombatCounterpart(restriction.onlyAgainst, other);
+    return restriction.predicate(self, other, state);
 }
