@@ -66,7 +66,10 @@ export function collectDurations(
                 test: `${file} > ${t.fullName}`,
                 project: m.project.name,
                 durationMs: Math.round(d.duration),
-                timeoutMs: t.options.timeout ?? m.project.config.testTimeout,
+                // `||`, not `??`: a test that opts out with timeout 0 (a blade
+                // entry, issue #6567) is still measured against its project's
+                // budget, or its cost would vanish from the advisory.
+                timeoutMs: t.options.timeout || m.project.config.testTimeout,
                 state: t.result().state,
             };
             if (headroomRatio(rec) >= floor) out.push(rec);
