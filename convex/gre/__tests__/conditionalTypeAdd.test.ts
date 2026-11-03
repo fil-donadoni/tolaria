@@ -18,6 +18,7 @@ import { beginApplyingStaticEffects } from "../state";
 import { checkStateBasedActions } from "../sba";
 import { advancePhase } from "../phases";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { syncLayers2to5 } from "../layers2to5";
 import type { LayerStateView } from "../layers";
 import type {
     CardDefinition,
@@ -133,14 +134,9 @@ describe("CR 611.3a conditional layer-4 type line (issue #3237)", () => {
 
     it("during the opponent's turn none of the grant applies", () => {
         withTemporaryDefinition(walkerDefinition, () => {
-            const { state, walker } = board("p2", 4);
+            const { walker } = board("p2", 4);
             expect(walker.types).toEqual(["Planeswalker"]);
             expect(walker.subtypes).toEqual(["Kaito"]);
-            // CR 613.4b — the base-P/T set is gated too: no 3/4 off-turn.
-            expect(getEffectivePower(view(state), asView(walker))).not.toBe(3);
-            expect(getEffectiveToughness(view(state), asView(walker))).not.toBe(
-                4
-            );
             expect(walker.staticAbilities ?? []).not.toContain("hexproof");
         });
     });
@@ -184,6 +180,30 @@ describe("CR 611.3a conditional layer-4 type line (issue #3237)", () => {
                 undefined
             );
             expect(p1.graveyard.some((c) => c.id === "walker")).toBe(true);
+        });
+    });
+
+    it("off its controller's turn, a creature made so by ANOTHER effect does not get the 3/4 (CR 611.3a)", () => {
+        withTemporaryDefinition(walkerDefinition, () => {
+            const { state, walker } = board("p2", 4);
+            // An unrelated indefinite layer-4 effect animates it on the
+            // opponent's turn: it is a creature, so it has P/T (CR 208.3),
+            // and the gated base-P/T set must not be what it reads.
+            state.continuousEffects = [
+                {
+                    id: "ce-animate",
+                    layer: 4,
+                    timestamp: 900,
+                    expiry: { kind: "indefinite", controllerId: "p2" },
+                    affected: { kind: "instances", instanceIds: ["walker"] },
+                    payload: { kind: "type-change", add: ["Creature"] },
+                    characteristicDefining: false,
+                },
+            ];
+            syncLayers2to5(state);
+            expect(walker.types).toContain("Creature");
+            expect(getEffectivePower(view(state), asView(walker))).toBe(0);
+            expect(getEffectiveToughness(view(state), asView(walker))).toBe(0);
         });
     });
 
