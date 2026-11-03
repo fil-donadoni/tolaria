@@ -1,7 +1,7 @@
 /**
  * A derived-data refresh PR that stalls is superseded, never waited on
- * (issue #7927). The daily bot cost refresh (issue #6999) and the weekly lane
- * sentinel refresh (issue #7651) each open ONE data PR at a time; before this,
+ * (issue #7927). The daily bot cost refresh and the weekly lane sentinel
+ * refresh each open ONE data PR at a time; before this,
  * an open one stopped every later run quietly, so a single red refresh froze
  * the table with no signal (PR #7810: red on 2026-11-01, two silent `success`
  * runs after it).

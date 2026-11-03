@@ -19,7 +19,7 @@
  * when it is still a test of a lane project in this tree. `--pr` exits 0
  * without a PR when a refresh PR is in flight or the set is unchanged; one
  * open for `STALL_HOURS` or more is closed and re-derived, and the run ends
- * red (`lib/refresh-pr-stall.ts`, issue #7927).
+ * red (`lib/refresh-pr-stall.ts`).
  */
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
