@@ -219,3 +219,92 @@ export const saheeliSublimeArtificer = defineCard(() => ({
         },
     ],
 }));
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tamiyo, Collector of Tales — {2}{G}{U} Legendary Planeswalker — Tamiyo,
+// starting loyalty 5 (CR 306.5b). Vintage Cube (issue #2607).
+//   • STATIC — "Spells and abilities your opponents control can't cause you
+//     to discard cards or sacrifice permanents." A `player-guard` with the
+//     `opponentsCantCause` clause (CR 101.2 — the "can't" wins): an
+//     opponent's discard or sacrifice of this player does nothing, the rest
+//     of that spell still resolves, and an "unless you sacrifice/discard"
+//     option can't be taken (`isOpponentCauseProhibited`,
+//     `gre/permanentGuard.ts`). Costs and game rules (CR 514.1 cleanup
+//     discard, CR 704.1 SBAs) are untouched.
+//   • +1 — "Choose a nonland card name, then reveal the top four cards of
+//     your library. Put all cards with the chosen name from among them into
+//     your hand and the rest into your graveyard." `nameCard` with the CR
+//     201.4a `no-land` restriction (Cabal Therapy's), then the public
+//     `digMatchingToHand` reveal (CR 701.20a) filtered on the chosen name,
+//     the rest to the graveyard — Desperate Research's shape with a four-card
+//     window; zero matches sends all four to the graveyard.
+//   • −3 — "Return target card from your graveyard to your hand." Regrowth's
+//     graveyard-card target + `moveZone` to hand.
+//
+// hand-tail: "Spells and abilities your opponents control can't cause you to discard cards or sacrifice permanents." (#2607)
+export const tamiyoCollectorOfTales = defineCard(() => ({
+    id: "76776b24-a2e1-4590-88e7-8a421baf2fc4",
+    name: "Tamiyo, Collector of Tales",
+    rarity: "rare",
+    manaCost: { generic: 2, G: 1, U: 1 },
+    types: ["Planeswalker"],
+    subtypes: ["Tamiyo"],
+    supertypes: ["Legendary"],
+    loyalty: 5,
+    oracleText:
+        "Spells and abilities your opponents control can't cause you to discard cards or sacrifice permanents.\n+1: Choose a nonland card name, then reveal the top four cards of your library. Put all cards with the chosen name from among them into your hand and the rest into your graveyard.\n−3: Return target card from your graveyard to your hand.",
+    // CR 101.2 — the controller is guarded against opponent-caused discard
+    // and sacrifice for as long as Tamiyo is on the battlefield (CR 611.3a).
+    staticEffects: [
+        {
+            kind: "player-guard",
+            id: "tamiyo-collector-of-tales-opponents-cant-cause",
+            opponentsCantCause: ["discard", "sacrifice"],
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "tamiyo-collector-of-tales-plus1",
+            // CR 606.2 / 606.4 — loyalty ability; `+1` puts one loyalty counter on.
+            cost: { loyalty: 1 },
+            useStack: true,
+            oracleText:
+                "+1: Choose a nonland card name, then reveal the top four cards of your library. Put all cards with the chosen name from among them into your hand and the rest into your graveyard.",
+            effects: [
+                // CR 201.4a — a nonland card name, chosen on resolution.
+                {
+                    op: "nameCard",
+                    player: "controller",
+                    prompt: "Choose a nonland card name.",
+                    bind: "$named",
+                    nameRestriction: "no-land",
+                },
+                // CR 701.20a — reveal the top four; every card with the name
+                // goes to hand, the rest to the graveyard.
+                {
+                    op: "digMatchingToHand",
+                    player: "controller",
+                    look: 4,
+                    filter: { name: { ref: "$named" } },
+                    destination: "graveyard",
+                },
+            ],
+        },
+        {
+            id: "tamiyo-collector-of-tales-minus3",
+            // CR 606.2 / 606.4 — loyalty ability; `-3` removes three loyalty counters.
+            cost: { loyalty: -3 },
+            useStack: true,
+            oracleText:
+                "−3: Return target card from your graveyard to your hand.",
+            targetRequirement: {
+                type: "card",
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
+            // Return the targeted graveyard card to hand.
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
+        },
+    ],
+}));
