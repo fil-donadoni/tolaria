@@ -9585,8 +9585,25 @@ export interface StaticBlockRestriction {
      *  Hipparion ("can't block creatures with power 3 or greater unless you
      *  pay {1}") uses this. */
     bypassCost?: ManaCost;
+    /** The JSON-pure statement of the restriction (issue #3315): the block is
+     *  legal only when the OTHER creature (`opponent` above) matches. Present
+     *  only on a restriction built by `counterpartBlockRestriction`
+     *  (`cards/abilities/static/blockRestriction.ts`), whose `predicate` is
+     *  derived from it — the one factory a hand-written card and the Oracle
+     *  compiler's expander both call, so the two encodings cannot disagree
+     *  and Guard C compares this field rather than an opaque closure. */
+    onlyAgainst?: CombatCounterpartFilter;
     /** Oracle text displayed as the rejection reason. */
     oracleText: string;
+}
+
+/** What a combat restriction requires of the OTHER creature in a block
+ *  (CR 509.1b): "can block only creatures with flying". A CLOSED vocabulary —
+ *  a restriction it cannot state exactly stays a hand-written closure (and the
+ *  compiler leaves its card unparsed) rather than being approximated. */
+export interface CombatCounterpartFilter {
+    /** CR 702.9 — the other creature must have this keyword. */
+    readonly keyword: "flying";
 }
 
 /** Card-level attack restriction (CR 508.1c). Declares that a creature

@@ -700,6 +700,9 @@ export function lowerStaticClause(
                             ...(clause.unlessControlMoreCreatures === true
                                 ? { unlessControlMoreCreatures: true as const }
                                 : {}),
+                            ...(clause.onlyAgainst !== undefined
+                                ? { onlyAgainst: clause.onlyAgainst }
+                                : {}),
                         },
                     ],
                 },
