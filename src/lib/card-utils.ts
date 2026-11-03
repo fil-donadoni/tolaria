@@ -3857,8 +3857,24 @@ export function phyrexianSplitChoices(
     card: CardInstance
 ): PhyrexianSplitChoice[] {
     const options = card.phyrexianOptions;
-    if (!options || options.length < 2) return [];
-    const phy = getDefinition(card.card.id).manaCost?.phyrexian;
+    if (!options) return [];
+    return phyrexianSplitChoicesForCost(
+        getDefinition(card.card.id).manaCost,
+        options
+    );
+}
+
+/** CR 107.4f — the picker rows for a Phyrexian cost and its `lifePips`
+ *  options: the cast path feeds the projection's `phyrexianOptions`, the
+ *  activation path `phyrexianActivationLifePipOptions` (`convex/gre/
+ *  phyrexian.ts`, re-validated by the server). Empty (no picker) unless there
+ *  are ≥ 2 real options. */
+export function phyrexianSplitChoicesForCost(
+    cost: ManaCost | undefined,
+    options: readonly number[]
+): PhyrexianSplitChoice[] {
+    if (options.length < 2) return [];
+    const phy = cost?.phyrexian;
     if (!phy) return [];
     const pipColors: Color[] = [];
     for (const c of MANA_DISPLAY_COLORS) {

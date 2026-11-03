@@ -203,7 +203,7 @@ import type { CastFromZone } from "./castCost";
 // (`declineCastWindowInSearch`) are the EXACT functions the mutations drive.
 import { consumeMadnessCastChoice, declineMadness } from "./madness";
 import { consumeReboundCastChoice, declineRebound } from "./rebound";
-import { phyrexianPipCount } from "./phyrexian";
+import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { announcedModeFields } from "./modeSelection";
 import { searchCombatDamageAssignments } from "./ai/damageSplit";
 
@@ -986,9 +986,14 @@ export function applyActivationCostsForSearch(
     ) {
         return false;
     }
+    // CR 107.4f / 119.4 — the Phyrexian pips the move pays with life join the
+    // printed life leg: life must cover the whole payment.
+    const phyrexianLife =
+        (move.phyrexianLifePips ?? 0) * PHYREXIAN_LIFE_PER_PIP;
+    const totalLife = (ability.cost.life ?? 0) + phyrexianLife;
     if (
-        ability.cost.life !== undefined &&
-        (!payer || !canPayLifeCost(payer, ability.cost.life))
+        (ability.cost.life !== undefined || phyrexianLife > 0) &&
+        (!payer || !canPayLifeCost(payer, totalLife))
     ) {
         return false;
     }
@@ -1037,6 +1042,9 @@ export function applyActivationCostsForSearch(
     if (ability.cost.life !== undefined && payer) {
         payer.life -= ability.cost.life;
     }
+    // CR 107.4f — the Phyrexian pips paid with life (the mana-paid ones rode
+    // the tap plan, applied by the caller).
+    if (phyrexianLife > 0 && payer) payer.life -= phyrexianLife;
     // CR 118 / 122.1c — the counter-removal leg (Thallid's three spore
     // counters), through the shared affordability authority. The payability
     // CHECK happened before any mutation (see the guard above `src.isTapped`),
