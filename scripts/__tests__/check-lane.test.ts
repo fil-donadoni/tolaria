@@ -45,7 +45,14 @@ import {
 import { REFIT_ARTIFACT_PATHS } from "../lib/bot-refit";
 import { BLADE_INDEX_DRIFT_TEST } from "../lib/blade-card-index";
 import { DOC_GATE_TESTS } from "../lib/doc-gate-tests";
-import type { BotRelatedTests, RelatedTests } from "../lib/test-reach";
+import {
+    botRelatedTests,
+    botTests,
+    reachIndex,
+    type BotRelatedTests,
+    type RelatedTests,
+} from "../lib/test-reach";
+import { readBotBudget } from "../lib/bot-test-costs";
 import {
     discoverScanGuards,
     parseScanGuard,
@@ -3203,19 +3210,34 @@ describe("scoped lanes admit the reached bot files by measured cost (issue #6943
         );
     });
 
-    it("PR #6849's diff, on the live walk and the committed cost table, plans both censuses that reddened the base", () => {
+    it("PR #6849's diff, on the live walk, plans both censuses that reddened the base", () => {
         // 182eaefa4^..182eaefa4 — base RED 7a26705010e9 (2026-10-25).
-        const p = classifyLane([
-            "convex/cards/abilities/__tests__/keywordTriggers.test.ts",
-            "convex/cards/abilities/keywordTriggers.ts",
-            "convex/cards/mechanicsRegistry.ts",
-            "convex/cards/types.ts",
-            "convex/gre/state.ts",
-            "convex/gre/triggerEventVocabulary.ts",
-            "data/card-index.json",
-            "data/cr/citations-ledger.json",
-            "data/oracle-compiled.json",
-        ]);
+        // The walk is LIVE (the regression: it must reach both censuses);
+        // the costs are FROZEN at their 2026-10-25 measurements, every other
+        // reached file unmeasured. The committed `data/bot-test-costs.json`
+        // is rewritten daily by `bot:costs:refresh` — a pin on it reddened
+        // the refresh's own PR #7810 when health ran slower (issue #7927).
+        const index = reachIndex(ROOT, botTests(ROOT));
+        const live: BotReachSource = {
+            total: () => index.tests.size,
+            related: (paths) => botRelatedTests(index, paths),
+            costs: () => ({ [CENSUS]: 16, [RATINGS]: 15 }),
+            budget: () => readBotBudget(ROOT),
+        };
+        const p = plan(
+            [
+                "convex/cards/abilities/__tests__/keywordTriggers.test.ts",
+                "convex/cards/abilities/keywordTriggers.ts",
+                "convex/cards/mechanicsRegistry.ts",
+                "convex/cards/types.ts",
+                "convex/gre/state.ts",
+                "convex/gre/triggerEventVocabulary.ts",
+                "data/card-index.json",
+                "data/cr/citations-ledger.json",
+                "data/oracle-compiled.json",
+            ],
+            live
+        );
         expect(p.lane).toBe("engine");
         const cmd = botStep(p)?.command ?? "";
         expect(cmd).toContain(CENSUS);
