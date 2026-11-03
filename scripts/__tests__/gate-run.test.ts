@@ -114,6 +114,12 @@ const pidAlive = (pid: number): boolean => {
 };
 
 afterEach(() => {
+    // A call still in flight belongs to a test that timed out or threw: kill
+    // its whole group (the `sh` and its poll `sleep`) so it holds nothing
+    // past the test that started it (issue #7936).
+    for (const pid of callers)
+        if (groupAlive(pid)) process.kill(-pid, "SIGKILL");
+    callers.clear();
     // The #4940 tests leave long sleepers behind on purpose; never leak them.
     for (const pgid of liveRunPgids())
         if (groupAlive(pgid)) process.kill(-pgid, "SIGKILL");
@@ -131,50 +137,123 @@ interface RunOpts {
     cwd?: string;
 }
 
-const run = (opts: RunOpts) =>
-    spawnSync("sh", [GATE_RUN, ...opts.args], {
-        cwd: opts.cwd ?? tmp,
-        encoding: "utf8",
-        env: {
-            ...hermeticEnv(),
-            TOLARIA_GATE_RUN_DIR: runDir,
-            TOLARIA_GATE_RUN_POLL_SECS: "1",
-            ...(opts.env ?? {}),
-        },
+interface RunResult {
+    status: number | null;
+    stdout: string;
+    stderr: string;
+}
+
+/** Process groups of the `gate-run.sh` calls still in flight; `afterEach`
+ *  kills whatever a timed-out test left here. */
+const callers = new Set<number>();
+
+/**
+ * Every call's environment. `TOLARIA_GATE_RUN_WAIT_SECS` defaults to 20, under
+ * the 30 s test timeout: the script's own default (480 s) is the ceiling a
+ * real pass wants and no test does (issue #7936). A test that needs another
+ * ceiling sets its own.
+ */
+const gateEnv = (env: Record<string, string> = {}): NodeJS.ProcessEnv => ({
+    ...hermeticEnv(),
+    TOLARIA_GATE_RUN_DIR: runDir,
+    TOLARIA_GATE_RUN_POLL_SECS: "1",
+    TOLARIA_GATE_RUN_WAIT_SECS: "20",
+    ...env,
+});
+
+/**
+ * Drive `gate-run.sh` ASYNCHRONOUSLY — never `spawnSync` (issue #7936). A
+ * synchronous call parks the worker's event loop for as long as the script
+ * waits (480 s by default), so vitest's timeout cannot fire and `afterEach`
+ * cannot run: a health `test:app` once held a worker 73 min on five tests that
+ * had each "timed out" at 30 s. Awaited, a slow call is cut by the test's own
+ * timeout, and its group (`detached`: the `sh` leads it) is killed in
+ * `afterEach`. The gate itself sits in a third group (`set -m`), reaped through
+ * `liveRunPgids`.
+ */
+const run = (opts: RunOpts): Promise<RunResult> =>
+    new Promise((resolve, reject) => {
+        const child = spawn("sh", [GATE_RUN, ...opts.args], {
+            cwd: opts.cwd ?? tmp,
+            env: gateEnv(opts.env),
+            detached: true,
+            stdio: ["ignore", "pipe", "pipe"],
+        });
+        const pid = child.pid!;
+        callers.add(pid);
+        let stdout = "";
+        let stderr = "";
+        child.stdout.setEncoding("utf8").on("data", (d: string) => {
+            stdout += d;
+        });
+        child.stderr.setEncoding("utf8").on("data", (d: string) => {
+            stderr += d;
+        });
+        child.on("error", reject);
+        child.on("close", (status) => {
+            callers.delete(pid);
+            resolve({ status, stdout, stderr });
+        });
     });
 
-/** Block (out of process, so no fake timers are involved) until `file`
- *  exists, up to `secs`. Returns whether it appeared. */
-const waitForFile = (file: string, secs = 25): boolean =>
-    spawnSync(
-        "sh",
-        [
-            "-c",
-            'i=0; while [ "$i" -lt "$2" ]; do [ -e "$1" ] && exit 0; sleep 1; i=$((i+1)); done; exit 1',
-            "sh",
-            file,
-            String(secs),
-        ],
-        { encoding: "utf8" }
-    ).status === 0;
+const delay = (ms: number): Promise<void> =>
+    new Promise((r) => setTimeout(r, ms));
+
+/** Poll `pred` in-process, without blocking the loop, up to `secs`. */
+const waitUntil = async (
+    pred: () => boolean,
+    secs: number
+): Promise<boolean> => {
+    const end = Date.now() + secs * 1000;
+    while (Date.now() < end) {
+        if (pred()) return true;
+        await delay(100);
+    }
+    return pred();
+};
+
+/** Wait until `file` exists, up to `secs`. Returns whether it appeared. */
+const waitForFile = (file: string, secs = 25): Promise<boolean> =>
+    waitUntil(() => fs.existsSync(file), secs);
+
+describe("gate-run — a call in flight never blocks the test worker (issue #7936)", () => {
+    it("keeps the event loop live while a call waits, so the test timeout and teardown can act", async () => {
+        // The timer below is what releases the gate, and it can only fire
+        // WHILE the call is waiting if the call leaves the loop free. A
+        // synchronous call parks the loop: the timer fires only after the call
+        // gave up at its ceiling, and the call reports 75 instead of 0.
+        const release = path.join(tmp, "release");
+        fixtureScript("slow", `${awaitRelease(release)}\nexit 0`);
+        const timer = setTimeout(() => fs.writeFileSync(release, ""), 500);
+        try {
+            const r = await run({
+                args: ["slow"],
+                env: { TOLARIA_GATE_RUN_WAIT_SECS: "10" },
+            });
+            expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        } finally {
+            clearTimeout(timer);
+        }
+    });
+});
 
 describe("gate-run — the gate's verdict reaches the caller", () => {
-    it("returns the gate's own exit code and prints its output", () => {
+    it("returns the gate's own exit code and prints its output", async () => {
         fixtureScript("fast", 'echo "MARKER-OK"\nexit 0');
-        const r = run({ args: ["fast"] });
+        const r = await run({ args: ["fast"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stdout).toContain("MARKER-OK");
         expect(r.stdout).toMatch(/exit=0/);
     });
 
-    it("returns a FAILING gate's exit code, not a laundered zero", () => {
+    it("returns a FAILING gate's exit code, not a laundered zero", async () => {
         // The whole family of bugs this script sits in the middle of is
         // "the exit code was thrown away" — piped into a pager (§3 of
         // deny-guard), backgrounded (§3b), or killed with the turn (#3698).
         // A wrapper that swallowed a red gate would be the same bug wearing
         // the fix's clothes.
         fixtureScript("fail", 'echo "MARKER-RED"\nexit 7');
-        const r = run({ args: ["fail"] });
+        const r = await run({ args: ["fail"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(7);
         expect(r.stdout).toContain("MARKER-RED");
         expect(r.stdout).toMatch(/exit=7/);
@@ -182,7 +261,7 @@ describe("gate-run — the gate's verdict reaches the caller", () => {
 });
 
 describe("gate-run — no single call can be promoted past the tool cap", () => {
-    it("defaults its wait ceiling to well under the Bash tool's 600s cap", () => {
+    it("defaults its wait ceiling to well under the Bash tool's 600s cap", async () => {
         // A source assertion, deliberately: the behavioural tests below set
         // their own tiny ceiling, so every one of them stays green with the
         // default raised to 3600 — which would reintroduce the exact
@@ -195,9 +274,9 @@ describe("gate-run — no single call can be promoted past the tool cap", () => 
         expect(Number(m![1])).toBeLessThan(600);
     });
 
-    it("returns 75 — 'still running, ask again' — instead of blocking past the ceiling", () => {
+    it("returns 75 — 'still running, ask again' — instead of blocking past the ceiling", async () => {
         fixtureScript("slow", "sleep 20\nexit 0");
-        const r = run({
+        const r = await run({
             args: ["slow"],
             env: { TOLARIA_GATE_RUN_WAIT_SECS: "2" },
         });
@@ -206,17 +285,17 @@ describe("gate-run — no single call can be promoted past the tool cap", () => 
         expect(r.stdout).toMatch(/re-run the IDENTICAL command/);
     });
 
-    it("re-attaches on the next call instead of starting a SECOND gate", () => {
+    it("re-attaches on the next call instead of starting a SECOND gate", async () => {
         // Starting a fresh gate per call would be worse than the bug: each
         // one re-queues behind the machine-wide mutex, so a gate driven this
         // way would never finish at all. The fixture counts its own starts.
         const starts = path.join(tmp, "starts");
         fixtureScript("slow", `echo x >>"${starts}"\nsleep 20\nexit 0`);
-        const first = run({
+        const first = await run({
             args: ["slow"],
             env: { TOLARIA_GATE_RUN_WAIT_SECS: "2" },
         });
-        const second = run({
+        const second = await run({
             args: ["slow"],
             env: { TOLARIA_GATE_RUN_WAIT_SECS: "2" },
         });
@@ -230,7 +309,7 @@ describe("gate-run — no single call can be promoted past the tool cap", () => 
 });
 
 describe("gate-run — the run outlives the call that started it (#3698 AC1)", () => {
-    it("a gate longer than the ceiling completes, and a later call reads its exit code", () => {
+    it("a gate longer than the ceiling completes, and a later call reads its exit code", async () => {
         // The acceptance criterion in one test. `TOLARIA_GATE_RUN_WAIT_SECS=0`
         // stands in for the Bash tool's 600s cap: the first call returns 75
         // and its PROCESS EXITS while the gate is still running — exactly the
@@ -244,7 +323,7 @@ describe("gate-run — the run outlives the call that started it (#3698 AC1)", (
             `${awaitRelease(release)}\necho "MARKER-LATE"\ntouch "${done}"\nexit 3`
         );
 
-        const first = run({
+        const first = await run({
             args: ["slow"],
             env: { TOLARIA_GATE_RUN_WAIT_SECS: "0" },
         });
@@ -252,11 +331,12 @@ describe("gate-run — the run outlives the call that started it (#3698 AC1)", (
         expect(fs.existsSync(done)).toBe(false);
 
         fs.writeFileSync(release, "");
-        expect(waitForFile(done), "the detached gate never finished").toBe(
-            true
-        );
+        expect(
+            await waitForFile(done),
+            "the detached gate never finished"
+        ).toBe(true);
 
-        const second = run({
+        const second = await run({
             args: ["slow"],
             env: { TOLARIA_GATE_RUN_WAIT_SECS: "20" },
         });
@@ -295,7 +375,7 @@ describe("gate-run — the run outlives the call that started it (#3698 AC1)", (
             },
         });
         // Once the gate is running, kill the caller's whole group.
-        expect(waitForFile(started), "the gate never started").toBe(true);
+        expect(await waitForFile(started), "the gate never started").toBe(true);
         process.kill(-child.pid!, "SIGTERM");
         await new Promise((r) => setTimeout(r, 500));
         expect(
@@ -305,11 +385,11 @@ describe("gate-run — the run outlives the call that started it (#3698 AC1)", (
         fs.writeFileSync(release, "");
 
         expect(
-            waitForFile(done),
+            await waitForFile(done),
             "the gate died with the caller's process group"
         ).toBe(true);
         // …and its exit code is still there to be read by whoever comes next.
-        const after = run({
+        const after = await run({
             args: ["slow"],
             env: { TOLARIA_GATE_RUN_WAIT_SECS: "20" },
         });
@@ -335,7 +415,7 @@ describe("gate-run — a pid is not an identity (#3698)", () => {
         });
         foreign.unref();
         // Provoke the run dir into existing, then poison it.
-        const seed = run({
+        const seed = await run({
             args: ["slow"],
             env: { TOLARIA_GATE_RUN_WAIT_SECS: "0" },
         });
@@ -347,7 +427,7 @@ describe("gate-run — a pid is not an identity (#3698)", () => {
         fs.writeFileSync(path.join(runSub, "pid"), `${foreign.pid}\n`);
         fs.rmSync(path.join(runSub, "rc"), { force: true });
 
-        const next = run({
+        const next = await run({
             args: ["slow"],
             env: { TOLARIA_GATE_RUN_WAIT_SECS: "0" },
         });
@@ -362,7 +442,7 @@ describe("gate-run — a pid is not an identity (#3698)", () => {
 });
 
 describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", () => {
-    it("re-attaches across DIFFERENT cwds when the run carries an explicit key", () => {
+    it("re-attaches across DIFFERENT cwds when the run carries an explicit key", async () => {
         // The case that forces this: `land` runs from the PR's own worktree —
         // it refuses to run from the base branch — and DELETES that worktree
         // when it merges. A `land` that returns 75 therefore leaves the next
@@ -382,20 +462,18 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         fs.chmodSync(path.join(other, "slow.sh"), 0o755);
 
         const env = {
-            TOLARIA_GATE_RUN_DIR: runDir,
-            TOLARIA_GATE_RUN_POLL_SECS: "1",
             TOLARIA_GATE_RUN_WAIT_SECS: "2",
             TOLARIA_GATE_RUN_KEY: "land-3706",
         };
-        const first = spawnSync("sh", [GATE_RUN, "slow"], {
+        const first = await run({
+            args: ["slow"],
             cwd: tmp,
-            encoding: "utf8",
-            env: { ...hermeticEnv(), ...env },
+            env,
         });
-        const second = spawnSync("sh", [GATE_RUN, "slow"], {
+        const second = await run({
+            args: ["slow"],
             cwd: other,
-            encoding: "utf8",
-            env: { ...hermeticEnv(), ...env },
+            env,
         });
 
         expect(first.status, `${first.stdout}${first.stderr}`).toBe(75);
@@ -414,7 +492,7 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         });
     });
 
-    it("hands a FINISHED named run's verdict to a caller in a checkout with a different HEAD", () => {
+    it("hands a FINISHED named run's verdict to a caller in a checkout with a different HEAD", async () => {
         // The case the key exists for, and the one the first version got
         // wrong (PR #3707 review): `land` finishes — possibly MERGED — while
         // nobody is waiting, its worktree is gone, and the follow-up call comes
@@ -424,7 +502,7 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         // directories are real git repos with different commits here, because
         // two plain temp dirs both read an empty HEAD and pass by accident.
         const git = (cwd: string, ...args: string[]) =>
-            spawnSync("git", args, { cwd, encoding: "utf8" });
+            spawnSync("git", args, { cwd, encoding: "utf8", timeout: 10_000 });
         const initRepo = (dir: string, msg: string) => {
             git(dir, "init", "-q");
             git(
@@ -457,22 +535,19 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         );
 
         const env = {
-            ...hermeticEnv(),
-            TOLARIA_GATE_RUN_DIR: runDir,
-            TOLARIA_GATE_RUN_POLL_SECS: "1",
             TOLARIA_GATE_RUN_KEY: "land-3707",
         };
-        const first = spawnSync("sh", [GATE_RUN, "slow"], {
+        const first = await run({
+            args: ["slow"],
             cwd: tmp,
-            encoding: "utf8",
             env: { ...env, TOLARIA_GATE_RUN_WAIT_SECS: "0" },
         });
         expect(first.status, `${first.stdout}${first.stderr}`).toBe(75);
-        expect(waitForFile(done), "the gate never finished").toBe(true);
+        expect(await waitForFile(done), "the gate never finished").toBe(true);
 
-        const second = spawnSync("sh", [GATE_RUN, "slow"], {
+        const second = await run({
+            args: ["slow"],
             cwd: other,
-            encoding: "utf8",
             env: { ...env, TOLARIA_GATE_RUN_WAIT_SECS: "20" },
         });
         expect(second.status, `${second.stdout}${second.stderr}`).toBe(3);
@@ -488,27 +563,21 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         });
     });
 
-    it("does not hand the run's key down to the gate it runs", () => {
+    it("does not hand the run's key down to the gate it runs", async () => {
         // A gate is a process tree, and some of its descendants drive
         // `gate-run.sh` themselves. A key left in the environment collapses
         // every one of their runs onto the parent's — observed: the keyless
         // test below went red inside `land`'s own gate (PR #3707).
         fixtureScript("fast", 'echo "KEY=[$TOLARIA_GATE_RUN_KEY]"\nexit 0');
-        const r = spawnSync("sh", [GATE_RUN, "fast"], {
-            cwd: tmp,
-            encoding: "utf8",
-            env: {
-                ...hermeticEnv(),
-                TOLARIA_GATE_RUN_DIR: runDir,
-                TOLARIA_GATE_RUN_POLL_SECS: "1",
-                TOLARIA_GATE_RUN_KEY: "land-3707",
-            },
+        const r = await run({
+            args: ["fast"],
+            env: { TOLARIA_GATE_RUN_KEY: "land-3707" },
         });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stdout).toContain("KEY=[]");
     });
 
-    it("still separates two worktrees that gate the same script with no key", () => {
+    it("still separates two worktrees that gate the same script with no key", async () => {
         // A regression guard on the DEFAULT, not a test of the key: it passes
         // with the feature removed, and it is here so that adding the key can
         // never quietly turn "one run per cwd" into "one run per command": two
@@ -523,19 +592,17 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         fs.chmodSync(path.join(other, "slow.sh"), 0o755);
 
         const env = {
-            TOLARIA_GATE_RUN_DIR: runDir,
-            TOLARIA_GATE_RUN_POLL_SECS: "1",
             TOLARIA_GATE_RUN_WAIT_SECS: "2",
         };
-        spawnSync("sh", [GATE_RUN, "slow"], {
+        await run({
+            args: ["slow"],
             cwd: tmp,
-            encoding: "utf8",
-            env: { ...hermeticEnv(), ...env },
+            env,
         });
-        const second = spawnSync("sh", [GATE_RUN, "slow"], {
+        const second = await run({
+            args: ["slow"],
             cwd: other,
-            encoding: "utf8",
-            env: { ...hermeticEnv(), ...env },
+            env,
         });
         expect(second.stderr).toMatch(/started/);
         expect(second.stderr).not.toMatch(/re-attached/);
@@ -558,7 +625,7 @@ describe("gate-run — a run records (head, base, command, green) for `land` (AD
      * starts, so a red or half-written run can never read as green.
      */
     const git = (...args: string[]) =>
-        spawnSync("git", args, { cwd: tmp, encoding: "utf8" });
+        spawnSync("git", args, { cwd: tmp, encoding: "utf8", timeout: 10_000 });
     const sha = (ref: string) => git("rev-parse", ref).stdout.trim();
     const record = (name: string) => {
         const [dir] = fs
@@ -591,9 +658,9 @@ describe("gate-run — a run records (head, base, command, green) for `land` (AD
         commit("branch tip");
     });
 
-    it("records HEAD, the origin/<base> sha named by the config, the command, and green on a zero exit", () => {
+    it("records HEAD, the origin/<base> sha named by the config, the command, and green on a zero exit", async () => {
         fixtureScript("fast", "exit 0");
-        const r = run({ args: ["fast"] });
+        const r = await run({ args: ["fast"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(record("head")).toBe(sha("HEAD"));
         expect(record("base")).toBe(sha("origin/trunk"));
@@ -602,24 +669,24 @@ describe("gate-run — a run records (head, base, command, green) for `land` (AD
         expect(record("green")).toBe("");
     });
 
-    it("leaves no green record for a red gate", () => {
+    it("leaves no green record for a red gate", async () => {
         fixtureScript("fail", "exit 7");
-        const r = run({ args: ["fail"] });
+        const r = await run({ args: ["fail"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(7);
         expect(record("head")).toBe(sha("HEAD"));
         expect(record("green")).toBeNull();
     });
 
-    it("keeps green after the verdict is read, and drops it when the next run starts", () => {
+    it("keeps green after the verdict is read, and drops it when the next run starts", async () => {
         const flag = path.join(tmp, "flag");
         fixtureScript("fast", `[ ! -e "${flag}" ]`);
-        expect(run({ args: ["fast"] }).status).toBe(0);
+        expect((await run({ args: ["fast"] })).status).toBe(0);
         // The `rc` file is cleared on read; `green` must survive it — it is
         // what `land` reads, possibly hours after this call returned.
         expect(record("green")).toBe("");
 
         fs.writeFileSync(flag, "");
-        expect(run({ args: ["fast"] }).status).toBe(1);
+        expect((await run({ args: ["fast"] })).status).toBe(1);
         expect(record("green")).toBeNull();
     });
 });
@@ -655,22 +722,22 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
         );
     const childPid = () =>
         Number(fs.readFileSync(path.join(tmp, "child"), "utf8").trim());
-    const waitForChild = () =>
+    const waitForChild = async () =>
         expect(
-            waitForFile(path.join(tmp, "child"), 10),
+            await waitForFile(path.join(tmp, "child"), 10),
             "fixture never started"
         ).toBe(true);
 
-    it("refuses a second key for the same script and cwd, naming the live key, and starts nothing", () => {
+    it("refuses a second key for the same script and cwd, naming the live key, and starts nothing", async () => {
         groupFixture();
-        const first = run({
+        const first = await run({
             args: ["slow"],
             env: { ...short, [KEY]: "try-1" },
         });
         expect(first.status, `${first.stdout}${first.stderr}`).toBe(75);
-        waitForChild();
+        await waitForChild();
 
-        const second = run({
+        const second = await run({
             args: ["slow"],
             env: { ...short, [KEY]: "try-2" },
         });
@@ -681,28 +748,30 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
         expect(liveRunPgids()).toHaveLength(1);
     });
 
-    it("a keyless call is refused beside a keyed run of the same script and cwd too", () => {
+    it("a keyless call is refused beside a keyed run of the same script and cwd too", async () => {
         groupFixture();
         expect(
-            run({ args: ["slow"], env: { ...short, [KEY]: "named" } }).status
+            (await run({ args: ["slow"], env: { ...short, [KEY]: "named" } }))
+                .status
         ).toBe(75);
-        waitForChild();
-        const keyless = run({ args: ["slow"], env: short });
+        await waitForChild();
+        const keyless = await run({ args: ["slow"], env: short });
         expect(keyless.status, `${keyless.stdout}${keyless.stderr}`).toBe(76);
         expect(startCount()).toBe(1);
     });
 
-    it("--replace kills the old run's whole process group BEFORE the new run starts", () => {
+    it("--replace kills the old run's whole process group BEFORE the new run starts", async () => {
         groupFixture();
         expect(
-            run({ args: ["slow"], env: { ...short, [KEY]: "old" } }).status
+            (await run({ args: ["slow"], env: { ...short, [KEY]: "old" } }))
+                .status
         ).toBe(75);
-        waitForChild();
+        await waitForChild();
         const [oldPgid] = liveRunPgids();
         const oldChild = childPid();
         expect(groupAlive(oldPgid)).toBe(true);
 
-        const r = run({
+        const r = await run({
             args: ["--replace", "slow"],
             env: { ...short, [KEY]: "new" },
         });
@@ -715,15 +784,8 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
         expect(pidAlive(oldChild), "old run's background child survived").toBe(
             false
         );
-        expect(waitForFile(starts(), 10)).toBe(true);
-        expect(
-            spawnSync("sh", [
-                "-c",
-                `i=0; while [ "$(wc -l <"$1")" -lt 2 ] && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done`,
-                "sh",
-                starts(),
-            ]).status
-        ).toBe(0);
+        expect(await waitForFile(starts(), 10)).toBe(true);
+        await waitUntil(() => startCount() >= 2, 10);
         expect(startCount()).toBe(2);
         expect(
             fs.existsSync(path.join(tmp, "overlap")),
@@ -731,7 +793,7 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
         ).toBe(false);
     });
 
-    it("reaps a run whose cwd was deleted on the next gate-run call — a real process group", () => {
+    it("reaps a run whose cwd was deleted on the next gate-run call — a real process group", async () => {
         const wt = path.join(tmp, "wt");
         fs.mkdirSync(wt);
         fs.copyFileSync(
@@ -739,8 +801,10 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
             path.join(wt, "package.json")
         );
         groupFixture(wt);
-        expect(run({ args: ["slow"], env: short, cwd: wt }).status).toBe(75);
-        waitForChild();
+        expect(
+            (await run({ args: ["slow"], env: short, cwd: wt })).status
+        ).toBe(75);
+        await waitForChild();
         const [pgid] = liveRunPgids();
         const child = childPid();
         fs.rmSync(wt, {
@@ -751,7 +815,7 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
         });
 
         fixtureScript("fast", "exit 0");
-        const r = run({ args: ["fast"], env: short });
+        const r = await run({ args: ["fast"], env: short });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stderr).toMatch(/its cwd no longer exists/);
         expect(groupAlive(pgid), "orphan process group survived").toBe(false);
@@ -761,7 +825,7 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
         ).toMatch(/cwd no longer exists/);
     });
 
-    it("spares a script that deletes its own cwd (land) from the cwd rule", () => {
+    it("spares a script that deletes its own cwd (land) from the cwd rule", async () => {
         const wt = path.join(tmp, "wt");
         fs.mkdirSync(wt);
         fs.copyFileSync(
@@ -770,10 +834,15 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
         );
         groupFixture(wt);
         expect(
-            run({ args: ["land"], env: { ...short, [KEY]: "land-1" }, cwd: wt })
-                .status
+            (
+                await run({
+                    args: ["land"],
+                    env: { ...short, [KEY]: "land-1" },
+                    cwd: wt,
+                })
+            ).status
         ).toBe(75);
-        waitForChild();
+        await waitForChild();
         const [pgid] = liveRunPgids();
         fs.rmSync(wt, {
             recursive: true,
@@ -783,22 +852,22 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
         });
 
         fixtureScript("fast", "exit 0");
-        expect(run({ args: ["fast"], env: short }).status).toBe(0);
+        expect((await run({ args: ["fast"], env: short })).status).toBe(0);
         expect(groupAlive(pgid), "a landing was reaped mid-housekeeping").toBe(
             true
         );
     });
 
-    it("reaps a run past the age ceiling that nobody re-attached to, and spares one re-attached recently", () => {
+    it("reaps a run past the age ceiling that nobody re-attached to, and spares one re-attached recently", async () => {
         groupFixture();
-        expect(run({ args: ["slow"], env: short }).status).toBe(75);
-        waitForChild();
+        expect((await run({ args: ["slow"], env: short })).status).toBe(75);
+        await waitForChild();
         const [pgid] = liveRunPgids();
-        spawnSync("sleep", ["3"]);
+        await delay(3000);
         fixtureScript("fast", "exit 0");
 
         // Old, but attached 3s ago — inside a 100s idle window: spared.
-        const spared = run({
+        const spared = await run({
             args: ["fast"],
             env: {
                 ...short,
@@ -809,7 +878,7 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
         expect(spared.status).toBe(0);
         expect(groupAlive(pgid)).toBe(true);
 
-        const reaped = run({
+        const reaped = await run({
             args: ["fast"],
             env: {
                 ...short,
@@ -822,14 +891,15 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
         expect(groupAlive(pgid)).toBe(false);
     });
 
-    it("--list names each live run's key, script, cwd, age and pid", () => {
+    it("--list names each live run's key, script, cwd, age and pid", async () => {
         groupFixture();
         expect(
-            run({ args: ["slow"], env: { ...short, [KEY]: "listed" } }).status
+            (await run({ args: ["slow"], env: { ...short, [KEY]: "listed" } }))
+                .status
         ).toBe(75);
-        waitForChild();
+        await waitForChild();
         const [pgid] = liveRunPgids();
-        const r = run({ args: ["--list"], env: short });
+        const r = await run({ args: ["--list"], env: short });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stdout).toContain("key listed");
         expect(r.stdout).toContain("`bun run slow`");
@@ -847,11 +917,11 @@ describe("gate-run — a land retried under the same key keeps its earlier attem
      * survivors. The start now copies the attempt it overwrites into
      * `attempts/<started>/`, which `telemetry-ingest` reads.
      */
-    it("archives the overwritten attempt's command, started and log — and no green on a red one", () => {
+    it("archives the overwritten attempt's command, started and log — and no green on a red one", async () => {
         fixtureScript("slow", 'echo "ATTEMPT-ONE"\nexit 1');
-        expect(run({ args: ["land", "7"] }).status).toBe(1);
+        expect((await run({ args: ["land", "7"] })).status).toBe(1);
         fixtureScript("slow", 'echo "ATTEMPT-TWO"\nexit 0');
-        expect(run({ args: ["land", "7"] }).status).toBe(0);
+        expect((await run({ args: ["land", "7"] })).status).toBe(0);
 
         const [dir] = fs
             .readdirSync(runDir)
@@ -876,10 +946,10 @@ describe("gate-run — a land retried under the same key keeps its earlier attem
         ).toContain("ATTEMPT-TWO");
     });
 
-    it("archives nothing for a command that is not a land", () => {
+    it("archives nothing for a command that is not a land", async () => {
         fixtureScript("fail", "exit 1");
-        run({ args: ["fail"] });
-        run({ args: ["fail"] });
+        await run({ args: ["fail"] });
+        await run({ args: ["fail"] });
         const [dir] = fs
             .readdirSync(runDir)
             .filter((d) => d.startsWith("fail-"));
