@@ -3825,6 +3825,11 @@ function isForEachSelector(value: unknown): boolean {
     if (s.set === "exiledWithSource") {
         return Object.keys(s).length === 1;
     }
+    // `times` (issue #1368) — exactly `{ set, count }`: N repetitions, the
+    // count an `EffectValue` (its refs are checked by the ordered ref pass).
+    if (s.set === "times") {
+        return Object.keys(s).length === 2 && isEffectValue(s.count);
+    }
     if (s.set !== "permanents") return false;
     const allowed = new Set([
         "set",
@@ -5261,6 +5266,11 @@ const OP_SCHEMAS: OpSchemaTable = {
             counter: isNonEmptyString,
             target: isObjectSelector,
             count: isEffectValue,
+        },
+        optional: {
+            // issue #1368 — NUMBER binding: how many counters the Op actually
+            // put or removed ("for each charge counter removed this way").
+            bindCount: bindingDeclaration("number"),
         },
     },
     // CR 716.2a (issue #3234) — "this Class's level becomes N". `target` is an
@@ -8725,6 +8735,10 @@ function checkOpListRefs(
             if (select && typeof select === "object") {
                 const s = select as Record<string, unknown>;
                 collectRefUses(s.controller, "controller", uses);
+                // `times` (issue #1368): the count is read ONCE, at construct
+                // entry, in the OUTER scope — a numeric binding made before
+                // the forEach (`counters`' `bindCount`).
+                if (s.set === "times") collectRefUses(s.count, "count", uses);
                 // `bound` (ADR 0049, issue #866; widened issue #1284): the
                 // iterated ref must name a LIST binding (a delayedTrigger/
                 // divideIntoPiles list-valued capture) OR a PICKS binding (a
@@ -8858,10 +8872,15 @@ function checkOpListRefs(
         if (entry.op === "forEach" && Array.isArray(entry.effects)) {
             const bodyScope = new Map(declared);
             const select = entry.select as Record<string, unknown> | null;
-            bodyScope.set(
-                "$each",
-                select?.set === "players" ? "player" : "snapshot"
-            );
+            // issue #1368 — a `times` member is an iteration index, not an
+            // object or a player: `$each` stays undeclared, so a body reading
+            // it is rejected as an undefined binding.
+            if (select?.set !== "times") {
+                bodyScope.set(
+                    "$each",
+                    select?.set === "players" ? "player" : "snapshot"
+                );
+            }
             // forEach body stays in the SAME trigger scope — `$event` is still
             // legal inside a trigger's own forEach (ADR 0049).
             checkOpListRefs(

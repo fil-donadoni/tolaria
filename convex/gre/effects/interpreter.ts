@@ -4797,10 +4797,23 @@ export const OP_EXECUTORS: {
         if (!target) return;
         const count = resolveValue(ctx, op.count);
         if (count === undefined) return;
+        let moved: number;
         if (op.action === "add") {
+            // CR 614.16 — a counter-placement replacement may change how many
+            // land, so "put this way" is the difference the placement made.
+            const before = ctx.getCounterCount(target, op.counter);
             ctx.addCounter(target, op.counter, count);
+            moved = ctx.getCounterCount(target, op.counter) - before;
         } else {
-            ctx.removeCounter(target, op.counter, count);
+            // CR 609.3 — clamped to the counters present.
+            moved = ctx.removeCounter(target, op.counter, count);
+        }
+        // issue #1368 — "for each counter removed this way": the count the
+        // Op actually moved, readable by a later `{ ref }` (a `forEach
+        // { set: "times" }` count). Read now, since afterwards a `{ counters
+        // }` value sees only what is left.
+        if (op.bindCount !== undefined) {
+            ctx.noteChoice(op.bindCount, writeTaggedNumber(Math.max(0, moved)));
         }
     },
     // CR 716.2a (issue #3234) — "this Class's level becomes N". A thin
@@ -8607,6 +8620,14 @@ function selectForEachMembers(
     select: EffectForEachSelector
 ): string[] {
     if (select.set === "players") return [...ctx.apNapOrder()];
+    // `times` (issue #1368) — N repetitions of the body, N read ONCE here and
+    // frozen with the member set (CR 608.2h): the members are iteration
+    // indices, never objects. A non-positive or unresolvable count (an
+    // uncaptured `bindCount`, CR 609.3) iterates nothing.
+    if (select.set === "times") {
+        const n = Math.floor(resolveValue(ctx, select.count) ?? 0);
+        return Array.from({ length: Math.max(0, n) }, (_, k) => String(k));
+    }
     // `bound` (ADR 0049, issue #866): iterate a frozen `string[]` LIST binding
     // (a delayedTrigger list-valued capture, e.g. `$partners`) in stored order.
     // The member ids are read straight off the binding; each is snapshotted at
@@ -8848,7 +8869,10 @@ function execForEach(
         // guard prefix-agnostic.
         const eachId = scopeBindingName(EACH_BINDING, pos, k);
         if (ctx.recallChoice(eachId) === undefined) {
-            if (op.select.set === "players") {
+            if (op.select.set === "times") {
+                // issue #1368 — an iteration index is not an object: `$each`
+                // stays unbound (the validator rejects a body reading it).
+            } else if (op.select.set === "players") {
                 ctx.noteChoice(eachId, [members[k]]);
             } else if (op.select.set === "graveyard") {
                 // Graveyard-set member (issue #1056): bind `$each` as a
