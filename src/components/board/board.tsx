@@ -467,6 +467,8 @@ export default function Board({
                 playerProtectionFromEverything:
                     state.playerProtectionFromEverything,
                 cantAttackThisTurn: state.cantAttackThisTurn,
+                allCreaturesCantBlockThisTurn:
+                    state.allCreaturesCantBlockThisTurn,
                 gameOver,
                 allPlayers,
                 emblems: state.emblems,

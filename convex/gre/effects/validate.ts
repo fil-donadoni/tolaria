@@ -6959,8 +6959,9 @@ const OP_SCHEMAS: OpSchemaTable = {
     // `target` is an object selector (announced slot, `$source`, or a forEach
     // `$each`). `"cant-be-blocked"` is the CR 509.1b evasion side (Teleport,
     // Trailblazer …), routing to `setCantBeBlockedThisTurn`. `"cant-attack-all"`
-    // (issue #2002 — Orim's Chant kicked) is the one GAME-scoped mode and
-    // carries no `target` at all.
+    // (issue #2002 — Orim's Chant kicked) and its blocking twin
+    // `"cant-block-all"` (Chaos) are the GAME-scoped modes and carry no
+    // `target` at all.
     restrictCombat: {
         required: {
             restriction: (v) =>
@@ -6968,6 +6969,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                 v === "cant-block" ||
                 v === "cant-be-blocked" ||
                 v === "cant-attack-all" ||
+                v === "cant-block-all" ||
                 v === "must-block",
         },
         optional: {
@@ -6976,12 +6978,12 @@ const OP_SCHEMAS: OpSchemaTable = {
         },
         check: (entry) => {
             const problems: string[] = [];
-            if (
-                entry.restriction !== "cant-attack-all" &&
-                entry.target === undefined
-            )
+            const gameScoped =
+                entry.restriction === "cant-attack-all" ||
+                entry.restriction === "cant-block-all";
+            if (!gameScoped && entry.target === undefined)
                 problems.push(
-                    '"target" is required unless "restriction" is "cant-attack-all"'
+                    '"target" is required unless "restriction" is "cant-attack-all" or "cant-block-all"'
                 );
             // CR 509.1c — the named attacker is the whole point of "must-block"
             // and meaningless on every other mode.

@@ -17495,6 +17495,15 @@ export function buildSpellContext(
             state.cantAttackThisTurn = true;
         },
 
+        setAllCreaturesCantBlockThisTurn(): void {
+            // CR 509.1b / 611.2c — the GAME-scoped sibling of
+            // `setCantBlockThisTurn`: covers every creature on every
+            // battlefield, including one that enters LATER this turn, before
+            // blockers are declared. Read by `validateBlockerEligibility`;
+            // cleared at CLEANUP (CR 514.2).
+            state.allCreaturesCantBlockThisTurn = true;
+        },
+
         setCantBeBlockedThisTurn(target: TargetSelection): void {
             // CR 509.1b — flag an attacker as unblockable this turn (Tawnos's
             // Wand). Read on the attacker side by `validateBlockerEligibility`;
