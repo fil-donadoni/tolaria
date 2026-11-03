@@ -9996,6 +9996,35 @@ export interface StaticLoyaltyActivationAllowance {
     extra: number;
 }
 
+/** Continuous static effect that widens CR 606.3's loyalty-activation TIMING
+ *  window for the permanent that carries it — "As long as <this permanent>
+ *  entered this turn, you may activate her loyalty abilities any time you could
+ *  cast an instant" (The Wandering Emperor).
+ *
+ *  CR 606.3's window is "any time they have priority and the stack is empty
+ *  during a main phase of their turn". This effect replaces it, while it
+ *  applies, with the instant window of CR 117.1a — "any time they have
+ *  priority": any turn, any step, stack empty or not. It is the TIMING half of
+ *  CR 606.3 only; the per-permanent activation allowance (one per turn, or
+ *  what a `loyalty-activation-allowance` raises it to) is a separate clause
+ *  and stays in force — instant speed is not a second activation.
+ *
+ *  SELF-SCOPED, hence no `applies` predicate: the clause widens the loyalty
+ *  abilities of the permanent that carries it, read by the CR 606 authority
+ *  (`loyaltyInstantTimingGranted`, `convex/gre/loyalty.ts`).
+ *
+ *  Read-time only, exactly like `loyalty-activation-allowance`: nothing is
+ *  materialized, so the permission lapses the instant `condition` stops
+ *  holding — the turn after the permanent entered — with nothing to undo. */
+export interface StaticLoyaltyActivationTiming {
+    kind: "loyalty-activation-timing";
+    /** When the widened window applies. Omitted = always (a permanent whose
+     *  text grants it unconditionally). `"entered-this-turn"` — "As long as
+     *  <this permanent> entered this turn" (CR 400.7: the permanent's own
+     *  `enteredOnTurn` stamp equals the current turn). */
+    condition?: "entered-this-turn";
+}
+
 /** Layer 4 subtype replacement (CR 305.7 — "enchanted land is a [type]").
  *  Replaces the target's subtypes entirely with the specified array. The
  *  engine stores the printed subtypes before the first replacement so removal
@@ -11100,6 +11129,7 @@ export type StaticEffect =
         | StaticTargetChoiceRequirement
         | StaticHandSizeOverride
         | StaticLoyaltyActivationAllowance
+        | StaticLoyaltyActivationTiming
         | StaticCostModifier
         | StaticAdditionalCost
         | StaticManaSubstitution

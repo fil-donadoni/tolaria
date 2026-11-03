@@ -57,11 +57,13 @@ import { activationPreconditionViolation } from "@convex/gre/activationPrecondit
 import { activationRestrictionViolation } from "@convex/gre/activationRestrictions";
 // CR 606 (issue #2491) — the shared loyalty authority. The client reads the two
 // STATE-ONLY clauses from it; the timing clause stays a documented narrowing
-// (this view has no stack length / priority holder), with the server the gate.
+// (this view has no stack length / priority holder), with the server the gate,
+// escaped by the shared instant-timing grant (issue #2606).
 import {
     isLoyaltyAbility,
     loyaltyActivationsExhausted,
     loyaltyCostPayable,
+    loyaltyInstantTimingGranted,
 } from "@convex/gre/loyalty";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
@@ -2246,6 +2248,24 @@ export function isActivationTimingAllowed(
     return true;
 }
 
+/** CR 400.7 — did the permanent `instanceId` enter the battlefield this turn,
+ *  per the turn-scoped `TriggerStateView` row `buildTriggerStateView` fills
+ *  when handed `turnState`? `false` when the view is absent, the row is
+ *  missing or the view was built without `turnState` — so a predicate gated
+ *  on it fails CLOSED, never offering what the server would refuse. */
+export function enteredThisTurnInView(
+    stateView: TriggerStateView | undefined,
+    instanceId: string
+): boolean {
+    if (!stateView) return false;
+    for (const player of stateView.players) {
+        for (const row of player.battlefield) {
+            if (row.id === instanceId) return row.enteredThisTurn === true;
+        }
+    }
+    return false;
+}
+
 /** Returns stack-using activated abilities the player can currently announce.
  *  Only the non-mana availability is checked (source not already tapped when
  *  the ability has {T}); mana is deferred to a `pendingActivation` payment
@@ -2567,16 +2587,29 @@ export function getStackAbilities(
             // Narrowed the same way `sorcerySpeedOnly` above is — to the
             // main-phase half of `isSorceryTiming`, since this view carries no
             // stack length or priority holder; the server stays authoritative.
-            // (An effect that grants instant-speed loyalty activation — Teferi,
-            // Temporal Archmage — is not modelled yet; when it lands it belongs
-            // here as an escape from this narrowing, mirroring the server gate.)
+            //
+            // The escape (issue #2606): a permanent whose own text grants
+            // instant-timing loyalty activation (The Wandering Emperor, "as
+            // long as ~ entered this turn") skips this narrowing — its window
+            // is CR 117.1a's "any time they have priority", which this view
+            // cannot narrow further. Same shared predicate the server's timing
+            // clause reads (`loyaltyInstantTimingGranted`); "entered this
+            // turn" comes from the turn-scoped `TriggerStateView` row, absent
+            // (→ fails closed) when the caller built the view without
+            // `turnState`.
+            const instantTiming = loyaltyInstantTimingGranted(
+                card,
+                enteredThisTurnInView(stateView, card.id)
+            );
             if (
+                !instantTiming &&
                 stateView?.activePlayerId !== undefined &&
                 stateView.activePlayerId !== card.controllerId
             ) {
                 return false;
             }
             if (
+                !instantTiming &&
                 phase !== undefined &&
                 phase !== "PRECOMBAT_MAIN" &&
                 phase !== "POSTCOMBAT_MAIN"

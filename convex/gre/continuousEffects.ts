@@ -15,7 +15,8 @@
 // rules-modifying effects of CR 611.3 (`attack-restriction`,
 // `block-requirement`, `cost-modifier`, `cast-restriction`,
 // `cast-timing-lock`, `untap-restriction`, `hand-size-override`,
-// `loyalty-activation-allowance`, `permanent-guard`, `mana-substitution`,
+// `loyalty-activation-allowance`, `loyalty-activation-timing`,
+// `permanent-guard`, `mana-substitution`,
 // `landwalk-negation`,
 // `enters-tapped-restriction`, `activation-restriction`) are deliberately OUT — the CR keeps them out of
 // the layer system, and so does this registry. They share the `StaticEffect`
