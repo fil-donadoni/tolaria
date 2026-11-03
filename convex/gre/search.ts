@@ -106,7 +106,7 @@ import {
     pendingTargetOrigin,
     raisedPendingTargetOwedBy,
 } from "./pendingTargetOrigin";
-import { manaValue } from "./constants";
+import { manaValue, resolvePendingTargetKind } from "./constants";
 import { getInstanceManaCost } from "../cards";
 // Issue #4444 — the search's shared commit sequences, one copy each for both
 // search appliers.
@@ -1937,13 +1937,36 @@ export function policyValue(
     botId: string,
     move: Move,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
-    moverId?: string
+    moverId?: string,
+    answeredTrigger?: string
 ): number {
     return policyValueOfSettled(
-        policyProbeState(probe, move, weights, moverId),
+        policyProbeState(probe, move, weights, moverId, false, answeredTrigger),
         botId,
         weights
     );
+}
+
+/** The stack id of the trigger whose raised target selection (CR 603.3d)
+ *  `move` answers from `state`, or `undefined` when `move` answers none — not
+ *  a `submit-target`, or `pid` owes no raised trigger selection there.
+ *
+ *  Read on the state BEFORE the move applies: once the answer completes the
+ *  selection, `pendingTarget` is gone and nothing on the post-move state says
+ *  which stack item the answer was for. `policyProbeState` settles the
+ *  answered trigger only when it is this one, so a retarget's spell
+ *  (CR 115.7) or a stale submission's no-op on a world past the selection
+ *  never resolves somebody else's stack item as the answer's payoff. */
+export function answeredTriggerId(
+    state: GameState,
+    pid: string,
+    move: Move
+): string | undefined {
+    if (move.kind !== "submit-target") return undefined;
+    const pt = raisedPendingTargetOwedBy(state, pid);
+    return pt && resolvePendingTargetKind(pt.kind) === "trigger"
+        ? pt.cardInstanceId
+        : undefined;
 }
 
 /** The stack depth of the object `move` announced — the spell a cast put
@@ -1992,7 +2015,10 @@ export function policyProbeState(
     // Pair bridge opts in, the rollout policy does not: carrying every probed
     // cast past the step end costs a wide fan-out a step change per
     // candidate (a 400-iteration Vindicate entry measured 21 s → 116 s).
-    passHorizon = false
+    passHorizon = false,
+    // `answeredTriggerId` of the move on the PRE-move state: the trigger a
+    // `submit-target` answered, the only one its probe may settle.
+    answeredTrigger?: string
 ): GameState {
     // The depth the move's own announcement sits on — everything below it
     // belongs to somebody else. -1 when the move put nothing on the stack.
@@ -2091,11 +2117,13 @@ export function policyProbeState(
         // resolution, so the probe reads it settled (issue #7812). A spell's
         // or an activation's announcement is left alone: it fans out over
         // every target of every cast in the rollout's hot loop, and its
-        // resolution is the cast branch's job above.
+        // resolution is the cast branch's job above. The lone item must be
+        // the trigger the answer was FOR (`answeredTrigger`, issue #7813): a
+        // lone trigger the move did not target is somebody else's.
         moverId &&
         move.kind === "submit-target" &&
         probe.stack.length === 1 &&
-        probe.stack[0].triggeredAbilityId !== undefined &&
+        probe.stack[0].id === answeredTrigger &&
         !probe.pendingTarget &&
         (probe.pendingChoices?.length ?? 0) === 0
     ) {
@@ -2245,7 +2273,14 @@ export function selectRolloutMove(
         // `policyValue` is from the bot's view; flip for the opponent so each
         // mover greedily maximizes ITS own reward (a competent opponent).
         const r = rewardFromValue(
-            policyValue(probe, botId, move, weights, pid),
+            policyValue(
+                probe,
+                botId,
+                move,
+                weights,
+                pid,
+                answeredTriggerId(state, pid, move)
+            ),
             weights
         );
         let moverReward = moverIsBot ? r : 1 - r;
@@ -2635,7 +2670,14 @@ export function settledAnswerReward(
     } catch {
         return undefined;
     }
-    const settled = policyProbeState(probe, move, weights, pid);
+    const settled = policyProbeState(
+        probe,
+        move,
+        weights,
+        pid,
+        false,
+        answeredTriggerId(world, pid, move)
+    );
     if (
         settled.stack.length > 0 ||
         settled.pendingTarget ||
@@ -3065,7 +3107,14 @@ export function computeActionPriors(
         if (raw === undefined) {
             const probe = cloneGameState(state);
             applyMoveInSearch(probe, pid, k.move);
-            raw = policyValue(probe, botId, k.move, weights, pid);
+            raw = policyValue(
+                probe,
+                botId,
+                k.move,
+                weights,
+                pid,
+                answeredTriggerId(state, pid, k.move)
+            );
             cache?.set(k.key, raw);
         }
         const r = rewardFromValue(raw, weights);
@@ -6342,7 +6391,14 @@ export function waitsUnchanged(
     let settled: GameState;
     try {
         applyMoveInSearch(probe, pid, move);
-        settled = policyProbeState(probe, move, weights, pid);
+        settled = policyProbeState(
+            probe,
+            move,
+            weights,
+            pid,
+            false,
+            answeredTriggerId(state, pid, move)
+        );
     } catch {
         return false;
     }
@@ -6698,8 +6754,14 @@ function firingBeatsHolding(
     // comparison — the issue-#2939 FIRE rule's own window.
     const held = cloneGameState(state);
     return (
-        policyValue(fired, pid, move, weights, pid) >
-        policyValue(held, pid, move, weights, pid)
+        policyValue(
+            fired,
+            pid,
+            move,
+            weights,
+            pid,
+            answeredTriggerId(state, pid, move)
+        ) > policyValue(held, pid, move, weights, pid)
     );
 }
 
