@@ -77,6 +77,8 @@ import {
     readyRegressions,
 } from "./lib/oracle-state-regressions";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { LEDGER_PATH as CR_LEDGER_PATH } from "./lib/cr-ledger-path";
+import { reconcileRevertCrLedger } from "./lib/revert-cr-ledger";
 
 const SHA = /^[0-9a-f]{40}$/;
 const LOCKFILE = "data/oracle-compiled.json";
@@ -268,6 +270,33 @@ function main(): number {
                 losses: readyRegressions(tree.baseCards, cardsAt(tree.wt)),
             };
         });
+        // The CR citation ledger, reconciled in each revert commit (issue
+        // #7965): the `baseline` entries `git revert` restores are confirmed
+        // instead, so `cr:lint` admits the PR. One that cannot be (an id the
+        // CR no longer resolves) is a stop — no retry can make it land.
+        for (const g of groups) {
+            let crLedger: ReturnType<typeof reconcileRevertCrLedger>;
+            try {
+                crLedger = reconcileRevertCrLedger(g.wt, base);
+            } catch (e) {
+                const named = g.culprits.map(commitRef).join(", ");
+                const note = `the revert of ${named} cannot pass cr:lint — ${(e as Error).message}`;
+                say(note);
+                record("stuck", { note: note.slice(0, 100) });
+                return 3;
+            }
+            if (crLedger.confirmed.length === 0) continue;
+            must("git", ["add", CR_LEDGER_PATH], g.wt);
+            // No hooks, as below: `git revert` ran none.
+            must(
+                "git",
+                ["commit", "--amend", "--no-edit", "--no-verify"],
+                g.wt
+            );
+            say(
+                `confirmed ${crLedger.confirmed.length} CR citation(s) the revert restores (${crLedger.confirmed.map((e) => `CR ${e.id}`).join(", ")})`
+            );
+        }
         for (const [i, g] of groups.entries()) {
             for (const c of g.set)
                 say(

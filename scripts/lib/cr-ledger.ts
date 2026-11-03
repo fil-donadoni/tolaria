@@ -650,6 +650,50 @@ export function pruneStale(
     return { ledger: { ...ledger, entries }, pruned };
 }
 
+/**
+ * A revert's ledger, reconciled with the base branch's (issue #7965). `git
+ * revert` restores the culprit's edited citation lines AND the `baseline`
+ * entries the culprit had turned into `confirmed` ones; the base ledger lacks
+ * those, so `cr:lint`'s only-shrinks check (`ledgerReport`'s `grown`) refuses
+ * the revert. Every grown `baseline` entry is replaced by a confirmation of
+ * the line it records (`confirmLine`, the manual repair's outcome), then the
+ * ledger is pruned against the tree. A ledger with nothing grown comes back
+ * unchanged. Throws — through `confirmLine` — on a grown entry whose id
+ * resolves to no rule: the revert cannot pass `cr:lint`, and must not be
+ * opened as if it could.
+ */
+export function reconcileRevertedBaseline(input: {
+    ledger: Ledger;
+    baseBaseline: Map<string, number>;
+    citations: Citation[];
+    rules: Rule[];
+}): { ledger: Ledger; confirmed: LedgerEntry[]; pruned: LedgerEntry[] } {
+    const { citations, rules } = input;
+    const grown = ledgerReport({
+        citations,
+        ledger: input.ledger,
+        rules,
+        baseBaseline: input.baseBaseline,
+        widened: null,
+    }).grown;
+    let ledger = input.ledger;
+    const confirmed: LedgerEntry[] = [];
+    for (const entry of grown) {
+        const key = entryKey(entry.id, entry.line);
+        const line = citations.filter(
+            (c) =>
+                !isExempt(c.file) &&
+                entryKey(c.id, normalizeLine(c.text)) === key
+        );
+        const done = confirmLine(ledger, line, rules, citations);
+        ledger = done.ledger;
+        confirmed.push(...done.confirmed);
+    }
+    if (confirmed.length === 0) return { ledger, confirmed, pruned: [] };
+    const { ledger: kept, pruned } = pruneStale(ledger, citations);
+    return { ledger: kept, confirmed, pruned };
+}
+
 /** The first `max` characters of a printed rule, for a report line. */
 export function excerpt(printed: string | null, max = 400): string {
     if (printed === null) return "(no such rule in the vendored CR)";
