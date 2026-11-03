@@ -8268,6 +8268,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bonded Herdbeast // Plated Kilnbeast",
+        "scryfallId": "61972ddb-3421-4f22-a47a-89cea944dd02",
+        "oracleId": "b06067e7-330e-47de-be59-c2874eedba1d",
+        "firstSet": "mom",
+        "firstPrintId": "61972ddb-3421-4f22-a47a-89cea944dd02",
+        "firstPrintSet": "mom",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Bone Flute",
         "scryfallId": "63a31de0-d764-4ff6-a85f-027e1e58d86c",
         "oracleId": "8664a004-d786-4357-8856-2f8f5a9ae24d",
@@ -12056,6 +12066,16 @@
         "firstSet": "ths",
         "firstPrintId": "d8ead499-920c-465a-a23d-f08710d7e9bc",
         "firstPrintSet": "ths",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Chosen of Markov // Markov's Servant",
+        "scryfallId": "7c5a3c09-5656-4975-ba03-2d809903ed18",
+        "oracleId": "29328bcb-e991-4095-9439-f493c8fa3f82",
+        "firstSet": "dka",
+        "firstPrintId": "7c5a3c09-5656-4975-ba03-2d809903ed18",
+        "firstPrintSet": "dka",
         "rarity": "common",
         "source": "compiled"
     },
@@ -31826,6 +31846,16 @@
         "source": "compiled"
     },
     {
+        "name": "Growing Rites of Itlimoc // Itlimoc, Cradle of the Sun",
+        "scryfallId": "b3b87bfc-f97f-4734-94f6-e3e2f335fc4d",
+        "oracleId": "ea9c459a-6047-43aa-968f-a582be4000e8",
+        "firstSet": "xln",
+        "firstPrintId": "b3b87bfc-f97f-4734-94f6-e3e2f335fc4d",
+        "firstPrintSet": "xln",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Gruul Cluestone",
         "scryfallId": "bc47d1fe-8ab2-42f6-bcab-4bc2084ceba7",
         "oracleId": "80911151-1e72-4d10-b00a-9fcff2dd131a",
@@ -32606,6 +32636,16 @@
         "source": "compiled"
     },
     {
+        "name": "Harried Artisan // Phyrexian Skyflayer",
+        "scryfallId": "73e92389-4bd2-492e-b4d6-d7cb6baedc41",
+        "oracleId": "c4e51cba-e5f7-4f44-9ae9-9223a2efd004",
+        "firstSet": "mom",
+        "firstPrintId": "73e92389-4bd2-492e-b4d6-d7cb6baedc41",
+        "firstPrintSet": "mom",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Harrier Griffin",
         "scryfallId": "2781696e-e70c-4c96-b3aa-75be51cdc68e",
         "oracleId": "65dc3191-0eb2-4c10-bf2c-ee0e24888870",
@@ -33221,6 +33261,16 @@
         "firstPrintId": "9f827f92-1df6-4fd0-aa61-ec2e53476f9c",
         "firstPrintSet": "ogw",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Heir of Falkenrath // Heir to the Night",
+        "scryfallId": "cf2ad186-4d85-4628-ae84-3c58c88d34cb",
+        "oracleId": "d5b9c62d-fe98-4cbc-b4b6-012702bf6657",
+        "firstSet": "soi",
+        "firstPrintId": "cf2ad186-4d85-4628-ae84-3c58c88d34cb",
+        "firstPrintSet": "soi",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -47304,6 +47354,16 @@
         "firstPrintId": "79aa0a78-80a2-44be-8a79-92bcba9c040f",
         "firstPrintSet": "spm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Mysterious Tome // Chilling Chronicle",
+        "scryfallId": "caa57b63-bb11-45e8-8795-de92ca61f4f1",
+        "oracleId": "b32253d6-5f00-40a8-a7e5-dc4655cd288c",
+        "firstSet": "mid",
+        "firstPrintId": "caa57b63-bb11-45e8-8795-de92ca61f4f1",
+        "firstPrintSet": "mid",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -72602,6 +72662,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tarkir Duneshaper // Burnished Dunestomper",
+        "scryfallId": "fdc37acc-05ba-4457-8a03-d635497bfb1b",
+        "oracleId": "c554ae68-0201-4958-aa63-8159911acb50",
+        "firstSet": "mom",
+        "firstPrintId": "fdc37acc-05ba-4457-8a03-d635497bfb1b",
+        "firstPrintSet": "mom",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Tarnished Citadel",
         "scryfallId": "30375d24-ccfe-47a2-babd-1bda0a6298fe",
         "oracleId": "66ae2562-68e9-4c77-ba0a-57f8ff37f656",
@@ -74410,6 +74480,16 @@
         "firstPrintSet": "lrw"
     },
     {
+        "name": "Thraben Gargoyle // Stonewing Antagonizer",
+        "scryfallId": "f2687683-2986-4e22-97d9-7820c870475b",
+        "oracleId": "9b5cf592-8385-4115-b27a-98f42bdf6329",
+        "firstSet": "soi",
+        "firstPrintId": "f2687683-2986-4e22-97d9-7820c870475b",
+        "firstPrintSet": "soi",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Thraben Heretic",
         "scryfallId": "f8cc36df-040b-4f29-bcc1-f5600803f71d",
         "oracleId": "67247945-17b7-4cb8-ba65-d0dfec367b77",
@@ -74433,6 +74513,16 @@
         "oracleId": "cf8aef54-3f43-413c-9f3f-d4a1b2090904",
         "firstSet": "isd",
         "firstPrintId": "16db28f4-3d96-42f5-a264-592fdc2d4196",
+        "firstPrintSet": "isd",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Thraben Sentry // Thraben Militia",
+        "scryfallId": "58ae9cbc-d88d-42df-ab76-63ab5d05c023",
+        "oracleId": "9636073e-e361-4d2a-92f6-5fe049e5eb23",
+        "firstSet": "isd",
+        "firstPrintId": "58ae9cbc-d88d-42df-ab76-63ab5d05c023",
         "firstPrintSet": "isd",
         "rarity": "common",
         "source": "compiled"
@@ -77404,6 +77494,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ulvenwald Captive // Ulvenwald Abomination",
+        "scryfallId": "0dbaef61-fa39-4ea7-bc21-445401c373e7",
+        "oracleId": "0272ca81-e727-4f4b-b06e-072d70bb5558",
+        "firstSet": "emn",
+        "firstPrintId": "0dbaef61-fa39-4ea7-bc21-445401c373e7",
+        "firstPrintSet": "emn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Ulvenwald Tracker",
         "scryfallId": "46199391-a4f5-4532-b89c-b7691b229bd0",
         "oracleId": "63a37c08-7e38-4fe2-9a71-cc4604c4f831",
@@ -79817,6 +79917,16 @@
         "firstSet": "inv",
         "firstPrintId": "af6f57ad-d370-4c81-8da0-c15d87725ab1",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Vildin-Pack Outcast // Dronepack Kindred",
+        "scryfallId": "460f7733-c0a6-4439-a313-7b26ae6ee15b",
+        "oracleId": "6e6f9269-c72b-4449-9c2d-a720b9bd6f06",
+        "firstSet": "emn",
+        "firstPrintId": "460f7733-c0a6-4439-a313-7b26ae6ee15b",
+        "firstPrintSet": "emn",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Vile Consumption",

@@ -29,7 +29,12 @@ import type {
     OracleFace,
     ParseContext,
 } from "./types";
-import type { CardType, InsetSpellKind, SplitHalf } from "../cards/types";
+import type {
+    CardType,
+    Color,
+    InsetSpellKind,
+    SplitHalf,
+} from "../cards/types";
 import { PERMANENT_TYPES } from "../cards/types";
 import { deriveSplitCombination } from "../cards/splitCard";
 import { MECHANICS_REGISTRY } from "../cards/mechanicsRegistry";
@@ -113,6 +118,42 @@ const MODAL_BACK_FACE_FIELDS = new Set<string>([
     "entersTappedUnlessPay",
     "oracleText",
 ]);
+
+/** Scryfall's layout string for a NONMODAL double-faced card (CR 712.1). */
+export const TRANSFORM_LAYOUT = "transform";
+
+/**
+ * CR 712.8e — the fields a TRANSFORM (nonmodal) back face can carry:
+ * what `backFaceAsTokenSpec` (`cards/backFaceSpec.ts`) folds into the face's
+ * content-derived id, less what a compiled face cannot reach it with. A
+ * nonmodal back face is never cast or played (CR 712.8e reads its mana value
+ * off the FRONT face's cost), so it has no mana cost, no spell script, no
+ * target and no land-entry replacement; its colour is the face's colour
+ * indicator (CR 202.2e), read off the corpus face, never off a compiled
+ * field. A compiled TRIGGER or STATIC EFFECT is a descriptor
+ * (`compiledTriggeredAbilities` / `compiledStaticEffects`) the token codec
+ * has no slot for, so a face compiling to one is refused, not truncated, for
+ * {@link MODAL_BACK_FACE_FIELDS}' reason.
+ */
+const TRANSFORM_BACK_FACE_FIELDS = new Set<string>([
+    "name",
+    "types",
+    "subtypes",
+    "supertypes",
+    "power",
+    "toughness",
+    "loyalty",
+    "staticAbilities",
+    "activatedAbilities",
+    "oracleText",
+]);
+
+/** CR 202.2e / 204.1 — why a transform card is refused when the corpus face
+ *  does not report its back face's colours. The back face has no mana cost,
+ *  so its colour is its colour indicator, which no rules text states; a back
+ *  face lowered without it would register colourless (`gre/transform.ts`). */
+export const TRANSFORM_BACK_COLOR_REASON =
+    "transform back face colour indicator (CR 202.2e) is not in the corpus";
 
 /**
  * CR 712.4 / 712.8g (issue #7581) — the fields a MELD back face can carry: a
@@ -226,6 +267,7 @@ export function compileCard(card: OracleCard): CompileOutcome {
     if (layout === SPLIT_LAYOUT) return compileSplitLayout(card);
     if (layout === MODAL_DFC_LAYOUT) return compileModalDfcLayout(card);
     if (layout === MELD_LAYOUT) return compileMeldLayout(card);
+    if (layout === TRANSFORM_LAYOUT) return compileTransformLayout(card);
     if (!SUPPORTED_LAYOUTS.has(layout)) {
         return unparsed([
             {
@@ -536,6 +578,110 @@ function compileModalDfcLayout(card: OracleCard): CompileOutcome {
             ...(backDef.effects ? { effects: backDef.effects } : {}),
             ...(backDef.targetRequirement
                 ? { targetRequirement: backDef.targetRequirement }
+                : {}),
+            oracleText: faces[1].oracleText,
+        },
+    };
+    const opsUsed = [...new Set([...front.opsUsed, ...back.opsUsed])].sort();
+    const slots = [...new Set([...front.slots, ...back.slots])].sort();
+    const reasons = [
+        ...(front.state === "quarantine" ? front.reasons : []),
+        ...(back.state === "quarantine" ? back.reasons : []),
+    ];
+    // One card is one card (CR 712.8a): a quarantined FACE quarantines the
+    // card, never half of it.
+    return reasons.length > 0
+        ? { state: "quarantine", definition, opsUsed, slots, reasons }
+        : { state: "ready", definition, opsUsed, slots };
+}
+
+/**
+ * CR 712.8a / 712.8c / 712.8e — compile a TRANSFORM (nonmodal double-faced)
+ * layout: the FRONT face becomes the card, the back face its `backFace` with
+ * no `kind` (absent means `"nonmodal"`, `backFaceKind`).
+ *
+ * CR 712.8a / 712.8c make a nonmodal card off the battlefield and on the
+ * stack its front face alone, so — as for a modal card — nothing is
+ * combined: the front
+ * face's compiled definition is used whole and the back face attached to it.
+ * Both faces run the ordinary pipeline, so a grammar rule written for a
+ * normal card serves a transform face for free and neither face can be
+ * half-read; gaps from BOTH faces are reported together (PRD #2693 user
+ * story 9). The back face's colour is the one input no rules text carries
+ * (CR 202.2e): a face the corpus reports without it is refused under
+ * {@link TRANSFORM_BACK_COLOR_REASON}, after its own lines, so the backlog
+ * still ranks them.
+ */
+function compileTransformLayout(card: OracleCard): CompileOutcome {
+    const faces = card.faces ?? [];
+    if (faces.length !== 2) {
+        return unparsed([
+            {
+                line: card.typeLine,
+                fragment: card.typeLine,
+                reason: `layout "${TRANSFORM_LAYOUT}" needs exactly two faces, got ${faces.length}`,
+            },
+        ]);
+    }
+    const front = compileCard(faceAsOracleCard(card, faces[0]));
+    const back = compileCard(faceAsOracleCard(card, faces[1]));
+    const colors = faces[1].colors;
+    const colorGap: Gap[] =
+        colors === undefined
+            ? [
+                  {
+                      line: faces[1].typeLine,
+                      fragment: faces[1].typeLine,
+                      reason: TRANSFORM_BACK_COLOR_REASON,
+                  },
+              ]
+            : [];
+    if (
+        front.state === "unparsed" ||
+        back.state === "unparsed" ||
+        colors === undefined
+    ) {
+        return unparsed([
+            ...(front.state === "unparsed" ? front.gaps : []),
+            ...(back.state === "unparsed" ? back.gaps : []),
+            ...colorGap,
+        ]);
+    }
+    const carried = Object.keys(back.definition).filter(
+        (k) => !TRANSFORM_BACK_FACE_FIELDS.has(k)
+    );
+    if (carried.length > 0) {
+        return unparsed([
+            {
+                line: faces[1].oracleText,
+                fragment: faces[1].oracleText,
+                reason: `transform back face carries ${carried.join(", ")}, which a CardBackFace cannot hold`,
+            },
+        ]);
+    }
+    const backDef = back.definition;
+    const definition: CompiledDefinition = {
+        ...front.definition,
+        backFace: {
+            name: backDef.name,
+            types: [...backDef.types],
+            ...(backDef.subtypes ? { subtypes: [...backDef.subtypes] } : {}),
+            ...(backDef.supertypes
+                ? { supertypes: [...backDef.supertypes] }
+                : {}),
+            ...(backDef.power !== undefined ? { power: backDef.power } : {}),
+            ...(backDef.toughness !== undefined
+                ? { toughness: backDef.toughness }
+                : {}),
+            ...(backDef.loyalty !== undefined
+                ? { loyalty: backDef.loyalty }
+                : {}),
+            ...(colors.length > 0 ? { colors: [...colors] as Color[] } : {}),
+            ...(backDef.staticAbilities
+                ? { staticAbilities: [...backDef.staticAbilities] }
+                : {}),
+            ...(backDef.activatedAbilities
+                ? { activatedAbilities: backDef.activatedAbilities }
                 : {}),
             oracleText: faces[1].oracleText,
         },
