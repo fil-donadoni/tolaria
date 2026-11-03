@@ -7820,6 +7820,11 @@ export const OP_EXECUTORS: {
             ctx.setAllCreaturesCantAttackThisTurn();
             return;
         }
+        // CR 509.1a / 611.2c — its blocking twin (Chaos), same global shape.
+        if (op.restriction === "cant-block-all") {
+            ctx.setAllCreaturesCantBlockThisTurn();
+            return;
+        }
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
         // CR 509.1c (issue #3713) — "target creature blocks <attacker> this

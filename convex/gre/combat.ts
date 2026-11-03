@@ -830,6 +830,17 @@ export function validateBlockerEligibility(
         };
     }
 
+    // Pass 0' — CR 509.1a / 611.2c: the GAME-scoped twin of the flag above
+    // (Chaos: "creatures can't block this turn"). A rules modification, so it
+    // binds every creature, including one that entered after the effect
+    // resolved.
+    if (state?.allCreaturesCantBlockThisTurn) {
+        return {
+            eligible: false,
+            reason: "Creatures can't block this turn",
+        };
+    }
+
     // Pass 0b — attacker "can't be blocked this turn" flag (CR 509.1b). Set on
     // the attacker by Tawnos's Wand; rejects every would-be blocker.
     if (attacker.cantBeBlockedThisTurn) {

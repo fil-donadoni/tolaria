@@ -48,6 +48,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { finalizeCleanup } from "../../../../gre/phases";
+import { validateBlockerEligibility } from "../../../../gre/combat";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { projectPublicState } from "../../../../gameProjections";
@@ -500,5 +501,78 @@ describe("Gerrard's Verdict — 3 life per land discarded this way (CR 608.2h, i
         const neither = castVerdict(["guy-a", "guy-b"], ["gy-land-1"]);
         submitVerdictChoice(neither, ["guy-a", "guy-b"]);
         expect(neither.players[0].life).toBe(20);
+    });
+});
+
+// Order // Chaos — Chaos: "Creatures can't block this turn." CR 611.2c: an
+// effect from a resolved spell that changes no characteristic modifies the
+// rules, so it binds creatures that were not on the battlefield when it
+// resolved. CR 509.1a / 514.2: the restriction lasts until cleanup.
+describe("Order // Chaos — Chaos binds creatures entering later (CR 611.2c, 509.1a)", () => {
+    const ORDER_CHAOS = getDefinition("14e4f5a4-b1ea-4816-b2d7-cf148468a388");
+    const CHAOS = getDefinition(splitHalfDefinitionId(ORDER_CHAOS.id, "right"));
+    const bear = (id: string, controller: string) =>
+        makeInstance(HILL_GIANT.id, {
+            id,
+            controllerId: controller,
+            ownerId: controller,
+            isSummoningSick: false,
+        });
+
+    function resolveChaos(): GameState {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear("attacker", "p1")] }),
+                makePlayer("p2", { battlefield: [bear("early", "p2")] }),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        pushSpell(state, CHAOS.id, "p1");
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("a creature that enters AFTER Chaos resolved still can't block", () => {
+        const state = resolveChaos();
+        // Flash creature cast after resolution, before blockers.
+        const late = bear("late", "p2");
+        state.players[1].battlefield.push(late);
+        const attacker = state.players[0].battlefield[0];
+        const defenders = state.players[1].battlefield;
+
+        for (const blocker of defenders) {
+            expect(
+                validateBlockerEligibility(attacker, blocker, defenders, state)
+            ).toEqual({
+                eligible: false,
+                reason: "Creatures can't block this turn",
+            });
+        }
+        // The attacking player's creatures are bound too (no controller).
+        expect(
+            validateBlockerEligibility(
+                defenders[0],
+                attacker,
+                state.players[0].battlefield,
+                state
+            ).eligible
+        ).toBe(false);
+    });
+
+    it("survives the wire projection and ends at cleanup (CR 514.2)", () => {
+        const state = resolveChaos();
+        expect(
+            projectPublicState(state, 1, "p2").allCreaturesCantBlockThisTurn
+        ).toBe(true);
+
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        const attacker = state.players[0].battlefield[0];
+        const defenders = state.players[1].battlefield;
+        expect(
+            validateBlockerEligibility(attacker, defenders[0], defenders, state)
+                .eligible
+        ).toBe(true);
     });
 });

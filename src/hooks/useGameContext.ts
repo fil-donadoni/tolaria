@@ -125,6 +125,12 @@ type GameContext = {
      *  resolved, instead of letting the player click an attack the server
      *  will reject. */
     cantAttackThisTurn?: boolean;
+    /** CR 509.1a / 611.2c — NO creature can block this turn (Chaos),
+     *  forwarded from the wire `GameState.allCreaturesCantBlockThisTurn`.
+     *  Read by `useBattlefieldVisualState`'s blocker affordance so the board
+     *  grays out every would-be blocker, including one that entered after the
+     *  spell resolved, instead of offering a block the server rejects. */
+    allCreaturesCantBlockThisTurn?: boolean;
     gameOver?: GameOver;
     allPlayers: Player[];
     /** CR 114 (issue #1221) — command-zone emblems, forwarded from the wire

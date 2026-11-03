@@ -3173,6 +3173,13 @@ const restrictCombat: Valuer<"restrictCombat"> = (op, ctx) => {
             tags: ["protection"],
         };
     }
+    // "cant-block-all" (CR 509.1a / 611.2c — Chaos) is the other GAME-scoped
+    // mode: no creature can block this turn, so every attacker connects. An
+    // evasion grant to the whole attacking side rather than a Fog, so it is
+    // priced on the `"cant-be-blocked"` evasion scale below.
+    if (op.restriction === "cant-block-all") {
+        return { points: priced(ctx, "evasion"), tags: ["evasion"] };
+    }
     // "cant-be-blocked" (CR 509.1b) is the evasion side — an offensive buff to
     // YOUR creature (it connects), not disruption of an opponent's board. Value
     // and tag it like a keyword-evasion grant, not soft removal.
@@ -4290,7 +4297,12 @@ export function opBeneficence(
             // unchanged) — inline rather than a static row, since a
             // parametrized Op (this `switch`) and a static row for the SAME Op
             // would leave the row dead (the switch always wins).
-            return op.restriction === "cant-attack-all" ? "neutral" : "harmful";
+            // "cant-block-all" (CR 509.1a — Chaos) is its blocking twin: as
+            // targetless and as symmetric, so the same "neutral".
+            return op.restriction === "cant-attack-all" ||
+                op.restriction === "cant-block-all"
+                ? "neutral"
+                : "harmful";
         case "preventDamage":
             // CR 615.1a (issue #5815) — the object a shield names is the
             // RECIPIENT it protects in every mode but one: `"all-from-source"`

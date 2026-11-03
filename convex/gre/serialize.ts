@@ -1451,6 +1451,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "manaProductionColorThisTurn",
     "allCreaturesMustAttack",
     "cantAttackThisTurn",
+    "allCreaturesCantBlockThisTurn",
     "abilityResolutionCounts",
     "destroyReplacementShields",
     "graveyardBoundRedirectThisTurn",
