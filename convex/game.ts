@@ -514,6 +514,7 @@ import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
     applyLandEntrySubmit,
+    applyMiracleRevealSubmit,
     applyNameCardSubmit,
     applyNumberChoiceSubmit,
     applyRandomRevealAck,
@@ -12946,6 +12947,43 @@ export const submitMayPay = mutation({
             sacrificeIds: args.sacrificeIds,
             discardIds: args.discardIds,
             graveyardIds: args.graveyardIds,
+        });
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+    },
+});
+
+/** Answers a `miracle-reveal` choice (CR 702.94a): `reveal: true` reveals the
+ *  just-drawn card for its miracle ability (it becomes known to every player
+ *  and its linked triggered ability triggers); `false` keeps it an ordinary
+ *  hidden card. Serves both shapes of the window — the one the DSL `draw` Op
+ *  raised mid-resolution (the resolution resumes at the next card) and the
+ *  stackless one the draw step raised (`applyMiracleRevealSubmit`). */
+export const submitMiracleReveal = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        reveal: v.boolean(),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "choice",
+        });
+
+        applyMiracleRevealSubmit(state, {
+            playerId: args.playerId,
+            reveal: args.reveal,
         });
 
         const nextSeq = gameState.seq + 1;

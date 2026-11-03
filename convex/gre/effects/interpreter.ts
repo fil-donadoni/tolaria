@@ -3570,6 +3570,14 @@ export const OP_EXECUTORS: {
     // commit is guarded by a per-Op-position, per-index `#draw` progress marker
     // (mirroring `forEach`'s `#forEach:<pos>:` result guard) so a re-walk after
     // a later card's suspend never re-commits an earlier card.
+    //
+    // CR 702.94a — Miracle's reveal window is raised HERE, right after the
+    // card it concerns is drawn and before the next one is: the draw's
+    // progress marker also records the card that draw made eligible ("the
+    // first card you've drawn this turn" with a miracle cost), and the Op
+    // suspends on the private reveal choice for it, so on "draw two cards"
+    // the player decides without having seen the second card. A separate
+    // per-index marker keeps a re-walk from revealing twice.
     draw(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
@@ -3580,21 +3588,41 @@ export const OP_EXECUTORS: {
             const doneKey = `#draw:${pos}:${i}`;
             // Already committed on an earlier run (a later card suspended, and
             // the tree is being re-walked) — CR 608.3, never replay a step.
-            if (ctx.recallChoice(doneKey) !== undefined) continue;
-            const plan = ctx.planDraw(playerId, count);
-            if (plan.kind === "may-pay-bin") {
-                const paid = ctx.requestMayPay({
-                    playerId: plan.chooserId,
-                    choiceId: `#draw-pay:${pos}:${i}`,
-                    cost: { life: plan.life },
-                    prompt: `You may pay ${plan.life} life to put the revealed card into its owner's graveyard. Otherwise they draw it.`,
-                });
-                if (paid === undefined) return "suspend"; // enqueued — wait
-                ctx.commitDraw(playerId, plan, paid);
-            } else {
-                ctx.commitDraw(playerId, plan);
+            let done = ctx.recallChoice(doneKey);
+            if (done === undefined) {
+                const drawnBefore = ctx.drawnThisTurnCount(playerId);
+                const plan = ctx.planDraw(playerId, count);
+                if (plan.kind === "may-pay-bin") {
+                    const paid = ctx.requestMayPay({
+                        playerId: plan.chooserId,
+                        choiceId: `#draw-pay:${pos}:${i}`,
+                        cost: { life: plan.life },
+                        prompt: `You may pay ${plan.life} life to put the revealed card into its owner's graveyard. Otherwise they draw it.`,
+                    });
+                    if (paid === undefined) return "suspend"; // enqueued — wait
+                    ctx.commitDraw(playerId, plan, paid);
+                } else {
+                    ctx.commitDraw(playerId, plan);
+                }
+                const miracle = ctx.miracleRevealCandidate(
+                    playerId,
+                    drawnBefore
+                );
+                done = miracle === undefined ? ["done"] : ["done", miracle];
+                ctx.noteChoice(doneKey, done);
             }
-            ctx.noteChoice(doneKey, ["done"]);
+            const miracleCard = done[1];
+            if (miracleCard === undefined) continue;
+            const revealedKey = `#draw-miracle-done:${pos}:${i}`;
+            if (ctx.recallChoice(revealedKey) !== undefined) continue;
+            const reveal = ctx.requestMiracleReveal({
+                playerId,
+                choiceId: `#draw-miracle:${pos}:${i}`,
+                cardInstanceId: miracleCard,
+            });
+            if (reveal === undefined) return "suspend"; // enqueued — wait
+            if (reveal) ctx.revealForMiracle(playerId, miracleCard);
+            ctx.noteChoice(revealedKey, [reveal ? "yes" : "no"]);
         }
     },
     // CR 119.3 — life gain.
@@ -9344,7 +9372,7 @@ function runCastDuringResolution(
     //    source that linked several offers the first (the Oracle text says
     //    "THE exiled card", singular).
     let cardInstanceId: string | undefined;
-    let sourceZone: "graveyard" | "exile";
+    let sourceZone: "graveyard" | "exile" | "hand";
     if (op.fromTopOfLibrary) {
         sourceZone = "exile";
         const exiledKey = `#cdrExiled:${pos}`;
@@ -9510,7 +9538,15 @@ function runCastDuringResolution(
     }
 
     switch (
-        castPickedCard(ctx, playerId, cardInstanceId, sourceZone, op.free, "")
+        castPickedCard(
+            ctx,
+            playerId,
+            cardInstanceId,
+            sourceZone,
+            op.free,
+            "",
+            op.alternativeCost
+        )
     ) {
         case "suspend":
             return "suspend";
@@ -9550,7 +9586,7 @@ function runCastAnyNumber(
     args: {
         playerId: string;
         card: { ref: string };
-        sourceZone: "graveyard" | "exile";
+        sourceZone: "graveyard" | "exile" | "hand";
         free: boolean | undefined;
         pos: number;
     }
@@ -9627,9 +9663,10 @@ function castPickedCard(
     ctx: SpellContext,
     playerId: string,
     cardInstanceId: string,
-    sourceZone: "graveyard" | "exile",
+    sourceZone: "graveyard" | "exile" | "hand",
     free: boolean | undefined,
-    idSuffix: string
+    idSuffix: string,
+    alternativeCost?: ManaCost
 ): PickedCastOutcome {
     // MODE (CR 700.2c) — a modal card's chosen mode drives its targeting
     // (CR 700.2d). Non-modal cards skip this.
@@ -9646,10 +9683,16 @@ function castPickedCard(
         chosenModeId = pickedMode;
     }
 
-    // X (CR 107.3) — only for a PAID cast. A free cast waives the mana
-    // cost, so X in that waived cost is 0 (CR 107.3b) — no prompt.
+    // X (CR 107.3) — only for a cast paying the PRINTED cost. A free cast
+    // waives the mana cost, so X in that waived cost is 0 (CR 107.3b) — no
+    // prompt; an alternative cost (CR 118.9) replaces the printed cost, so
+    // the printed {X} is not what is paid either.
     let chosenX: number | undefined;
-    if (!free && ctx.cardHasXCost(playerId, cardInstanceId)) {
+    if (
+        !free &&
+        alternativeCost === undefined &&
+        ctx.cardHasXCost(playerId, cardInstanceId)
+    ) {
         const maxX = ctx.getMaxAffordableX(
             playerId,
             cardInstanceId,
@@ -9764,6 +9807,7 @@ function castPickedCard(
         additionalSacrificeIds,
         sourceZone,
         free,
+        ...(alternativeCost !== undefined ? { alternativeCost } : {}),
     });
     return cast ? "cast" : "pass";
 }
