@@ -87,6 +87,15 @@ queue_rules:
       # `pr-gate` posts both green on a draft (issue #5978).
       merge_conditions:
           - check-success=queue-lane
+      # Unset, Mergify derives the timeout from recent CI runtime (~88 min)
+      # and its clock counts the wait for the lane runner, which `health.yml`
+      # holds up to its `timeout-minutes: 300`: a long health run dequeued
+      # PR #7815 as `checks-timeout` → `land-failed` while its lane, once it
+      # started, went green in 7 min (issue #7950). 6 h = health's 300 min +
+      # `queue-lane`'s own `timeout-minutes: 60`. A hung lane is still bounded
+      # by that 60 min (→ `checks-failed`, a real repair pick); this timeout
+      # fires only on a lane runner dead for hours.
+      checks_timeout: 6 hours
       # No batches: at a 15 % red rate a batch holds a bad PR more often than
       # it saves a run (ADR 0156 §3).
       batch_size: 1
