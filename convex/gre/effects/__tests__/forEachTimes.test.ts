@@ -16,6 +16,8 @@
 import { describe, it, expect } from "vitest";
 import type { EffectOp } from "../../../cards/types";
 import { registerTokenDefinition } from "../../../cards";
+import { preloadDefinitions } from "../../../cards/registry";
+import { coalitionRelic } from "../../../cards/sets/fut/colorless.cards";
 import { colorChoiceModes } from "../../../cards/abilities/chooseColor";
 import {
     makeInstance,
@@ -118,8 +120,10 @@ const ADD_TWO = registerSpell("test-1368-bindcount-add", [
     { op: "gainLife", player: "controller", amount: { ref: "$added" } },
 ]);
 
-/** Coalition Relic's print id (`fut/colorless.cards.ts`). */
-const COALITION_RELIC_ID = "7a7c98b0-d64d-4d0a-b284-1187a8e7095e";
+// The real definition, made resident directly: the packed catalogue a new card
+// reaches `getDefinition` through is derived state the base writes (ADR 0157).
+const COALITION_RELIC_ID = coalitionRelic().id;
+preloadDefinitions([coalitionRelic()]);
 
 /** `validateEffectScript` over a spell-shaped host. */
 function validate(effects: EffectOp[]): string[] {
