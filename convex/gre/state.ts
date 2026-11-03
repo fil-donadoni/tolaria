@@ -8602,6 +8602,7 @@ export function emitLifeLost(
     fromDamage: boolean
 ): void {
     if (amount <= 0) return;
+    recordLifeLost(state, playerId, amount);
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
         {
@@ -8611,6 +8612,41 @@ export function emitLifeLost(
             fromDamage,
         },
     ];
+}
+
+/** CR 119.3 / 119.4 per-turn life-LOSS tally (issue #3237) — the
+ *  `lifeGainedThisTurn` twin: "draw a card for each opponent who LOST life
+ *  this turn" (Kaito, Bane of Nightmares). Bumped with the amount actually
+ *  lost, from every path that lowers a life total: `emitLifeLost` (a "lose
+ *  life" effect and damage to a player, CR 120.3a), the combat-damage batch
+ *  (`applyAllCombatDamage`), and `payLifeCost` (CR 119.4 — "the player loses
+ *  that much life"). Reset at the start of every turn (`advanceTurn`). */
+export function recordLifeLost(
+    state: GameState,
+    playerId: string,
+    amount: number
+): void {
+    if (amount <= 0) return;
+    const tally = { ...(state.lifeLostThisTurn ?? {}) };
+    tally[playerId] = (tally[playerId] ?? 0) + amount;
+    state.lifeLostThisTurn = tally;
+}
+
+/** CR 119.4 — a player PAYS `amount` life as a cost: "the payment is
+ *  subtracted from their life total; in other words, the player loses that
+ *  much life." The one writer every life-cost leg (cast, activation, mana
+ *  ability, the Bot's search twins) goes through, so the loss reaches the
+ *  per-turn tally (`recordLifeLost`). Affordability (CR 119.4's "only if
+ *  their life total is greater than or equal to the amount") is the caller's
+ *  up-front check, as it always was. No-op for amount <= 0 (CR 119.4b). */
+export function payLifeCost(
+    state: GameState,
+    player: { id: string; life: number },
+    amount: number
+): void {
+    if (amount <= 0) return;
+    player.life -= amount;
+    recordLifeLost(state, player.id, amount);
 }
 
 /** Outcome recorded in `state.gameOver`. */
@@ -15697,6 +15733,11 @@ export function buildSpellContext(
         // effects.
         getLifeGainedThisTurn(playerId: string): number {
             return state.lifeGainedThisTurn?.[playerId] ?? 0;
+        },
+        // CR 119.3 / 119.4 (issue #3237) — the life-LOSS twin, reading back
+        // the `lifeLostThisTurn` tally `recordLifeLost` maintains.
+        getLifeLostThisTurn(playerId: string): number {
+            return state.lifeLostThisTurn?.[playerId] ?? 0;
         },
         // CR 121.1 (issue #3240) — how many cards `playerId` has DRAWN so far
         // this turn. Powers the amount half of "the number of cards you've

@@ -20,6 +20,7 @@ import { syncLayer6 } from "./layer6";
 import { syncLayers2to5 } from "./layers2to5";
 import {
     removeLoyaltyForDamage,
+    recordLifeLost,
     applyLifelinkLifeGain,
     applyPlayerDamagePrevention,
     applyTargetPrevention,
@@ -1591,6 +1592,9 @@ export function applyAllCombatDamage(
             // combat damage too. Skipped for infect damage above — no life was
             // actually lost, so this trigger correctly does not fire.
             if (lifeLost > 0) {
+                // CR 119.3 per-turn life-loss tally (issue #3237) — this batch
+                // builds its LIFE_LOST inline rather than via `emitLifeLost`.
+                recordLifeLost(state, finalTarget.id, lifeLost);
                 events.push({
                     type: "LIFE_LOST",
                     playerId: finalTarget.id,
@@ -3741,6 +3745,9 @@ function advanceTurn(state: GameState): void {
     // gained life THIS TURN" (Crested Sunmare's CR 603.4 intervening-if) must
     // read false again at the start of every new turn.
     state.lifeGainedThisTurn = undefined;
+    // Its life-LOSS twin (CR 119.3 / 119.4, issue #3237) — "each opponent who
+    // lost life THIS TURN".
+    state.lifeLostThisTurn = undefined;
     // CR 602.5 — `oncePerTurn` activation counts are per-source per-turn.
     // Clear them across every permanent at turn start so the next turn's
     // first activation isn't blocked by a stale tally.
