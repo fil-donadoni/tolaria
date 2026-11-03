@@ -8,6 +8,7 @@ import { opGapKey } from "../lib/grammar-gaps";
 import {
     auditOpCensus,
     baselineAllowlist,
+    censusedOps,
     censusClusters,
     emittedOps,
     botGapsFiledPerDay,
@@ -216,6 +217,62 @@ describe("auditOpCensus", () => {
         });
         expect(result.violations).toEqual([]);
         expect(result.baselineChecked).toBe(false);
+    });
+
+    it("owes no row for an Op declared not grammar-emittable (ADR 0162)", () => {
+        const { implemented, exempt } = censusedOps([
+            { op: "draw", status: "implemented" },
+            {
+                op: "emblem",
+                status: "implemented",
+                notGrammarEmittable: "closure registry key (ADR 0162)",
+            },
+            { op: "planeswalk", status: "planned" },
+        ]);
+        expect(implemented).toEqual(["draw"]);
+        expect(exempt.map((e) => e.op)).toEqual(["emblem"]);
+        const result = auditOpCensus({
+            implemented,
+            exempt,
+            emitted: new Set(["draw"]),
+            allowlist: list(),
+            baseline: list("emblem"),
+        });
+        expect(result.violations).toEqual([]);
+        expect(result.exemptCount).toBe(1);
+    });
+
+    it("reds a row kept for an Op declared not grammar-emittable", () => {
+        const result = auditOpCensus({
+            implemented: ["draw"],
+            exempt: [{ op: "emblem", reason: "key (ADR 0162)" }],
+            emitted: new Set(["draw"]),
+            allowlist: list("emblem"),
+            baseline: list("emblem"),
+        });
+        expect(kinds(result.violations)).toEqual(["unknown-op:emblem"]);
+    });
+
+    it("reds a declared-not-emittable Op that a Compiled Definition emits", () => {
+        const result = auditOpCensus({
+            implemented: ["draw"],
+            exempt: [{ op: "emblem", reason: "key (ADR 0162)" }],
+            emitted: new Set(["draw", "emblem"]),
+            allowlist: list(),
+            baseline: list(),
+        });
+        expect(kinds(result.violations)).toEqual(["exempt-emitted:emblem"]);
+    });
+
+    it("reds a not-grammar-emittable reason that cites no ADR", () => {
+        const result = auditOpCensus({
+            implemented: ["draw"],
+            exempt: [{ op: "emblem", reason: "hard to parse" }],
+            emitted: new Set(["draw"]),
+            allowlist: list(),
+            baseline: list(),
+        });
+        expect(kinds(result.violations)).toEqual(["malformed:emblem"]);
     });
 
     it("orders violations deterministically", () => {
