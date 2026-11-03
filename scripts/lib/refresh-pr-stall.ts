@@ -101,14 +101,55 @@ export function stallFailure(stalled: readonly OpenRefreshPr[]): string | null {
     return `superseded stalled ${stalled.map(prLabel).join(", ")} — the run is red so the stall is seen; read the closed PR's lane for why it could not land (issue #7927)`;
 }
 
+/**
+ * The two `gh` calls that supersede `pr`: close it with a comment, then
+ * delete its head ref on the remote. Never `gh pr close --delete-branch`:
+ * that flag also deletes the LOCAL branch, so it first resolves the current
+ * one — and in the job's detached-HEAD worktree it exits 1 with "could not
+ * determine current branch" AFTER the PR is closed, aborting the run before
+ * the fresh PR is opened and leaving the remote branch behind (issue #7987).
+ * The REST ref delete never reads the local checkout.
+ */
+export function supersedeCommands(
+    pr: OpenRefreshPr,
+    job: string
+): { close: string[]; deleteRef: string[] } {
+    return {
+        close: [
+            "pr",
+            "close",
+            String(pr.number),
+            "--comment",
+            `Superseded by \`${job}\` (issue #7927): open for ${STALL_HOURS} h or more without landing, so the next run closes it and re-derives at the base tip. The run that closed it is red, so the stall is reported — read this PR's lane to see why it could not land.`,
+        ],
+        deleteRef: [
+            "api",
+            "-X",
+            "DELETE",
+            `repos/{owner}/{repo}/git/refs/heads/${pr.headRefName}`,
+        ],
+    };
+}
+
+/** Whether a failed ref delete failed only because the ref is already gone
+ *  (GitHub answers 422 "Reference does not exist", or 404): the goal holds. */
+export function isRefAlreadyGone(err: unknown): boolean {
+    const e = err as { message?: unknown; stderr?: unknown };
+    const text = `${String(e?.stderr ?? "")}\n${String(e?.message ?? "")}`;
+    return /Reference does not exist|HTTP 404/i.test(text);
+}
+
 /** Close a stalled refresh PR and delete its branch, saying why. */
-export function supersede(pr: OpenRefreshPr, job: string): void {
-    gh([
-        "pr",
-        "close",
-        String(pr.number),
-        "--delete-branch",
-        "--comment",
-        `Superseded by \`${job}\` (issue #7927): open for ${STALL_HOURS} h or more without landing, so the next run closes it and re-derives at the base tip. The run that closed it is red, so the stall is reported — read this PR's lane to see why it could not land.`,
-    ]);
+export function supersede(
+    pr: OpenRefreshPr,
+    job: string,
+    run: (args: string[]) => string = gh
+): void {
+    const { close, deleteRef } = supersedeCommands(pr, job);
+    run(close);
+    try {
+        run(deleteRef);
+    } catch (err) {
+        if (!isRefAlreadyGone(err)) throw err;
+    }
 }
