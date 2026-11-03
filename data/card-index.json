@@ -5688,6 +5688,14 @@
         "source": "compiled"
     },
     {
+        "name": "Batroc the Leaper",
+        "scryfallId": "e34e33ea-042e-409c-b304-52644ec5b1f5",
+        "oracleId": "ebbea7a7-c990-43fa-8f67-a5da17fbbb10",
+        "firstSet": "msc",
+        "firstPrintId": "e34e33ea-042e-409c-b304-52644ec5b1f5",
+        "firstPrintSet": "msc"
+    },
+    {
         "name": "Battalion Foot Soldier",
         "scryfallId": "1db6393a-88b0-4973-9832-1482f69917ff",
         "oracleId": "f6f39a85-28b9-49f3-ab90-2ff99169de42",
