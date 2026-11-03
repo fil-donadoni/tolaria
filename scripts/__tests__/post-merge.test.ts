@@ -1,6 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+    afterAll,
+    afterEach,
+    beforeAll,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    vi,
+} from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { ALLOWLIST_PATH } from "../check-gaps";
@@ -257,13 +266,43 @@ describe("seedPlan", () => {
     });
 });
 
+/**
+ * A fresh, isolated copy of a prepared fixture root (`origin.git` + the
+ * `primary` and `pusher` clones). The fixture's git history is ~12-17 `git`
+ * spawns; building it once per `describe` and copying it per test keeps every
+ * test on an identical, unshared state without paying the spawns each time
+ * (issue #7859: a fixed hook budget over a growing spawn count timed out under
+ * batch health). A clone records its remote as an absolute path, so each copy's
+ * `origin` is repointed at its own `origin.git`.
+ */
+function copyFixture(template: string, to: string): void {
+    cpSync(template, to, { recursive: true });
+    for (const who of ["primary", "pusher"]) {
+        spawnSync(
+            "git",
+            ["remote", "set-url", "origin", join(to, "origin.git")],
+            { cwd: join(to, who) }
+        );
+    }
+}
+
+const removeDir = (path: string) =>
+    rmSync(path, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
+
 describe("fastForward", () => {
     let dir: string;
+    let template: string;
     const git = (args: string[], cwd: string) =>
         spawnSync("git", args, { cwd, encoding: "utf8" });
 
-    beforeEach(() => {
-        dir = mkdtempSync(join(tmpdir(), "post-merge-"));
+    beforeAll(() => {
+        template = mkdtempSync(join(tmpdir(), "post-merge-template-"));
+        const dir = template;
         git(["init", "-q", "--bare", "-b", BASE_BRANCH, "origin.git"], dir);
         git(["clone", "-q", "origin.git", "primary"], dir);
         git(["clone", "-q", "origin.git", "pusher"], dir);
@@ -290,14 +329,13 @@ describe("fastForward", () => {
         git(["commit", "-qm", "c"], join(dir, "pusher"));
         git(["push", "-q", "origin", BASE_BRANCH], join(dir, "pusher"));
     });
-    afterEach(() =>
-        rmSync(dir, {
-            recursive: true,
-            force: true,
-            maxRetries: 10,
-            retryDelay: 100,
-        })
-    );
+    afterAll(() => removeDir(template));
+
+    beforeEach(() => {
+        dir = mkdtempSync(join(tmpdir(), "post-merge-"));
+        copyFixture(template, dir);
+    });
+    afterEach(() => removeDir(dir));
 
     it("moves the base branch onto the pushed tip", () => {
         const primary = join(dir, "primary");
@@ -521,6 +559,7 @@ describe("deriveCommitAmong — the derive commit the seed waits for (ADR 0157, 
 
 describe("seed — a stale tip waits for derive:sync's commit and fast-forwards to it (ADR 0157, issue #6248)", () => {
     let dir: string;
+    let template: string;
     const git = (args: string[], cwd: string) =>
         spawnSync("git", args, { cwd, encoding: "utf8" });
     const quiet = () => {
@@ -531,8 +570,9 @@ describe("seed — a stale tip waits for derive:sync's commit and fast-forwards 
         return () => spies.forEach((s) => s.mockRestore());
     };
 
-    beforeEach(() => {
-        dir = mkdtempSync(join(tmpdir(), "post-merge-seed-"));
+    beforeAll(() => {
+        template = mkdtempSync(join(tmpdir(), "post-merge-seed-template-"));
+        const dir = template;
         git(["init", "-q", "--bare", "-b", BASE_BRANCH, "origin.git"], dir);
         git(["clone", "-q", "origin.git", "primary"], dir);
         git(["clone", "-q", "origin.git", "pusher"], dir);
@@ -548,14 +588,13 @@ describe("seed — a stale tip waits for derive:sync's commit and fast-forwards 
         git(["commit", "-qm", "a"], primary);
         git(["push", "-q", "origin", BASE_BRANCH], primary);
     });
-    afterEach(() =>
-        rmSync(dir, {
-            recursive: true,
-            force: true,
-            maxRetries: 10,
-            retryDelay: 100,
-        })
-    );
+    afterAll(() => removeDir(template));
+
+    beforeEach(() => {
+        dir = mkdtempSync(join(tmpdir(), "post-merge-seed-"));
+        copyFixture(template, dir);
+    });
+    afterEach(() => removeDir(dir));
 
     /** The pusher lands a commit on the base and returns its sha. */
     const push = (file: string, subject: string): string => {
