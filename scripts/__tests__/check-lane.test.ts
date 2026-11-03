@@ -36,6 +36,8 @@ import {
     BOT_FAST_LANE,
     BOT_STEP,
     SENTINEL_STEP,
+    CARDS_PARTITION,
+    CARDS_PARTITION_ADMITTED,
     type BotReachSource,
     type SentinelSource,
     type LanePlan,
@@ -3660,5 +3662,97 @@ describe("check-lane — a pure revert's short lane (issue #7658)", () => {
         expect(
             revertedCommitsInMessages("mentions This reverts commit abc")
         ).toEqual([]);
+    });
+});
+
+describe("an engine diff with a card in it runs the cards partition (issue #7964)", () => {
+    // PR #7935's file list (Kaito, issue #3237): base RED on d9a5e0dd, its
+    // `counterGatedStatics` census was in no step the lane planned.
+    const PR_7935 = [
+        "convex/cards/emblems.ts",
+        "convex/cards/sets/dsk/__tests__/multicolor.test.ts",
+        "convex/cards/sets/dsk/multicolor.cards.ts",
+        "convex/cards/types.ts",
+        "convex/game.ts",
+        "convex/gre/__tests__/conditionalTypeAdd.test.ts",
+        "convex/gre/__tests__/lifeLostThisTurn.test.ts",
+        "convex/gre/__tests__/loyaltyMoves.bot.test.ts",
+        "convex/gre/__tests__/loyaltyValue.bot.test.ts",
+        "convex/gre/activation.ts",
+        "convex/gre/applyMove.ts",
+        "convex/gre/layers.ts",
+        "convex/gre/state.ts",
+        "data/card-index.json",
+        "data/cr/citations-ledger.json",
+        "data/pick-ratings/vintage-cube.json",
+        "docs/findings/3237-paid-life-emits-no-life-lost.md",
+    ];
+    const CARD_TEST = "convex/cards/sets/dsk/__tests__/multicolor.test.ts";
+    const GOLD = "convex/oracle/__tests__/gold.test.ts";
+    const GRE_TEST = "convex/gre/__tests__/conditionalTypeAdd.test.ts";
+    const CARD_BOT = "convex/cards/__tests__/aiEffectsGuard.bot.test.ts";
+    const GRE_BOT = "convex/gre/__tests__/loyaltyValue.bot.test.ts";
+    const reach = (): RelatedTests => ({
+        "node-engine": [CARD_TEST, GOLD, GRE_TEST],
+        "node-tooling": [],
+        dom: [],
+    });
+    const bot: BotReachSource = {
+        total: () => 352,
+        related: () => ({ "bot-node": [CARD_BOT, GRE_BOT], "bot-dom": [] }),
+        costs: () => ({ [CARD_BOT]: 30, [GRE_BOT]: 40 }),
+        budget: () => ({ perFileMs: 5_000, totalMs: 10_000 }),
+    };
+    const plan = (files: string[]) =>
+        classifyLane(files, undefined, reach, undefined, bot);
+    const step = (p: LanePlan, id: string) =>
+        p.run.find((c) => c.id === id)?.command ?? "";
+
+    it("PR #7935's diff is engine AND runs node[cards] and bot[cards]", () => {
+        const p = plan(PR_7935);
+        expect(p.lane).toBe("engine");
+        for (const check of CARDS_PARTITION)
+            expect(p.run).toContainEqual(check);
+        expect(p.rationale).toContain(CARDS_PARTITION_ADMITTED);
+    });
+
+    it("the partition's files run once: the reach and the bot admission drop them", () => {
+        const p = plan(PR_7935);
+        const related = step(p, "vitest(related)");
+        expect(related).toContain(GRE_TEST);
+        expect(related).not.toContain(CARD_TEST);
+        expect(related).not.toContain(GOLD);
+        const botCmd = step(p, BOT_STEP);
+        expect(botCmd).toContain(GRE_BOT);
+        expect(botCmd).not.toContain(CARD_BOT);
+    });
+
+    it("a data/catalogue/** path admits it too: the registry hydrates from it", () => {
+        const p = plan([
+            "convex/cards/registry.ts",
+            "data/catalogue/definition-index.json",
+        ]);
+        expect(p.lane).toBe("engine");
+        expect(ids(p.run)).toEqual(
+            expect.arrayContaining(["node[cards]", "bot[cards]"])
+        );
+    });
+
+    it("an engine diff with no card-set path is unchanged", () => {
+        const p = plan(["convex/gre/layers.ts", "convex/cards/types.ts"]);
+        expect(p.lane).toBe("engine");
+        expect(ids(p.run)).not.toContain("node[cards]");
+        expect(ids(p.run)).not.toContain("bot[cards]");
+        expect(p.rationale).not.toContain(CARDS_PARTITION_ADMITTED);
+        // The reached card tests stay the reach's to run.
+        expect(step(p, "vitest(related)")).toContain(CARD_TEST);
+        expect(step(p, BOT_STEP)).toContain(CARD_BOT);
+    });
+
+    it("the cards lane runs the same partition definition", () => {
+        const p = plan(["convex/cards/sets/lea/red.cards.ts"]);
+        expect(p.lane).toBe("cards");
+        for (const check of CARDS_PARTITION)
+            expect(p.run).toContainEqual(check);
     });
 });
