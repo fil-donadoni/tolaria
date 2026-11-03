@@ -498,7 +498,11 @@ import {
     adventureCastOptionFor,
     isAdventureCastAlternativeCost,
 } from "./gre/adventure";
-import { castSubjectDefinition, castSubjectView } from "./gre/castMode";
+import {
+    castSubjectDefinition,
+    castSubjectView,
+    isFaceChoiceCastId,
+} from "./gre/castMode";
 import { isSplitCastId, offersPrintedCast } from "./gre/splitCast";
 import { isModalBackCastId } from "./gre/modalBackCast";
 import {
@@ -2504,6 +2508,7 @@ import {
     castRawManaCost,
     flashbackLifeCost,
     libraryTopCastPayment,
+    modalBackCastLicensed,
 } from "./gre/castCost";
 import type { CastFromZone } from "./gre/castCost";
 
@@ -6501,18 +6506,19 @@ export const announceCast = mutation({
             args.alternativeCostId,
             declineManaCostReplacement
         );
-        // CR 709.3 (issue #3344) — a SPLIT half is the one announcement that
-        // rides this channel without being an alternative cost: "a player
-        // chooses which half of a split card they are casting", and the half's
-        // printed cost is not a second price the caster pays. It is exempt for
-        // the same reason it is exempt from CR 118.9a — nothing about it
-        // "applies two alternative methods of casting" — and it pays no mana
-        // here either way (`castAlternativeCostForZone` already replaced its
-        // mana leg with `castRawManaCost`'s `{}` for this zone).
+        // CR 709.3 / 712.11b — a FACE CHOICE (a split half, a modal card's
+        // back face) is the one announcement that rides this channel without
+        // being an alternative cost: "a player chooses which half of a split
+        // card they are casting", "which face they are casting", and the
+        // face's printed cost is not a second price the caster pays. It is
+        // exempt for the same reason it is exempt from CR 118.9a — nothing
+        // about it "applies two alternative methods of casting" — and it pays
+        // no mana here either way (`castAlternativeCostForZone` already
+        // replaced its mana leg with `castRawManaCost`'s `{}` for this zone).
         if (
             chosenAltCost &&
             libraryTopPayment &&
-            isSplitCastId(cardDef, args.alternativeCostId) === undefined
+            !isFaceChoiceCastId(cardDef, args.alternativeCostId)
         ) {
             throw new Error(
                 "Can't apply an alternative cost to a spell cast from the top of your library"
@@ -6599,15 +6605,25 @@ export const announceCast = mutation({
             cardDef,
             args.alternativeCostId
         );
-        // CR 712.11b — offered from the HAND only (`modalBackCastOptionsFor`).
-        // A cast from another zone is licensed by a permission or by an
-        // ability of the FRONT face, and CR 712.11c evaluates only the back
-        // face — which per-zone licences may carry the choice is unbuilt
-        // (issue #7398), so this fails closed rather than letting a front
-        // face's own flashback cast its back.
-        if (isModalBackCast && castFromZone !== "hand") {
+        // CR 712.11c — "only the face that will be face up on the stack is
+        // evaluated to determine if it can be cast." Outside the hand a
+        // generic permission (Yawgmoth's Will, an impulse exile, Bolas's
+        // Citadel) reaches the back face; an ability of the FRONT face
+        // (flashback, escape, retrace, madness, foretell) does not, since the
+        // back face does not have it. `modalBackCastLicensed` is the authority
+        // every offering surface reads, so this refuses only a crafted call.
+        if (
+            isModalBackCast &&
+            !modalBackCastLicensed(
+                state,
+                player,
+                cardInHand,
+                castFromZone,
+                args.playerId
+            )
+        ) {
             throw new Error(
-                "A modal double-faced card's back face can only be cast from hand (issue #7398)"
+                "This permission can't cast a modal double-faced card's back face (CR 712.11c)"
             );
         }
         // CR 709.3 — "a player chooses which half of a split card they are

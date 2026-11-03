@@ -37,6 +37,11 @@ import {
     withDefs,
 } from "@convex/gre/__tests__/libraryTopCastFilter.fixture";
 import { adventureCastAltCostId } from "@convex/gre/adventure";
+import { modalBackCastAltCostId } from "@convex/gre/modalBackCast";
+import {
+    MODAL_CREATURE_BACK_PROBE_ID,
+    modalCreatureBackProbe,
+} from "@convex/gre/__tests__/fixtures/modalBackProbe.fixture";
 import type { CardDefinition } from "@convex/cards/types";
 
 const noopBuffer: PendingChoiceBuffer = {
@@ -229,6 +234,25 @@ describe("library-top cast with a REPLACED mana cost — illegal announcement ch
                 cardInstanceId: "top",
                 alternativeCostId: adventureCastAltCostId(BRAZEN_BORROWER),
             });
+        });
+    });
+
+    it("CR 712.11b / 712.11c (issue #7398) — a modal card under a Citadel: the picker names the face, life for either", () => {
+        // Choosing the back face is no second alternative method (CR 601.2b):
+        // it is how the spell is named, like a split half, and the Citadel
+        // names the card, not a face.
+        renderButton(
+            topCard(MODAL_CREATURE_BACK_PROBE_ID, true),
+            players(getCardByName("Bolas's Citadel"))
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Cast" }));
+
+        expect(screen.getByText("Pay mana cost")).toBeTruthy();
+        fireEvent.click(screen.getByText(/Cast Modal Probe Behemoth/));
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(announceCast.mock.calls[0][0]).toMatchObject({
+            cardInstanceId: "top",
+            alternativeCostId: modalBackCastAltCostId(modalCreatureBackProbe),
         });
     });
 

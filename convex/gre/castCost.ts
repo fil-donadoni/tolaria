@@ -27,6 +27,7 @@ import type {
     PendingCast,
     PlayerState,
 } from "./state/declarations";
+import type { Zone } from "./types";
 import { alternativeCostConditionMet } from "./alternativeCost";
 import { getForetellCost, isForetellCast } from "./foretell";
 import { getMadnessCost } from "./madness";
@@ -44,13 +45,19 @@ import {
 } from "./flashback";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import { hasRetrace } from "./retrace";
-import { castSubjectView } from "./castMode";
-import { isSplitCastId } from "./splitCast";
+import { castSubjectView, isFaceChoiceCastId } from "./castMode";
+import {
+    castableModalBackTwin,
+    modalBackCastAltCostId,
+    modalBackCastLicensedInZone,
+} from "./modalBackCast";
 import { hasRebound } from "./rebound";
 import {
     canCastFromGraveyardByPermission,
+    graveyardPlayPermissionCovers,
     libraryTopCastGrant,
     libraryTopCastLifeCost,
+    selectGraveyardPlayPermission,
 } from "./rules";
 
 // A state type (it rides the stack item as `StackItem.castFromZone`),
@@ -212,8 +219,9 @@ export function libraryTopCastPayment(
 /** CR 709.3 (issue #3344) — the alternative cost a cast ACTUALLY pays once the
  *  zone it comes from is known.
  *
- *  Identity for every announcement but one: a SPLIT half cast from outside the
- *  hand. That announcement rides the CR 601.2b alternative-cost channel (it is
+ *  Identity for every announcement but one: a FACE CHOICE — a split half, or
+ *  a modal double-faced card's back face (CR 712.11b, `isFaceChoiceCastId`) —
+ *  cast from outside the hand. That announcement rides the CR 601.2b alternative-cost channel (it is
  *  how "which half" is said at all, `gre/splitCast.ts`) but it is NOT an
  *  alternative cost in the CR 118.9 sense — the half's printed cost is a price
  *  only when the permission licensing the cast says the spell pays its mana
@@ -240,7 +248,9 @@ export function castAlternativeCostForZone(
 ): AlternativeCost | undefined {
     if (!resolved || zone === "hand") return resolved;
     const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-    if (!isSplitCastId(def ?? undefined, alternativeCostId)) return resolved;
+    if (!isFaceChoiceCastId(def ?? undefined, alternativeCostId)) {
+        return resolved;
+    }
     const mana = castRawManaCost(
         state,
         card,
@@ -462,6 +472,79 @@ export function graveyardCastMechanismForMember(
         return "permission";
     }
     return undefined;
+}
+
+/** CR 712.11c — whether each graveyard-cast mechanism reaches a modal
+ *  double-faced card's BACK face: "only the face that will be face up on the
+ *  stack is evaluated to determine if it can be cast." A `Record`, so a new
+ *  mechanism cannot ship without deciding.
+ *
+ *  A GENERIC permission names the card and no characteristic of it — the
+ *  per-card grant (Malcolm), a graveyard play permission (Yawgmoth's Will) —
+ *  so the back face, evaluated alone, is still covered. Escape, flashback,
+ *  retrace and the intrinsic "you may cast this card from your graveyard" are
+ *  abilities of the FRONT face: the back face does not have them (CR 712.8a
+ *  — in the graveyard the card has only its front face's characteristics), so
+ *  they license the front face only. */
+const GRAVEYARD_LICENCE_REACHES_BACK_FACE: Record<
+    GraveyardCastMechanism,
+    boolean
+> = {
+    escape: false,
+    flashback: false,
+    retrace: false,
+    intrinsic: false,
+    grant: true,
+    permission: true,
+};
+
+/** CR 712.11b / 712.11c — whether the licence for casting `card` out of
+ *  `zone` reaches its BACK face, the one authority the legality gate
+ *  (`gre/rules.ts`), the Bot's enumerator (`gre/moves.ts`), the client picker
+ *  (`affordableAlternativeCosts`) and `announceCast` ask, so no surface offers
+ *  a back-face cast the mutation refuses. `false` for a card with no castable
+ *  back face.
+ *
+ *  Off the graveyard the mechanism decides
+ *  ({@link GRAVEYARD_LICENCE_REACHES_BACK_FACE}, in `graveyardCastMechanism`'s
+ *  precedence). A graveyard play permission must also cover the back face
+ *  ITSELF: its card-type and mana-value axes are asked of the face being cast
+ *  (CR 712.11c), and of the permission the commit will spend — the one
+ *  `selectGraveyardPlayPermission` picks for the card — so a once-per-turn
+ *  "mana value 2 or less" permission covering a two-mana front face never
+ *  lends itself to a four-mana back. Every other zone is read off the card
+ *  ({@link modalBackCastLicensedInZone}). */
+export function modalBackCastLicensed(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    /** The zone the cast comes from; any other zone licenses nothing. */
+    zone: Zone,
+    casterId: string
+): boolean {
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    if (!castableModalBackTwin(def ?? undefined)) return false;
+    if (zone !== "graveyard") {
+        return modalBackCastLicensedInZone({ ...card, zone });
+    }
+    const mechanism = graveyardCastMechanism(state, player, card, casterId);
+    if (mechanism === undefined) return false;
+    if (!GRAVEYARD_LICENCE_REACHES_BACK_FACE[mechanism]) return false;
+    if (mechanism !== "permission") return true;
+    const permission = selectGraveyardPlayPermission(
+        state,
+        player,
+        "cast",
+        card
+    );
+    return (
+        permission !== undefined &&
+        graveyardPlayPermissionCovers(
+            permission,
+            "cast",
+            castSubjectView(card, modalBackCastAltCostId(def!))
+        )
+    );
 }
 
 /** CR 601.3 — whether `casterId` currently holds a permission to cast `card`

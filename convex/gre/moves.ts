@@ -66,6 +66,7 @@ import {
     flashbackLifeCost,
     exileCastPermitted,
     graveyardCastMechanism,
+    modalBackCastLicensed,
     type CastFromZone,
 } from "./castCost";
 import { BESTOW_TARGET_REQUIREMENT, hasLegalBestowHost } from "./bestow";
@@ -225,9 +226,10 @@ import {
     castSubjectDefinition,
     castSubjectView,
     independentCastOptionsFor,
+    isFaceChoiceCastId,
 } from "./castMode";
 import { landPlayFaces, type PlayLandFace } from "./modalLandPlay";
-import { isSplitCastId, offersPrintedCast } from "./splitCast";
+import { offersPrintedCast } from "./splitCast";
 import { morphCastAlternativeCost, turnableFaceUpPermanents } from "./morph";
 import { plottableHandCards } from "./plot";
 import { foretellableHandCards } from "./foretell";
@@ -4721,7 +4723,19 @@ function enumerateCastMovesFromZone(
     // withdraws the Adventure on a card exiled by its own Adventure
     // (CR 715.3d) and what a third such mode would join.
     for (const alt of chosenAltCost === undefined
-        ? independentCastOptionsFor(card)
+        ? // CR 712.11c — a modal card's back face only where the licence this
+          // cast rides reaches it: the authority `getLegalActions` and
+          // `announceCast` ask.
+          independentCastOptionsFor(
+              card,
+              modalBackCastLicensed(
+                  state,
+                  player,
+                  card,
+                  castFromZone,
+                  player.id
+              )
+          )
         : // CR 601.2b — "a player can't apply two alternative methods of
           // casting or two alternative costs to a single spell": an Adventure
           // never rides on a chosen alternative cost (issue #4900). A split
@@ -4734,9 +4748,10 @@ function enumerateCastMovesFromZone(
         // is one such method. An ADVENTURE is a second, so `announceCast`
         // refuses it there and the Move must not be enumerated — the
         // #2283/#2284 freeze shape, and the reason the dash and overload
-        // branches above keep their own `lifeInsteadOfMana` guards. A SPLIT
-        // half is the one exemption, for the reason `announceCast`'s own
-        // exemption states: CR 709.3's choice of half is not a price at all.
+        // branches above keep their own `lifeInsteadOfMana` guards. A FACE
+        // CHOICE is the one exemption, for the reason `announceCast`'s own
+        // exemption states: choosing a split half (CR 709.3) or a modal back
+        // face (CR 712.11b) is not a price at all.
         //
         // CR 601.3e (issues #7205, #7526) — off the top of the library both
         // questions are asked of THIS announcement's grant, never the whole
@@ -4755,7 +4770,7 @@ function enumerateCastMovesFromZone(
                       opts?.declineManaCostReplacement
                   )
                 : lifeInsteadOfMana !== undefined &&
-                  isSplitCastId(def ?? undefined, alt.id) === undefined
+                  !isFaceChoiceCastId(def ?? undefined, alt.id)
         ) {
             continue;
         }
