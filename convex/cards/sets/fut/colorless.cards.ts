@@ -5,6 +5,8 @@
 
 import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 import { equipAbility } from "../../abilities/equipment";
+import { colorChoiceModes } from "../../abilities/chooseColor";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Horizon Canopy — {T}, Pay 1 life: Add {G} or {W}; {1}, {T}, Sacrifice: Draw a
 // card. (CR 605.1a mana ability — useStack: false, CR 605.3a; CR 119.4 life
@@ -39,28 +41,90 @@ export const horizonCanopy = defineCard(() => ({
     ],
 }));
 
-// Coalition Relic — "{T}: Add one mana of any color.\n{T}: Put a charge
-// counter on this artifact.\nAt the beginning of your first main phase,
-// remove all charge counters from this artifact. Add one mana of any color
-// for each charge counter removed this way." STOP-AND-ISSUE (re-audited
-// under the #1306 residue tranche, parent PRD #620): the first mana ability
-// alone is trivial (the established any-colour `manaChoices` shape — see
-// Starting Town, `fin/colorless.cards.ts`, shipped the same tranche), but the
-// phase-trigger effect needs to add N independently-coloured mana instances
-// (one choice per counter removed) — there is no `EffectChoiceKind` for
-// "pick a mana colour" (the existing `choice` Op kinds are all
-// permanent/card/hand selectors) and no SpellContext primitive for a
-// repeated colour pick outside the established `manaChoices`/
-// `getManaChoices` ACTIVATION-time machinery, which doesn't apply to a
-// triggered ability's resolution. Left as a tracked stub pending a "choose N
-// colours" primitive. tracked-by: #1368
-// export const coalitionRelic: CardDefinition = {
-//     id: "7a7c98b0-d64d-4d0a-b284-1187a8e7095e",
-//     name: "Coalition Relic",
-//     rarity: "rare",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-// };
+// Coalition Relic — {3} Artifact. "{T}: Add one mana of any color.\n{T}: Put
+// a charge counter on this artifact.\nAt the beginning of your first main
+// phase, remove all charge counters from this artifact. Add one mana of any
+// color for each charge counter removed this way." (issue #1368.)
+//
+// The first ability is the any-colour mana ability (`manaChoices`, CR 605.1a —
+// no stack, CR 605.3b). The second only puts a counter: an ordinary activated
+// ability on the stack (`counters` on `$source`). The trigger: CR 505.1a —
+// only the first main phase of a turn is the precombat main phase, so "your
+// first main phase" is `PRECOMBAT_MAIN` under scope "your". Its effect removes
+// every charge counter, binding how many actually came off (`bindCount` — the
+// live `{ counters }` value reads 0 once they are gone), then repeats the
+// one-mana-of-any-color `optionChoice` that many times (`forEach { set:
+// "times" }`), one independent colour choice per counter. No counters: no
+// mana and no prompt.
+// hand-tail: At the beginning of your first main phase, remove all charge counters from this artifact. Add one mana of any color for each charge counter removed this way. (#1368)
+export const coalitionRelic = defineCard(() => ({
+    id: "7a7c98b0-d64d-4d0a-b284-1187a8e7095e",
+    name: "Coalition Relic",
+    rarity: "rare",
+    oracleText:
+        "{T}: Add one mana of any color.\n{T}: Put a charge counter on this artifact.\nAt the beginning of your first main phase, remove all charge counters from this artifact. Add one mana of any color for each charge counter removed this way.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "coalition-relic-mana",
+            oracleText: "{T}: Add one mana of any color.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ W: 1 }),
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+        },
+        {
+            id: "coalition-relic-charge",
+            oracleText: "{T}: Put a charge counter on this artifact.",
+            cost: { tap: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "charge",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
+        },
+    ],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "coalition-relic-first-main",
+            oracleText:
+                "At the beginning of your first main phase, remove all charge counters from this artifact. Add one mana of any color for each charge counter removed this way.",
+            phase: "PRECOMBAT_MAIN",
+            scope: "your",
+            effects: [
+                {
+                    op: "counters",
+                    action: "remove",
+                    counter: "charge",
+                    target: { ref: "$source" },
+                    count: {
+                        counters: { of: { ref: "$source" }, type: "charge" },
+                    },
+                    bindCount: "$removed",
+                },
+                {
+                    op: "forEach",
+                    select: { set: "times", count: { ref: "$removed" } },
+                    effects: [
+                        {
+                            op: "optionChoice",
+                            prompt: "Choose a color to add one mana of.",
+                            modes: colorChoiceModes((color) => [
+                                { op: "addMana", mana: { [color]: 1 } },
+                            ]),
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+}));
 
 // Sword of the Meek — {2} Artifact — Equipment. "Equipped creature gets
 // +1/+2. Equip {2}. Whenever a 1/1 creature you control enters, you may

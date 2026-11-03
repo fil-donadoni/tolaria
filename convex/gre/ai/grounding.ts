@@ -513,7 +513,10 @@ export function contextFreeGrounding(
             // {target} / {controllerOf} — the valuer's natural assumption.
             return cfAssumption === "self";
         },
-        forEachCount() {
+        forEachCount(select) {
+            // issue #1368 — N repetitions: the count IS the magnitude (a
+            // literal is exact), never a board-scaling member set.
+            if (select.set === "times") return value(select.count);
             return { amount: CF_ASSUMED_COUNT, scaling: true };
         },
         isSourceBattlefieldRef(ref) {
