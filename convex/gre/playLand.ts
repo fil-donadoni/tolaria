@@ -40,6 +40,7 @@ import {
     payMayPayCost,
     normalizeMayPayCost,
     resetBattlefieldTransientState,
+    applyGraveyardPermissionRider,
     clearExileLinksToEnteringSource,
     dropDelayedCapturesOfEnteringObject,
     forgetDamageToEnteringObject,
@@ -53,6 +54,7 @@ import {
     canPlayLandsFromGraveyard,
     isPlayableLibraryTopLand,
     spendGraveyardPlayPermission,
+    stampGraveyardPermissionRider,
 } from "./rules";
 import { exileCastPermitted } from "./castCost";
 import { checkAscendCityBlessing } from "./cityBlessing";
@@ -681,11 +683,16 @@ export function applyPlayLandFromAnyZone(
                 (c) => c.id === cardInstanceId
             );
             if (graveyardCard) {
-                spendGraveyardPlayPermission(
-                    state,
-                    player,
-                    "play-land",
-                    graveyardCard
+                // Issue #1239 — the spent permission's rider rides
+                // the land through any CR 614.12 park to its entry.
+                stampGraveyardPermissionRider(
+                    graveyardCard,
+                    spendGraveyardPlayPermission(
+                        state,
+                        player,
+                        "play-land",
+                        graveyardCard
+                    )
                 );
             }
             return applyPlayLandFromGraveyard(
@@ -733,6 +740,9 @@ function settleEnteredLand(
     // enters" ANSWERS, which are part of how THIS object enters: re-applied on
     // the far side of the reset, ahead of the static passes that read them
     // (Multiversal Passage's `subtype-set`).
+    // Issue #1239 — read before the reset below clears it: the
+    // rider of the graveyard play permission this land was played with.
+    const permissionRider = card.graveyardPermissionRider;
     resetBattlefieldTransientState(card, state);
     if (asEntersAnswers) restoreStagedEntryAnswers(card, asEntersAnswers);
     // CR 400.7 / 608.2h (issue #2001) — this is a genuine battlefield entry
@@ -802,6 +812,9 @@ function settleEnteredLand(
     // Traitors) fire here but NOT on a fetch/tutor/reanimation entry.
     // CR 722.3a — "enters prepared", at every entry site.
     applyEntersPrepared(state, card);
+    // Issue #1239 — "if you do, it gains '…'": granted as the
+    // land enters, before the ETB scan.
+    applyGraveyardPermissionRider(state, card, permissionRider);
     emitPermanentEntered(state, card, { wasPlayed: true });
     processPendingActionTriggers(state);
 

@@ -240,7 +240,23 @@ export function getGraveyardPlayPermissions(
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) continue;
         const permission = tryGetDefinition(cardId)?.graveyardPlayPermission;
-        if (permission) live.push({ ...permission, sourceId: card.id });
+        if (!permission) continue;
+        // Issue #1239 — the "if you do, it gains '…'" rider,
+        // resolved here against the source's definition so a commit site
+        // carries the grant itself, never a pointer back to a permission
+        // that ends when its source leaves.
+        live.push({
+            ...permission,
+            sourceId: card.id,
+            ...(permission.grantsOnUse !== undefined
+                ? {
+                      rider: {
+                          sourceCardId: cardId,
+                          abilityId: permission.grantsOnUse,
+                      },
+                  }
+                : {}),
+        });
     }
     for (const grant of state.graveyardPlayPermissionThisTurn ?? []) {
         if (grant.playerId !== player.id) continue;
@@ -759,6 +775,21 @@ export function markGraveyardPlayPermissionUsed(
         ...(state.graveyardPlayPermissionUsesThisTurn ?? []),
         { playerId, sourceId: permission.sourceId },
     ];
+}
+
+/** Issue #1239 — stamps `permission`'s "if you do, it gains
+ *  '…'" rider onto `card`, the object actually played or cast with it: the
+ *  graveyard land as the play is taken, the stack item at cast commit. The
+ *  permanent's entry converts it into an indefinite triggered-ability grant
+ *  (`applyGraveyardPermissionRider`, `gre/state.ts`). A no-op for a
+ *  permission that carries no rider, or when no permission was spent — so a
+ *  card played under a rider-less permission never inherits one. */
+export function stampGraveyardPermissionRider(
+    card: CardInstanceState,
+    permission: LiveGraveyardPlayPermission | undefined
+): void {
+    if (!permission?.rider) return;
+    card.graveyardPermissionRider = { ...permission.rider };
 }
 
 /** Selects the permission `player` uses to take `action` with `card` and

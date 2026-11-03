@@ -4187,6 +4187,12 @@ function finalizeSpellResolution(
         // `entersTapped` shape), so the CR 722.3c exiled copy exists before
         // any ETB trigger is put on the stack.
         applyEntersPrepared(state, item);
+        // Issue #1239 — the rider of the graveyard play permission
+        // this spell was cast with (Serra Paragon), carried across the stack
+        // by the item itself, so it applies even if the permission's source
+        // left meanwhile. Granted before the ETB scan, as the permanent
+        // enters.
+        applyGraveyardPermissionRider(state, item);
         emitPermanentEntered(state, item, {
             wasCast: true,
             enteredFromGraveyard: item.castFromZone === "graveyard",
@@ -4753,6 +4759,34 @@ export function allocStaticTimestamp(state: GameState): number {
     // graveyard before a Humility enters in the same resolution).
     stampGraveyardStaticSources(state);
     return nextStaticTimestamp(state);
+}
+
+/** Issue #1239 — converts the graveyard play permission rider a
+ *  card carries (`graveyardPermissionRider`, stamped where the permission was
+ *  spent) into an INDEFINITE triggered-ability grant on the permanent it has
+ *  just become: no duration, no aura link, so it ends only when the permanent
+ *  leaves the battlefield — the shape `grantTriggeredAbilityPermanent` writes,
+ *  and independent of the granting source still being in play. Consumes the
+ *  rider either way. Called by each entry the stamp can reach: the land-play
+ *  settlement and the permanent branch of `finalizeSpellResolution`.
+ *  `rider` is passed when the caller had to read it before a reset that
+ *  clears the field (`settleEnteredLand`). */
+export function applyGraveyardPermissionRider(
+    state: GameState,
+    card: CardInstanceState,
+    rider: CardInstanceState["graveyardPermissionRider"] = card.graveyardPermissionRider
+): void {
+    delete card.graveyardPermissionRider;
+    if (!rider) return;
+    card.grantedTriggeredAbilities = [
+        ...(card.grantedTriggeredAbilities ?? []),
+        // CR 613.7 timestamp — see `grantActivatedAbility`.
+        {
+            sourceCardId: rider.sourceCardId,
+            abilityId: rider.abilityId,
+            seq: allocStaticTimestamp(state),
+        },
+    ];
 }
 
 /** The next free CR 613.7 timestamp: one past every stamp on the board. The
