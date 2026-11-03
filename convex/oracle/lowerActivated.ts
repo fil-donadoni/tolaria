@@ -163,6 +163,7 @@ function mayRemoveSource(atom: CostAtomIR): boolean {
         case "sacrifice-self":
         case "exile-self":
         case "exile-self-from-hand":
+        case "exile-self-from-graveyard":
         case "return-self":
             return true;
         case "sacrifice-other":
@@ -266,6 +267,10 @@ export function lowerActivatedAbility(input: {
         useStack: true,
         effects: ops,
     };
+    // CR 113.6m — a graveyard-exile cost makes the ability a GRAVEYARD
+    // ability: offered and paid only while the card is there.
+    if (input.cost.atoms.some(isGraveyardExile))
+        ability.activateFromGraveyard = true;
     // An ability whose only effect animates its own source is marked so the
     // Bot never pays for it twice (`ActivatedAbility.animatesSelf`).
     // The animation may carry its own granted ability (`grantAbility` on the
@@ -475,6 +480,11 @@ function isHandExile(atom: CostAtomIR): boolean {
     return atom.kind === "exile-self-from-hand";
 }
 
+/** CR 113.6m — the "Exile this card from your graveyard" cost atom. */
+function isGraveyardExile(atom: CostAtomIR): boolean {
+    return atom.kind === "exile-self-from-graveyard";
+}
+
 /**
  * Mana-ability IR → `ActivatedAbility` (CR 605.1a). Shared by the mana slot
  * and by a granted ability ('Enchanted land has "{T}: Add …"', issue #3833),
@@ -499,6 +509,14 @@ export function lowerManaAbility(input: {
     // the hand. A FIXED production only: `activateManaAbility` deposits it
     // directly, while a chosen colour is resolved off the permanent's
     // battlefield mana ability, which a card in hand does not have.
+    // CR 113.6m — "Exile this card from your graveyard: Add one mana of any
+    // color." functions only in the graveyard, and neither stackless payment
+    // route (`activateManaAbility`, `tapUntap`) looks for its source there.
+    if (input.cost.atoms.some(isGraveyardExile))
+        return {
+            ok: false,
+            reason: "a mana ability activated from the graveyard has no stackless payment site (CR 113.6m)",
+        };
     const fromHand = input.cost.atoms.some(isHandExile);
     if (fromHand && input.produces.kind !== "fixed")
         return {
