@@ -422,6 +422,46 @@ describe("CastCostDialog — Kicker {X} (CR 107.3a / 601.2b, issue #2141)", () =
     });
 });
 
+// issue #3248 — CR 107.3 / 601.2b: "Kicker {X}. X can't be 0." (Thieving
+// Skydiver) — a paid Kicker's `minX` floors the announced X; kicking for 0
+// blocks Cast, declining the Kicker does not.
+describe("CastCostDialog — Kicker {X} minimum X (CR 107.3, issue #3248)", () => {
+    const flooredKicker = [
+        {
+            id: "kicker",
+            description: "Kicker {X} (X can't be 0)",
+            multi: false,
+            announcesX: true,
+            minX: 1,
+        },
+    ];
+
+    it("blocks Cast while the kicked X is below the floor", () => {
+        renderDialog({ askX: false, kickers: flooredKicker });
+        fireEvent.click(screen.getByRole("checkbox"));
+        fireEvent.change(screen.getByLabelText("Choose X"), {
+            target: { value: "0" },
+        });
+        expect((castButton() as HTMLButtonElement).disabled).toBe(true);
+        fireEvent.change(screen.getByLabelText("Choose X"), {
+            target: { value: "1" },
+        });
+        expect((castButton() as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it("declining the Kicker casts with no floor at all", () => {
+        const { onConfirm } = renderDialog({
+            askX: false,
+            kickers: flooredKicker,
+        });
+        fireEvent.click(castButton());
+        expect(onConfirm).toHaveBeenCalledWith({
+            chosenX: undefined,
+            kickerPayments: undefined,
+        });
+    });
+});
+
 // issue #4506 — CR 107.3a / 601.2h: "Spend only colored mana on X, no more
 // than one of each color" (Emblazoned Golem's Kicker {X}) leaves WHICH
 // colours to the caster, so the dialog collects X distinct colours alongside

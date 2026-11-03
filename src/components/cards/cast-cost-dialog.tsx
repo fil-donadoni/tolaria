@@ -39,6 +39,10 @@ type CastCostDialogProps = {
          *  toggled on), the dialog also asks for X DISTINCT colours instead
          *  of letting the payment step pick generic mana for it. */
         requiresDistinctColorX?: boolean;
+        /** CR 107.3 / 601.2b (issue #3248) — the smallest X this Kicker
+         *  allows while paid ("X can't be 0", Thieving Skydiver). Raises the
+         *  stepper's floor and blocks submit below it. */
+        minX?: number;
     }[];
     /** CR 702.27 — true when the card has an optional Buyback cost: render a
      *  single yes/no "pay the buyback cost" toggle, mirroring the single
@@ -139,6 +143,16 @@ export default function CastCostDialog({
     );
     const showX = askX || kickerAsksX;
     const xValue = showX ? parseNonNegInt(xRaw) : 0;
+    // CR 107.3 / 601.2b (issue #3248) — the largest `minX` among the PAID
+    // Kickers that announce X; an unpaid Kicker imposes no floor.
+    const minX = (kickers ?? []).reduce(
+        (floor, k, i) =>
+            k.announcesX === true && (kickerCounts[i].count ?? 0) > 0
+                ? Math.max(floor, k.minX ?? 0)
+                : floor,
+        0
+    );
+    const xAboveFloor = xValue === null || xValue >= minX;
     const kickersValid = kickerCounts.every((k) => k.count !== null);
     // CR 702.34a / 118.5 — a typed X above the flashback exile cap is invalid,
     // not silently clamped: the stepper buttons already stop at `maxX`, but a
@@ -160,7 +174,12 @@ export default function CastCostDialog({
         );
     const xColorsValid =
         !distinctColorXNeeded || (xValue !== null && xColors.length === xValue);
-    const valid = xValue !== null && kickersValid && xWithinCap && xColorsValid;
+    const valid =
+        xValue !== null &&
+        kickersValid &&
+        xWithinCap &&
+        xAboveFloor &&
+        xColorsValid;
 
     const toggleXColor = (color: string) => {
         setXColors((prev) => {
@@ -202,9 +221,15 @@ export default function CastCostDialog({
                 aria-label="Choose X"
                 value={xRaw}
                 onChange={setXRaw}
+                min={minX}
                 max={maxX}
                 autoFocus
             />
+            {minX > 0 && (
+                <span className="text-xs text-text-muted">
+                    X can&apos;t be less than {minX} while kicked.
+                </span>
+            )}
             {maxX !== undefined && (
                 <span className="text-xs text-text-muted">
                     Max {maxX} — you must exile X cards from your graveyard to

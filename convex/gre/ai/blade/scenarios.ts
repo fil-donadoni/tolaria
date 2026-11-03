@@ -170,6 +170,59 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "CR 107.3a / 702.33a Kicker {X} reachability — the deterministic halves (enumeration, both sandboxes charging X) are in `kickerXBot.bot.test.ts`. Issue #2141.",
     },
     {
+        // KICKER {X} WITH A MINIMUM X reachability (CR 107.3 / 601.2b, issue
+        // #3248). The bot's main phase, four untapped Islands, Thieving
+        // Skydiver in hand; the opponent controls Grizzly Bears and an
+        // unattached Umezawa's Jitte (mana value 2). {1}{U} for the Skydiver,
+        // the other two buy X = 2: the ETB steals the Jitte and attaches it to
+        // the Skydiver. Nothing else wants the mana.
+        //
+        // What it guards is REACHABILITY of the kicked cast. Two seams used to
+        // hide it: the "X can't be 0" floor (`paidKickersMinX`) must leave X =
+        // 2 in the kicked axis, and the futile-Kicker prune
+        // (`futileKicker.ts`) must not judge a "mana value X or less" target
+        // with X unknown — probed at X = 0 it pruned EVERY kicked cast.
+        label: "Kicker {X}, X can't be 0: kicks Thieving Skydiver to steal the Jitte",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a second spell in hand to spend the spare mana on",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Thieving Skydiver", owner: "me", zone: "hand" },
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Island",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Umezawa's Jitte", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, like the Verdeloth entry above: a reachability claim,
+        // kept out of the weight fit.
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.kickerPayments?.kicker ?? 0) > 0 &&
+                move.chosenX === 2,
+            describe:
+                "casts Thieving Skydiver kicked with X = 2, stealing Umezawa's Jitte",
+        },
+        note: "CR 107.3 / 601.2b Kicker {X} minimum-X reachability — the deterministic halves (no X = 0 kick, no futile prune) are in `kickerXBot.bot.test.ts`. Issue #3248.",
+    },
+    {
         // DEPLETION-LAND reachability (CR 605.1a / 118.3 / 701.21, issue
         // #2712). The bot's main phase, an empty board, one Grizzly Bears
         // ({1}{G}) in hand and ONE land: Hickory Woodlot, untapped, entering

@@ -92,6 +92,7 @@ import {
     kickedCountOfPayments,
     kickerLifeCost,
     paidKickersAnnounceX,
+    paidKickersMinX,
     paidKickersRequireDistinctColorX,
     type KickerPayments,
 } from "./kicker";
@@ -3443,11 +3444,20 @@ function kickerXValues(
     // DISTINCT colours instead — `maxAffordableDistinctColorX`, the same
     // greedy `enumerateCastMovesFromZone`'s own per-candidate colour pick
     // uses, so the two can't disagree about which X values are reachable.
+    // CR 107.3 / 601.2b (issue #3248) — a paid Kicker's lower bound on X
+    // ("X can't be 0", Thieving Skydiver): the same `paidKickersMinX` the
+    // cast mutation enforces, so the Bot never enumerates an announcement
+    // `announceCast` would refuse.
+    const floor = paidKickersMinX(def, kickerPayments);
+    const range = (ceiling: number) =>
+        Array.from({ length: ceiling + 1 }, (_, i) => i).filter(
+            (x) => x >= floor
+        );
     if (paidKickersRequireDistinctColorX(def, kickerPayments)) {
         const fixed = normalizeManaCost(rawCost, { chosenX: 0 });
         foldKickerCosts(fixed, def, kickerPayments, 0);
         const ceiling = maxAffordableDistinctColorX(player, card, fixed, state);
-        return Array.from({ length: ceiling + 1 }, (_, i) => i);
+        return range(ceiling);
     }
     const priced = (x: number) => {
         const cost = normalizeManaCost(rawCost, { chosenX: x });
@@ -3464,7 +3474,7 @@ function kickerXValues(
         total(priced(1)) - total(fixed),
         state
     );
-    return Array.from({ length: ceiling + 1 }, (_, i) => i);
+    return range(ceiling);
 }
 
 function enumerateCastMovesFromZone(

@@ -4649,6 +4649,8 @@ const OP_SCHEMAS: OpSchemaTable = {
     // announced target permanent (Reconfigure's first activated ability).
     attach: {
         required: { target: isObjectSelector },
+        // Issue #3248 — the attached object when it is not `$source`.
+        optional: { attachment: isObjectSelector },
     },
     // CR 701.3d (ADR 0065, issue #1311) — unattach $source from whatever
     // it's currently attached to (Reconfigure's second activated ability).

@@ -74052,6 +74052,14 @@
         "source": "compiled"
     },
     {
+        "name": "Thieving Skydiver",
+        "scryfallId": "ff84ea71-e477-44f7-a3f8-77fef708efeb",
+        "oracleId": "f509ac02-f22e-4d1a-9fe1-afa96dd7806d",
+        "firstSet": "znr",
+        "firstPrintId": "ff84ea71-e477-44f7-a3f8-77fef708efeb",
+        "firstPrintSet": "znr"
+    },
+    {
         "name": "Thing from the Deep",
         "scryfallId": "cb3b9682-7f3a-4857-9ecf-01f3530659fc",
         "oracleId": "9542bd7f-bb99-4b59-a4e3-b88ed9f798bf",

@@ -33,6 +33,7 @@
 import type {
     CardDefinition,
     PermanentView,
+    TargetRequirement,
     TriggeredAbility,
 } from "../../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
@@ -51,6 +52,11 @@ export function triggerHasNoLegalTarget(
 ): boolean {
     if (trigger.targetRequirement === undefined) return false;
     if (trigger.modes && trigger.modes.length > 0) return false;
+    // Issue #3248 — a requirement that reads the announced X ("target
+    // artifact with mana value X or less", Thieving Skydiver) cannot be judged
+    // before X is chosen: probed with no X it would read 0 and prune every
+    // kicked cast. Fail closed — keep the variant.
+    if (targetRequirementReadsX(trigger.targetRequirement)) return false;
     return (
         getLegalTargets(
             state,
@@ -58,6 +64,22 @@ export function triggerHasNoLegalTarget(
             targetingSourceFromCard(card, false),
             player.id
         ).length === 0
+    );
+}
+
+/** Does this requirement's legality or count depend on the announced X
+ *  (CR 107.3)? A `"X"` mana-value bound or target count. */
+function targetRequirementReadsX(req: TargetRequirement): boolean {
+    const mv = req.mvFilter;
+    if (mv && (mv.min === "X" || mv.max === "X" || mv.equals === "X")) {
+        return true;
+    }
+    const count = req.count as unknown;
+    if (count === "X") return true;
+    return (
+        typeof count === "object" &&
+        count !== null &&
+        Object.values(count).includes("X")
     );
 }
 
