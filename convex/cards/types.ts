@@ -16893,6 +16893,14 @@ export type EffectOp =
            *  `withoutPayingManaCost` (no cost to increase) — the validator
            *  rejects the pair. */
           costIncrease?: ManaCost;
+          /** CR 609.4b / 118.14 (issue #7228) — the granting Oracle text also
+           *  says "mana of any type can be spent to cast that spell" (Black
+           *  Widow, Super Spy) or "you may spend mana as though it were mana
+           *  of any color to cast that spell" (Robber of the Rich). Scoped to
+           *  THIS exiled card's cast: the `SpellContext.grantCastFromExile`
+           *  `manaSubstitution` opt, exposed to the DSL. Omitted leaves the
+           *  card payable only in its own colours. */
+          manaSubstitution?: ManaSubstitutionBreadth;
           /** CR 611.2b (issue #7295) — the permission holds only WHILE the
            *  board predicate does ("you may play them if you control a
            *  Wizard"): re-evaluated at every cast / play attempt, not once at
