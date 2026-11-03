@@ -267,6 +267,9 @@ describe("each pure drift guard consults the cache (issue #3646)", () => {
             if (printed.short === seeded.hash!.slice(0, 12)) {
                 expect(printed.kind).toBe("cached");
                 expect(run.status).toBe(0);
+                // Nothing but the decision line: a guard that consulted the
+                // cache AFTER paying its body would print that body first.
+                expect(run.out.trim().split("\n")).toHaveLength(1);
             } else {
                 expect(printed.kind).toBe("ran");
             }
