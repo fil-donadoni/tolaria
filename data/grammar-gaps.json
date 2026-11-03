@@ -2181,11 +2181,6 @@
         },
         {
             "kind": "grammar",
-            "key": "triggered › condition › you're the monarch",
-            "issue": 7218
-        },
-        {
-            "kind": "grammar",
             "key": "triggered › effect clause › Add X mana of any one color",
             "issue": 7125
         },
@@ -2328,11 +2323,6 @@
             "kind": "grammar",
             "key": "triggered › effect clause › That player taps an untapped artifact, creature, or land they control for each fade counter on this artifact",
             "issue": 5710
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › effect clause › You become the monarch",
-            "issue": 7218
         },
         {
             "kind": "grammar",

@@ -12864,6 +12864,12 @@ export interface TriggerStateView {
         }>;
     }>;
     activePlayerId?: string;
+    /** CR 725.1 — the player who holds the monarch designation, absent while
+     *  there is no monarch. Exposed so a CR 603.4 intervening-if can answer
+     *  "if you're the monarch" at BOTH trigger-check time and resolution.
+     *  Mirrors `GameState.monarchId`, which the engine passes here unchanged.
+     *  Server-side only: no client reducer evaluates a trigger condition. */
+    monarchId?: string;
     /** Count of creatures that have died this turn (CR 700.4 die tally,
      *  maintained in `removePermanentTo` and reset at turn start). Exposed so a
      *  CR 603.4 condition can gate on "if a creature died this turn"
