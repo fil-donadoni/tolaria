@@ -66,3 +66,10 @@ convex/cards/__tests__/compilerRoundTrip.baseline.ts merge=append-only
 # registered by the same `bun run worktree:init`.
 convex/gre/ai/blade/scenarios.ts merge=append-only
 convex/oracle/grammar/fixtures.ts merge=append-only
+
+# The Pick Ratings seed layer (issue #7871): a keyed map `{ setCode, ratings }`
+# every card PR appends a rating to at the tail of `ratings`, so two PRs
+# conflict on the moved trailing comma. The same `key-set` driver merges it
+# key by key. One row per file: a new ratings file classifies itself there.
+data/pick-ratings/lea.json merge=key-set
+data/pick-ratings/vintage-cube.json merge=key-set
