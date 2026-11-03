@@ -15,7 +15,7 @@
 // Readings run through the PRODUCTION leaf (`permanentRealisedValue`,
 // `cardValue` with the hand term's lens) over real registry definitions.
 import { describe, expect, it } from "vitest";
-import { registeredDefinitions } from "../../../cards";
+import { catalogueDefinitions } from "../../../cards";
 import type { CardInstanceState, GameState } from "../../state";
 import {
     makeInstance,
@@ -37,7 +37,7 @@ import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import { raiseDead } from "../../../cards/sets/lea/black.cards";
 import { underworldBreach } from "../../../cards/sets/thb/red.cards";
 
-const BEADS = [...registeredDefinitions()].find(
+const BEADS = [...catalogueDefinitions()].find(
     (d) => d.name === "Worry Beads"
 )!;
 const BASIC = forest().id;

@@ -36,6 +36,7 @@ const ENUMERATORS = [
     "getAllRawCards",
     "walkHandWrittenDefinitions",
     "registeredDefinitions",
+    "catalogueDefinitions",
     "buildSearchIndex",
     "listTokenCatalogue",
     "getAllTokenKeys",
@@ -55,7 +56,7 @@ const CLOSED_LIST: Record<string, { disposition: Disposition; why: string }> = {
     },
     "convex/cards/registry.ts": {
         disposition: "definer",
-        why: "defines registeredDefinitions over the live map; its only consumers are script-only",
+        why: "defines registeredDefinitions (and its catalogue half, catalogueDefinitions) over the live map; its only consumers are script-only",
     },
     "convex/cards/tokenCatalogue.ts": {
         disposition: "hand-written-only",

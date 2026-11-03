@@ -46,7 +46,7 @@ import {
     STRUCTURAL_CONSTRUCTS,
     isCompleteScript,
 } from "../../gre/ai";
-import { registeredDefinitions } from "..";
+import { catalogueDefinitions } from "..";
 
 const OP_VALUERS_SOURCE = fileURLToPath(
     new URL("../../gre/ai/opValuers.ts", import.meta.url)
@@ -315,7 +315,7 @@ describe("Complete Script census (issue #5161, ADR 0151)", () => {
 
     it(`the catalogue holds at least ${COMPLETE_SCRIPT_FLOOR} Complete Scripts (a drop means a row lost its sign)`, () => {
         let complete = 0;
-        for (const def of registeredDefinitions()) {
+        for (const def of catalogueDefinitions()) {
             if (isCompleteScript(def)) complete++;
         }
         expect(complete).toBeGreaterThanOrEqual(COMPLETE_SCRIPT_FLOOR);

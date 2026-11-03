@@ -32,7 +32,7 @@ import {
     latentValue,
     standingAbilityValueById,
 } from "../cardValue";
-import { getAllCatalogueCards, registeredDefinitions } from "../../cards";
+import { getAllCatalogueCards, catalogueDefinitions } from "../../cards";
 import { isManaAbilityDefinition, manaValue } from "../constants";
 import { projectPublicState } from "../../gameProjections";
 import {
@@ -162,7 +162,7 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
             });
 
             it("an ability that sacrifices its own source is not standing worth (Seal of Cleansing stays at its floor)", () => {
-                const seal = [...registeredDefinitions()].find(
+                const seal = [...catalogueDefinitions()].find(
                     (d) => d.name === "Seal of Cleansing"
                 );
                 expect(seal).toBeDefined();
@@ -176,7 +176,7 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
             });
 
             it("an ability that exiles its own source is not standing worth (Brittle Effigy)", () => {
-                const effigy = [...registeredDefinitions()].find(
+                const effigy = [...catalogueDefinitions()].find(
                     (d) => d.name === "Brittle Effigy"
                 );
                 expect(effigy).toBeDefined();
@@ -199,7 +199,7 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
             // every firing its permanent lives to see.
             describe("recurrence multiplier for per-turn standing triggers (issue #5151)", () => {
                 const byName = (name: string) => {
-                    const def = [...registeredDefinitions()].find(
+                    const def = [...catalogueDefinitions()].find(
                         (d) => d.name === name
                     );
                     expect(def, name).toBeDefined();
@@ -469,7 +469,7 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
             // script worth.
             describe("utility lands read their non-mana standing scripts (issue #5155)", () => {
                 const byName = (name: string) => {
-                    const def = [...registeredDefinitions()].find(
+                    const def = [...catalogueDefinitions()].find(
                         (d) => d.name === name
                     );
                     expect(def, name).toBeDefined();
@@ -897,7 +897,7 @@ describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
         staticAbilities: [] as string[],
     };
     const byName = (name: string): CardDefinition => {
-        const def = [...registeredDefinitions()].find((d) => d.name === name);
+        const def = [...catalogueDefinitions()].find((d) => d.name === name);
         expect(def).toBeDefined();
         return def!;
     };
