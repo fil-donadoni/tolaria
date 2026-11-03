@@ -286,6 +286,13 @@
             "needsSetup": false
         }
     ],
+    "Gilded Drake": [
+        {
+            "label": "exchange of control: casts Gilded Drake for the opposing Craw Wurm",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Grapeshot": [
         {
             "label": "storm: Grapeshot is lethal because the search counts the spell cast before it",
