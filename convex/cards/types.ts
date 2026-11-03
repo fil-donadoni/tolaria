@@ -2822,13 +2822,36 @@ export interface GraveyardPlayPermission {
     /** Present only during the controller's own turn ("during each of your
      *  turns"). */
     yourTurnOnly?: boolean;
+    /** Issue #1239 — "If you do, it gains '…'" (Serra Paragon):
+     *  the id of a TRIGGERED-ability template on the granting card's own
+     *  `triggeredGrantTemplates[]`, granted INDEFINITELY to the permanent
+     *  actually played or cast using this permission. Part of the
+     *  permission's effect, applied as the land is played or the spell is
+     *  cast — never a triggered ability, never on the stack. CONTINUOUS
+     *  (battlefield) form only: the resolver resolves it against the
+     *  source's definition id ({@link GraveyardPermissionRider}). */
+    grantsOnUse?: string;
+}
+
+/** Issue #1239 — the RESOLVED rider a graveyard play permission's
+ *  `grantsOnUse` names: the granting card's definition id plus the template
+ *  id, the same pair a `grantedTriggeredAbilities` entry keys on. Carried by
+ *  the played card itself (`CardInstanceState.graveyardPermissionRider`)
+ *  rather than as a pointer back to the permission, which is derived live
+ *  from the battlefield and is gone once its source leaves — while the grant
+ *  it generated must still apply. */
+export interface GraveyardPermissionRider {
+    sourceCardId: string;
+    abilityId: string;
 }
 
 /** A {@link GraveyardPlayPermission} the resolver found live, tagged with the
  *  instance id of the source that granted it — the key its once-per-turn use
- *  is spent against. */
+ *  is spent against — and, when the record declares `grantsOnUse`, the rider
+ *  resolved against the source's definition. */
 export interface LiveGraveyardPlayPermission extends GraveyardPlayPermission {
     sourceId: string;
+    rider?: GraveyardPermissionRider;
 }
 
 export interface CostLegs {

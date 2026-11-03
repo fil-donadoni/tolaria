@@ -63016,6 +63016,14 @@
         "source": "compiled"
     },
     {
+        "name": "Serra Paragon",
+        "scryfallId": "ce295f1e-fb31-4275-a5d3-8c6f29afff40",
+        "oracleId": "ecd8d7f4-7b11-4097-afc0-ef3c81edd90c",
+        "firstSet": "dmu",
+        "firstPrintId": "ce295f1e-fb31-4275-a5d3-8c6f29afff40",
+        "firstPrintSet": "dmu"
+    },
+    {
         "name": "Serra Sphinx",
         "scryfallId": "f9a4d7ac-082b-4f66-9b7f-4d1d0fda78c7",
         "oracleId": "9b344428-ec35-45b9-9714-9ca58a338f5c",

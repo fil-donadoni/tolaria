@@ -51,7 +51,10 @@ import { additionalCostPaymentSnapshot } from "./kicker";
 import type { KickerPayments } from "./kicker";
 import { announcedModeFields } from "./modeSelection";
 import { drainAutoPasses } from "./phases";
-import { markGraveyardPlayPermissionUsed } from "./rules";
+import {
+    markGraveyardPlayPermissionUsed,
+    stampGraveyardPermissionRider,
+} from "./rules";
 import type { SacrificeSelection } from "./sacrificeChoice";
 import { costVictimTypeFields } from "./sacrificeChoice";
 import { castAsSplitHalf } from "./splitCast";
@@ -468,6 +471,11 @@ export function commitCast(
         // either placement (Word of Command's controlled cast leaves a hand).
         ...reboundCastStackFlags(spellCard, castFromZone),
     };
+    // Issue #1239 — the rider of the graveyard play permission
+    // this cast spent (Serra Paragon) rides the stack item to its resolution:
+    // the grant itself, never a pointer back to a permission that ends when
+    // its source leaves.
+    stampGraveyardPermissionRider(stackItem, plan.source.graveyardPermission);
     // CR 702.103b (issue #2388) — "as a spell cast bestowed is put onto the
     // stack, it becomes an Aura enchantment and gains enchant creature".
     // Applied on the built item immediately before it reaches the stack, so

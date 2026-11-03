@@ -3,7 +3,11 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import { defineCard, PERMANENT_TYPES } from "../../types";
+import {
+    CASTABLE_PERMANENT_TYPES,
+    defineCard,
+    PERMANENT_TYPES,
+} from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { holdsExileBundle } from "../../abilities/exileBundle";
@@ -73,33 +77,62 @@ export const leylineBinding = defineCard(() => ({
     ],
 }));
 
-// STOP-AND-ISSUE (tracked-by: #1239) — Serra Paragon: "Flying. Once during
-// each of your turns, you may play a land from your graveyard or cast a
-// permanent spell with mana value 3 or less from your graveyard. If you do,
-// it gains \"When this permanent is put into a graveyard from the
-// battlefield, exile it and you gain 2 life.\"" Issue #1149 shipped the
-// BROAD, player-wide, turn-scoped graveyard-cast permission (Yawgmoth's
-// Will's `grantGraveyardPlay` Op) — deliberately NOT reused here per its own
-// design notes: Serra's grant is SCOPED (once/turn, land-or-MV<=3-permanent,
-// choice-driven) and per-INSTANCE, not a blanket player-wide flag. Two
-// capabilities still missing: (1) a scoped, once-per-turn, per-instance
-// graveyard-cast/land-play grant (mirrors the existing per-instance
-// `castableFromExileBy` exile-cast grant shape, not #1149's player-wide
-// list), and (2) the "if you do, it gains ..." clause — a RUNTIME ability
-// grant onto the SPECIFIC card played this way, conditional on it actually
-// being played (not merely permitted) — a second capability on top of the
-// permission itself, whose composition with `delayedTrigger`/`grantAbility`
-// is an open design question (see #1239 for the full notes). Vintage Cube
-// FREE tranche, issue #686. Whole card left as one stub (both clauses must
-// land together).
-// export const serraParagon: CardDefinition = {
-//     id: "ce295f1e-fb31-4275-a5d3-8c6f29afff40",
-//     name: "Serra Paragon",
-//     rarity: "mythic",
-//     manaCost: { X: 2, W: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Angel"],
-//     power: 3,
-//     toughness: 4,
-//     staticAbilities: ["flying"],
-// };
+// Serra Paragon — {2}{W}{W} Creature — Angel 3/4 (issue #1239). Every clause
+// is data over shipped seams:
+//
+//   - Flying — the keyword.
+//   - "Once during each of your turns, you may play a land from your graveyard
+//     or cast a permanent spell with mana value 3 or less from your graveyard"
+//     — a row on the one graveyard play permission record (ADR 0093): both
+//     actions, the cast restricted to castable permanent types at mana value
+//     3 or less, once per turn (ONE use covers either action, spent against
+//     this source), own turn only. A static ability: no stack (CR 305.1 for
+//     the land, CR 601.3 for the cast).
+//   - "If you do, it gains '…'" — the record's `grantsOnUse` rider, naming the
+//     template below. The commit that spends the permission stamps the rider
+//     on the card played or cast with it, and the permanent's entry turns it
+//     into an indefinite triggered-ability grant — so the permanent keeps the
+//     ability even if Serra Paragon leaves first (the card's ruling), and a
+//     countered spell carries nothing.
+//   - The granted ability is the shared leave trigger, self-scoped to the
+//     battlefield → graveyard departure (any permanent type, CR 603.10a looks
+//     back for it); `$event.card` names the card in the graveyard (CR 400.7e).
+// hand-tail: Once during each of your turns, you may play a land from your graveyard or cast a permanent spell with mana value 3 or less from your graveyard. If you do, it gains "When this permanent is put into a graveyard from the battlefield, exile it and you gain 2 life." (#1239)
+export const serraParagon = defineCard(() => ({
+    id: "ce295f1e-fb31-4275-a5d3-8c6f29afff40",
+    name: "Serra Paragon",
+    rarity: "mythic",
+    oracleText:
+        'Flying\nOnce during each of your turns, you may play a land from your graveyard or cast a permanent spell with mana value 3 or less from your graveyard. If you do, it gains "When this permanent is put into a graveyard from the battlefield, exile it and you gain 2 life."',
+    manaCost: { X: 2, W: 2 },
+    types: ["Creature"],
+    subtypes: ["Angel"],
+    power: 3,
+    toughness: 4,
+    staticAbilities: ["flying"],
+    graveyardPlayPermission: {
+        actions: ["play-land", "cast"],
+        cardTypes: [...CASTABLE_PERMANENT_TYPES],
+        maxManaValue: 3,
+        oncePerTurn: true,
+        yourTurnOnly: true,
+        grantsOnUse: "serra-paragon-granted-exile",
+    },
+    triggeredGrantTemplates: [
+        leftTrigger({
+            id: "serra-paragon-granted-exile",
+            oracleText:
+                "When this permanent is put into a graveyard from the battlefield, exile it and you gain 2 life.",
+            scope: "self",
+            toZone: "graveyard",
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { ref: "$event.card" },
+                    to: "exile",
+                },
+                { op: "gainLife", player: "controller", amount: 2 },
+            ],
+        }),
+    ],
+}));

@@ -222,6 +222,10 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         castableFromGraveyardUntilTurn: 23,
         castFromGraveyardWithoutPayingManaCost: true,
         castFromGraveyardExilesOnResolve: true,
+        graveyardPermissionRider: {
+            sourceCardId: "def-serra",
+            abilityId: "rider-1",
+        },
         castSpellInGraveyard: true,
         exiledBySourceId: "src-12",
         grantedFlashback: { R: 1 },
