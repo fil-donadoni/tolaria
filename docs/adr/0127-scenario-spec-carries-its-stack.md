@@ -209,7 +209,7 @@ is now a `stack-not-lowerable` blocker beside `pendingCast` /
 
 Issue #5525 closed the one structural refusal the declared stack kept:
 `stack-mid-resolution`, fired on any object partway through resolving
-(CR 608.3). Every Bot answer to a Pending Choice raised during a resolution —
+(CR 608.2). Every Bot answer to a Pending Choice raised during a resolution —
 a sacrifice, a discard, a tutor pick, a may-pay — sat behind it, and those are
 the decisions where the Evaluation's preference is cheapest to judge.
 
@@ -243,7 +243,7 @@ Three decisions, following the ones above.
 
 3. **The residue is a `stack-not-lowerable` blocker named by field, not a
    kind.** `pendingChoices` — a choice with no checkpointed object behind it (an
-   imperative `resolve()` body re-runs whole on resume, CR 608.3; a stackless
+   imperative `resolve()` body re-runs whole on resume, CR 608.2; a stackless
    entry choice); `resolutionStep` — a checkpoint on a non-top object or with
    no choice of its own outstanding; `collectedChoices:<key>` — an answer whose
    key names no declared binding (an Op's fixed choice id such as
@@ -252,7 +252,7 @@ Three decisions, following the ones above.
    never reused (the frozen-union rule in `lowering.ts`).
    A suspended TRIGGERED ability always refuses today, through
    `abilityResolutionRecorded` (not allowlisted — re-recording on resume would
-   double-count CR 603.3's per-turn tally), so the checkpoint lowers spells and
+   double-count the per-turn resolution tally), so the checkpoint lowers spells and
    activated abilities; the trigger case is counted under that field.
 
 Measured on the default sweep protocol (mono-red-burn vs channel-fireball, six

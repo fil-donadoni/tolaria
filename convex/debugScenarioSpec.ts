@@ -532,7 +532,7 @@ export const scenarioTriggerEventValidator = v.object({
 });
 
 /**
- * CR 608.2 / 608.3 (issue #5525) — the resolution checkpoint of the TOP object
+ * CR 608.2 (issue #5525) — the resolution checkpoint of the TOP object
  * on the declared stack: `step` is `StackItem.resolutionStep` (a `resolveSteps`
  * index, or an Effect Script's pre-order Op position), `collected` is
  * `StackItem.collectedChoices` with every id in it lowered to the spec's
@@ -624,7 +624,7 @@ export const scenarioStackItemValidator = v.object({
      *  the 0-based position among same-named permanents on `sourceSeat`'s
      *  battlefield. Omitted means 0. */
     sourceNth: v.optional(v.number()),
-    /** CR 608.2 / 608.3 (issue #5525) — the TOP object only: its resolution
+    /** CR 608.2 (issue #5525) — the TOP object only: its resolution
      *  is suspended on a Pending Choice. The rebuild seeds the checkpoint and
      *  RESUMES the resolution, so the checkpointed step re-raises the same
      *  choice against the rebuilt board; the choice itself is never declared.
@@ -1183,7 +1183,7 @@ export type ScenarioTriggerEvent = {
     fields?: Record<string, ScenarioEventValue>;
 };
 
-/** CR 608.2 / 608.3 (issue #5525) — where the TOP object's resolution stopped
+/** CR 608.2 (issue #5525) — where the TOP object's resolution stopped
  *  and the answers it had already collected. See
  *  `scenarioResolutionCheckpointValidator`. */
 export type ScenarioResolutionCheckpoint = {
@@ -2084,7 +2084,7 @@ function normalizeStackItem(raw: unknown): ScenarioStackItem | undefined {
         if (lowered.some((entry) => entry === undefined)) return undefined;
         if (lowered.length > 0) targets = lowered as ScenarioStackTarget[];
     }
-    // CR 608.3 (issue #5525) — a checkpoint that is present but malformed
+    // CR 608.2 (issue #5525) — a checkpoint that is present but malformed
     // drops the ROW, like a malformed event does: a stack rebuilt without the
     // checkpoint resolves from the top and is a different position.
     let resolution: ScenarioResolutionCheckpoint | undefined;
@@ -2104,7 +2104,7 @@ function normalizeStackItem(raw: unknown): ScenarioStackItem | undefined {
     return item;
 }
 
-/** CR 608.2 / 608.3 (issue #5525) — a declared resolution checkpoint, read
+/** CR 608.2 (issue #5525) — a declared resolution checkpoint, read
  *  off a raw stored row. */
 function normalizeResolutionCheckpoint(
     raw: unknown

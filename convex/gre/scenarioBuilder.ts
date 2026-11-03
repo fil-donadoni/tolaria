@@ -2320,7 +2320,7 @@ function seedDeclaredStack(
         state.stack.push(spell);
     });
 
-    // CR 608.2 / 608.3 (issue #5525) — the resolution checkpoint, seeded onto
+    // CR 608.2 (issue #5525) — the resolution checkpoint, seeded onto
     // the item it was declared on once EVERY item is placed, because a
     // collected answer may name any object on the board or lower on the
     // stack — and, for a spell's implicit `$source`, the item itself. The
@@ -3783,7 +3783,7 @@ export const STACK_DROPPED_PREFIX = "stack:";
  * `targetAmounts`, `illegalTargetSlots`, `castCopySnapshot`, `delayedEffects`,
  * `sourceLki`, and every other announcement field.
  *
- * A fourth group, `resolutionStep` / `collectedChoices` (CR 608.3, issue
+ * A fourth group, `resolutionStep` / `collectedChoices` (CR 608.2, issue
  * #5525), is allowlisted because `lowerStack` lowers the pair EXPLICITLY —
  * into the top entry's `resolution` checkpoint, answer by answer — and refuses
  * it by name wherever it cannot (a non-top object, answers with no checkpoint,
@@ -4076,7 +4076,7 @@ function lowerStack(
     // suspension point of the TOP object's checkpointed resolution: the
     // rebuild re-runs the checkpointed step and the choice regenerates. A
     // choice with no checkpoint behind it — an imperative `resolve()` body
-    // (re-run whole on resume, CR 608.3), a stackless entry choice — or one
+    // (re-run whole on resume, CR 608.2), a stackless entry choice — or one
     // belonging to an object below the top has no step to resume from, and
     // is a blocker in the stack vocabulary so the sweep counts it by field.
     const pending = state.pendingChoices ?? [];
@@ -4096,7 +4096,7 @@ function lowerStack(
         dropped.push(
             `${STACK_DROPPED_PREFIX} ${pending.length} choice(s) awaiting input: ${
                 top === undefined || top.resolutionStep === undefined
-                    ? "the resolution that raised them has no checkpoint (an imperative resolve() body, or a stackless entry choice) — a rebuild would re-run it from its first statement (CR 608.3)"
+                    ? "the resolution that raised them has no checkpoint (an imperative resolve() body, or a stackless entry choice) — a rebuild would re-run it from its first statement (CR 608.2)"
                     : "a choice belongs to an object that is not the top of the stack (CR 608.1)"
             }`
         );
@@ -4299,7 +4299,7 @@ function lowerStack(
             }
         }
 
-        // CR 608.2 / 608.3 (issue #5525) — the resolution checkpoint. Only the
+        // CR 608.2 (issue #5525) — the resolution checkpoint. Only the
         // TOP object resolves (CR 608.1), and only one suspended on its own
         // Pending Choice has a step a rebuild can resume from; everything
         // else that carries a checkpoint or collected answers is refused per
@@ -4327,7 +4327,7 @@ function lowerStack(
                     index,
                     label,
                     "collectedChoices",
-                    "it carries collected answers with no checkpoint — an imperative resolve() body re-runs whole on resume (CR 608.3), so the answers have no step to belong to"
+                    "it carries collected answers with no checkpoint — an imperative resolve() body re-runs whole on resume (CR 608.2), so the answers have no step to belong to"
                 );
             } else if (!resumable) {
                 refuse(
@@ -4355,7 +4355,7 @@ function lowerStack(
                             index,
                             label,
                             field,
-                            `its collected answer "${field.slice("collectedChoices:".length)}" names an object the spec cannot place, or belongs to a binding whose family its script does not declare (CR 608.3)`
+                            `its collected answer "${field.slice("collectedChoices:".length)}" names an object the spec cannot place, or belongs to a binding whose family its script does not declare (CR 608.2)`
                         );
                     }
                 }

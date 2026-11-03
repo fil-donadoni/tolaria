@@ -80,13 +80,12 @@ export const QUIZ_SEAT = "me" as const;
  * constrains each element to be a kind but never requires every kind to be
  * PRESENT — so a ninth member added to the union alone keeps `tsc` green while
  * `LoweringSweepTally` seeds no counter for it and the whole refusals cell
- * becomes `NaN` on the first decision that hits it (PR review, issue #3461).
+ * becomes `NaN` on the first decision that hits it (PR review).
  *
  * A retired member's NAME is never reused: a historical sweep table counting
- * it would then mean two different things. `stack-not-journalled` (issue
- * #3480) is gone with the journal, and its two successors below are new names
- * (issue #3514). `stack-mid-resolution` (an object partway through resolving,
- * CR 608.3) retired with issue #5525: the spec now carries the top object's
+ * it would then mean two different things. `stack-not-journalled` is gone
+ * with the journal, and its two successors below are new names. `stack-mid-resolution` (an object partway through resolving,
+ * CR 608.2) retired once the spec carries the top object's
  * resolution checkpoint, and what it still cannot carry — a choice with no
  * checkpoint behind it, a collected answer the spec cannot place — is a
  * `stack-not-lowerable` blocker named by field (`pendingChoices`,
@@ -247,7 +246,7 @@ export function lowerDecision(
     // against the live one move for move. A turn holder that failed to survive
     // shows up there as sorcery-speed moves the live list never had.
 
-    // CR 608.3 (issue #5525) — an object PARTWAY through resolving used to be
+    // CR 608.2 (issue #5525) — an object PARTWAY through resolving used to be
     // its own structural refusal here, before the lowering ran. The spec now
     // carries the top object's resolution checkpoint (`spec.stack[].
     // resolution`) and the rebuild resumes it, so a decision answering a

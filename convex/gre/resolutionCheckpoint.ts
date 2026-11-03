@@ -1,4 +1,4 @@
-// CR 608.2 / 608.3 (issue #5525) — the RESOLUTION CHECKPOINT of an object on
+// CR 608.2 (issue #5525) — the RESOLUTION CHECKPOINT of an object on
 // the stack, lowered into a `ScenarioSpec` and rebuilt from one.
 //
 // An object partway through resolving carries two facts a declared stack did

@@ -1,4 +1,4 @@
-// CR 608.2 / 608.3 (issue #5525) — a Bot decision answering a Pending Choice
+// CR 608.2 (issue #5525) — a Bot decision answering a Pending Choice
 // raised DURING a resolution lowers into a scenario spec whose rebuild resumes
 // the same resolution and re-raises the same choice, so the quiz can judge it.
 //
