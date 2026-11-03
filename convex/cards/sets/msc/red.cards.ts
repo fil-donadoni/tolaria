@@ -24,8 +24,13 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 //   is 0 and the trigger announces nothing. "Any target" (CR 115.4) admits
 //   creatures, players, planeswalkers and battles. `forEach { set: "targets" }`
 //   deals the damage to every announced target (CR 120.3), the amount being
-//   Batroc's EFFECTIVE power (CR 613, counters included). Damage is dealt by
-//   Batroc as the source (CR 120.1), so `source` names him.
+//   Batroc's EFFECTIVE power (CR 613, counters included). The damage source
+//   is the resolving trigger, i.e. Batroc (CR 120.1); no `source` key needed.
+//
+// DIVERGENCE (tracked-by: #1417): `{ ref: "$source.power" }` reads the LIVE
+// binding with no last-known-information fallback, so if Batroc leaves the
+// battlefield in response to his trigger it deals 0 instead of his last known
+// power (CR 608.2h). Same gap as Gau, Feral Youth (`fic/red.cards.ts`).
 // hand-tail: Batroc enters with a +N/+N counter on him for each time he was kicked (#7226)
 // hand-tail: When Batroc enters (#7226)
 export const batrocTheLeaper = defineCard(() => ({
