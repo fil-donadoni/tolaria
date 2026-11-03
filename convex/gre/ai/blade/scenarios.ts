@@ -18078,15 +18078,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // CR 702.171a/b — Saddle N. The Mount's own attack trigger reads the
         // saddled designation: unsaddled, its controller loses life equal to
         // the revealed card's mana value; saddled, the opponent does. The two
-        // saddlers are summoning-sick, so tapping them costs no attack, and
-        // every library card has mana value 4: saddling turns a self-drain
-        // into a drain of the opponent.
-        label: "saddles its Mount before attacking when the saddlers cannot attack",
+        // saddlers could attack instead, so saddling has a real price (their
+        // 4 damage), paid back only by the designation's payoff.
+        label: "saddles its Mount rather than attack with the saddlers when the drain outweighs their damage",
         classification: {
             kind: "conditional",
             discriminant: {
                 kind: "card",
-                detail: "a Mount whose attack trigger pays off being saddled, with idle saddlers",
+                detail: "a Mount whose attack trigger pays off being saddled",
             },
         },
         spec: {
@@ -18101,13 +18100,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     name: "Grizzly Bears",
                     owner: "me",
                     zone: "battlefield",
-                    summoningSick: true,
+                    summoningSick: false,
                 },
                 {
                     name: "Grizzly Bears",
                     owner: "me",
                     zone: "battlefield",
-                    summoningSick: true,
+                    summoningSick: false,
                 },
                 { name: "Hill Giant", owner: "me", zone: "library" },
                 { name: "Hill Giant", owner: "me", zone: "library" },
@@ -18127,6 +18126,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             moves: [{ kind: "activate-ability", card: "Caustic Bronco" }],
         },
-        note: "Issue #2088 — the `becomeSaddled` Op (OP_VALUERS + OP_BENEFICENCE) and Saddle's tap-other cost (the owed-payment park the Brain realises). Passing to combat attacks with an unsaddled Bronco and costs the bot 4 life; saddling first moves those 4 life onto the opponent at the price of tapping two creatures that could not attack anyway.",
+        note: "Issue #2088 — the `becomeSaddled` Op and Saddle's tap-other cost (the owed-payment park the Brain realises). Attacking with all three creatures deals 6 and costs the bot 4 life (Bronco unsaddled, every library card has mana value 4); saddling with both Bears first deals 2 and drains 4 — the same 6 to the opponent, and the bot keeps its 4 life. Only the saddled designation tells the two lines apart: with `becomeSaddled` made a no-op, saddling just throws away 4 damage.",
     },
 ];
