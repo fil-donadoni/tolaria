@@ -156,7 +156,14 @@ describe("reconcileRevertCrLedger on a real revert (issue #7965)", () => {
         });
     });
 
-    afterEach(() => rmSync(repo, { recursive: true, force: true }));
+    afterEach(() =>
+        rmSync(repo, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
 
     it("the revert of a culprit that confirmed a citation passes the only-shrinks check", () => {
         const culprit = commit("culprit", {
