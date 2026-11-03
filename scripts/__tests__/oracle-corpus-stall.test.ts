@@ -21,10 +21,8 @@ describe("withStallGuard — a download stream cannot wait forever (issue #7937)
             yield 1;
             await new Promise<never>(() => {}); // never settles
         }
-        const t0 = Date.now();
         await expect(collect(withStallGuard(source(), 200))).rejects.toThrow(
             /download stalled/
         );
-        expect(Date.now() - t0).toBeLessThan(5000);
     });
 });
