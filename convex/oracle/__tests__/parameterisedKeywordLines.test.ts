@@ -1,6 +1,6 @@
 // Parameterised keyword lines on implemented keywords (issue #7214):
-// Equip (CR 702.6a), Crew (CR 702.122a), Ninjutsu (CR 702.49a), Offspring
-// (CR 702.175a).
+// Equip (CR 702.6a), Crew (CR 702.122a), Saddle (CR 702.171a), Ninjutsu
+// (CR 702.49a), Offspring (CR 702.175a).
 //
 // Three layers, each watching a different way a parameterised keyword goes
 // wrong:
@@ -197,6 +197,81 @@ describe("Crew N (CR 702.122a)", () => {
                 power,
                 toughness,
                 oracleText: "Crew 2",
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+});
+
+describe("Saddle N (CR 702.171a)", () => {
+    const SADDLE_LINE =
+        "Saddle 3 (Tap any number of other creatures you control with total power 3 or more: This Mount becomes saddled until end of turn. Saddle only as a sorcery.)";
+
+    // No corpus Mount compiles whole yet (every one prints a trigger this
+    // grammar does not read), so the golden is Caustic Bronco's real Saddle
+    // line on its own type line, as the Equip golden above does.
+    it("Caustic Bronco's Saddle 3: the catalogue's own `saddleAbility`, plus the keyword", () => {
+        expect(
+            compiled(
+                oracleCard({
+                    name: "Caustic Bronco",
+                    manaCost: "{1}{B}",
+                    typeLine: "Creature — Snake Horse Mount",
+                    power: "2",
+                    toughness: "2",
+                    oracleText: SADDLE_LINE,
+                })
+            )
+        ).toEqual({
+            name: "Caustic Bronco",
+            types: ["Creature"],
+            subtypes: ["Snake", "Horse", "Mount"],
+            manaCost: { X: 1, B: 1 },
+            oracleText: SADDLE_LINE,
+            power: 2,
+            toughness: 2,
+            staticAbilities: ["saddle 3"],
+            activatedAbilities: [
+                {
+                    id: "caustic-bronco-saddle",
+                    oracleText: SADDLE_LINE,
+                    cost: {
+                        tapOtherFilter: {
+                            filter: {
+                                types: "Creature",
+                                controllerRelation: "you",
+                            },
+                            totalPower: 3,
+                        },
+                    },
+                    useStack: true,
+                    sorcerySpeedOnly: true,
+                    effects: [
+                        { op: "becomeSaddled", target: { ref: "$source" } },
+                    ],
+                },
+            ],
+        });
+    });
+
+    it.each([
+        ["Saddle 0", "Saddle 0"],
+        ["a variable saddle", "Saddle X"],
+    ])("REFUSES %s", (_why, line) => {
+        expect(readLine(line).ok).toBe(false);
+    });
+
+    it.each([
+        ["a non-Mount creature", "Creature — Horse"],
+        ["a non-creature Mount", "Artifact — Mount"],
+    ])("REFUSES saddle on %s", (_why, typeLine) => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Saddled Thing",
+                typeLine,
+                power: "2",
+                toughness: "2",
+                oracleText: "Saddle 2",
             })
         );
         expect(outcome.state).toBe("unparsed");

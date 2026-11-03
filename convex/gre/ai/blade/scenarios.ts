@@ -18074,4 +18074,59 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #7525 — the `declineManaCostReplacement` Move variant (`gre/moves.ts` library-top block). Without it the only cast is the Citadel's 4-life payment at 4 life.",
     },
+    {
+        // CR 702.171a/b — Saddle N. The Mount's own attack trigger reads the
+        // saddled designation: unsaddled, its controller loses life equal to
+        // the revealed card's mana value; saddled, the opponent does. The two
+        // saddlers are summoning-sick, so tapping them costs no attack, and
+        // every library card has mana value 4: saddling turns a self-drain
+        // into a drain of the opponent.
+        label: "saddles its Mount before attacking when the saddlers cannot attack",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Mount whose attack trigger pays off being saddled, with idle saddlers",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Caustic Bronco",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                { name: "Hill Giant", owner: "me", zone: "library" },
+                { name: "Hill Giant", owner: "me", zone: "library" },
+                { name: "Hill Giant", owner: "me", zone: "library" },
+                { name: "Hill Giant", owner: "me", zone: "library" },
+                { name: "Hill Giant", owner: "me", zone: "library" },
+                { name: "Hill Giant", owner: "me", zone: "library" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Caustic Bronco" }],
+        },
+        note: "Issue #2088 — the `becomeSaddled` Op (OP_VALUERS + OP_BENEFICENCE) and Saddle's tap-other cost (the owed-payment park the Brain realises). Passing to combat attacks with an unsaddled Bronco and costs the bot 4 life; saddling first moves those 4 life onto the opponent at the price of tapping two creatures that could not attack anyway.",
+    },
 ];
