@@ -94,6 +94,7 @@ import {
     getPlayer,
     emitSpellCastEvent,
     processPendingActionTriggers,
+    payLifeCost,
 } from "./state";
 import {
     additionalCostHandLeg,
@@ -357,7 +358,8 @@ export function applyAdditionalCostLegForSearch(
     const announcedXDiscard = spec.discard?.count === "X";
     if (!legId && !announcedXDiscard) return;
     // CR 119.4 — the life leg. SBAs run at the end of the cast-spell case.
-    if (legId && spec.payLife && spec.payLife > 0) player.life -= spec.payLife;
+    if (legId && spec.payLife && spec.payLife > 0)
+        payLifeCost(state, player, spec.payLife);
     // CR 701.9 — the discard leg. The cast card itself is never eligible
     // (CR 601.2a): it is excluded by name here because it has not left hand yet
     // on this sandbox path.
@@ -1040,11 +1042,11 @@ export function applyActivationCostsForSearch(
     payLoyaltyCost(src, ability);
     // CR 119.4 — the life leg (fetchland-style "Pay N life", Griselbrand).
     if (ability.cost.life !== undefined && payer) {
-        payer.life -= ability.cost.life;
+        payLifeCost(state, payer, ability.cost.life);
     }
     // CR 107.4f — the Phyrexian pips paid with life (the mana-paid ones rode
     // the tap plan, applied by the caller).
-    if (phyrexianLife > 0 && payer) payer.life -= phyrexianLife;
+    if (phyrexianLife > 0 && payer) payLifeCost(state, payer, phyrexianLife);
     // CR 118 / 122.1c — the counter-removal leg (Thallid's three spore
     // counters), through the shared affordability authority. The payability
     // CHECK happened before any mutation (see the guard above `src.isTapped`),
@@ -1445,7 +1447,7 @@ export function commitCastInSearch(
     // time). The mana-paid pips are already in `tapPlan`; an uncharged
     // `payLife` makes any life-paying variant free.
     if (move.payLife && move.payLife > 0) {
-        player.life -= move.payLife;
+        payLifeCost(state, player, move.payLife);
     }
     // CR 601.2b / 601.2h / 118.8 — pay the CASTER-CHOSEN additional cost leg
     // this Move announced ("discard a card or pay 3 life"). Paid BEFORE the
@@ -1843,7 +1845,7 @@ export function payGrantedAbilityInSearch(
     // CR 119.4 — the life leg, which the enumeration-time affordability gate
     // already vouched for.
     if (template.cost.life !== undefined) {
-        player.life -= template.cost.life;
+        payLifeCost(state, player, template.cost.life);
     }
     if (!template.useStack) {
         template.effect?.({
