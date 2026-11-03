@@ -532,6 +532,23 @@ export const scenarioTriggerEventValidator = v.object({
 });
 
 /**
+ * CR 608.2 / 608.3 (issue #5525) — the resolution checkpoint of the TOP object
+ * on the declared stack: `step` is `StackItem.resolutionStep` (a `resolveSteps`
+ * index, or an Effect Script's pre-order Op position), `collected` is
+ * `StackItem.collectedChoices` with every id in it lowered to the spec's
+ * reference vocabulary. The values reuse the event-field shapes because they
+ * are the same three things an answer store holds — a scalar, a player, an
+ * object; which shape each slot takes is decided by the binding's FAMILY
+ * (`gre/resolutionCheckpoint.ts`), never by the writer.
+ */
+export const scenarioResolutionCheckpointValidator = v.object({
+    step: v.number(),
+    collected: v.optional(
+        v.record(v.string(), v.array(scenarioEventValueValidator))
+    ),
+});
+
+/**
  * CR 405.1 (issue #3513, PRD #3397) — ONE object on the declared stack.
  *
  * A top-level array rather than a `zone: "stack"` on `ScenarioCard`, because an
@@ -607,6 +624,12 @@ export const scenarioStackItemValidator = v.object({
      *  the 0-based position among same-named permanents on `sourceSeat`'s
      *  battlefield. Omitted means 0. */
     sourceNth: v.optional(v.number()),
+    /** CR 608.2 / 608.3 (issue #5525) — the TOP object only: its resolution
+     *  is suspended on a Pending Choice. The rebuild seeds the checkpoint and
+     *  RESUMES the resolution, so the checkpointed step re-raises the same
+     *  choice against the rebuilt board; the choice itself is never declared.
+     *  See `scenarioResolutionCheckpointValidator`. */
+    resolution: v.optional(scenarioResolutionCheckpointValidator),
 });
 
 export const scenarioSpecValidator = v.object({
@@ -1160,6 +1183,14 @@ export type ScenarioTriggerEvent = {
     fields?: Record<string, ScenarioEventValue>;
 };
 
+/** CR 608.2 / 608.3 (issue #5525) — where the TOP object's resolution stopped
+ *  and the answers it had already collected. See
+ *  `scenarioResolutionCheckpointValidator`. */
+export type ScenarioResolutionCheckpoint = {
+    step: number;
+    collected?: Record<string, ScenarioEventValue[]>;
+};
+
 /** CR 405.1 (issue #3513, #3516) — one object on the declared stack. See
  *  `scenarioStackItemValidator` for the shape's rationale. */
 export type ScenarioStackItem = {
@@ -1174,6 +1205,7 @@ export type ScenarioStackItem = {
     castOffSorceryTiming?: boolean;
     castFromZone?: "exile" | "graveyard" | "library";
     sourceNth?: number;
+    resolution?: ScenarioResolutionCheckpoint;
 };
 
 export type ScenarioSpec = {
@@ -2052,6 +2084,14 @@ function normalizeStackItem(raw: unknown): ScenarioStackItem | undefined {
         if (lowered.some((entry) => entry === undefined)) return undefined;
         if (lowered.length > 0) targets = lowered as ScenarioStackTarget[];
     }
+    // CR 608.3 (issue #5525) — a checkpoint that is present but malformed
+    // drops the ROW, like a malformed event does: a stack rebuilt without the
+    // checkpoint resolves from the top and is a different position.
+    let resolution: ScenarioResolutionCheckpoint | undefined;
+    if (raw.resolution !== undefined) {
+        resolution = normalizeResolutionCheckpoint(raw.resolution);
+        if (resolution === undefined) return undefined;
+    }
     const item: ScenarioStackItem = { kind, name, controller };
     set(item, "abilityId", abilityId);
     set(item, "event", event);
@@ -2060,7 +2100,31 @@ function normalizeStackItem(raw: unknown): ScenarioStackItem | undefined {
     set(item, "targets", targets);
     set(item, "x", pickNumber(raw.x));
     set(item, "castOffSorceryTiming", pickBoolean(raw.castOffSorceryTiming));
+    set(item, "resolution", resolution);
     return item;
+}
+
+/** CR 608.2 / 608.3 (issue #5525) — a declared resolution checkpoint, read
+ *  off a raw stored row. */
+function normalizeResolutionCheckpoint(
+    raw: unknown
+): ScenarioResolutionCheckpoint | undefined {
+    if (!isRecord(raw)) return undefined;
+    const step = pickNumber(raw.step);
+    if (step === undefined) return undefined;
+    const checkpoint: ScenarioResolutionCheckpoint = { step };
+    if (raw.collected !== undefined) {
+        if (!isRecord(raw.collected)) return undefined;
+        const collected: Record<string, ScenarioEventValue[]> = {};
+        for (const [key, values] of Object.entries(raw.collected)) {
+            if (!Array.isArray(values)) return undefined;
+            const lowered = values.map((entry) => normalizeEventValue(entry));
+            if (lowered.some((value) => value === undefined)) return undefined;
+            collected[key] = lowered as ScenarioEventValue[];
+        }
+        checkpoint.collected = collected;
+    }
+    return checkpoint;
 }
 
 function normalizeContinuousEffect(

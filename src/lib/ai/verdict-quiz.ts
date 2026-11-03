@@ -151,17 +151,6 @@ type RefusalPresentation = {
  * the whole reason the kind is a frozen union rather than a string.
  */
 export const QUIZ_REFUSALS: Record<QuizRefusalKind, RefusalPresentation> = {
-    "stack-mid-resolution": {
-        // A structural gap, not a vocabulary one: the declared stack holds
-        // announced objects, never a half-resolved one, so no widening of the
-        // spec reaches this position.
-        title: "An object on the stack is partway through resolving",
-        // `null` like its unnamed neighbours, and not issue #3456 (closed by
-        // the journal): nothing open tracks this, and a tracking ref that
-        // names a CLOSED issue sends a tester to a thread that says the work
-        // is done.
-        trackedBy: null,
-    },
     "lowering-threw": {
         title: "This position could not be lowered into a scenario",
         trackedBy: null,

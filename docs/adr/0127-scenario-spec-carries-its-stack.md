@@ -204,3 +204,55 @@ a `dropped` note, so those positions rebuilt with the triggers simply gone. It
 is now a `stack-not-lowerable` blocker beside `pendingCast` /
 `pendingActivation`, which is what `midFlightPaymentBlockers` becoming
 `offStackObjectBlockers` records.
+
+## Amendment: the top object's resolution checkpoint (2026-11-03)
+
+Issue #5525 closed the one structural refusal the declared stack kept:
+`stack-mid-resolution`, fired on any object partway through resolving
+(CR 608.3). Every Bot answer to a Pending Choice raised during a resolution —
+a sacrifice, a discard, a tutor pick, a may-pay — sat behind it, and those are
+the decisions where the Evaluation's preference is cheapest to judge.
+
+Three decisions, following the ones above.
+
+1. **The checkpoint is declared; the Pending Choice is REPLAYED, never
+   declared.** The top entry gains `resolution: { step, collected? }` —
+   `StackItem.resolutionStep` and `collectedChoices`, nothing else. The engine's
+   own resume contract is "re-run the checkpointed step, which reads its answer
+   from `collectedChoices` or re-raises the same choice", so
+   `buildStateFromScenario` seeds the pair and calls `resolveTopOfStack` on the
+   finished board: the choice regenerates with its live candidate list on
+   reassigned ids, and `different-decision` proves the round trip move for
+   move. A `PendingChoice` has some fifteen fields and a kind taxonomy; a second
+   schema for it would drift. A checkpoint that resolves THROUGH instead of
+   re-suspending throws — a different position under the same spec.
+
+2. **A collected answer is classified by its binding's FAMILY, never by its
+   value.** The store is flat `string[]`, and an instance id is a plain numeral
+   (`allocInstanceId`): "2" is a power or the second object allocated, so no
+   value-level rule is fail-closed. `gre/resolutionCheckpoint.ts` reads the
+   family off the script's own declarations (`bindingDeclarationsOf`, the
+   authority the static validator types refs with): a `picks` binding is
+   instance ids, a `snapshot` has player ids at its controller and owner
+   slots and an object id at its id slot, `number` / `boolean` are scalars.
+   The implicit `$source` / `$host` are snapshots. Every id travels as the
+   event vocabulary's `ScenarioEventValue` (`object` by zone, name, seat and
+   `nth`; `player` by seat), with one widening: a spell's `$source` names the
+   resolving object ITSELF, a self-reference the event ports refuse, resolved
+   to the item's own index at both ends.
+
+3. **The residue is a `stack-not-lowerable` blocker named by field, not a
+   kind.** `pendingChoices` — a choice with no checkpointed object behind it (an
+   imperative `resolve()` body re-runs whole on resume, CR 608.3; a stackless
+   entry choice); `resolutionStep` — a checkpoint on a non-top object or with
+   no choice of its own outstanding; `collectedChoices:<key>` — an answer whose
+   key names no declared binding (an Op's fixed choice id such as
+   `dig-to-hand`, the scry's `order-top-<item id>`, an ambiguous name) or an
+   object the spec cannot place. `stack-mid-resolution` retires; its name is
+   never reused (the frozen-union rule in `lowering.ts`).
+
+Measured on the default sweep protocol (mono-red-burn vs channel-fireball, six
+games, seeds 1..6, 60 iterations) the corpus is unchanged — 300 of 2322
+decisions judgeable before and after, `stack-mid-resolution` 0 on that pair,
+which raises no in-resolution choice. The gain is structural: the class is
+reachable, and what stays out is counted under the fields above.

@@ -76,9 +76,17 @@ export function stackFingerprint(state: GameState, seatOf: SeatOf): string[] {
         const targets = (item.targets ?? [])
             .map((target) => targetLabel(state, target, seatOf))
             .join(", ");
+        // CR 608.3 (issue #5525) — a checkpointed resolution is part of what
+        // the object IS: a rebuild that placed the spell announced instead of
+        // suspended at step N would resolve it from the top. Appended only
+        // when present, so an announced object's fingerprint is unchanged.
+        const step =
+            item.resolutionStep !== undefined
+                ? ` step=${item.resolutionStep}`
+                : "";
         return `${seat} ${nameOf(item)} ${kind} targets[${targets}] x=${
             item.chosenX ?? "-"
-        }`;
+        }${step}`;
     });
 }
 

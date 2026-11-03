@@ -1962,9 +1962,14 @@ describe("specFromState (issue #2148)", () => {
         for (const field of ["librarySearch", "libraryPeek", "revealedHand"]) {
             expect(dropped.some((d) => d.includes(field))).toBe(false);
         }
-        // The choice itself is genuinely unlowerable and SHOULD still be
-        // reported — this test only guards against the spurious extra.
-        expect(dropped.some((d) => d.startsWith("pendingChoices:"))).toBe(true);
+        // The choice itself is genuinely unlowerable (no checkpointed object
+        // on the stack raised it, issue #5525) and SHOULD still be reported —
+        // this test only guards against the spurious extra.
+        expect(
+            dropped.some(
+                (d) => d.startsWith("stack:") && d.includes("awaiting input")
+            )
+        ).toBe(true);
     });
 });
 
