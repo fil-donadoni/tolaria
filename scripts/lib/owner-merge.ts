@@ -7,7 +7,7 @@
  * never a second copy of the protected-path list.
  */
 import { READY_LABEL } from "./land-labels";
-import { handsToQueue } from "./land-runner";
+import { handsToQueue } from "./queue-hand-off";
 import { trustedAuthorStatus, type GatePr } from "./pr-gate";
 
 export type OwnerMergeDecision =

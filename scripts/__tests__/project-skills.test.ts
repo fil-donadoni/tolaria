@@ -388,27 +388,16 @@ describe("next-ticket consumes the planner (issue #2184, re-homed by ADR 0110)",
         expect(laneSrc).toContain('"--plan"');
     });
 
-    it("§6 reports the handed-off PR; the runner carries `land`'s lane receipt onto it (ADR 0136 §2, issues #3781, #5469)", () => {
-        // Which lane paid for the landed tree — and whether it was paid at
-        // all — is the one line of the flow a reader cannot reconstruct
-        // afterwards. `land` prints it. Since issue #5469 the pass ends
-        // before the landing, so §6 reports the PR and the land-runner
-        // comments the receipt on the merged PR (`mergedComment`).
+    it("§6 reports the handed-off PR, never a lane receipt (ADR 0136 §2, issues #3781, #5469)", () => {
+        // Since issue #5469 the pass ends before the landing, so §6 reports
+        // the PR handed off as `ready-to-land`, never a lane line — the
+        // queue's `queue-lane` pays the lane. `land`, still the one path
+        // `/health-fix` lands a repair by, prints the receipt itself.
         const text = body();
         expect(text.indexOf("## 6. Report")).toBeGreaterThan(-1);
         const section = fileTail(text, "## 6. Report");
         expect(section).toMatch(/ready-to-land/);
         expect(section).not.toMatch(/lane: ran/);
-        const runnerLib = fs.readFileSync(
-            path.join(REPO_ROOT, "scripts", "lib", "land-runner.ts"),
-            "utf8"
-        );
-        expect(runnerLib).toMatch(/lane: \(ran\|skipped/);
-        const runnerSrc = fs.readFileSync(
-            path.join(REPO_ROOT, "scripts", "land-runner.ts"),
-            "utf8"
-        );
-        expect(runnerSrc).toContain("mergedComment(");
 
         const landSrc = fs.readFileSync(
             path.join(REPO_ROOT, "scripts", "land.ts"),

@@ -1,8 +1,9 @@
 # Land and release
 
 **The whole delivery path, in order: a worktree off the [base branch](#g-base-branch),
-a PR handed to its merger (the Mergify queue, or the land-runner for a PR the
-queue would refuse, issue #5952), which pays the [lane gate](#g-lane-gate),
+a PR handed to its merger (the Mergify queue, or the owner's
+`bun run merge:manual` for a PR the queue would refuse, issue #5952), which
+pays the [lane gate](#g-lane-gate),
 once — and, when a human decides, `release`.** Six commands. Everything else in the repository's workflow tooling serves one of
 them or is history.
 
@@ -12,23 +13,19 @@ cd "$(bun run --silent wt:new <N>)"   # 1. worktree off origin/<base>   (--fix f
 git add -A && git commit               # 3. commit
 git push -u origin feat/issue-<N>      # 4. no pre-PR gate (ADR 0136 §1)
 gh pr create                           # 5. base = the base branch (GitHub default), no --base
-bun run land:ready <PR#>               # 6. hand off: the queue (or the land-runner) rebases, gates, merges
+bun run land:ready <PR#>               # 6. hand off: the merge queue rebases, gates, merges
 ```
 
 Since issue #5469 a session never runs step 6's `land` itself (`deny-guard.sh`
-§ 8): `land:ready` labels the PR `ready-to-land` and the **land-runner** — one
-`bun run land:runner` on the MacBook, started by `bun run loop:afk --start` or
-its launchd agent (`scripts/runner-units/com.tolaria.land-runner.plist`) —
-runs `land` in the PR's worktree, oldest PR first. A red `land` relabels the
-PR `land-failed` with the lane excerpt as a comment; `queue:plan` makes it a
-repair pick. **Where a failure shows up** (issue #5599): the owner
-notification (`notifyOwner`: `TOLARIA_NOTIFY_CMD`, else the desktop notifier),
-one per burst of ticks with PRs of the same cause coalesced and a repeated cause
-called out as "likely infra, not the PRs"; the `land-failed` label with the
-runner's comment on the PR; and the logs,
-`.claude/telemetry/land-runner/runner.log` plus `land-<PR>.log` for the detail.
-The sections below are what `land` does when the runner — or an
-owner, with `TOLARIA_LAND_RUNNER=1` — runs it.
+§ 8): `land:ready` labels the PR `ready-to-land` and the **Mergify queue**
+(ADR 0156, cut over in issue #5643) rebases it in a draft, runs `check:lane`
+there (`queue-lane`) and merges. A red lane relabels the PR `land-failed` with
+the reason as a comment; `queue:plan` makes it a repair pick
+([GitHub pipeline](github-pipeline.md) is the queue's whole story). The
+land-runner that ran `land` for every PR before the cut-over was deleted
+(issue #5654). `land` itself stays for one caller: `/health-fix` lands a RED
+repair through it, with `TOLARIA_LAND_RUNNER=1` (the `deny-guard.sh` § 8
+hatch). The sections below are what `land` does then.
 
 ```bash
 cd /Users/filippo/code/mtg/tolaria     # the primary checkout, on the release branch
@@ -110,7 +107,7 @@ when owed, a `## Preset scenario` fence for
 any `convex/{cards/sets,gre}` change (or "none owed"), the Bot reachability
 outcome, proof-of-failure receipts for new guarding tests.
 
-### 6. `land <PR#>` — what the land-runner runs, from the PR's worktree
+### 6. `land <PR#>` — what `/health-fix` runs, from the PR's worktree
 
 Refuses, named, before taking any lock:
 
@@ -175,8 +172,8 @@ A `pr-merge.ts` retry or a hand merge (`merge:manual`) leaves nothing owing
 since the queue cut-over (issue #5643, issue #6473): `post-merge.yml` fires on
 every push to the base and runs the seed, the fast-forward, the worktree
 teardown and telemetry, whoever merged. This mode is for a PR whose
-post-merge run itself failed or was lost, and `land` is the runner's, never a
-session's (`deny-guard.sh`, issue #5469).
+post-merge run itself failed or was lost, and `land` runs only through the
+`deny-guard.sh` § 8 hatch, never as a session's own landing (issue #5469).
 
 **Run it from anywhere, the primary checkout included** (issue #4378):
 

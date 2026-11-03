@@ -417,8 +417,7 @@ that was gated. A merge typed by hand takes no lock: \`main\` moves under whoeve
 is mid-gate, and their verified tree is no longer the one landing.
 
   bun run land:ready <PR#>  # a session labels its PR \`ready-to-land\` (§ 8); the
-                            # land-runner, until the merge queue replaces it
-                            # (ADR 0156), runs \`bun run land <PR#>\`
+                            # merge queue (ADR 0156) rebases, gates and merges it
 
 If \`land\` already gated and pushed and only the MERGE failed, retry just the
 merge — it never re-runs the suite:
@@ -1023,23 +1022,24 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. A session never runs `land` — it hands its PR off `ready-to-land`.
 #
-# (Issue #5641, ADR 0156: the label is the whole hand-off; the land-runner reads
-# it today and the merge queue will, once the landing stack is deleted. Inside
-# an `afk-pass` job the session still ends at `land:ready`.)
+# (Issue #5641, ADR 0156: the label is the whole hand-off; the merge queue reads
+# it — the land-runner that read it first was deleted, issue #5654. Inside an
+# `afk-pass` job the session still ends at `land:ready`.)
 #
 # Landing is asynchronous (issue #5469, ADR 0154 topology B'): a session ends
 # at push + `bun run land:ready <PR#>` (label `ready-to-land`, claim
-# `pr-open`), and ONE land-runner on the MacBook serializes rebase → lane →
-# merge. A session that runs `land` itself spends 8–9 of its ~35 minutes
-# polling it at a full-context message per poll, and makes the base branch a
-# second writer beside the runner.
+# `pr-open`), and the merge queue serializes rebase → lane → merge. A session
+# that runs `land` itself spends 8–9 of its ~35 minutes polling it at a
+# full-context message per poll, and makes the base branch a second writer
+# beside the queue.
 #
 # Denied as an INVOCATION — start of a segment or after a `|` (or a `(`),
 # env-var / `env` / `nohup` / `time` prefixes allowed —
 # `bun run [--flags] land`, through `gate:run` or any
 # `sh`/`bash` of `gate-run.sh`, or `bun [run] scripts/land.ts`; `land:ready`
-# and `land:runner` are other scripts and pass. The hatch is the runner's own env
-# var, in the SAME segment, so it names the one command it authorises:
+# is another script and passes. The hatch is an env var (named after the
+# retired land-runner, which set it), in the SAME segment, so it names the one
+# command it authorises:
 #   TOLARIA_LAND_RUNNER=1 bun run land <PR#>
 # (the owner asking for a landing by hand; `/health-fix`'s `--repair` with no
 # recorded repair issue).
@@ -1051,11 +1051,11 @@ if seg_has "$LAND_INVOKE" && ! seg_has 'TOLARIA_LAND_RUNNER=1' "$LAND_INVOKE"; t
   git push && bun run land:ready <PR#>
 
 labels the PR \`ready-to-land\` and moves the claim to \`pr-open\`; the landing
-side (the land-runner, then the merge queue) rebases, gates and merges it. A
+side (the merge queue) rebases, gates and merges it. A
 red landing comes back as \`land-failed\` + a comment, and the next pass picks
 it up as a repair.
 
-A landing by hand, on explicit request (the runner's own hatch):
+A landing by hand, on explicit request (the hatch):
   TOLARIA_LAND_RUNNER=1 bun run land <PR#>"
 fi
 

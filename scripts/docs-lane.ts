@@ -29,7 +29,7 @@
  *
  *   bun run wt:docs adr-0101      # worktree + branch off origin/<base> (tolaria.config.json)
  *   bun run check:docs            # the doc gate (also run by ship)
- *   bun run docs:ship             # gate, commit, push, PR, hand to the land-runner
+ *   bun run docs:ship             # gate, commit, push, PR, hand to the merge queue
  *   bun run docs:ship --no-merge  # …but leave the PR open for review, unqueued
  */
 import { spawnSync } from "node:child_process";
@@ -235,9 +235,9 @@ function fail(message: string): never {
     process.exit(1);
 }
 
-/** The hand-off verb (issue #5469): the docs PR goes to the land-runner like
- *  every other PR — `land`'s `docs` lane re-runs `check:docs` on the rebased
- *  tree under the mutex, so this lane takes no lock at all. */
+/** The hand-off verb (issue #5469): the docs PR goes to the merge queue like
+ *  every other PR — the queue draft's `docs` lane re-runs `check:docs` on
+ *  the rebased tree, so this lane takes no lock at all. */
 const LAND_READY = resolve(__dirname, "land-ready.ts");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -286,7 +286,7 @@ function cmdNew(rawSlug: string | undefined): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// `ship` — gate, PR, hand off to the land-runner
+// `ship` — gate, PR, hand off to the merge queue
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -409,12 +409,12 @@ function cmdShip(argv: string[]): void {
         );
     }
 
-    // The merge is the land-runner's (issue #5469): it rebases, re-runs the
-    // `docs` lane on the tree that lands, merges and tears this worktree down.
+    // The merge is the queue's (issue #5469): it rebases, re-runs the
+    // `docs` lane on the tree that lands and merges.
     // Nothing here waits on the heavy mutex any more.
     if (!run("bun", [LAND_READY, String(pr)], cwd)) {
         fail(
-            `the PR is open but could not be handed to the land-runner — re-run \`bun run land:ready ${pr}\`.`
+            `the PR is open but could not be handed to the merge queue — re-run \`bun run land:ready ${pr}\`.`
         );
     }
     console.log(

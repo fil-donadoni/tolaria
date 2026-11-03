@@ -2156,7 +2156,7 @@ describe("resident prose pruned to its hook — each denial names the fix (issue
     });
 });
 
-describe("deny-guard § 8 — a session hands its PR to the land-runner, never runs `land` (issue #5469)", () => {
+describe("deny-guard § 8 — a session hands its PR to the merge queue, never runs `land` (issue #5469)", () => {
     it.each([
         "bun run land 5469",
         "TOLARIA_GATE_RUN_KEY=land-5469 bun run gate:run land 5469",
@@ -2183,11 +2183,10 @@ describe("deny-guard § 8 — a session hands its PR to the land-runner, never r
 
     it.each([
         "bun run land:ready 5469",
-        "bun run land:runner --once --dry-run",
         "TOLARIA_LAND_RUNNER=1 bun run land 5469",
         'git commit -m "sessions no longer run bun run land 5469"',
     ])(
-        "allows land:ready, land:runner, the runner's hatch, and land quoted in a message: %s",
+        "allows land:ready, the hatch, and land quoted in a message: %s",
         (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(
