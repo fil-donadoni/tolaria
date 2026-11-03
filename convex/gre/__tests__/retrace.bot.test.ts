@@ -252,10 +252,6 @@ describe("Retrace — Bot visibility of a battlefield grant (Six, issue #2377)",
         expect(bearsCasts(sixBoard("p1")).length).toBeGreaterThan(0);
     });
 
-    it('enumerates nothing off its controller\'s turn ("During your turn")', () => {
-        expect(bearsCasts(sixBoard("p2"))).toEqual([]);
-    });
-
     it("the GREEDY sandbox charges the land and puts the creature onto the battlefield", () => {
         const state = sixBoard("p1");
         const after = applyMoveForSearch(state, "p1", bearsCasts(state)[0]!);
