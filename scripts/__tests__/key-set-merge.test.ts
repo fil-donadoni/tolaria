@@ -135,6 +135,97 @@ describe("mergeKeySetFile — rows keyed by `name` (issue #6648)", () => {
     });
 });
 
+describe("mergeKeySetFile — a JSON object keyed map (issue #7871)", () => {
+    // `data/pick-ratings/*.json`: `{ setCode, ratings: { <scryfallId>: n } }`.
+    // Every card PR appends its rating at the tail of `ratings`, so two PRs
+    // conflict as text (the last line's trailing comma moves) without
+    // disagreeing — PR #7811 went `land-failed` four times on it.
+    const file = (ratings: Record<string, number>, setCode = "cube") =>
+        `${JSON.stringify({ setCode, ratings }, null, 4)}\n`;
+
+    it("two tail appends merge cleanly: base order kept, new keys appended sorted", () => {
+        expect(
+            mergeKeySetFile(
+                file({ z: 3, a: 2 }),
+                file({ z: 3, a: 2, m: 4 }),
+                file({ z: 3, a: 2, b: 1.5 })
+            )
+        ).toEqual({ ok: true, text: file({ z: 3, a: 2, b: 1.5, m: 4 }) });
+    });
+
+    it("one side's change and the other's deletion both apply", () => {
+        expect(
+            mergeKeySetFile(
+                file({ a: 1, b: 2 }),
+                file({ a: 5, b: 2 }),
+                file({ a: 1 })
+            )
+        ).toEqual({ ok: true, text: file({ a: 5 }) });
+    });
+
+    it("both sides setting one key to the SAME value is not a conflict", () => {
+        expect(
+            mergeKeySetFile(file({ a: 1 }), file({ a: 2 }), file({ a: 2 }))
+        ).toEqual({ ok: true, text: file({ a: 2 }) });
+    });
+
+    it("both sides setting one key to DIFFERENT values is an error naming it", () => {
+        const r = mergeKeySetFile(
+            file({ a: 1 }),
+            file({ a: 2 }),
+            file({ a: 3 })
+        );
+        expect(r).toEqual({
+            ok: false,
+            error: 'key "ratings.a" changed differently on both sides',
+        });
+    });
+
+    it("a top-level scalar both sides changed differently is an error", () => {
+        expect(
+            mergeKeySetFile(
+                file({ a: 1 }),
+                file({ a: 1 }, "x"),
+                file({ a: 1 }, "y")
+            ).ok
+        ).toBe(false);
+    });
+
+    it.each(["base", "ours", "theirs"] as const)(
+        "a %s side that does not parse is an error",
+        (side) => {
+            const sides = {
+                base: file({ a: 1 }),
+                ours: file({ a: 1 }),
+                theirs: file({ a: 1 }),
+            };
+            sides[side] = "{ not json";
+            expect(
+                mergeKeySetFile(sides.base, sides.ours, sides.theirs).ok
+            ).toBe(false);
+        }
+    );
+
+    it("a side of another shape (array vs object) is an error", () => {
+        expect(mergeKeySetFile(file({ a: 1 }), "[]\n", file({ a: 1 })).ok).toBe(
+            false
+        );
+    });
+
+    it("every committed pick-ratings file is already in the canonical form", () => {
+        for (const name of ["lea.json", "vintage-cube.json"]) {
+            const t = readFileSync(
+                join(REPO_ROOT, "data", "pick-ratings", name),
+                "utf8"
+            );
+            expect(mergeKeySetFile(t, t, t), name).toEqual({
+                ok: true,
+                text: t,
+            });
+        }
+    });
+});
+
 describe("key-set merge driver (real git)", () => {
     let dir: string;
     let repo: string;
@@ -218,5 +309,35 @@ describe("key-set merge driver (real git)", () => {
         const r = divergeAndRebase("[ broken", text("a", "c", "d"));
         expect(r.status).not.toBe(0);
         spawnSync("git", ["rebase", "--abort"], { cwd: repo });
+    });
+
+    // Issue #7871 — PR #7811's shape: two card PRs each append a rating at
+    // the tail of `ratings`.
+    const ratings = (r: Record<string, number>) =>
+        `${JSON.stringify({ setCode: "cube", ratings: r }, null, 4)}\n`;
+
+    it("WITHOUT the driver, two tail appends to a ratings map conflict (the bug)", () => {
+        writeFileSync(join(repo, FILE), ratings({ z: 3, a: 2 }));
+        commit("ratings base");
+        const r = divergeAndRebase(
+            ratings({ z: 3, a: 2, m: 4 }),
+            ratings({ z: 3, a: 2, b: 1.5 })
+        );
+        expect(r.status).not.toBe(0);
+        spawnSync("git", ["rebase", "--abort"], { cwd: repo });
+    });
+
+    it("with the driver, two tail appends to a ratings map rebase cleanly", () => {
+        writeFileSync(join(repo, FILE), ratings({ z: 3, a: 2 }));
+        commit("ratings base");
+        useDriver();
+        const r = divergeAndRebase(
+            ratings({ z: 3, a: 2, m: 4 }),
+            ratings({ z: 3, a: 2, b: 1.5 })
+        );
+        expect(r.status, r.output).toBe(0);
+        expect(readFileSync(join(repo, FILE), "utf8")).toBe(
+            ratings({ z: 3, a: 2, b: 1.5, m: 4 })
+        );
     });
 });
