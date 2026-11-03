@@ -3,7 +3,8 @@
 // Cards are classified by the colour identity of their mana cost:
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import { defineCard } from "../../types";
+import { defineCard, type EffectOp } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 
@@ -73,5 +74,133 @@ export const sphinxOfFalseConclusions = defineCard(() => ({
                 },
             ],
         }),
+    ],
+}));
+
+/** Counter name of the CR 122.1d stun counter (`STUN_COUNTER` in
+ *  `gre/replacements.ts`, which a card module does not import). */
+const STUN = "stun";
+
+/** "tap up to that many target creatures and put a stun counter on each of
+ *  them" — the reflexive ability's body, over however many targets were
+ *  announced (CR 601.2c: 0 to the cap). */
+const TAP_AND_STUN_TARGETS: EffectOp[] = [
+    {
+        op: "forEach",
+        select: { set: "targets" },
+        effects: [
+            { op: "tapUntap", action: "tap", target: { ref: "$each" } },
+            {
+                op: "counters",
+                action: "add",
+                counter: STUN,
+                target: { ref: "$each" },
+                count: 1,
+            },
+        ],
+    },
+];
+
+/** A reflexive "When you discard one or more nonland cards this way" ability
+ *  announcing up to `max` target creatures (CR 603.12, CR 603.3d). */
+const reflexiveTapAndStun = (max: number): EffectOp => ({
+    op: "reflexiveTrigger",
+    oracleText:
+        "When you discard one or more nonland cards this way, tap up to that many target creatures and put a stun counter on each of them.",
+    targetRequirement: { type: "Creature", count: { min: 0, max } },
+    effects: TAP_AND_STUN_TARGETS,
+});
+
+/** The nonland cards the ETB's discard put into a graveyard (the Seasoned
+ *  Pyromancer count, `mh1/red.cards.ts`). */
+const NONLAND_DISCARDED = {
+    count: {
+        zone: "graveyard",
+        controller: "controller",
+        filter: { excludeType: "Land" },
+        picks: { ref: "$discarded" },
+    },
+} as const;
+
+// Seasoned Cryomancer — {1}{U}{U} Creature — Human Wizard 2/2 (FRA, issue
+// #7248, Vintage Cube). "When this creature enters, draw two cards, then
+// discard two cards. When you discard one or more nonland cards this way, tap
+// up to that many target creatures and put a stun counter on each of them.
+// {3}{U}{U}, Exile this card from your graveyard: Draw two cards."
+//
+// Seasoned Pyromancer's shape (`mh1/red.cards.ts`): a two-card `discard-hand`
+// pick bound as a Picks Binding, the `discard`, and a `count` construct over
+// that binding narrowed to nonland cards, read once after the discard
+// (CR 701.9, CR 608.2h). The second sentence is a REFLEXIVE trigger
+// (CR 603.12): its "up to that many" target count is fixed as it goes on the
+// stack (CR 603.3d, CR 601.2c) and a reflexive requirement cannot read the
+// resolving script's bindings, so the count is branched here — 2 or more
+// nonland discards announce up to two targets, exactly one announces up to
+// one (a discard of two never exceeds two). Stun counters are engine rules
+// (CR 122.1d, `applyUntapReplacements`). The graveyard ability exiles its own
+// source as the cost and functions only from the graveyard (CR 113.6m).
+// compiler-gap: When you discard one or more nonland cards this way, tap up to that many target creatures and put a stun counter on each of them (#7219)
+export const seasonedCryomancer = defineCard(() => ({
+    id: "51d86875-420d-4e82-b69c-4feeb99c9428",
+    name: "Seasoned Cryomancer",
+    rarity: "mythic",
+    oracleText:
+        "When this creature enters, draw two cards, then discard two cards. When you discard one or more nonland cards this way, tap up to that many target creatures and put a stun counter on each of them.\n{3}{U}{U}, Exile this card from your graveyard: Draw two cards.",
+    manaCost: { X: 1, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "seasoned-cryomancer-etb",
+            oracleText:
+                "When this creature enters, draw two cards, then discard two cards. When you discard one or more nonland cards this way, tap up to that many target creatures and put a stun counter on each of them.",
+            scope: "self",
+            effects: [
+                { op: "draw", player: "controller", count: 2 },
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: "controller",
+                    zone: "hand",
+                    count: 2,
+                    prompt: "Discard two cards.",
+                    bind: "$discarded",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discarded" },
+                },
+                {
+                    op: "if",
+                    predicate: { left: NONLAND_DISCARDED, op: "ge", right: 1 },
+                    then: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: NONLAND_DISCARDED,
+                                op: "ge",
+                                right: 2,
+                            },
+                            then: [reflexiveTapAndStun(2)],
+                            else: [reflexiveTapAndStun(1)],
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "seasoned-cryomancer-graveyard",
+            oracleText:
+                "{3}{U}{U}, Exile this card from your graveyard: Draw two cards.",
+            cost: { mana: { X: 3, U: 2 }, exileThis: true },
+            useStack: true,
+            activateFromGraveyard: true,
+            effects: [{ op: "draw", player: "controller", count: 2 }],
+        },
     ],
 }));
