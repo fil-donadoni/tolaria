@@ -48,6 +48,8 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Jace, the Mind Sculptor": 13,
     // start 4, spends 8 (issue #3231)
     "Jace, Wielder of Mysteries": 9,
+    // start 4, spend 2 — the starting count is the larger bound (issue #3237)
+    "Kaito, Bane of Nightmares": 5,
     // start 5, spends 1/2
     "Karn, Scion of Urza": 6,
     // start 7, spend 1 — starting count again
@@ -202,6 +204,11 @@ describe("no baseline shift at starting loyalty (issue #2491)", () => {
             // existing blade entry / eval baseline was measured in.
             const state = build(boardSpec(def.name));
             const walker = onlyPermanent(state, def.name);
+            // A walker that is a CREATURE on its controller's turn (Kaito,
+            // Bane of Nightmares — "During your turn, ... he's a 3/4 Ninja
+            // creature", issue #3237) is valued as the creature it is now,
+            // so the non-creature control does not apply to it.
+            if (walker.types.includes("Creature")) continue;
             expect(walker.counters?.loyalty).toBe(def.loyalty);
             expect([def.name, loyaltyRealizationRatio(walker)]).toEqual([
                 def.name,

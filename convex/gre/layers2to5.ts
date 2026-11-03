@@ -985,14 +985,22 @@ function resolveAction(
     if (LAYER_2_5_STATIC_EFFECT_KINDS[effect.kind] !== entry.layer) {
         return undefined;
     }
-    // CR 611.2c — the source-level "as long as ..." gate, evaluated against the
-    // whole board (the same `condition` layer 6 and layer 7 read).
-    const condition = (
-        effect as {
-            condition?: (s: LayerStateView, src: PermanentView) => boolean;
-        }
-    ).condition;
-    if (condition && !condition(state, source)) return undefined;
+    // CR 611.3a — the source-level "as long as ..." gate, evaluated against
+    // the whole board at EVERY derivation, with the same `(source, state, ctx)`
+    // signature layer 6 and layer 7 read. Keyed on the KIND, like layer 7's
+    // arm: the four layer-4 kinds declare one ("During your turn, ... he's a
+    // 3/4 Ninja creature", issue #3237); a layer-2-to-5 kind that gains one
+    // needs its own arm here.
+    if (
+        (effect.kind === "type-add" ||
+            effect.kind === "type-remove" ||
+            effect.kind === "subtype-add" ||
+            effect.kind === "subtype-set") &&
+        effect.condition &&
+        !effect.condition(source, state, STATIC_EFFECT_CTX)
+    ) {
+        return undefined;
+    }
     switch (effect.kind) {
         case "control-change": {
             if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
