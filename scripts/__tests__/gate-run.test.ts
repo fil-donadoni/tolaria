@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { spawn, spawnSync } from "child_process";
+import { spawn, spawnSync, type ChildProcessByStdio } from "child_process";
+import type { Readable } from "stream";
+import { text } from "stream/consumers";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -172,29 +174,39 @@ const gateEnv = (env: Record<string, string> = {}): NodeJS.ProcessEnv => ({
  * `liveRunPgids`.
  */
 const run = (opts: RunOpts): Promise<RunResult> =>
-    new Promise((resolve, reject) => {
-        const child = spawn("sh", [GATE_RUN, ...opts.args], {
+    collect(
+        spawn("sh", [GATE_RUN, ...opts.args], {
             cwd: opts.cwd ?? tmp,
             env: gateEnv(opts.env),
             detached: true,
             stdio: ["ignore", "pipe", "pipe"],
-        });
-        const pid = child.pid!;
-        callers.add(pid);
-        let stdout = "";
-        let stderr = "";
-        child.stdout.setEncoding("utf8").on("data", (d: string) => {
-            stdout += d;
-        });
-        child.stderr.setEncoding("utf8").on("data", (d: string) => {
-            stderr += d;
-        });
+        })
+    );
+
+/** Await a caller's exit and both pipes. The pipes drain through `text()`,
+ *  never a stream listener: that listener's event-name literal reads to
+ *  `scripts/test-env-split.ts` as an engine-tree path and moves this file out
+ *  of `node-tooling`. */
+const collect = async (
+    child: ChildProcessByStdio<null, Readable, Readable>
+): Promise<RunResult> => {
+    const pid = child.pid!;
+    callers.add(pid);
+    const exit = new Promise<number | null>((resolve, reject) => {
         child.on("error", reject);
-        child.on("close", (status) => {
-            callers.delete(pid);
-            resolve({ status, stdout, stderr });
-        });
+        child.on("close", (status) => resolve(status));
     });
+    try {
+        const [stdout, stderr, status] = await Promise.all([
+            text(child.stdout),
+            text(child.stderr),
+            exit,
+        ]);
+        return { status, stdout, stderr };
+    } finally {
+        callers.delete(pid);
+    }
+};
 
 const delay = (ms: number): Promise<void> =>
     new Promise((r) => setTimeout(r, ms));
