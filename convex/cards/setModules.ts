@@ -136,6 +136,7 @@ import * as tla from "./sets/tla/index.cards";
 import * as tmt from "./sets/tmt/index.cards";
 import * as hob from "./sets/hob/index.cards";
 import * as msh from "./sets/msh/index.cards";
+import * as msc from "./sets/msc/index.cards";
 import * as tor from "./sets/tor/index.cards";
 import * as nec from "./sets/nec/index.cards";
 import * as c21 from "./sets/c21/index.cards";
@@ -291,6 +292,7 @@ const setModules: { code: string; exports: SetModuleExports }[] = [
     { code: "tmt", exports: tmt },
     { code: "hob", exports: hob },
     { code: "msh", exports: msh },
+    { code: "msc", exports: msc },
     { code: "tor", exports: tor },
     { code: "nec", exports: nec },
     { code: "c21", exports: c21 },
