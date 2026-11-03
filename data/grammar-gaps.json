@@ -491,6 +491,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery target:Creature|Planeswalker › dealDamage+suppressDamagePrevention",
+            "issue": 7901
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery target:Creature|Planeswalker › destroy",
             "issue": 4842
         },
