@@ -21,12 +21,6 @@
  *     forbidding its addition is the same demand stated twice, deliberately:
  *     it is what stops the allowlist from becoming a parking lot.
  *
- * One registry declaration takes an Op out of the census instead (ADR 0162):
- * `notGrammarEmittable`, set on an Op whose argument is a key into a
- * closure-backed registry, so no Grammar Rule can emit it without minting a
- * per-card key. The reason must cite an ADR, and an Op so declared that a
- * Compiled Definition does emit reds — the declaration was wrong.
- *
  * Shrink is proven against the allowlist's PREVIOUS REVISION in HEAD's own
  * history, not against a hand-kept count: a row this commit has and its
  * predecessor did not is a row that was added. Only the commit that introduces
@@ -168,8 +162,12 @@ const EXEMPTION_CITATION = /\bADR \d{4}\b/;
 
 /**
  * Split the registry's `implemented` Ops into the ones the census owes a
- * Grammar Rule and the ones declared `notGrammarEmittable` (ADR 0162). A
- * `planned` row is neither: no card may use it, so nothing can emit it.
+ * Grammar Rule and the ones declared `notGrammarEmittable` (ADR 0162) — an Op
+ * whose argument is a key into a closure-backed registry, so no Grammar Rule
+ * can emit it without minting a per-card key. A declared Op owes no allowlist
+ * row; its reason must cite an ADR, and a Compiled Definition that emits it
+ * anyway reds `exempt-emitted`. A `planned` row is neither: no card may use
+ * it, so nothing can emit it.
  */
 export function censusedOps(
     rows: readonly Pick<EffectOpRow, "op" | "status" | "notGrammarEmittable">[]
