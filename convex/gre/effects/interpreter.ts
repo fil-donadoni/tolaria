@@ -7749,8 +7749,15 @@ export const OP_EXECUTORS: {
         const outcome = execForEach(ctx, op, cursor);
         // Issue #2608 — every iteration has run: the body's picks bindings
         // are now readable past the construct as one set (`readIteratedPicks`).
-        if (outcome !== "suspend")
-            ctx.noteChoice(forEachDoneKey(pos), ["done"]);
+        // The marker holds the body's LAST position, written once: a reader
+        // at or before it (inside the body, on any re-walk) never falls back.
+        if (
+            outcome !== "suspend" &&
+            ctx.recallChoice(forEachDoneKey(pos)) === undefined
+        ) {
+            const end = ctx.getScriptCheckpoint() ?? pos;
+            ctx.noteChoice(forEachDoneKey(pos), [String(end)]);
+        }
         return outcome;
     },
     // CR 104.2a — an alternate win condition set by a resolving spell/ability
@@ -8446,7 +8453,10 @@ function readIteratedSnapshots(ctx: SpellContext, name: string): string[][] {
  *  COMPLETED is the guard, not a nicety: a reader INSIDE that body whose own
  *  iteration left the binding uncaptured (the walk found no match, CR 609.3)
  *  must read nothing, never an earlier iteration's card — the enclosing
- *  construct has no `#forEach:<pos>:done` marker yet, so it is not probed.
+ *  construct has no `#forEach:<pos>:done` marker yet, and once it has one the
+ *  marker's body-end position still excludes every reader inside the body
+ *  (a re-walk after a later suspension must take the same branches, CR
+ *  608.3).
  *  Ids are kept in iteration order (APNAP for a players set, CR 101.4), once
  *  each; no capture anywhere is `undefined`, the uncaptured binding every
  *  reader already skips on. */
@@ -8459,7 +8469,10 @@ function readIteratedPicks(
     let captured = false;
     const current = ctx.getScriptCheckpoint() ?? 0;
     for (let pos = 0; pos < current; pos++) {
-        if (ctx.recallChoice(forEachDoneKey(pos)) === undefined) continue;
+        const done = ctx.recallChoice(forEachDoneKey(pos))?.[0];
+        // Not completed, or the reader sits inside its body (a re-walk
+        // re-evaluates body Ops after the marker exists): no fallback.
+        if (done === undefined || current <= Number(done)) continue;
         const members = ctx.recallChoice(`#forEach:${pos}:set`) ?? [];
         for (let k = 0; k < members.length; k++) {
             const row = ctx.recallChoice(scopeBindingName(name, pos, k));
