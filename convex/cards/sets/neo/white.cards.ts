@@ -8,6 +8,7 @@ import {
     AURA_AFFECTS_HOST,
     RECONFIGURE_LOSES_CREATURE_WHILE_ATTACHED,
 } from "../../types";
+import { reconfigureAbilities } from "../../abilities/equipment";
 
 // Lion Sash — "{W}: Exile target card from a graveyard. If it was a
 // permanent card, put a +1/+1 counter on this permanent. Equipped creature
@@ -85,42 +86,12 @@ export const lionSash = defineCard(() => ({
                 },
             ],
         },
-        {
-            // CR 702.151a, first half — "[Cost]: Attach this permanent to
-            // another target creature you control. Activate only as a
-            // sorcery." `excludeInstanceIds` (via the dynamic
-            // `getTargetRequirement`) drops the CURRENT host from the legal
-            // target set — CR 702.151a's "ANOTHER target creature".
-            id: "lion-sash-reconfigure-attach",
-            oracleText:
-                "Reconfigure {2} ({2}: Attach to target creature you control; or unattach from a creature. Reconfigure only as a sorcery. While attached, this isn't a creature.)",
-            cost: { mana: { generic: 2 } },
-            sorcerySpeedOnly: true,
-            getTargetRequirement: (source) => ({
-                type: "Creature",
-                count: 1,
-                controller: "you",
-                excludeInstanceIds: source.attachedTo
-                    ? [source.attachedTo]
-                    : [],
-            }),
-            useStack: true,
-            effects: [{ op: "attach", target: { target: 0 } }],
-        },
-        {
-            // CR 702.151a, second half — "[Cost]: Unattach this permanent.
-            // Activate only if this permanent is attached to a creature and
-            // only as a sorcery." `canActivate` enforces the "only if
-            // attached" clause; no target (there is nothing to unattach TO).
-            id: "lion-sash-reconfigure-unattach",
-            oracleText:
-                "{2}: Unattach this permanent. Activate only as a sorcery.",
-            cost: { mana: { generic: 2 } },
-            sorcerySpeedOnly: true,
-            canActivate: (source) => source.attachedTo !== undefined,
-            useStack: true,
-            effects: [{ op: "unattach" }],
-        },
+        ...reconfigureAbilities({
+            slug: "lion-sash",
+            cost: { generic: 2 },
+            costText: "{2}",
+            oracleText: "Reconfigure {2}",
+        }),
     ],
 }));
 

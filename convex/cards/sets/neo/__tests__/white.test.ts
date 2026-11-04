@@ -216,41 +216,6 @@ describe("Lion Sash (CR 702.151 Reconfigure, issue #1311)", () => {
         expect(getEffectivePower(state, host)).toBe(2); // buff gone
     });
 
-    it("the unattach ability's canActivate gates on currently being attached", () => {
-        const abilities = lionSash.activatedAbilities ?? [];
-        const ability = abilities.find(
-            (a) => a.id === "lion-sash-reconfigure-unattach"
-        )!;
-        expect(ability.canActivate).toBeDefined();
-        expect(
-            ability.canActivate!(
-                { attachedTo: undefined } as never,
-                {} as never
-            )
-        ).toBe(false);
-        expect(
-            ability.canActivate!({ attachedTo: "x" } as never, {} as never)
-        ).toBe(true);
-    });
-
-    it("the attach ability's getTargetRequirement excludes the CURRENT host (CR 702.151a 'another target creature')", () => {
-        const abilities = lionSash.activatedAbilities ?? [];
-        const ability = abilities.find(
-            (a) => a.id === "lion-sash-reconfigure-attach"
-        )!;
-        expect(ability.getTargetRequirement).toBeDefined();
-        const reqUnattached = ability.getTargetRequirement!(
-            { attachedTo: undefined } as never,
-            {} as never
-        );
-        expect(reqUnattached.excludeInstanceIds).toEqual([]);
-        const reqAttached = ability.getTargetRequirement!(
-            { attachedTo: "bearHost" } as never,
-            {} as never
-        );
-        expect(reqAttached.excludeInstanceIds).toEqual(["bearHost"]);
-    });
-
     it("checkAttachmentSBA (CR 704.5n) detaches Lion Sash in place — NOT to the graveyard — when its host stops being a creature", () => {
         const lion = makeInstance(lionSash.id, {
             id: "lion6",

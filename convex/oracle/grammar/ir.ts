@@ -361,6 +361,17 @@ export type SlotIR =
      */
     | { readonly kind: "equip"; readonly cost: ManaCost }
     /**
+     * CR 702.151a — a "Reconfigure [cost]" line: two activated abilities of
+     * the Equipment, lowered through the catalogue's `reconfigureAbilities`
+     * factory, plus the CR 702.151b `type-remove` descriptor. `costText` is
+     * the cost as printed, which the unattach ability's own text repeats.
+     */
+    | {
+          readonly kind: "reconfigure";
+          readonly cost: ManaCost;
+          readonly costText: string;
+      }
+    /**
      * CR 702.122a — a "Crew N" line: the Vehicle's activated ability, lowered
      * through the catalogue's `crewAbility` factory with the card's printed
      * power and toughness (CR 301.7b), plus the `"crew N"` keyword string.
