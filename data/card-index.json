@@ -6244,6 +6244,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bear Umbra",
+        "scryfallId": "212a953b-3205-41bf-a5b2-5b852e889c5a",
+        "oracleId": "44661108-d72f-4d02-9303-7e4b0ecf7e9c",
+        "firstSet": "roe",
+        "firstPrintId": "212a953b-3205-41bf-a5b2-5b852e889c5a",
+        "firstPrintSet": "roe",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Bear's Companion",
         "scryfallId": "d6912c5b-6aff-4506-96ca-acb5ce660322",
         "oracleId": "930248b3-44e6-4c0b-bd7d-4b48323a7272",
@@ -8234,6 +8244,16 @@
         "firstSet": "mmq",
         "firstPrintId": "f7369cbf-6986-4a39-b07c-a283b40aee40",
         "firstPrintSet": "mmq",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Boar Umbra",
+        "scryfallId": "8dfdec4f-e66a-48f8-ba6d-13459e80b52c",
+        "oracleId": "75e4448b-5bd7-4ed4-8db8-820cd6d04c12",
+        "firstSet": "roe",
+        "firstPrintId": "8dfdec4f-e66a-48f8-ba6d-13459e80b52c",
+        "firstPrintSet": "roe",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -20636,6 +20656,16 @@
         "source": "compiled"
     },
     {
+        "name": "Drake Umbra",
+        "scryfallId": "3e1f7334-658d-44da-a81c-26b258e44c26",
+        "oracleId": "2b143ef1-afbb-499c-9189-1009105b406b",
+        "firstSet": "roe",
+        "firstPrintId": "3e1f7334-658d-44da-a81c-26b258e44c26",
+        "firstPrintSet": "roe",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Drake-Skull Cameo",
         "scryfallId": "4a3ce135-9c2f-45bd-b2db-c0e00c50c964",
         "oracleId": "8fbdec25-4222-4b96-aeea-82a4b5b8b80e",
@@ -22108,6 +22138,16 @@
         "source": "compiled"
     },
     {
+        "name": "Eel Umbra",
+        "scryfallId": "ca550605-a0fc-4392-b8b6-a4f06868d9f2",
+        "oracleId": "4be1ecd0-ee41-4ac0-9155-0fcae7a4d337",
+        "firstSet": "roe",
+        "firstPrintId": "ca550605-a0fc-4392-b8b6-a4f06868d9f2",
+        "firstPrintSet": "roe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Eerie Gravestone",
         "scryfallId": "7675e91f-dba7-4e64-a7ff-1dd56665a4cc",
         "oracleId": "cbf5bd0a-20ef-4dce-9f70-13339d438ff7",
@@ -22191,6 +22231,16 @@
         "firstPrintId": "d8531643-5657-44b6-89d1-9cdf67ed09c4",
         "firstPrintSet": "tmp",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Eland Umbra",
+        "scryfallId": "f3a2ec16-bee4-4dfd-81cb-cb81b017170c",
+        "oracleId": "836fdd4b-98f8-4615-ae81-9bf63205c37d",
+        "firstSet": "roe",
+        "firstPrintId": "f3a2ec16-bee4-4dfd-81cb-cb81b017170c",
+        "firstPrintSet": "roe",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -25581,6 +25631,16 @@
         "firstPrintId": "ea76a183-e15c-4968-b29d-91c074aa8681",
         "firstPrintSet": "bfz",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Felidar Umbra",
+        "scryfallId": "fe83a23c-723e-4b34-a121-a10fc0efe1b5",
+        "oracleId": "278574f6-e083-461b-8bac-52ed51f0cf63",
+        "firstSet": "pc2",
+        "firstPrintId": "fe83a23c-723e-4b34-a121-a10fc0efe1b5",
+        "firstPrintSet": "pc2",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -36622,6 +36682,16 @@
         "source": "compiled"
     },
     {
+        "name": "Hyena Umbra",
+        "scryfallId": "f1461e2f-fb1d-4092-9935-4cee092f27e7",
+        "oracleId": "354affb3-1be7-4a9e-91da-2989eb54f62d",
+        "firstSet": "roe",
+        "firstPrintId": "f1461e2f-fb1d-4092-9935-4cee092f27e7",
+        "firstPrintSet": "roe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Hymn of Rebirth",
         "scryfallId": "61d0f2f2-f6e2-4b8a-8418-10b17c5e0ea9",
         "oracleId": "f06fca68-593b-4fbd-a5a9-618060311172",
@@ -44992,6 +45062,16 @@
         "firstPrintId": "db18bbcd-527d-4134-a6ae-6f4381419867",
         "firstPrintSet": "dom",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Mammoth Umbra",
+        "scryfallId": "76f1abef-385d-4202-8a45-835c37c4e242",
+        "oracleId": "cd0e6cdb-9b7f-47d6-9478-fb50003165af",
+        "firstSet": "roe",
+        "firstPrintId": "76f1abef-385d-4202-8a45-835c37c4e242",
+        "firstPrintSet": "roe",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -69408,6 +69488,16 @@
         "firstPrintSet": "kld"
     },
     {
+        "name": "Snake Umbra",
+        "scryfallId": "4a011820-80c6-484f-84be-f07f0e45f1a8",
+        "oracleId": "70ed2052-f03c-461d-b32a-8835c97c559f",
+        "firstSet": "roe",
+        "firstPrintId": "4a011820-80c6-484f-84be-f07f0e45f1a8",
+        "firstPrintSet": "roe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Snap",
         "scryfallId": "f7e0549e-2d23-4ea8-b8d1-ae21af2c9091",
         "oracleId": "ac914d98-221e-426c-8a50-342896b15f9e",
@@ -70904,6 +70994,16 @@
         "firstSet": "vis",
         "firstPrintId": "a1818812-4cb8-4fe1-98c0-b40086b4991c",
         "firstPrintSet": "vis",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Spider Umbra",
+        "scryfallId": "2e593a5b-0de6-4df2-bbda-54195400dc69",
+        "oracleId": "f32aaa81-96bd-4213-b0b8-8c021f3cea57",
+        "firstSet": "roe",
+        "firstPrintId": "2e593a5b-0de6-4df2-bbda-54195400dc69",
+        "firstPrintSet": "roe",
         "rarity": "common",
         "source": "compiled"
     },

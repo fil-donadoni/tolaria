@@ -138,6 +138,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     "myriad",
     "chapter-ability",
     "class-level-bar",
+    // CR 702.89a — umbra armor sits on the Aura, never on the creature's body:
+    // the search weighs it on the real destroy path it replaces.
+    "umbra-armor",
 ]);
 
 /** Table keys with no registry row of their own (engine-internal spellings). */

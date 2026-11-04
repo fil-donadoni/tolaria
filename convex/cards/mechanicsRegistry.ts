@@ -1641,7 +1641,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Umbra Armor",
         kind: "keyword-ability",
         cr: "702.89",
-        status: "planned",
+        status: "implemented",
+        binding: "umbra armor",
+        note: "Keyword on the Aura, read live by findUmbraArmorAura (gre/umbraArmor.ts). regenerateOrDestroy (state.ts) applies the replacement after indestructible (CR 702.12b: nothing would be destroyed) and after regeneration: removes all marked damage and the deathtouch mark, destroys the Aura through destroyWithReplacements, keeps the permanent. Every destroy reaches it: Effect Script, destroyAll, lethal and deathtouch SBAs, combat. A mass destroy walks hosts before attachments (attachmentsLast) so an Aura destroyed by the same event still saves its host. CR 616.1's choice among several applicable replacements waits on issue #3353 (deterministic pick).",
     },
     // 702.90 Infect
     {

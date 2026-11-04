@@ -144,6 +144,7 @@ import {
     CREATURE_SUBTYPES,
     LAND_SUBTYPES,
 } from "../../oracle/grammar/shared/subtypes";
+import { attachmentsLast } from "../umbraArmor";
 
 /** CR 205.3m (issue #3721) — the creature-type table as an `option-pick`
  *  option list, built ONCE at module load (it is a ~280-entry constant, and
@@ -8498,6 +8499,23 @@ function scopeBindingName(
     return `${name}@${pos}:${iteration}`;
 }
 
+/** Whether a `forEach` body destroys the member it iterates on, directly or
+ *  under an `if` ("destroy each nonland permanent with mana value X or less"). */
+function destroysEachMember(body: readonly EffectOp[]): boolean {
+    return body.some((op) => {
+        if (op.op === "if") {
+            return (
+                destroysEachMember(op.then) || destroysEachMember(op.else ?? [])
+            );
+        }
+        return (
+            op.op === "destroy" &&
+            "ref" in op.target &&
+            op.target.ref === "$each"
+        );
+    });
+}
+
 /** Every iteration's capture of the snapshot binding `name`, declared inside
  *  the body of an EARLIER `forEach` of this script (the `boundCount` reader).
  *  The construct that declared it is found by its frozen member set: every
@@ -8760,6 +8778,11 @@ function execForEach(
     if (members === undefined) {
         // Construct entry: determine the set ONCE and freeze it (CR 608.2i).
         members = selectForEachMembers(ctx, op.select);
+        // CR 702.89a — "destroy each" is one event: a host is reached before
+        // its own Aura, which would otherwise be gone before it could save it.
+        if (destroysEachMember(op.effects)) {
+            members = attachmentsLast(members, ctx.getAttachedTo);
+        }
         ctx.noteChoice(setKey, members);
     }
 
