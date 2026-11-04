@@ -11,7 +11,6 @@ import { defineCard } from "../../types";
 // CR 700.2d), resolved in printed order (CR 608.2c). The counter mode is the
 // Mana Leak shape (`sth/blue.cards.ts`); chosen twice on one spell, its
 // controller is asked to pay {3} once per copy.
-// compiler-gap: "Choose three. You may choose the same mode more than once." (#7224)
 export const mysticConfluence = defineCard(() => ({
     id: "81bbffc2-6f58-4baa-8f95-168eab106b15",
     name: "Mystic Confluence",

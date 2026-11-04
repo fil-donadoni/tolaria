@@ -12,7 +12,6 @@ import { defineCard } from "../../types";
 // pick order (CR 608.2c, `normalizeChosenModeIds`). Choosing "destroy target
 // artifact" twice may name the SAME artifact (CR 700.2d) — the second copy
 // then finds it gone and does nothing.
-// compiler-gap: "Choose three. You may choose the same mode more than once." (#7224)
 export const fieryConfluence = defineCard(() => ({
     id: "7b61c9bc-16e8-417f-99e7-8bd83d4666c5",
     name: "Fiery Confluence",
