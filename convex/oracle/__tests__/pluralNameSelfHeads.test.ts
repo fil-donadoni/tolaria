@@ -1,6 +1,6 @@
 // Self trigger heads behind a plural card name: "Whenever The Neutrinos attack"
-// (CR 201.5, 603.2). No corpus card printing one of these forms has a body that
-// compiles yet (each body is its own Grammar Gap), so each form is pinned whole
+// (CR 201.5, 603.2). No corpus card printing one of these forms compiles whole
+// yet (each still has a Grammar Gap past the head), so each form is pinned whole
 // under the real card's name, behind a body that does; "enter" keeps its corpus
 // golden in `castPhaseZoneChangeHeads.test.ts`.
 
