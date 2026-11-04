@@ -8139,6 +8139,11 @@ export interface SpellContext {
              *  apply (CR 601.2f) and payment is the same auto-tap. Ignored
              *  when `free` is set. */
             alternativeCost?: ManaCost;
+            /** CR 709.3 / 712.11b / 715.3 — the face this cast announces, an
+             *  id from `getCastFaceOptions`: it is priced, targeted and stamped
+             *  as that subject. Omitted = the printed cast, refused for a split
+             *  card (it has none). */
+            alternativeCostId?: string;
         }
     ) => boolean;
     /** ADR 0037 / CR 700.2 — the modes of a card in `casterId`'s hand, read
@@ -8147,7 +8152,8 @@ export interface SpellContext {
      *  mode (CR 700.2c) and then drive targeting/resolution from it. */
     getCardModes: (
         casterId: string,
-        cardInstanceId: string
+        cardInstanceId: string,
+        alternativeCostId?: string
     ) => { id: string; label: string }[];
     /** ADR 0037 / CR 700.2d — the target requirement of a specific mode of a
      *  modal card in `casterId`'s hand, or `undefined` if the mode has none /
@@ -8156,12 +8162,17 @@ export interface SpellContext {
     getCardModeTargetRequirement: (
         casterId: string,
         cardInstanceId: string,
-        modeId: string
+        modeId: string,
+        alternativeCostId?: string
     ) => TargetRequirement | undefined;
     /** ADR 0037 / CR 107.3 — true when a card in `casterId`'s hand has a
      *  variable {X} in its mana cost (a string-valued `X`). Lets a controlled
      *  cast (Word of Command) know it must ask the Acting Player for X. */
-    cardHasXCost: (casterId: string, cardInstanceId: string) => boolean;
+    cardHasXCost: (
+        casterId: string,
+        cardInstanceId: string,
+        alternativeCostId?: string
+    ) => boolean;
     /** ADR 0037 / CR 118.8 — the sacrifice additional cost of a card in
      *  `casterId`'s hand: its `sacrificeFilter` AND how many permanents that
      *  cost demands (`sacrificeFilterCount`, default 1 — issue #3808).
@@ -8173,7 +8184,8 @@ export interface SpellContext {
      *  other is exactly the five-lands-for-one discount this shape closes. */
     getCardSacrificeCost: (
         casterId: string,
-        cardInstanceId: string
+        cardInstanceId: string,
+        alternativeCostId?: string
     ) => { filter: PermanentFilter; count: number } | undefined;
     /** ADR 0037 / CR 107.3 — the highest value of X payable for a card in
      *  `controllerId`'s hand SOLELY from lands `controllerId` controls (Word of
@@ -8185,7 +8197,8 @@ export interface SpellContext {
     getMaxAffordableX: (
         controllerId: string,
         cardInstanceId: string,
-        chosenModeId?: string
+        chosenModeId?: string,
+        alternativeCostId?: string
     ) => number;
     /** ADR 0037 / CR 601.2c — enumerate the legal targets for a card in
      *  `casterId`'s hand if it were cast as their spell, reusing the exact
@@ -8199,7 +8212,8 @@ export interface SpellContext {
     getLegalTargetsForCard: (
         casterId: string,
         cardInstanceId: string,
-        requirement: TargetRequirement
+        requirement: TargetRequirement,
+        alternativeCostId?: string
     ) => TargetSelection[];
     /** CR 601.2c — the `targetRequirement` of a card in `casterId`'s hand, read
      *  from the registry (CR 108.1), or `undefined` for a non-targeted card.
@@ -8207,7 +8221,8 @@ export interface SpellContext {
      *  spell needs the Acting Player to choose targets before casting it. */
     getCardTargetRequirement: (
         casterId: string,
-        cardInstanceId: string
+        cardInstanceId: string,
+        alternativeCostId?: string
     ) => TargetRequirement | undefined;
     /** CR 608.2f / 305.1 (issue #1477) — for the cast-during-resolution Op: is
      *  the card `cardInstanceId` present in `playerId`'s `sourceZone` AND a
@@ -8218,8 +8233,41 @@ export interface SpellContext {
     getChosenCardCastable: (
         playerId: string,
         cardInstanceId: string,
-        sourceZone: "hand" | "graveyard" | "exile"
+        sourceZone: "hand" | "graveyard" | "exile",
+        /** CR 709.3a / 712.11c / 715.3a — ask of this announced face alone.
+         *  Omitted = the printed cast, which a split card does not have. */
+        alternativeCostId?: string
     ) => boolean;
+    /** CR 709.3 / 712.11b / 715.3 — the faces of the chosen card a cast during
+     *  resolution (CR 608.2g) can announce: its Adventure, split halves or modal
+     *  back face, as `{ id, label }` rows where `id` is the
+     *  `alternativeCostId` the getters here take. The resolving effect's
+     *  permission is generic, so it reaches every face (CR 712.11c); one the
+     *  caster cannot legally cast (prohibition, no legal target, no payment —
+     *  unless `free`) is withheld. Empty for a card that is one spell. */
+    getCastFaceOptions: (
+        playerId: string,
+        cardInstanceId: string,
+        sourceZone: "hand" | "graveyard" | "exile",
+        opts?: {
+            free?: boolean;
+            /** CR 702.85a — withhold a face whose resulting spell's mana value
+             *  is not below this. */
+            manaValueBelow?: number;
+        }
+    ) => { id: string; label: string }[];
+    /** CR 709.3 / 712.11b / 715.3 — ask `chooserId` which face `casterId` casts,
+     *  among the printed cast and {@link getCastFaceOptions}. A lone answer is
+     *  taken with no prompt. `undefined` = suspended, the caller returns;
+     *  `cast: false` = nothing here can be cast. */
+    requestCastFace: (req: {
+        chooserId: string;
+        casterId: string;
+        cardInstanceId: string;
+        sourceZone: "hand" | "graveyard" | "exile";
+        choiceId: string;
+        free?: boolean;
+    }) => { cast: boolean; alternativeCostId?: string } | undefined;
     /** CR 406.3 / ADR 0026 (issue #3413) — the card DEFINITION id it is safe to
      *  DISCLOSE for `cardInstanceId` in `playerId`'s `zone`, or `undefined`
      *  when that card's identity is not already public knowledge.

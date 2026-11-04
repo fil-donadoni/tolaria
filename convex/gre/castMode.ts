@@ -315,6 +315,30 @@ export function isFaceChoiceCastId(
     );
 }
 
+/** CR 709.3b / 712.8f / 715.3b — the `CastModeMarkers` an announcement of a
+ *  face carries, for a commit that holds the id rather than the resolved
+ *  alternative cost (the cast made during resolution, CR 608.2g). Empty for a
+ *  printed cast. */
+export function castFaceMarkers(
+    def: CardDefinition | undefined,
+    alternativeCostId: string | undefined
+): {
+    castAsAdventure?: boolean;
+    castAsSplitHalf?: NonNullable<ReturnType<typeof isSplitCastId>>;
+    castAsModalBack?: boolean;
+} {
+    const side = isSplitCastId(def, alternativeCostId);
+    return {
+        ...(isAdventureCastId(def, alternativeCostId)
+            ? { castAsAdventure: true }
+            : {}),
+        ...(side !== undefined ? { castAsSplitHalf: side } : {}),
+        ...(isModalBackCastId(def, alternativeCostId)
+            ? { castAsModalBack: true }
+            : {}),
+    };
+}
+
 /** CR 601.2b (issue #7570) — `true` when the announcement `alternativeCostId`
  *  may ride a permission that replaces the mana cost (Bolas's Citadel), because
  *  it is no second alternative method of casting: a face choice
