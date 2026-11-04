@@ -3,9 +3,13 @@
 // declarative `ActivatedAbility.activationCondition`, and drops the ability
 // word heading the line (CR 207.2c) before the activation cost is read.
 //
+// CR 205.2a — Delirium's "N or more card types among cards in your graveyard"
+// reads into the same field as a `countTypes` tally.
+//
 // Goldens are REAL corpus rows. The neighbours a threshold-like clause prints
-// that an activation-time condition cannot read (a filtered count, a card-type
-// tally) are pinned as refusals so fail-closed is a fact, not an assumption.
+// that an activation-time condition cannot read (a filtered count, a
+// permanent-type tally) are pinned as refusals so fail-closed is a fact, not an
+// assumption.
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
@@ -27,6 +31,18 @@ const THRESHOLD_SEVEN = {
     left: { count: { zone: "graveyard", controller: "controller" } },
     op: "ge",
     right: 7,
+};
+
+const DELIRIUM_FOUR = {
+    left: {
+        count: {
+            zone: "graveyard",
+            controller: "controller",
+            countTypes: true,
+        },
+    },
+    op: "ge",
+    right: 4,
 };
 
 describe("Threshold activation condition — golden fixtures (CR 602.1b)", () => {
@@ -90,6 +106,68 @@ describe("Threshold activation condition — golden fixtures (CR 602.1b)", () =>
     });
 });
 
+describe("Delirium activation condition — golden fixtures (CR 205.2a, CR 602.5)", () => {
+    it('"there are N or more card types among cards in your graveyard" (Stallion of Ashmouth), the whole definition', () => {
+        const line =
+            "Delirium — {1}{B}: This creature gets +1/+1 until end of turn. Activate only if there are four or more card types among cards in your graveyard.";
+        const outcome = compileCard(
+            oracleCard({
+                name: "Stallion of Ashmouth",
+                manaCost: "{3}{B}",
+                typeLine: "Creature — Nightmare Horse",
+                oracleText: line,
+                power: "3",
+                toughness: "3",
+            })
+        );
+        expect(outcome.state).toBe("ready");
+        if (outcome.state !== "ready") return;
+        expect(sortKeys(outcome.definition)).toEqual(
+            sortKeys({
+                name: "Stallion of Ashmouth",
+                types: ["Creature"],
+                subtypes: ["Nightmare", "Horse"],
+                manaCost: { X: 3, B: 1 },
+                power: 3,
+                toughness: 3,
+                oracleText: line,
+                activatedAbilities: [
+                    {
+                        id: "stallion-of-ashmouth-ability",
+                        oracleText: line,
+                        cost: { mana: { X: 1, B: 1 } },
+                        useStack: true,
+                        effects: [
+                            {
+                                op: "pump",
+                                target: { ref: "$source" },
+                                power: 1,
+                                toughness: 1,
+                                duration: { phase: "end-of-turn" },
+                            },
+                        ],
+                        activationCondition: DELIRIUM_FOUR,
+                    },
+                ],
+            })
+        );
+    });
+
+    it('the tally joined to a timing restriction by "and only" (Resurrected Cultist), the restriction sentence', () => {
+        const parsed = sentenceRule.run(
+            "Activate only if there are four or more card types among cards in your graveyard and only as a sorcery",
+            parseContext()
+        );
+        expect(parsed.ok && parsed.value).toEqual({
+            role: "restriction",
+            restrictions: [
+                { kind: "own-graveyard-card-types-at-least", count: 4 },
+                { kind: "sorcery-only" },
+            ],
+        });
+    });
+});
+
 describe("Threshold activation condition — refused neighbours (fail-closed)", () => {
     /** True when the span reads as an activation restriction at all. */
     const readsAsRestriction = (span: string): boolean => {
@@ -105,10 +183,10 @@ describe("Threshold activation condition — refused neighbours (fail-closed)", 
         ).toBe(false);
     });
 
-    it("a card-type tally (Stallion of Ashmouth's delirium)", () => {
+    it("a permanent-type tally (Matzalantli's, a narrower set than CR 205.2a's card types)", () => {
         expect(
             readsAsRestriction(
-                "Activate only if there are four or more card types among cards in your graveyard"
+                "Activate only if there are four or more permanent types among cards in your graveyard"
             )
         ).toBe(false);
     });

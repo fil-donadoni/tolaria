@@ -84,6 +84,23 @@ function applyRestrictions(
                     right: restriction.count,
                 };
                 break;
+            case "own-graveyard-card-types-at-least":
+                // CR 205.2a — the card types among the cards in the controller's
+                // graveyard, the tally `countTypes` reads.
+                if (ability.activationCondition !== undefined)
+                    return TWO_CONDITIONS;
+                ability.activationCondition = {
+                    left: {
+                        count: {
+                            zone: "graveyard",
+                            controller: "controller",
+                            countTypes: true,
+                        },
+                    },
+                    op: "ge",
+                    right: restriction.count,
+                };
+                break;
             case "controls-at-least": {
                 // CR 602.5 + CR 109.5 — "you" is the controller; "an opponent"
                 // is their one opponent (`activationConditionHolds`).

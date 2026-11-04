@@ -2383,6 +2383,13 @@ export type RestrictionIR =
      *  in your graveyard." (Threshold's spelled-out condition), lowered to a
      *  declarative `ActivatedAbility.activationCondition`. */
     | { readonly kind: "own-graveyard-at-least"; readonly count: number }
+    /** CR 205.2a + CR 602.5 — "Activate only if there are N or more card types
+     *  among cards in your graveyard." (Delirium's spelled-out condition),
+     *  lowered to a tallying `ActivatedAbility.activationCondition`. */
+    | {
+          readonly kind: "own-graveyard-card-types-at-least";
+          readonly count: number;
+      }
     /** CR 602.5 + CR 109.5 (issue #5258) — "Activate only if you control five
      *  or more lands" / "… if an opponent controls four or more lands", lowered
      *  to a declarative `activationCondition` over the battlefield. */
@@ -6165,25 +6172,44 @@ const RESTRICTIONS: ReadonlyMap<string, RestrictionIR> = new Map<
  * CR 602.1b (issue #3685) — "Activate only if there are N or more cards in
  * your graveyard", in both printed word orders. Only the UNFILTERED count of
  * the activator's own graveyard: "N or more creature cards" needs a card
- * filter and "N or more card types among cards" a type tally, neither of which
- * an activation-time condition reads, so both stay refused under their own key.
+ * filter an activation-time condition does not read, so it stays refused under
+ * its own key.
  */
 const OWN_GRAVEYARD_AT_LEAST = [
     /^activate only if there are (\S+) or more cards in your graveyard$/,
     /^activate only if (\S+) or more cards are in your graveyard$/,
 ];
 
+/**
+ * CR 205.2a — "Activate only if there are N or more card types among cards in
+ * your graveyard", the tally `activationCondition` reads through `countTypes`.
+ * "N or more permanent types" tallies a narrower set and stays refused.
+ */
+const OWN_GRAVEYARD_CARD_TYPES_AT_LEAST =
+    /^activate only if there are (\S+) or more card types among cards in your graveyard$/;
+
+/** "a"/"an" read as one, but no card prints "a or more" — only a cardinal of
+ *  two or more is a threshold. */
+function readGraveyardThreshold(word: string): number | undefined {
+    const count = readNumberWord(word);
+    return count === null || count < 2 ? undefined : count;
+}
+
 function readOwnGraveyardAtLeast(span: string): RestrictionIR | undefined {
     for (const form of OWN_GRAVEYARD_AT_LEAST) {
         const match = form.exec(span);
         if (match === null) continue;
-        const count = readNumberWord(match[1]);
-        // "a"/"an" read as one, but no card prints "a or more" — only a
-        // cardinal of two or more is a threshold.
-        if (count === null || count < 2) return undefined;
-        return { kind: "own-graveyard-at-least", count };
+        const count = readGraveyardThreshold(match[1]!);
+        return count === undefined
+            ? undefined
+            : { kind: "own-graveyard-at-least", count };
     }
-    return undefined;
+    const tally = OWN_GRAVEYARD_CARD_TYPES_AT_LEAST.exec(span);
+    if (tally === null) return undefined;
+    const count = readGraveyardThreshold(tally[1]!);
+    return count === undefined
+        ? undefined
+        : { kind: "own-graveyard-card-types-at-least", count };
 }
 
 /** CR 602.5 — the opener of a restriction that carries a condition. */
