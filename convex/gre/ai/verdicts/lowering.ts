@@ -80,17 +80,17 @@ export const QUIZ_SEAT = "me" as const;
  * constrains each element to be a kind but never requires every kind to be
  * PRESENT — so a ninth member added to the union alone keeps `tsc` green while
  * `LoweringSweepTally` seeds no counter for it and the whole refusals cell
- * becomes `NaN` on the first decision that hits it (PR review, issue #3461).
+ * becomes `NaN` on the first decision that hits it (PR review).
  *
  * A retired member's NAME is never reused: a historical sweep table counting
- * it would then mean two different things. `stack-not-journalled` (issue
- * #3480) is gone with the journal, and its two successors below are new names
- * (issue #3514).
+ * it would then mean two different things. `stack-not-journalled` is gone
+ * with the journal, and its two successors below are new names. `stack-mid-resolution` (an object partway through resolving,
+ * CR 608.2) retired once the spec carries the top object's
+ * resolution checkpoint, and what it still cannot carry — a choice with no
+ * checkpoint behind it, a collected answer the spec cannot place — is a
+ * `stack-not-lowerable` blocker named by field (`pendingChoices`,
+ * `resolutionStep`, `collectedChoices:<key>`), never a kind of its own.
  *
- *  - `stack-mid-resolution` — an object on the stack is PARTWAY THROUGH
- *    resolving (`resolutionStep` / `collectedChoices`). The spec declares an
- *    object announced, never a half-resolved one, and the collected answers
- *    are not something a rebuild can hold.
  *  - `lowering-threw` — `specFromState` refused the position outright, or
  *    lowered it without an object whose real identity the state does not
  *    carry (a face-down object seen from a seat that may not look at it,
@@ -114,7 +114,6 @@ export const QUIZ_SEAT = "me" as const;
  *    not (the invariant assertion behind the list comparison).
  */
 export const VERDICT_REFUSAL_KINDS = [
-    "stack-mid-resolution",
     "lowering-threw",
     "stack-not-lowerable",
     "combat-not-captured",
@@ -247,25 +246,12 @@ export function lowerDecision(
     // against the live one move for move. A turn holder that failed to survive
     // shows up there as sorcery-speed moves the live list never had.
 
-    // CR 608.3 — an object PARTWAY through resolving. The declared stack holds
-    // announced objects, never a half-resolved one, and `collectedChoices` are
-    // answers already given inside this resolution. Its own kind, checked
-    // before the lowering runs: it is structural, where `stack-not-lowerable`
-    // is a vocabulary gap a later slice can close, and counting the two
-    // together would hide one behind the other.
-    const midResolution = position.stack.filter(
-        (item) =>
-            item.resolutionStep !== undefined ||
-            item.collectedChoices !== undefined
-    );
-    if (midResolution.length > 0) {
-        return {
-            ok: false,
-            kind: "stack-mid-resolution",
-            dropped: [],
-            error: `${midResolution.length} object(s) on the stack are partway through resolving (CR 608.3) — a declared stack holds announced objects, never a half-resolved one`,
-        };
-    }
+    // CR 608.2 (issue #5525) — an object PARTWAY through resolving used to be
+    // its own structural refusal here, before the lowering ran. The spec now
+    // carries the top object's resolution checkpoint (`spec.stack[].
+    // resolution`) and the rebuild resumes it, so a decision answering a
+    // Pending Choice lowers like any other; what the checkpoint vocabulary
+    // cannot carry comes back as a stack blocker and refuses below by field.
 
     // The hidden half of the board has no identity to lower: a projected
     // client state gives a non-viewer's hand as `null` per card and the adapter

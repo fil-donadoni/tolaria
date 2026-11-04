@@ -323,10 +323,11 @@ export function observeDecision(
     const outcome = lowerDecision(state, botId, chosenDescription);
 
     // The dropped tally is taken from `specFromState` DIRECTLY, not from the
-    // refusal's own `dropped`: `stack-mid-resolution` fires before the
-    // lowering ever runs, and reading its (empty) list would make it look
-    // lossless. The stack blockers come from the same call for the same
-    // reason — they are PRESENT on a decision whatever refused it first.
+    // refusal's own `dropped`: a refusal that fires before the lowering ever
+    // runs (`lowering-threw` on a hidden identity) carries an empty list,
+    // and reading it would make the decision look lossless. The stack
+    // blockers come from the same call for the same reason — they are
+    // PRESENT on a decision whatever refused it first.
     const droppedClasses = new Set<string>();
     const stackBlockers = new Set<string>();
     for (const blocker of offStackObjectBlockers(state)) {
