@@ -51,6 +51,50 @@ import {
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     {
+        // CONSPIRE reachability (CR 702.78a, issue #4012). The bot's main phase,
+        // the opponent at 6 with two walls that stop both Hill Giants, and Burn
+        // Trail in hand: 3 to the face wins nothing, tapping the two red
+        // creatures copies it for exactly lethal.
+        //
+        // What it guards is the tap leg reaching the tree: enumerated, charged
+        // by the sandbox, and valued through the copy it buys. No other play
+        // wins this turn.
+        label: "Conspire: taps two red creatures to copy Burn Trail for lethal",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Burn Trail", owner: "me", zone: "hand" },
+                { name: "Hill Giant", owner: "me", zone: "battlefield" },
+                { name: "Hill Giant", owner: "me", zone: "battlefield" },
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Mountain",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+                { name: "Wall of Stone", owner: "opp", zone: "battlefield" },
+                { name: "Wall of Stone", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+            life: { opp: 6 },
+        },
+        bot: "me",
+        budget: { iterations: 1000 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, as for the other reachability entries: kept out of the
+        // weight fit.
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.kickerPayments?.conspire ?? 0) > 0,
+            describe: "casts Burn Trail paying its conspire cost",
+        },
+        note: "CR 702.78a Conspire reachability — the deterministic halves (enumeration, sandbox charge, tap-plan reservation) are in `conspire.bot.test.ts`.",
+    },
+    {
         // ORDERED TARGET GROUP reachability (CR 601.2c / 702.33g, issue
         // #4193). Kicked Jilt announces TWO targets through one widened
         // requirement and reads them positionally: slot 0 is returned to its

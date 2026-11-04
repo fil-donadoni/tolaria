@@ -5566,6 +5566,16 @@
         "source": "compiled"
     },
     {
+        "name": "Barkshell Blessing",
+        "scryfallId": "cd273ef2-4aed-4c7e-8c97-fe8b1af9ce69",
+        "oracleId": "baf3d4d9-0590-4d94-8f4e-1e726194b920",
+        "firstSet": "shm",
+        "firstPrintId": "cd273ef2-4aed-4c7e-8c97-fe8b1af9ce69",
+        "firstPrintSet": "shm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Barktooth Warbeard",
         "scryfallId": "0ea52228-f8ad-4623-9e05-f162473bfc03",
         "oracleId": "4a221518-c850-4e8a-a697-765c0a0e76e7",
@@ -10152,6 +10162,16 @@
         "firstSet": "rna",
         "firstPrintId": "b8574ffd-3e72-41de-90bf-69363189f047",
         "firstPrintSet": "rna",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Burn Trail",
+        "scryfallId": "7f01f9a0-f1d0-4241-a270-df4ed673d1fd",
+        "oracleId": "566b4dcc-b7d7-4443-b2d0-954f1fc33a11",
+        "firstSet": "shm",
+        "firstPrintId": "7f01f9a0-f1d0-4241-a270-df4ed673d1fd",
+        "firstPrintSet": "shm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -19929,6 +19949,16 @@
         "firstPrintId": "3171b16f-cd67-416d-be5e-5d9cccb8d0a0",
         "firstPrintSet": "dft",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Disturbing Plot",
+        "scryfallId": "b7796925-fe69-4019-82ab-7cb75760b045",
+        "oracleId": "3efecb6c-7c21-4b3b-9612-e3916f91c680",
+        "firstSet": "shm",
+        "firstPrintId": "b7796925-fe69-4019-82ab-7cb75760b045",
+        "firstPrintSet": "shm",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -29972,6 +30002,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ghastly Discovery",
+        "scryfallId": "9dbd510a-d71f-4b0c-bc6c-e403f632cbdb",
+        "oracleId": "1ca875f0-50a7-4332-8643-c2b4bbda18b1",
+        "firstSet": "shm",
+        "firstPrintId": "9dbd510a-d71f-4b0c-bc6c-e403f632cbdb",
+        "firstPrintSet": "shm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Ghastly Gloomhunter",
         "scryfallId": "f272ac54-fea8-4044-83e2-f8fdc10f467d",
         "oracleId": "70ab65ff-724f-4126-b472-97fa03ca3a34",
@@ -30380,6 +30420,16 @@
         "source": "compiled"
     },
     {
+        "name": "Giantbaiting",
+        "scryfallId": "0fa3dd33-7240-4b32-b5ee-a67f24b42e4d",
+        "oracleId": "894a220b-1372-4a76-b38f-bf0d7001af41",
+        "firstSet": "shm",
+        "firstPrintId": "0fa3dd33-7240-4b32-b5ee-a67f24b42e4d",
+        "firstPrintSet": "shm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Gideon's Lawkeeper",
         "scryfallId": "1c71eb81-a077-4c85-a4ce-4ad664486bee",
         "oracleId": "bae86bb0-5a97-4f6a-8a3f-4e6848bfacc0",
@@ -30712,6 +30762,16 @@
         "firstSet": "lea",
         "firstPrintId": "cafc2350-5d64-4379-9198-79a114654d45",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Gleeful Sabotage",
+        "scryfallId": "d1b7d043-5f52-4df6-8dcf-5174a5b0c9cc",
+        "oracleId": "25fe48be-95c4-4011-8c60-4628fb5ecfcb",
+        "firstSet": "shm",
+        "firstPrintId": "d1b7d043-5f52-4df6-8dcf-5174a5b0c9cc",
+        "firstPrintSet": "shm",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Glider Kids",
@@ -46555,6 +46615,16 @@
         "firstPrintSet": "hml"
     },
     {
+        "name": "Memory Sluice",
+        "scryfallId": "5fd93980-55f6-43a0-87db-5fa1203aa7b6",
+        "oracleId": "a30b659e-ae2b-4736-9b4f-a9805905bf75",
+        "firstSet": "shm",
+        "firstPrintId": "5fd93980-55f6-43a0-87db-5fa1203aa7b6",
+        "firstPrintSet": "shm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Memory Trap",
         "scryfallId": "2f5345ae-4489-4d05-b2d5-c71285254f05",
         "oracleId": "70616a8c-9b6c-408e-8f3e-2c348ec136d8",
@@ -47591,6 +47661,16 @@
         "firstSet": "mh2",
         "firstPrintId": "56e2e8b5-660d-4469-a4fe-2367dfadb709",
         "firstPrintSet": "mh2"
+    },
+    {
+        "name": "Mine Excavation",
+        "scryfallId": "eee9dce2-3d2c-4ac4-a61e-3e352b6d4557",
+        "oracleId": "9bd5dc7a-11b0-48eb-bf52-2956dd3989ab",
+        "firstSet": "shm",
+        "firstPrintId": "eee9dce2-3d2c-4ac4-a61e-3e352b6d4557",
+        "firstPrintSet": "shm",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Minecart Daredevil // Ride the Rails",

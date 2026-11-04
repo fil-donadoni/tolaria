@@ -148,6 +148,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     // CR 702.89a — umbra armor sits on the Aura, never on the creature's body:
     // the search weighs it on the real destroy path it replaces.
     "umbra-armor",
+    // CR 702.78a — a keyword of a spell on the stack: its worth is the copy the
+    // search reaches, never a creature's body.
+    "conspire",
 ]);
 
 /** Table keys with no registry row of their own (engine-internal spellings). */

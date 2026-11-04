@@ -1502,7 +1502,10 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Conspire",
         kind: "keyword-ability",
         cr: "702.78",
-        status: "planned",
+        status: "implemented",
+        binding:
+            'staticAbilities "conspire" + kickers[] entry conspireCost() (cards/abilities/conspire.ts, ADDITIONAL_COST_KEYWORDS row castCopyTrigger:true) + collectCastTriggers/resolveCastCopyTrigger (gre/state.ts, ADR 0052)',
+        note: 'CR 702.78a is two abilities. The COST half is an optional kickers[] entry with a permanent leg of action "tap": two untapped creatures, the colour clause bound to the cast spell at pricing time (sharesColorWithCastSpell), paid through the cast\'s permanent-cost selection and never a kick. The TRIGGER half is the cast-copy trigger with a count of 1, put on the stack only when the entry was paid (CR 603.4). CR 702.78b is the per-id record: each instance its own entry and its own trigger.',
     },
     // 702.79 Persist (issue #1372) — expanded from the bare
     // `staticAbilities: ["persist"]` string at the `getDefinition` seam

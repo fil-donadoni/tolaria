@@ -176,7 +176,11 @@ import {
     enumerateActivationCostPicks,
     planGenericSubstitution,
 } from "./activationCostPicks";
-import { planCastCostPicks, type CastCostPicks } from "./castCostPicks";
+import {
+    kickerTapLegPicks,
+    planCastCostPicks,
+    type CastCostPicks,
+} from "./castCostPicks";
 // Issue #2420 — the ONE model of a `tapOtherFilter` mana ability (Urza, Lord
 // High Artificer), shared with the castability census (`coloredCostLeftover`,
 // rules.ts) so the plan and the Cast affordance can never disagree.
@@ -3878,7 +3882,8 @@ function enumerateCastMovesFromZone(
                                         player,
                                         def,
                                         kickerPayments,
-                                        card.id
+                                        card.id,
+                                        card
                                     ))
                             ) {
                                 return [];
@@ -4373,11 +4378,19 @@ function enumerateCastMovesFromZone(
             if (castCostPicks === null) continue;
             // Issue #3530 — one plan on every ordinary board, two when the
             // payment choice is about a finite mana source's charge.
+            // CR 702.78a — a plan may not spend a creature the paid tap leg takes.
+            const tapLegPicks = def
+                ? kickerTapLegPicks(state, player, card, def, kickerPayments)
+                : undefined;
+            if (tapLegPicks === null) continue;
             const tapPlans = castTapPlans(state, player, normCost, {
                 cardInstanceId: card.id,
                 cardDef: def,
                 chosenX: x,
-            });
+            }).filter(
+                (plan) =>
+                    !plan.some((tap) => tapLegPicks?.has(tap.cardInstanceId))
+            );
             if (tapPlans.length === 0) continue;
             // The plan loop is OUTSIDE the target loop (PR #3566 review
             // finding 5): both are capped by `MAX_COMBINATIONS`, so pushing two

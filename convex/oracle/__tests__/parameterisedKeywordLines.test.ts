@@ -19,6 +19,7 @@
 
 import { describe, expect, it } from "vitest";
 import { resolveCompiledTrigger } from "../../cards/compiledTriggers";
+import { conspireCost } from "../../cards/abilities/conspire";
 import { compileCard } from "../compile";
 import { keywordLineSlot } from "../grammar/slots/keywordLine";
 import { oracleCard, parseContext } from "./oracle.fixture";
@@ -538,5 +539,39 @@ describe("Offspring [cost] (CR 702.175a)", () => {
             })
         );
         expect(outcome.state).toBe("unparsed");
+    });
+});
+
+describe("Conspire keyword line (CR 702.78a)", () => {
+    const line =
+        "Conspire (As you cast this spell, you may tap two untapped creatures you control that share a color with it. When you do, copy it and you may choose a new target for the copy.)";
+
+    it("lowers the keyword to its static string and its cost entry", () => {
+        const definition = compiled(
+            oracleCard({
+                name: "Burn Trail",
+                manaCost: "{3}{R}",
+                typeLine: "Sorcery",
+                oracleText: `Burn Trail deals 3 damage to any target.\n${line}`,
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(definition.staticAbilities).toEqual(["conspire"]);
+        expect(definition.kickers).toEqual([conspireCost()]);
+    });
+
+    it("a card with no conspire line carries no conspire entry", () => {
+        const definition = compiled(
+            oracleCard({
+                name: "Shock Trail",
+                manaCost: "{3}{R}",
+                typeLine: "Sorcery",
+                oracleText: "Shock Trail deals 3 damage to any target.",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(definition.kickers).toBeUndefined();
     });
 });
