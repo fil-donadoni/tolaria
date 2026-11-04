@@ -72,7 +72,13 @@ import { getEffectiveColors } from "../cards/effectiveColors";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import type { CastFromZone } from "./castCost";
-import { exileCastPermitted, modalBackCastLicensed } from "./castCost";
+import {
+    castsUnderPlotPermission,
+    exileCastOnlyUnderPlotPermission,
+    exileCastPermitted,
+    exileGrantPermitted,
+    modalBackCastLicensed,
+} from "./castCost";
 import {
     castOptionAlternativeCosts,
     castPermissionRequired,
@@ -956,11 +962,14 @@ export function castNeedsSorceryWindow(
     alternativeCostId?: string
 ): boolean {
     if (isCastTimingSorcerySpeedLocked(casterId, state)) return true;
-    // CR 702.170d — an exile grant whose window is "during their main phase
-    // while the stack is empty" (a plotted card) licenses a cast in that window
-    // only, even for an instant: the permission's timing binds before any
-    // instant speed or flash the card itself has.
-    if (castFromZone === "exile" && card.castableFromExileSorceryTiming) {
+    // CR 702.170d — a plotted card's permission, "during their main phase while
+    // the stack is empty", licenses a cast in that window only, even for an
+    // instant: the permission's timing binds before any instant speed or flash
+    // the card itself has. Another grant on the card keeps its own timing.
+    if (
+        castFromZone === "exile" &&
+        exileCastOnlyUnderPlotPermission(state, card, casterId)
+    ) {
         return true;
     }
     // CR 715.3b — the object whose TYPES and keywords decide instant speed is
@@ -1435,7 +1444,7 @@ export function getLegalActions(
             (player.graveyard.some((c) => c.id === card.id) &&
                 canPlayLandsFromGraveyard(state, player)) ||
             isPlayableLibraryTopLand(state, player, card.id) ||
-            (exileCastPermitted(state, card, casterId) &&
+            (exileGrantPermitted(state, card, casterId) &&
                 card.castableFromExileIncludesLand === true &&
                 state.players.some((p) =>
                     p.exile.some((c) => c.id === card.id)
@@ -1742,7 +1751,9 @@ export function getLegalActions(
     // like the Madness branch above.
     const isFreeExileCast =
         !types.includes("Land") &&
-        card.castFromExileWithoutPayingManaCost === true;
+        (card.castFromExileWithoutPayingManaCost === true ||
+            // CR 702.170d — a plotted card's cast is free in the same sense.
+            castsUnderPlotPermission(state, card, caster.id));
     if (isFreeExileCast) {
         if (
             passesCastPhaseRestriction(state, card) &&

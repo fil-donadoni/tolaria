@@ -52,6 +52,7 @@ import {
     modalBackCastAltCostId,
     modalBackCastLicensedInZone,
 } from "./modalBackCast";
+import { isSorceryTimingFor } from "./phases";
 import { hasRebound } from "./rebound";
 import {
     canCastFromGraveyardByPermission,
@@ -339,6 +340,16 @@ export function castRawManaCost(
     if (zone === "exile" && card.castFromExileWithoutPayingManaCost) {
         return {};
     }
+    // CR 702.170d / 118.9 — a cast under the plotted permission, "without
+    // paying its mana cost", an alternative cost: additional costs and cost
+    // increases still apply. The caster is the priority holder: a cast begins
+    // with priority (CR 117.1a), and this signature names no caster.
+    if (
+        zone === "exile" &&
+        castsUnderPlotPermission(state, card, state.priorityPlayerId)
+    ) {
+        return {};
+    }
     // CR 702.35a — a card discarded via Madness is cast from exile for its
     // madness cost, not its printed mana cost. `Madness {0}` is the empty cost.
     if (zone === "exile" && card.madnessExiled) {
@@ -561,6 +572,67 @@ export function modalBackCastLicensed(
     );
 }
 
+/** The fields {@link exileCastPermission} reads. */
+type ExileCastWindowFields = Pick<
+    CardInstanceState,
+    | "castableFromExileBy"
+    | "castableFromExileFromTurn"
+    | "ownerId"
+    | "plottedOnTurn"
+>;
+
+/** The fields {@link exileCastPermitted} reads: the window, plus the grant's
+ *  board condition. */
+type ExileCastFields = ExileCastWindowFields &
+    Pick<CardInstanceState, "castableFromExileCondition">;
+
+/** CR 702.170d — the turn from which `casterId` holds a plotted card's
+ *  permission: "a plotted card's OWNER may cast it … during any turn AFTER the
+ *  turn in which it became plotted". `undefined` when the card is not plotted
+ *  or `casterId` is not its owner. */
+function plotPermissionOpensOnTurn(
+    card: Pick<CardInstanceState, "ownerId" | "plottedOnTurn">,
+    casterId: string
+): number | undefined {
+    if (card.plottedOnTurn === undefined || card.ownerId !== casterId) {
+        return undefined;
+    }
+    return card.plottedOnTurn + 1;
+}
+
+/** The grant half of {@link exileCastPermission}: the `castableFromExile*`
+ *  record alone, read against its lower bound. */
+function exileGrantOpen(
+    card: Pick<
+        CardInstanceState,
+        "castableFromExileBy" | "castableFromExileFromTurn"
+    >,
+    casterId: string,
+    turn: number
+): boolean {
+    if (card.castableFromExileBy !== casterId) return false;
+    return (
+        card.castableFromExileFromTurn === undefined ||
+        turn >= card.castableFromExileFromTurn
+    );
+}
+
+/** Whether `casterId` holds ANY cast-from-exile permission on `card`, open or
+ *  not: the grant, or a plotted card's owner. What decides that the viewer gets
+ *  a Cast button at all, enabled or not. */
+export function holdsExileCastPermission(
+    card: Pick<
+        Partial<CardInstanceState>,
+        "castableFromExileBy" | "ownerId" | "plottedOnTurn"
+    >,
+    casterId: string
+): boolean {
+    return (
+        card.castableFromExileBy === casterId ||
+        (card.plottedOnTurn !== undefined && card.ownerId === casterId)
+    );
+}
+
 /** CR 601.3 — whether `casterId` currently holds a permission to cast `card`
  *  out of `zoneOwner`'s EXILE. Two shapes, both riding the card object:
  *  the open-ended / turn-scoped grant (`castableFromExileBy` — Ice Cauldron,
@@ -586,17 +658,18 @@ export function modalBackCastLicensed(
  *  A LAND in exile under such a grant is deliberately included in neither
  *  answer here nor excluded: a land is PLAYED, never cast (CR 305.9), and the
  *  caller filters on type — the land half has its own enumeration
- *  (`resolvePlayLandSourceZone`). */
+ *  (`resolvePlayLandSourceZone`).
+ *
+ *  CR 702.170d — a plotted card's permission is a THIRD shape, derived from
+ *  `plottedOnTurn` rather than stamped on the grant record, so it and a grant
+ *  coexist: either one licenses the cast. */
 export function exileCastPermission(
-    /** Narrowed to the two fields this authority reads so the CLIENT can ask
-     *  it directly about a projected `SlimExileCard` (ADR 0074 — the frontend
+    /** Narrowed to the fields this authority reads so the CLIENT can ask it
+     *  directly about a projected `SlimExileCard` (ADR 0074 — the frontend
      *  imports pure engine modules, it just never has authority): the Cast
      *  button's disabled REASON has to come from the same comparison the
      *  projection gated on, or the two drift and the button lies again. */
-    card: Pick<
-        CardInstanceState,
-        "castableFromExileBy" | "castableFromExileFromTurn"
-    >,
+    card: ExileCastWindowFields,
     casterId: string,
     /** CR 702.185a (issue #1268) — the CURRENT turn number, against which the
      *  grant's LOWER bound (`castableFromExileFromTurn`) is read. A grant made
@@ -608,10 +681,78 @@ export function exileCastPermission(
      *  one of them would silently keep the old, fail-OPEN answer. */
     turn: number
 ): boolean {
-    if (card.castableFromExileBy !== casterId) return false;
+    const plotOpensOn = plotPermissionOpensOnTurn(card, casterId);
     return (
-        card.castableFromExileFromTurn === undefined ||
-        turn >= card.castableFromExileFromTurn
+        (plotOpensOn !== undefined && turn >= plotOpensOn) ||
+        exileGrantOpen(card, casterId, turn)
+    );
+}
+
+/** The grant half of {@link exileCastPermitted}, plotted permission excluded:
+ *  the record's window and its board condition. Asked directly by the land play
+ *  (CR 116.2a — a plotted card's permission is to CAST, and a land is played,
+ *  so only a grant can license it) and by the plotted-cast route below. */
+export function exileGrantPermitted(
+    state: GameState,
+    card: Pick<
+        CardInstanceState,
+        | "castableFromExileBy"
+        | "castableFromExileFromTurn"
+        | "castableFromExileCondition"
+    >,
+    casterId: string
+): boolean {
+    if (!exileGrantOpen(card, casterId, state.turn)) return false;
+    return alternativeCostConditionMet(
+        state,
+        casterId,
+        card.castableFromExileCondition
+    );
+}
+
+/** CR 702.170d — whether `casterId` holds a plotted card's OPEN permission. */
+function plotPermissionOpen(
+    state: GameState,
+    card: Pick<CardInstanceState, "ownerId" | "plottedOnTurn">,
+    casterId: string
+): boolean {
+    const opensOn = plotPermissionOpensOnTurn(card, casterId);
+    return opensOn !== undefined && state.turn >= opensOn;
+}
+
+/** CR 702.170d — true iff the plotted permission is the ONLY one licensing
+ *  `casterId`'s cast of `card`, whose timing then binds: "during their main
+ *  phase while the stack is empty", before any instant speed or flash the card
+ *  itself has. Beside an open grant the cast may use the grant's own timing. */
+export function exileCastOnlyUnderPlotPermission(
+    state: GameState,
+    card: ExileCastFields,
+    casterId: string
+): boolean {
+    return (
+        plotPermissionOpen(state, card, casterId) &&
+        !exileGrantPermitted(state, card, casterId)
+    );
+}
+
+/** CR 601.3 / 702.170d — whether `casterId`'s cast of `card` right now is made
+ *  under the plotted permission, and so pays its cost (none, CR 118.9) rather
+ *  than the grant's. The one route decision the price, the legality gate and
+ *  the grant's own riders read.
+ *
+ *  Alone, the plotted permission carries the cast. Beside an open grant it
+ *  carries it inside its own window, where it is the cheaper of the two, and
+ *  the grant carries it everywhere else. The caster is not asked: an {X} spell
+ *  cast in that window cannot choose the grant to pay X. tracked-by: #8022 */
+export function castsUnderPlotPermission(
+    state: GameState,
+    card: ExileCastFields,
+    casterId: string
+): boolean {
+    if (!plotPermissionOpen(state, card, casterId)) return false;
+    return (
+        !exileGrantPermitted(state, card, casterId) ||
+        isSorceryTimingFor(state, casterId)
     );
 }
 
@@ -627,48 +768,52 @@ export function exileCastPermission(
  *  half for the CLIENT, which holds a projected card and no board: the
  *  projection withholds `legalActions` while the condition fails, which is what
  *  the Cast button gates on. A card with no condition answers exactly as
- *  `exileCastPermission` does. */
+ *  `exileCastPermission` does. The condition belongs to the grant, so it never
+ *  closes a plotted card's own permission (CR 702.170d). */
 export function exileCastPermitted(
     state: GameState,
-    card: Pick<
-        CardInstanceState,
-        | "castableFromExileBy"
-        | "castableFromExileFromTurn"
-        | "castableFromExileCondition"
-    >,
+    card: ExileCastFields,
     casterId: string
 ): boolean {
-    if (!exileCastPermission(card, casterId, state.turn)) return false;
-    return alternativeCostConditionMet(
-        state,
-        casterId,
-        card.castableFromExileCondition
+    return (
+        plotPermissionOpen(state, card, casterId) ||
+        exileGrantPermitted(state, card, casterId)
     );
+}
+
+/** The turn on which `casterId`'s next cast-from-exile window on `card` opens,
+ *  when they hold one that is closed on `turn`: the earlier of the plotted
+ *  permission and the grant. `undefined` when one is open, or they hold none.
+ *  Shared with the Cast button's disabled reason. */
+export function exileCastOpensOnTurn(
+    card: ExileCastWindowFields,
+    casterId: string,
+    turn: number
+): number | undefined {
+    if (exileCastPermission(card, casterId, turn)) return undefined;
+    const opening = [
+        plotPermissionOpensOnTurn(card, casterId),
+        card.castableFromExileBy === casterId
+            ? card.castableFromExileFromTurn
+            : undefined,
+    ].filter((t): t is number => t !== undefined);
+    return opening.length > 0 ? Math.min(...opening) : undefined;
 }
 
 /** CR 702.143a / 702.170d / 702.185a (issue #7587) — whether `casterId` holds
  *  a grant to cast `card` from exile that is stamped but opens only on a LATER
  *  turn: a foretold card ("after the current turn has ended"), a plotted card
- *  ("on a later turn"), a warped card's recast window. The window half of
- *  {@link exileCastPermission} read against the grant's own lower bound, so
- *  the comparison stays the one authority's.
+ *  ("on a later turn"), a warped card's recast window. Read through
+ *  {@link exileCastOpensOnTurn}, so the comparison stays the one authority's.
  *
  *  A board condition on that future window is NOT re-read: the future board is
  *  unknown, and the card is banked either way. */
 export function exileCastOpensLater(
     state: GameState,
-    card: Pick<
-        CardInstanceState,
-        "castableFromExileBy" | "castableFromExileFromTurn"
-    >,
+    card: ExileCastWindowFields,
     casterId: string
 ): boolean {
-    const from = card.castableFromExileFromTurn;
-    return (
-        from !== undefined &&
-        from > state.turn &&
-        exileCastPermission(card, casterId, from)
-    );
+    return exileCastOpensOnTurn(card, casterId, state.turn) !== undefined;
 }
 
 /** Issue #7587 — whether an exiled `card` is LATENT material for `casterId`:
@@ -678,12 +823,7 @@ export function exileCastOpensLater(
  *  has one answer. */
 export function exileCastLatent(
     state: GameState,
-    card: Pick<
-        CardInstanceState,
-        | "castableFromExileBy"
-        | "castableFromExileFromTurn"
-        | "castableFromExileCondition"
-    >,
+    card: ExileCastFields,
     casterId: string
 ): boolean {
     return (

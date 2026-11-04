@@ -1,4 +1,5 @@
 import { usePlainPriorityWindow } from "~/hooks/usePlainPriorityWindow";
+import { holdsExileCastPermission } from "@convex/gre/castCost";
 import { cardHasLegalAction, exileActionSources } from "~/lib/card-actionable";
 import {
     ContextMenu,
@@ -148,7 +149,7 @@ export default function PlayerExile({
                 isExileChoice
                     ? undefined
                     : (card, onClose) =>
-                          card.castableFromExileBy === playerId ? (
+                          holdsExileCastPermission(card, playerId) ? (
                               <ExileCastButton
                                   card={card}
                                   onCommitted={onClose}

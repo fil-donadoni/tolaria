@@ -1600,18 +1600,17 @@ export function projectPublicState(
                         // CR 601.3 (issue #1156) — `casterId` disambiguates a
                         // CROSS-PLAYER grant (Robber of the Rich, Dauthi
                         // Voidwalker): the card lives in `player`'s exile, but
-                        // `c.castableFromExileBy` may name a DIFFERENT player as
-                        // the caster, whose priority/mana/targets must gate the
-                        // "cast" affordance, not this zone owner's. Defaults to
-                        // `player.id` for every same-player grant (Ice Cauldron),
-                        // so this is a no-op there.
+                        // the caster may be a DIFFERENT player, whose
+                        // priority/mana/targets must gate the "cast" affordance,
+                        // not this zone owner's. Only asked once `castPermitted`
+                        // holds, which makes the viewer that caster.
                         legalActionsFor: () =>
                             getLegalActions(
                                 state,
                                 player,
                                 c,
                                 allActions,
-                                c.castableFromExileBy
+                                viewerId
                             ),
                         exiledByPermanentId: exileAssoc.get(c.id),
                     }),
@@ -1989,9 +1988,12 @@ export function projectFullState(
                 // so a raw field read here showed a warped card as castable on
                 // the turn it was warped out while the public view (correctly)
                 // did not.
+                // CR 702.170d — the grantee, or else a plotted card's owner.
+                const caster = [c.castableFromExileBy, c.ownerId].find(
+                    (id) => id !== undefined && exileCastPermitted(state, c, id)
+                );
                 const out: SlimExileCard =
-                    c.castableFromExileBy !== undefined &&
-                    exileCastPermitted(state, c, c.castableFromExileBy)
+                    caster !== undefined
                         ? {
                               ...slimCard(c),
                               legalActions: getLegalActions(
@@ -1999,7 +2001,7 @@ export function projectFullState(
                                   player,
                                   c,
                                   allActions,
-                                  c.castableFromExileBy
+                                  caster
                               ),
                           }
                         : slimCard(c);

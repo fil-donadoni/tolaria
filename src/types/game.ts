@@ -547,14 +547,11 @@ export interface CardInstance {
      *  (`exileCastPermission`, `convex/gre/castCost.ts`) with it so a button
      *  disabled by a closed window says so instead of blaming the mana. */
     castableFromExileFromTurn?: number;
-    /** CR 702.170d — the cast-from-exile grant licenses a cast only in the
-     *  grantee's main phase with an empty stack (a plotted card). Crosses the
-     *  wire via `slimCard`; read by `ExileCastButton` for its disabled reason.
-     *  Mirrors `CardInstanceState.castableFromExileSorceryTiming`. */
-    castableFromExileSorceryTiming?: boolean;
-    /** CR 702.170a/c — the PLOTTED designation on a card in exile (public, the
-     *  card is exiled face up). Mirrors `CardInstanceState.plotted`. */
-    plotted?: boolean;
+    /** CR 702.170a/c/d — the PLOTTED designation on a card in exile: the turn
+     *  it became plotted (public, the card is exiled face up). The owner's cast
+     *  permission is derived from it (`exileCastPermission`). Mirrors
+     *  `CardInstanceState.plottedOnTurn`. */
+    plottedOnTurn?: number;
     /** CR 702.143a/c — the FORETOLD designation on a (face-down) exiled card;
      *  public, its identity is not. Drives the exile Cast button's "Foretell"
      *  label. Mirrors `CardInstanceState.foretold`. */

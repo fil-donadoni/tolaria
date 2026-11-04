@@ -3,6 +3,7 @@ import type {
     PendingActivation,
     PendingTarget,
 } from "~/types/game";
+import { holdsExileCastPermission } from "@convex/gre/castCost";
 import { cardRingClass } from "./card-ring";
 import { expectedInputAdmits, type ExpectedInputView } from "./expected-input";
 
@@ -97,6 +98,8 @@ type ProjectedZoneCard = {
     castKind?: unknown;
     castableFromExileBy?: string;
     castableFromExileIncludesLand?: boolean;
+    ownerId?: string;
+    plottedOnTurn?: number;
     types?: readonly string[];
 };
 
@@ -129,7 +132,7 @@ export function exileActionSources(
     card: ProjectedZoneCard,
     viewerId: string
 ): CardActionSources {
-    if (card.castableFromExileBy !== viewerId) return {};
+    if (!holdsExileCastPermission(card, viewerId)) return {};
     const isLand = card.types?.includes("Land") ?? false;
     if (isLand && card.castableFromExileIncludesLand !== true) return {};
     return onlyAction(card, isLand ? "play" : "cast");
