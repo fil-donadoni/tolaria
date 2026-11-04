@@ -15554,4 +15554,73 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 205.1b + CR 400.7j — "put target creature card from a graveyard onto
+    // the battlefield. It's a <Subtype> …": `addSubtype` on the bound permanent
+    // the announced card became, a ref the canned smoke scenario cannot stage.
+    {
+        rule: "verb frame",
+        card: {
+            name: "Portal to Phyrexia",
+            manaCost: "{9}",
+            typeLine: "Artifact",
+            oracleText:
+                "When this artifact enters, each opponent sacrifices three creatures of their choice.\nAt the beginning of your upkeep, put target creature card from a graveyard onto the battlefield under your control. It's a Phyrexian in addition to its other types.",
+            oracleId: "301d1d8e-d3fc-4010-8b29-4724fa0b31cd",
+            layout: "normal",
+        },
+        expected: {
+            name: "Portal to Phyrexia",
+            types: ["Artifact"],
+            manaCost: { X: 9 },
+            oracleText:
+                "When this artifact enters, each opponent sacrifices three creatures of their choice.\nAt the beginning of your upkeep, put target creature card from a graveyard onto the battlefield under your control. It's a Phyrexian in addition to its other types.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "portal-to-phyrexia-trigger",
+                    oracleText:
+                        "When this artifact enters, each opponent sacrifices three creatures of their choice.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: "opponent",
+                            zone: "battlefield",
+                            filter: { type: "Creature" },
+                            count: 3,
+                            prompt: "Sacrifice three creatures.",
+                            bind: "$sacrifice1",
+                        },
+                        { op: "sacrifice", permanents: { ref: "$sacrifice1" } },
+                    ],
+                },
+                {
+                    id: "portal-to-phyrexia-trigger-2",
+                    oracleText:
+                        "At the beginning of your upkeep, put target creature card from a graveyard onto the battlefield under your control. It's a Phyrexian in addition to its other types.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        zone: "graveyard",
+                        controller: "any",
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { target: 0 },
+                            to: "battlefield",
+                            controller: "controller",
+                            bind: "$that1",
+                        },
+                        {
+                            op: "addSubtype",
+                            target: { ref: "$that1" },
+                            subtype: "Phyrexian",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

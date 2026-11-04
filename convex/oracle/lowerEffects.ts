@@ -1274,7 +1274,7 @@ export class SentenceWalk {
      */
     actedOn: {
         /** A `destroy`, `exile` or announced-target `moveZone` — each carries `bind`. */
-        readonly op: { op: string; bind?: string };
+        readonly op: { op: string; bind?: string; to?: string };
         readonly requirement: TargetRequirement;
     } | null = null;
 
@@ -1863,10 +1863,14 @@ export function lowerSentence(
     const out = lowerSentenceBody(
         sentence,
         walk,
-        announcedCreatureSite(
+        movedCreatureSite(
             sentence,
             walk,
-            introducedCreatureSite(sentence, walk, site)
+            announcedCreatureSite(
+                sentence,
+                walk,
+                introducedCreatureSite(sentence, walk, site)
+            )
         )
     );
     // CR 608.2h — "that creature" names the object the LAST sentence acted
@@ -1984,6 +1988,46 @@ function announcedCreatureSite(
         antecedents: {
             ...site.antecedents,
             creature: { target: 0 },
+            creatureAfterSlots: 1,
+        },
+    };
+}
+
+/**
+ * CR 608.2c + CR 400.7j — a sentence reading "that creature" after the script
+ * put its ONE announced creature card onto the battlefield names the permanent
+ * that card became (Portal to Phyrexia's "It's a Phyrexian …"). CR 400.7 — the
+ * slot still points at the card that left, so the move is given the `bind`
+ * naming the new object, and only when a sentence reads it. The move sits
+ * between the head and the sentence, so it is the nearer antecedent than
+ * anything the head named. A gated move may not have happened: refused.
+ */
+function movedCreatureSite(
+    sentence: EffectSentenceIR,
+    walk: SentenceWalk,
+    site: SiteOptions
+): SiteOptions {
+    const actedOn = walk.actedOn;
+    if (
+        actedOn === null ||
+        actedOn.op.op !== "moveZone" ||
+        actedOn.op.to !== "battlefield" ||
+        actedOn.requirement.count !== 1 ||
+        walk.targets.requirements().length !== 1 ||
+        walk.gatedRemoval ||
+        !announcedTypes(actedOn.requirement).every(
+            (type) => type === "Creature"
+        ) ||
+        !mentionsThatCreature(sentence)
+    )
+        return site;
+    const bind = actedOn.op.bind ?? walk.nextBind("that");
+    actedOn.op.bind = bind;
+    return {
+        ...site,
+        antecedents: {
+            ...site.antecedents,
+            creature: { ref: bind },
             creatureAfterSlots: 1,
         },
     };
@@ -5605,6 +5649,28 @@ function lowerFrameChain(
                     );
                 ops.push({ op: "becomePrepared", target: { ref: "$source" } });
                 break;
+            // CR 205.1b + CR 613.1d — one creature type added, indefinitely
+            // (CR 611.2a). CR 205.3d — a creature type needs a creature.
+            case "addSubtype": {
+                const subject = frame.subject;
+                if (
+                    subject.kind === "target" &&
+                    (subject.requirement.type !== "Creature" ||
+                        (subject.requirement.zone !== undefined &&
+                            subject.requirement.zone !== "battlefield"))
+                )
+                    return unlowerable(
+                        "a creature type is added to a creature on the battlefield (CR 205.3d)"
+                    );
+                const target = objectSelector(subject, walk.targets, site);
+                if (!target.ok) return target;
+                ops.push({
+                    op: "addSubtype",
+                    target: target.value,
+                    subtype: frame.subtype,
+                });
+                break;
+            }
             // CR 701.27a / 701.27f — "this permanent" turns over; a spell's own
             // text has no permanent to transform. The engine's `transform`
             // primitive ignores a permanent that already transformed since
