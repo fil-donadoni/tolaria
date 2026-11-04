@@ -9692,6 +9692,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bronzeplate Boar",
+        "scryfallId": "7c8f5da8-13a8-4b39-8ddc-7661892924af",
+        "oracleId": "0a09f825-0484-40b4-8adf-1028385db480",
+        "firstSet": "neo",
+        "firstPrintId": "7c8f5da8-13a8-4b39-8ddc-7661892924af",
+        "firstPrintSet": "neo",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Brood Weaver",
         "scryfallId": "e24e2f49-70f9-445f-af03-2ef43798004a",
         "oracleId": "f0a7ef59-7897-4e84-a85e-1fcbe3dc9f6a",
@@ -41425,6 +41435,16 @@
         "firstPrintSet": "snc"
     },
     {
+        "name": "Leech Gauntlet",
+        "scryfallId": "97986b67-5ae4-492f-a9e0-81f57a829d86",
+        "oracleId": "1aaddaeb-baab-42b6-a442-d97339da54db",
+        "firstSet": "neo",
+        "firstPrintId": "97986b67-5ae4-492f-a9e0-81f57a829d86",
+        "firstPrintSet": "neo",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Leeching Bite",
         "scryfallId": "1c3bdbeb-c376-42bd-af2a-251cd7ac704c",
         "oracleId": "42e4a55b-12c8-4ad0-a27d-28bbdbb06940",
@@ -42357,6 +42377,16 @@
         "firstSet": "leg",
         "firstPrintId": "b9211949-66a5-4039-ac6d-3e42b008b58e",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Lizard Blades",
+        "scryfallId": "a747e6cf-c687-4c4f-8e07-d51165d6cb62",
+        "oracleId": "f6314e50-a610-4fff-8f60-803d23460ff0",
+        "firstSet": "neo",
+        "firstPrintId": "a747e6cf-c687-4c4f-8e07-d51165d6cb62",
+        "firstPrintSet": "neo",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Lizard Warrior",
@@ -56375,6 +56405,16 @@
         "firstPrintId": "c44c9bbe-f4c6-41cf-b3c3-b943f4011bc1",
         "firstPrintSet": "fin",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rabbit Battery",
+        "scryfallId": "5d33a5b7-797b-4079-8d62-edd124c0fb5a",
+        "oracleId": "c739e180-2f14-41ed-8e7e-50b7df985f35",
+        "firstSet": "neo",
+        "firstPrintId": "5d33a5b7-797b-4079-8d62-edd124c0fb5a",
+        "firstPrintSet": "neo",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -84250,6 +84290,16 @@
         "firstPrintId": "1ab7c1e6-54af-4002-8a81-23a1ccafa3ff",
         "firstPrintSet": "spm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Webspinner Cuff",
+        "scryfallId": "e73cc6a7-0a18-488c-b52a-787da95a2e6b",
+        "oracleId": "7826f3f5-c8f2-43f5-a837-ff016da625e6",
+        "firstSet": "neo",
+        "firstPrintId": "e73cc6a7-0a18-488c-b52a-787da95a2e6b",
+        "firstPrintSet": "neo",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

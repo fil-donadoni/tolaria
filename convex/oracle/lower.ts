@@ -53,7 +53,10 @@ import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import type { LineParse, SlotIR } from "./grammar/ir";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import { CYCLING_ABILITY_ID, cyclingAbility } from "../cards/abilities/cycling";
-import { equipAbility } from "../cards/abilities/equipment";
+import {
+    equipAbility,
+    reconfigureAbilities,
+} from "../cards/abilities/equipment";
 import { ninjutsuAbility } from "../cards/abilities/ninjutsu";
 import { offspringTriggerParts } from "../cards/abilities/offspring";
 import { crewAbility, crewKeyword } from "../cards/abilities/vehicle";
@@ -73,6 +76,13 @@ export type LowerResult =
           readonly reason: string;
           readonly fragment: string;
       };
+
+/** A factory takes fixed generic mana as `generic`, as every catalogue call
+ *  writes it; the mana reader writes a numeric `X`. */
+function factoryManaCost(cost: ManaCost): ManaCost {
+    const { X: generic, ...coloured } = cost;
+    return typeof generic === "number" ? { generic, ...coloured } : cost;
+}
 
 /** Deterministic, stable ability ids — the catalogue's own `<card>-mana` shape. */
 export function slugify(name: string): string {
@@ -190,6 +200,9 @@ interface Accumulator {
     cumulativeUpkeep?: MayPayCost;
     /** CR 702.6a — the equip line, checked against the Equipment subtype. */
     equipLine?: string;
+    /** CR 702.151a — the reconfigure line, checked against the Equipment
+     *  subtype. */
+    reconfigureLine?: string;
     /** CR 702.122a — the crew line, checked against the Vehicle subtype. */
     crewLine?: string;
     /** CR 702.171a — the saddle line, checked against the Mount subtype. */
@@ -910,19 +923,33 @@ function lowerLine(
             if (acc.equipLine !== undefined)
                 return "a card declares equip twice (one ability id per card)";
             acc.equipLine = parsed.line;
-            // `equipAbility` takes fixed generic mana as `generic`, as every
-            // catalogue call writes it; the mana reader writes a numeric `X`.
-            const { X: generic, ...coloured } = ir.cost;
             acc.activatedAbilities.push(
                 equipAbility({
                     id: `${slugify(card.name)}-equip`,
-                    cost:
-                        typeof generic === "number"
-                            ? { generic, ...coloured }
-                            : ir.cost,
+                    cost: factoryManaCost(ir.cost),
                     oracleText: parsed.line,
                 })
             );
+            return null;
+        }
+        case "reconfigure": {
+            if (acc.reconfigureLine !== undefined)
+                return "a card declares reconfigure twice (one ability id per card)";
+            acc.reconfigureLine = parsed.line;
+            acc.activatedAbilities.push(
+                ...reconfigureAbilities({
+                    slug: slugify(card.name),
+                    cost: factoryManaCost(ir.cost),
+                    costText: ir.costText,
+                    oracleText: parsed.line,
+                })
+            );
+            // CR 702.151b — "stop being a creature until it becomes unattached".
+            acc.compiledStaticEffects.push({
+                kind: "type-remove",
+                appliesTo: "self-while-attached",
+                types: ["Creature"],
+            });
             return null;
         }
         case "crew": {
@@ -1267,6 +1294,17 @@ export function lowerCard(
             ok: false,
             reason: "equip on a card that is not an Equipment (CR 702.6a)",
             fragment: acc.equipLine,
+        };
+    // CR 301.5c — reconfigure is what lets an Equipment that's also a creature
+    // equip at all; on anything else the attach half has nothing to mean.
+    if (
+        acc.reconfigureLine !== undefined &&
+        !typeLine.subtypes.includes("Equipment")
+    )
+        return {
+            ok: false,
+            reason: "reconfigure on a card that is not an Equipment (CR 301.5c)",
+            fragment: acc.reconfigureLine,
         };
     // CR 702.122a — "Crew is an activated ability of Vehicle cards"; a
     // Vehicle that is already a creature is a shape no fixture reads.

@@ -18900,6 +18900,10 @@ export function buildSpellContext(
             const source = findOnBattlefield(state, sourceInstanceId);
             const newHost = findOnBattlefield(state, newHostId);
             if (!source || !newHost) return false;
+            // CR 701.3b — attaching to the object it's already attached to
+            // "does nothing": no new timestamp (CR 701.3c names only a
+            // DIFFERENT object), so its CR 613.7 layer order stands.
+            if (source.card.attachedTo === newHostId) return false;
             stopApplyingStaticEffects(state, source.card);
             source.card.attachedTo = newHostId;
             beginApplyingStaticEffects(state, source.card);

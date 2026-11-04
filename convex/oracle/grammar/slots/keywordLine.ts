@@ -715,6 +715,7 @@ export const impendingRule: Rule<SlotIR> = rule("impending", (span) => {
 // ── Equip / Ninjutsu / Offspring <mana cost>, Crew N ──────────────────────
 
 const EQUIP_HEAD = "Equip ";
+const RECONFIGURE_HEAD = "Reconfigure ";
 const NINJUTSU_HEAD = "Ninjutsu ";
 const OFFSPRING_HEAD = "Offspring ";
 const CREW = /^Crew (\d+)$/;
@@ -735,6 +736,26 @@ export const equipRule: Rule<SlotIR> = rule("equip", (span) => {
     const cost = costParameter(EQUIP_HEAD, span);
     if (!cost.ok) return cost;
     return ok({ kind: "equip" as const, cost: cost.value });
+});
+
+/**
+ * CR 702.151a — "Reconfigure [cost]" means "[Cost]: Attach this permanent to
+ * another target creature you control. Activate only as a sorcery" and
+ * "[Cost]: Unattach this permanent. Activate only if this permanent is
+ * attached to a creature and only as a sorcery." Lowered through the
+ * catalogue's `reconfigureAbilities` factory.
+ *
+ * Refused: a non-mana cost ("Reconfigure—Pay {2} or {E}{E}{E}."), and every
+ * cost {@link costParameter} refuses.
+ */
+export const reconfigureRule: Rule<SlotIR> = rule("reconfigure", (span) => {
+    const cost = costParameter(RECONFIGURE_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({
+        kind: "reconfigure" as const,
+        cost: cost.value,
+        costText: span.slice(RECONFIGURE_HEAD.length),
+    });
 });
 
 /**
@@ -807,7 +828,8 @@ export const offspringRule: Rule<SlotIR> = rule("offspring", (span) => {
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker line, or one cost-parameter keyword (cycling, madness, plot,
- * foretell, overload, morph, fading, mobilize, ward life, impending, equip, crew,
+ * foretell, overload, morph, fading, mobilize, ward life, impending, equip,
+ * reconfigure, crew,
  * saddle, ninjutsu, offspring). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
  * object, and each parameterised rule reads only its own head — and `oneOf`
@@ -832,6 +854,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     wardLifeRule,
     impendingRule,
     equipRule,
+    reconfigureRule,
     crewRule,
     saddleRule,
     ninjutsuRule,
