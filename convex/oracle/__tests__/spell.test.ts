@@ -354,10 +354,9 @@ describe("spell slot — modal spells (CR 700.2)", () => {
         }
     });
 
-    it("refuses every head whose ARITY is not exactly one (CR 700.2)", () => {
-        // `CardDefinition.modes` is a choose-ONE shape and the engine locks a
-        // single `chosenModeId` at announcement, so compiling these into it
-        // would ship a spell that does half of what it says.
+    it("refuses a head whose ARITY no rule reads (CR 700.2)", () => {
+        // Read as "choose one", these would ship a spell that does less than
+        // it says; `readModalHead` admits only the heads with a golden fixture.
         for (const head of [
             "Choose one or both —",
             "Choose two —",

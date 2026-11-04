@@ -340,6 +340,7 @@ function alphaRenameBindings(value: unknown): unknown {
 const SPELL_BUCKET_KEYS: ReadonlySet<string> = new Set([
     "effects",
     "modes",
+    "modeSelection",
     "targetRequirement",
     "additionalCosts",
     "alternativeCosts",

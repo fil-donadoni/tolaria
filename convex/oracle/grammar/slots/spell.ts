@@ -44,19 +44,21 @@
  * that separator — a split, so coverage is structural exactly as it is in
  * `listOf` (`parts.join(sep) === span`).
  *
- * ── What v1 refuses ────────────────────────────────────────────────────────
+ * ── The head decides the ARITY ─────────────────────────────────────────────
  *
- * "Choose one or both —" (53 cards), "Choose two —" (38), "Choose one or
- * more —" (18) are refused: `CardDefinition.modes` is documented as a
- * choose-EXACTLY-one shape, and the engine picks one `chosenModeId` at
- * announcement. Compiling "choose two" into that shape would ship a spell that
- * does half of what it says, so the head table below admits one spelling.
+ * Every printed head changes how many modes the caster announces, not what any
+ * mode does, so a head lowers to a `ModeSelection` (absent = exactly one) or it
+ * is refused: a head read as "choose one" would ship a spell that does less
+ * than it says. `readModalHead` admits only the heads that have a golden
+ * fixture; "Choose two —", "Choose one or both —", "Choose one or more —" stay
+ * refused until a rule claims them.
  */
 
 import {
     PERMANENT_TYPES,
     type Color,
     type ManaCost,
+    type ModeSelection,
     type PermanentFilter,
 } from "../../../cards/types";
 import {
@@ -67,9 +69,12 @@ import {
     rule,
     terminated,
     type Rule,
+    type RuleContext,
+    type RuleResult,
 } from "../../rule";
 import { readManaCost } from "../../manaCost";
 import type { ParseContext } from "../../types";
+import { controlsRule } from "../shared/condition";
 import { activationCostRule, type CostAtomIR } from "../shared/cost";
 import {
     assembleSentences,
@@ -136,20 +141,53 @@ const plainSpell: Rule<SlotIR> = terminated(
 
 // ── 2. Modal spell text (CR 700.2) ─────────────────────────────────────────
 
+/** "Choose one —": the absent `ModeSelection`, exactly one mode. */
+const CHOOSE_ONE_HEAD = "Choose one —";
+
+/** CR 700.2d — a fixed count of three, the same mode allowed more than once. */
+const CHOOSE_THREE_REPEATS_HEAD =
+    "Choose three. You may choose the same mode more than once.";
+
 /**
- * The modal heads this grammar reads.
- *
- * Exactly one, for the reason in the file header: `CardDefinition.modes` is a
- * choose-one shape and every other printed head ("or both", "two", "one or
- * more") changes the ARITY of the choice, not its wording.
+ * "Choose one. If you control a Wizard as you cast this spell, you may choose
+ * two instead." The "may" makes the holding count a RANGE of one to two, and
+ * "as you cast" reads the board at announcement (CR 601.2b), which is where
+ * `ModeSelection.when` is evaluated.
  */
-const MODAL_HEADS: ReadonlySet<string> = new Set(["Choose one —"]);
+const CONTROLS_MAY_CHOOSE_TWO_HEAD =
+    /^Choose one\. If (you control .+) as you cast this spell, you may choose two instead\.$/;
+
+/** The cardinality a modal head prints; `selection` absent = exactly one. */
+function readModalHead(
+    head: string,
+    span: string,
+    ctx: RuleContext
+): RuleResult<{ readonly selection?: ModeSelection }> {
+    if (head === CHOOSE_ONE_HEAD) return ok({});
+    if (head === CHOOSE_THREE_REPEATS_HEAD)
+        return ok({ selection: { min: 3, max: 3, repeats: true } });
+    const conditional = head.match(CONTROLS_MAY_CHOOSE_TWO_HEAD);
+    if (conditional === null)
+        return fail(`"${head}" is not a modal head this grammar reads`, span);
+    const controls = controlsRule.run(conditional[1]!, ctx);
+    if (!controls.ok) return controls;
+    return ok({
+        selection: {
+            min: 1,
+            max: 1,
+            when: {
+                condition: { controls: controls.value.filter },
+                min: 1,
+                max: 2,
+            },
+        },
+    });
+}
 
 const modalSpell: Rule<SlotIR> = rule<SlotIR>("modal spell", (span, ctx) => {
     const parts = span.split(GROUP_SEPARATOR);
-    const head = parts[0]!;
-    if (!MODAL_HEADS.has(head))
-        return fail(`"${head}" is not a modal head this grammar reads`, span);
+    const head = readModalHead(parts[0]!, span, ctx);
+    if (!head.ok) return head;
     const bullets = parts.slice(1);
     // CR 700.2 — a mode list with fewer than two modes is not a choice; it is
     // a line whose bullets we failed to group.
@@ -187,7 +225,13 @@ const modalSpell: Rule<SlotIR> = rule<SlotIR>("modal spell", (span, ctx) => {
     const texts = new Set(modes.map((m) => m.text));
     if (texts.size !== modes.length)
         return fail("a modal spell prints the same mode twice", span);
-    return ok({ kind: "spell-modal" as const, modes });
+    return ok({
+        kind: "spell-modal" as const,
+        modes,
+        ...(head.value.selection !== undefined
+            ? { selection: head.value.selection }
+            : {}),
+    });
 });
 
 // ── 3. Additional costs (CR 601.2f / 118.8) ────────────────────────────────

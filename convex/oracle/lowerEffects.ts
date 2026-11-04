@@ -1841,6 +1841,10 @@ function damageTarget(
     site: SiteOptions
 ): Lowered<EffectObjectSelector | { player: EffectPlayerRef }> {
     if (subject.kind === "player") {
+        // CR 102.2 — in a two-player game "each opponent" is the one other
+        // player, so the damage has one recipient exactly as printed.
+        if (subject.player.kind === "each-opponent")
+            return lowered({ player: "opponent" });
         const player = playerRef(subject.player, slots, site);
         return player.ok ? lowered({ player: player.value }) : player;
     }
