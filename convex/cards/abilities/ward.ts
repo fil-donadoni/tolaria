@@ -21,8 +21,8 @@
 // not on the granting card's own `staticAbilities`.
 //
 // Routed entirely through EXISTING targeted-triggered-ability machinery
-// (CR 603.3d, issue #1193) — no parallel counter mechanism:
-//   - `event: "BECAME_TARGET"` (CR 603.2b, issue #1265) is the SAME
+// (CR 603.3d) — no parallel counter mechanism:
+//   - `event: "BECAME_TARGET"` (CR 603.2) is the SAME
 //     target-declaration event Leovold's "you or a permanent you control
 //     becomes the target" reads. `matches` narrows it to "THIS permanent
 //     specifically" (`event.target.id === self.id`, tighter than Leovold's
@@ -44,8 +44,7 @@
 //     (`mayPay`, `if`, `counter`) is already covered by the interpreter test
 //     suite — the per-Op regime applies, no new Op introduced.
 //
-// Two-simultaneous-targeters edge (CR 702.21a, issue #1361, resolved — was a
-// documented divergence when split from #1312): the FILTER-based instance
+// Two-simultaneous-targeters edge (CR 702.21a): the FILTER-based instance
 // pin above (`spellTargetsSelfSource` → `spellTargetsInstanceIds: [self.id]`)
 // alone can't distinguish WHICH of two spells/abilities simultaneously
 // targeting the same warded permanent caused a GIVEN ward trigger instance —

@@ -7,12 +7,9 @@ import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Kappa Cannoneer — {5}{U} Artifact Creature — Turtle Warrior, 4/4 (NEC 14,
-// Vintage Cube FREE wave 3: keyword-residue creatures, issue #1527, closes
-// #1321/#917 residue). Un-stubbed now that both blocking keywords are
-// `implemented`: Improvise (CR 702.126, issue #1313) and Ward (CR 702.21,
-// issue #1312). "Improvise\nWard {4}\nWhenever this creature or another
-// artifact you control enters, put a +1/+1 counter on this creature. It
-// can't be blocked this turn."
+// Vintage Cube): Improvise (CR 702.126) and Ward (CR 702.21).
+// "Improvise\nWard {4}\nWhenever this creature or another artifact you control
+// enters, put a +1/+1 counter on this creature. It can't be blocked this turn."
 //
 // DSL-first (ADR 0045). The self-ETB anthem is `enteredTrigger({ scope:
 // "yours", filter: { types: "Artifact" } })` — "yours" already matches
