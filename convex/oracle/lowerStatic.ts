@@ -352,6 +352,24 @@ export function lowerStaticClause(
                 },
             };
         }
+        case "self-pt-buff-per-graveyard-card":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "pt-buff",
+                            appliesTo: "self",
+                            power: clause.power,
+                            toughness: clause.toughness,
+                            count: {
+                                kind: "controller-graveyard-cards",
+                                types: clause.cardTypes,
+                            },
+                        },
+                    ],
+                },
+            };
         case "keyword-grant":
             return {
                 ok: true,
