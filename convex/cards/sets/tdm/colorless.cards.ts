@@ -64,8 +64,7 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 // docs/findings/3229-colour-indicators-are-not-modelled-on-carddefinition.md).
 // Crimson Kobolds / Crookshank Kobolds / Kobolds of Kher Keep
 // (`sets/leg/colorless.cards.ts`) are printed RED with an empty mana cost, so this
-// trigger fires on them where paper says it must not. The reverse direction is
-// safe: no devoid card ships.
+// trigger fires on them where paper says it must not.
 //
 // +2 / 0 are the plain shipped Op shapes (`gainLife` + `draw`; `addMana` with
 // `{ C: 3 }` — unrestricted colourless mana, CR 106.1, not a Powerstone's

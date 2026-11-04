@@ -111,6 +111,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     // CR 702.73a — sets the subtype line; its worth is what reads that line (a
     // lord's bonus already shows in effective P/T), never the body.
     "changeling",
+    // CR 702.114a — only makes the object colourless; its worth is what reads
+    // that colour (protection, colour-filtered removal), never the body.
+    "devoid",
     // attach / vehicle / ETB-shaped, not a body quality
     // CR 702.98a — an entry choice, then a block restriction read off the
     // real counter: the search weighs both on the board it resulted in.
