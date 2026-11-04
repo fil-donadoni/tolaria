@@ -716,8 +716,8 @@ export function holdsExileCastPermission(
  *  caller filters on type — the land half has its own enumeration
  *  (`resolvePlayLandSourceZone`).
  *
- *  CR 702.170d / 702.143a / 702.185a — a plotted, foretold or warped card's
- *  permission is a THIRD shape, derived from its designation
+ *  CR 702.170d / 702.143a / 702.185a — the permission a card's designation
+ *  carries is a THIRD shape, derived from that designation
  *  ({@link designationPermissions}) rather than stamped on the grant record, so
  *  it and a grant coexist: either one licenses the cast. */
 export function exileCastPermission(

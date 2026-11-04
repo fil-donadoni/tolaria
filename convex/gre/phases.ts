@@ -2816,8 +2816,8 @@ function revokeExilePlayGrant(card: CardInstanceState): void {
     // CR 702.185a/b (issue #1268) — the LOWER bound rides the same permission
     // the impulse sweep is revoking here.
     delete card.castableFromExileFromTurn;
-    // CR 702.170d / 702.143a / 702.185a — a plotted, foretold or warped card's
-    // designation survives: it is no part of any grant, and the permission it
+    // CR 702.170d / 702.143a / 702.185a — a card's own designation survives
+    // this sweep: it is no part of any grant, and the permission it
     // derives lasts while the card stays exiled.
     // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides
     // the same turn-scoped window; expires together.
