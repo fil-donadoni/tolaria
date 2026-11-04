@@ -16751,8 +16751,15 @@ export type EffectOp =
           amount: EffectValue;
       }
     /** CR 119.3 — `player` loses `amount` life (not damage — no
-     *  damage-replacement interaction). */
-    | { op: "loseLife"; player: EffectPlayerRef; amount: EffectValue }
+     *  damage-replacement interaction). `bindLost` names a NUMBER binding: the
+     *  life actually lost, after any CR 614 replacement ("you gain life equal
+     *  to the total life lost this way", CR 702.101a). */
+    | {
+          op: "loseLife";
+          player: EffectPlayerRef;
+          amount: EffectValue;
+          bindLost?: string;
+      }
     /** CR 500.7 (issue #686) — schedule `player` to take an extra turn after
      *  the current one (Time Warp: "Target player takes an extra turn after
      *  this one"). A thin declarative skin over `SpellContext.takeExtraTurn`

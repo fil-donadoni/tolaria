@@ -122,7 +122,10 @@ import {
     autoFinalizeLandEntryChoices,
     declaredAttackTargets,
 } from "./applyMove";
-import { applyTapPlanInSearch } from "./searchTapPlan";
+import {
+    applyMayPayTapPlanInSearch,
+    applyTapPlanInSearch,
+} from "./searchTapPlan";
 import { plotInSearch } from "./plot";
 import { foretellInSearch } from "./foretell";
 import { castNeedsSorceryWindow } from "./rules";
@@ -835,6 +838,7 @@ export function applyMoveInSearch(
         // and hands priority to whoever owes the next decision, so the playout
         // simply continues past the node.
         case "may-pay": {
+            applyMayPayTapPlanInSearch(state, playerId, move.tapPlan);
             applyMayPaySubmit(state, {
                 playerId,
                 accept: move.accept,

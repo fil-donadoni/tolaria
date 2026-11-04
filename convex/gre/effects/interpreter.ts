@@ -3660,7 +3660,16 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         const amount = resolveValue(ctx, op.amount);
         if (amount === undefined || amount <= 0) return;
+        const lostBefore = ctx.getLifeLostThisTurn(playerId);
         ctx.loseLife(playerId, amount);
+        if (op.bindLost) {
+            ctx.noteChoice(
+                op.bindLost,
+                writeTaggedNumber(
+                    ctx.getLifeLostThisTurn(playerId) - lostBefore
+                )
+            );
+        }
     },
     // CR 701.9a — random discard: `count` cards chosen AT RANDOM from
     // `player`'s hand (Hymn to Tourach, Mind Twist, Gwendlyn Di Corci). The

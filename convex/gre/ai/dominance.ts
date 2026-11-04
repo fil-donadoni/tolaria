@@ -1255,6 +1255,9 @@ function applyProbeChoice(
         return true;
     }
     if (move.kind === "may-pay") {
+        // A `tapPlan` accept needs no replay: its taps are themselves a change
+        // of state, so the empty pool's throw and a replay both read "not a
+        // no-op".
         applyMayPaySubmit(branch, {
             playerId: moverId,
             accept: move.accept,

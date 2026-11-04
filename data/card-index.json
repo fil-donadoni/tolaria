@@ -5800,6 +5800,26 @@
         "source": "compiled"
     },
     {
+        "name": "Basilica Guards",
+        "scryfallId": "2be39fed-4b39-4027-9c80-f2186f7dd941",
+        "oracleId": "24d2e266-2dcb-40f1-a465-cfc63e9aa6ae",
+        "firstSet": "gtc",
+        "firstPrintId": "2be39fed-4b39-4027-9c80-f2186f7dd941",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Basilica Screecher",
+        "scryfallId": "d233c6bc-c4dd-482d-b0f4-87359acab7cb",
+        "oracleId": "752ebcba-97fb-43a3-8811-d244164b3e16",
+        "firstSet": "gtc",
+        "firstPrintId": "d233c6bc-c4dd-482d-b0f4-87359acab7cb",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Basilisk Collar",
         "scryfallId": "55cdba1b-7a80-435f-9cff-b9365f62e311",
         "oracleId": "f5f4dd28-f4ae-4d39-b9b8-6ebfd63c93fe",
@@ -40600,6 +40620,16 @@
         "source": "compiled"
     },
     {
+        "name": "Kingpin's Pet",
+        "scryfallId": "3465cf63-4f10-4b53-9703-69746364dbc7",
+        "oracleId": "1c4561d1-377c-4a6a-b7a2-8ce81efa39c6",
+        "firstSet": "gtc",
+        "firstPrintId": "3465cf63-4f10-4b53-9703-69746364dbc7",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Kinjalli's Caller",
         "scryfallId": "625211d4-c89c-4aee-a0b0-4bfabd3509ad",
         "oracleId": "bba6075b-8bbb-4496-80a9-bfa7f003d1e8",
@@ -40973,6 +41003,16 @@
         "firstPrintId": "88c50c4b-a2c8-4cdc-a171-aa3ff9ef107f",
         "firstPrintSet": "dom",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Knight of Obligation",
+        "scryfallId": "0c2a1100-a2e6-4ef5-a8e3-2aca552d6b66",
+        "oracleId": "9051f778-7718-4e8d-88ff-ca2aee1b14e5",
+        "firstSet": "gtc",
+        "firstPrintId": "0c2a1100-a2e6-4ef5-a8e3-2aca552d6b66",
+        "firstPrintSet": "gtc",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -55709,6 +55749,16 @@
         "source": "compiled"
     },
     {
+        "name": "Pontiff of Blight",
+        "scryfallId": "72e5291f-9281-4cb7-9158-54b7cb336b93",
+        "oracleId": "f5a95092-fb71-4b55-bc54-782bd1c603e1",
+        "firstSet": "dgm",
+        "firstPrintId": "72e5291f-9281-4cb7-9158-54b7cb336b93",
+        "firstPrintSet": "dgm",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Porcelain Legionnaire",
         "scryfallId": "2616aa0e-8413-4e63-877c-bffd5263f552",
         "oracleId": "66442396-f804-47f3-8daa-0d43d8cfb482",
@@ -66992,6 +67042,16 @@
         "source": "compiled"
     },
     {
+        "name": "Shu Yun, the Silent Tempest",
+        "scryfallId": "bd79e83a-a34b-472c-9317-12af4ed2ca28",
+        "oracleId": "7b22f31c-9caa-4afd-8c44-f88346bfa79c",
+        "firstSet": "frf",
+        "firstPrintId": "bd79e83a-a34b-472c-9317-12af4ed2ca28",
+        "firstPrintSet": "frf",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Shuko",
         "scryfallId": "a47456b8-cef8-4085-90b1-92788e16fd27",
         "oracleId": "8abe0577-8fdb-4e4a-a871-01b21732c961",
@@ -75208,6 +75268,26 @@
         "source": "compiled"
     },
     {
+        "name": "Syndic of Tithes",
+        "scryfallId": "2bafaa3b-eeaa-427f-9a73-6a1c98d257ca",
+        "oracleId": "8f5c52d2-0583-4c94-a043-15b2118877fa",
+        "firstSet": "gtc",
+        "firstPrintId": "2bafaa3b-eeaa-427f-9a73-6a1c98d257ca",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Syndicate Enforcer",
+        "scryfallId": "cde6ee2e-a114-4935-8345-d3e264f9fc26",
+        "oracleId": "3a067b98-e775-4b44-addf-9d31716c2191",
+        "firstSet": "gtc",
+        "firstPrintId": "cde6ee2e-a114-4935-8345-d3e264f9fc26",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Syphon Fuel",
         "scryfallId": "4af17ae0-1035-4cb2-8974-98b377bfaa48",
         "oracleId": "8696eae4-3dc9-4572-aab9-aa4f7e8f53af",
@@ -78687,6 +78767,16 @@
         "firstPrintId": "9d02e1e8-b85b-4e26-8ab8-ca2f49d05b88",
         "firstPrintSet": "iko",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Tithe Drinker",
+        "scryfallId": "e069aa06-35b0-4af8-89cb-af653708ed32",
+        "oracleId": "06b1fd96-a3ad-4ebd-9ea4-b3cfb4c9c43d",
+        "firstSet": "dgm",
+        "firstPrintId": "e069aa06-35b0-4af8-89cb-af653708ed32",
+        "firstPrintSet": "dgm",
+        "rarity": "common",
         "source": "compiled"
     },
     {

@@ -1780,13 +1780,17 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         binding: "evolve",
         note: "Issue #4001 — CR 702.100a compares the entering creature to the source as the ability triggers and again as it resolves (CR 603.4), through the layers on both sides, reading the entering creature's last known information if it has left (CR 608.2h). CR 702.100b is `evolvedTrigger`, read off `COUNTER_ADDED.byTriggeredAbilityId`; CR 702.100c fails the comparison for a noncreature source and CR 208.3 for an entrant that is no longer a creature; CR 702.100d is one injected trigger per declared instance.",
     },
-    // 702.101 Extort
+    // 702.101 Extort (issue #4002) — expanded from the bare
+    // `staticAbilities: ["extort"]` string at the `getDefinition` seam
+    // (`expandExtort`, `convex/cards/abilities/extort.ts`, ADR 0054).
     {
         id: "extort",
         name: "Extort",
         kind: "keyword-ability",
         cr: "702.101",
-        status: "planned",
+        status: "implemented",
+        binding: "extort",
+        note: 'CR 702.101a is one spell-cast trigger: a `mayPay` of {W/B}, then a `loseLife` whose `bindLost` feeds the `gainLife`, since "the total life lost this way" is what a CR 614 replacement left of the loss. A static grant (Pontiff of Blight) expands to a `triggered-grant` beside the keyword grant, one entry per grant, which is what makes CR 702.101b hold: each instance triggers separately. A one-shot "gains extort" stays quarantined as `ungrantable-keyword`.',
     },
     // 702.102 Fuse
     {

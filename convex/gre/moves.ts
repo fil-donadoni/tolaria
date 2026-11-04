@@ -335,6 +335,12 @@ export type Move =
            *  travels on the Move. */
           kind: "may-pay";
           accept: boolean;
+          /** CR 608.2g — the mana abilities activated BEFORE an accept is
+           *  submitted, planned by `planManaPayment` for the cost's mana leg.
+           *  `submitMayPay` pays from the pool, which CR 500.5 empties at every
+           *  step boundary, so without this a Bot could only ever accept against
+           *  mana already floating. Absent when the pool already covers it. */
+          tapPlan?: ManaTap[];
           /** CR 701.21a — chosen sacrifice victim id(s) when the accepted cost's
            *  sacrifice leg admits a real choice. Omitted otherwise. */
           sacrificeIds?: string[];
