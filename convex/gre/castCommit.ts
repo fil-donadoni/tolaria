@@ -71,6 +71,7 @@ import {
     manaRiderStackStamps,
     moveCard,
     processPendingActionTriggers,
+    restrictedXManaOwedStamp,
     removeFromZone,
     removePermanentTo,
     payLifeCost,
@@ -431,6 +432,7 @@ export function commitCast(
         ...announcedModeFields(record),
         ...(additionalSacrificeSnapshot ? { additionalSacrificeSnapshot } : {}),
         ...(notedManaSpent ? { notedManaSpent } : {}),
+        ...restrictedXManaOwedStamp(plan.cardDef, plan.manaCost),
         // CR 106.6 riders (issues #1559 / #3354) — mana spent on this cast
         // carried `cantBeCounteredRider` (Delighted Halfling, read by
         // `counter()` alongside the static `CardDefinition.cantBeCountered`)

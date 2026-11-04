@@ -70,6 +70,7 @@ const FULL_CAST: Required<PendingCast> = {
         picked: [],
     },
     exileFromGraveyardChoice: { count: 1, excludeInstanceId: "spell" },
+    restrictedXSplitChoice: { options: [0, 1] },
     alternativeCostHandChoice: {
         action: "exile",
         requirements: [],

@@ -281,6 +281,10 @@ import {
     COLORED_MANA_COLORS,
     assignHybridPips,
     hybridCostKey,
+    restrictedXCostKey,
+    restrictedXPipCount,
+    takeGenericPoints,
+    parseRestrictedXCostKey,
     normalizedHybridPips,
     substitutionsForBreadth,
     CASTABLE_PERMANENT_TYPES,
@@ -457,6 +461,7 @@ export type {
     StackTransformStamp,
     ManaSubstitution,
     GenericSpendAmbiguity,
+    RestrictedXSplitChoice,
     CostModifiers,
     StaticAdditionalSacrifice,
     NormalizedMayPayCost,
@@ -3552,6 +3557,7 @@ export function resetStackTransientState(item: StackItem): void {
     delete item.modeTargetCounts;
     delete item.additionalSacrificeSnapshot;
     delete item.notedManaSpent;
+    delete item.restrictedXManaOwed;
     delete item.dynamicCantBeCountered;
     delete item.dynamicHasteFromMana;
     // The `CardInstanceState` half (issue #4453): every field the Card Field
@@ -12156,6 +12162,7 @@ function cloneSpellOntoStack(
     // record a `noteManaSpent` card took at commit stays with the original —
     // a copied converge spell reads 0 colours, a copied Soul Burn 0 {B}.
     delete copy.notedManaSpent;
+    delete copy.restrictedXManaOwed;
     // CR 707.2 — "Other effects (including type-changing and TEXT-CHANGING
     // effects) … are not copied", and CR 702.47c says a splice reveal IS a
     // text-changing effect (rule 612). So the copy is a copy of the MAIN spell
@@ -15432,6 +15439,9 @@ export function buildSpellContext(
             // Cauldron). Per-colour counts; empty when the activation spent no
             // mana or the ability didn't request the note.
             return item.notedManaSpent ?? {};
+        },
+        getRestrictedXManaOwed(): number | undefined {
+            return item.restrictedXManaOwed;
         },
         noteMana(
             cardInstanceId: string,
@@ -23361,19 +23371,12 @@ export function commitLandsForCost(
  *  from cost modifiers (e.g. Fireball's "+{1} per extra target", CR 601.2f) is
  *  added on top of the generic portion.
  */
-/** CR 107.3a / 601.2h (issue #3811) — the normalized-cost key the announced X
- *  is owed under when `ManaCost.xSpendColors` restricts it: the colour itself
- *  for one colour, the composite guild-hybrid key for two, `null` when X is
- *  unrestricted (plain generic). Throws on three or more colours: no single
- *  pip key expresses that, and silently folding it to generic would pay X with
- *  a forbidden colour. */
+/** CR 107.3a / 601.2h — the normalized-cost key the announced X is owed under
+ *  when `ManaCost.xSpendColors` restricts it, `null` when X is unrestricted
+ *  (plain generic). */
 function xSpendCostKey(colors: readonly Color[] | undefined): string | null {
     if (colors === undefined || colors.length === 0) return null;
-    if (colors.length === 1) return colors[0];
-    if (colors.length === 2) return hybridCostKey(colors[0], colors[1]);
-    throw new Error(
-        `xSpendColors supports one or two colours, got ${colors.join(",")}`
-    );
+    return restrictedXCostKey(colors);
 }
 
 /** CR 107.3a — "While a spell is on the stack, any X in its mana cost ...
@@ -23399,6 +23402,17 @@ function withAnnouncedX(
     delete fixed.xFactor;
     delete fixed.xSpendColors;
     return fixed;
+}
+
+/** The stack-item stamp recording how many restricted-X points mana had to pay
+ *  on a `noteManaSpent` spell. `cost` is the cost left for mana at commit. */
+export function restrictedXManaOwedStamp(
+    def: CardDefinition | null | undefined,
+    cost: Record<string, number>
+): { restrictedXManaOwed?: number } {
+    const colors = def?.noteManaSpent ? def.manaCost?.xSpendColors : undefined;
+    if (!colors?.length) return {};
+    return { restrictedXManaOwed: cost[restrictedXCostKey(colors)] ?? 0 };
 }
 
 export function normalizeManaCost(
@@ -23487,11 +23501,10 @@ export function normalizeManaCost(
             const xKey = xSpendCostKey(
                 cost.xSpendColors as Color[] | undefined
             );
-            // CR 107.3a / 601.2h (issue #3811) — "Spend only [colour(s)] mana
-            // on X": the announced X is owed as coloured (or two-colour
-            // hybrid) pips, never as generic any colour could pay. A generic
-            // reduction or delve therefore stops at the fixed generic and
-            // never reaches X (CR 107.4b) — tracked-by: #4429.
+            // CR 107.4b / 601.2h — "Spend only [colour(s)] mana on X": X stays
+            // generic mana in the total cost, so a reduction or delve can
+            // remove it, under its own key so that mana of another colour
+            // cannot pay what is left.
             if (xKey === null) extraGeneric += xMana;
             else if (xMana > 0) result[xKey] = (result[xKey] ?? 0) + xMana;
             continue;
@@ -23508,8 +23521,6 @@ export function normalizeManaCost(
             continue;
         }
         const n = typeof val === "number" ? val : 0;
-        // Accumulate, never assign: a restricted X (above) may already have
-        // put pips under this same colour key (Drain Life's X and its {B}).
         if (n > 0) result[key] = (result[key] ?? 0) + n;
     }
     if (extraGeneric > 0) {
@@ -24163,8 +24174,15 @@ export function isPrintedManaCostOnly(
         printed,
         getCostModifiers(state, card, "spell", undefined, player.id)
     );
+    // CR 601.2f — how a reduction splits between X and the fixed generic does
+    // not change which cost is being paid, so the generic total is compared
+    // whole.
+    const genericTotal = (cost: Record<string, number>) =>
+        (cost.X ?? 0) + restrictedXPipCount(cost);
+    if (genericTotal(printed) !== genericTotal(paidCost)) return false;
     const keys = new Set([...Object.keys(printed), ...Object.keys(paidCost)]);
     for (const key of keys) {
+        if (key === "X" || parseRestrictedXCostKey(key)) continue;
         if ((printed[key] ?? 0) !== (paidCost[key] ?? 0)) return false;
     }
     return true;
@@ -24332,7 +24350,10 @@ export function applyCostModifiers(
         baseCost[k] = (baseCost[k] ?? 0) + v;
     }
     if (modifiers.reductionGeneric > 0) {
-        const generic = baseCost.X ?? 0;
+        // CR 107.4b — a restricted X is generic mana too, so it is reducible
+        // alongside the numeric slot; `takeGenericPoints` removes it first.
+        const restrictedX = restrictedXPipCount(baseCost);
+        const generic = (baseCost.X ?? 0) + restrictedX;
         let reduced = Math.max(0, generic - modifiers.reductionGeneric);
         // Total-mana floor (CR 601.2f / 118.7): colored pips are immovable, so
         // the generic portion can only be reduced to the point where the total
@@ -24341,7 +24362,7 @@ export function applyCostModifiers(
         if (modifiers.minTotalMana > 0) {
             const colored = Object.entries(baseCost).reduce(
                 (sum, [k, v]) => (k === "X" ? sum : sum + v),
-                0
+                -restrictedX
             );
             const minGeneric = Math.min(
                 generic,
@@ -24349,8 +24370,8 @@ export function applyCostModifiers(
             );
             if (reduced < minGeneric) reduced = minGeneric;
         }
-        if (reduced > 0) baseCost.X = reduced;
-        else delete baseCost.X;
+        takeGenericPoints(baseCost, generic - reduced);
+        if (!baseCost.X) delete baseCost.X;
     }
 }
 
@@ -24426,7 +24447,7 @@ function formatManaCost(cost: ManaCost): string {
     // card currently mixes a hybrid pip with a single-colour pip, so this
     // canonical ordering has never diverged from a real printing.
     for (const [a, b] of normalizedHybridPips(cost as Record<string, number>)) {
-        parts.push(`{${a}/${b}}`);
+        parts.push(a === b ? `{${a}}` : `{${a}/${b}}`);
     }
     return parts.join("") || "0";
 }

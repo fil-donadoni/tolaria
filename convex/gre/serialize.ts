@@ -915,6 +915,9 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.notedManaSpent && Object.keys(item.notedManaSpent).length > 0) {
         base.notedManaSpent = item.notedManaSpent;
     }
+    if (item.restrictedXManaOwed !== undefined) {
+        base.restrictedXManaOwed = item.restrictedXManaOwed;
+    }
     if (item.abilityId) base.abilityId = item.abilityId;
     if (item.grantedSourceCardId) {
         base.grantedSourceCardId = item.grantedSourceCardId;
@@ -1139,6 +1142,9 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     }
     if (compact.notedManaSpent) {
         item.notedManaSpent = compact.notedManaSpent as Record<string, number>;
+    }
+    if (compact.restrictedXManaOwed !== undefined) {
+        item.restrictedXManaOwed = compact.restrictedXManaOwed as number;
     }
     if (compact.abilityId) item.abilityId = compact.abilityId as string;
     if (compact.grantedSourceCardId) {

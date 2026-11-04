@@ -48,6 +48,7 @@ import GraveyardTargetDialog from "~/components/board/graveyard-target-dialog";
 import HandCardActionMenu from "~/components/board/hand-card-action-menu";
 import ManaChoicePicker from "~/components/board/mana-choice-picker";
 import ManaSpendChoiceDialog from "~/components/board/mana-spend-choice-dialog";
+import RestrictedXSplitDialog from "~/components/board/restricted-x-split-dialog";
 import ManualGameOverDialog from "~/components/board/manual-game-over-dialog";
 import ManualVerbPopover from "~/components/board/manual-verb-popover";
 import PauseMenuDialog from "~/components/board/pause-menu-dialog";
@@ -341,6 +342,18 @@ const SPECIMENS: OverlaySpecimen[] = [
             <ManaSpendChoiceDialog
                 choice={{ generic: 1, candidateColors: ["R", "G"] }}
                 container="cast"
+                gameId={GAME_ID}
+                playerId={ME}
+            />
+        ),
+    },
+    {
+        slug: "restricted-x-split",
+        label: "Restricted X Split",
+        file: "board/restricted-x-split-dialog.tsx",
+        render: () => (
+            <RestrictedXSplitDialog
+                choice={{ options: [0, 1, 2] }}
                 gameId={GAME_ID}
                 playerId={ME}
             />

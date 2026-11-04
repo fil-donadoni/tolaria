@@ -13296,6 +13296,36 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: { moves: [{ kind: "cast-spell", card: "Wistfulness" }] },
         note: 'Issue #4934: the evoke cost `{G/U}{G/U}` is two HYBRID pips. `planManaPayment` ignored the `"G/U"` key (an empty plan) and `searchPayableOwnAlternativeCosts` failed closed on a hybrid leg, so the Bot could not evoke the ECL trio at all; the printed `{3}{G/U}{G/U}` cast was offered on three Forests with the hybrid pips unpaid. Two Forests pay the evoke (`{G}{G}` spent, so the ETB exiles Sol Ring). STRETCH, measured: the move is now ENUMERATED with a two-land tap plan (pinned by `own-alternative-cost-cast.bot.test.ts`), but the search passes on 5/5 seeds — whether trading the card for the exile is worth it is a valuation question, not this issue\'s. Issue #7561: until then the in-tree cast also carried no `notedManaSpent`, so the `{G}{G}` ETB never fired inside the search at all; it fires now and the search still passes 5/5, so what remains is the valuation question alone.',
     },
+    // Issue #4429 — a generic reduction reaches a colour-restricted {X}: two
+    // Swamps and two Stone Calendars pay Drain Life at X = 2, which is lethal.
+    {
+        label: "restricted X under a reducer: casts Drain Life for the reduced X",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Drain Life", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Stone Calendar", owner: "me", zone: "battlefield" },
+                { name: "Stone Calendar", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 2 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            describe: "casts Drain Life with X of at least 2",
+            predicate: (move) =>
+                move?.kind === "cast-spell" && (move.chosenX ?? 0) >= 2,
+        },
+        note: "Issue #4429: X is generic mana in the cost (CR 107.4b), so the {2} reduction reaches it. Priced as coloured pips the reduction stopped at the fixed {1}, the ceiling was 0 and the lethal did not exist.",
+    },
     // Issue #7561 — the search's cast commit stamps `notedManaSpent` from the
     // tap plan. A DISCRIMINATING PAIR on one board: two Mountains pay Vibrance's
     // evoke `{R/G}{R/G}` with `{R}{R}`, so its ETB deals 3 damage. Only the

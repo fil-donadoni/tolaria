@@ -13,12 +13,16 @@
 // `search.ts` or `applyMove.ts`, so the dominance probe (which `moves.ts`
 // imports at runtime) can share it without closing an import cycle.
 
-import type { ManaCost } from "../cards/types";
-import type { GameState } from "./state";
+import type { CardDefinition, ManaCost } from "../cards/types";
+import type { CardInstanceState, GameState } from "./state";
 import {
+    applyCostModifiers,
     canPayRemoveCounterCost,
+    getCostModifiers,
     moveCard,
+    normalizeManaCost,
     payRemoveCounterCost,
+    restrictedXManaOwedStamp,
 } from "./state";
 import {
     getManaTapOptionsDetailed,
@@ -282,4 +286,23 @@ function drainManaLeg(pool: Record<string, number>, leg: ManaCost): void {
         if (generic <= 0) break;
         generic -= take(color, generic);
     }
+}
+
+/** {@link restrictedXManaOwedStamp} for a SEARCH cast, priced at the announced X
+ *  under the board's CR 601.2f modifiers. Coarse like
+ *  {@link searchCastManaSpent}: it does not model delve. */
+export function searchRestrictedXManaOwedStamp(
+    state: GameState,
+    playerId: string,
+    card: CardInstanceState,
+    def: CardDefinition | null | undefined,
+    chosenX: number | undefined
+): { restrictedXManaOwed?: number } {
+    if (!def?.noteManaSpent || !def.manaCost?.xSpendColors?.length) return {};
+    const priced = normalizeManaCost(def.manaCost, { chosenX: chosenX ?? 0 });
+    applyCostModifiers(
+        priced,
+        getCostModifiers(state, card, "spell", undefined, playerId)
+    );
+    return restrictedXManaOwedStamp(def, priced);
 }

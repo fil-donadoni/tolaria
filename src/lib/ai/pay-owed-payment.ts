@@ -35,6 +35,9 @@ export type OwedPaymentMutations = {
     selectCastExileCost: (
         a: Seat & { cardInstanceIds: string[] }
     ) => Promise<unknown>;
+    selectRestrictedXSplit: (
+        a: Seat & { pointsOnX: number }
+    ) => Promise<unknown>;
     selectCastAlternativeHandCost: (
         a: Seat & { cardInstanceIds: string[] }
     ) => Promise<unknown>;
@@ -82,6 +85,12 @@ export async function submitOwedPayment(
             await mutations.selectConvokeCreatures({
                 ...seat,
                 creatureInstanceIds: submission.creatureInstanceIds,
+            });
+            return;
+        case "selectRestrictedXSplit":
+            await mutations.selectRestrictedXSplit({
+                ...seat,
+                pointsOnX: submission.pointsOnX,
             });
             return;
         case "selectCastExileCost":

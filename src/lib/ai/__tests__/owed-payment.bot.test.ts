@@ -79,6 +79,7 @@ function recorder() {
         selectSacrifice: wrap("selectSacrifice"),
         selectAdditionalCost: wrap("selectAdditionalCost"),
         selectConvokeCreatures: wrap("selectConvokeCreatures"),
+        selectRestrictedXSplit: wrap("selectRestrictedXSplit"),
         selectCastExileCost: wrap("selectCastExileCost"),
         selectCastAlternativeHandCost: wrap("selectCastAlternativeHandCost"),
         selectActivationCost: wrap("selectActivationCost"),
@@ -158,6 +159,7 @@ describe("payment-park answer census (ADR 0091, issue #1209)", () => {
             { mutation: "selectSacrifice", cardInstanceIdEach: ["a", "b"] },
             { mutation: "selectAdditionalCost", cardInstanceId: "a" },
             { mutation: "selectConvokeCreatures", creatureInstanceIds: ["a"] },
+            { mutation: "selectRestrictedXSplit", pointsOnX: 1 },
             { mutation: "selectCastExileCost", cardInstanceIds: ["a"] },
             {
                 mutation: "selectCastAlternativeHandCost",
@@ -210,6 +212,35 @@ describe("payment-park answer census (ADR 0091, issue #1209)", () => {
 // ────────────────────────────────────────────────────────────────────────────
 // Regression scenarios — one per stalling park
 // ────────────────────────────────────────────────────────────────────────────
+
+describe("the restricted-X split park (CR 601.2f)", () => {
+    it("Soul Burn under a reducer — answers X first, never freezes", async () => {
+        const { calls } = await realise(
+            baseState(
+                {
+                    hand: [
+                        inst(getCardByName("Soul Burn").id, "spell", "hand"),
+                    ],
+                    manaPool: { W: 0, U: 0, B: 4, R: 0, G: 0, C: 0 },
+                },
+                {
+                    pendingCast: {
+                        playerId: BOT,
+                        cardInstanceId: "spell",
+                        manaCost: { B: 1, "X/B/R": 1, X: 2 },
+                        tappedLandIds: [],
+                        keepPriority: false,
+                        chosenX: 3,
+                        restrictedXSplitChoice: { options: [0, 1, 2] },
+                    },
+                }
+            )
+        );
+        expect(calls).toEqual([
+            { mutation: "selectRestrictedXSplit", args: { pointsOnX: 0 } },
+        ]);
+    });
+});
 
 describe("activation parks the bot used to stall on (CR 602.1 / 118)", () => {
     it("Survival of the Fittest — answers the discard park (CR 118.3)", async () => {

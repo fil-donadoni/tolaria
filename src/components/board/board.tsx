@@ -62,6 +62,7 @@ import GraveyardTargetDialog from "./graveyard-target-dialog";
 import ExileCostDialog from "./exile-cost-dialog";
 import CastExileCostDialog from "./cast-exile-cost-dialog";
 import ConvokeCreatureDialog from "./convoke-creature-dialog";
+import RestrictedXSplitDialog from "./restricted-x-split-dialog";
 import DiscardCostDialog from "./discard-cost-dialog";
 import CastAlternativeHandCostDialog from "./cast-alternative-hand-cost-dialog";
 import ManaSpendChoiceDialog from "./mana-spend-choice-dialog";
@@ -614,6 +615,17 @@ export default function Board({
                                                             pendingCast.exileFromGraveyardChoice
                                                         }
                                                         me={me}
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                    />
+                                                ) : pendingCast.restrictedXSplitChoice &&
+                                                  pendingCast
+                                                      .restrictedXSplitChoice
+                                                      .picked === undefined ? (
+                                                    <RestrictedXSplitDialog
+                                                        choice={
+                                                            pendingCast.restrictedXSplitChoice
+                                                        }
                                                         gameId={gameId}
                                                         playerId={viewerId}
                                                     />
