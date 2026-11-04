@@ -1768,13 +1768,17 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.99",
         status: "planned",
     },
-    // 702.100 Evolve
+    // 702.100 Evolve (issue #4001) — expanded from the bare
+    // `staticAbilities: ["evolve"]` string at the `getDefinition` seam
+    // (`expandKeywordTriggers`, `convex/cards/abilities/evolve.ts`, ADR 0054).
     {
         id: "evolve",
         name: "Evolve",
         kind: "keyword-ability",
         cr: "702.100",
-        status: "planned",
+        status: "implemented",
+        binding: "evolve",
+        note: "Issue #4001 — CR 702.100a compares the entering creature to the source as the ability triggers and again as it resolves (CR 603.4), through the layers on both sides, reading the entering creature's last known information if it has left (CR 608.2h). CR 702.100b is `evolvedTrigger`, read off `COUNTER_ADDED.byTriggeredAbilityId`; CR 702.100c fails the comparison for a noncreature source and CR 208.3 for an entrant that is no longer a creature; CR 702.100d is one injected trigger per declared instance.",
     },
     // 702.101 Extort
     {

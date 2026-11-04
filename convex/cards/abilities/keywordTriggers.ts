@@ -38,6 +38,7 @@
 //     counter on it." Not a pump: see `returnWithCounterTrigger`'s own doc.
 //   * Undying (CR 702.93a, issue #3997) — the same sentence with a +1/+1
 //     counter in both places, so the same trigger with another counter kind.
+//   * Evolve (CR 702.100a) — `evolve.ts`, one trigger per instance.
 
 import type {
     CardDefinition,
@@ -46,6 +47,7 @@ import type {
     PermanentLeftEvent,
     TriggeredAbility,
 } from "../types";
+import { EVOLVE_KEYWORD, EVOLVE_TRIGGER_ID, evolveTrigger } from "./evolve";
 import { attacksTrigger } from "./triggers/attacksTrigger";
 import { leftTrigger } from "./triggers/leftTrigger";
 import { spellCastTrigger } from "./triggers/spellCastTrigger";
@@ -264,8 +266,18 @@ function hasKeyword(
     return staticAbilities?.some((a) => a.toLowerCase() === keyword) ?? false;
 }
 
+/** How many instances of `keyword` a `staticAbilities` list declares. */
+function keywordInstances(
+    staticAbilities: string[] | undefined,
+    keyword: string
+): number {
+    return (
+        staticAbilities?.filter((a) => a.toLowerCase() === keyword).length ?? 0
+    );
+}
+
 /** Expands a card carrying `exalted` / `prowess` / `battle cry` / `persist` /
- *  `undying` into a definition that also carries the synthesized triggered ability. Returns the
+ *  `undying` / `evolve` into a definition that also carries the synthesized triggered ability. Returns the
  *  input unchanged when no such keyword is present. Never mutates the input —
  *  clones only `triggeredAbilities`, so the base definition stays shared.
  *  Idempotent by construction (the `getDefinition` seam memo dedups) and
@@ -278,12 +290,14 @@ export function expandKeywordTriggers(def: CardDefinition): CardDefinition {
     const hasBattleCry = hasKeyword(def.staticAbilities, BATTLE_CRY_KEYWORD);
     const hasPersist = hasKeyword(def.staticAbilities, PERSIST_KEYWORD);
     const hasUndying = hasKeyword(def.staticAbilities, UNDYING_KEYWORD);
+    const evolveCount = keywordInstances(def.staticAbilities, EVOLVE_KEYWORD);
     if (
         !hasExalted &&
         !hasProwess &&
         !hasBattleCry &&
         !hasPersist &&
-        !hasUndying
+        !hasUndying &&
+        evolveCount === 0
     )
         return def;
 
@@ -303,6 +317,9 @@ export function expandKeywordTriggers(def: CardDefinition): CardDefinition {
     }
     if (hasUndying && !existing.some((t) => t.id === UNDYING_TRIGGER_ID)) {
         injected.push(undyingTrigger());
+    }
+    if (!existing.some((t) => t.id === EVOLVE_TRIGGER_ID)) {
+        for (let i = 0; i < evolveCount; i++) injected.push(evolveTrigger());
     }
     if (injected.length === 0) return def;
 

@@ -6940,6 +6940,34 @@ function stampDepartedTargets(state: GameState, cardId: string): void {
     }
 }
 
+/** CR 608.2h / 400.7 — record on every stack item triggered by `card` entering
+ *  how that object last stood, so a resolution comparing against it (evolve,
+ *  CR 702.100a) reads the departed object and never a same-id newcomer. Written
+ *  once, as the `sourceLki` stamp is. The event is REPLACED, never mutated in
+ *  place, because one event object can fire several triggers. */
+function stampDepartedEntrySubject(
+    state: GameState,
+    card: CardInstanceState
+): void {
+    for (const item of state.stack) {
+        const event = item.triggerEvent;
+        if (
+            event?.type !== "PERMANENT_ENTERED" ||
+            event.instanceId !== card.id ||
+            event.departedAs
+        )
+            continue;
+        const isCreature = card.types.includes("Creature");
+        const { power, toughness } = isCreature
+            ? getEffectivePT(state, card)
+            : { power: 0, toughness: 0 };
+        item.triggerEvent = {
+            ...event,
+            departedAs: { isCreature, power, toughness },
+        };
+    }
+}
+
 /** CR 506.4 / 400.7 (issue #6333) — "A permanent is removed from combat if it
  *  leaves the battlefield". Called by `removePermanentTo` on the departing card
  *  AFTER the combat-partner snapshot and the splice: clears the card's combat
@@ -7178,6 +7206,8 @@ export function removePermanentTo(
     const lkiCardId = (initial.card.card as { id?: string }).id;
     const lkiWasAura = isAura(initial.card);
     const lkiOwnerId = initial.card.ownerId;
+    // Before the effects below stop applying: they are what the object last was.
+    stampDepartedEntrySubject(state, initial.card);
     // CR 611.2 — a static effect from a source stops applying when the source
     // leaves the battlefield. Revert the grant(s) before the move so readers
     // never observe a dangling keyword. Auras additionally need their
@@ -9010,12 +9040,14 @@ export function markDeathtouchDamage(
  *  122.1c / 613.4d, issue #1194) and emits COUNTER_ADDED (issue #1319) so
  *  "whenever one or more counters are put on ~" triggers fire regardless of
  *  which caller added them. Returns the number actually put on (0 when a
- *  replacement rewrote it away). */
+ *  replacement rewrote it away). `byTriggeredAbilityId` names the resolving
+ *  triggered ability that caused the placement, carried on the event. */
 export function addCounterToCard(
     state: GameState,
     card: CardInstanceState,
     type: string,
-    count: number
+    count: number,
+    byTriggeredAbilityId?: string
 ): number {
     if (count <= 0) return 0;
     // CR 122.1 / 614 (issue #3230) — counter-placement replacement chokepoint
@@ -9057,6 +9089,9 @@ export function addCounterToCard(
             total: next[type],
             types: [...card.types],
             subtypes: [...card.subtypes],
+            ...(byTriggeredAbilityId !== undefined
+                ? { byTriggeredAbilityId }
+                : {}),
         },
     ];
     return placed;
@@ -13861,7 +13896,13 @@ export function buildSpellContext(
             // `addCounterToCard` mutator (also the infect/wither -1/-1
             // choke point, CR 702.90) — one execution path for "put a
             // counter on a permanent" regardless of caller.
-            addCounterToCard(state, found.card, type, count);
+            addCounterToCard(
+                state,
+                found.card,
+                type,
+                count,
+                item.triggeredAbilityId
+            );
         },
         // CR 716.2a (issue #3234) — "this Class's level becomes N". Routed
         // through the shared `setClassLevelOnCard` mutator so the
