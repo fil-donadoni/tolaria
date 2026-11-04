@@ -122,6 +122,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     // CR 702.98a — an entry choice, then a block restriction read off the
     // real counter: the search weighs both on the board it resulted in.
     "unleash",
+    // CR 702.136a — an entry choice between a counter and haste: both are real
+    // on the board it resulted in, so the search weighs them there.
+    "riot",
     "enchant",
     "equip",
     "reconfigure",

@@ -3404,6 +3404,7 @@ export function applyEntersWithCounters(
         delta[type] = (delta[type] ?? 0) + count;
     }
     delete card.acceptedEntryCounters;
+    applyDeclinedEntryKeywords(card, state);
     const types = Object.keys(delta);
     if (types.length === 0) return {};
     // CR 614.1c + 613.1f (issue #1882) — "enters with N counters on it" is a
@@ -4870,6 +4871,38 @@ export function allocStaticTimestamp(state: GameState): number {
     // graveyard before a Humility enters in the same resolution).
     stampGraveyardStaticSources(state);
     return nextStaticTimestamp(state);
+}
+
+/** CR 702.136a — "If you don't, it gains haste." Consumes the keywords a
+ *  declined `mayEnterWithCounters` answer stamped into indefinite layer-6
+ *  grants, so the permanent keeps them if it later loses the entry ability, a
+ *  later "loses all abilities" still removes them (CR 613.7), and no copy of it
+ *  copies them (CR 707.2). The clause is an ability of the permanent like the
+ *  counter it stands in for: the CR 613.1f probe gates it too, and the stamp is
+ *  consumed even when gated. */
+function applyDeclinedEntryKeywords(
+    card: CardInstanceState,
+    state: GameState | undefined
+): void {
+    const keywords = card.declinedEntryKeywords;
+    delete card.declinedEntryKeywords;
+    if (!keywords || !state || entryAbilitiesSuppressed(card, state as never)) {
+        return;
+    }
+    for (const keyword of keywords) {
+        // CR 702.10d — a second declined instance gains nothing more: multiple
+        // instances of haste are redundant.
+        if (hasIndefiniteKeywordGrant(state, card.id, keyword)) continue;
+        ensureLayer6Base(card);
+        pushContinuousEffect(state, {
+            layer: 6,
+            affected: { kind: "instances", instanceIds: [card.id] },
+            // The permanent's controller as it enters, fixed from here on.
+            expiry: { kind: "indefinite", controllerId: card.controllerId },
+            payload: { kind: "keyword-grant", keyword },
+            characteristicDefining: false,
+        });
+    }
 }
 
 /** Issue #1239 — converts the graveyard play permission rider a
@@ -10998,6 +11031,7 @@ export function stageAsEntersEntry(
     // CR 400.7 — an answer stamped for an entry that was then aborted belongs
     // to that abandoned entry, never to this one.
     delete card.acceptedEntryCounters;
+    delete card.declinedEntryKeywords;
     const presented = presentedDefId(card);
     const entry: StagedEntry = {
         card,
@@ -11124,10 +11158,19 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
                         id: MAY_ENTER_ACCEPT,
                         label: `Enter with ${counters}`,
                     },
-                    { id: MAY_ENTER_DECLINE, label: "Enter without it" },
+                    {
+                        id: MAY_ENTER_DECLINE,
+                        label: choice.declinedKeyword
+                            ? `Enter with ${choice.declinedKeyword}`
+                            : "Enter without it",
+                    },
                 ],
                 count: 1,
-                prompt: `You may have ${subject} enter with ${counters} on it.`,
+                prompt: `You may have ${subject} enter with ${counters} on it.${
+                    choice.declinedKeyword
+                        ? ` If you don't, it gains ${choice.declinedKeyword}.`
+                        : ""
+                }`,
             };
             break;
         }
@@ -11729,10 +11772,19 @@ function applyAsEntersAnswer(
         case "mayEnterWithCounters": {
             // CR 614.1c — the entry itself puts the counters on; stamped here
             // so every entry tail's `applyEntersWithCounters` reads one slot.
+            // CR 702.136b — instances work separately, so answers accumulate.
             if (selected[0] === MAY_ENTER_ACCEPT) {
                 card.acceptedEntryCounters = {
-                    [choice.counterType]: choice.count,
+                    ...card.acceptedEntryCounters,
+                    [choice.counterType]:
+                        (card.acceptedEntryCounters?.[choice.counterType] ??
+                            0) + choice.count,
                 };
+            } else if (choice.declinedKeyword) {
+                card.declinedEntryKeywords = [
+                    ...(card.declinedEntryKeywords ?? []),
+                    choice.declinedKeyword,
+                ];
             }
             return {};
         }
@@ -12019,6 +12071,9 @@ export function stagedEntryAnswers(
         ...(card.acceptedEntryCounters !== undefined
             ? { acceptedEntryCounters: { ...card.acceptedEntryCounters } }
             : {}),
+        ...(card.declinedEntryKeywords !== undefined
+            ? { declinedEntryKeywords: [...card.declinedEntryKeywords] }
+            : {}),
         ...(card.attachedTo !== undefined
             ? { attachedTo: card.attachedTo }
             : {}),
@@ -12043,6 +12098,9 @@ export function restoreStagedEntryAnswers(
 ): void {
     if (answers.acceptedEntryCounters !== undefined) {
         card.acceptedEntryCounters = { ...answers.acceptedEntryCounters };
+    }
+    if (answers.declinedEntryKeywords !== undefined) {
+        card.declinedEntryKeywords = [...answers.declinedEntryKeywords];
     }
     if (answers.attachedTo !== undefined) card.attachedTo = answers.attachedTo;
     if (answers.chosenName !== undefined) card.chosenName = answers.chosenName;
