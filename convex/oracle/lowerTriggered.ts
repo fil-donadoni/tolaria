@@ -162,9 +162,14 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
                 ...(head.phases !== undefined ? { phases: head.phases } : {}),
             };
         case "spell-cast":
-            return head.filter !== undefined
-                ? { kind: "spell-cast", scope: head.scope, filter: head.filter }
-                : { kind: "spell-cast", scope: head.scope };
+            return {
+                kind: "spell-cast",
+                scope: head.scope,
+                ...(head.filter !== undefined ? { filter: head.filter } : {}),
+                ...(head.nthSpellThisTurn !== undefined
+                    ? { nthSpellThisTurn: head.nthSpellThisTurn }
+                    : {}),
+            };
     }
 }
 

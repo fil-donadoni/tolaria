@@ -71,7 +71,11 @@ import { creatureCardDirectlyAboveInGraveyard } from "./graveyardOrder";
 import { holdsExileBundle } from "./abilities/exileBundle";
 import { stateTrigger } from "./abilities/triggers/stateTrigger";
 import { phaseTrigger } from "./abilities/triggers/phaseTrigger";
-import { spellCastTrigger } from "./abilities/triggers/spellCastTrigger";
+import {
+    nthSpellThisTurn,
+    spellCastTrigger,
+    type SpellCastTriggerArgs,
+} from "./abilities/triggers/spellCastTrigger";
 import { tappedTrigger } from "./abilities/triggers/tappedTrigger";
 import { cycledTrigger } from "./abilities/cycling";
 import {
@@ -381,6 +385,8 @@ export type CompiledTriggerHead =
           readonly kind: "spell-cast";
           readonly scope: "you" | "opponent" | "any" | "self";
           readonly filter?: SpellFilter;
+          /** CR 601.2i — only the caster's Nth spell this turn fires it. */
+          readonly nthSpellThisTurn?: number;
       };
 
 /**
@@ -887,6 +893,10 @@ function resolveCompiledTriggerHead(
                 ...common,
                 scope: head.scope === "opponent" ? "opponents" : head.scope,
                 ...(head.filter !== undefined ? { filter: head.filter } : {}),
+                ...spellOrdinalGate(
+                    head.nthSpellThisTurn,
+                    (gating as { condition?: SpellCastCondition }).condition
+                ),
             });
         default: {
             const never: never = head;
@@ -895,6 +905,25 @@ function resolveCompiledTriggerHead(
             );
         }
     }
+}
+
+type SpellCastCondition = NonNullable<SpellCastTriggerArgs["condition"]>;
+
+/** CR 601.2i — the head's Nth-spell gate, on top of any printed condition:
+ *  it decides whether the ability triggers and is never re-checked. */
+function spellOrdinalGate(
+    n: number | undefined,
+    printed: SpellCastCondition | undefined
+): { condition?: SpellCastCondition } {
+    if (n === undefined) return {};
+    const nth = nthSpellThisTurn(n);
+    return {
+        condition:
+            printed === undefined
+                ? nth
+                : (event, self, state) =>
+                      nth(event, self, state) && printed(event, self, state),
+    };
 }
 
 type EffectivePowerReader = (

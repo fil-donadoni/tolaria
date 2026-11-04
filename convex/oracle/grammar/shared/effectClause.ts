@@ -2090,6 +2090,14 @@ export type EffectSentenceIR =
           readonly filter: EffectCardFilter;
           readonly match: UntilRouteDestination;
           readonly rest: UntilRouteDestination;
+          /**
+           * CR 406.3 + CR 608.2g + CR 118.9 — "Exile cards from the top of
+           * your library until you exile a nonland card. You may cast that
+           * card without paying its mana cost.": the same walk with both
+           * routes exile, whose match is then offered during this resolution
+           * with its cost waived. Either printed half alone is refused.
+           */
+          readonly offerMatchFree?: true;
       }
     | {
           /**
@@ -2649,6 +2657,10 @@ export type SentenceIR =
           readonly role: "reveal-top-otherwise";
           readonly to: UntilRouteDestination;
       }
+    /** CR 406.3 — the walk half of an offered `reveal-until` (see there). */
+    | { readonly role: "exile-until"; readonly filter: EffectCardFilter }
+    /** CR 608.2g — the offer half of an offered `reveal-until` (see there). */
+    | { readonly role: "exile-until-offer" }
     /** CR 701.20a — the window half of a `reveal-until` (see there). */
     | { readonly role: "reveal-until"; readonly filter: EffectCardFilter }
     /** The routing half of a `reveal-until` (see there). */
@@ -2912,6 +2924,8 @@ export function assembleSentences(
     > | null = null;
     // CR 101.4 — a per-land-type pick waits for the sentence that returns it.
     let landTypePick = false;
+    // CR 406.3 — an exile-until walk waits for the sentence offering its card.
+    let exileUntil: Extract<SentenceIR, { role: "exile-until" }> | null = null;
     // CR 701.20a — a reveal-until window waits for the sentence that routes it.
     let revealUntil: Extract<SentenceIR, { role: "reveal-until" }> | null =
         null;
@@ -3003,6 +3017,22 @@ export function assembleSentences(
     // …" waits for the "Those players …" sentence that finishes its chain.
     let actedOnSearch: ActedOnControllersSearchIR | null = null;
     for (const sentence of sentences) {
+        if (exileUntil !== null) {
+            if (sentence.role !== "exile-until-offer")
+                return {
+                    ok: false,
+                    reason: "an exile-until walk is not followed by the offer to cast its card",
+                };
+            effects.push({
+                kind: "reveal-until",
+                filter: exileUntil.filter,
+                match: "exile",
+                rest: "exile",
+                offerMatchFree: true,
+            });
+            exileUntil = null;
+            continue;
+        }
         if (afterReflexive)
             return {
                 ok: false,
@@ -3749,6 +3779,20 @@ export function assembleSentences(
                 ok: false,
                 reason: "a top-card route follows no revealed top card",
             };
+        if (sentence.role === "exile-until") {
+            if (restrictions.length > 0 || window !== null || piles !== null)
+                return {
+                    ok: false,
+                    reason: "an effect sentence follows an activation restriction",
+                };
+            exileUntil = sentence;
+            continue;
+        }
+        if (sentence.role === "exile-until-offer")
+            return {
+                ok: false,
+                reason: "an offer to cast that card follows no exile-until walk",
+            };
         if (revealUntil !== null) {
             if (sentence.role !== "reveal-until-route")
                 return {
@@ -4466,6 +4510,11 @@ export function assembleSentences(
             ok: false,
             reason: "a player's choice of an opposing player is not followed by their optional reveal and its routing",
         };
+    if (exileUntil !== null)
+        return {
+            ok: false,
+            reason: "an exile-until walk is not followed by the offer to cast its card",
+        };
     if (revealUntil !== null || revealTop !== null || piles !== null)
         return {
             ok: false,
@@ -4936,6 +4985,10 @@ export function optionalSentenceRule(
     const optional: Rule<SentenceIR> = rule(
         `optional ${inner.label}`,
         (span, ctx) => {
+            // CR 608.2g — the walk's offer is not a generic option: its "You
+            // may" is the cast permission itself, not a `mayPay` over a verb.
+            if (EXILE_UNTIL_OFFER.test(span))
+                return ok({ role: "exile-until-offer" as const });
             const read = optionalSentence(span, ctx);
             if (read.ok || !uncapitalise(span).includes(THEN_YOU_MAY))
                 return read;
@@ -5785,6 +5838,12 @@ const REVEAL_TOP_DESTINATIONS = new Map<string, UntilRouteDestination>([
     ["onto the battlefield", "battlefield"],
     ["into your graveyard", "graveyard"],
 ]);
+/** CR 406.3 — the exile-until walk: what ends it. */
+const EXILE_UNTIL =
+    /^Exile cards from the top of your library until you exile (a nonland card)$/;
+/** CR 608.2g + CR 118.9 — the offer behind the walk, with its waived cost. */
+const EXILE_UNTIL_OFFER =
+    /^You may cast that card without paying its mana cost$/;
 /** CR 701.20a — the reveal-until window: what ends the reveal. */
 const REVEAL_UNTIL =
     /^Reveal cards from the top of your library until you reveal (a basic land card|a land card|a creature card|a white card)$/;
@@ -5829,6 +5888,7 @@ const REVEAL_UNTIL_FILTERS = new Map<string, EffectCardFilter>([
     ["a land card", { type: "Land" }],
     ["a creature card", { type: "Creature" }],
     ["a white card", { color: "W" }],
+    ["a nonland card", { excludeType: "Land" }],
 ]);
 /** CR 701.24a — the shuffle a "You may" offers after a looked-at library. */
 const SHUFFLE_THAT_PLAYER = "You may have that player shuffle";
@@ -6390,6 +6450,10 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         // the list is a closed CR census, so a per-card subset would be a
         // catalogue of card names wearing a grammar's clothes.
         const span = withoutAbilityWord(printed);
+        // CR 608.2g — the second half of a fold, not an optional effect (a
+        // site with no optional marker reaches it here).
+        if (EXILE_UNTIL_OFFER.test(span))
+            return ok({ role: "exile-until-offer" as const });
         const restrictions = readRestrictions(span, ctx);
         if (restrictions !== undefined)
             return ok({ role: "restriction" as const, restrictions });
@@ -7481,6 +7545,12 @@ function libraryHalf(span: string, ctx: unknown) {
         return ok({
             role: "reveal-top-otherwise" as const,
             to: REVEAL_TOP_DESTINATIONS.get(topOtherwise[1]!)!,
+        } satisfies SentenceIR);
+    const exileWalk = span.match(EXILE_UNTIL);
+    if (exileWalk !== null)
+        return ok({
+            role: "exile-until" as const,
+            filter: REVEAL_UNTIL_FILTERS.get(exileWalk[1]!)!,
         } satisfies SentenceIR);
     const until = span.match(REVEAL_UNTIL);
     if (until !== null) {
