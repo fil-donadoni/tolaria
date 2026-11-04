@@ -41,6 +41,7 @@ import type {
     AlternativeCostCondition,
     CardDefinition,
     Color,
+    CastCostLegs,
     CostLegs,
     EffectCardFilter,
     PermanentFilter,
@@ -127,7 +128,7 @@ export function altCostHasPermanentLeg(altCost: CostLegs): boolean {
  *  `canPayAlternativeCost` reads `undefined` as "not payable as an alternative
  *  cost" and the variant is simply never offered. */
 export function altCostPermanentCardinal(
-    altCost: CostLegs
+    altCost: CastCostLegs
 ): number | undefined {
     const leg = altCost.permanent;
     if (!leg || typeof leg.count !== "number") return undefined;
@@ -848,7 +849,7 @@ export function buildAlternativeCostChoice(
 export function buildCostLegsPermanentChoice(
     state: GameState,
     playerId: string,
-    entries: { legs: CostLegs; explicit?: boolean }[],
+    entries: { legs: CastCostLegs; explicit?: boolean }[],
     reason: string
 ): SacrificeSelection | undefined {
     const requirements: SacrificeRequirement[] = [];
@@ -861,24 +862,28 @@ export function buildCostLegsPermanentChoice(
         // leg" rather than a throw on a path the client also walks.
         const count = altCostPermanentCardinal(entry.legs);
         if (count === undefined) continue;
-        const legAction = leg.action === "return" ? "return" : "sacrifice";
-        if (action !== undefined && action !== legAction) {
-            throw new Error("These costs cannot be paid together");
+        // CR 702.78a — a tap leg's action rides on its REQUIREMENT, so it never
+        // disagrees with a leg that gives its permanents up.
+        if (leg.action !== "tap") {
+            if (action !== undefined && action !== leg.action) {
+                throw new Error("These costs cannot be paid together");
+            }
+            action = leg.action;
         }
-        action = legAction;
         requirements.push({
             filter: leg.filter,
             count,
             ...(entry.explicit ? { explicit: true } : {}),
+            ...(leg.action === "tap" ? { action: "tap" as const } : {}),
         });
     }
-    if (requirements.length === 0 || action === undefined) return undefined;
+    if (requirements.length === 0) return undefined;
     const selection: SacrificeSelection = {
         playerId,
         reason,
         requirements,
         picked: [],
-        action,
+        action: action ?? "sacrifice",
     };
     autoResolveFungible(state, selection);
     return selection;
@@ -892,7 +897,7 @@ export function buildCostLegsPermanentChoice(
 export function canAffordCostLegsPermanents(
     state: GameState,
     playerId: string,
-    legs: CostLegs[]
+    legs: CastCostLegs[]
 ): boolean {
     const requirements: SacrificeRequirement[] = [];
     for (const leg of legs) {
@@ -943,7 +948,7 @@ export type CastHandCostChoice = {
  *  `CostLegs.hand` (most restrictive requirement first) extends across legs. */
 export function buildCostLegsHandChoice(
     player: PlayerState,
-    legs: CostLegs[],
+    legs: Pick<CostLegs, "hand">[],
     castInstanceId: string
 ): CastHandCostChoice | undefined {
     const requirements: { filter: EffectCardFilter; count: number }[] = [];

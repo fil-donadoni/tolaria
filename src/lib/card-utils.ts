@@ -2200,7 +2200,8 @@ export function affordableKickersForCard(
                 caster as unknown as PlayerState,
                 { ...def, kickers: [k] } as CardDefinition,
                 { [k.id]: 1 },
-                card.id
+                card.id,
+                card as unknown as CardInstanceState
             )
         );
 }
@@ -3199,8 +3200,10 @@ export function getAbilityOracleText(
     return null;
 }
 
-/** The cast-copy triggers (ADR 0052) — Storm's (CR 702.40) and Replicate's
- *  (CR 702.56) — are engine-synthesized: no card declares them in
+/** The cast-copy triggers (ADR 0052) are engine-synthesized:
+ *  Storm's (CR 702.40),
+ *  Replicate's (CR 702.56),
+ *  Conspire's (CR 702.78). No card declares them in
  *  `triggeredAbilities` (they are not per-card DSL/`resolve()` abilities, see
  *  `collectCastTriggers` / `resolveCastCopyTrigger` in `convex/gre/state.ts`),
  *  so their labels can't come from a card-def lookup. Keyed by the trigger
@@ -3213,6 +3216,10 @@ const CAST_COPY_TRIGGER_ORACLE_TEXT: ReadonlyMap<string, string> = new Map([
     [
         "replicate",
         "Replicate (When you cast this spell, copy it for each time you paid its replicate cost. You may choose new targets for the copies.)",
+    ],
+    [
+        "conspire",
+        "Conspire (When you cast this spell, if its conspire cost was paid, copy it. If the spell has any targets, you may choose new targets for the copy.)",
     ],
 ]);
 

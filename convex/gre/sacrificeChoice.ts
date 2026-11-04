@@ -15,6 +15,7 @@ import type {
 } from "./state";
 import {
     emitCardsExiledFromBattlefield,
+    emitPermanentTapped,
     getPlayer,
     removePermanentTo,
 } from "./state";
@@ -68,8 +69,9 @@ export type SacrificeRequirement = {
      *  all, and the ninjutsu path returned early — which silently skipped the
      *  static tax entirely (an activation that owed a Swamp paid nothing).
      *  Absent = the selection's action, which is the shape every pre-existing
-     *  producer uses. */
-    action?: "sacrifice" | "return";
+     *  producer uses. `"tap"` (CR 702.78a conspire) exists only here: the picked
+     *  permanent stays on the battlefield, tapped. */
+    action?: "sacrifice" | "return" | "tap";
 };
 
 export type SacrificeSelection = {
@@ -227,6 +229,30 @@ export function requirementCandidates(
     if (!req.candidateIds) return cands;
     const allowed = new Set(req.candidateIds);
     return cands.filter((c) => allowed.has(c.id));
+}
+
+/** CR 702.78a — the picks that pay by TAPPING, so must stay untapped until the
+ *  selection is applied: a permanent spoken for this way cannot also tap for
+ *  mana, and one that has become tapped makes the commit stale. */
+export function tapPaymentPickIds(sel: SacrificeSelection): string[] {
+    return [...pickRequirements(sel)]
+        .filter(([, req]) => req.action === "tap")
+        .map(([id]) => id);
+}
+
+/** CR 702.78a — what mana payment must leave alone while a tap leg is open: its
+ *  picks, plus every candidate of a tap requirement still awaiting picks. The
+ *  caster names those first, and tapping one for mana could leave too few. */
+export function tapPaymentSpokenForIds(
+    state: GameState,
+    sel: SacrificeSelection
+): string[] {
+    const req = nextUnmetRequirement(sel);
+    const outstanding =
+        req?.action === "tap"
+            ? requirementCandidates(state, sel.playerId, req).map((c) => c.id)
+            : [];
+    return [...tapPaymentPickIds(sel), ...outstanding];
 }
 
 /** The first requirement whose picked-count is below its `count`. Picks are
@@ -480,10 +506,14 @@ export function applySacrificeSelection(
         // CR 702.49a / 701.21 — the terminal action is the REQUIREMENT's when it
         // declares one, so one selection can return a ninjutsu attacker AND
         // sacrifice a static tax's victim in the same payment.
-        const isReturn = (req?.action ?? sel.action) === "return";
+        const action = req?.action ?? sel.action;
         const characteristics = victimCharacteristics(state, victim);
         results.push({ id, ...characteristics, snapshot });
-        if (isReturn) {
+        if (action === "tap") {
+            // CR 702.78a — not a {T} cost, so summoning sickness is irrelevant.
+            victim.isTapped = true;
+            emitPermanentTapped(state, victim, false);
+        } else if (action === "return") {
             removePermanentTo(state, id, "hand");
         } else {
             // issue #1558 — a CR 614 graveyard-bound replacement can redirect

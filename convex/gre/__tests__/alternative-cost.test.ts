@@ -517,7 +517,8 @@ describe("Alternative cost — the no-target commit branch pays the board-wide s
             chosenAltCost,
             onceUponATime(),
             undefined,
-            "Alternative cost"
+            "Alternative cost",
+            undefined
         );
         return resolveCastPermanentSelection(altChoice, ownSac);
     }

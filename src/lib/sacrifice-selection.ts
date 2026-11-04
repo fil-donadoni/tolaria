@@ -43,8 +43,9 @@ function withArticle(noun: string): string {
 
 /** Subtitle for an outstanding permanent-cost choice (CR 701.21a / 118.9) —
  *  names the next unmet requirement's filter, with progress when more than one
- *  is owed. The verb matches the selection's terminal action: "sacrifice"
- *  (default) or "return" (the return-N-lands alternative cost, Gush / Thwart).
+ *  is owed. The verb matches the terminal action: "sacrifice" (default),
+ *  "return" (the return-N-lands alternative cost, Gush / Thwart) or "tap" (the
+ *  CR 702.78a conspire cost).
  *  Shared by the payment banner (cast/activation) and the sacrifice banner
  *  (attack-declaration land tax). */
 export function describeSacrificeChoice(sel: SacrificeSelection): string {
@@ -53,8 +54,7 @@ export function describeSacrificeChoice(sel: SacrificeSelection): string {
     // the selection: one payment can return a ninjutsu attacker and then
     // sacrifice a static tax's victim, and the banner must say which one it is
     // asking for right now.
-    const verb =
-        (req?.action ?? sel.action) === "return" ? "return" : "sacrifice";
+    const verb = req?.action ?? sel.action ?? "sacrifice";
     if (!req) return `${verb} a permanent`;
     const label = formatFilterLabel(req.filter);
     const total = sel.requirements.reduce((a, r) => a + r.count, 0);

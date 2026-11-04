@@ -26,6 +26,7 @@ import type {
     AdditionalCostKeyword,
     CardDefinition,
     CardType,
+    CastCostLegs,
     Color,
     CostLegs,
     KickerCost,
@@ -34,6 +35,7 @@ import type {
 } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getStaticAdditionalSacrifices, normalizeManaCost } from "./state";
+import { STATIC_EFFECT_CTX } from "./layers";
 import { splicedCardIdsOfEntries } from "./splice";
 import {
     buildCostLegsPermanentChoice,
@@ -214,6 +216,18 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
         printedLabel: { single: "Escalate" },
         paidPerExtraMode: true,
     },
+    // CR 702.78a/b (issue #4012) — an optional cost whose twin is the synthesized
+    // cast-copy trigger, with no "any number of times" clause: each instance is
+    // paid at most once, so the trigger's count is 1. Never "kicked": CR 702.33d
+    // defines that over kicker costs alone.
+    conspire: {
+        countsAsKicked: false,
+        requiresTrigger: true,
+        castCopyTrigger: true,
+        allowsMulti: false,
+        printedLabel: { single: "Conspire" },
+        paidPerExtraMode: false,
+    },
 };
 
 /** CR 702.33c / 702.157a (issue #3220) — the word this cost entry PRINTS as,
@@ -324,7 +338,17 @@ export function perExtraModeAffordableModeCap(
     let cap = 1;
     for (let n = 2; n <= upTo; n++) {
         const payments = withPerExtraModePayments(cardDef, undefined, n);
-        if (!canPayKickerLegs(state, player, cardDef, payments, castInstanceId))
+        // An escalate cost is priced here, and no such entry has a tap leg.
+        if (
+            !canPayKickerLegs(
+                state,
+                player,
+                cardDef,
+                payments,
+                castInstanceId,
+                undefined
+            )
+        )
             break;
         cap = n;
     }
@@ -485,7 +509,10 @@ export function resolveKickerPayments(
     const actions = new Set(
         paidKickers(cardDef, canonical)
             .map((p) => p.kicker.permanent?.action)
-            .filter((a): a is "return" | "sacrifice" => a !== undefined)
+            .filter(
+                (a): a is "return" | "sacrifice" =>
+                    a !== undefined && a !== "tap"
+            )
     );
     if (actions.size > 1) {
         throw new Error("These kickers' costs cannot be paid together");
@@ -787,8 +814,8 @@ export function kickerLifeCost(
 export function kickerCostLegs(
     cardDef: CardDefinition,
     payments: KickerPayments | undefined
-): CostLegs[] {
-    const legs: CostLegs[] = [];
+): CastCostLegs[] {
+    const legs: CastCostLegs[] = [];
     for (const { kicker, times } of paidKickers(cardDef, payments)) {
         for (let i = 0; i < times; i++) legs.push(kicker);
     }
@@ -808,6 +835,36 @@ export function hasKickerPermanentLeg(
 ): boolean {
     return kickerCostLegs(cardDef, payments).some(
         (leg) => leg.permanent !== undefined
+    );
+}
+
+/** CR 702.78a — `legs` with `sharesColorWithCastSpell` written out as a `colors`
+ *  clause holding the cast spell's LIVE colours (CR 105.2, through the layer
+ *  authority every other colour read uses). The filter then crosses the wire as
+ *  plain data, so server, Bot and client highlight read one answer. No cast card
+ *  or a colourless spell yields an empty list, which matches nothing. */
+function bindCastSpellColors(
+    legs: CastCostLegs,
+    castCard: CardInstanceState | undefined
+): CastCostLegs {
+    const leg = legs.permanent;
+    if (leg?.action !== "tap" || !leg.sharesColorWithCastSpell) return legs;
+    const colors = castCard ? STATIC_EFFECT_CTX.getColors(castCard) : [];
+    return {
+        ...legs,
+        permanent: { ...leg, filter: { ...leg.filter, colors: [...colors] } },
+    };
+}
+
+/** Does any paid Kicker owe a permanent leg that GIVES the permanent up? A tap
+ *  leg (CR 702.78a) leaves it where it is, so it can share the cast's selection
+ *  with a sacrifice the cast also owes. */
+function hasKickerGiveUpLeg(
+    cardDef: CardDefinition,
+    payments: KickerPayments | undefined
+): boolean {
+    return kickerCostLegs(cardDef, payments).some(
+        (leg) => leg.permanent !== undefined && leg.permanent.action !== "tap"
     );
 }
 
@@ -838,7 +895,7 @@ export function assertKickerPermanentSlotFree(
     altCost?: CostLegs
 ): void {
     if (!ownSacrifice) return;
-    if (!hasKickerPermanentLeg(cardDef, payments) && !altCost?.permanent) {
+    if (!hasKickerGiveUpLeg(cardDef, payments) && !altCost?.permanent) {
         return;
     }
     throw new Error(
@@ -861,7 +918,10 @@ export function buildCastPermanentCostChoice(
     altCost: CostLegs | undefined,
     cardDef: CardDefinition,
     payments: KickerPayments | undefined,
-    reason: string
+    reason: string,
+    /** CR 702.78a — the instance being cast, for a leg priced against its
+     *  colours. */
+    castCard: CardInstanceState | undefined
 ): SacrificeSelection | undefined {
     return buildCostLegsPermanentChoice(
         state,
@@ -869,7 +929,7 @@ export function buildCastPermanentCostChoice(
         [
             ...(altCost ? [{ legs: altCost }] : []),
             ...kickerCostLegs(cardDef, payments).map((legs) => ({
-                legs,
+                legs: bindCastSpellColors(legs, castCard),
                 explicit: true,
             })),
         ],
@@ -889,13 +949,21 @@ export function buildCastPermanentCostChoice(
  *  exactly that drift: the alt-cost branch special-cased away the fallback
  *  entirely and dropped `ownSacrifice` unconditionally. A genuine collision
  *  (both legs claim the slot) is rejected upstream, fail-closed, by
- *  `assertKickerPermanentSlotFree` — by the time this runs, at most one side
- *  is non-`undefined` for any composition a real cast can reach. */
+ *  `assertKickerPermanentSlotFree` — by the time this runs, both sides exist
+ *  only when the kicker side is TAP legs (CR 702.78a), which join the selection
+ *  after the sacrifice: conspire does not take the slot Drought's tax needs. */
 export function resolveCastPermanentSelection(
     castPermSel: SacrificeSelection | undefined,
     ownSacrifice: SacrificeSelection | undefined
 ): SacrificeSelection | undefined {
-    return castPermSel ?? ownSacrifice;
+    if (!castPermSel || !ownSacrifice) return castPermSel ?? ownSacrifice;
+    return {
+        ...ownSacrifice,
+        requirements: [
+            ...ownSacrifice.requirements,
+            ...castPermSel.requirements,
+        ],
+    };
 }
 
 /** CR 601.2f / 601.2h — the cast's ONE hand-cost picker, folding the chosen
@@ -949,10 +1017,14 @@ export function canPayKickerLegs(
     player: PlayerState,
     cardDef: CardDefinition,
     payments: KickerPayments | undefined,
-    castInstanceId: string
+    castInstanceId: string,
+    /** CR 702.78a — the instance being cast, for a leg priced against its
+     *  colours. Required so a new caller decides; absent reads as colourless. */
+    castCard: CardInstanceState | undefined
 ): boolean {
-    const legs = kickerCostLegs(cardDef, payments);
-    if (legs.length === 0) return true;
+    const printedLegs = kickerCostLegs(cardDef, payments);
+    if (printedLegs.length === 0) return true;
+    const legs = printedLegs.map((leg) => bindCastSpellColors(leg, castCard));
     if (player.life < kickerLifeCost(cardDef, payments)) return false;
     if (!canAffordCostLegsPermanents(state, player.id, legs)) return false;
     // CR 118.8 / 601.2h — the hand legs: EVERY leg's requirements together must be coverable
@@ -1354,7 +1426,14 @@ export function enumerateKickerVariants(
             continue;
         }
         if (
-            !canPayKickerLegs(state, player, cardDef, canonical, castInstanceId)
+            !canPayKickerLegs(
+                state,
+                player,
+                cardDef,
+                canonical,
+                castInstanceId,
+                card
+            )
         ) {
             continue;
         }
