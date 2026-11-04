@@ -140,6 +140,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     "firebending",
     // CR 702.116a — no token in a two-player game, so nothing to price.
     "myriad",
+    // CR 702.26a — a drawback on the body's availability, not a quality of the
+    // body: while it is out the evaluator already sees no creature at all.
+    "phasing",
     "chapter-ability",
     "class-level-bar",
     // CR 702.89a — umbra armor sits on the Aura, never on the creature's body:

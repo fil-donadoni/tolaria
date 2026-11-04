@@ -991,8 +991,10 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Phasing",
         kind: "keyword-ability",
         cr: "702.26",
-        status: "planned",
-        note: 'the phase-out/phase-in STATE machinery (phaseOutPermanent/phaseInBundle in state.ts, SpellContext.phaseOut) correctly implements CR 702.26b "treated as though it doesn\'t exist" semantics and is used today for effect-driven phasing (Oubliette\'s "phases out until this leaves", arn/black.ts) — but no automatic per-untap-step toggle exists, so a card that merely declared the native keyword (CR 702.26a-c) would not behave correctly yet. Binding machinery ready; keyword-declaration path unbuilt.',
+        status: "implemented",
+        binding:
+            "convex/gre/phasing.ts phasingTurnBasedAction + convex/gre/state.ts (phaseOutPermanent, phaseInBundle)",
+        note: "CR 702.26a / 502.1 — the turn-based action of the untap step (`untapStep`, first entry only, never on a skipped step, CR 702.26m): the permanents with phasing read before anything phases in, so the toggle is simultaneous. A phased-out permanent lives in a `PhasedOutBundle`, off every battlefield array, which is what \"treated as though it does not exist\" (CR 702.26b) costs every reader; the rules that do reach it are named: the cleanup damage wipe (CR 514.2) and duration ticks (CR 702.26f). Host and attachments phase as one bundle, recursively (CR 702.26g); an attachment that would phase out both ways goes with the host (CR 702.26h); a directly-phased attachment keeps `attachedTo` and the attachment SBAs settle a host that is gone (CR 702.26i). The source's static effects stop applying as it phases out (CR 702.26b). Granted phasing (Teferi's Curse) reads the same `staticAbilities`, so it follows layer 6. Out of scope, because this engine plays two-player games only: CR 702.26k and 702.26n (a player leaving ends the game).",
     },
     // 702.27 Buyback
     {
@@ -3732,7 +3734,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "702.26",
         binding: "SpellContext.phaseOut",
-        note: 'Phase a permanent out (CR 702.26b, issue #4573): "target artifact, creature, or land phases out". A thin declarative skin over the single SpellContext primitive `phaseOut`, one execution path (ADR 0045): `target` names the permanent (an announced slot, `$source`, or a forEach `$each`); the host and every Aura / Equipment attached to it (CR 702.26g) leave the battlefield silently — no leaves-the-battlefield event, no zone change, no triggers (CR 702.26d) — and phase back in before their controller untaps during that controller\'s NEXT untap step (CR 702.26a), which is the `untap-cycle` return the Op fixes. It carries no return-condition field: bare "phases out" prints exactly one, and a source-bound return (Oubliette) is a different clause whose field waits for the card that prints it. Skipped when the referenced permanent is gone (CR 608.2b). This is the phasing EFFECT, not the `phasing` keyword ability (CR 702.26a: a permanent with the keyword phases itself every untap step), which stays planned.',
+        note: 'Phase a permanent out (CR 702.26b, issue #4573): "target artifact, creature, or land phases out". A thin declarative skin over the single SpellContext primitive `phaseOut`, one execution path (ADR 0045): `target` names the permanent (an announced slot, `$source`, or a forEach `$each`); the host and every Aura / Equipment attached to it (CR 702.26g) leave the battlefield silently — no leaves-the-battlefield event, no zone change, no triggers (CR 702.26d) — and phase back in before their controller untaps during that controller\'s NEXT untap step (CR 702.26a), which is the `untap-cycle` return the Op fixes. It carries no return-condition field: bare "phases out" prints exactly one, and a source-bound return (Oubliette) is a different clause whose field waits for the card that prints it. Skipped when the referenced permanent is gone (CR 608.2b). This is the phasing EFFECT; the `phasing` keyword ability (CR 702.26a: a permanent with the keyword phases itself every untap step) shares the same state machinery and return.',
     },
     {
         op: "preventRegeneration",

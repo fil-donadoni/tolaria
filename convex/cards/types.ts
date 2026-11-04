@@ -5048,14 +5048,8 @@ export interface SpellContext {
      *  persisted and id-remapped generically (`gre/serialize.ts`) — so no
      *  `chosenPermanentId`-style field is needed on the source.
      *
-     *  Out of scope for issue #1562 (pre-existing gap, not a regression this
-     *  card introduces): phasing OUT (CR 702.26b — a phased-out permanent
-     *  "is treated as though it doesn't exist") does NOT call
-     *  `stopApplyingStaticEffects` (`phaseOutPermanent`, `gre/state.ts`
-     *  splices the battlefield array directly), so a phased-out source
-     *  keeps its target stripped instead of releasing the hold. Latent in
-     *  the shared applier since Titania's Song — this Op does not make it
-     *  worse, only reachable by a second card.
+     *  Phasing the source out (CR 702.26b) releases the hold the same way:
+     *  `phaseOutPermanent` shares `releaseAbilityLossHolds` with that function.
      *
      *  Takes a FRESH layer timestamp (`allocStaticTimestamp`), so per CR
      *  613.7 an ability GRANTED to the target after this resolves survives
