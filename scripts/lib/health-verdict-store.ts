@@ -304,10 +304,9 @@ export function encodeDescription(v: Verdict): string {
         v.step ?? "-",
         v.machine ?? "-",
     ].join(SEP);
-    const fit = (extra: string): boolean => {
-        const fits = out.length + SEP.length + extra.length <= DESCRIPTION_MAX;
-        if (fits) out += SEP + extra;
-        return fits;
+    const fit = (extra: string) => {
+        if (out.length + SEP.length + extra.length <= DESCRIPTION_MAX)
+            out += SEP + extra;
     };
     if (v.repairOf) fit(`repair-of: ${v.repairOf}`);
     // Before the failure and the tests: a proof-written RED must never lose
@@ -316,8 +315,8 @@ export function encodeDescription(v: Verdict): string {
     // The class stands in for the failure kind it implies: shorter, so a
     // Contained RED keeps every test path the same RED would have kept
     // blocking. No room for it reads as blocking, the safe side.
-    const contained =
-        v.status === "red" && v.redClass === CONTAINED && fit(CONTAINED);
+    const contained = v.status === "red" && v.redClass === CONTAINED;
+    if (contained) fit(CONTAINED);
     if (v.failure && !(contained && v.failure === CONTAINED_FAILURE))
         fit(`failure: ${v.failure}`);
     out += testsField(out.length, v.tests ?? []);

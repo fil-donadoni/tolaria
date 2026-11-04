@@ -498,7 +498,7 @@ describe("a Contained RED (ADR 0163, issue #8074)", () => {
         expect(back(d)?.failure).toBe("timeout");
     });
 
-    it("no room for the class reads as blocking, and the failure kind stays", () => {
+    it("no room for the class reads as blocking", () => {
         const d = encodeDescription(
             contained(T1, {
                 step: "s".repeat(DESCRIPTION_MAX - 20),
