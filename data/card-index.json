@@ -10040,6 +10040,16 @@
         "source": "compiled"
     },
     {
+        "name": "Butcher Ghoul",
+        "scryfallId": "44a91e62-e946-4101-8cef-d1c147caebf2",
+        "oracleId": "28caeed4-c175-469f-8d8e-f45bc0a51a1c",
+        "firstSet": "avr",
+        "firstPrintId": "44a91e62-e946-4101-8cef-d1c147caebf2",
+        "firstPrintSet": "avr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Buzz Bots",
         "scryfallId": "7c375190-f81b-4ab1-a1b6-fe432796821f",
         "oracleId": "434e720f-2bfa-49b6-a5ac-fe0c0b24764d",
@@ -23726,6 +23736,16 @@
         "firstPrintSet": "wwk"
     },
     {
+        "name": "Evernight Shade",
+        "scryfallId": "1091fadf-97c4-4f87-8466-6a1246a72226",
+        "oracleId": "9af1b6c4-295f-41d2-b3a0-0863798330d4",
+        "firstSet": "avr",
+        "firstPrintId": "1091fadf-97c4-4f87-8466-6a1246a72226",
+        "firstPrintSet": "avr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Evil Presence",
         "scryfallId": "0551d66e-8cd4-48f0-aa17-15f26be9d85f",
         "oracleId": "3d8ac41c-0566-48b2-a744-39db2f72272c",
@@ -29128,6 +29148,26 @@
         "firstSet": "inv",
         "firstPrintId": "e744b593-13fe-4967-b492-ac02f5815e57",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Geralf's Messenger",
+        "scryfallId": "bffaad78-97ff-431f-bfb0-e96c7558f974",
+        "oracleId": "740f9740-aaa7-4061-86f5-85be79742541",
+        "firstSet": "dka",
+        "firstPrintId": "bffaad78-97ff-431f-bfb0-e96c7558f974",
+        "firstPrintSet": "dka",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Geralf's Mindcrusher",
+        "scryfallId": "68ac8b5f-4d95-43fc-bf23-10247986a746",
+        "oracleId": "e8fa9455-92ac-46e0-bb34-4175c3c66fee",
+        "firstSet": "dka",
+        "firstPrintId": "68ac8b5f-4d95-43fc-bf23-10247986a746",
+        "firstPrintSet": "dka",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Gerrard Capashen",
@@ -35378,6 +35418,16 @@
         "firstSet": "ice",
         "firstPrintId": "1d4fe072-81a7-424e-8d21-aaca010d5b1d",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Hound of Griselbrand",
+        "scryfallId": "0fe68bce-6207-4fd1-9e82-a18fd2d6ddca",
+        "oracleId": "17425a60-7554-4740-9455-976edd63c106",
+        "firstSet": "avr",
+        "firstPrintId": "0fe68bce-6207-4fd1-9e82-a18fd2d6ddca",
+        "firstPrintSet": "avr",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Hover Barrier",
@@ -49098,6 +49148,16 @@
         "firstPrintId": "362ec364-39c1-4a4b-8dfa-268fad2effdd",
         "firstPrintSet": "soi",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Nearheath Stalker",
+        "scryfallId": "7d4cdf4a-2d55-4769-8c51-bc86c13000ef",
+        "oracleId": "c804157e-2911-4973-83bf-f5befc09065d",
+        "firstSet": "dka",
+        "firstPrintId": "7d4cdf4a-2d55-4769-8c51-bc86c13000ef",
+        "firstPrintSet": "dka",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -66106,6 +66166,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sightless Ghoul",
+        "scryfallId": "018bd4ae-cdea-410d-9ce6-6a70f12de966",
+        "oracleId": "8791adf7-16b5-4692-9eaa-0d0c58867d9d",
+        "firstSet": "dka",
+        "firstPrintId": "018bd4ae-cdea-410d-9ce6-6a70f12de966",
+        "firstPrintSet": "dka",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Sigil of the Empty Throne",
         "scryfallId": "9c451f63-2827-49fe-9d1d-87c87f7f5f8d",
         "oracleId": "3b9b5b22-5a7d-4e37-a870-ca0f0efa4f36",
@@ -71972,6 +72042,16 @@
         "source": "compiled"
     },
     {
+        "name": "Stormbound Geist",
+        "scryfallId": "040eddb0-fca2-41eb-ab07-c48d49385973",
+        "oracleId": "b5027d79-83e9-437a-baae-03cc3a13a608",
+        "firstSet": "dka",
+        "firstPrintId": "040eddb0-fca2-41eb-ab07-c48d49385973",
+        "firstPrintSet": "dka",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Stormcaller of Keranos",
         "scryfallId": "d397bdc3-a866-45be-8740-185d9ccf29c4",
         "oracleId": "16a66bbe-90f6-4c29-a69d-6ff254082956",
@@ -72139,6 +72219,16 @@
         "firstPrintId": "4b91d727-c0ee-4bf0-8c7d-8475ecb88083",
         "firstPrintSet": "snc",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Strangleroot Geist",
+        "scryfallId": "bf1fb137-205c-480f-b6dc-dfa137793ae3",
+        "oracleId": "af12758f-4a7b-4156-8942-de4716aa0623",
+        "firstSet": "dka",
+        "firstPrintId": "bf1fb137-205c-480f-b6dc-dfa137793ae3",
+        "firstPrintSet": "dka",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -81237,6 +81327,16 @@
         "source": "compiled"
     },
     {
+        "name": "Vengeful Vampire",
+        "scryfallId": "d03c64a7-37d2-4d8f-bd7a-9435bc2f4101",
+        "oracleId": "1fcf95d7-fd70-474b-be0a-e43502633556",
+        "firstSet": "dka",
+        "firstPrintId": "d03c64a7-37d2-4d8f-bd7a-9435bc2f4101",
+        "firstPrintSet": "dka",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Vengevine",
         "scryfallId": "51eb9f05-9d5a-4196-9329-626ce4793c42",
         "oracleId": "7ed52301-81ea-4e7f-b985-cfab0593cae4",
@@ -82930,6 +83030,16 @@
         "firstPrintId": "99b74fa3-c1d7-4780-977d-f2d6663a529a",
         "firstPrintSet": "otj",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Vorapede",
+        "scryfallId": "1348aa65-85e7-4ac7-bcdb-a83f2c3aa1a6",
+        "oracleId": "fd44986c-cf37-4f6e-b8d6-1795ec794b5f",
+        "firstSet": "dka",
+        "firstPrintId": "1348aa65-85e7-4ac7-bcdb-a83f2c3aa1a6",
+        "firstPrintSet": "dka",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -86977,6 +87087,16 @@
         "firstSet": "ptk",
         "firstPrintId": "11431c4c-b0bb-4747-a34a-4a90238ec9c6",
         "firstPrintSet": "ptk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Young Wolf",
+        "scryfallId": "0c39aa40-ef5f-40f1-a6dd-fbce91172c50",
+        "oracleId": "8b492764-10b6-4506-be11-22daa9220a91",
+        "firstSet": "dka",
+        "firstPrintId": "0c39aa40-ef5f-40f1-a6dd-fbce91172c50",
+        "firstPrintSet": "dka",
         "rarity": "common",
         "source": "compiled"
     },
