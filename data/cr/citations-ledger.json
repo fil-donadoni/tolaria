@@ -47945,6 +47945,7 @@
         {"id":"702.132a","line":"// CR 702.132a — the total cost's generic is what matters, whichever","sites":1,"status":"confirmed","ruleHash":"0456bcef97082a5f"},
         {"id":"702.132a","line":"// CR 702.132a — this step has no amount, only","sites":1,"status":"confirmed","ruleHash":"0456bcef97082a5f"},
         {"id":"702.132a","line":"// The player Assist named (CR 702.132a / 605.3a) activates mana abilities while","sites":1,"status":"confirmed","ruleHash":"0456bcef97082a5f"},
+        {"id":"702.132a","line":"// for the player who pays the generic under CR 702.132a (issue #4005).","sites":1,"status":"confirmed","ruleHash":"0456bcef97082a5f"},
         {"id":"702.132a","line":"// player Assist named never holds it (CR 702.132a: the caster does, and","sites":1,"status":"confirmed","ruleHash":"0456bcef97082a5f"},
         {"id":"702.132a","line":"describe(\"Assist (CR 702.132a)\", () => {","sites":1,"status":"confirmed","ruleHash":"0456bcef97082a5f"},
         {"id":"702.132a","line":"describe(\"Assist: castability (CR 702.132a)\", () => {","sites":1,"status":"confirmed","ruleHash":"0456bcef97082a5f"},
