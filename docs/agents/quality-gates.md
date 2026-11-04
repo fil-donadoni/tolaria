@@ -16,7 +16,7 @@ land-runner, the AFK loop driver (`loop:afk`, `loop:drain`, `loop:doctor`), the
 gate mutex, machine and session admission, the health cadence — is gone. Where a
 section below names those pieces it is recording the measurement that shaped a
 rule, in the past tense or under a `Retired` note: history, not an instruction.
-`land`'s last caller is `/health-fix`'s RED repair; issue #7990 retires it.
+`land` itself is retired too (issue #7990): a RED repair goes through the queue.
 
 ## Why `check:pr` may never be hand-picked
 

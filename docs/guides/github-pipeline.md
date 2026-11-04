@@ -24,7 +24,7 @@ runs `check:lane` there, and Mergify merges; [`post-merge`](#post-merge) does wh
 the merge obliges; [`health`](#health) gates the base per batch; a human
 dispatches [`release`](#release). A PR the queue refuses (`.github/`,
 `.mergify.yml`) goes to the owner's `bun run merge:manual <PR#>`
-([`owner-merge`](#owner-merge)). `bun run land`'s last caller is `/health-fix`'s RED repair; issue #7990 retires it.
+([`owner-merge`](#owner-merge)). `bun run land` is retired (issue #7990): a `/health-fix` RED repair goes through the queue like any PR.
 
 The migration is over (PRD #5620): the land-runner, the AFK loop driver, the gate
 mutex, machine and session admission, the health cadence and the reaper are
