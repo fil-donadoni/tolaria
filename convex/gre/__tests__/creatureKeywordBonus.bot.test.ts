@@ -131,6 +131,8 @@ const NOT_A_BODY_KEYWORD = new Set([
     "boast",
     "ascend",
     "firebending",
+    // CR 702.116a — no token in a two-player game, so nothing to price.
+    "myriad",
     "chapter-ability",
     "class-level-bar",
 ]);
