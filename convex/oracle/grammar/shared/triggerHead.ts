@@ -44,9 +44,6 @@ const POWER_REACHED = /^when (.+)'s power is (\d+) or greater$/i;
 // and `compile.ts` holds it to the section it is printed in.
 const CLASS_LEVEL_GAINED = /^when this class becomes level (\d+)$/i;
 
-/** CR 603.6a — the enters head behind a plural card name (see `matchSelfHead`). */
-const PLURAL_NAME_ENTERS = "when {self} enter";
-
 /** CR 603.1 — the three words a trigger condition begins with. */
 const TRIGGER_OPENER = /^(when|whenever|at) /i;
 
@@ -746,6 +743,36 @@ export const SELF_HEADS: readonly {
 ];
 
 /**
+ * CR 201.5 — text naming the object it is on means just that object. A plural
+ * name ("Gert and Old Lace", "The Neutrinos") prints the plural verb, nothing
+ * more: the same self head, spelled for the name alone, so the
+ * key is the literal `{self}` and "this creature attack" (no English) stays
+ * unread. One row per phrase the corpus prints, each the IR of its singular row
+ * in `SELF_HEADS`; a plural with no singular head ("attack or block", "become
+ * untapped") has nothing to be the spelling of and stays refused.
+ */
+const PLURAL_NAME_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
+    string,
+    TriggerHeadIR
+>([
+    [
+        "when {self} enter",
+        { kind: "enters", scope: "self", creaturesOnly: false },
+    ],
+    ["when {self} die", { kind: "dies", scope: "self" }],
+    ["whenever {self} attack", { kind: "attacks", scope: "self" }],
+    ["whenever {self} enter or attack", { kind: "enters-or-attacks" }],
+    [
+        "whenever {self} deal combat damage to a player",
+        { kind: "combat-damage-to-player" },
+    ],
+    [
+        "whenever {self} become tapped",
+        { kind: "becomes-tapped", scope: "self" },
+    ],
+]);
+
+/**
  * The SELF-subject branch, on its own, so the disjointness claim below is
  * testable rather than asserted in prose (review of PR #3024).
  *
@@ -761,11 +788,8 @@ export function matchSelfHead(span: string): TriggerHeadIR | null {
     const gained = CLASS_LEVEL_GAINED.exec(span);
     if (gained !== null)
         return { kind: "class-level-gained", level: Number(gained[1]) };
-    // CR 201.5 — a card whose NAME is plural ("Gert and Old Lace") takes the
-    // plural verb: "when {self} enter" is the "enters" head, spelled for the
-    // name alone — "this creature enter" is no English, and stays unread.
-    if (probe === PLURAL_NAME_ENTERS)
-        return { kind: "enters", scope: "self", creaturesOnly: false };
+    const pluralName = PLURAL_NAME_HEADS.get(probe);
+    if (pluralName !== undefined) return pluralName;
     for (const head of SELF_HEADS) {
         if (!probe.startsWith(head.opener)) continue;
         if (!probe.endsWith(head.tail)) continue;
