@@ -12,6 +12,7 @@
 import type { TriggeredAbility } from "../types";
 import { DETHRONE_KEYWORD, DETHRONE_TRIGGER } from "./dethrone";
 import { FLANKING_KEYWORD, FLANKING_TRIGGER } from "./flanking";
+import { PROVOKE_KEYWORD, PROVOKE_TRIGGER } from "./provoke";
 
 const LIVE_KEYWORD_TRIGGERS: ReadonlyArray<{
     keyword: string;
@@ -19,6 +20,7 @@ const LIVE_KEYWORD_TRIGGERS: ReadonlyArray<{
 }> = [
     { keyword: FLANKING_KEYWORD, ability: FLANKING_TRIGGER },
     { keyword: DETHRONE_KEYWORD, ability: DETHRONE_TRIGGER },
+    { keyword: PROVOKE_KEYWORD, ability: PROVOKE_TRIGGER },
 ];
 
 /** One ability per occurrence of each table keyword in the multiset. A client slim

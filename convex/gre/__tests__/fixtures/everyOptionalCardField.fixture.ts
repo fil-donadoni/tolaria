@@ -162,6 +162,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         canBlockAdditional: 1,
         mustBlockAllThisTurn: true,
         mustBlockAttackersThisTurn: ["att-1"],
+        mustBlockAttackersThisCombat: ["att-1"],
         cantBlockThisTurn: true,
         cantAttackThisTurn: true,
         cantBeBlockedThisTurn: true,

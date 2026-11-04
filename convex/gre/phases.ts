@@ -3918,6 +3918,14 @@ function endCombatStep(state: GameState): void {
         }
         state.combat = undefined;
     }
+    // CR 702.39a — Provoke's requirement lasts this combat, so it must not bind
+    // in an extra combat phase of the same turn (CR 509.1c binds "this turn"
+    // requirements in each one, which is why the two scopes are two fields).
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            delete card.mustBlockAttackersThisCombat;
+        }
+    }
     state.combatBlockRestrictions = undefined;
     // Camouflage's combat-scoped flag lifts with the rest of combat (ADR 0012).
     state.camouflageCombat = undefined;

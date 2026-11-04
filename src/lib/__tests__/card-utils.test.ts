@@ -2576,6 +2576,14 @@ describe("getTriggeredAbilityOracleText — dethrone (CR 702.105a)", () => {
     });
 });
 
+describe("getTriggeredAbilityOracleText — provoke (CR 702.39a)", () => {
+    it("names the trigger of a keyword no definition lists as an ability", () => {
+        expect(getTriggeredAbilityOracleText("any-card", "provoke")).toContain(
+            "untap and block it if able"
+        );
+    });
+});
+
 describe("getTriggeredAbilityOracleText — emblem source (CR 114)", () => {
     // Regression: an emblem-sourced trigger's `card.id` is an emblem KEY, not a
     // card registry id, so a hard `getDefinition` threw "Card not found" and

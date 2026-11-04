@@ -4866,6 +4866,29 @@ describe("validateEffectScript — moveZone target → library position (issue #
         expect(script(["cant-be-blocked-by-anything"])).not.toEqual([]);
     });
 
+    it('restrictCombat "scope" belongs to "must-block" alone (CR 702.39a)', () => {
+        const check = (op: Record<string, unknown>) =>
+            validateEffectScript(
+                host({ effects: [op as unknown as EffectOp] })
+            );
+        const mustBlock = {
+            op: "restrictCombat",
+            restriction: "must-block",
+            target: { target: 0 },
+            attacker: { target: 1 },
+        };
+        expect(check({ ...mustBlock, scope: "combat" })).toEqual([]);
+        expect(check({ ...mustBlock, scope: "phase" })).not.toEqual([]);
+        expect(
+            check({
+                op: "restrictCombat",
+                restriction: "cant-block",
+                target: { target: 0 },
+                scope: "combat",
+            }).join("\n")
+        ).toMatch(/"scope" is only allowed when "restriction" is "must-block"/);
+    });
+
     it('restrictCombat "must-block" requires an "attacker" and no other mode accepts one (CR 509.1c, issue #3713)', () => {
         const check = (op: Record<string, unknown>) =>
             validateEffectScript(
