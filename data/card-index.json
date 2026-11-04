@@ -10196,6 +10196,16 @@
         "source": "compiled"
     },
     {
+        "name": "Burning-Tree Vandal",
+        "scryfallId": "c5674753-17e4-4e35-a12c-13e1e077ec70",
+        "oracleId": "5bed3702-984d-436f-bb71-e16eaeffe902",
+        "firstSet": "rna",
+        "firstPrintId": "c5674753-17e4-4e35-a12c-13e1e077ec70",
+        "firstPrintSet": "rna",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Burnished Hart",
         "scryfallId": "772cbcba-9efa-4894-9b57-e73fd296333d",
         "oracleId": "893fed41-c144-433f-af88-bc7d419b7fb3",
@@ -13136,6 +13146,16 @@
         "firstSet": "ice",
         "firstPrintId": "46740353-e2ba-4d80-a97d-1368bc67bf30",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Clamor Shaman",
+        "scryfallId": "b3f073d7-f60a-44c1-aec9-cf42bbdb3153",
+        "oracleId": "7fd2dcb2-760d-461d-8e5b-693aacf548cf",
+        "firstSet": "rna",
+        "firstPrintId": "b3f073d7-f60a-44c1-aec9-cf42bbdb3153",
+        "firstPrintSet": "rna",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Clamorous Ironclad",
@@ -28482,6 +28502,16 @@
         "source": "compiled"
     },
     {
+        "name": "Frenzied Arynx",
+        "scryfallId": "bce2eef7-03a4-415f-8bb7-a29d50ce1b0f",
+        "oracleId": "772873f4-74b9-44da-bd69-e4c8de797a26",
+        "firstSet": "rna",
+        "firstPrintId": "bce2eef7-03a4-415f-8bb7-a29d50ce1b0f",
+        "firstPrintSet": "rna",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Frenzied Devils",
         "scryfallId": "b7912206-6de3-4085-b5f6-a2e90ea55b90",
         "oracleId": "4c912e9a-21f9-4058-b28c-43f319e35d09",
@@ -30015,6 +30045,16 @@
         "firstPrintId": "00cab68b-ee26-46eb-a18b-9b42bf2d10e5",
         "firstPrintSet": "gpt",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Ghor-Clan Wrecker",
+        "scryfallId": "4da3969c-1979-4eee-828a-4a7189121eba",
+        "oracleId": "b113285c-80b2-46dd-874e-201d26979518",
+        "firstSet": "rna",
+        "firstPrintId": "4da3969c-1979-4eee-828a-4a7189121eba",
+        "firstPrintSet": "rna",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -58460,6 +58500,16 @@
         "firstSet": "hou",
         "firstPrintId": "4c97229f-2fc8-439a-a18b-efa09b366b70",
         "firstPrintSet": "hou",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rampaging Rendhorn",
+        "scryfallId": "12c1b820-0f06-41f6-804f-5c98f60c1529",
+        "oracleId": "b867deb4-a088-492e-95fe-487071ebfe8d",
+        "firstSet": "rna",
+        "firstPrintId": "12c1b820-0f06-41f6-804f-5c98f60c1529",
+        "firstPrintSet": "rna",
         "rarity": "common",
         "source": "compiled"
     },
@@ -88265,6 +88315,16 @@
         "source": "compiled"
     },
     {
+        "name": "Wrecking Beast",
+        "scryfallId": "74e6f7be-4493-4081-ac67-d782ab2b3723",
+        "oracleId": "181a7b5a-3794-46ae-b6ff-48849ee1470f",
+        "firstSet": "rna",
+        "firstPrintId": "74e6f7be-4493-4081-ac67-d782ab2b3723",
+        "firstPrintSet": "rna",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Wrecking Crew",
         "scryfallId": "92691507-b1ce-40d0-87e7-b79e81370511",
         "oracleId": "533c4956-87f8-4bae-8924-166fc2e9ec1f",
@@ -89085,6 +89145,16 @@
         "firstSet": "tle",
         "firstPrintId": "f3fa493e-b58a-4b77-88e8-b8890eefb2b7",
         "firstPrintSet": "tle",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Zhur-Taa Goblin",
+        "scryfallId": "13070db2-cf89-4552-8b6c-76426274321a",
+        "oracleId": "1003304f-af01-4235-af82-6ef901bd00bf",
+        "firstSet": "rna",
+        "firstPrintId": "13070db2-cf89-4552-8b6c-76426274321a",
+        "firstPrintSet": "rna",
         "rarity": "uncommon",
         "source": "compiled"
     },
