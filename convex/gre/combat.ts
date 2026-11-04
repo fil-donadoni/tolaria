@@ -14,6 +14,7 @@ import type {
     StaticBlockRequirement,
 } from "../cards/types";
 import { blockRestrictionAllows } from "../cards/abilities/static/blockRestriction";
+import { unleashForbidsBlock } from "../cards/abilities/unleash";
 import { isProtectedFromSource } from "./protection";
 import { getEffectivePower, STATIC_EFFECT_CTX } from "./layers";
 import { tryGetDefinition } from "../cards";
@@ -839,6 +840,14 @@ export function validateBlockerEligibility(
         return {
             eligible: false,
             reason: "Creatures can't block this turn",
+        };
+    }
+
+    // Pass 0a' — CR 702.98a: unleash on a creature with a +1/+1 counter.
+    if (unleashForbidsBlock(blocker)) {
+        return {
+            eligible: false,
+            reason: "This creature has unleash and a +1/+1 counter, so it can't block",
         };
     }
 

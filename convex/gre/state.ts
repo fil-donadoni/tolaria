@@ -3343,6 +3343,16 @@ export function applyEntersWithCounters(
     }
 ): Record<string, number> {
     const delta = resolveEntersWithCounters(def, cast);
+    // CR 614.1c — an accepted "you may have this enter with N counters" answer
+    // (`mayEnterWithCounters`) adds to whatever the definition declares, and
+    // is an ability of the permanent like the rest: the CR 613.1f probe below
+    // gates it too. Consumed even when gated, so it can never outlive the entry.
+    for (const [type, count] of Object.entries(
+        card.acceptedEntryCounters ?? {}
+    )) {
+        delta[type] = (delta[type] ?? 0) + count;
+    }
+    delete card.acceptedEntryCounters;
     const types = Object.keys(delta);
     if (types.length === 0) return {};
     // CR 614.1c + 613.1f (issue #1882) — "enters with N counters on it" is a
@@ -10865,6 +10875,9 @@ export function stageAsEntersEntry(
     // the stack reads an empty pile. No card pairs an abortable as-enters
     // choice with a linked exile.
     clearExileLinksToEnteringSource(state, card.id);
+    // CR 400.7 — an answer stamped for an entry that was then aborted belongs
+    // to that abandoned entry, never to this one.
+    delete card.acceptedEntryCounters;
     const presented = presentedDefId(card);
     const entry: StagedEntry = {
         card,
@@ -10884,6 +10897,17 @@ export function stageAsEntersEntry(
     };
     state.stagedEntries = [...(state.stagedEntries ?? []), entry];
     offerOrAutoAnswerAsEnters(state, entry);
+}
+
+/** The two answers of a `mayEnterWithCounters` as-enters prompt. */
+const MAY_ENTER_ACCEPT = "accept";
+const MAY_ENTER_DECLINE = "decline";
+
+/** "a +1/+1 counter" / "2 charge counters" for an as-enters prompt. */
+function counterPhrase(counterType: string, count: number): string {
+    return count === 1
+        ? `a ${counterType} counter`
+        : `${count} ${counterType} counters`;
 }
 
 /** Reads the PendingChoice shape for `entry.owed[0]` and queues it. Every
@@ -10967,6 +10991,23 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
                 options: asEntersOpponentOptions(state, entry),
                 count: 1,
                 prompt: `Choose an opponent as ${subject} enters.`,
+            };
+            break;
+        }
+        case "mayEnterWithCounters": {
+            const counters = counterPhrase(choice.counterType, choice.count);
+            pending = {
+                ...base,
+                kind: "option-pick",
+                options: [
+                    {
+                        id: MAY_ENTER_ACCEPT,
+                        label: `Enter with ${counters}`,
+                    },
+                    { id: MAY_ENTER_DECLINE, label: "Enter without it" },
+                ],
+                count: 1,
+                prompt: `You may have ${subject} enter with ${counters} on it.`,
             };
             break;
         }
@@ -11323,6 +11364,13 @@ function forcedAsEntersAnswer(
         const options = asEntersOpponentOptions(state, entry);
         return options.length === 1 ? [options[0].id] : undefined;
     }
+    if (choice?.kind === "mayEnterWithCounters") {
+        // CR 613.1f — under a "loses all abilities" effect the replacement is
+        // gone, so there is no "may" left to offer.
+        return entryAbilitiesSuppressed(entry.card, state as never)
+            ? [MAY_ENTER_DECLINE]
+            : undefined;
+    }
     if (choice?.kind === "payLife") {
         return asEntersPayLifeMax(state, entry, choice.cap) === 0
             ? ["0"]
@@ -11555,6 +11603,16 @@ function applyAsEntersAnswer(
                 asEntersOpponentOptions(state, entry).some((o) => o.id === pick)
             ) {
                 card.chosenPlayerId = pick;
+            }
+            return {};
+        }
+        case "mayEnterWithCounters": {
+            // CR 614.1c — the entry itself puts the counters on; stamped here
+            // so every entry tail's `applyEntersWithCounters` reads one slot.
+            if (selected[0] === MAY_ENTER_ACCEPT) {
+                card.acceptedEntryCounters = {
+                    [choice.counterType]: choice.count,
+                };
             }
             return {};
         }
@@ -11838,6 +11896,9 @@ export function stagedEntryAnswers(
     card: CardInstanceState
 ): StagedEntryAnswers {
     return {
+        ...(card.acceptedEntryCounters !== undefined
+            ? { acceptedEntryCounters: { ...card.acceptedEntryCounters } }
+            : {}),
         ...(card.attachedTo !== undefined
             ? { attachedTo: card.attachedTo }
             : {}),
@@ -11860,6 +11921,9 @@ export function restoreStagedEntryAnswers(
     card: CardInstanceState,
     answers: StagedEntryAnswers
 ): void {
+    if (answers.acceptedEntryCounters !== undefined) {
+        card.acceptedEntryCounters = { ...answers.acceptedEntryCounters };
+    }
     if (answers.attachedTo !== undefined) card.attachedTo = answers.attachedTo;
     if (answers.chosenName !== undefined) card.chosenName = answers.chosenName;
     if (answers.chosenSubtypes !== undefined) {
@@ -21251,10 +21315,21 @@ function finishTokenEntry(
         if (opts.entersTapped || shouldEnterTapped(state, token)) {
             token.isTapped = true;
         }
+        // CR 614.1c — this tail is the token's only run after its as-enters
+        // answers (`createTokenPermanents` applied the declared counters before
+        // the park), so an accepted `mayEnterWithCounters` lands here.
+        const answeredCounters = applyEntersWithCounters(
+            token,
+            undefined,
+            { manaSpentToCast: {} },
+            state,
+            { deferEvents: true }
+        );
         owner.battlefield.push(token);
         // The token really entered — NOW announce its entry counters (see the
         // deferral note on `applyEntersWithCounters` above, ADR 0078 §7).
         emitEntersWithCounterEvents(state, token, opts.entryCounters ?? {});
+        emitEntersWithCounterEvents(state, token, answeredCounters);
         // CR 508.4 (issue #1195) — the token enters the battlefield ALREADY
         // ATTACKING: join the CURRENT combat directly through the shared
         // `joinCombatAttacking` helper (`gre/combat.ts`) instead of running

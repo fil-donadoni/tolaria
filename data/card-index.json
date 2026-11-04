@@ -7756,6 +7756,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bloodfray Giant",
+        "scryfallId": "a8c468cd-1255-4257-9a69-c6b40a27c427",
+        "oracleId": "5f83fd2f-c4cb-4bcf-a4db-0238df251740",
+        "firstSet": "rtr",
+        "firstPrintId": "a8c468cd-1255-4257-9a69-c6b40a27c427",
+        "firstPrintSet": "rtr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Bloodhunter Bat",
         "scryfallId": "99c10705-6e0e-46f6-a64c-0095b2796aaf",
         "oracleId": "7e3e09a2-b45c-4897-ba10-02628cca3f4c",
@@ -10828,6 +10838,16 @@
         "firstSet": "sth",
         "firstPrintId": "ae10e7fe-ee51-4c39-86ec-503324d19f6c",
         "firstPrintSet": "sth",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Carnival Hellsteed",
+        "scryfallId": "d8ada7ce-c693-48f0-a6e3-766f61d93370",
+        "oracleId": "34ae5b49-f8bf-4aa8-bb62-92d6d3118b26",
+        "firstSet": "rtr",
+        "firstPrintId": "d8ada7ce-c693-48f0-a6e3-766f61d93370",
+        "firstPrintSet": "rtr",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -17115,6 +17135,16 @@
         "firstPrintId": "ff25a19a-8f98-47ef-847c-ba526c82b290",
         "firstPrintSet": "ktk",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Dead Reveler",
+        "scryfallId": "909a0a38-2c22-4b49-8938-1a8162c077e6",
+        "oracleId": "5cee3505-0291-4f1b-9e5f-2909a31acd8e",
+        "firstSet": "rtr",
+        "firstPrintId": "909a0a38-2c22-4b49-8938-1a8162c077e6",
+        "firstPrintSet": "rtr",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -31658,6 +31688,16 @@
         "source": "compiled"
     },
     {
+        "name": "Gore-House Chainwalker",
+        "scryfallId": "56ba132f-95fc-4b99-a1dc-ebe6f622bb41",
+        "oracleId": "dbe3e317-3c39-4b38-ae06-eae02a910c37",
+        "firstSet": "rtr",
+        "firstPrintId": "56ba132f-95fc-4b99-a1dc-ebe6f622bb41",
+        "firstPrintSet": "rtr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Gorgon Flail",
         "scryfallId": "eefc48cb-79aa-4e28-a736-ae9e4e2bc97b",
         "oracleId": "91dab3e2-039e-4db9-94e3-1146bced18ed",
@@ -32472,6 +32512,16 @@
         "firstSet": "thb",
         "firstPrintId": "b7e92c82-840f-4c75-b617-7b58a07be5b4",
         "firstPrintSet": "thb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Grim Roustabout",
+        "scryfallId": "1a5ae3f5-5466-4058-a2cd-1a036cb38a8e",
+        "oracleId": "1adcc4a8-b2dd-4d9a-bded-188b81c84a10",
+        "firstSet": "rtr",
+        "firstPrintId": "1a5ae3f5-5466-4058-a2cd-1a036cb38a8e",
+        "firstPrintSet": "rtr",
         "rarity": "common",
         "source": "compiled"
     },
@@ -57078,6 +57128,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rakdos Cackler",
+        "scryfallId": "5f873c0b-e779-4f09-8e9c-94a1765eb5da",
+        "oracleId": "763a2d27-52a8-43d9-b649-0f6c0cf87a07",
+        "firstSet": "rtr",
+        "firstPrintId": "5f873c0b-e779-4f09-8e9c-94a1765eb5da",
+        "firstPrintSet": "rtr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Rakdos Carnarium",
         "scryfallId": "34f146f3-6541-4d2a-96e3-a3cd680c0a1e",
         "oracleId": "0a023964-2905-4928-9c3e-dc63e6ebd218",
@@ -57093,6 +57153,16 @@
         "oracleId": "b4f0bda0-1051-4ab8-b254-891f427b33ad",
         "firstSet": "dgm",
         "firstPrintId": "9ef43817-1813-4608-8e3d-3c14321ab736",
+        "firstPrintSet": "dgm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rakdos Drake",
+        "scryfallId": "b9c1bfd7-b8b2-4db7-9ea7-a2d643a83589",
+        "oracleId": "0715167b-00b1-45a4-94a0-60d4097a1428",
+        "firstSet": "dgm",
+        "firstPrintId": "b9c1bfd7-b8b2-4db7-9ea7-a2d643a83589",
         "firstPrintSet": "dgm",
         "rarity": "common",
         "source": "compiled"
@@ -69442,6 +69512,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spawn of Rix Maadi",
+        "scryfallId": "6196e702-7f76-49db-8ee4-bd343359d498",
+        "oracleId": "39d4373b-35b4-4ceb-b4d5-9ca474365eb0",
+        "firstSet": "rtr",
+        "firstPrintId": "6196e702-7f76-49db-8ee4-bd343359d498",
+        "firstPrintSet": "rtr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Spawn of Thraxes",
         "scryfallId": "e13aa40e-c626-486d-8abc-10aa68542c5b",
         "oracleId": "52289774-d292-4028-91fb-8826fa004dc8",
@@ -70408,6 +70488,16 @@
         "firstSet": "dmu",
         "firstPrintId": "5045027d-0ff4-484c-b4cb-e0b61885d428",
         "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Splatter Thug",
+        "scryfallId": "7c511805-3392-4033-8679-811711a0aaca",
+        "oracleId": "3baee36b-d64f-448c-ae45-c1ec124c92ec",
+        "firstSet": "rtr",
+        "firstPrintId": "7c511805-3392-4033-8679-811711a0aaca",
+        "firstPrintSet": "rtr",
         "rarity": "common",
         "source": "compiled"
     },
@@ -76581,6 +76671,16 @@
         "firstPrintId": "e8fe0c8e-f361-4eac-8c2c-ca6602dad352",
         "firstPrintSet": "tsp",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Thrill-Kill Assassin",
+        "scryfallId": "a9f32204-eda7-4184-92e5-9da8b15b2359",
+        "oracleId": "f13f5705-e3e0-4e1e-a5b3-61e04e23a374",
+        "firstSet": "rtr",
+        "firstPrintId": "a9f32204-eda7-4184-92e5-9da8b15b2359",
+        "firstPrintSet": "rtr",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
