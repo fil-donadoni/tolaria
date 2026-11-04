@@ -1696,6 +1696,7 @@
         "libraryCount": 20
     },
     "explore: bins the revealed blank instead of leaving it as the next draw": null,
+    "flanking pair: a vanilla 2/2 attacker is still blocked by a 2/2": null,
     "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block": null,
     "flash permanent NEGATIVE CONTROL: still casts hasty Raging Kavu for lethal this turn": {
         "cards": [

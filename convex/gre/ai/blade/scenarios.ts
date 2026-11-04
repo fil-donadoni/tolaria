@@ -1793,6 +1793,82 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "An Iceberg holding nothing does nothing on the battlefield, and the three artifacts untap in the bot's own untap step before they could matter, so the scry is free. Pins that the move exists on a board with no mana, and that its tap plan is empty because the costPicks pay the whole {3}.",
     },
     {
+        // CR 702.25a — a 2/2 blocker of a 2/2 flanking attacker becomes a 1/1
+        // before damage: it dies and the attacker survives. Pair: the same
+        // block on a vanilla 2/2 attacker is a real trade (next entry).
+        label: "flanking: no 2/2 block of a 2/2 flanker at a healthy life total",
+        spec: {
+            cards: [
+                {
+                    name: "Benalish Cavalry",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "opp",
+        },
+        setup: [{ kind: "declare-attackers" }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "declare-blockers", card: "Grizzly Bears" }],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the attacker has flanking, so the block loses the blocker for nothing",
+            },
+        },
+        note: "Issue #3994. The search sees the flanking trigger through emitBlockersConfirmedEvents and resolves the -1/-1 in its sandbox, so the block is a lost creature rather than a trade.",
+    },
+    {
+        // The pair of the entry above: nothing flanks, so the block trades.
+        label: "flanking pair: a vanilla 2/2 attacker is still blocked by a 2/2",
+        spec: {
+            cards: [
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "opp",
+        },
+        setup: [{ kind: "declare-attackers" }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-blockers", card: "Grizzly Bears" }],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no flanking on the attacker, so the block trades",
+            },
+        },
+        note: "Issue #3994. Discriminating pair for the flanking entry: only the attacker's keyword changed.",
+    },
+    {
         // CR 701.67a — floating mana covers the waterbend cost with bodies to
         // spare, so the live commit parks on `genericSubstitutionOffer`. The
         // move stays reachable and the owed-payment seam spends that mana.
