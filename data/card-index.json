@@ -12928,6 +12928,16 @@
         "source": "compiled"
     },
     {
+        "name": "Clarion Spirit",
+        "scryfallId": "86a4c348-1012-4339-960a-c7bc7fd84fbb",
+        "oracleId": "dec20b18-afe6-405e-b47d-a757a5645c63",
+        "firstSet": "khm",
+        "firstPrintId": "86a4c348-1012-4339-960a-c7bc7fd84fbb",
+        "firstPrintSet": "khm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Clash of Titans",
         "scryfallId": "ca10e2b8-a317-4c98-a866-43bf274e82cb",
         "oracleId": "198c05ca-fb2d-4f15-a28f-1dad36466a4f",
@@ -14592,6 +14602,16 @@
         "firstSet": "dst",
         "firstPrintId": "bbeaca72-aadd-4ef8-939a-36f320100e6e",
         "firstPrintSet": "dst",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Cori Mountain Stalwart",
+        "scryfallId": "b6cbf54e-f30e-4e7b-b17c-217fa424971c",
+        "oracleId": "322a2d97-cf71-4bfc-b52d-f642f2d0dcbd",
+        "firstSet": "tdm",
+        "firstPrintId": "b6cbf54e-f30e-4e7b-b17c-217fa424971c",
+        "firstPrintSet": "tdm",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -18754,6 +18774,16 @@
         "source": "compiled"
     },
     {
+        "name": "Devoted Duelist",
+        "scryfallId": "bbf9c673-37b4-48ed-a9ea-13f8e3e6c47b",
+        "oracleId": "f7620c46-b3d8-4694-ac7c-a43933c86c22",
+        "firstSet": "tdm",
+        "firstPrintId": "bbf9c673-37b4-48ed-a9ea-13f8e3e6c47b",
+        "firstPrintSet": "tdm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Devoted Hero",
         "scryfallId": "89fb4bf8-51b6-44a8-92ac-e5aec4e4f2bc",
         "oracleId": "fff6f2d0-22b5-41d0-99dc-bc817c3bd166",
@@ -19807,6 +19837,16 @@
         "firstPrintId": "130ee895-1e5e-4f82-bb66-e1275bac75dd",
         "firstPrintSet": "khm",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Doomskar Oracle",
+        "scryfallId": "6dae01c8-15bb-44ad-a2c6-9bcf7a9e8c17",
+        "oracleId": "c1d8e97b-f34b-4e52-9795-a4433f26725a",
+        "firstSet": "khm",
+        "firstPrintId": "6dae01c8-15bb-44ad-a2c6-9bcf7a9e8c17",
+        "firstPrintSet": "khm",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -23364,6 +23404,16 @@
         "source": "compiled"
     },
     {
+        "name": "Equilibrium Adept",
+        "scryfallId": "a4ba6d74-c6be-4a5e-8859-b791bb6b8f51",
+        "oracleId": "42bf9435-02e6-428f-a93c-fe4652deb4fc",
+        "firstSet": "tdm",
+        "firstPrintId": "a4ba6d74-c6be-4a5e-8859-b791bb6b8f51",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Equinox",
         "scryfallId": "840c6586-a7a9-4ae8-96be-a995a0693eb6",
         "oracleId": "0fa2cb01-476e-4e82-94e6-9639e53a7743",
@@ -26283,6 +26333,16 @@
         "firstPrintId": "b8824674-ced2-448e-9bf0-03c1c43a5315",
         "firstPrintSet": "m13",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Firja, Judge of Valor",
+        "scryfallId": "df87077c-85d8-499e-bce0-27697caada5a",
+        "oracleId": "7d5dcf8c-ecda-49ae-980c-c8c9016252d9",
+        "firstSet": "khm",
+        "firstPrintId": "df87077c-85d8-499e-bce0-27697caada5a",
+        "firstPrintSet": "khm",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -36576,6 +36636,16 @@
         "source": "compiled"
     },
     {
+        "name": "Illvoi Operative",
+        "scryfallId": "d0ae9fc7-1802-4806-9996-1f1f458ff6a7",
+        "oracleId": "2e0b225a-d4b4-4f53-8fea-8c6c37102920",
+        "firstSet": "eoe",
+        "firstPrintId": "d0ae9fc7-1802-4806-9996-1f1f458ff6a7",
+        "firstPrintSet": "eoe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Imagecrafter",
         "scryfallId": "91be6441-8a45-43e4-8d12-a886dcaadbd3",
         "oracleId": "9a0c6b4d-b16a-4849-9106-047b009a99b3",
@@ -38626,6 +38696,16 @@
         "source": "compiled"
     },
     {
+        "name": "Jeskai Devotee",
+        "scryfallId": "27f31f9c-7149-4608-9b18-b3530a2efd4a",
+        "oracleId": "6dcdd313-6df7-4d44-a4cb-0346a4fdb4e1",
+        "firstSet": "tdm",
+        "firstPrintId": "27f31f9c-7149-4608-9b18-b3530a2efd4a",
+        "firstPrintSet": "tdm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Jeskai Sage",
         "scryfallId": "6dff4734-7b2a-4089-a78a-46199818f39d",
         "oracleId": "b79d4b17-482e-415b-a63b-1f97a55e7583",
@@ -38849,6 +38929,16 @@
         "firstPrintId": "a1ea2c17-382a-45e4-ac34-88bf8ba47169",
         "firstPrintSet": "znr",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Jori En, Ruin Diver",
+        "scryfallId": "900d3af7-a03f-4173-8a8a-bd146dec9c0f",
+        "oracleId": "4cd9b48e-5774-4a1c-857f-9f4a92db9b41",
+        "firstSet": "ogw",
+        "firstPrintId": "900d3af7-a03f-4173-8a8a-bd146dec9c0f",
+        "firstPrintSet": "ogw",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -47737,6 +47827,16 @@
         "source": "compiled"
     },
     {
+        "name": "Monk of the Open Hand",
+        "scryfallId": "d934765f-f490-4e8d-843d-b2b559ee0418",
+        "oracleId": "2d3998fc-a68a-4923-a456-b3e43ab6decb",
+        "firstSet": "afr",
+        "firstPrintId": "d934765f-f490-4e8d-843d-b2b559ee0418",
+        "firstPrintSet": "afr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Monk Realist",
         "scryfallId": "7a7fe9f1-f3c0-43e4-aa30-d0bdab4ae94d",
         "oracleId": "8df64d89-64ee-4388-826d-dd091db4510a",
@@ -54887,6 +54987,16 @@
         "source": "compiled"
     },
     {
+        "name": "Poised Practitioner",
+        "scryfallId": "bb25366d-a647-4c5e-bcc7-7e54659aacbd",
+        "oracleId": "e08debdc-2db5-4562-8a02-4158bfc0db88",
+        "firstSet": "tdm",
+        "firstPrintId": "bb25366d-a647-4c5e-bcc7-7e54659aacbd",
+        "firstPrintSet": "tdm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Poison Arrow",
         "scryfallId": "6b7b5f34-c250-484e-9bae-94789b2a87fb",
         "oracleId": "6d920c99-8a85-4b20-97c2-7aa0c79ae70a",
@@ -56457,6 +56567,16 @@
         "firstPrintSet": "all"
     },
     {
+        "name": "Pyromancer's Assault",
+        "scryfallId": "b2c8dad1-278c-4ced-8124-5593b140d361",
+        "oracleId": "87038d1b-0fa9-4604-b119-1de56db30144",
+        "firstSet": "ogw",
+        "firstPrintId": "b2c8dad1-278c-4ced-8124-5593b140d361",
+        "firstPrintSet": "ogw",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Pyromania",
         "scryfallId": "6a5af4e9-a2b6-43c7-8ff4-e761fbf693a7",
         "oracleId": "2c89cf19-8dc6-422e-bbf8-4dd5a399c630",
@@ -56493,6 +56613,16 @@
         "firstPrintId": "e7e99969-6c21-4de6-ba57-44ef7f9c8c47",
         "firstPrintSet": "vis",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Q, Your Illustrious Host",
+        "scryfallId": "4c879981-f3a9-4da4-bf49-fb6ccea739b8",
+        "oracleId": "e4e96682-1130-49cc-b1e5-04a774024f7a",
+        "firstSet": "trc",
+        "firstPrintId": "4c879981-f3a9-4da4-bf49-fb6ccea739b8",
+        "firstPrintSet": "trc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -77054,6 +77184,16 @@
         "source": "compiled"
     },
     {
+        "name": "Thunder Drake",
+        "scryfallId": "f88a9bc4-1b15-4a91-9376-730d2f5b3336",
+        "oracleId": "a0956c3d-d382-486a-81f1-9aa5cf49b2ab",
+        "firstSet": "war",
+        "firstPrintId": "f88a9bc4-1b15-4a91-9376-730d2f5b3336",
+        "firstPrintSet": "war",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Thunder Spirit",
         "scryfallId": "61a59775-b1cd-4ed0-8abf-c2b37f7be0d5",
         "oracleId": "6efad3d6-4886-4b62-a4ff-bc0622f9672a",
@@ -84081,6 +84221,16 @@
         "source": "compiled"
     },
     {
+        "name": "Wanda's Vision",
+        "scryfallId": "43cf33cc-c1ac-4196-aa82-b27083694f64",
+        "oracleId": "1448eadb-e8b1-4e8f-9697-3bb919085dab",
+        "firstSet": "msc",
+        "firstPrintId": "43cf33cc-c1ac-4196-aa82-b27083694f64",
+        "firstPrintSet": "msc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Wander in Death",
         "scryfallId": "aea7ad5c-d9b9-4b12-90dd-c02399d73b26",
         "oracleId": "f25c5451-58fa-4916-8342-ae88c5e406cc",
@@ -84865,6 +85015,16 @@
         "firstSet": "inv",
         "firstPrintId": "57e45de5-0e8b-41d3-979b-ec5a29cac682",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Wayspeaker Bodyguard",
+        "scryfallId": "5e5b2324-69fe-4105-b6f8-14dfbe359d59",
+        "oracleId": "b93eaf66-91b3-44da-851c-79810901be0c",
+        "firstSet": "tdm",
+        "firstPrintId": "5e5b2324-69fe-4105-b6f8-14dfbe359d59",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Wayward Giant",
@@ -86160,6 +86320,16 @@
         "firstPrintId": "cd58d164-861d-4c80-ad2f-6283ed82faa1",
         "firstPrintSet": "lgn",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wingblade Disciple",
+        "scryfallId": "71de7dca-0231-4407-86a0-c7fc95f5aaa0",
+        "oracleId": "c566317e-cd82-46c1-b506-f41256d815f6",
+        "firstSet": "tdm",
+        "firstPrintId": "71de7dca-0231-4407-86a0-c7fc95f5aaa0",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
