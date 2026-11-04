@@ -110,8 +110,6 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "the GLOSSARY.md mention is a header comment citing the glossary term it implements; the test reads scripts/ui-gate/surfaces.ts source, no repo document",
     "scripts/__tests__/ui-scope.test.ts":
         "the docs/guides/*.md path is a synthetic changed-path fixture fed to computeUiScope() — the test asserts a markdown path contributes no check:ui surface; it reads no repo document",
-    "scripts/__tests__/land.test.ts":
-        "the `docs/adr-0116` it mentions is a BRANCH-NAME fixture for issueOfBranch() (a docs-lane branch names no issue); it reads no repo document",
     "scripts/__tests__/scenario-block.test.ts":
         "parses GitHub PR BODIES for the ADR 0044 preset-scenario block, which are not files in this repo — the ```json / ``` fences in its fixtures are PR-body shapes, not repo prose",
     "scripts/__tests__/branches.test.ts":

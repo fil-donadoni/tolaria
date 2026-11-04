@@ -2546,8 +2546,7 @@ describe("gaps:sync files under the computed Target band — no origin band (iss
 });
 
 describe("gaps-sync main hands the allowlist's Grammar Clusters, Cluster Signatures, tip and held kinds to syncGaps — and no band", () => {
-    // `main()` reads the network; pinned by SHAPE, the same way `land.test.ts`
-    // pins the locked command. No third `originBand` argument any more
+    // `main()` reads the network; pinned by SHAPE. No third `originBand` argument any more
     // (issue #5871): the computed band is the only band.
     it("passes the Grammar Clusters third, the Cluster Signatures fourth, the tip fifth, the held kinds sixth and every recorded issue seventh", () => {
         const source = readFileSync("scripts/gaps-sync.ts", "utf8");

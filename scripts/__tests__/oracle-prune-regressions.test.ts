@@ -4,7 +4,7 @@ import { parseRegressionLedger } from "../lib/oracle-state-regressions";
 
 // `oracle:prune-regressions` (issue #6061): the pure core — ledger text in,
 // ledger text out. The commit/push path is `commitAndPushAllowlist`'s, proven
-// by gaps-sync's own tests; `land.test.ts` pins the commit subject.
+// by gaps-sync's own tests.
 
 const TEXT = `${JSON.stringify(
     {

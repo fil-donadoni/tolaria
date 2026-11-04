@@ -80,10 +80,10 @@ import { orphanWorktrees } from "./lib/orphan-worktree";
 import { FAILED_LABEL } from "./lib/land-labels";
 import { cappedRepairPrs, cappedUiReceiptPrs } from "./lib/repair-cap";
 
-// Computed the same way scripts/__tests__/land.test.ts computes it (from a
+// Computed from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
 // would throw when this module is imported under vitest for its pure
-// functions).
+// functions.
 const REPO_ROOT = resolve(__dirname, "..");
 
 export const DEFAULTS = {

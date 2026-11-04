@@ -212,8 +212,7 @@ export interface UnresolvedMarker {
 
 /**
  * The verdict — a pure function over already-resolved issue states, so it is
- * unit-testable with plain data and needs no `gh` mock (repo convention: see
- * `scripts/__tests__/land.test.ts`'s `refusalReason`). Only TRACKED markers
+ * unit-testable with plain data and needs no `gh` mock. Only TRACKED markers
  * naming at least one `#NNN` are candidates — an "out of scope" disposition
  * or a bare `tracked-by:` with no number has nothing to resolve.
  *

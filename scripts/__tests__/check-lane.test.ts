@@ -82,7 +82,7 @@ import type { LaneSentinels } from "../lib/lane-sentinels";
  * landed inert in #2740; parent #2738) — the gate-lane classifier AND
  * executor: it decides, prints the plan, then runs it and prints a receipt.
  *
- * Per repo convention (land.test.ts, ui-gate-budgets.test.ts): the git
+ * Per repo convention (ui-gate-budgets.test.ts): the git
  * plumbing stays thin and untested; every DECISION is a pure function tested
  * directly against hand-built path lists, never through a subprocess. The
  * "check-lane — execution" describe block below tests `runPlan` the same
@@ -2512,7 +2512,7 @@ describe("check-lane — cheap census guards run in the lane (issue #4963)", () 
             "src/lib/foo.test.ts",
             "src/components/board/Card.test.tsx",
             "convex/gre/__tests__/phases.test.ts",
-            "scripts/__tests__/land.test.ts",
+            "scripts/__tests__/pr-checks.test.ts",
             "convex/cards/sets/lea/__tests__/red.test.ts",
         ]) {
             expect(census(classifyLane([file])), file).toContain(

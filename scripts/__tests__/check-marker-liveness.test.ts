@@ -14,7 +14,7 @@ import type { MarkerRecord } from "../lib/divergence-markers";
  * `scripts/check-marker-liveness.ts` (issue #2560) — the network-dependent
  * other half of Guard B, deliberately outside `check:all`/`check:guards`
  * (ADR 0098: the gate is offline by contract, same placement as `cr:check`
- * vs `cr:lint`). Per repo convention (`scripts/__tests__/land.test.ts`), the
+ * vs `cr:lint`). The
  * `gh` plumbing (`resolveIssueStates`) stays thin and untested; every
  * DECISION the script makes is a pure function, tested here directly with
  * plain data standing in for what `gh` would have returned — no `gh` mock.
