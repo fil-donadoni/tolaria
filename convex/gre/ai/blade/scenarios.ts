@@ -1749,6 +1749,43 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Charter scenario 2, TIMING half. Passing loses the Phyrexian Dreadnought BY FORCE: the trigger on the stack resolves this priority round, its punisher cost can only be paid by sacrificing the Dreadnought itself (the board's only creature), so every legal answer to the may-pay sacrifices the 12/12 — Stifle is the only answer that keeps it, and a fetchland produces no mana (CR 305.6) so cracking the Delta is the only route to {U} — there is no later turn to defer to. This entry does NOT exercise the choice-node priors: cracking a fetchland is an ordinary enumerated activated-ability move, and `expect` asserts the ROOT move only, so it passes regardless of what the search-library choice then finds — here the seeded Island is in any case the one card the filter can find, so that node has a single legal option and can discriminate nothing. The half that exercises those priors is the fetch TARGET, a separate entry. Do not read this one as covering the fetch charter on its own. SOLVED by issue #1499: the mana proxy no longer counts a no-mana-ability fetchland as a usable source, so cracking the Delta is valued as the net GAIN it is instead of a pure life loss — see the entry's header comment for the mis-valuation and the fix.",
     },
     {
+        // CR 701.67a — a waterbend cost paid wholly by tapping. No mana source
+        // on the board, so the only route to the cost is the three taps riding
+        // on the move: without the substitution there is no move at all.
+        label: "waterbend: taps three artifacts at the opponent's end step to pay {3}",
+        spec: {
+            cards: [
+                { name: "Aang's Iceberg", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "library" },
+                { name: "Island", owner: "me", zone: "library" },
+                { name: "Island", owner: "me", zone: "library" },
+                { name: "Island", owner: "opp", zone: "library" },
+            ],
+            phase: "END_STEP",
+            turn: 3,
+            landCount: 0,
+            activePlayer: "opp",
+            priority: "me",
+        },
+        bot: "me",
+        seeds: [1, 2, 3, 4, 5],
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Aang's Iceberg",
+                    taps: [],
+                },
+            ],
+        },
+        note: "An Iceberg holding nothing does nothing on the battlefield, and the three artifacts untap in the bot's own untap step before they could matter, so the scry is free. Pins that the move exists on a board with no mana, and that its tap plan is empty because the costPicks pay the whole {3}.",
+    },
+    {
         // CHARTER SCENARIO — the MODAL CHOICE (issue #1490, PRD #1423, charter
         // gate #1434). The root decision under test is the MODE of a modal
         // spell (CR 700.2): the bot holds Blue Elemental Blast — "Choose one —

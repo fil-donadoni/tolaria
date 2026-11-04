@@ -525,6 +525,7 @@ export function clickTapsSubstituteForMana(
     players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
 ): boolean {
     if (!hasManaAbility(card, stateView, players)) return false;
+    if (isTapLockedBySummoningSickness(card)) return false;
     return !findClientManaAbility(card)?.cost.sacrifice;
 }
 
