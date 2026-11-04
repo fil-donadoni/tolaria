@@ -7,6 +7,7 @@ import { defineCard, PERMANENT_TYPES } from "../../types";
 import type { SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
+import { waterbendCost } from "../../abilities/waterbend";
 
 // Aang's Iceberg — {2}{W} Enchantment (Vintage Cube FREE: ETB/dies/attack
 // triggers, issue #679). "Flash. When this enchantment enters, exile up to
@@ -25,12 +26,8 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // `returnExiledForSource`, host-only since Aang's Iceberg's own ability
 // doesn't carry attachments along).
 //
-// SIMPLIFICATION (flagged, CR 701.67 waterbend) (tracked-by: #3550):
-// "Waterbend {3}" — tapping artifacts/creatures to help pay part of a cost —
-// is not modelled (no such cost-payment primitive exists yet); the ability is
-// implemented as a plain {3} generic cost. The golden path (sacrifice this,
-// scry 2) is faithful. Scry composes shipped primitives, no dedicated Op
-// (precedent: Preordain, m11/blue.cards.ts).
+// "Waterbend {3}" is `waterbendCost` (CR 701.67a). Scry composes shipped
+// primitives, no dedicated Op (precedent: Preordain, m11/blue.cards.ts).
 const aangsIcebergHoldsSomething = (
     _event: unknown,
     self: { id: string },
@@ -91,7 +88,7 @@ export const aangsIceberg = defineCard(() => ({
             id: "aangs-iceberg-waterbend",
             oracleText:
                 "Waterbend {3}: Sacrifice this enchantment. If you do, scry 2.",
-            cost: { mana: { X: 3 } },
+            cost: waterbendCost(3),
             useStack: true,
             // NOT DSL-migratable (ADR 0045): step 1 alone (`ctx.sacrifice`)
             // maps onto the registered `sacrifice` Op, but `effects[]` is a

@@ -212,6 +212,32 @@ describe("PaymentBanner activation routing (#939)", () => {
         expect(screen.getByText("tap a land")).toBeTruthy();
     });
 
+    it("generic substitution (CR 701.67a) → Auto-tap stays and the subtitle says what may be tapped", () => {
+        const pa = activation({
+            manaCost: { X: 3 },
+            tapOtherChoice: {
+                filter: { types: ["Artifact", "Creature"] },
+                substitutesGeneric: 3,
+                pickedIds: ["c1"],
+            },
+        });
+        render(
+            <PaymentBanner
+                kind="activation"
+                pendingActivation={pa}
+                me={player()}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+        expect(screen.queryByText("Auto-tap")).toBeTruthy();
+        expect(
+            screen.getByText(
+                "pay the activation costs, or tap up to 2 artifacts or creatures instead of paying generic mana"
+            )
+        ).toBeTruthy();
+    });
+
     it("tap-other cost with count > 1 (Hand of Justice shape) → subtitle pluralizes without a stray article", () => {
         const pa = activation({
             tapOtherChoice: {

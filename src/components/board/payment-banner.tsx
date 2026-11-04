@@ -8,8 +8,14 @@ import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 import { displayCardId, isManaCostCovered } from "~/lib/card-utils";
-import { isTapOtherChoicePaid } from "@convex/gre/tapOtherCost";
-import { describeTapOtherProgress } from "~/lib/tap-other-progress";
+import {
+    genericSubstitutionsLeft,
+    isTapOtherChoicePaid,
+} from "@convex/gre/tapOtherCost";
+import {
+    describeGenericSubstitution,
+    describeTapOtherProgress,
+} from "~/lib/tap-other-progress";
 import {
     spendablePoolForAbility,
     spendablePoolForSpell,
@@ -158,11 +164,19 @@ export default function PaymentBanner(props: Props) {
                 )
             );
         const actSac = props.pendingActivation.sacrificeSelection;
-        subtitle = manaOwed
-            ? "pay the activation costs"
-            : actSac && !isSacrificeComplete(actSac)
-              ? describeSacrificeChoice(actSac)
-              : describeActivationCostChoice(props.pendingActivation);
+        const substitutions = pa.tapOtherChoice
+            ? genericSubstitutionsLeft(pa.tapOtherChoice, pa.manaCost)
+            : 0;
+        subtitle = substitutions
+            ? describeGenericSubstitution(
+                  pa.tapOtherChoice!.filter,
+                  substitutions
+              )
+            : manaOwed
+              ? "pay the activation costs"
+              : actSac && !isSacrificeComplete(actSac)
+                ? describeSacrificeChoice(actSac)
+                : describeActivationCostChoice(props.pendingActivation);
     }
 
     async function handleAutoTap() {

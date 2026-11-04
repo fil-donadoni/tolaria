@@ -170,7 +170,10 @@ import { getEffectivePower } from "./layers";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { canPayTapOtherCost, crewPowerContribution } from "./tapOtherCost";
 import type { ActivationCostPicks } from "./activationCostPicks";
-import { enumerateActivationCostPicks } from "./activationCostPicks";
+import {
+    enumerateActivationCostPicks,
+    planGenericSubstitution,
+} from "./activationCostPicks";
 import { planCastCostPicks, type CastCostPicks } from "./castCostPicks";
 // Issue #2420 — the ONE model of a `tapOtherFilter` mana ability (Urza, Lord
 // High Artificer), shared with the castability census (`coloredCostLeftover`,
@@ -5327,9 +5330,24 @@ function enumerateAbilityMoves(
             }
             return { plan: null };
         };
+        // CR 701.67a — a generic-substitution leg funds part of the mana by
+        // tapping, so the plan is for what the taps leave, and the taps ride
+        // on the move beside it.
+        const substitution =
+            ability.cost.tapOtherFilter?.substitutesGeneric !== undefined &&
+            !hasDerivedX
+                ? planGenericSubstitution(
+                      state,
+                      player,
+                      perm,
+                      ability,
+                      manaCost,
+                      fundWithPhyrexian
+                  )
+                : null;
         const funded = hasDerivedX
             ? { plan: null, lifePips: undefined }
-            : fundWithPhyrexian(manaCost);
+            : (substitution?.funded ?? fundWithPhyrexian(manaCost));
         const tapPlan = funded.plan;
         if (!hasDerivedX && tapPlan === null) continue;
 
@@ -5436,6 +5454,10 @@ function enumerateAbilityMoves(
             player,
             perm,
             ability
+        ).map((picks) =>
+            substitution
+                ? { ...picks, tapOtherIds: substitution.tapOtherIds }
+                : picks
         );
         if (pickVariants.length === 0) continue;
 

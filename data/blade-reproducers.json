@@ -3789,6 +3789,55 @@
         "landCount": 4,
         "libraryCount": 20
     },
+    "waterbend: taps three artifacts at the opponent's end step to pay {3}": {
+        "cards": [
+            {
+                "name": "Aang's Iceberg",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Ornithopter",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Ornithopter",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Ornithopter",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "library"
+            }
+        ],
+        "phase": "END_STEP",
+        "turn": 3,
+        "landCount": 0,
+        "activePlayer": "opp",
+        "priority": "me"
+    },
     "wish: brings the sorcery in from outside the game rather than declining": null,
     "zero-output mana source: casts its removal instead of tapping a 0-counter Everflowing Chalice": {
         "cards": [

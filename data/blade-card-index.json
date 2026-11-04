@@ -1,4 +1,11 @@
 {
+    "Aang's Iceberg": [
+        {
+            "label": "waterbend: taps three artifacts at the opponent's end step to pay {3}",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Accumulated Knowledge": [
         {
             "label": "keep mana open: casts Accumulated Knowledge at the opponent's end step",

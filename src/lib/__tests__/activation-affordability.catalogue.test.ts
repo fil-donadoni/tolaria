@@ -367,7 +367,14 @@ function shapesOf(a: ActivatedAbility): Shape[] {
     // you control" (Hand of Justice's fixed three) and Crew N's total-power
     // shape both have a `getStackAbilities` gate that weighs the viewer's own
     // battlefield through `buildTriggerStateView`.
-    if (a.cost.tapOtherFilter) out.push("tapOtherFilter");
+    // CR 701.67a — except the substitution shape, which owes nothing of its own:
+    // an empty board can still pay it all in mana, so there is nothing to hide.
+    if (
+        a.cost.tapOtherFilter &&
+        a.cost.tapOtherFilter.substitutesGeneric === undefined
+    ) {
+        out.push("tapOtherFilter");
+    }
     // CR 606 — a loyalty ability (signed `cost.loyalty`) has a frontend
     // affordability hint in `getStackAbilities` (once-per-turn / sorcery-speed /
     // not-below-0), so it joins the sweep (issue #700).
