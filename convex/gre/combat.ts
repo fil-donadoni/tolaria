@@ -808,7 +808,8 @@ export function collectBlockRestrictions(
 /**
  * Validates whether `blocker` can be legally assigned to block `attacker`
  * given the defending player's battlefield. Evaluation order:
- *  1. Keyword-level evasion (registry): unblockable, landwalk, fear, flying.
+ *  1. Keyword-level evasion (registry): unblockable, landwalk, intimidate, fear,
+ *     flying.
  *  2. Card-level block restrictions from staticEffects[] (Juggernaut,
  *     Invisibility, Ironclaw Orcs, etc.) — predicate-driven via S2.
  *  3. Protection (CR 702.16f).
@@ -896,8 +897,8 @@ export function validateBlockerEligibility(
     }
 
     // Pass 1 — keyword-level evasion (registry-driven).
-    // Covers: unblockable (509.1b), landwalk (702.13b), fear (702.36b),
-    // flying (702.9b), shadow (702.28b), horsemanship (702.31b).
+    // Covers: unblockable (509.1b), landwalk (702.14c), intimidate (702.13b),
+    // fear (702.36b), flying (702.9b), shadow (702.28b), horsemanship (702.31b).
     const keywordResult = evaluateBlockerKeywords(
         attacker,
         blocker,

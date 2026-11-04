@@ -847,14 +847,15 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         binding: "indestructible",
         note: "state.ts regenerateOrDestroy + SBA 704.5g skip; always granted dynamically via a keyword-grant staticEffect, never declared literally",
     },
-    // 702.14 Intimidate
+    // 702.13 Intimidate
     {
         id: "intimidate",
         name: "Intimidate",
         kind: "keyword-ability",
-        cr: "702.14",
-        status: "planned",
-        note: "Fear (its structurally-identical historical sibling) is implemented (combatRegistry.ts); Intimidate itself has zero engine hits.",
+        cr: "702.13",
+        status: "implemented",
+        binding: "intimidate",
+        note: "combatRegistry.ts EvasionRule — blocked only by artifact creatures and/or creatures sharing a colour with it, both colours read at layer 5",
     },
     // 702.14 Landwalk
     {

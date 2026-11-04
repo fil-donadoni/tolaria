@@ -210,6 +210,76 @@ describe("evaluateBlockerKeywords — horsemanship (CR 702.31b)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// evaluateBlockerKeywords — intimidate (CR 702.13b)
+// ---------------------------------------------------------------------------
+
+describe("evaluateBlockerKeywords — intimidate (CR 702.13b)", () => {
+    const creature = (manaCost: ManaCost, types: CardType[] = ["Creature"]) =>
+        makeCard({ types, card: { manaCost } });
+    const intimidator = (manaCost: ManaCost) =>
+        makeCard({
+            types: ["Creature"],
+            staticAbilities: ["intimidate"],
+            card: { manaCost },
+        });
+    const canBlock = (
+        attacker: CardInstanceState,
+        blocker: CardInstanceState
+    ) => evaluateBlockerKeywords(attacker, blocker, [blocker]).eligible;
+
+    it("rejects a creature sharing no color with the attacker", () => {
+        const result = evaluateBlockerKeywords(
+            intimidator({ R: 1 }),
+            creature({ G: 1 }),
+            []
+        );
+        expect(result.eligible).toBe(false);
+        if (!result.eligible) expect(result.reason).toMatch(/intimidate/i);
+    });
+
+    it("accepts a creature sharing a color, whichever the color is", () => {
+        expect(canBlock(intimidator({ R: 1 }), creature({ R: 1 }))).toBe(true);
+        expect(canBlock(intimidator({ U: 1 }), creature({ U: 1 }))).toBe(true);
+    });
+
+    it("multicolored: one shared color among several is enough", () => {
+        expect(
+            canBlock(intimidator({ R: 1, G: 1 }), creature({ G: 1, W: 1 }))
+        ).toBe(true);
+        expect(
+            canBlock(intimidator({ R: 1, G: 1 }), creature({ U: 1, W: 1 }))
+        ).toBe(false);
+    });
+
+    it("accepts an artifact creature sharing no color", () => {
+        expect(
+            canBlock(
+                intimidator({ R: 1 }),
+                creature({ X: 4 }, ["Artifact", "Creature"])
+            )
+        ).toBe(true);
+    });
+
+    it("colorless attacker: only artifact creatures, a colorless non-artifact shares nothing (CR 105.2c)", () => {
+        const colorless = () => intimidator({ X: 4 });
+        expect(canBlock(colorless(), creature({ X: 2 }))).toBe(false);
+        expect(canBlock(colorless(), creature({ R: 1 }))).toBe(false);
+        expect(
+            canBlock(colorless(), creature({ X: 2 }, ["Artifact", "Creature"]))
+        ).toBe(true);
+    });
+
+    it("reads the keyword off the attacker only: a blocker with intimidate gains nothing", () => {
+        const blocker = makeCard({
+            types: ["Creature"],
+            staticAbilities: ["intimidate"],
+            card: { manaCost: { G: 1 } },
+        });
+        expect(canBlock(creature({ R: 1 }), blocker)).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // evaluateBlockerKeywords — fear (CR 702.36b)
 // ---------------------------------------------------------------------------
 
