@@ -126,6 +126,31 @@ describe("CR 601.3e — the Bot's library-top Adventure and morph casts (issue #
         });
     });
 
+    it("CR 601.2b — Bolas's Citadel alone: Petty Theft for 2 life, Brazen Borrower for 3 (issue #7570)", () => {
+        withDefs(() => {
+            const moves = enumerateMoves(
+                board([CITADEL.id], BRAZEN_BORROWER.id),
+                "p1"
+            ).filter(
+                (m) => m.kind === "cast-spell" && m.cardInstanceId === "top"
+            );
+            expect(
+                moves.find(
+                    (m) =>
+                        m.kind === "cast-spell" &&
+                        m.alternativeCostId === PETTY_THEFT
+                )
+            ).toMatchObject({ payLife: 2, tapPlan: [] });
+            expect(
+                moves.find(
+                    (m) =>
+                        m.kind === "cast-spell" &&
+                        m.alternativeCostId === undefined
+                )
+            ).toMatchObject({ payLife: 3, tapPlan: [] });
+        });
+    });
+
     it("CR 601.2b — no morph Move rides Bolas's Citadel's life payment", () => {
         withDefs(() => {
             expect(alts(board([CITADEL.id], EXALTED_ANGEL.id))).toEqual([
@@ -139,19 +164,29 @@ describe("CR 601.3e — the Bot's library-top Adventure and morph casts (issue #
 
     it("an Adventure licensed apart from the Citadel-covered card is still enumerated", () => {
         withDefs(() => {
-            // The creature rides the Citadel (3 life); Petty Theft the
-            // instant-and-sorcery grant, which keeps the mana cost — the
-            // caster's permission choice (issue #7525). A whole-card
-            // `lifeInsteadOfMana` guard dropped the Adventure here.
+            // The creature rides the Citadel (3 life); Petty Theft either the
+            // Citadel (2 life, issue #7570) or the instant-and-sorcery grant,
+            // which keeps the mana cost — the caster's permission choice
+            // (issue #7525). A whole-card `lifeInsteadOfMana` guard dropped
+            // the Adventure here.
             const state = board(
                 [INSTANTS_AND_SORCERIES.id, CITADEL.id],
                 BRAZEN_BORROWER.id
             );
             expect(alts(state).sort()).toEqual([PETTY_THEFT, undefined].sort());
-            // Below the creature's 3 life the printed Move goes; Petty Theft,
-            // which owes no life, stays (no whole-card life refusal).
-            state.players[0].life = 2;
+            // Below the creature's 3 life the printed Move goes; below Petty
+            // Theft's 2 its life Move too, and the mana Move stays (no
+            // whole-card life refusal).
+            state.players[0].life = 1;
             expect(alts(state)).toEqual([PETTY_THEFT]);
+            expect(
+                enumerateMoves(state, "p1").filter(
+                    (m) =>
+                        m.kind === "cast-spell" &&
+                        m.cardInstanceId === "top" &&
+                        m.declineManaCostReplacement !== true
+                )
+            ).toEqual([]);
         });
     });
 });

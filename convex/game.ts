@@ -501,7 +501,7 @@ import {
 import {
     castSubjectDefinition,
     castSubjectView,
-    isFaceChoiceCastId,
+    ridesManaCostReplacement,
 } from "./gre/castMode";
 import { isSplitCastId, offersPrintedCast } from "./gre/splitCast";
 import { isModalBackCastId } from "./gre/modalBackCast";
@@ -6515,10 +6515,17 @@ export const announceCast = mutation({
         // about it "applies two alternative methods of casting" — and it pays
         // no mana here either way (`castAlternativeCostForZone` already
         // replaced its mana leg with `castRawManaCost`'s `{}` for this zone).
+        //
+        // The Adventure is exempt too (issue #7570): "Casting a card as an
+        // Adventure isn't casting it for an alternative cost. Effects that
+        // allow you to cast a spell for an alternative cost or without paying
+        // its mana cost may allow you to apply those to the Adventure."
+        // (Gatherer ruling, 2019-10-04). A morph cast is not: CR 702.37c, "this
+        // follows the rules for paying alternative costs".
         if (
             chosenAltCost &&
             libraryTopPayment &&
-            !isFaceChoiceCastId(cardDef, args.alternativeCostId)
+            !ridesManaCostReplacement(cardDef, args.alternativeCostId)
         ) {
             throw new Error(
                 "Can't apply an alternative cost to a spell cast from the top of your library"

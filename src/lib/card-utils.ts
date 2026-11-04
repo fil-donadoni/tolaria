@@ -102,7 +102,10 @@ import { handCardMatchesFilter } from "@convex/gre/alternativeCost";
 // verbatim with the GRE's legality gate and `announceCast` (ADR 0074).
 import { castOptionAlternativeCosts } from "@convex/gre/castPermissions";
 // CR 601.3e (issue #7526) — the per-announcement library-top licence.
-import { libraryTopAnnouncementLicensed } from "@convex/gre/rules";
+import {
+    libraryTopAnnouncementChoices,
+    libraryTopCastGrant,
+} from "@convex/gre/rules";
 // CR 601.2b / 118.8 — the server's own additional-cost leg affordability, reused
 // verbatim so the cast-time leg picker and `announceCast` can never disagree.
 import { payableAdditionalCostLegs } from "@convex/gre/additionalCost";
@@ -2025,16 +2028,52 @@ export function affordableAltCostsForCard(
     // own announcement, licensed (or not) by the grant covering ITS subject:
     // Garruk's Horde casts Giant Killer but not Chop Down. The same predicate
     // the legality gate and the Bot ask, so no row is a click `announceCast`
-    // refuses.
+    // refuses. CR 119.4 (issue #7570) — per announcement, its own life too.
     if (card.zone !== "library") return options;
-    return options.filter((alt) =>
-        libraryTopAnnouncementLicensed(
-            state,
-            caster as unknown as PlayerState,
-            card as unknown as CardInstanceState,
-            alt.id
-        )
+    return options.filter(
+        (alt) =>
+            libraryTopAnnouncementChoices(
+                state,
+                caster as unknown as PlayerState,
+                card as unknown as CardInstanceState,
+                alt.id
+            ).length > 0
     );
+}
+
+/** One way to pay an announcement off the top of the library: `decline` is the
+ *  `declineManaCostReplacement` it announces, `paysLife` whether it pays life
+ *  instead of mana (Bolas's Citadel). */
+export type LibraryTopCastChoice = { decline?: true; paysLife: boolean };
+
+/** CR 601.2b / 118.9 / 119.4 (issue #7570) — the picker rows the announcement
+ *  `altCostId` of `card` owes: one per legal `libraryTopAnnouncementChoices`
+ *  value, so Petty Theft under Bolas's Citadel beside a grant keeping its mana
+ *  cost offers life and mana, and below its life only mana. Outside the library
+ *  an announcement is one plain row. */
+export function libraryTopCastChoices(
+    card: CardInstance,
+    casterId: string,
+    players: ReadonlyArray<Player>,
+    activePlayerId: string,
+    altCostId: string
+): LibraryTopCastChoice[] {
+    const caster = players.find((p) => p.id === casterId);
+    if (!caster || card.zone !== "library") return [{ paysLife: false }];
+    const state = { activePlayerId, players } as unknown as GameState;
+    const player = caster as unknown as PlayerState;
+    const instance = card as unknown as CardInstanceState;
+    return libraryTopAnnouncementChoices(
+        state,
+        player,
+        instance,
+        altCostId
+    ).map((decline) => ({
+        ...(decline ? { decline } : {}),
+        paysLife:
+            libraryTopCastGrant(state, player, instance, altCostId, decline)
+                ?.manaCostReplacement !== undefined,
+    }));
 }
 
 /** CR 702.33a — the card's Kickers whose NON-MANA legs the caster can actually

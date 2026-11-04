@@ -226,7 +226,7 @@ import {
     castSubjectDefinition,
     castSubjectView,
     independentCastOptionsFor,
-    isFaceChoiceCastId,
+    ridesManaCostReplacement,
 } from "./castMode";
 import { landPlayFaces, type PlayLandFace } from "./modalLandPlay";
 import { offersPrintedCast } from "./splitCast";
@@ -4745,13 +4745,14 @@ function enumerateCastMovesFromZone(
         // CR 601.2b / 118.9a (PR review finding 1) — "a player can't apply two
         // alternative methods of casting … to a single spell", and a cast off
         // a permission that REPLACES the mana cost with life (Bolas's Citadel)
-        // is one such method. An ADVENTURE is a second, so `announceCast`
-        // refuses it there and the Move must not be enumerated — the
-        // #2283/#2284 freeze shape, and the reason the dash and overload
-        // branches above keep their own `lifeInsteadOfMana` guards. A FACE
-        // CHOICE is the one exemption, for the reason `announceCast`'s own
-        // exemption states: choosing a split half (CR 709.3) or a modal back
-        // face (CR 712.11b) is not a price at all.
+        // is one such method. A second one is refused by `announceCast`, so
+        // its Move must not be enumerated — the #2283/#2284 freeze shape, and
+        // the reason the dash and overload branches above keep their own
+        // `lifeInsteadOfMana` guards. `ridesManaCostReplacement` names the
+        // exemptions, for the reasons `announceCast`'s own states: choosing a
+        // split half (CR 709.3) or a modal back face (CR 712.11b) is not a
+        // price at all, and the Adventure's ruling says it is no alternative
+        // cost (issue #7570).
         //
         // CR 601.3e (issues #7205, #7526) — off the top of the library both
         // questions are asked of THIS announcement's grant, never the whole
@@ -4770,7 +4771,7 @@ function enumerateCastMovesFromZone(
                       opts?.declineManaCostReplacement
                   )
                 : lifeInsteadOfMana !== undefined &&
-                  !isFaceChoiceCastId(def ?? undefined, alt.id)
+                  !ridesManaCostReplacement(def ?? undefined, alt.id)
         ) {
             continue;
         }
@@ -4783,8 +4784,8 @@ function enumerateCastMovesFromZone(
         // resolves the announced option through, so the tap plan the Bot
         // builds and the total the mutation charges cannot disagree — the
         // #2283/#2284 bot-freeze shape. Identity for a hand cast and for the
-        // Adventure, which is priced by its own alternative characteristics in
-        // every zone (CR 715.3a).
+        // Adventure, which is priced by its own alternative characteristics
+        // (CR 715.3a) unless a permission replaces the mana cost (issue #7570).
         const zoneAlt = castAlternativeCostForZone(
             state,
             card,
@@ -6336,9 +6337,9 @@ export function enumerateMoves(
         // at the printed cost (no `lifeInsteadOfMana`), stamped so the
         // executor announces it and `licensed` re-asks it under that choice.
         // Only announcements where the decline is a real choice keep it
-        // (`libraryTopReplacementChoices`): a morph or Adventure cast the
-        // Citadel cannot license already rides the Forge by default in the
-        // pass above, and `announceCast` refuses the flag on it.
+        // (`libraryTopReplacementChoices`): a morph cast the Citadel cannot
+        // license already rides the Forge by default in the pass above, and
+        // `announceCast` refuses the flag on it.
         const declineIsChoice = (m: Move) =>
             m.kind !== "cast-spell" ||
             libraryTopReplacementChoices(

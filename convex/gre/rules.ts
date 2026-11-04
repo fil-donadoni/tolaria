@@ -79,7 +79,7 @@ import {
     castSubjectDefinition,
     castSubjectView,
     independentCastOptionsFor,
-    isFaceChoiceCastId,
+    ridesManaCostReplacement,
 } from "./castMode";
 import { landPlayFaces } from "./modalLandPlay";
 import { modalBackCastOptionsFor } from "./modalBackCast";
@@ -500,16 +500,16 @@ export function libraryTopCastGrant(
     );
     const keeps = covering.find((g) => g.manaCostReplacement === undefined);
     if (declineManaCostReplacement === true) return keeps;
-    // CR 601.2b — an Adventure or morph announcement can never ride a grant
-    // that replaces the mana cost ({@link libraryTopAnnouncementLicensed}), so
-    // where a keeping grant also covers it the choice is forced: absent picks
-    // the grant that can license it. Only the printed cast and a face choice
-    // (CR 709.3 / 712.11b — naming the half or the face is no second method)
-    // default to the life.
+    // CR 601.2b — a morph announcement can never ride a grant that replaces
+    // the mana cost ({@link libraryTopAnnouncementLicensed}), so where a keeping
+    // grant also covers it the choice is forced: absent picks the grant that
+    // can license it. The printed cast, a face choice (CR 709.3 / 712.11b —
+    // naming the half or the face is no second method) and the Adventure
+    // (`ridesManaCostReplacement`, issue #7570) default to the life.
     const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
     const replacementLicensable =
         alternativeCostId === undefined ||
-        isFaceChoiceCastId(def ?? undefined, alternativeCostId);
+        ridesManaCostReplacement(def ?? undefined, alternativeCostId);
     if (!replacementLicensable && keeps) return keeps;
     return (
         covering.find((g) => g.manaCostReplacement !== undefined) ?? covering[0]
@@ -616,11 +616,11 @@ function libraryTopOptionManaCost(
  *  is a second alternative method of casting. CR 601.2b — "a player can't
  *  apply two alternative methods of casting or two alternative costs to a
  *  single spell": a morph cast "follows the rules for paying alternative
- *  costs" (CR 702.37c) and never rides on Bolas's Citadel's life payment. The
- *  Adventure is refused there too — the engine's existing reading (issue
- *  #4900), the same refusal `announceCast` and the Bot already make. A face
- *  choice is exempt — a split half (CR 709.3) or a modal card's back face (CR
- *  712.11b): choosing it is how the spell is named at all, not a price.
+ *  costs" (CR 702.37c) and never rides on Bolas's Citadel's life payment. A
+ *  face choice is exempt — a split half (CR 709.3) or a modal card's back face
+ *  (CR 712.11b): choosing it is how the spell is named at all, not a price. So
+ *  is the Adventure, whose ruling says it is no alternative cost
+ *  ({@link ridesManaCostReplacement}, issue #7570).
  *
  *  The one predicate the legality gate, the Bot's library-top enumeration and
  *  the client picker ask per announcement, so none of them offers a cast the
@@ -648,7 +648,44 @@ export function libraryTopAnnouncementLicensed(
         return true;
     }
     const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-    return isFaceChoiceCastId(def ?? undefined, alternativeCostId);
+    return ridesManaCostReplacement(def ?? undefined, alternativeCostId);
+}
+
+/** CR 601.2b / 119.4 (issue #7570) — the `declineManaCostReplacement` values
+ *  under which the announcement `alternativeCostId` of `card` is a legal cast
+ *  off the top of `player`'s library: {@link libraryTopReplacementChoices},
+ *  minus a choice no grant licenses or whose life `player` cannot pay. Empty =
+ *  no such cast. What the wire and the client picker offer row by row, so no
+ *  row is a click `announceCast` refuses (mana is judged at payment). */
+export function libraryTopAnnouncementChoices(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    alternativeCostId: string | undefined
+): (true | undefined)[] {
+    return libraryTopReplacementChoices(
+        state,
+        player,
+        card,
+        alternativeCostId
+    ).filter(
+        (decline) =>
+            libraryTopAnnouncementLicensed(
+                state,
+                player,
+                card,
+                alternativeCostId,
+                decline
+            ) &&
+            player.life >=
+                libraryTopCastLifeCost(
+                    state,
+                    player,
+                    card,
+                    alternativeCostId,
+                    decline
+                )
+    );
 }
 
 /** Whether `cardInstanceId` is the NONLAND card on top of `player`'s own
@@ -1840,8 +1877,8 @@ export function getLegalActions(
                 //
                 // CR 601.3e (issue #7205) — and an announcement no grant covers
                 // (a filtered permission's uncovered half) is no cast at all;
-                // nor, CR 601.2b, an Adventure or morph cast
-                // riding a grant that already replaces the mana cost.
+                // nor, CR 601.2b, a morph cast riding a grant that already
+                // replaces the mana cost.
                 alsoLegal: (_subject, altCostId) =>
                     libraryTopAnnouncementLicensed(
                         state,
