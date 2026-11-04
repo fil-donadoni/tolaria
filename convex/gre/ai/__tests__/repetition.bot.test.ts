@@ -9,9 +9,11 @@
 import { describe, expect, it } from "vitest";
 import {
     emptyRepetitionHistory,
+    isLoopExit,
     positionFingerprint,
     recordRepetition,
     repeatedMoveKeys,
+    repetitionKeyAt,
     repetitionMoveKey,
 } from "../repetition";
 import { buildPositionFromSpec } from "../blade/build";
@@ -19,7 +21,17 @@ import { enumerateMoves } from "../../moves";
 import { moveKey, searchWithTrace } from "../../search";
 import { cloneGameState } from "../../clone";
 import type { Move } from "../../moves";
-import type { GameState } from "../../state";
+import { resolveTopOfStack, type GameState } from "../../state";
+import { applyMayPaySubmit } from "../../pendingChoiceSubmit";
+import { finalizeTargetSelection } from "../../../game";
+import { getCardByName, preloadDefinitions } from "../../../cards";
+import { chainOfSmog } from "../../../cards/sets/ons/black.cards";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../cards/__tests__/setup.helper";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
 
 const HARPY_POSITION: ScenarioSpec = {
@@ -327,5 +339,133 @@ describe("searchWithTrace with a decision history (issue #3590)", () => {
             7
         ).move;
         expect(a).toEqual(b);
+    });
+});
+
+// Issue #3657 — a may-pay yes can be a lap too: two seats copying a self-copying
+// spell at each other with empty hands reach no priority node, so the decline is
+// the only exit.
+describe("the may-pay shape of an optional loop (issue #3657)", () => {
+    preloadDefinitions([chainOfSmog()]);
+    const YES: Move = { kind: "may-pay", accept: true };
+    const NO: Move = { kind: "may-pay", accept: false };
+
+    function chainAtEmptyHands(): GameState {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, chainOfSmog().id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    /** One link: the owed seat says yes and points the copy at the other. */
+    function link(state: GameState): void {
+        const seat = state.pendingChoices![0].playerId;
+        applyMayPaySubmit(state, { playerId: seat, accept: true });
+        finalizeTargetSelection(
+            state,
+            {
+                ...state.pendingTarget!,
+                selected: [{ type: "player", id: seat === "p1" ? "p2" : "p1" }],
+            },
+            seat
+        );
+        resolveTopOfStack(state);
+    }
+
+    /** The original spell has left the stack: the position lap two returns to. */
+    function atLapStart(): GameState {
+        const state = chainAtEmptyHands();
+        link(state);
+        link(state);
+        return state;
+    }
+
+    it("a chain's copy under a fresh allocator number is the same position", () => {
+        const state = atLapStart();
+        const before = positionFingerprint(state);
+        const copyId = state.stack[0].id;
+        link(state);
+        link(state);
+        expect(state.stack[0].id).not.toBe(copyId);
+        expect(positionFingerprint(state)).toBe(before);
+    });
+
+    it("denies a yes from the position it was given in, and the search declines", () => {
+        const state = atLapStart();
+        const seat = state.pendingChoices![0].playerId;
+        const history = recordRepetition(undefined, state, seat, YES);
+        link(state);
+        link(state);
+        expect(repeatedMoveKeys(history, state, seat)).toContain(
+            repetitionKeyAt(state, YES)
+        );
+        expect(
+            searchWithTrace(
+                state,
+                seat,
+                { iterations: 30 },
+                7,
+                undefined,
+                history
+            ).move
+        ).toEqual(NO);
+    });
+
+    it("the search stamping an informed seat's deck knowledge is the same position", () => {
+        const state = atLapStart();
+        const seat = state.pendingChoices![0].playerId;
+        const other = seat === "p1" ? "p2" : "p1";
+        const history = recordRepetition(undefined, state, seat, YES);
+        link(state);
+        link(state);
+        const deck = [chainOfSmog().id, chainOfSmog().id];
+        expect(
+            searchWithTrace(
+                state,
+                seat,
+                { iterations: 30 },
+                7,
+                [
+                    { playerId: seat, cardIds: deck },
+                    { playerId: other, cardIds: deck },
+                ],
+                history
+            ).move
+        ).toEqual(NO);
+    });
+
+    it("a yes from another position in the step stays open", () => {
+        const state = atLapStart();
+        const seat = state.pendingChoices![0].playerId;
+        const history = recordRepetition(undefined, state, seat, YES);
+        // The OPPONENT is the one holding a new card: the seat's margin is no
+        // better, so only the position in the key tells this yes from the last.
+        const elsewhere = cloneGameState(state);
+        const opponent = elsewhere.players.find((p) => p.id !== seat)!;
+        opponent.hand.push(
+            makeInstance(getCardByName("Grizzly Bears").id, {
+                id: "drawn",
+                controllerId: opponent.id,
+                ownerId: opponent.id,
+                zone: "hand",
+            })
+        );
+        expect(repeatedMoveKeys(history, elsewhere, seat)).not.toContain(
+            repetitionKeyAt(elsewhere, YES)
+        );
+    });
+
+    it("the decline is an exit: never remembered, never denied", () => {
+        const state = atLapStart();
+        const seat = state.pendingChoices![0].playerId;
+        expect(isLoopExit(NO)).toBe(true);
+        expect(isLoopExit(YES)).toBe(false);
+        expect(
+            Object.keys(recordRepetition(undefined, state, seat, NO).chosen)
+        ).toEqual([]);
     });
 });

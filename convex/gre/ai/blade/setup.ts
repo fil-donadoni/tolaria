@@ -893,6 +893,58 @@ function applyChoose(
     }
 }
 
+function applyAnswerMayPay(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "answer-may-pay" }>
+): void {
+    const head = state.pendingChoices?.[0];
+    if (head?.kind !== "may-pay") {
+        throw new BladeSetupError(label, step, "no may-pay is pending.");
+    }
+    const answer: Move = { kind: "may-pay", accept: step.accept };
+    moveObserver?.(head.playerId, answer, state);
+    applyMoveInSearch(state, head.playerId, answer);
+    if (state.pendingChoices?.[0] === head) {
+        throw new BladeSetupError(
+            label,
+            step,
+            "the may-pay rejected the answer and is still pending."
+        );
+    }
+}
+
+function applySubmitPlayerTarget(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "submit-player-target" }>
+): void {
+    const owner = state.pendingTarget?.playerId;
+    if (!owner) {
+        throw new BladeSetupError(
+            label,
+            step,
+            "no target selection is pending."
+        );
+    }
+    const wanted = seatPlayerId(state, step.target);
+    const answer = enumerateMoves(state, owner).find(
+        (m) =>
+            m.kind === "submit-target" &&
+            m.targets.length === 1 &&
+            m.targets[0].id === wanted
+    );
+    if (!answer) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `the engine offers no submission naming "${step.target}".`
+        );
+    }
+    moveObserver?.(owner, answer, state);
+    applyMoveInSearch(state, owner, answer);
+}
+
 /**
  * Apply a scenario's `setup` sequence to a freshly built state, in order.
  * A no-op when the entry declares none. Mutates `state` in place and returns
@@ -998,6 +1050,12 @@ function applyBladeSetupSteps(
                 break;
             case "choose":
                 applyChoose(state, scenario.label, step);
+                break;
+            case "answer-may-pay":
+                applyAnswerMayPay(state, scenario.label, step);
+                break;
+            case "submit-player-target":
+                applySubmitPlayerTarget(state, scenario.label, step);
                 break;
             case "declare-attackers":
                 // Logic in `combatSetup.ts`; this file keeps only the dispatch.

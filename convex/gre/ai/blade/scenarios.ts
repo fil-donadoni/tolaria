@@ -11453,6 +11453,50 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #3590 — second, structurally different optional loop for the position-repetition memory: cast + enters trigger + choice, where the Parallax Wave entry is an activated ability + leaves trigger. Nothing in `repetition.ts` or the root deny-set names either card.",
     },
     {
+        // OPTIONAL LOOP, shape 3 (issue #3657): a may-pay yes. Both hands
+        // are empty, so a link of the chain discards nothing and the next seat
+        // is free to copy back: nothing but a decline ever stops it. No priority
+        // node is on the lap, so `pass` is not on offer. The Bot has been round
+        // once already and stands where it stood.
+        //
+        // Discriminating at this budget only: without the decline as a loop exit
+        // the Bot accepts on every seed up to ~15 iterations, and a self-play game
+        // runs out its ply cap here; from ~100 the search declines on its own.
+        label: "optional loop: declines to copy a self-copying discard spell from a position it already occupied",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Chain of Smog", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Chain of Smog", target: "opp" },
+            { kind: "resolve-top" },
+            { kind: "answer-may-pay", accept: true },
+            { kind: "submit-player-target", target: "me" },
+            { kind: "resolve-top" },
+        ],
+        revisit: [
+            { kind: "answer-may-pay", accept: true },
+            { kind: "submit-player-target", target: "opp" },
+            { kind: "resolve-top" },
+            { kind: "answer-may-pay", accept: true },
+            { kind: "submit-player-target", target: "me" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 15 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { forbidden: [{ kind: "may-pay", accept: true }] },
+        note: "Issue #3657 — the third shape for the position-repetition memory: a mid-resolution yes rather than a priority-node move, with the decline as the exit. A yes from any other position stays open, and the unit tests in `repetition.bot.test.ts` pin that.",
+    },
+    {
         // CR 603.7a (issue #3383) — the value model's reader for a card's own
         // `delayedTriggers[]` templates. Mishra's Bauble and Tormod's Crypt are
         // both {0} artifacts the reader could see nothing in: the Bauble's
