@@ -405,6 +405,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
         "zone-change": [
             "abilitiesSuppressedBy",
             "abilityLossHolds",
+            "acceptedEntryCounters",
             "activationsThisTurn",
             "baseControllerId",
             "baseSubtypes",

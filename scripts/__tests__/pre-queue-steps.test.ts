@@ -13,7 +13,8 @@ import {
     runPreQueue,
 } from "../land-ready";
 import { ORIGIN_BASE } from "../lib/branches";
-import type { Lineage } from "../lib/health-verdict-store";
+import { containedTolerance } from "../lib/contained-tolerance";
+import { lineageOf, type Lineage } from "../lib/health-verdict-store";
 import { SKIN_RECEIPT_REFUSAL } from "../lib/pr-refusals";
 import {
     EXCLUDED_FROM_PRE_QUEUE,
@@ -138,6 +139,67 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
         expect(run.find((c) => c.id === "vitest(touched)")?.command).toContain(
             "convex/cards/sets/x.test.ts"
         );
+    });
+});
+
+describe("runPreQueue — a Contained RED's names (ADR 0163 §4, issue #8076)", () => {
+    const FILE = "scripts/__tests__/foo.test.ts";
+    const files = ["convex/gre/foo.ts", FILE];
+    const plan = inertClassifyLane(files, files, related({}));
+    const isVitest = (c: string) => c.startsWith("bunx vitest run");
+    const output = (...names: string[]) =>
+        [
+            ...names.map((n) => ` FAIL  |node-tooling| ${FILE} > ${n}`),
+            " Test Files  1 failed (1)",
+            `      Tests  ${names.length} failed | 3 passed (4)`,
+        ].join("\n");
+    const run = (red: string, known: readonly string[], logs: string[] = []) =>
+        runPreQueue({
+            plan,
+            added: [],
+            present: files,
+            log: (l) => logs.push(l),
+            regenerate: () => true,
+            restore: () => undefined,
+            // The lane's own function, not a copy of its rule.
+            tolerate: containedTolerance({
+                lineage: () =>
+                    lineageOf([
+                        {
+                            sha: "a".repeat(40),
+                            status: "red",
+                            redClass: "contained",
+                        },
+                    ]),
+                evidence: () =>
+                    known
+                        .map((n) => ` FAIL  |node-tooling| ${FILE} > ${n}`)
+                        .join("\n"),
+                log: () => undefined,
+            }),
+            exec: (command) =>
+                isVitest(command)
+                    ? { ok: false, ms: 1, output: red }
+                    : { ok: true, ms: 1 },
+        });
+
+    it("plans a vitest step to tolerate", () => {
+        expect(plan.run.some((c) => isVitest(c.command))).toBe(true);
+    });
+
+    it("all failures known: green, each name logged", () => {
+        const logs: string[] = [];
+        const r = run(output("known"), ["known"], logs);
+        expect(r.failed).toBeNull();
+        expect(logs).toContain(`land:ready: tolerated: ${FILE} > known`);
+    });
+
+    it("one unknown name in the same file: refused", () => {
+        expect(run(output("known", "new"), ["known"]).failed).not.toBeNull();
+    });
+
+    it("a name in no evidence: refused", () => {
+        expect(run(output("known"), []).failed).not.toBeNull();
     });
 });
 

@@ -4,11 +4,13 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useDivideBuffer } from "~/hooks/useDivideBuffer";
 import { isEligibleAttacker } from "~/lib/attacker-eligibility";
+import { unleashForbidsBlock } from "@convex/cards/abilities/unleash";
 import { combatDeclarationCap } from "@convex/cards/attackRestrictions";
 import { useAttackSequence } from "~/hooks/useAttackSequence";
 import {
     isCreature,
     isPlaneswalker,
+    isHorsemanshipBarred,
     isLandwalkUnblockable,
     hasManaAbility,
     matchesPermanentFilter,
@@ -412,6 +414,8 @@ export function useBattlefieldVisualState(
         // CR 509.1b / 611.2c — a game-wide "creatures can't block this turn"
         // (Chaos) leaves no legal blocker at all.
         if (allCreaturesCantBlockThisTurn) return false;
+        // CR 702.98a — unleash with a +1/+1 counter, for every attacker.
+        if (unleashForbidsBlock(blocker)) return false;
         const hasFlying = blocker.staticAbilities?.includes("flying") ?? false;
         const hasReach = blocker.staticAbilities?.includes("reach") ?? false;
         const attackingPlayer = allPlayers.find((p) => p.id === activePlayerId);
@@ -422,6 +426,7 @@ export function useBattlefieldVisualState(
             );
             if (!attacker) continue;
             if (isLandwalkUnblockable(attacker, player.battlefield)) continue;
+            if (isHorsemanshipBarred(attacker, blocker)) continue;
             const attackerFlies =
                 attacker.staticAbilities?.includes("flying") ?? false;
             if (!attackerFlies || hasFlying || hasReach) return true;

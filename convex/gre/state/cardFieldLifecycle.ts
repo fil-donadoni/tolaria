@@ -158,6 +158,9 @@ export const CARD_FIELD_LIFECYCLE = {
     temporarySubtypeChange:     { codec: "scalar",  reset: ["custom:zone-change"] },
     indefiniteSubtypeSet:       { codec: "scalar",  reset: ["custom:zone-change"] },
     enterAttackingTarget:       { codec: "scalar",  reset: NONE },
+    // Consumed by the entry's `applyEntersWithCounters`; carried across the
+    // entry reset by `stagedEntryAnswers`, like every other as-enters answer.
+    acceptedEntryCounters:      { codec: "record",  reset: ZONE },
     entersAsTypeLine:           { codec: "scalar",  reset: NONE },
     temporaryColorOverrides:    { codec: "list",    reset: ZONE },
     sourceTappedPTMods:         { codec: "list",    reset: ZONE },

@@ -1058,7 +1058,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Horsemanship",
         kind: "keyword-ability",
         cr: "702.31",
-        status: "planned",
+        status: "implemented",
+        binding: "horsemanship",
+        note: "combatRegistry.ts EvasionRule — attacker-keyed only: CR 702.31b lets a horsemanship creature block anything, so unlike Shadow it owes no blocker-keyed check in validateBlockerEligibility. The client's block affordance reads the same rule through card-utils.ts (isHorsemanshipBarred).",
     },
     // 702.32 Fading
     {
@@ -1744,13 +1746,17 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.97",
         status: "planned",
     },
-    // 702.98 Unleash
+    // 702.98 Unleash (issue #3998) — the "may" half expanded from the bare
+    // `staticAbilities: ["unleash"]` string at the `getDefinition` seam
+    // (`expandUnleash`, `convex/cards/abilities/unleash.ts`, ADR 0054).
     {
         id: "unleash",
         name: "Unleash",
         kind: "keyword-ability",
         cr: "702.98",
-        status: "planned",
+        status: "implemented",
+        binding: "unleash",
+        note: 'CR 702.98a — two static abilities. "You may have this permanent enter with an additional +1/+1 counter" is a replacement (CR 614.1c), so `expandUnleash` declares it as a `mayEnterWithCounters` as-enters choice: a copy owes it through the copied definition (CR 707.2), every entry path shares `applyEntersWithCounters`, and an ability-loss effect removes the offer and the counter (CR 613.1f). "This permanent can\'t block as long as it has a +1/+1 counter on it" is read by `validateBlockerEligibility` off the instance\'s keyword and counters, for a counter from any source. Definition-level for the first half, so `isDefinitionLevelKeyword` quarantines a compiled grant of unleash.',
     },
     // 702.99 Cipher
     {
@@ -1892,7 +1898,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Devoid",
         kind: "keyword-ability",
         cr: "702.114",
-        status: "planned",
+        status: "implemented",
+        binding: "devoid",
+        note: "CR 702.114a is a characteristic-defining ability read off the definition by `hasDevoid` (`cards/colors.ts`): `getCardColors` and `getEffectiveColors` report no printed colour in every zone, the mana cost stays payable.",
     },
     // 702.115 Ingest
     {

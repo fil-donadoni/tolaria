@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { encodeDescription } from "../lib/health-verdict-store";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PassRecord } from "../lib/afk-dispatch";
@@ -374,6 +375,101 @@ describe("redEpisodes — time to green against the target", () => {
         expect(last).toMatchObject({ greenAt: null, ownerFree: false });
         expect(last.hours).toBeCloseTo(0.255, 2);
         expect(redSummary(eps).standing).toBe(1);
+    });
+});
+
+describe("redEpisodes — contained hours apart from blocking hours (ADR 0163)", () => {
+    const node = (
+        oid: string,
+        at: string,
+        state: string,
+        description: string
+    ): HistoryNode => ({
+        oid,
+        committedDate: at,
+        status: { context: { state, description, createdAt: at } },
+    });
+    const contained = encodeDescription({
+        sha: "x",
+        status: "red",
+        redClass: "contained",
+        tests: ["a.test.ts"],
+    });
+    const blocking = encodeDescription({
+        sha: "x",
+        status: "red",
+        failure: "crash",
+    });
+    const green = encodeDescription({ sha: "x", status: "green" });
+    const day = (h: string) => `2026-10-19T${h}:00:00Z`;
+    const mixed = () =>
+        redEpisodes(
+            facts({
+                escalations: [],
+                history: [
+                    node("g2", day("20"), "success", green),
+                    node("r3", day("16"), "failure", blocking),
+                    node("r2", day("14"), "failure", contained),
+                    node("r1", day("12"), "failure", contained),
+                    node("g1", day("10"), "success", green),
+                ],
+            })
+        );
+
+    it("splits an episode with an escalation in the middle", () => {
+        const [e] = mixed();
+        expect(e).toMatchObject({
+            containedHours: 4,
+            blockingHours: 4,
+            escalations: 1,
+            hours: 8,
+        });
+    });
+
+    it("keeps contained and blocking REDs as one episode", () => {
+        const eps = mixed();
+        expect(eps).toHaveLength(1);
+        expect(eps[0].shas).toEqual(["r1", "r2", "r3"]);
+        expect(redSummary(eps)).toMatchObject({
+            episodes: 1,
+            containedHours: 4,
+            blockingHours: 4,
+            escalations: 1,
+        });
+    });
+
+    it("a RED with no class is all blocking", () => {
+        const [e] = redEpisodes(
+            facts({
+                escalations: [],
+                history: [
+                    node("g", day("14"), "success", green),
+                    node("r", day("12"), "failure", blocking),
+                ],
+            })
+        );
+        expect(e).toMatchObject({
+            containedHours: 0,
+            blockingHours: 2,
+            escalations: 0,
+        });
+    });
+
+    it("the weekly report prints both figures and the escalations", () => {
+        const t = weeklyTrends(
+            facts({
+                escalations: [],
+                history: [
+                    node("g2", day("20"), "success", green),
+                    node("r3", day("16"), "failure", blocking),
+                    node("r1", day("12"), "failure", contained),
+                    node("g1", day("10"), "success", green),
+                ],
+            })
+        );
+        expect(summaryMarkdown(t)).toContain(
+            "- hours contained / blocking: 4.0 / 4.0 — 1 escalation to blocking"
+        );
     });
 });
 

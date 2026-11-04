@@ -20,6 +20,7 @@ import {
     REVIEW_SKIPS_MAX,
     renderJson,
     runPlan,
+    provesTreeGreen,
     renderReceipt,
     executePlan,
     renderClassification,
@@ -1747,6 +1748,106 @@ describe("check-lane — execution (issue #2741)", () => {
             status: "fail",
             ms: 1,
             failedFiles: ["b.test.ts"],
+        });
+    });
+
+    describe("a Contained RED's names (ADR 0163 §4, issue #8076)", () => {
+        const known = "a.test.ts > known";
+        const tolerateKnown = (failed: readonly string[] | undefined) =>
+            failed?.length && failed.every((n) => n === known)
+                ? [...failed]
+                : null;
+        const failing = (failedTests?: string[]) => ({
+            ok: false,
+            ms: 1,
+            failedFiles: ["a.test.ts"],
+            ...(failedTests ? { failedTests } : {}),
+        });
+
+        it("a forgiven step passes, keeps its facts, and every later step still runs", () => {
+            const plan = classifyLane(["convex/gre/engine.ts"]);
+            const [first, ...rest] = plan.run;
+            const { exec, calls } = fakeExec({
+                [first.command]: failing([known]),
+                ...Object.fromEntries(
+                    rest.map((c) => [c.command, { ok: true, ms: 1 }])
+                ),
+            });
+            const result = runPlan(plan, exec, noopAssert, tolerateKnown);
+            expect(result.ok).toBe(true);
+            expect(calls).toHaveLength(plan.run.length);
+            expect(result.outcomes[0]).toEqual({
+                id: first.id,
+                status: "pass",
+                ms: 1,
+                failedFiles: ["a.test.ts"],
+                failedTests: [known],
+                tolerated: [known],
+            });
+        });
+
+        it("one unknown name reds the step, with failedFiles as today", () => {
+            const plan = classifyLane(["convex/gre/engine.ts"]);
+            const [first] = plan.run;
+            const { exec } = fakeExec({
+                [first.command]: failing([known, "a.test.ts > unknown"]),
+            });
+            const result = runPlan(plan, exec, noopAssert, tolerateKnown);
+            expect(result.ok).toBe(false);
+            expect(result.outcomes[0].status).toBe("fail");
+            expect(result.outcomes[0].failedFiles).toEqual(["a.test.ts"]);
+            expect(result.outcomes[0].tolerated).toBeUndefined();
+            expect(result.outcomes[1].status).toBe("not-run");
+        });
+
+        it("a failure with no names reds the step", () => {
+            const plan = classifyLane(["convex/gre/engine.ts"]);
+            const [first] = plan.run;
+            const { exec } = fakeExec({ [first.command]: failing() });
+            expect(runPlan(plan, exec, noopAssert, tolerateKnown).ok).toBe(
+                false
+            );
+        });
+
+        it("no tolerance given: a failure reds as today", () => {
+            const plan = classifyLane(["convex/gre/engine.ts"]);
+            const [first] = plan.run;
+            const { exec } = fakeExec({ [first.command]: failing([known]) });
+            const result = runPlan(plan, exec, noopAssert);
+            expect(result.ok).toBe(false);
+            expect(result.outcomes[0].status).toBe("fail");
+        });
+
+        it("the receipt prints each forgiven name", () => {
+            const receipt = renderReceipt(
+                {
+                    ok: true,
+                    totalMs: 1,
+                    outcomes: [
+                        {
+                            id: "vitest",
+                            status: "pass",
+                            ms: 1,
+                            tolerated: [known],
+                        },
+                    ],
+                },
+                { start: "h", end: "h" }
+            );
+            expect(receipt).toContain(`tolerated: ${known}`);
+        });
+
+        it("a forgiving run never stands as the tree's lane verdict", () => {
+            const outcome = { id: "v", status: "pass" as const, ms: 1 };
+            const green = { ok: true, totalMs: 1, outcomes: [outcome] };
+            expect(provesTreeGreen(green)).toBe(true);
+            expect(
+                provesTreeGreen({
+                    ...green,
+                    outcomes: [{ ...outcome, tolerated: [known] }],
+                })
+            ).toBe(false);
+            expect(provesTreeGreen({ ...green, ok: false })).toBe(false);
         });
     });
 

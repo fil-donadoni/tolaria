@@ -241,8 +241,8 @@ function creatureFor(req: TargetRequirement): CardDefinition | null {
 }
 
 /** The body a "creature with <keyword>" requirement is posed with when no
- *  catalogue creature carries the keyword (nothing prints horsemanship, CR
- *  702.31): a plain body that satisfies the rest of the requirement, with the
+ *  plain catalogue creature carries the keyword: a plain body that satisfies
+ *  the rest of the requirement, with the
  *  keyword GRANTED to it (CR 613.1f, layer 6), which is what a granted
  *  keyword is for. `null` when the requirement names no keyword or no body. */
 function grantedBody(

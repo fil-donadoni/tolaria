@@ -14,6 +14,7 @@ import type {
     StaticBlockRequirement,
 } from "../cards/types";
 import { blockRestrictionAllows } from "../cards/abilities/static/blockRestriction";
+import { unleashForbidsBlock } from "../cards/abilities/unleash";
 import { isProtectedFromSource } from "./protection";
 import { getEffectivePower, STATIC_EFFECT_CTX } from "./layers";
 import { tryGetDefinition } from "../cards";
@@ -842,6 +843,14 @@ export function validateBlockerEligibility(
         };
     }
 
+    // Pass 0a' — CR 702.98a: unleash on a creature with a +1/+1 counter.
+    if (unleashForbidsBlock(blocker)) {
+        return {
+            eligible: false,
+            reason: "This creature has unleash and a +1/+1 counter, so it can't block",
+        };
+    }
+
     // Pass 0b — attacker "can't be blocked this turn" flag (CR 509.1b). Set on
     // the attacker by Tawnos's Wand; rejects every would-be blocker.
     if (attacker.cantBeBlockedThisTurn) {
@@ -888,7 +897,7 @@ export function validateBlockerEligibility(
 
     // Pass 1 — keyword-level evasion (registry-driven).
     // Covers: unblockable (509.1b), landwalk (702.13b), fear (702.36b),
-    // flying (702.9b), shadow (702.28b).
+    // flying (702.9b), shadow (702.28b), horsemanship (702.31b).
     const keywordResult = evaluateBlockerKeywords(
         attacker,
         blocker,

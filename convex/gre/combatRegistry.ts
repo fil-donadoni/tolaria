@@ -180,6 +180,19 @@ const SHADOW_RULE: EvasionRule = {
     reason: "Attacker has shadow — only creatures with shadow can block it",
 };
 
+// CR 702.31b — Horsemanship: "A creature with horsemanship can't be blocked by
+// creatures without horsemanship. A creature with horsemanship can block a
+// creature with or without horsemanship." One-directional, so this attacker-keyed
+// entry is the whole rule; `includes` makes multiple instances redundant
+// (CR 702.31c).
+const HORSEMANSHIP_RULE: EvasionRule = {
+    keyword: "horsemanship",
+    cr: "702.31b",
+    canBlock: (_attacker, blocker) =>
+        blocker.staticAbilities.includes("horsemanship"),
+    reason: "Attacker has horsemanship — only creatures with horsemanship can block it",
+};
+
 export const EVASION_RULES: readonly EvasionRule[] = [
     UNBLOCKABLE_RULE,
     ...LANDWALK_RULES,
@@ -188,6 +201,7 @@ export const EVASION_RULES: readonly EvasionRule[] = [
     FEAR_RULE,
     FLYING_RULE,
     SHADOW_RULE,
+    HORSEMANSHIP_RULE,
 ];
 
 // ---------------------------------------------------------------------------

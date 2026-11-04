@@ -39,6 +39,7 @@ import {
 } from "./abilities/impending";
 import { expandHideaway } from "./abilities/hideaway";
 import { expandKeywordTriggers } from "./abilities/keywordTriggers";
+import { expandUnleash } from "./abilities/unleash";
 import { expandChapterAbilities } from "./abilities/sagas";
 import { expandClassLevelBars } from "./abilities/classLevels";
 import { expandCompiledStatics } from "./compiledStatics";
@@ -57,7 +58,8 @@ import {
 import { meldedManaValueCost, meldResultTwinDefinition } from "./meld";
 import { SPLIT_HALF_SIDES, splitHalfTwinDefinition } from "./splitCard";
 import { parentIdOfTwin } from "./twinId";
-import { setCardManaCostLookup } from "./manaCostLookup";
+import { hasDevoid } from "./colors";
+import { setColorDefiningCostLookup } from "./manaCostLookup";
 import { setCardSupertypeLookup } from "./supertypeLookup";
 
 // ADR 0046 — Single registry seam. `getDefinition`/`tryGetDefinition` are the
@@ -675,8 +677,9 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
             )
         )
     );
-    expansionCache.set(base, expanded);
-    return expanded;
+    const withUnleash = expandUnleash(expanded);
+    expansionCache.set(base, withUnleash);
+    return withUnleash;
 };
 
 // Issue #4165 (PRD #4161) — the LAZY source behind the resident map. When
@@ -828,10 +831,14 @@ export const tryGetDefinition = (cardId: string): CardDefinition | null => {
     return card ? expandDefinition(card) : null;
 };
 
-// Break the set-module ↔ registry import cycle: inject a manaCost lookup into
-// the (cycle-free) colors module so set runtime code can derive an opponent
-// permanent's colours from its slim `{ id }` reference (Jihad — CR 202.2).
-setCardManaCostLookup((cardId) => tryGetDefinition(cardId)?.manaCost);
+// Break the set-module ↔ registry import cycle: inject a colour-defining cost
+// lookup into the (cycle-free) lookup module so set runtime code can derive an
+// opponent permanent's colours from its slim `{ id }` reference (Jihad — CR
+// 202.2). A devoid card's cost defines no colour (CR 702.114a).
+setColorDefiningCostLookup((cardId) => {
+    const def = tryGetDefinition(cardId);
+    return def && !hasDevoid(def) ? def.manaCost : undefined;
+});
 // CR 205.4a — inject the printed-supertype lookup so snow-matters predicates
 // resolve live snow status off a slim `{ id }` reference (cycle-free).
 setCardSupertypeLookup((cardId) => tryGetDefinition(cardId)?.supertypes);

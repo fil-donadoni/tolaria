@@ -66,6 +66,11 @@ import {
     type RunResult,
 } from "./check-lane";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
+import {
+    laneStepFailedTests,
+    liveContainedTolerance,
+    type ContainedTolerance,
+} from "./lib/contained-tolerance";
 import { pureRevertOf } from "./lib/revert-restores";
 import {
     buildReceipt,
@@ -157,6 +162,9 @@ export interface PreQueueDeps {
     /** A body/diff refusal already stands (no escape): the tests cannot change
      *  the outcome, so the costly tier is not run (issue #6620). */
     skipCostly?: boolean;
+    /** What a Contained RED forgives (ADR 0163 §4): the lane's own function,
+     *  since this runs the lane's plan. Absent, a failure is a failure. */
+    tolerate?: ContainedTolerance;
 }
 
 /** The step id reported when the derived state could not be rebuilt. */
@@ -229,12 +237,18 @@ export function runPreQueue(deps: PreQueueDeps): {
                 { ...deps.plan, run: costly },
                 (command) => {
                     const r = deps.exec(command);
-                    outputs.set(command, r.output ?? "");
-                    return r;
+                    const output = r.output ?? "";
+                    outputs.set(command, output);
+                    if (r.ok) return r;
+                    const failedTests = laneStepFailedTests(command, output);
+                    return failedTests ? { ...r, failedTests } : r;
                 },
-                () => undefined
+                () => undefined,
+                deps.tolerate
             );
             for (const o of rest.outcomes) {
+                for (const name of o.tolerated ?? [])
+                    deps.log(`land:ready: tolerated: ${name}`);
                 const c = costly.find((k) => k.id === o.id);
                 if (
                     o.status === "fail" &&
@@ -695,6 +709,7 @@ function preQueueGate(
         added: addedPaths(ORIGIN_BASE, cwd),
         exec: (command) => execLight(command, cwd, role),
         log: console.log,
+        tolerate: liveContainedTolerance(cwd, console.error),
         regenerate: () =>
             execLight("bun run derive:regenerate", cwd, "draft").ok,
         restore: () => {

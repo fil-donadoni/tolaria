@@ -1792,6 +1792,10 @@ export type CardInstanceState = {
      *  defender that is no longer a live planeswalker or battle a defending
      *  player has (CR 506.3c / 508.4a). */
     enterAttackingTarget?: string;
+    /** CR 614.1c — the counters an accepted `mayEnterWithCounters` as-enters
+     *  answer owes this object as it enters. Lives only between the answer and
+     *  the entry's `applyEntersWithCounters`, which consumes it. */
+    acceptedEntryCounters?: Record<string, number>;
     /** CR 702.103b — true iff this object is currently BESTOWED: it was cast
      *  for its Bestow cost and has not yet ceased to be bestowed
      *  (CR 702.103e–g). Set on the stack item at cast commit
@@ -5973,6 +5977,7 @@ export interface MonarchReturnWatch {
  *  → the player's life are untouched by the reset. JSON-pure: it rides a
  *  persisted `PendingChoice` (`landEntryAnswers`). */
 export type StagedEntryAnswers = {
+    acceptedEntryCounters?: Record<string, number>;
     attachedTo?: string;
     chosenName?: string;
     chosenSubtypes?: string[];

@@ -27,8 +27,8 @@
 // `./registry`, not the `.` barrel: `compiledTriggers.ts` (which `registry.ts`
 // itself imports) reads colours through this module, and the barrel would
 // evaluate the catalogue before the registry it preloads into exists.
-import { getInstanceManaCost } from "./registry";
-import { getColorsFromCost } from "./colors";
+import { getInstanceManaCost, tryGetDefinition } from "./registry";
+import { getColorsFromCost, hasDevoid } from "./colors";
 import type { Color, PermanentView } from "./types";
 
 /** The instance-side layer-5 fields. Declared structurally rather than
@@ -47,6 +47,8 @@ type ColorLayerFields = {
  *       other derivation, so a laced permanent is EXACTLY those colours.
  *    2. otherwise, the printed cost's colours (embedded `card.manaCost` when
  *       present, else the registry definition) UNIONED with `grantedColors`.
+ *       A devoid definition contributes no printed colour (CR 702.114a), and a
+ *       grant still paints on top of it (CR 613.3: CDAs apply first in a layer).
  *
  *  A permanent with no cost and no grant (a land) is colourless: an empty
  *  array. Never returns duplicates. */
@@ -58,7 +60,12 @@ export function getEffectiveColors(card: PermanentView): Color[] {
     // (CR 707.2 "except it has no mana cost" — an Eternalize token, whose cost
     // therefore contributes NO colour) → embedded fixture cost → registry
     // definition.
-    const base = getColorsFromCost(getInstanceManaCost(card));
+    const id = (card.card as { id?: string }).id;
+    const def = id ? tryGetDefinition(id) : undefined;
+    const base =
+        def && hasDevoid(def)
+            ? []
+            : getColorsFromCost(getInstanceManaCost(card));
     const granted = layers.grantedColors;
     if (!granted?.length) return base;
     const all = new Set<Color>(base);

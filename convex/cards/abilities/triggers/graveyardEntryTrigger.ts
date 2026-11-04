@@ -18,7 +18,7 @@
 // graveyard only until the next state-based check), and — when the words name
 // a colour — must have that colour by its own mana cost there (CR 202.2).
 
-import { manaCostForCardId } from "../../manaCostLookup";
+import { colorDefiningCostForCardId } from "../../manaCostLookup";
 import { getColorsFromCost } from "../../colors";
 import type {
     Color,
@@ -145,7 +145,9 @@ export function graveyardEntryTrigger(
             if (colors !== undefined) {
                 const cardId = raw.card?.id;
                 if (cardId === undefined) return false;
-                const have = getColorsFromCost(manaCostForCardId(cardId));
+                const have = getColorsFromCost(
+                    colorDefiningCostForCardId(cardId)
+                );
                 if (!colors.some((c) => have.includes(c))) return false;
             }
             return condition === undefined || condition(event, self, state);

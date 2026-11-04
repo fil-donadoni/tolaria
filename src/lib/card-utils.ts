@@ -320,6 +320,18 @@ export function isLandwalkUnblockable(
     return false;
 }
 
+/** CR 702.31b — `attacker` has horsemanship and `blocker` does not, so this
+ *  pair is no legal block. Mirrors the server's `HORSEMANSHIP_RULE`. */
+export function isHorsemanshipBarred(
+    attacker: CardInstance,
+    blocker: CardInstance
+): boolean {
+    return (
+        (attacker.staticAbilities?.includes("horsemanship") ?? false) &&
+        !(blocker.staticAbilities?.includes("horsemanship") ?? false)
+    );
+}
+
 /** CR 305.6 — does this permanent have an intrinsic basic-land mana ability
  *  (one per basic land type)? The engine's own probe (`hasBasicLandMana`), so
  *  the board reads the same text-change-aware subtypes the server taps by and

@@ -889,7 +889,9 @@ export function botReachSpec(
 ): ScenarioSpec {
     const isLand = def.types.includes("Land");
     const landCount = isLand ? 1 : manaValue(def.manaCost) + EXTRA_LANDS;
-    const cycle = basicLandsForColors(getCardColors(def));
+    // The lands that CAST it: its cost's colours, which CR 702.114a devoid leaves
+    // standing even though the card itself is colourless.
+    const cycle = basicLandsForColors(getColorsFromCost(def.manaCost));
     const cards: ScenarioCard[] = [];
     for (let i = 0; i < landCount; i++) {
         cards.push({
