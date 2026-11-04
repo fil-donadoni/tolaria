@@ -355,12 +355,17 @@ function argOf(argv: string[], flag: string): string | undefined {
     return i >= 0 ? argv[i + 1] : undefined;
 }
 
-/** The job-summary lines for what a green lane's JSON forgave: the flakes
- *  (`--retry-flaky`) and the tests a Contained RED tolerated by name (ADR 0163
- *  §4). Empty when it recorded neither. Test names and counts only. */
+/** The job-summary lines for what a lane's JSON recorded: the steps that
+ *  FAILED with the tests and files they named (issue #8180: a 400 KB log can
+ *  lose them), the flakes (`--retry-flaky`) and the tests a Contained RED
+ *  tolerated by name (ADR 0163 §4). Empty when it recorded none. Test names
+ *  and counts only. */
 export function flakeSummary(lane: {
     outcomes?: {
         id: string;
+        status?: string;
+        failedTests?: string[];
+        failedFiles?: string[];
         flake?: { projects: string[]; files: string[]; cause: string };
         tolerated?: string[];
     }[];
@@ -368,7 +373,22 @@ export function flakeSummary(lane: {
     const outcomes = lane.outcomes ?? [];
     const rows = outcomes.filter((o) => o.flake);
     const tolerated = outcomes.flatMap((o) => o.tolerated ?? []);
+    const failed = outcomes.filter((o) => o.status === "fail");
     return [
+        ...(failed.length > 0
+            ? [
+                  "### Failed steps — what the lane could name",
+                  ...failed.flatMap((o) => [
+                      `- \`${o.id}\``,
+                      ...(o.failedTests?.length
+                          ? o.failedTests.map((t) => `    - test: ${t}`)
+                          : (o.failedFiles ?? []).map(
+                                (f) => `    - file: ${f}`
+                            )),
+                  ]),
+                  "",
+              ]
+            : []),
         ...(rows.length > 0
             ? [
                   "### Flaky tests — failed once, green on the re-run",

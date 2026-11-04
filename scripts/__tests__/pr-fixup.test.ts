@@ -233,6 +233,24 @@ describe("fixupRefusal", () => {
 });
 
 describe("flakeSummary", () => {
+    it("names the tests a failed step carried, else its files (issue #8180)", () => {
+        const text = flakeSummary({
+            outcomes: [
+                {
+                    id: "vitest",
+                    status: "fail",
+                    failedTests: ["a.test.ts > x"],
+                    failedFiles: ["a.test.ts"],
+                },
+                { id: "other", status: "fail", failedFiles: ["b.test.ts"] },
+                { id: "ok", status: "pass", failedFiles: ["c.test.ts"] },
+            ],
+        });
+        expect(text).toContain("- test: a.test.ts > x");
+        expect(text).toContain("- file: b.test.ts");
+        expect(text).not.toContain("c.test.ts");
+    });
+
     it("prints each name a Contained RED tolerated (ADR 0163 §4, issue #8076)", () => {
         const text = flakeSummary({
             outcomes: [

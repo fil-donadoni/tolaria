@@ -93,6 +93,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BLADE_INDEX_DRIFT_TEST } from "./lib/blade-card-index";
 import { ORIGIN_BASE } from "./lib/branches";
+import { writeSyncAll } from "./lib/write-sync";
 import { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
 import { LEDGER_PATH } from "./lib/cr-ledger-path";
 import {
@@ -2491,7 +2492,11 @@ export function shellRunRetrying(
         return shellRunCapturing(command, cwd, json);
     }
     const t0 = Date.now();
-    const sink = json ? process.stderr : process.stdout;
+    // Synchronous (issue #8180): the replay can be megabytes, and the
+    // `process.exit` that ends the lane drops an async pipe's backlog.
+    const sink = {
+        write: (text: string): void => writeSyncAll(json ? 2 : 1, text),
+    };
     const capture = (
         cmd: string
     ): { ok: boolean; out: string; signal: boolean } => {
