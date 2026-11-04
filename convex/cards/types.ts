@@ -16181,7 +16181,18 @@ export type EffectForEachSelector =
      *  binds `$each` as an exile-card snapshot; the body names its zone
      *  (`moveZone { target: { ref: "$each" }, from: "exile", … }`). Owners in
      *  APNAP order. No filter: no printed line narrows the linked pile yet. */
-    | { set: "exiledWithSource" };
+    | { set: "exiledWithSource" }
+    /** Iterate the body `count` times (issue #1368) — "add one mana of any
+     *  color for each charge counter removed this way" (Coalition Relic),
+     *  "add two mana in any combination of colors" (Manamorphose): N
+     *  independent repetitions of the same instruction, each with its own
+     *  choice. `count` is evaluated ONCE at construct entry and frozen
+     *  (CR 608.2h), so a body that changes what `count` reads cannot change
+     *  how many iterations run; a non-positive or unresolvable count runs
+     *  none. The members are iteration indices, never game objects: `$each`
+     *  is NOT bound in this variant, and the validator rejects a body that
+     *  reads it. */
+    | { set: "times"; count: EffectValue };
 
 /** The candidate set a `vote` Op's players vote among (CR 701.38b — "the
  *  listed choices may be objects"): exactly the `forEach` PERMANENTS selector,
@@ -17872,13 +17883,25 @@ export type EffectOp =
      *  (a literal, a bound object's power/toughness `ref`, or a `count`).
      *  Skipped when the referenced permanent is gone (CR 608.2b — the spell
      *  does as much as it can); `removeCounter` additionally clamps to the
-     *  counters actually present. */
+     *  counters actually present.
+     *
+     *  `bindCount` (issue #1368) names a NUMBER binding holding how many
+     *  counters the Op ACTUALLY put or removed — "remove all charge counters
+     *  from this artifact. Add one mana of any color for each charge counter
+     *  removed this way" (Coalition Relic). A later `{ counters }` value
+     *  cannot recount them: the removal has already happened. A remove binds
+     *  the clamped count `removeCounter` reports (CR 609.3 — a permanent with
+     *  none binds 0, a legal count); an add binds the difference the
+     *  placement made (CR 614.16 counter-placement replacements included). A
+     *  skipped Op (target gone, count unresolvable) leaves it uncaptured.
+     *  Same field and family as `moveZone.bindCount`. */
     | {
           op: "counters";
           action: "add" | "remove";
           counter: string;
           target: EffectObjectSelector;
           count: EffectValue;
+          bindCount?: string;
       }
     /** CR 716.2a (issue #3234) — set a permanent's LEVEL: "this Class's level
      *  becomes N". A thin declarative skin over the SpellContext primitive

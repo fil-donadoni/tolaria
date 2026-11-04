@@ -13138,6 +13138,14 @@
         "firstPrintSet": "apc"
     },
     {
+        "name": "Coalition Relic",
+        "scryfallId": "7a7c98b0-d64d-4d0a-b284-1187a8e7095e",
+        "oracleId": "008cb342-79f5-4df6-a6b7-0e9e22ed693f",
+        "firstSet": "fut",
+        "firstPrintId": "7a7c98b0-d64d-4d0a-b284-1187a8e7095e",
+        "firstPrintSet": "fut"
+    },
+    {
         "name": "Coalition Victory",
         "scryfallId": "dd8ad3aa-3225-45ae-8343-5991f5b52269",
         "oracleId": "e9e25800-9ee7-40c9-b22d-611c7281c125",
@@ -43767,6 +43775,14 @@
         "firstPrintSet": "m12",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Manamorphose",
+        "scryfallId": "50283122-b8c4-4fb3-8eba-6252b72222f4",
+        "oracleId": "89c83a6d-f6c8-4984-a888-0db62dfb93b1",
+        "firstSet": "shm",
+        "firstPrintId": "50283122-b8c4-4fb3-8eba-6252b72222f4",
+        "firstPrintSet": "shm"
     },
     {
         "name": "Mandibular Kite",
