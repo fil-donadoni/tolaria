@@ -4556,8 +4556,18 @@
         },
         {
             "kind": "scenario",
+            "key": "validate-effect-script › Aegis Sculptor ability \"aegis-sculptor-trigger\": effects[1]: then[1]: Op \"moveZone\" field \"bind\" is only valid with \"cards\" and to: \"battlefield\"",
+            "issue": 8035
+        },
+        {
+            "kind": "scenario",
             "key": "validate-effect-script › Elfhame Sanctuary ability \"elfhame-sanctuary-trigger\": effects[1]: then[2]: Op \"moveZone\" field \"bind\" is only valid with \"cards\" and to: \"battlefield\"",
             "issue": 7484
+        },
+        {
+            "kind": "scenario",
+            "key": "validate-effect-script › Emeritus of Ideation ability \"emeritus-of-ideation-trigger\": effects[1]: then[1]: Op \"moveZone\" field \"bind\" is only valid with \"cards\" and to: \"battlefield\"",
+            "issue": 8034
         },
         {
             "kind": "scenario",
