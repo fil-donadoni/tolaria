@@ -11,6 +11,8 @@ import {
     holdAdmitsRepairs,
     holdFor,
     holdReleases,
+    isLostRun,
+    PASS_RECORD_UPLOAD_STEP,
     hostOfRunnerName,
     livePassIssues,
     repairAttempted,
@@ -1145,5 +1147,59 @@ describe("repairs under a hold (issue #6652)", () => {
             repairs
         );
         expect(plan.dispatch.map((d) => d.issue)).toEqual([11]);
+    });
+});
+
+describe("afk-dispatch lost runs (issue #8062)", () => {
+    const step = (name: string, conclusion: string | null) => ({
+        name,
+        conclusion,
+    });
+    // A runner that lost contact: the job's steps never concluded.
+    const LOST = [
+        [
+            step("Set up job", "success"),
+            step("Run the pass", null),
+            step(PASS_RECORD_UPLOAD_STEP, null),
+        ],
+    ];
+    // A live runner whose pass failed: the always-run upload concluded.
+    const FAILED_ALIVE = [
+        [
+            step("Run the pass", "failure"),
+            step(PASS_RECORD_UPLOAD_STEP, "success"),
+        ],
+    ];
+
+    it("a run lost with its runner is lost; a failed pass on a live runner is not", () => {
+        expect(isLostRun(LOST)).toBe(true);
+        expect(isLostRun(FAILED_ALIVE)).toBe(false);
+    });
+
+    it("a run with no job read is unknown, never lost", () => {
+        expect(isLostRun([])).toBe(false);
+    });
+
+    it("lost runs add no unreadable record: no records-unknown hold, a pass slot stays free", () => {
+        // passRecords counts a lost run in `lost`, not `missing`.
+        expect(holdFor(holdInput({ missingRecords: 0 }))).toBeNull();
+        const slots = passSlots(
+            [
+                runner("mbp-pass-1", "mbp"),
+                runner("hw-pass-1", "hw", { status: "offline" }),
+            ],
+            "mbp-pass-1",
+            []
+        );
+        expect(slots.free).toEqual(["mbp"]);
+    });
+
+    it("a record that exists but cannot be read still holds records-unknown", () => {
+        // The upload step concluded: a record was uploaded, so the run is
+        // not lost and the unreadable record stays an unknown fact.
+        expect(isLostRun(FAILED_ALIVE)).toBe(false);
+        expect(holdFor(holdInput({ missingRecords: 1 }))?.kind).toBe(
+            "records-unknown"
+        );
     });
 });
