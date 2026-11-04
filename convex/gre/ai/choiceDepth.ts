@@ -26,12 +26,17 @@ import { childOpArrays } from "./effectOpChildren";
 /** Bound on nested/chained mover-owned resolution choices one probe may answer.
  *
  *  MEASURED, not assumed: `catalogueChoiceDepth` over the shipped catalogue
- *  reports 5 (Word of Command's protocol closure), then 3 (8 cards: Ponder,
+ *  reports 6 (Word of Command's protocol closure: spell, face, mode, X,
+ *  sacrifice, target), then 3 (8 cards: Ponder,
  *  Frantic Search, Sylvan Library, Transmute Artifact, Archon of Cruelty,
  *  Krovikan Sorcerer, Smuggler's Copter, Malcolm) and 2 (77 cards, Vision
  *  Charm's land-type mode among them). `choiceDepth.bot.test.ts` re-derives that number and fails when
- *  a card exceeds this bound. */
-export const MAX_CHOICE_DEPTH = 5;
+ *  a card exceeds this bound.
+ *
+ *  The raise from 5 to 6 (issue #7929, the mini-cast's face announcement) is
+ *  a cost decision taken here: it spends no extra work, because every probe
+ *  stays capped by `MAX_CHOICE_BRANCH_WORK` below, which did not move. */
+export const MAX_CHOICE_DEPTH = 6;
 
 /** Bound on the branch expansions ONE probe may spend, across every depth.
  *
@@ -44,7 +49,7 @@ export const MAX_CHOICE_DEPTH = 5;
  *  and answers "not provably futile"/"best of what was seen", which is the
  *  fail-open direction both callers already take at the cap. 128 keeps Vision
  *  Charm's 5 x 5 = 30-branch shape well inside the budget while leaving Word of
- *  Command's five-deep chain unproven, exactly as it was at depth 1. */
+ *  Command's six-deep chain unproven, exactly as it was at depth 1. */
 export const MAX_CHOICE_BRANCH_WORK = 128;
 
 /** Does interpreting this Op suspend resolution on a player CHOICE?
@@ -247,7 +252,7 @@ export function scriptChoiceDepth(effects: readonly EffectOp[]): number {
  *  hatch: `resolve` / `resolveSteps` / `effect`). Counted from the closure's own
  *  SOURCE, which is neither a clean upper nor lower bound and should not be
  *  read as one: it OVER-counts a closure whose calls sit on mutually exclusive
- *  branches (Word of Command's 5) and UNDER-counts one that delegates its
+ *  branches (Word of Command's 6) and UNDER-counts one that delegates its
  *  request to a helper. It is a static approximation, deliberately on the
  *  loud side — there is no way to see a `resolve()` card's choices without
  *  running it, and running it needs a position. */

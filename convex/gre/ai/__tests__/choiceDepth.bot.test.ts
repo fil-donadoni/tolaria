@@ -75,7 +75,7 @@ describe("resolution-choice depth", () => {
     it("bounds the WORK a probe may spend, not only its depth", () => {
         // The two bounds answer different questions (a catalogue fact vs. a
         // cost decision). Without the second, raising the first multiplies:
-        // `MAX_CHOICE_BRANCHES ^ MAX_CHOICE_DEPTH` is 32768 at depth 5.
+        // `MAX_CHOICE_BRANCHES ^ MAX_CHOICE_DEPTH` is 262144 at depth 6.
         expect(MAX_CHOICE_BRANCH_WORK).toBeLessThan(8 ** MAX_CHOICE_DEPTH);
         // …and it must still admit the shape that motivated the raise: Vision
         // Charm opens 5 first-level branches, each with 5 of its own.

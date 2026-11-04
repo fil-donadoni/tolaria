@@ -1579,10 +1579,24 @@ export const wordOfCommand = defineCard(() => ({
         // (so the choiceIds must be stable). Any pick that is unmeetable from
         // the opponent's resources means the card is NOT played ("if able").
 
+        // FACE (CR 709.3 / 712.11b / 715.3) — a split half, an Adventure or a
+        // modal back face is announced first: every decision below is asked of
+        // that subject alone. Nothing castable → not played ("if able").
+        const face = ctx.requestCastFace({
+            chooserId: controllerId,
+            casterId: opponentId,
+            cardInstanceId: chosenId,
+            sourceZone: "hand",
+            choiceId: `${controllerId}:face`,
+        });
+        if (face === undefined) return; // suspend — resume on submit
+        if (!face.cast) return;
+        const faceId = face.alternativeCostId;
+
         // MODE (#579, CR 700.2c) — for a modal spell the controller chooses
         // exactly one mode; its target requirement and resolution drive the
         // rest of the cast (CR 700.2d). Non-modal cards return an empty list.
-        const modes = ctx.getCardModes(opponentId, chosenId);
+        const modes = ctx.getCardModes(opponentId, chosenId, faceId);
         let chosenModeId: string | undefined;
         if (modes.length > 0) {
             const pickedMode = ctx.requestOptionChoice({
@@ -1602,11 +1616,12 @@ export const wordOfCommand = defineCard(() => ({
         // cannot pay are not offered, so "if able" falls out — if even X=0 is
         // unpayable, `castChosenSpell` below returns false and nothing happens.
         let chosenX: number | undefined;
-        if (ctx.cardHasXCost(opponentId, chosenId)) {
+        if (ctx.cardHasXCost(opponentId, chosenId, faceId)) {
             const maxX = ctx.getMaxAffordableX(
                 opponentId,
                 chosenId,
-                chosenModeId
+                chosenModeId,
+                faceId
             );
             const xOptions = Array.from({ length: maxX + 1 }, (_, n) => ({
                 id: String(n),
@@ -1631,7 +1646,11 @@ export const wordOfCommand = defineCard(() => ({
         // Issue #3808 — the cost's COUNT rides with its filter ("sacrifice
         // five lands", Gaea's Balance): naming such a card must charge all
         // five of the opponent's lands, not one of them.
-        const sacrificeCost = ctx.getCardSacrificeCost(opponentId, chosenId);
+        const sacrificeCost = ctx.getCardSacrificeCost(
+            opponentId,
+            chosenId,
+            faceId
+        );
         let additionalSacrificeIds: string[] | undefined;
         if (sacrificeCost) {
             const candidateIds = ctx.getBattlefieldIds(
@@ -1673,9 +1692,10 @@ export const wordOfCommand = defineCard(() => ({
             ? ctx.getCardModeTargetRequirement(
                   opponentId,
                   chosenId,
-                  chosenModeId
+                  chosenModeId,
+                  faceId
               )
-            : ctx.getCardTargetRequirement(opponentId, chosenId);
+            : ctx.getCardTargetRequirement(opponentId, chosenId, faceId);
         let chosenTargets: TargetSelection[] | undefined;
         if (targetReq) {
             // This slice supports single-target spells (count 1); multi-target
@@ -1683,7 +1703,8 @@ export const wordOfCommand = defineCard(() => ({
             const legal = ctx.getLegalTargetsForCard(
                 opponentId,
                 chosenId,
-                targetReq
+                targetReq,
+                faceId
             );
             if (legal.length === 0) return; // no legal target — not played
 
@@ -1727,6 +1748,7 @@ export const wordOfCommand = defineCard(() => ({
             chosenX,
             chosenModeIds: chosenModeId ? [chosenModeId] : undefined,
             additionalSacrificeIds,
+            ...(faceId !== undefined ? { alternativeCostId: faceId } : {}),
         });
     },
 }));
