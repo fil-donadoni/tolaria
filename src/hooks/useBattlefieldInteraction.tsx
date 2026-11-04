@@ -33,7 +33,9 @@ import {
     matchesPermanentTargetFilters,
     isTapLockedBySummoningSickness,
     manaActivationRequiresTap,
+    clickTapsSubstituteForMana,
     hasManaAbility,
+    matchesPermanentFilter,
     pendingCastHasImprovise,
     displayCardId,
 } from "~/lib/card-utils";
@@ -54,6 +56,7 @@ import {
 } from "~/lib/pending-intent-store";
 import {
     canPayTapOtherCost,
+    genericSubstitutionsLeft,
     isTapOtherChoicePaid,
     isTapOtherPickForced,
     isTapOtherSelectionComplete,
@@ -512,7 +515,33 @@ export function useBattlefieldInteraction(player: Player) {
         !!pendingActivation &&
         pendingActivation.playerId === playerId &&
         !!pendingActivation.tapOtherChoice &&
+        pendingActivation.tapOtherChoice.substitutesGeneric === undefined &&
         !isTapOtherChoicePaid(pendingActivation.tapOtherChoice);
+
+    // CR 701.67a — the generic-substitution picker is NOT modal: the mana leg
+    // stays payable beside it, so only a candidate is routed to the pick, and
+    // only when tapping it for mana is not the better click.
+    const isSubstitutingGeneric =
+        isMe &&
+        !!pendingActivation &&
+        pendingActivation.playerId === playerId &&
+        !!pendingActivation.tapOtherChoice &&
+        genericSubstitutionsLeft(
+            pendingActivation.tapOtherChoice,
+            pendingActivation.manaCost
+        ) > 0;
+    const clickPaysGenericByTap = (card: CardInstance) => {
+        const toc = pendingActivation?.tapOtherChoice;
+        return (
+            isSubstitutingGeneric &&
+            !!toc &&
+            !card.isTapped &&
+            card.id !== pendingActivation?.cardInstanceId &&
+            !toc.pickedIds.includes(card.id) &&
+            matchesPermanentFilter(card, toc.filter, controlContinuity) &&
+            !clickTapsSubstituteForMana(card, manaGateView, allPlayers)
+        );
+    };
 
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&
@@ -632,7 +661,7 @@ export function useBattlefieldInteraction(player: Player) {
             return;
         }
 
-        if (isPickingActivationCost) {
+        if (isPickingActivationCost || clickPaysGenericByTap(card)) {
             guardMutation(
                 selectActivationCost({
                     gameId,
@@ -900,7 +929,8 @@ export function useBattlefieldInteraction(player: Player) {
             // keeps the picker path below.
             ((isPickingSacrifice ||
                 isPickingAdditionalCost ||
-                isPickingActivationCost) &&
+                isPickingActivationCost ||
+                clickPaysGenericByTap(card)) &&
                 canInteract(card))
         ) {
             handleClick(card);
@@ -1461,6 +1491,7 @@ export function useBattlefieldInteraction(player: Player) {
         isPickingSacrifice ||
         isPickingAdditionalCost ||
         isPickingActivationCost ||
+        isSubstitutingGeneric ||
         !!manaTapOtherPick;
 
     return {

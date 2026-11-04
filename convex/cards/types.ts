@@ -1735,11 +1735,18 @@ export interface ActivatedAbility {
          *   - `totalPower` — "tap ANY NUMBER … with total power N or greater"
          *     (CR 702.122a, Crew N). The pick set is unbounded in size and the
          *     cost is paid once the picks' summed EFFECTIVE power (plus each
-         *     creature's `crewPowerBonus`, CR 702.122b) reaches N. */
+         *     creature's `crewPowerBonus`, CR 702.122b) reaches N.
+         *   - `substitutesGeneric` — "for each generic mana in that cost, you
+         *     may tap an untapped artifact or creature you control rather than
+         *     pay that mana" (CR 701.67a, Waterbend). Optional and partial:
+         *     each pick pays one generic pip of `mana`, up to this cap, which is
+         *     the waterbend cost's own generic mana (CR 701.67b). Authored
+         *     through `waterbendCost`. */
         tapOtherFilter?: {
             filter: PermanentFilter;
             count?: number;
             totalPower?: number;
+            substitutesGeneric?: number;
         };
         /** Life payment (CR 119.4). Legal while `player.life >= life`; SBA
          *  handles the loss if payment takes life to 0 or below. */

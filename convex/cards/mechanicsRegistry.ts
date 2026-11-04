@@ -2693,6 +2693,19 @@ const ABILITY_WORDS: MechanicRow[] = [
  *  set-wide; a row still stays here rather than migrating array on that
  *  basis alone.) */
 const SET_KEYWORDS: MechanicRow[] = [
+    // Waterbend {N} — TLA, a CR 701 keyword action paid as a cost. Never on a
+    // permanent's keyword line, so `bindingPattern` documents the name only.
+    {
+        id: "waterbend",
+        name: "Waterbend",
+        kind: "keyword-action",
+        cr: "701.67",
+        status: "implemented",
+        bindingPattern: /^waterbend \d+$/i,
+        binding:
+            "waterbendCost (cards/abilities/waterbend.ts) → cost.tapOtherFilter.substitutesGeneric",
+        note: 'CR 701.67a: "\'Waterbend [cost]\' means \'Pay [cost]. For each generic mana in that cost, you may tap an untapped artifact or creature you control rather than pay that mana.\'" Rides the tap-other picker (`PendingActivation.tapOtherChoice`, `selectActivationCost`, `gre/tapOtherCost.ts`) in a third shape that owes nothing of its own, so it never parks the commit: that is the "may". Each pick decrements the generic leg of `PendingActivation.manaCost`, so coverage, the CR 601.2g park, payment, auto-tap and the Bot read the reduced cost unchanged; the tap itself waits for commit, so a cancel taps nothing, and it is not a mana ability (CR 605.1a). CR 701.67b: `substitutesGeneric` is the cap, the generic in the waterbend cost alone, also bounded by the generic still owed. A picked permanent is refused as a mana source and hidden from auto-tap. CLIENT: the picker is not modal, lands stay clickable; a click on a candidate with a free mana ability taps it for mana (at least the same pip, and a Sol Ring pays more), any other candidate is a pick. BOT: `planGenericSubstitution` takes the fewest taps that fund the rest. DEVIATION: mana already floating is spent first, because commit fires the moment the pool covers what is left, so a player cannot tap instead to keep floating mana (tracked-by: #3550). CR 701.67c ("whenever a player waterbends") is N/A: no card in the catalogue triggers on it. A waterbend cost as an ADDITIONAL CAST cost (CR 701.67b\'s Spirit Water Revival) has no `additionalCosts` leg, and the Oracle grammar does not read the "Waterbend {N}:" cost yet. First card: Aang\'s Iceberg (sets/tla/white.cards.ts).',
+    },
     // Earthbend N — TLA (Avatar: The Last Airbender) set keyword, issue #1317.
     // Invoked as a VERB inside a triggered/activated ability's effect text
     // ("When this creature enters, earthbend 1"), the same shape as a CR 701

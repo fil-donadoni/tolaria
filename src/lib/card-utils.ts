@@ -514,6 +514,20 @@ export function hasManaAbility(
     return true;
 }
 
+/** CR 701.67a — where a click on a generic-substitution candidate goes. A
+ *  permanent that can tap for mana at no further cost does that: the pip is paid
+ *  either way, and a source making more than one mana pays more. Anything else
+ *  is a pick: a summoning-sick creature (CR 302.6 bars only its own {T}), or a
+ *  Treasure, whose mana would cost the Treasure. */
+export function clickTapsSubstituteForMana(
+    card: CardInstance,
+    stateView?: TriggerStateView,
+    players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
+): boolean {
+    if (!hasManaAbility(card, stateView, players)) return false;
+    return !findClientManaAbility(card)?.cost.sacrifice;
+}
+
 /** Returns the native mana ability of a card as a menu entry (id + oracleText),
  *  or null if the card has no native activated mana ability. Used to surface
  *  the mana ability inside the ability context menu when a card has both a
@@ -2397,6 +2411,7 @@ export function getStackAbilities(
                 filter: PermanentFilter;
                 count?: number;
                 totalPower?: number;
+                substitutesGeneric?: number;
             };
             /** CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>"
              *  as an activation cost (Deadapult's "Sacrifice a Zombie",
