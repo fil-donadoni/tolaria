@@ -1,6 +1,11 @@
 {
     "Aang's Iceberg": [
         {
+            "label": "waterbend: floating mana pays {3} and no artifact taps",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "waterbend: taps three artifacts at the opponent's end step to pay {3}",
             "tier": "must",
             "needsSetup": false

@@ -132,6 +132,7 @@ const FULL_ACTIVATION: Required<PendingActivation> = {
     grantedSourceCardId: "c",
     grantedAbilityOrigin: "grant-template",
     noteManaSpent: false,
+    genericSubstitutionOffer: true,
     manaSpendChoice: { generic: 1, candidateColors: ["R"] },
 };
 
