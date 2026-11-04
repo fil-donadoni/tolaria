@@ -23853,7 +23853,7 @@ export function getCostModifiers(
     // issue #2383), the CLEANUP impulse sweep (`gre/phases.ts`) and
     // `consumeExilePlayGrant` (`gre/playLand.ts`).
     //
-    // CR 601.2b — the tax rides the grant, so a cast under the same card's own
+    // CR 601.2f — the tax rides the grant, so a cast under the same card's own
     // designation (plotted, foretold, warped) does not owe it.
     if (
         kind === "spell" &&
@@ -24264,7 +24264,7 @@ export function getManaSubstitutions(
                 c.id === castCardInstanceId &&
                 c.castableFromExileBy === playerId &&
                 c.castFromExileManaSubstitution !== undefined &&
-                // CR 601.2b — the fixing rides the grant, not a cast under the
+                // CR 609.4b — the fixing rides the grant, not a cast under the
                 // same card's own designation (plotted, foretold, warped).
                 exileCastRidesGrant(state, c, playerId)
         );

@@ -106,7 +106,7 @@ export function getForetellCost(
 /** True iff `card` is a FORETOLD card in exile whose default cast is its
  *  foretell cast, read off the card alone: the designation, a foretell cost to
  *  pay, and no free-cast waiver on the same record (the cheaper route is the
- *  default, CR 118.9). The route authority with a caster and a board is
+ *  default). The route authority with a caster and a board is
  *  `exileCastRoutes` (`gre/castCost.ts`). */
 export function isForetellCast(card: CardInstanceState): boolean {
     return (

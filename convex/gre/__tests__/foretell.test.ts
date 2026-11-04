@@ -306,8 +306,8 @@ describe("Foretell — full path through the mutations (CR 702.143a/c)", () => {
     });
 
     it("CR 702.143c — a foretold card cast for a cost OTHER than its foretell cost is still foretold", async () => {
-        // A free-cast waiver on a grant on the same card (CR 118.9 — the
-        // cheaper route is the default): the cast pays nothing, and the spell
+        // A free-cast waiver on a grant on the same card (the cheaper route
+        // is the default): the cast pays nothing, and the spell
         // is still a foretold spell.
         const later = foretoldOn3(5, { lands: 2 });
         for (const l of p1(later).battlefield) l.isTapped = true;
