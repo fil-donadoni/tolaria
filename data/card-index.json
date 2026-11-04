@@ -4712,6 +4712,16 @@
         "source": "compiled"
     },
     {
+        "name": "Avian Changeling",
+        "scryfallId": "f2258bd3-e38b-4029-a9fb-f9ae86dbbc3a",
+        "oracleId": "767c1f97-03de-474d-9112-e7521ba3b3f3",
+        "firstSet": "lrw",
+        "firstPrintId": "f2258bd3-e38b-4029-a9fb-f9ae86dbbc3a",
+        "firstPrintSet": "lrw",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Avian Oddity",
         "scryfallId": "f325873b-97de-4701-910f-ec5cdb66de33",
         "oracleId": "d6a03a52-7e85-46de-920c-93a3f6479c4c",
@@ -11886,6 +11896,26 @@
         "source": "compiled"
     },
     {
+        "name": "Changeling Sentinel",
+        "scryfallId": "fe7e0c9f-000d-494d-86f6-95e8d2b59ac7",
+        "oracleId": "2977aae2-225d-4f3f-8bf7-535f542a7391",
+        "firstSet": "mor",
+        "firstPrintId": "fe7e0c9f-000d-494d-86f6-95e8d2b59ac7",
+        "firstPrintSet": "mor",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Changeling Wayfinder",
+        "scryfallId": "6c6061aa-a4da-4115-85b6-d0aa22f2386c",
+        "oracleId": "93409d98-93c8-4742-a635-2a4408e66c32",
+        "firstSet": "ecl",
+        "firstPrintId": "6c6061aa-a4da-4115-85b6-d0aa22f2386c",
+        "firstPrintSet": "ecl",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Channel",
         "scryfallId": "c1862c47-71cc-45a3-8805-a5ddc62e55ea",
         "oracleId": "d1b815d1-2848-40d4-a555-66822d1becbc",
@@ -12334,6 +12364,16 @@
         "source": "compiled"
     },
     {
+        "name": "Chitinous Graspling",
+        "scryfallId": "a9767360-d536-4902-9d2d-1f3474ce89d6",
+        "oracleId": "930035c6-cde7-40ac-98ef-0840812037db",
+        "firstSet": "ecl",
+        "firstPrintId": "a9767360-d536-4902-9d2d-1f3474ce89d6",
+        "firstPrintSet": "ecl",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Chittering Rats",
         "scryfallId": "980135d5-dfaa-4beb-b4b3-1e256bb46e61",
         "oracleId": "08dfe42e-35c0-4be0-abba-57269792ff3d",
@@ -12360,6 +12400,16 @@
         "firstSet": "tmp",
         "firstPrintId": "e2f85205-3c4f-4411-b09c-d1271be56dde",
         "firstPrintSet": "tmp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Chomping Changeling",
+        "scryfallId": "e187dcc6-19ad-4cf6-94b4-daf07f5144e5",
+        "oracleId": "d740dbd9-8e90-4121-8d53-c6ddf5178d58",
+        "firstSet": "ecl",
+        "firstPrintId": "e187dcc6-19ad-4cf6-94b4-daf07f5144e5",
+        "firstPrintSet": "ecl",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -26738,6 +26788,16 @@
         "source": "compiled"
     },
     {
+        "name": "Flock Impostor",
+        "scryfallId": "d32d0336-5140-41f9-bc67-f3d743b9231d",
+        "oracleId": "6522070b-7002-44fd-8deb-832fe67ef9a9",
+        "firstSet": "ecl",
+        "firstPrintId": "d32d0336-5140-41f9-bc67-f3d743b9231d",
+        "firstPrintSet": "ecl",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Flood",
         "scryfallId": "fabc3267-b59b-4f36-8873-5b4b072711ca",
         "oracleId": "e8eb2abb-daf9-43e0-b909-d96b679f71c2",
@@ -28644,6 +28704,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Game-Trail Changeling",
+        "scryfallId": "7bc76a7f-516f-4d0b-b024-39d5c8096a9f",
+        "oracleId": "384611fb-aca2-4e2d-9125-44ea034de08b",
+        "firstSet": "mor",
+        "firstPrintId": "7bc76a7f-516f-4d0b-b024-39d5c8096a9f",
+        "firstPrintSet": "mor",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Gandalf, Goblins' Bane",
         "scryfallId": "9b0d29a1-7da9-4fb3-8536-8ff8d8acae0b",
         "oracleId": "f48f2a9b-4ba5-4984-8180-3950889bba65",
@@ -28669,6 +28739,16 @@
         "firstPrintId": "0430b9fa-3bc6-4183-ad5b-d70ad401fa97",
         "firstPrintSet": "avr",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Gangly Stompling",
+        "scryfallId": "502000a7-a3c1-4259-aea5-ff01724396a1",
+        "oracleId": "60206d4e-4301-4d7a-a68e-46a2ad9fc407",
+        "firstSet": "ecl",
+        "firstPrintId": "502000a7-a3c1-4259-aea5-ff01724396a1",
+        "firstPrintSet": "ecl",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -29273,6 +29353,16 @@
         "firstPrintId": "4304abfe-3c81-4053-a398-574cfac613a7",
         "firstPrintSet": "gpt",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ghostly Changeling",
+        "scryfallId": "d7218726-dfa2-4d13-a210-5d54024e2d27",
+        "oracleId": "4e779540-e667-457e-9071-4cbbd777d9a9",
+        "firstSet": "lrw",
+        "firstPrintId": "d7218726-dfa2-4d13-a210-5d54024e2d27",
+        "firstPrintSet": "lrw",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -31908,6 +31998,16 @@
         "source": "compiled"
     },
     {
+        "name": "Graveshifter",
+        "scryfallId": "128c516b-7eb1-4f81-8b54-428bd0649d92",
+        "oracleId": "1eebc02a-9a64-49b0-8322-c5ce671457ce",
+        "firstSet": "mh1",
+        "firstPrintId": "128c516b-7eb1-4f81-8b54-428bd0649d92",
+        "firstPrintSet": "mh1",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Gravestone Strider",
         "scryfallId": "1f952d8d-c089-432c-822a-8ef1e605ae38",
         "oracleId": "9ea58a77-9b2e-4ae2-8a31-a51804900a3b",
@@ -32718,6 +32818,16 @@
         "firstSet": "arn",
         "firstPrintId": "9941f83b-2903-4eab-ac6d-5313e3978fa3",
         "firstPrintSet": "arn"
+    },
+    {
+        "name": "Guardian Gladewalker",
+        "scryfallId": "587eed42-5111-4161-9af5-bf76556c542a",
+        "oracleId": "03a3f54e-9289-4d99-beab-bfa0988a050e",
+        "firstSet": "khm",
+        "firstPrintId": "587eed42-5111-4161-9af5-bf76556c542a",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Guardian Kirin",
@@ -36514,6 +36624,16 @@
         "firstSet": "ice",
         "firstPrintId": "cca42b74-9b42-482b-b12a-79cafdcd087e",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Impostor of the Sixth Pride",
+        "scryfallId": "83298c8a-02c4-4ada-9a41-4b973bb58ac6",
+        "oracleId": "a2b8185a-9ff2-4d65-9bdd-b060b7ce69bb",
+        "firstSet": "mh1",
+        "firstPrintId": "83298c8a-02c4-4ada-9a41-4b973bb58ac6",
+        "firstPrintSet": "mh1",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Impractical Joke",
@@ -42287,6 +42407,16 @@
         "source": "compiled"
     },
     {
+        "name": "Littjara Glade-Warden",
+        "scryfallId": "a92dde51-310e-4f28-bd3b-d43b639785ec",
+        "oracleId": "438a0a7a-00bc-4d93-8e69-a8a6084523c5",
+        "firstSet": "khm",
+        "firstPrintId": "a92dde51-310e-4f28-bd3b-d43b639785ec",
+        "firstPrintSet": "khm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Liturgy of Blood",
         "scryfallId": "3532105d-c550-4c20-8465-a6a19169efbd",
         "oracleId": "aabea4a2-5107-4abd-a0c7-ac0024d98ae0",
@@ -46655,6 +46785,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mischievous Sneakling",
+        "scryfallId": "3b66fa00-2fa6-4060-9e7f-8e3fde6deb73",
+        "oracleId": "fe7a4361-561a-4bab-921e-d01bab19dad3",
+        "firstSet": "ecl",
+        "firstPrintId": "3b66fa00-2fa6-4060-9e7f-8e3fde6deb73",
+        "firstPrintSet": "ecl",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Misdirection",
         "scryfallId": "581ad59c-29e9-4498-a6fd-33bf21e8e7c4",
         "oracleId": "c39e5fb0-6de3-4105-ad3c-0ecb8951a1d5",
@@ -46871,6 +47011,16 @@
         "firstSet": "mh2",
         "firstPrintId": "9f36a6e2-3e51-4a30-a225-10cfe6650b9d",
         "firstPrintSet": "mh2",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Mistwalker",
+        "scryfallId": "92f64b49-327c-473b-a492-f020a322aed7",
+        "oracleId": "ceb302df-d67e-4e5d-aca0-f53bcdea658d",
+        "firstSet": "khm",
+        "firstPrintId": "92f64b49-327c-473b-a492-f020a322aed7",
+        "firstPrintSet": "khm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -47489,6 +47639,16 @@
         "firstSet": "neo",
         "firstPrintId": "c9fa6d4c-78dc-4b40-9ce8-a0e593d4001f",
         "firstPrintSet": "neo",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Moonglove Changeling",
+        "scryfallId": "6955348b-70e9-49c3-9343-9becf977abe8",
+        "oracleId": "61b74f82-39f3-4618-b8e7-292058421d1b",
+        "firstSet": "mor",
+        "firstPrintId": "6955348b-70e9-49c3-9343-9becf977abe8",
+        "firstPrintSet": "mor",
         "rarity": "common",
         "source": "compiled"
     },
@@ -55003,6 +55163,16 @@
         "firstSet": "mor",
         "firstPrintId": "55121b63-22a6-4923-82e9-c55f66742980",
         "firstPrintSet": "mor",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Prideful Feastling",
+        "scryfallId": "7578cb61-f606-4559-a10a-343a583228ab",
+        "oracleId": "faf2f368-a7e7-4427-bc03-929f294b1e03",
+        "firstSet": "ecl",
+        "firstPrintId": "7578cb61-f606-4559-a10a-343a583228ab",
+        "firstPrintSet": "ecl",
         "rarity": "common",
         "source": "compiled"
     },
@@ -64746,6 +64916,16 @@
         "source": "compiled"
     },
     {
+        "name": "Shapesharer",
+        "scryfallId": "e148481d-a969-40d9-9335-d0e06ad8245b",
+        "oracleId": "400c9fd8-c307-4b27-af6a-73e100717881",
+        "firstSet": "lrw",
+        "firstPrintId": "e148481d-a969-40d9-9335-d0e06ad8245b",
+        "firstPrintSet": "lrw",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Shapeshifter",
         "scryfallId": "cc278af4-b60d-41b7-b9d7-36c8aefca1a7",
         "oracleId": "82a6d89d-9215-4540-b7d5-26cdd6afb05b",
@@ -66600,6 +66780,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sizzling Changeling",
+        "scryfallId": "e58f0722-9ad1-4952-9aee-ea8137c58911",
+        "oracleId": "60ad7aaa-8ce6-4449-8e8d-4ccf925010db",
+        "firstSet": "ecl",
+        "firstPrintId": "e58f0722-9ad1-4952-9aee-ea8137c58911",
+        "firstPrintSet": "ecl",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Skalla Wolf",
         "scryfallId": "f320e9f2-963d-468a-bf7a-726ef11e886d",
         "oracleId": "22da0659-7cd0-4277-b6d2-7d954dcd7729",
@@ -66617,6 +66807,16 @@
         "firstPrintId": "deadb6d8-3eea-4261-a07c-8536df89e85c",
         "firstPrintSet": "tmt",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Skeletal Changeling",
+        "scryfallId": "6f1d8e26-304b-4571-9b33-7713265d9bbf",
+        "oracleId": "b9d388ca-1a63-4a11-bf33-9f7b87305a52",
+        "firstSet": "lrw",
+        "firstPrintId": "6f1d8e26-304b-4571-9b33-7713265d9bbf",
+        "firstPrintSet": "lrw",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -76244,6 +76444,16 @@
         "source": "compiled"
     },
     {
+        "name": "Three Tree Mascot",
+        "scryfallId": "aaced75b-6e07-457c-8ea2-f74d99710d15",
+        "oracleId": "6cb9d153-4eaa-4f32-8930-bd68cd99c128",
+        "firstSet": "blb",
+        "firstPrintId": "aaced75b-6e07-457c-8ea2-f74d99710d15",
+        "firstPrintSet": "blb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Three Tree Rootweaver",
         "scryfallId": "d1ab6e14-26e0-4174-b5c6-bc0f5c26b177",
         "oracleId": "d17d4003-e1c9-42be-ac76-3b5500fad485",
@@ -79682,6 +79892,16 @@
         "source": "compiled"
     },
     {
+        "name": "Universal Automaton",
+        "scryfallId": "53c682e2-c90f-4f4b-9010-00b099e85518",
+        "oracleId": "d50b1d2e-1825-432a-ab73-068fdc356f50",
+        "firstSet": "mh1",
+        "firstPrintId": "53c682e2-c90f-4f4b-9010-00b099e85518",
+        "firstPrintSet": "mh1",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Universal Solvent",
         "scryfallId": "2f1b66b2-12b2-497b-a328-b43630c79e73",
         "oracleId": "f34ba913-cf9a-48fe-b5fe-68bf504693b2",
@@ -81069,6 +81289,16 @@
         "firstSet": "ice",
         "firstPrintId": "8eeb9e02-1d26-4959-a878-2ef8db2358bc",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Venomous Changeling",
+        "scryfallId": "4c5a1d73-d102-469b-82ca-ec18f616375e",
+        "oracleId": "f1929f1f-6aa3-4308-bbff-cab03883ac68",
+        "firstSet": "mh1",
+        "firstPrintId": "4c5a1d73-d102-469b-82ca-ec18f616375e",
+        "firstPrintSet": "mh1",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Venomous Hierophant",
@@ -83593,6 +83823,16 @@
         "source": "compiled"
     },
     {
+        "name": "War-Spike Changeling",
+        "scryfallId": "917081e0-8a5f-4edc-b5e9-9a7302bb5c06",
+        "oracleId": "b6ddb093-1fff-4648-b7a1-141a3875599c",
+        "firstSet": "mor",
+        "firstPrintId": "917081e0-8a5f-4edc-b5e9-9a7302bb5c06",
+        "firstPrintSet": "mor",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "War-Torch Goblin",
         "scryfallId": "259469b3-1212-4030-97ae-a84f132798d4",
         "oracleId": "58d39991-420b-4eca-967d-49ad3f9a4702",
@@ -85948,6 +86188,16 @@
         "firstPrintId": "43aa7e35-55ee-4e02-a8aa-ea2b267055d1",
         "firstPrintSet": "shm",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Woodland Changeling",
+        "scryfallId": "aa41edf8-88a1-46dd-8315-b0afe7e14b7e",
+        "oracleId": "338f0ab6-f744-4e5a-a358-05e71b93758d",
+        "firstSet": "lrw",
+        "firstPrintId": "aa41edf8-88a1-46dd-8315-b0afe7e14b7e",
+        "firstPrintSet": "lrw",
+        "rarity": "common",
         "source": "compiled"
     },
     {

@@ -157,11 +157,11 @@ export const STATIC_EFFECT_READS: Record<
  *  exists only when neither effect is from a CDA or both are.
  *
  *  One kind qualifies today. `dependency.test.ts` pins this set against the
- *  layer-2-to-6 kind tables, so the day a CDA kind lands in one of them — CR
- *  702.73 Changeling defines subtypes in layer 4 and is `status: "planned"` in
- *  the Mechanics Registry — the guard reds instead of clause (c) failing open
- *  and silently, which is what a comment asserting "no layer-2-6 kind is a CDA"
- *  would have done. */
+ *  layer-2-to-6 kind tables, so the day a CDA kind lands in one of them the
+ *  guard reds instead of clause (c) failing open and silently, which is what a
+ *  comment asserting "no layer-2-6 kind is a CDA" would have done. CR 702.73
+ *  Changeling defines subtypes without one: it is the object's base line
+ *  (`cards/abilities/changeling.ts`), never an entry a dependency could name. */
 export const CDA_STATIC_EFFECT_KINDS: ReadonlySet<StaticEffect["kind"]> =
     new Set<StaticEffect["kind"]>(["pt-cda"]);
 

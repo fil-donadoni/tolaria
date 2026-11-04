@@ -1441,7 +1441,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Changeling",
         kind: "keyword-ability",
         cr: "702.73",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/cards/abilities/changeling.ts expandChangeling",
+        note: "CR 702.73a is a characteristic-defining ability, modelled as the object's BASE subtype line: `expandChangeling` (the `getDefinition` seam, ADR 0054) appends every CR 205.3m creature type, so every zone's reader sees it (CR 604.3), a later layer-4 set still replaces it (CR 613.3) and a layer-6 removal does not undo it (CR 613.6). Tokens and \"except it has changeling\" copies build the same line through `withChangelingSubtypes`. Definition-level, so a GRANT to another permanent is refused by `isDefinitionLevelKeyword`.",
     },
     // 702.74 Evoke
     {

@@ -1,5 +1,6 @@
 import type { DeckCard } from "~/types/game";
 import { tryGetDefinition } from "@convex/cards";
+import { displaySubtypes } from "@convex/cards/abilities/changeling";
 import { getPipCountsFromCost } from "@convex/cards/colors";
 import type { CardDefinition, Color, ManaCost } from "@convex/cards/types";
 import {
@@ -163,7 +164,8 @@ export function computeDeckStats(
         }
 
         for (const type of def.types) bump(stats.types, type);
-        for (const subtype of def.subtypes ?? []) bump(stats.subtypes, subtype);
+        for (const subtype of displaySubtypes(def.subtypes ?? []))
+            bump(stats.subtypes, subtype);
     }
 
     return stats;
