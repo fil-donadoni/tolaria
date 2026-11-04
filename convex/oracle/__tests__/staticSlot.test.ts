@@ -727,7 +727,7 @@ describe("lowering", () => {
         // Without this the card would ship `ready` with a grant that does
         // nothing, which is the Guard A shape (#962) one level removed.
         const outcome = compileCard(
-            oracle({ oracleText: "Creatures you control have horsemanship." })
+            oracle({ oracleText: "Creatures you control have phasing." })
         );
         expect(outcome.state).toBe("quarantine");
         if (outcome.state !== "quarantine") return;
