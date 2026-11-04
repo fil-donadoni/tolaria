@@ -15,12 +15,14 @@ import { enumerateMoves } from "../../moves";
 import { buildStateFromScenario } from "../../scenarioBuilder";
 import {
     applyMoveInSearch,
+    type BodyCostMemo,
     isSourceBodyDamageConversion,
     rollout,
 } from "../../search";
 import { cloneGameState } from "../../clone";
 import { makeRng } from "../../rng";
 import { PHASE_ORDER } from "../../phases";
+import type { ActivatedAbility } from "../../../cards/types";
 import type { GameState } from "../../state";
 import { costShrinksSource, effectiveAbilityOf } from "../abilityTiming";
 import { buildBladeBaseState } from "../blade/baseState";
@@ -90,6 +92,71 @@ describe("costShrinksSource (issue #3376)", () => {
         });
         const ability = effectiveAbilityOf(source, shot.abilityId)!;
         expect(costShrinksSource(state, source, ability)).toBe(false);
+    });
+
+    it("a last counter that lowers no power or toughness still reads as spending the body (CR 704.5i)", () => {
+        const base = buildBladeBaseState();
+        const meId = base.players[0]!.id;
+        const state = buildStateFromScenario(
+            base,
+            {
+                cards: [
+                    {
+                        name: "Liliana of the Veil",
+                        owner: "me",
+                        zone: "battlefield",
+                    },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 5,
+                libraryCount: 20,
+            },
+            meId
+        );
+        const [sourceId] = instanceIdsForName(state, "Liliana of the Veil");
+        const source = state.players
+            .find((p) => p.id === meId)!
+            .battlefield.find((c) => c.id === sourceId)!;
+        source.counters = { loyalty: 1 };
+        const ability = {
+            cost: { removeCounter: { type: "loyalty", count: 1 } },
+        } as ActivatedAbility;
+        expect(costShrinksSource(state, source, ability)).toBe(true);
+    });
+});
+
+describe("BodyCostMemo — one simulation per ability on one position (issue #7994)", () => {
+    function shots() {
+        const { state, meId, source } = position("Walking Ballista", {
+            "+1/+1": 2,
+        });
+        const variants = enumerateMoves(state, meId).filter(
+            (m): m is Extract<Move, { kind: "activate-ability" }> =>
+                m.kind === "activate-ability" && m.cardInstanceId === source.id
+        );
+        expect(variants.length).toBeGreaterThan(1);
+        return { state, meId, source, variants };
+    }
+
+    it("every target variant of the ability shares one entry", () => {
+        const { state, meId, variants } = shots();
+        const memo: BodyCostMemo = new Map();
+        for (const move of variants) {
+            expect(
+                isSourceBodyDamageConversion(state, meId, meId, move, memo)
+            ).toBe(true);
+        }
+        expect(memo.size).toBe(1);
+    });
+
+    it("a variant reads the entry instead of simulating again", () => {
+        const { state, meId, source, variants } = shots();
+        const memo: BodyCostMemo = new Map([
+            [`${source.id}|${variants[0].abilityId}`, false],
+        ]);
+        expect(
+            isSourceBodyDamageConversion(state, meId, meId, variants[1], memo)
+        ).toBe(false);
     });
 });
 

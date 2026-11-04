@@ -605,7 +605,11 @@ function survivesSweep(
  *
  *  Scoped to `removeCounter`, for the reason `costDestroysSource` gives: no
  *  other cost key reaches the source's own stats. Fail-closed: a payment the
- *  chokepoint refuses or a throw leaves the activation alone. */
+ *  chokepoint refuses or a throw leaves the activation alone.
+ *
+ *  The two readings are an OR of pure functions, so the cheap one goes first:
+ *  a body that loses power or toughness is answered by one clone, with neither
+ *  of `costDestroysSource`'s two clones and two sweeps. */
 export function costShrinksSource(
     state: GameState,
     source: CardInstanceState,
@@ -613,12 +617,24 @@ export function costShrinksSource(
 ): boolean {
     const cost = ability.cost.removeCounter;
     if (!cost) return false;
-    if (costDestroysSource(state, source, ability)) return true;
+    return (
+        paymentLowersBody(state, source.id, cost) ||
+        costDestroysSource(state, source, ability)
+    );
+}
+
+/** Whether paying `cost` lowers the power or toughness of `sourceId`, read on a
+ *  CLONE of `state` after the CR 613.4 layer pipeline. */
+function paymentLowersBody(
+    state: GameState,
+    sourceId: string,
+    cost: { type: string; count: number }
+): boolean {
     try {
         const probe = cloneGameState(state);
         const card = probe.players
             .flatMap((p) => p.battlefield)
-            .find((c) => c.id === source.id);
+            .find((c) => c.id === sourceId);
         if (!card) return false;
         const before = getEffectivePT(probe, card);
         payRemoveCounterCost(probe, card, cost);
