@@ -19,14 +19,36 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup.helper";
-import { getCardByName, preloadDefinitions } from "../../../index";
+import { preloadDefinitions, registerTokenDefinition } from "../../../index";
+import type { CardDefinition, SpellCopiedEvent } from "../../../types";
 import { chainOfSmog as chainOfSmogDefinition } from "../black.cards";
 
 // Base-owned `data/catalogue` (ADR 0157) lacks a card this PR ships.
 preloadDefinitions([chainOfSmogDefinition()]);
 
 const chainOfSmog = chainOfSmogDefinition();
-const BEARS = getCardByName("Grizzly Bears").id;
+/** Grizzly Bears — vanilla filler for the hands. */
+const BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+
+/** Watches copies, so the event reaches a trigger the way a real listener's does. */
+const COPY_WATCHER_ID = "test:ons-spell-copied-watcher";
+const copyWatcher: CardDefinition = {
+    id: COPY_WATCHER_ID,
+    rarity: "common",
+    name: "Copy Watcher",
+    manaCost: {},
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        {
+            id: "copy-watch",
+            oracleText: "Whenever a player copies a spell, you gain 1 life.",
+            event: "SPELL_COPIED",
+            matches: (event) => event.type === "SPELL_COPIED",
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+        },
+    ],
+};
+registerTokenDefinition(copyWatcher);
 
 const cards = (owner: string, n: number) =>
     Array.from({ length: n }, (_, i) =>
@@ -133,6 +155,28 @@ describe("Chain of Smog (CR 707.10 / 707.10c)", () => {
             ...state.players[1].graveyard,
         ];
         expect(graveyards.some((c) => c.id === copy.id)).toBe(false);
+    });
+
+    it("the copy emits SPELL_COPIED with the copier as its controller", () => {
+        const state = castAtP2();
+        state.players[0].battlefield.push(
+            makeInstance(COPY_WATCHER_ID, {
+                id: "watcher",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+            })
+        );
+        resolveTopOfStack(state);
+        discardTwo(state, "p2");
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+
+        const events = state.stack
+            .filter((s) => s.triggeredAbilityId === "copy-watch")
+            .map((s) => s.triggerEvent as SpellCopiedEvent);
+        expect(events).toHaveLength(1);
+        expect(events[0].copierId).toBe("p2");
+        expect(events[0].spellCardId).toBe(chainOfSmog.id);
     });
 
     it("an empty hand discards nothing and still offers the copy", () => {
