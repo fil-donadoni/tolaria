@@ -2207,7 +2207,12 @@ describe("check-lane — the tree may not move under the run (issue #4379, findi
             commit("first");
         });
         afterEach(() => {
-            rmSync(repo, { recursive: true, force: true });
+            rmSync(repo, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         });
 
         it("passes an unchanged HEAD whatever length git abbreviates to", () => {
