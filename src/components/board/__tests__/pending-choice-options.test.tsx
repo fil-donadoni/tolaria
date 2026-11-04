@@ -7,6 +7,16 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, fireEvent, cleanup } from "@testing-library/react";
 import PendingChoiceOptions from "~/components/board/pending-choice-options";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
+import { getCardByName, registerTokenDefinition } from "@convex/cards";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "@convex/cards/__tests__/setup.helper";
+import { projectPublicState } from "@convex/gameProjections";
+import { adventureCastAltCostId } from "@convex/gre/adventure";
+import { resolveTopOfStack } from "@convex/gre/state";
 
 afterEach(cleanup);
 
@@ -15,6 +25,71 @@ const PRIMAL_CLAY_OPTIONS = [
     { id: "2-2-flying", label: "2/2 flying" },
     { id: "1-6-wall", label: "1/6 Wall (defender)" },
 ];
+
+describe("PendingChoiceOptions — the face a cast during resolution announces (CR 715.3 / 608.2g)", () => {
+    it("renders the rows the real offer projects and answers with the face's id", () => {
+        const giant = getCardByName("Bonecrusher Giant");
+        const script = "test-dialog-cdr-face";
+        registerTokenDefinition({
+            id: script,
+            name: script,
+            rarity: "common",
+            manaCost: { R: 1 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "castDuringResolution",
+                    fromTopOfLibrary: true,
+                    player: "controller",
+                },
+            ],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(getCardByName("Mountain").id, {
+                            id: "mountain",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(getCardByName("Mountain").id, {
+                            id: "mountain-2",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                    library: [
+                        makeInstance(giant.id, {
+                            id: "top",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, script, "p1");
+        resolveTopOfStack(state);
+        const options = projectPublicState(state, 1, "p1").pendingChoices![0]
+            .options!;
+
+        const onPick = vi.fn();
+        const { getByText } = render(
+            <PendingChoiceOptions
+                options={options}
+                disabled={false}
+                onPick={onPick}
+            />
+        );
+        expect(getByText("Cast Bonecrusher Giant")).toBeTruthy();
+        expect(getByText("Decline")).toBeTruthy();
+        fireEvent.click(getByText(/^Cast Stomp/));
+        expect(onPick).toHaveBeenCalledWith(adventureCastAltCostId(giant));
+    });
+});
 
 describe("PendingChoiceOptions (option-pick UI, #289)", () => {
     it("renders one button per option with its label", () => {

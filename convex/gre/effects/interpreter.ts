@@ -3989,7 +3989,7 @@ export const OP_EXECUTORS: {
     // Op (CR 702.85a, issue #3216) has to run the IDENTICAL offer → mode → X →
     // additional-cost → target → commit sequence for the card its walk exiled,
     // and ADR 0045 allows exactly one execution path for it, not a second copy.
-    castDuringResolution: runCastDuringResolution,
+    castDuringResolution: (ctx, op) => runCastDuringResolution(ctx, op),
     // CR 702.85a (issue #3216) — the CASCADE keyword's whole triggered ability,
     // in three clauses that must run in this order and share one exiled pile:
     // the WALK (exile from the top until a nonland card cheaper than this
@@ -4103,13 +4103,17 @@ export const OP_EXECUTORS: {
         // gate refuses, leaves it in exile for phase 3 to bottom.
         if (hitId !== undefined) {
             ctx.noteChoice(CASCADE_HIT_BINDING, [hitId]);
-            const outcome = runCastDuringResolution(ctx, {
-                op: "castDuringResolution",
-                player: op.player,
-                card: { ref: CASCADE_HIT_BINDING },
-                source: "exile",
-                free: true,
-            });
+            const outcome = runCastDuringResolution(
+                ctx,
+                {
+                    op: "castDuringResolution",
+                    player: op.player,
+                    card: { ref: CASCADE_HIT_BINDING },
+                    source: "exile",
+                    free: true,
+                },
+                threshold
+            );
             if (outcome === "suspend") return "suspend";
         }
 
@@ -9350,7 +9354,10 @@ function runVote(ctx: SpellContext, op: OpOf<"vote">): OpOutcome {
 
 function runCastDuringResolution(
     ctx: SpellContext,
-    op: OpOf<"castDuringResolution">
+    op: OpOf<"castDuringResolution">,
+    /** CR 702.85a — cascade's "if the resulting spell's mana value is less than
+     *  this spell's": the walk asked it of the card, each face answers alone. */
+    faceManaValueBelow?: number
 ): OpOutcome {
     // Idempotent across a re-walk (CR 608.3 — a completed step never
     // re-runs): once the mini-cast has committed (or the Op has terminally
@@ -9485,8 +9492,46 @@ function runCastDuringResolution(
         cardInstanceId,
         sourceZone
     );
+
+    // CR 709.3 / 712.11b / 715.3 — the faces this cast can announce. An
+    // alternative cost (a card's own miracle, CR 702.94a) is an ability of the
+    // printed card, which no other face has (CR 712.11c), so it offers none.
+    const faces =
+        op.alternativeCost === undefined
+            ? ctx.getCastFaceOptions(playerId, cardInstanceId, sourceZone, {
+                  free: op.free,
+                  manaValueBelow: faceManaValueBelow,
+              })
+            : [];
+    const printedCastable = ctx.getChosenCardCastable(
+        playerId,
+        cardInstanceId,
+        sourceZone
+    );
+    // CR 406.3 — face rows are the offer's only for a card already public: the
+    // options cross the wire unredacted, and a row on a hidden card would name
+    // it. A hidden card keeps the byte-identical offer and asks once accepted.
+    const offerFaces = subjectCardId !== undefined ? faces : [];
+    const [acceptRow, declineRow] = offerOptions;
+    const options =
+        offerFaces.length === 0
+            ? offerOptions
+            : [
+                  // An `includesLand` grant keeps its accept row whatever the
+                  // printed cast's legality, for the land branch below.
+                  ...(printedCastable || op.includesLand
+                      ? [
+                            {
+                                ...acceptRow,
+                                label: `${acceptRow.label} ${ctx.getCardName(cardInstanceId) ?? "the card"}`,
+                            },
+                        ]
+                      : []),
+                  ...offerFaces,
+                  declineRow,
+              ];
     const offer = {
-        options: offerOptions,
+        options,
         prompt: offerPrompt,
         ...(subjectCardId !== undefined ? { subjectCardId } : {}),
     };
@@ -9523,7 +9568,7 @@ function runCastDuringResolution(
         // longer in the source zone, or it's a land a "cast"-only grant
         // can't reach. No prompt is offered at all; the ability finishes
         // silently and the resolution completes cleanly.
-        if (!ctx.getChosenCardCastable(playerId, cardInstanceId, sourceZone)) {
+        if (!printedCastable && faces.length === 0) {
             finish(false, "pass");
             return;
         }
@@ -9538,7 +9583,8 @@ function runCastDuringResolution(
         });
         if (decision === undefined) return "suspend"; // enqueued — wait
     }
-    if (decision !== "cast") {
+    const announcedInOffer = offerFaces.some((f) => f.id === decision);
+    if (decision !== "cast" && !announcedInOffer) {
         // Declined — the card stays in its source zone (still face down if
         // it was), nothing enters/is cast, and no later-in-turn window is
         // stamped: the CR 608.2g permission dies with this resolution.
@@ -9547,6 +9593,7 @@ function runCastDuringResolution(
     }
 
     if (
+        decision === "cast" &&
         op.includesLand &&
         ctx.getChosenCardIsLand(playerId, cardInstanceId, sourceZone)
     ) {
@@ -9576,12 +9623,34 @@ function runCastDuringResolution(
     // (CR 601.3a — its own condition, a "can't cast" lock) — deferred the
     // same way the land branch defers CR 305, so presence never told the
     // two apart.
-    if (
-        op.includesLand &&
-        !ctx.getChosenCardCastable(playerId, cardInstanceId, sourceZone)
-    ) {
+    if (op.includesLand && !printedCastable && faces.length === 0) {
         finish(false, "pass");
         return;
+    }
+
+    // CR 709.3 / 712.11b / 715.3 — the face announced in the offer, or asked
+    // now for a hidden card's accepted offer and for an accept row whose printed
+    // cast is not legal.
+    let faceId = announcedInOffer ? decision : undefined;
+    if (
+        decision === "cast" &&
+        faces.length > 0 &&
+        (subjectCardId === undefined || !printedCastable)
+    ) {
+        const face = ctx.requestCastFace({
+            chooserId: playerId,
+            casterId: playerId,
+            cardInstanceId,
+            sourceZone,
+            choiceId: "cdr:face",
+            free: op.free,
+        });
+        if (face === undefined) return "suspend";
+        if (!face.cast) {
+            finish(false, "pass");
+            return;
+        }
+        faceId = face.alternativeCostId;
     }
 
     switch (
@@ -9592,7 +9661,8 @@ function runCastDuringResolution(
             sourceZone,
             op.free,
             "",
-            op.alternativeCost
+            op.alternativeCost,
+            faceId
         )
     ) {
         case "suspend":
@@ -9656,7 +9726,9 @@ function runCastAnyNumber(
         const remaining = set.filter(
             (id) =>
                 !handled.has(id) &&
-                ctx.getChosenCardCastable(playerId, id, sourceZone)
+                (ctx.getChosenCardCastable(playerId, id, sourceZone) ||
+                    ctx.getCastFaceOptions(playerId, id, sourceZone, { free })
+                        .length > 0)
         );
         if (remaining.length === 0) return undefined;
         const pick = ctx.requestOptionChoice({
@@ -9675,13 +9747,26 @@ function runCastAnyNumber(
         });
         if (pick === undefined) return "suspend";
         if (!remaining.includes(pick)) return undefined; // stop
+        // CR 709.3 / 712.11b / 715.3 — the rows above name cards; which face of
+        // the picked one is cast is its own announcement.
+        const face = ctx.requestCastFace({
+            chooserId: playerId,
+            casterId: playerId,
+            cardInstanceId: pick,
+            sourceZone,
+            choiceId: `cdr:face:${pos}:${k}`,
+            free,
+        });
+        if (face === undefined) return "suspend";
         const outcome = castPickedCard(
             ctx,
             playerId,
             pick,
             sourceZone,
             free,
-            `:${pos}:${k}`
+            `:${pos}:${k}`,
+            undefined,
+            face.alternativeCostId
         );
         if (outcome === "suspend") return "suspend";
         ctx.noteChoice(stepKey, [pick]);
@@ -9713,11 +9798,14 @@ function castPickedCard(
     sourceZone: "graveyard" | "exile" | "hand",
     free: boolean | undefined,
     idSuffix: string,
-    alternativeCost?: ManaCost
+    alternativeCost?: ManaCost,
+    /** CR 709.3 / 712.11b / 715.3 — the announced face; every question below
+     *  is asked of that subject alone. Omitted = the printed cast. */
+    faceId?: string
 ): PickedCastOutcome {
     // MODE (CR 700.2c) — a modal card's chosen mode drives its targeting
     // (CR 700.2d). Non-modal cards skip this.
-    const modes = ctx.getCardModes(playerId, cardInstanceId);
+    const modes = ctx.getCardModes(playerId, cardInstanceId, faceId);
     let chosenModeId: string | undefined;
     if (modes.length > 0) {
         const pickedMode = ctx.requestOptionChoice({
@@ -9738,12 +9826,13 @@ function castPickedCard(
     if (
         !free &&
         alternativeCost === undefined &&
-        ctx.cardHasXCost(playerId, cardInstanceId)
+        ctx.cardHasXCost(playerId, cardInstanceId, faceId)
     ) {
         const maxX = ctx.getMaxAffordableX(
             playerId,
             cardInstanceId,
-            chosenModeId
+            chosenModeId,
+            faceId
         );
         const xOptions = Array.from({ length: maxX + 1 }, (_, n) => ({
             id: String(n),
@@ -9764,7 +9853,11 @@ function castPickedCard(
     // unmeetable, the card is NOT cast ("if able").
     // Issue #3808 — the cost's COUNT rides with its filter, so a card whose
     // additional cost is "sacrifice five lands" is not cast here for one.
-    const sacrificeCost = ctx.getCardSacrificeCost(playerId, cardInstanceId);
+    const sacrificeCost = ctx.getCardSacrificeCost(
+        playerId,
+        cardInstanceId,
+        faceId
+    );
     let additionalSacrificeIds: string[] | undefined;
     if (sacrificeCost) {
         const candidateIds = ctx.getBattlefieldIds(
@@ -9801,15 +9894,17 @@ function castPickedCard(
         ? ctx.getCardModeTargetRequirement(
               playerId,
               cardInstanceId,
-              chosenModeId
+              chosenModeId,
+              faceId
           )
-        : ctx.getCardTargetRequirement(playerId, cardInstanceId);
+        : ctx.getCardTargetRequirement(playerId, cardInstanceId, faceId);
     let chosenTargets: TargetSelection[] | undefined;
     if (targetReq) {
         const legal = ctx.getLegalTargetsForCard(
             playerId,
             cardInstanceId,
-            targetReq
+            targetReq,
+            faceId
         );
         if (legal.length === 0) {
             return "pass"; // no legal target — not cast
@@ -9855,6 +9950,7 @@ function castPickedCard(
         sourceZone,
         free,
         ...(alternativeCost !== undefined ? { alternativeCost } : {}),
+        ...(faceId !== undefined ? { alternativeCostId: faceId } : {}),
     });
     return cast ? "cast" : "pass";
 }
