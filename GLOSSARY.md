@@ -1134,6 +1134,10 @@ _Avoid_: Sub-issue (the platform's word for the edge), child alone, task, ticket
 The one process that merges into the base branch, on the MacBook only: it lands each PR a session handed off with `land:ready` (labelled `ready-to-land`, oldest first) through the existing `land` pipeline, one at a time. A session ends at the hand-off and never runs `land`; its claim is then `pr-open` — it stands, holds no session slot, and the runner releases it at merge. A red landing comes back labelled `land-failed`, and the queue hands it to the next pass as a repair pick, before any new work. Under RED it lands only declared repairs and holds the rest.
 _Avoid_: Merge train (the retired multi-PR orchestrator), merge bot, lander, auto-merge (GitHub's feature, which gates nothing)
 
+**Contained RED**:
+A RED health verdict whose failing tests are named and do not stop other work: the queue and the AFK dispatcher keep running, a lane tolerates exactly those test names, and `release` still refuses the tip. It is a RED with a class, not a separate verdict, and a RED without that class blocks everything.
+_Avoid_: Amber (a proved repair that landed), soft RED, non-blocking RED, yellow
+
 **Residue**:
 An open issue the band rule can place in no **Priority Band** — nothing it names, unlocks or blocks lends one — left unprioritised and listed for the owner, by cause: undeclared (no cards at all) or off-road (cards named, none in a Target that lends a band). Never folded into `P3`: "the rule abstained" and "the owner ruled later" must not read the same.
 _Avoid_: Backlog (everything open), unprioritised alone (the board value; residue is why it is empty), leftovers
