@@ -183,6 +183,16 @@ export type BladeSetupStep =
      *  (or too few) eligible instances, or when the answer leaves the SAME
      *  choice still at the head (the resolver rejected it). */
     | { kind: "choose"; cards: string[] }
+    /** Answer the head may-pay through the search's own applier, for the seat
+     *  it is owed to. Issue #3657: a chain of "may copy" answers has no other
+     *  expressible walk. Throws when the head choice is not a may-pay, or when
+     *  the answer leaves it at the head. */
+    | { kind: "answer-may-pay"; accept: boolean }
+    /** Submit an engine-raised target selection (a spell copy's retarget,
+     *  CR 707.10c) naming a seat, through the search's own applier, for the
+     *  seat it is owed to. Throws when no selection is pending, or when that
+     *  seat is not among the submissions the engine offers. */
+    | { kind: "submit-player-target"; target: BladeSeat }
     /** Activate the named battlefield permanent's activated ability through
      *  the REAL activation path (`activateAbilityOnState`, `gre/activation.ts`
      *  — the exact function the `activateAbility` mutation calls), so every
