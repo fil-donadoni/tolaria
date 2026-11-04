@@ -89,7 +89,7 @@ export const expressiveIteration = defineCard(() => ({
 export const witherbloomApprentice = defineCard(() => ({
     id: "7f80a11b-188b-464c-b00d-c9d1cfb8ddee",
     name: "Witherbloom Apprentice",
-    rarity: "common",
+    rarity: "uncommon",
     oracleText:
         "Magecraft — Whenever you cast or copy an instant or sorcery spell, each opponent loses 1 life and you gain 1 life.",
     manaCost: { B: 1, G: 1 },
