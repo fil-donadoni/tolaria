@@ -72,6 +72,7 @@ import PaymentBanner from "./payment-banner";
 import SacrificeBanner from "./sacrifice-banner";
 import AttackManaTaxBanner from "./attack-mana-tax-banner";
 import { isSacrificeComplete } from "~/lib/sacrifice-selection";
+import AssistPlayerDialog from "./assist-player-dialog";
 import PendingChoicePrompt from "./pending-choice-prompt";
 import { useLingeringRandomReveal } from "~/hooks/useLingeringRandomReveal";
 import PileDivisionPicker from "./pile-division/pile-division-picker";
@@ -646,7 +647,26 @@ export default function Board({
                                                         gameId={gameId}
                                                         playerId={viewerId}
                                                     />
-                                                ) : (
+                                                ) : // CR 702.132a — Assist: the caster may
+                                                // name a player; while that player answers
+                                                // the game waits on them, not the banner.
+                                                pendingCast.assistChoice
+                                                      ?.stage ===
+                                                  "choose-player" ? (
+                                                    <AssistPlayerDialog
+                                                        choice={
+                                                            pendingCast.assistChoice
+                                                        }
+                                                        allPlayers={allPlayers}
+                                                        gameId={gameId}
+                                                        playerId={viewerId}
+                                                    />
+                                                ) : pendingCast.assistChoice
+                                                      ?.stage ===
+                                                      "assistant-mana" ||
+                                                  pendingCast.assistChoice
+                                                      ?.stage ===
+                                                      "assistant-pay" ? null : (
                                                     <PaymentBanner
                                                         kind="cast"
                                                         pendingCast={

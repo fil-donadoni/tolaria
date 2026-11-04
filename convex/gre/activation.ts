@@ -1768,6 +1768,7 @@ export function tryAutoCommitPendingCast(
     const castConvoke = state.pendingCast.convokeCreatureChoice;
     const castExile = state.pendingCast.exileFromGraveyardChoice;
     const castAltHand = state.pendingCast.alternativeCostHandChoice;
+    const castAssist = state.pendingCast.assistChoice;
     // CR 601.2g — an ambiguous generic-mana payment PARKS awaiting the caster's
     // choice of which mana pays the generic cost. Evaluated once every other
     // cost/choice gate above has cleared and mana is covered (manual floating
@@ -1834,6 +1835,14 @@ export function tryAutoCommitPendingCast(
             ...(castConvoke ? { convokeCreatureChoice: castConvoke } : {}),
             ...(castAltHand ? { alternativeCostHandChoice: castAltHand } : {}),
             ...(pending.revealHand ? { revealHand: true } : {}),
+            ...(castAssist?.assistantId && castAssist.paid
+                ? {
+                      assistPayment: {
+                          playerId: castAssist.assistantId,
+                          amount: castAssist.paid,
+                      },
+                  }
+                : {}),
         },
         record: {
             targets: (pending as Record<string, unknown>).targets as

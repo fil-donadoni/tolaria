@@ -664,8 +664,16 @@ export function useBattlefieldVisualState(
                       hasFilteredGiveUpManaAbility(card, manaGateView) ||
                       getManaChoices(card) !== null;
         }
-        // CR 605.3b: mana abilities require priority (outside payment).
-        if (!hasPriority) return false;
+        // CR 605.3b: mana abilities require priority (outside payment). The
+        // player Assist named never holds it (CR 702.132a: the caster does, and
+        // the game waits on them through their choice), yet CR 605.3a gives them
+        // the window.
+        if (
+            !hasPriority &&
+            !(activeChoice?.assistPayment && activeChoice.playerId === playerId)
+        ) {
+            return false;
+        }
         // CR 601.2f / 601.2g — a mana ability with its own MANA cost leg (Mana
         // Cylix "{1}, {T}: Add one mana of any color", Chromatic Star, Fire
         // Sprites) needs that mana paid before it adds any. The server

@@ -1626,6 +1626,7 @@ export const PARK_ANSWER_ROUTE: Record<ParkKind, "dedicated" | "generic"> = {
     "cast:exileFromGraveyardChoice": "dedicated",
     "cast:alternativeCostHandChoice": "generic",
     "cast:restrictedXSplitChoice": "generic",
+    "cast:assistChoice": "generic",
     "cast:manaSpendChoice": "dedicated",
     "activation:sacrificeSelection": "generic",
     "activation:exileFromGraveyardChoice": "generic",

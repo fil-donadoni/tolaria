@@ -491,6 +491,30 @@ export default function PendingChoicePrompt({
                                         }
                                     }}
                                 />
+                            ) : choice.assistPayment?.stage === "mana" ? (
+                                // CR 702.132a — this step has no amount, only
+                                // the end of the assistant's mana abilities.
+                                <Button
+                                    type="button"
+                                    variant="primary"
+                                    size="sm"
+                                    disabled={isBusy}
+                                    onClick={async () => {
+                                        if (isBusy) return;
+                                        setIsBusy(true);
+                                        try {
+                                            await submitNumberChoice({
+                                                gameId,
+                                                playerId,
+                                                amount: 0,
+                                            });
+                                        } finally {
+                                            setIsBusy(false);
+                                        }
+                                    }}
+                                >
+                                    Continue
+                                </Button>
                             ) : isNumberPick ? (
                                 <NumberAmountInput
                                     min={numberRange.min}

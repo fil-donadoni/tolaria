@@ -122,6 +122,9 @@ export type CastCommitLegs = {
     >;
     /** CR 118.9 / 701.20a — the alternative cost reveals the caster's hand. */
     revealHand?: true;
+    /** CR 702.132a — the generic mana the named player pays; already off
+     *  `plan.manaCost`, spent here from THEIR pool. */
+    assistPayment?: { playerId: string; amount: number };
 };
 
 /** The announcement record stamped onto the stack item: what the caster chose
@@ -253,6 +256,34 @@ export function commitCast(
         riders = payment.riders;
         notedManaSpent = payment.notedManaSpent;
         commitLandsForCost(caster, plan.manaCost);
+    }
+    // CR 702.132a / 601.2h — the assistant's share of the total cost. It is mana
+    // spent to cast the spell like any other, so its riders (CR 106.6) and its
+    // per-colour `notedManaSpent` record join the caster's.
+    if (legs.assistPayment) {
+        const assistant = getPlayer(state, legs.assistPayment.playerId);
+        const assistCost = { X: legs.assistPayment.amount };
+        const payment = payCastManaCost(
+            state,
+            assistant,
+            assistCost,
+            plan.cardDef,
+            [],
+            plan.cardInstanceId
+        );
+        riders = {
+            cantBeCountered:
+                riders.cantBeCountered || payment.riders.cantBeCountered,
+            haste: riders.haste || payment.riders.haste,
+        };
+        if (payment.notedManaSpent) {
+            const merged: Record<string, number> = { ...notedManaSpent };
+            for (const [color, n] of Object.entries(payment.notedManaSpent)) {
+                merged[color] = (merged[color] ?? 0) + n;
+            }
+            notedManaSpent = merged;
+        }
+        commitLandsForCost(assistant, assistCost);
     }
     // CR 118.9 — the alternative-cost HAND leg: move each picked card from
     // hand to exile / graveyard. Vanished-card policy: a pick no longer in

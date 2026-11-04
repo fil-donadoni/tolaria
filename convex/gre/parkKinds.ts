@@ -72,5 +72,6 @@ export const PARK_VARIANT_K: Record<CastParkKind, number> = {
     "cast:exileFromGraveyardChoice": 1,
     "cast:alternativeCostHandChoice": 1,
     "cast:restrictedXSplitChoice": 1,
+    "cast:assistChoice": 1,
     "cast:manaSpendChoice": 1,
 };

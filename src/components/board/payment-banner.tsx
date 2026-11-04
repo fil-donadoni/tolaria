@@ -72,7 +72,15 @@ export default function PaymentBanner(props: Props) {
     const declineSubstitution = useMutation(
         api.game.declineGenericSubstitution
     );
+    const finishAssistMana = useMutation(api.game.finishAssistCasterMana);
     const [busy, setBusy] = useState(false);
+
+    // CR 702.132a — the player the caster named pays only once the caster has
+    // finished activating mana abilities, which a fully covered cost cannot
+    // signal by itself: nothing commits until the caster says so.
+    const awaitingAssistHandoff =
+        props.kind === "cast" &&
+        props.pendingCast.assistChoice?.stage === "caster-mana";
 
     let cardName: string;
     let subtitle: string;
@@ -122,6 +130,10 @@ export default function PaymentBanner(props: Props) {
         if (castSac && !isSacrificeComplete(castSac) && castManaCovered) {
             manaOwed = false;
             subtitle = describeSacrificeChoice(castSac);
+        } else if (awaitingAssistHandoff) {
+            manaOwed = !castManaCovered;
+            subtitle =
+                "activate mana abilities, then let the assisting player pay";
         } else {
             subtitle = "pay the casting costs";
         }
@@ -209,6 +221,21 @@ export default function PaymentBanner(props: Props) {
         }
     }
 
+    async function handleFinishAssistMana() {
+        if (busy) return;
+        setBusy(true);
+        try {
+            await finishAssistMana({
+                gameId: props.gameId,
+                playerId: props.playerId,
+            });
+        } catch {
+            // A double click: the banner follows the server's next state.
+        } finally {
+            setBusy(false);
+        }
+    }
+
     async function handleDeclineSubstitution() {
         if (busy) return;
         setBusy(true);
@@ -253,6 +280,19 @@ export default function PaymentBanner(props: Props) {
                             className="mt-2 w-full"
                         >
                             Auto-tap
+                        </Button>
+                    )}
+                    {awaitingAssistHandoff && (
+                        <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={handleFinishAssistMana}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            disabled={busy}
+                            className="mt-2 w-full"
+                        >
+                            Done, let them pay
                         </Button>
                     )}
                     {substitutionOffered && (

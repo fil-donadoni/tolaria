@@ -71,6 +71,16 @@ const FULL_CAST: Required<PendingCast> = {
     },
     exileFromGraveyardChoice: { count: 1, excludeInstanceId: "spell" },
     restrictedXSplitChoice: { options: [0, 1] },
+    assistChoice: {
+        stage: "choose-player",
+        candidateIds: ["p2"],
+        spell: {
+            spellCardId: "spell",
+            spellName: "Spell",
+            spellTypes: ["Creature"],
+            spellSupertypes: [],
+        },
+    },
     alternativeCostHandChoice: {
         action: "exile",
         requirements: [],

@@ -450,6 +450,7 @@ export type {
     PendingCast,
     PendingActivation,
     PendingCompanionPay,
+    AssistPaymentWindow,
     RestrictedMana,
     ManaRiders,
     SpellManaRiders,
@@ -481,6 +482,7 @@ export type {
     RecipientPreventionStateView,
     StackTransformStamp,
     ManaSubstitution,
+    AssistChoice,
     GenericSpendAmbiguity,
     RestrictedXSplitChoice,
     CostModifiers,
@@ -502,6 +504,7 @@ import type {
     DelayedTriggerInstance,
     RestrictedMana,
     ManaRiders,
+    AssistPaymentWindow,
     SpellManaRiders,
     PendingChoice,
     PendingTarget,
@@ -994,6 +997,29 @@ export function spendableManaTotal(
     return total;
 }
 
+/** CR 702.132a / 106.6 — total mana an assistant may spend on the spell being
+ *  assisted right now. Every unit pays one generic (CR 107.4b). */
+export function spendableManaForAssist(
+    player: Pick<PlayerState, "manaPool" | "restrictedMana">,
+    spell: Pick<
+        AssistPaymentWindow,
+        "spellCardId" | "spellTypes" | "spellSupertypes"
+    >
+): number {
+    let total = 0;
+    for (const amount of Object.values(
+        spendablePoolForSpell(
+            player,
+            spell.spellTypes,
+            spell.spellCardId,
+            spell.spellSupertypes
+        )
+    )) {
+        total += amount;
+    }
+    return total;
+}
+
 /** THE range a `number-pick` nomination may be answered with (CR 107.1c /
  *  107.3f, issues #1701 / #1421) — the single authority read by the submit
  *  validator (`applyNumberChoiceSubmit`), the client's stepper and the bot's
@@ -1024,17 +1050,25 @@ export function spendableManaTotal(
 export function numberChoiceRange(
     choice: Pick<
         PendingChoice,
-        "numberMin" | "numberMax" | "paysMana" | "manaRestriction"
+        | "numberMin"
+        | "numberMax"
+        | "paysMana"
+        | "manaRestriction"
+        | "assistPayment"
     >,
     payer: Pick<PlayerState, "manaPool" | "restrictedMana"> | undefined
 ): { min: number; max: number } {
     const min = Math.max(0, choice.numberMin ?? 0);
     let max = choice.numberMax ?? Number.POSITIVE_INFINITY;
     if (choice.paysMana) {
-        max = Math.min(
-            max,
-            payer ? spendableManaTotal(payer, choice.manaRestriction) : 0
-        );
+        // CR 702.132a / 106.6 — an assistant pays toward a SPELL, so the spell's
+        // characteristics decide which of their restricted mana is eligible.
+        const spendable = !payer
+            ? 0
+            : choice.assistPayment
+              ? spendableManaForAssist(payer, choice.assistPayment)
+              : spendableManaTotal(payer, choice.manaRestriction);
+        max = Math.min(max, spendable);
     }
     // The open-ended nomination (issue #1421) lands here with no ceiling of
     // its own: CR 107.1c admits every non-negative integer, and the engine

@@ -19,10 +19,12 @@ import type { PendingActivation, PendingCast, Player } from "~/types/game";
 type MutArgs = Record<string, unknown>;
 type MutFn = (args?: MutArgs) => Promise<void>;
 const autoTapForPayment = vi.fn<MutFn>(() => Promise.resolve());
+const finishAssistCasterMana = vi.fn<MutFn>(() => Promise.resolve());
 const noop = vi.fn<MutFn>(() => Promise.resolve());
 
 const MUTATIONS: Record<string, ReturnType<typeof vi.fn>> = {
     autoTapForPayment,
+    finishAssistCasterMana,
     declineGenericSubstitution: vi.fn<MutFn>(() => Promise.resolve()),
 };
 
@@ -34,6 +36,7 @@ vi.mock("convex/react", () => ({
 vi.mock("@convex/_generated/api", () => {
     const game: Record<string, { _name: string }> = {
         autoTapForPayment: { _name: "autoTapForPayment" },
+        finishAssistCasterMana: { _name: "finishAssistCasterMana" },
         declineGenericSubstitution: { _name: "declineGenericSubstitution" },
     };
     return { api: { game } };
@@ -649,5 +652,86 @@ describe("PaymentBanner restricted-mana coverage (#1713, CR 106.6)", () => {
         );
 
         expect(screen.getByText("Auto-tap")).toBeTruthy();
+    });
+});
+
+describe("PaymentBanner on Assist's caster step (CR 702.132a)", () => {
+    const assistCast = (
+        stage: "caster-mana" | "settled",
+        manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }
+    ) => ({
+        cast: {
+            playerId: "me",
+            cardInstanceId: "h1",
+            manaCost: { X: 4, W: 1 },
+            tappedLandIds: [],
+            assistChoice: {
+                stage,
+                candidateIds: ["opp"],
+                assistantId: "opp",
+                spell: {
+                    spellCardId: "h1",
+                    spellName: "Spell",
+                    spellTypes: ["Creature"],
+                    spellSupertypes: [],
+                },
+            },
+        } as PendingCast,
+        me: player({
+            manaPool,
+            hand: [
+                {
+                    id: "h1",
+                    card: { id: "some-spell" },
+                    controllerId: "me",
+                    ownerId: "me",
+                    zone: "hand",
+                } as never,
+            ],
+        }),
+    });
+
+    const renderCast = ({ cast, me }: ReturnType<typeof assistCast>) =>
+        render(
+            <PaymentBanner
+                kind="cast"
+                pendingCast={cast}
+                me={me}
+                gameId={"game" as never}
+                playerId="me"
+            />
+        );
+
+    beforeEach(() => finishAssistCasterMana.mockClear());
+
+    it("hands on to the assisting player from a button, with mana still owed", async () => {
+        renderCast(assistCast("caster-mana"));
+        expect(screen.getByRole("button", { name: "Auto-tap" })).toBeTruthy();
+        fireEvent.click(
+            screen.getByRole("button", { name: "Done, let them pay" })
+        );
+        await waitFor(() =>
+            expect(finishAssistCasterMana).toHaveBeenCalledWith({
+                gameId: "game",
+                playerId: "me",
+            })
+        );
+    });
+
+    it("keeps the button once the pool covers the cost, the only way forward then", () => {
+        renderCast(
+            assistCast("caster-mana", { W: 5, U: 0, B: 0, R: 0, G: 0, C: 0 })
+        );
+        expect(screen.queryByRole("button", { name: "Auto-tap" })).toBeNull();
+        expect(
+            screen.getByRole("button", { name: "Done, let them pay" })
+        ).toBeTruthy();
+    });
+
+    it("drops the button once Assist has settled", () => {
+        renderCast(assistCast("settled"));
+        expect(
+            screen.queryByRole("button", { name: "Done, let them pay" })
+        ).toBeNull();
     });
 });

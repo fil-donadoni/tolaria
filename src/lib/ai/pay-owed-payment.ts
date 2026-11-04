@@ -38,6 +38,8 @@ export type OwedPaymentMutations = {
     selectRestrictedXSplit: (
         a: Seat & { pointsOnX: number }
     ) => Promise<unknown>;
+    selectAssistPlayer: (a: Seat) => Promise<unknown>;
+    finishAssistCasterMana: (a: Seat) => Promise<unknown>;
     selectCastAlternativeHandCost: (
         a: Seat & { cardInstanceIds: string[] }
     ) => Promise<unknown>;
@@ -93,6 +95,12 @@ export async function submitOwedPayment(
                 ...seat,
                 pointsOnX: submission.pointsOnX,
             });
+            return;
+        case "selectAssistPlayer":
+            await mutations.selectAssistPlayer(seat);
+            return;
+        case "finishAssistCasterMana":
+            await mutations.finishAssistCasterMana(seat);
             return;
         case "selectCastExileCost":
             await mutations.selectCastExileCost({
