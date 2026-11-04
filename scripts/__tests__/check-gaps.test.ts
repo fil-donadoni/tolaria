@@ -4,12 +4,14 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { spawnSync } from "node:child_process";
 import { HEALTH_SCRIPTS } from "../lib/health-step";
-import { opGapKey } from "../lib/grammar-gaps";
+import { compileCard } from "../../convex/oracle/compile";
+import { gapOf, opGapKey } from "../lib/grammar-gaps";
 import {
     auditOpCensus,
     baselineAllowlist,
     censusedOps,
     censusClusters,
+    censusRefusedLayouts,
     emittedOps,
     botGapsFiledPerDay,
     gapsVerdict,
@@ -19,8 +21,10 @@ import {
     parseAllowlist,
     render,
     renderBotGaps,
+    refusedLayoutOf,
     renderClusterCensus,
     renderHandTailClaims,
+    renderRefusedLayouts,
     unclaimedBotGaps,
     type Allowlist,
     type LiveGapKey,
@@ -30,7 +34,11 @@ import {
     handTailClaimMismatches,
     scanCompilerGapMarkers,
 } from "../lib/compiler-gap-markers";
-import type { CardRow, FragmentRow } from "../lib/oracle-lockfile";
+import {
+    fragmentRow,
+    type CardRow,
+    type FragmentRow,
+} from "../lib/oracle-lockfile";
 import type { ClusterRow } from "../lib/targets";
 
 /**
@@ -723,6 +731,116 @@ describe("liveClusterKeys (ADR 0146, issue #4682)", () => {
         expect(keys).toEqual([
             { kind: "hand-tail", key: "Arena of Glory", card: undefined },
         ]);
+    });
+});
+
+describe("censusRefusedLayouts (issue #8060)", () => {
+    const REASON = (layout: string) =>
+        `layout "${layout}" is not in grammar v0 (multi-faced cards)`;
+    const refusal = (layout: string) =>
+        fragmentRow({ text: "Type", reason: REASON(layout), cards: 1 });
+    const refused = (oracleId: string, ...gaps: FragmentRow[]): CardRow => ({
+        oracleId,
+        name: oracleId,
+        state: "unparsed",
+        gaps: gaps.map((gap) => gap.key),
+    });
+    const claim = (layout: string, issue: number) => ({
+        kind: "grammar" as const,
+        key: `(card) › ${REASON(layout)}`,
+        issue,
+    });
+
+    it("counts cards and ranked cards per layout, most cards first, ties by name", () => {
+        const saga = refusal("saga");
+        const flip = refusal("flip");
+        const case_ = refusal("case");
+        const rows = censusRefusedLayouts(
+            {
+                cards: [
+                    refused("s1", saga),
+                    refused("s2", saga),
+                    refused("f1", flip),
+                    refused("c1", case_),
+                ],
+                fragments: [saga, flip, case_],
+            },
+            new Set(["s2", "f1"]),
+            []
+        );
+        expect(rows).toEqual([
+            { layout: "saga", cards: 2, ranked: 1, issue: null },
+            { layout: "case", cards: 1, ranked: 0, issue: null },
+            { layout: "flip", cards: 1, ranked: 1, issue: null },
+        ]);
+    });
+
+    it("names only the grammar claim of the same key", () => {
+        const saga = refusal("saga");
+        const flip = refusal("flip");
+        const rows = censusRefusedLayouts(
+            {
+                cards: [refused("s1", saga), refused("f1", flip)],
+                fragments: [saga, flip],
+            },
+            new Set(),
+            [
+                claim("saga", 8056),
+                { ...claim("flip", 9), kind: "mechanic" as const },
+            ]
+        );
+        expect(rows.map((row) => [row.layout, row.issue])).toEqual([
+            ["flip", null],
+            ["saga", 8056],
+        ]);
+    });
+
+    it("ignores every other gap, and any card that is not unparsed", () => {
+        const line = fragmentRow({
+            text: "a line",
+            reason: "no slot consumed the line",
+            cards: 1,
+        });
+        const saga = refusal("saga");
+        const rows = censusRefusedLayouts(
+            {
+                cards: [
+                    refused("x1", line),
+                    { ...refused("x2", saga), state: "quarantine" },
+                ],
+                fragments: [line, saga],
+            },
+            new Set(),
+            []
+        );
+        expect(rows).toEqual([]);
+    });
+
+    // The census reads a reason `compileCard` spells: without this, a reworded
+    // refusal would empty the report silently, and it is never red.
+    it("recognises the key a real compiler refusal produces", () => {
+        const outcome = compileCard({
+            name: "Probe",
+            typeLine: "Enchantment — Saga",
+            oracleText: "I — Draw a card.",
+            layout: "saga",
+        } as Parameters<typeof compileCard>[0]);
+        if (outcome.state !== "unparsed") throw new Error(outcome.state);
+        const [gap] = outcome.gaps;
+        const { key } = gapOf({ text: gap!.fragment, reason: gap!.reason });
+        expect(refusedLayoutOf(key)).toBe("saga");
+    });
+
+    it("renders a row per layout, and one line when nothing is refused", () => {
+        expect(
+            renderRefusedLayouts([
+                { layout: "saga", cards: 204, ranked: 1, issue: 8056 },
+                { layout: "flip", cards: 26, ranked: 0, issue: null },
+            ])
+        ).toContain(
+            "  saga: 204 card(s), 1 ranked — issue #8056\n  flip: 26 card(s), 0 ranked — no claim"
+        );
+        expect(renderRefusedLayouts([])).toContain("census clean");
     });
 });
 
