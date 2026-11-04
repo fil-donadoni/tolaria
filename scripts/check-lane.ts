@@ -463,7 +463,7 @@ export function admitsCardsPartition(files: readonly string[]): boolean {
  * test files that are precisely the guards which READ prose
  * (`adr-index`, `findings`, `project-skills`, `resident-context-budget`,
  * `action-space`, `bot-globs`). Before this lane existed, `docs/**` matched no
- * rule and fell to `full` by the fail-closed default, so `bun run land` on a
+ * rule and fell to `full` by the fail-closed default, so a landing on a
  * one-file docs branch paid the entire `check:pr` suite: 466s measured on
  * PR #2891, against seconds for `check:docs`. That gap was a standing invitation
  * to reach for `docs:ship` from muscle memory and pay the full gate whenever
@@ -476,7 +476,7 @@ export function admitsCardsPartition(files: readonly string[]): boolean {
  * generated mirror of the same prose for Codex and opencode
  * (`scripts/build-agents-md.ts`). Those files live at `convex/` and `src/`, so
  * without the third pattern `src/CLAUDE.md` matches `SKIN_PATTERNS` (`^src/`)
- * and a markdown-only diff classifies as `skin` — which makes `bun run land`
+ * and a markdown-only diff classifies as `skin` — which makes a landing
  * demand a byte-exact `check:ui` receipt for a file that cannot reach the DOM.
  * Anchored to the two exact basenames, at any depth: this admits agent memory
  * and nothing else, so it cannot promote a stylesheet or an asset out of

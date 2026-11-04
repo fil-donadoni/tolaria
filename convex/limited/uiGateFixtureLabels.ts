@@ -9,10 +9,10 @@
 // MODULE (`internalMutation`, `./_generated/server`), and `convex/_generated`
 // is gitignored, so importing these three strings from there drags the whole
 // generated API into every `scripts/` process that touches the lane. The
-// chain that made this concrete: `scripts/land.ts` → `verify-receipt.ts` →
-// `surfaces.ts`. With the constants living in the function module, a fresh
-// worktree that had not yet run `bun run worktree:init` could not run
-// `bun run land` AT ALL — `Cannot find module './_generated/server'` — for
+// chain that made this concrete: `scripts/lib/pr-refusals.ts` →
+// `verify-receipt.ts` → `surfaces.ts`. With the constants living in the
+// function module, a fresh worktree that had not yet run
+// `bun run worktree:init` could not check a PR AT ALL — `Cannot find module './_generated/server'` — for
 // any PR, UI-touching or not. Missing/stale `_generated` is a recurring
 // merge-train failure mode (CLAUDE.md, "Fresh worktrees need
 // `bun run worktree:init`"); the merge command must not be one of its

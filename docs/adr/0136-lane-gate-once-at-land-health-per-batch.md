@@ -234,7 +234,7 @@ telemetry:latency` prints PR throughput by concurrency, the per-reviewer
 
 **Stands**: the lane is paid once, on the rebased tip; the full gate runs per
 batch. **Who pays changed** under ADR 0156: `queue-lane` in Mergify's draft, not
-`land`, whose last caller is `/health-fix`'s RED repair (issue #7990 retires it). §2's
+`land`, retired with its last caller, `/health-fix`'s RED repair (issue #7990). §2's
 "inside the mutex" and §6's mutex and class queue are gone (PR #7519): one `lane`
 runner serialises, `health.yml` gates per batch. **§7 is retired**: PR #7503 and
 PR #7519 deleted the session cap, `queue:claim` and the claims journal. A claim is

@@ -26,7 +26,7 @@ import * as path from "path";
  * an IDLE machine, measured 2026-08-18. The default 5s leaves only 3-5x
  * headroom, which the FULL suite eats: at `ncpu - 1` workers, with a second
  * session holding the heavy gate, two of these timed out inside
- * `bun run land` and went green immediately when re-run alone. A spawn-bound
+ * a landing and went green immediately when re-run alone. A spawn-bound
  * test that fails on machine load is noise in the one gate this repo has, and
  * it reds the merge-train for whoever is landing next.
  */
@@ -163,7 +163,7 @@ afterAll(() => {
     });
 });
 
-describe("deny-guard — merging goes through land, from the PR's own branch (#2537)", () => {
+describe("deny-guard — merging goes through the merge queue (#2537)", () => {
     it("denies `gh pr merge` from an issue worktree", () => {
         const r = runHook(
             DENY_GUARD,
@@ -192,14 +192,6 @@ describe("deny-guard — merging goes through land, from the PR's own branch (#2
             bash("gh pr merge 123 --squash", linkedWorktree)
         );
         expect(denied(r)).toBe(true);
-    });
-
-    it("points the caller at the merge-only retry, not at re-running the gate", () => {
-        // The recovery instruction matters as much as the denial: a second
-        // `bun run land` re-pays a full heavy gate on a tree that is unchanged
-        // and already verified (#2536).
-        const r = runHook(DENY_GUARD, bash("gh pr merge 123", mainCheckout));
-        expect(r.stderr).toMatch(/pr-merge\.ts/);
     });
 
     it("allows it behind the explicit per-command hatch", () => {
@@ -714,14 +706,11 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
 
     // The regression that started this rewrite: § 3 used to deny by matching a
     // hardcoded allowlist of gate command NAMES. That list was already stale —
-    // `land` and `docs:ship` both reach `scripts/gate.ts` (via `scripts/land.ts`
-    // and `scripts/docs-lane.ts` → `check:docs`) and neither name was in it, so
-    // both of these were run for real against the old guard and sailed through.
-    it.each([
-        "bun run land 2524 | tail -80",
-        "bun run docs:ship 2>&1 | tail -25",
-    ])(
-        "denies `bun run land` and `bun run docs:ship` piped into a pager — both reach scripts/gate.ts and neither was on the old name-list: %s",
+    // `docs:ship` reaches `scripts/gate.ts` (via `scripts/docs-lane.ts` →
+    // `check:docs`) and its name was not in it, so it was run for real against
+    // the old guard and sailed through.
+    it.each(["bun run docs:ship 2>&1 | tail -25"])(
+        "denies `bun run docs:ship` piped into a pager — it reaches scripts/gate.ts and was not on the old name-list: %s",
         (cmd) => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
@@ -824,7 +813,7 @@ describe("deny-guard — a gate may not be run in the BACKGROUND either (#2654)"
         "bun run test:app",
         "bun run check:all",
         "bun run check:pr",
-        "bun run land 2524",
+        "bun run land:ready 2524",
         "bun run docs:ship",
     ])("denies a gate script requested to run in the background: %s", (cmd) => {
         const r = runHook(DENY_GUARD, bashBg(cmd, issueWorktree, true));
@@ -2151,58 +2140,7 @@ describe("resident prose pruned to its hook — each denial names the fix (issue
             bash("gh pr merge 5102 --squash", issueWorktree)
         );
         expect(denied(r)).toBe(true);
-        expect(r.stderr).toMatch(/bun run land <PR#>/);
+        expect(r.stderr).toMatch(/bun run land:ready <PR#>/);
         expect(r.stderr).toMatch(/TOLARIA_ALLOW_MANUAL_MERGE=1/);
-    });
-});
-
-describe("deny-guard § 8 — a session hands its PR to the merge queue, never runs `land` (issue #5469)", () => {
-    it.each([
-        "bun run land 5469",
-        "TOLARIA_GATE_RUN_KEY=land-5469 bun run gate:run land 5469",
-        "bun scripts/land.ts 5469",
-        "sh scripts/gate-run.sh land 5469",
-        "cd /x && bun run land 5469 --red-ok",
-        "env FOO=1 bun run land 5469",
-        "bun run --silent land 5469",
-        "bun run scripts/land.ts 5469",
-        "bash scripts/gate-run.sh land 5469",
-        "/bin/sh /repo/scripts/gate-run.sh land 5469",
-        "(bun run land 5469)",
-        "nohup bun run land 5469",
-        "time bun run land 5469",
-    ])(
-        "denies every spelling of a land invocation, naming land:ready and the hatch: %s",
-        (cmd) => {
-            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
-            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
-            expect(r.stderr).toMatch(/bun run land:ready <PR#>/);
-            expect(r.stderr).toMatch(/TOLARIA_LAND_RUNNER=1/);
-        }
-    );
-
-    it.each([
-        "bun run land:ready 5469",
-        "TOLARIA_LAND_RUNNER=1 bun run land 5469",
-        'git commit -m "sessions no longer run bun run land 5469"',
-    ])(
-        "allows land:ready, the hatch, and land quoted in a message: %s",
-        (cmd) => {
-            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
-            expect(denied(r), `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(
-                false
-            );
-        }
-    );
-
-    it("the hatch names ONE command: it does not cover a land in another segment", () => {
-        const r = runHook(
-            DENY_GUARD,
-            bash(
-                "TOLARIA_LAND_RUNNER=1 echo ok; bun run land 5469",
-                issueWorktree
-            )
-        );
-        expect(denied(r)).toBe(true);
     });
 });

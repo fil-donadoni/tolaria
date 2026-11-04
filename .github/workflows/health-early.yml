@@ -40,6 +40,14 @@
 # tip has no verdict (a tip judged `pending` derived-stale included) and no
 # gate is in flight (issue #7647): a revert or any repair of the standing RED
 # is re-judged in minutes, the `derive:sync` push itself included.
+#
+# `amber` (issue #7990) is what a proved repair's merge owes the queue: when
+# the push merges a declared repair and the RED's failing tests all pass on the
+# merged tip, the lineage turns AMBER and the queue reopens before health
+# confirms (`health:fix amber`, `repairAmberDecision`). Fail closed: a share of
+# the failing tests, a corpus test this runner cannot judge, a tip that already
+# holds a verdict, all leave the RED to health. Beside `early`, never behind
+# it: a RED `early` writes first keeps the tip; written after, it overwrites.
 name: health-early
 
 on:
@@ -85,8 +93,7 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   SHA: ${{ github.sha }}
               run: bun run health:batch-due --sha "$SHA"
-            # A merged repair needs the full gate on its tip at once (no
-            # `land` merge step under Mergify fires it); so does a batch
+            # A merged repair needs the full gate on its tip at once; so does a batch
             # landed with no verdict (ADR 0159 § 4), and an unverdicted tip
             # under a standing RED (issue #7647).
             - name: Repair merged, batch due or RED re-gate → the full health gate on the new tip
@@ -95,6 +102,40 @@ jobs:
               env:
                   GH_TOKEN: ${{ github.token }}
               run: gh workflow run health.yml --ref staging -f job=gate
+
+    amber:
+        name: AMBER on a proved repair
+        needs: classify
+        if: ${{ needs.classify.outputs.repair == 'true' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        # `statuses: write` for the AMBER, `actions: write` to re-gate the
+        # queue: a status written with the job's token fires no event.
+        permissions:
+            contents: read
+            statuses: write
+            pull-requests: read
+            actions: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+            - uses: ./.github/actions/job-setup
+            - name: health:fix amber (the RED's failing tests, on the merged tip)
+              id: amber
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  SHA: ${{ github.sha }}
+                  TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1"
+              run: bun run health:fix amber "--sha=$SHA"
+            - name: AMBER → re-gate the queue
+              if: ${{ steps.amber.outputs.amber == 'true' }}
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: gh workflow run pr-gate.yml --ref staging
 
     early:
         name: health (early, hosted)

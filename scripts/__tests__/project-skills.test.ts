@@ -333,9 +333,9 @@ describe("next-ticket consumes the planner (issue #2184, re-homed by ADR 0110)",
     });
 
     it("hands off through `land:ready` and creates worktrees through `wt:new` — never by hand", () => {
-        // Issue #5469: the pass ends at push + `ready-to-land`; the one
-        // land-runner runs `land`. Before it, `gate:run land` (issue #3698)
-        // had the pass polling its own landing for 8–9 minutes.
+        // Issue #5469: the pass ends at push + `ready-to-land`; the queue
+        // lands it. Before it, `gate:run land` (issue #3698) had the pass
+        // polling its own landing for 8–9 minutes.
         expect(body()).toMatch(/bun run land:ready <PR#>/);
         expect(body()).not.toMatch(/gate:run land/);
         expect(body()).toMatch(/wt:new/);
@@ -398,13 +398,6 @@ describe("next-ticket consumes the planner (issue #2184, re-homed by ADR 0110)",
         const section = fileTail(text, "## 6. Report");
         expect(section).toMatch(/ready-to-land/);
         expect(section).not.toMatch(/lane: ran/);
-
-        const landSrc = fs.readFileSync(
-            path.join(REPO_ROOT, "scripts", "land.ts"),
-            "utf8"
-        );
-        expect(landSrc).toContain("lane: ran");
-        expect(landSrc).toContain("lane: skipped");
     });
 
     it("names the job-context differences: given issue, label claim, early push, failed-run log (issue #5641)", () => {

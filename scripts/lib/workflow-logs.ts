@@ -39,7 +39,7 @@ const VITEST_FAILED =
  * failure mark is the one charged:
  *
  *  - `refused` — `land` refused before queuing (`land: refusing — …`: RED
- *    base without `--red-ok`, run from the base branch, …);
+ *    base, run from the base branch, …);
  *  - `infra`  — the dependency install failed (exit 77) or the run was
  *    killed by a signal: no verdict on the PR;
  *  - `rebase` — the rebase onto the base stopped (`Could not apply`,

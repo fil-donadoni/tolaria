@@ -51,7 +51,7 @@ describe("blade:robustness wiring (issue #4875)", () => {
     });
 
     it("the PR-phase gates never name it", () => {
-        for (const file of ["scripts/check-lane.ts", "scripts/land.ts"]) {
+        for (const file of ["scripts/check-lane.ts", "scripts/land-ready.ts"]) {
             const src = readFileSync(join(ROOT, file), "utf8");
             expect(src, file).not.toMatch(/blade:robustness|BLADE_ROBUSTNESS/);
         }

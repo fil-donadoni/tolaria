@@ -37,9 +37,7 @@ import {
     type ReadyRegression,
 } from "./lib/oracle-state-regressions";
 
-/** Subject of the one commit this step pushes to the base branch — `land`
- *  tells it from a foreign push by it and by its file (`VERIFY_MERGED_TIP`),
- *  and `land.test.ts` pins the two spellings equal. */
+/** Subject of the one commit this step pushes to the base branch. */
 export const PRUNE_COMMIT_SUBJECT =
     "oracle:prune-regressions — drop acknowledgements that match no regression";
 

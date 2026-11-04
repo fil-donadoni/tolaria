@@ -29,11 +29,7 @@ import { DERIVED_PATHS, LOCKFILE_PATH } from "../lib/derive-sync";
 import { serializeRows, type KeyedRow } from "../lib/key-set-merge";
 import { headerHashes, restoreHeaderHashes } from "../lib/derived-in-pr";
 import { CORPUS_PATH } from "../oracle-corpus";
-import {
-    buildLockedCommand,
-    rebaseStep,
-    resolveGeneratedArtifactsStep,
-} from "../land";
+import { rebaseStep } from "../lib/rebase-resolve";
 import { BASE_BRANCH, ORIGIN_BASE } from "../lib/branches";
 import {
     AI_EFFECTS_BASELINE_PATH,
@@ -249,25 +245,6 @@ describe("generated-artifact class — wiring", () => {
 
     it("the corpus path has one authority", () => {
         expect(CORPUS_PATH.endsWith(CORPUS_CACHE_REL)).toBe(true);
-    });
-
-    it("land regenerates between the rebase and the lane gate", () => {
-        const cmd = buildLockedCommand({
-            branch: "fix/issue-3069",
-            gatedGreen: [],
-            laneRecordDir: null,
-            pr: 1,
-            primaryCheckout: "/repo",
-            worktree: "/repo/wt",
-            merge: true,
-            teardown: true,
-        });
-        const rebaseAt = cmd.indexOf(rebaseStep());
-        const resolveAt = cmd.indexOf(resolveGeneratedArtifactsStep());
-        const gateAt = cmd.indexOf("bun run check:lane");
-        expect(rebaseAt).toBeGreaterThanOrEqual(0);
-        expect(resolveAt).toBeGreaterThan(rebaseAt);
-        expect(gateAt).toBeGreaterThan(resolveAt);
     });
 
     it("the rebase step clears the marker ONLY on the abort path", () => {

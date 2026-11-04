@@ -919,3 +919,37 @@ A per-minute Actions fee that reaches public repositories; Anthropic
 disallowing subscription use on a self-hosted runner (then an API budget, or
 no AFK); self-hosted runners proving unstable at ~10 jobs/hour; a product
 need for a custom dashboard that the Actions UI cannot show.
+
+## Amendment VIII (2026-11-03, issue #7990) — the fixer hands off; `land` retires
+
+**What changed.** Amendment I kept `land` for one caller: the headless fixer
+merged its repair synchronously, and `land` alone wrote the AMBER mark after a
+proved repair. Both move, and `land` goes.
+
+- **The fixer ends at `land:ready`,** like every other PR. Its verdict is
+  `handed-off` (`handed-off-partial`), naming the PR; `landed` no longer exists,
+  because no fixer can truthfully claim a merge that comes after it exits.
+- **The ladder watches the PR,** as it already watched a revert's. In the queue
+  → wait. Merged → wait for health on its tip. `land-failed`, closed unmerged,
+  or held past 8 h → a used attempt, its PR withdrawn before the next rung.
+  Waiting inside the fixer was the alternative: it holds a `pass` runner and a
+  model turn for the queue's whole wait, against a 210-minute job, to buy a
+  retry the next attempt already gives.
+- **`release` waits,** because its next round must gate the repair's tip: up to
+  2 h on the PR, then the handover.
+- **AMBER is `health-early`'s** (`amber` job, `health:fix amber --sha=<tip>`,
+  `repairAmberDecision`): on a push that merges a declared repair, the RED's
+  failing tests run on the merged tip, one file per run, and ALL green writes
+  AMBER and re-gates the queue. A commit status on the PR's head would have
+  proved a tree the queue had since rebased; this proves the tree that landed,
+  as `land` did.
+
+**What is lost, on purpose.** A hosted run holds no reader key, so a RED naming
+a corpus test earns no AMBER: the RED stands until health's repair proof
+(Amendment V), minutes later. `land:ready` still runs those tests locally before
+the hand-off. And a tip that earned AMBER is judged by the full gate rather than
+the repair proof, which reads only a blocking lineage: the queue is already open
+by then, so nobody waits on it.
+
+**`gate:run` stays.** It is the gate rule's answer for any hand-run gate
+(`/next-ticket`, `deny-guard.sh` § 3), not only `land`'s.

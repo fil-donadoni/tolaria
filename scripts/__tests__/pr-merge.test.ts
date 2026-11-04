@@ -177,7 +177,7 @@ describe("pr-merge.ts — mergeArgs", () => {
 // (issue #6473).
 describe("pr-merge.ts — followUpNotice", () => {
     it("names post-merge.yml as the owner of the post-merge steps and asks nothing of the reader", () => {
-        const lines = followUpNotice(4153, false);
+        const lines = followUpNotice(4153);
         expect(lines.length).toBeGreaterThan(0);
         const text = lines.join("\n");
         expect(text).toContain("post-merge.yml");
@@ -186,33 +186,18 @@ describe("pr-merge.ts — followUpNotice", () => {
         expect(text).not.toMatch(/gate:run/);
         expect(text).not.toMatch(/\bland\b/);
     });
-
-    it("says nothing when `land` is the caller", () => {
-        expect(followUpNotice(4153, true)).toEqual([]);
-    });
 });
 
 describe("pr-merge.ts — parseArgs", () => {
     it("reads the PR number from the first positional, `#` and flags alike", () => {
-        expect(parseArgs(["4153"])).toEqual({ pr: 4153, fromLand: false });
-        expect(parseArgs(["#4153"])).toEqual({ pr: 4153, fromLand: false });
-        expect(parseArgs(["4153", "--from-land"])).toEqual({
+        expect(parseArgs(["4153"])).toEqual({ pr: 4153 });
+        expect(parseArgs(["#4153"])).toEqual({ pr: 4153 });
+        expect(parseArgs(["4153", "--admin"])).toEqual({
             pr: 4153,
-            fromLand: true,
+            admin: true,
         });
-    });
-
-    it("is what `land`'s own merge step passes — the flag never shifts the PR number", () => {
-        // `buildLockedCommand` emits `bun <pr-merge.ts> <pr> --from-land`.
-        // A parser reading `process.argv[2]` positionally would still work
-        // here; one reading the LAST argument would not, and this pins which.
-        expect(parseArgs(["4153", "--from-land"]).pr).toBe(4153);
     });
 });
 
 // Proof-of-failure: restored the pre-#6473 three-line `land` notice —
 // "names post-merge.yml as the owner" went red. Reverted.
-//
-// Proof-of-failure: made `parseArgs` read `argv[argv.length - 1]` instead of
-// the first positional — both `parseArgs` cases went red, because `land`
-// passes `<pr> --from-land`. Reverted.

@@ -5,8 +5,8 @@
  *
  * One record per RED sha — the LATEST rung tried on it, numbered: on the
  * github backend a commit status on that sha under
- * `context=health-fix-attempt` (pending = attempting, success = landed,
- * failure = stuck); on the file backend `fix-attempts.json` under the health
+ * `context=health-fix-attempt` (pending = attempting, success = handed off
+ * to the merge queue, failure = stuck); on the file backend `fix-attempts.json` under the health
  * telemetry directory. Its own context, never `health-fix`: that one holds
  * the sha's repair ISSUES (`lib/health-pivot.ts`), and a combined status
  * keeps one status per context — an outcome written there erased the issues
@@ -25,7 +25,9 @@ import {
 /** The commit-status context a fix attempt is recorded under. */
 export const FIX_CONTEXT = "health-fix-attempt";
 
-export type FixOutcome = "attempting" | "landed" | "stuck";
+/** `handed-off`: the repair PR is in the merge queue, or merged since (issue
+ *  #7990); whether it landed is the PR's state, never this record's. */
+export type FixOutcome = "attempting" | "handed-off" | "stuck";
 
 /** Which rung of the RED ladder the record is about (issue #5646): the
  *  headless fixer, the revert of the culprit, or the stop's marker (written
@@ -47,9 +49,9 @@ export interface FixAttempt {
     /** A revert record's PRs, one per culprit (issue #7656), `pr` the first
      *  of them; absent reads `[pr]`. */
     prs?: number[];
-    /** A `landed` record whose class guard was filed for the owner instead
-     *  of landed (issue #6552): the `ready-for-human` issue's number. The
-     *  ladder reads it exactly as `landed`. */
+    /** A `handed-off` record whose class guard was filed for the owner
+     *  instead of landed (issue #6552): the `ready-for-human` issue's number.
+     *  The ladder reads it exactly as `handed-off`. */
     classGuard?: number;
     note?: string;
 }
@@ -63,13 +65,13 @@ export interface FixAttemptStore {
 
 const STATE_OF: Record<FixOutcome, string> = {
     attempting: "pending",
-    landed: "success",
+    "handed-off": "success",
     stuck: "failure",
 };
 
 const OUTCOME_OF: Record<string, FixOutcome> = {
     pending: "attempting",
-    success: "landed",
+    success: "handed-off",
     failure: "stuck",
 };
 
@@ -83,7 +85,7 @@ export function prsOf(a: Pick<FixAttempt, "pr" | "prs">): number[] {
     return a.pr !== undefined ? [a.pr] : [];
 }
 
-/** `LANDED · machine · fix 2 · PR #N[,#P…] · guard #M · note`, cut to the 140-character cap.
+/** `HANDED-OFF · machine · fix 2 · PR #N[,#P…] · guard #M · note`, cut to the 140-character cap.
  *  The rung segment is written only when the record names one. */
 export function encodeFixDescription(a: FixAttempt): string {
     const parts = [a.outcome.toUpperCase(), a.machine ?? "-"];
@@ -203,9 +205,9 @@ export function fixAttemptStore(
  *  `health-fix.ts`, which imports this; a test pins the two together. */
 export const LOOP_FIX_ATTEMPTS = 3;
 
-/** How long a landed repair may leave its RED standing before the loop
+/** How long a handed-off repair may leave its RED standing before the loop
  *  stops waiting for health to confirm it: the batch rule's 8 h (ADR 0154). */
-export const LANDED_WAIT_MAX_MS = 8 * 60 * 60 * 1000;
+export const HANDED_OFF_WAIT_MAX_MS = 8 * 60 * 60 * 1000;
 
 export type LoopFixDecision =
     | { kind: "attempt" }
@@ -215,7 +217,7 @@ export type LoopFixDecision =
 /**
  * What an unattended loop does about a standing RED on `sha` (issue #5589):
  * attempt ONE headless repair per tip, within the run's bound; wait while a
- * landed repair awaits health on its own tip; stop on anything else — a
+ * handed-off repair awaits the queue, then health on its own tip; stop on anything else — a
  * stuck fixer, an attempt that never finished, the bound, an unreadable
  * record (never a second fixer on a tip whose first attempt it cannot see).
  */
@@ -252,13 +254,13 @@ export function loopFixDecision(input: {
             why: `a repair started on ${who} never recorded its outcome — running elsewhere, or killed`,
         };
     const at = record.at ? Date.parse(record.at) : NaN;
-    if (Number.isFinite(at) && input.now - at > LANDED_WAIT_MAX_MS)
+    if (Number.isFinite(at) && input.now - at > HANDED_OFF_WAIT_MAX_MS)
         return {
             kind: "stop",
-            why: `a repair landed on ${who}${record.pr ? ` (PR #${record.pr})` : ""} and no health verdict has cleared the RED since`,
+            why: `a repair handed off on ${who}${record.pr ? ` (PR #${record.pr})` : ""} and no health verdict has cleared the RED since`,
         };
     return {
         kind: "wait",
-        why: `a repair landed on ${who}${record.pr ? ` (PR #${record.pr})` : ""} — health confirms on its tip`,
+        why: `a repair handed off on ${who}${record.pr ? ` (PR #${record.pr})` : ""} — the queue lands it, health confirms on its tip`,
     };
 }

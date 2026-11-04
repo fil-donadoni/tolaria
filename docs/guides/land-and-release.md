@@ -16,16 +16,11 @@ gh pr create                           # 5. base = the base branch (GitHub defau
 bun run land:ready <PR#>               # 6. hand off: the merge queue rebases, gates, merges
 ```
 
-Since issue #5469 a session never runs step 6's `land` itself (`deny-guard.sh`
-§ 8): `land:ready` labels the PR `ready-to-land` and the **Mergify queue**
-(ADR 0156, cut over in issue #5643) rebases it in a draft, runs `check:lane`
-there (`queue-lane`) and merges. A red lane relabels the PR `land-failed` with
-the reason as a comment; `queue:plan` makes it a repair pick
-([GitHub pipeline](github-pipeline.md) is the queue's whole story). The
-land-runner that ran `land` for every PR before the cut-over was deleted
-(issue #5654). `land` itself stays for one caller: `/health-fix` lands a RED
-repair through it, with `TOLARIA_LAND_RUNNER=1` (the `deny-guard.sh` § 8
-hatch). The sections below are what `land` does then.
+A session ends at step 6: `land:ready` labels the PR `ready-to-land` and the
+**Mergify queue** rebases it in a draft, runs the lane there and merges, tree
+landed = tree gated ([GitHub pipeline](github-pipeline.md)). `land` itself is
+gone (issue #7990), a RED repair included. A red lane relabels the PR
+`land-failed`; `queue:plan` makes it a repair pick.
 
 ```bash
 cd /Users/filippo/code/mtg/tolaria     # the primary checkout, on the release branch
@@ -69,19 +64,18 @@ once (break the subject, watch red, revert, say what you broke).
 `land` refuses a dirty tree, and the lane it runs is keyed on the rebased
 tip's sha — a tree that is not committed is not a tree anything gated.
 
-### 4. No pre-PR gate — the [lane gate](#g-lane-gate) is `land`'s
+### 4. No pre-PR gate — the [lane gate](#g-lane-gate) is the queue's
 
 There is no `check:lane` before the PR (ADR 0136 §1). At 2.5 PR/h the base tip
-moved while that gate ran, so it certified a tree that never landed and `land`
-paid the lane again on the rebased one: two lane runs plus 1.35 `land`s per
-issue, ≈ 17 min of gate. The session's signal before the PR is its targeted
-vitest runs and the review round. The lane is paid once, in `land`, step 4
-below.
+moved while that gate ran, so it certified a tree that never landed and the
+landing paid the lane again on the rebased one: two lane runs plus 1.35
+landings per issue, ≈ 17 min of gate. The session's signal before the PR is its
+targeted vitest runs and the review round. The lane is paid once, by the
+queue, on its draft.
 
 A hand-run `bun run gate:run check:lane` stays available and ungated — no
 preflight refuses a stale tree any more (issue #3286's was retired with the
-pre-PR gate). Run it on a tree already rebased onto `origin/<base>` and a green
-verdict is one `land` can reuse. It classifies the diff against
+pre-PR gate). It classifies the diff against
 `origin/<base>` and runs exactly what that lane owes:
 
 | Lane     | Diff                                                           | Runs                                                                                                                         | Measured |
@@ -96,8 +90,9 @@ verdict is one `land` can reuse. It classifies the diff against
 
 A diff that can change what a user sees also owes **`bun run check:ui`** — five
 viewports, the occlusion probe, axe — and its output pasted byte-exact in the
-PR ([Browser verification](browser-verification.md)). `land` re-derives that
-receipt and refuses a `skin` PR whose receipt does not match.
+PR ([Browser verification](browser-verification.md)). `land:ready` and
+`pr-check`'s `ui-receipt` job re-derive that receipt and refuse a PR whose
+receipt does not match.
 
 ### 5. The PR
 
@@ -107,99 +102,27 @@ when owed, a `## Preset scenario` fence for
 any `convex/{cards/sets,gre}` change (or "none owed"), the Bot reachability
 outcome, proof-of-failure receipts for new guarding tests.
 
-### 6. `land <PR#>` — what `/health-fix` runs, from the PR's worktree
+### 6. `land:ready <PR#>` — the hand-off
 
-Refuses, named, before taking any lock:
+Rebases a branch the base outran, restores the derived state the base owns
+(ADR 0157), runs the lane's seconds-cost steps and the PR's refusals
+(`lib/pr-refusals.ts`, `pr-checks.ts`) on the worktree, labels the PR
+`ready-to-land` and moves the claim to `pr-open`. Red → nothing queued; fix it
+in the session.
 
-- on the base or release branch, a dirty tree, PR not open, PR head ≠ current
-  branch;
-- **PR base ≠ the base branch** — the API merge lands wherever the PR points,
-  and a PR against the release branch would ship to production unreleased.
-  Fix: `gh pr edit <PR#> --base <base>`;
-- a `skin` diff whose pasted `check:ui` receipt fails verification;
-- a card/engine diff with no preset scenario; a lockfile row retired without
-  its PR naming the card.
-
-No preflight runs before the queue (retired by ADR 0154 §5, issue #5457:
-every run printed `preflight skipped`, and the lane is the one gate). Then,
-inside one [heavy-tier](#g-heavy-tier) invocation, as ONE shell command so the tree that lands is the tree that was gated:
-
-1. `unset GITHUB_TOKEN` — the bug-report PAT `.env.local` carries cannot merge.
-2. `git fetch origin <base> && git rebase origin/<base>` — on conflict: prints
-   the paths, `--abort`, exits; the tree stays usable.
-3. Regenerates the generated artifacts the rebase marked.
-4. The lane gate on the rebased tree — `bun run check:lane`, printed as
-   `lane: ran` — **unless** that exact rebased tip was already gated green
-   against that exact `origin/<base>` sha, printed as
-   `lane: skipped (gated <sha> against <base>)`. The green records are
-   `gate-run.sh`'s run dirs (`~/.cache/tolaria/gate-runs/*/{head,base,command,green}`,
-   exactly `check:lane`) and the one `land` writes after its own green lane,
-   so a `land` retried after a merge refusal does not pay the lane twice. Any
-   mismatch, or a dirty tree, runs the lane.
-5. `git push --force-with-lease` of the feature branch.
-6. Merge through the API (`scripts/pr-merge.ts`, squash, retried on the
-   transient refusal a fresh force-push causes).
-7. Verifies `origin/<base>` advanced by exactly one commit — ours. Anything
-   else means someone pushed to the base branch from outside the lock, and the
-   housekeeping below is skipped rather than run on a tip nobody gated.
-8. Housekeeping, none of it gating: fast-forwards the primary checkout's local
-   base branch if it is the one checked out; seeds the PR's preset scenario
-   into the local Convex deployment; ingests telemetry; deletes the remote and
-   local branch and removes the worktree (`--keep` keeps all three;
-   `--no-merge` stops after step 5).
-
-**Nothing GitHub-bound after the merge.** `gaps:sync`, the grammar residue,
-the `in-progress` claim release and the umbrella detach are the hourly
-[`housekeeping` cron](#the-housekeeping-cron--the-github-bound-post-merge-steps)'s,
-so a GitHub 502 costs the cron a retry, never the session.
-
-**No health gate per landing**, and none held by the landing's own lock. A
-landing costs 3–5 minutes; a landing whose lane is skipped costs only
-the rebase and the merge. The full gate runs once per BATCH — see below.
-
-If only the MERGE failed (step 6), retry `bun scripts/pr-merge.ts <PR#>`. A
-second `land` of the same tree re-pays only the rebase — step 4 skips the lane
-it already passed — but it is still the long way round. `deny-guard.sh` § 1 denies a
-hand-typed `gh pr merge` everywhere; `TOLARIA_ALLOW_MANUAL_MERGE=1` is the
-per-command hatch for a real recovery.
-
-#### Recovery: the housekeeping alone, on a PR that already merged
-
-`land` on a **MERGED** PR runs step 8 and nothing else — no rebase, no lane
-gate, no merge. It says so on its first line, `land: mode=housekeeping — …`.
-A `pr-merge.ts` retry or a hand merge (`merge:manual`) leaves nothing owing
-since the queue cut-over (issue #5643, issue #6473): `post-merge.yml` fires on
-every push to the base and runs the seed, the fast-forward, the worktree
-teardown and telemetry, whoever merged. This mode is for a PR whose
-post-merge run itself failed or was lost, and `land` runs only through the
-`deny-guard.sh` § 8 hatch, never as a session's own landing (issue #5469).
-
-**Run it from anywhere, the primary checkout included** (issue #4378):
-
-```bash
-TOLARIA_LAND_RUNNER=1 bun run gate:run land <PR#>   # from ~/code/mtg/tolaria, on the base branch
-```
-
-Housekeeping mode drops the two branch-identity refusals the full path keeps —
-"land runs from the PR's own branch" and the head-branch mismatch. It has to:
-the recovery exists for a PR whose worktree is **gone** (a previous run tore it
-down and then crashed, or someone removed it by hand), and that worktree is the
-only checkout the full path would have accepted. Everything the housekeeping
-needs a branch for it takes from the PR's own `headRefName`, and the worktree
-it tears down is the path `wt:new` would have created for the issue that branch
-names (`scripts/lib/issue-worktree.ts`, the one definition both use) — never
-the directory you happen to be standing in. `land` prints that path before it
-starts, marked `(absent — skipped)` when there is nothing there to remove.
-
-The refusals that **stay** in housekeeping mode are the structural ones: a
-dirty tree (the teardown would discard it) and a PR merged into some base other
-than this one (its housekeeping is not the base branch's to run).
+The queue admits the PR, rebases it in a draft, runs `check:lane` there and
+merges. **Every merge to the base fires `post-merge.yml`:** the seed, the
+fast-forward, the worktree teardown and telemetry, whoever merged. A PR the
+queue refuses (one touching `.github/` or `.mergify.yml`) is merged by the owner
+with `bun run merge:manual <PR#>`. `deny-guard.sh` § 1 denies a hand-typed
+`gh pr merge` everywhere; `TOLARIA_ALLOW_MANUAL_MERGE=1` is the per-command
+hatch for a real recovery.
 
 ### The `housekeeping` cron — the GitHub-bound post-merge steps
 
 `bun run housekeeping` (`scripts/housekeeping.ts`, ADR 0154 §5, issue #5457)
-walks the PRs merged into the base branch since its watermark and runs what
-`land` used to run after the merge:
+walks the PRs merged into the base branch since its watermark and runs the
+GitHub-bound steps a merge owes:
 
 1. `git fetch` + fast-forward of the primary checkout — refused (nothing
    processed) when it is not on the base branch, since `gaps:sync` pushes its
@@ -248,7 +171,7 @@ The full offline gate is not a landing's business, but it is not a release's
 either: between releases the base tip could stand red for the 1–2 days
 observed. It runs per BATCH (ADR 0136 §6) — and since issue #5655 the batch is
 a clock: `.github/workflows/health.yml` runs `bun run health --scheduled
---retry-infra` (ADR 0156 §4). `land` records no landing and detaches no
+--retry-infra` (ADR 0156 §4). A landing records nothing and detaches no
 decision; the 20-landing / 8 h counter, its ledger and the health runner that
 read it were deleted.
 
@@ -257,12 +180,14 @@ read it were deleted.
   90 min, so a run killed before it wrote a verdict costs one window).
 - **Verdict.** The commit status `context=health` on the gated sha is the only
   store; a RED stands there until a GREEN, or a proved repair's AMBER, answers
-  it. `queue:plan` refuses the next PICK — never the next LAND, because the
-  fix-forward arrives through a `land` and a session already mid-issue must be
-  able to finish — and the repair starts with `bun run health:fix`.
+  it. `queue:plan` refuses the next PICK, the queue holds every PR but a
+  declared repair (`pr-gate`'s `base-health`), and the repair starts with
+  `bun run health:fix`.
 - **Repair.** `bun run health:fix repair-issue --issue=<N>` records the repair
-  issue on the pivot; after a proved repair `land` runs `bun
-scripts/health-fix.ts amber --sha=… --repair-of=…`.
+  issue on the pivot; the queue admits the PR that closes it. On its merge,
+  `health-early`'s `amber` job runs `bun run health:fix amber --sha=<tip>`: every
+  failing test the RED names green on the merged tip turns the lineage AMBER and
+  reopens the queue (issue #7990).
 
 ## Releasing the base branch to production
 
@@ -335,17 +260,20 @@ is one health gate plus at most one fix:
    **interactive** Claude session on the `/health-fix` skill. That session
    reproduces the failing step in a detached worktree at the tip, fixes it
    forward with a test closing the CLASS of the failure, opens an issue and a
-   PR, and lands it through `bun run land` like any other change. It never
-   reverts, and it never calls `release` itself.
+   PR, and hands it off with `bun run land:ready` like any other change. It
+   never reverts, and it never calls `release` itself.
 2. The session's last act is a **verdict file**,
    `.claude/telemetry/health/fix-verdict.json` — an interactive `claude` exits
    0 whatever happened inside it, so the exit status carries no answer.
-   `landed` (with the PR verified `MERGED`) or `stuck`, and nothing else.
+   `handed-off` (naming the PR, labelled `ready-to-land`) or `stuck`, and nothing
+   else.
 3. Parsing is **fail-closed**: no file, unparsable JSON, an unknown outcome or
    a verdict about another sha all read as `stuck`, which ends the loop and
    leaves the RED standing.
-4. On `landed`, the base tip is re-read from the remote — the base branch
-   moved — and the next round gates the fixed tree.
+4. On `handed-off`, `release` waits for the queue, up to **2 h**
+   (`repairQueueStep`). Merged: the base tip is re-read from the remote and the
+   next round gates the fixed tree. Closed, `land-failed` or past the bound:
+   the handover.
 
 Bounds and switches:
 
@@ -376,8 +304,8 @@ that is `running` or `green`, and no TTY.
 ### When release refuses
 
 - **RED, and the [fix loop](#g-fix-loop) gave up.** The handover names what every round
-  attempted, then the refusal verbatim; the RED stands and `land` warns on
-  every landing until it is gone. A `stuck` verdict means the fixer would not
+  attempted, then the refusal verbatim; the RED stands and holds the queue until
+  it is gone. A `stuck` verdict means the fixer would not
   defend its own repair — read its issue, fix forward on the base branch like
   any PR (never stack unrelated work on a red tip, never silence a test), then
   `release` again. Attribution over a batch of N landings costs at most

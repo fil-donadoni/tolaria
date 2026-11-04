@@ -82,7 +82,7 @@ import type { LaneSentinels } from "../lib/lane-sentinels";
  * landed inert in #2740; parent #2738) — the gate-lane classifier AND
  * executor: it decides, prints the plan, then runs it and prints a receipt.
  *
- * Per repo convention (land.test.ts, ui-gate-budgets.test.ts): the git
+ * Per repo convention (ui-gate-budgets.test.ts): the git
  * plumbing stays thin and untested; every DECISION is a pure function tested
  * directly against hand-built path lists, never through a subprocess. The
  * "check-lane — execution" describe block below tests `runPlan` the same
@@ -192,7 +192,7 @@ describe("check-lane — path classification (issue #2740)", () => {
 
     it("classifies convex/** and scripts/** as engine", () => {
         expect(classifyPath("convex/gre/engine.ts")).toBe("engine");
-        expect(classifyPath("scripts/land.ts")).toBe("engine");
+        expect(classifyPath("scripts/land-ready.ts")).toBe("engine");
     });
 
     /**
@@ -449,7 +449,7 @@ describe("check-lane — path classification (issue #2740)", () => {
      * rule, loaded by the harness only when a session reads a file under that
      * directory. `src/CLAUDE.md` is the sharp case — `SKIN_PATTERNS` matches
      * `^src/`, so without an explicit rule a markdown-only diff would classify
-     * as `skin` and `bun run land` would demand a byte-exact `check:ui`
+     * as `skin` and a landing would demand a byte-exact `check:ui`
      * receipt for a file that cannot reach the DOM.
      */
     it("a nested CLAUDE.md is prose at any depth", () => {
@@ -641,7 +641,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
     });
 
     /**
-     * The regression this lane was built to kill: `bun run land` on a
+     * The regression this lane was built to kill: a landing on a
      * one-file `docs/findings/**` branch classified `full` and paid the whole
      * `check:pr` suite — 466s measured on PR #2891.
      */
@@ -1180,7 +1180,11 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
 
     it("engine admits node-tooling WHOLE only for a tooling path the import graph cannot see", () => {
         // A module: its importers are found, no whole project.
-        const module = classifyLane(["scripts/land.ts"], undefined, fixture);
+        const module = classifyLane(
+            ["scripts/land-ready.ts"],
+            undefined,
+            fixture
+        );
         expect(module.lane).toBe("engine");
         expect(ids(module.run)).not.toContain("node-tooling");
         expect(
@@ -2508,7 +2512,7 @@ describe("check-lane — cheap census guards run in the lane (issue #4963)", () 
             "src/lib/foo.test.ts",
             "src/components/board/Card.test.tsx",
             "convex/gre/__tests__/phases.test.ts",
-            "scripts/__tests__/land.test.ts",
+            "scripts/__tests__/pr-checks.test.ts",
             "convex/cards/sets/lea/__tests__/red.test.ts",
         ]) {
             expect(census(classifyLane([file])), file).toContain(
@@ -2541,7 +2545,7 @@ describe("check-lane — cheap census guards run in the lane (issue #4963)", () 
     it("a diff that moves no census input skips all three, by name", () => {
         for (const file of [
             "src/components/board/Card.tsx",
-            "scripts/land.ts",
+            "scripts/land-ready.ts",
         ]) {
             const plan = classifyLane([file]);
             expect(census(plan), file).toEqual([]);
@@ -2633,7 +2637,7 @@ describe("check-lane — the blade card index drift test runs where the index ca
         for (const file of [
             "convex/gre/ai/opValuers.ts",
             "src/components/board/Card.tsx",
-            "scripts/land.ts",
+            "scripts/land-ready.ts",
         ]) {
             const plan = classifyLane([file]);
             expect(guard(plan), file).toBeUndefined();
@@ -2676,7 +2680,7 @@ describe("check-lane — the search cost pin runs wherever a search iteration ca
     it("a diff outside convex/{gre,cards,oracle}/** and debugScenarioSpec.ts skips it, by name", () => {
         for (const file of [
             "src/components/board/Card.tsx",
-            "scripts/land.ts",
+            "scripts/land-ready.ts",
             "convex/game.ts",
         ]) {
             const plan = classifyLane([file]);
@@ -2724,7 +2728,7 @@ describe("check-lane — the Weight Fit guard runs wherever a fit input can chan
     it("a diff that moves no fit input skips it, by name", () => {
         for (const file of [
             "src/components/board/Card.tsx",
-            "scripts/land.ts",
+            "scripts/land-ready.ts",
             "convex/game.ts",
             "data/verdicts.streaks.json",
         ]) {

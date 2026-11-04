@@ -308,7 +308,7 @@ Ceilings: 35,500 resident (~7% headroom on 33,085), 23,000 on demand.
 
 `check-lane.ts` gained a third `DOCS_PATTERNS` entry for a nested `CLAUDE.md`
 at any depth. Without it `src/CLAUDE.md` matches `SKIN_PATTERNS` (`^src/`), so
-a markdown-only diff would classify as `skin` and `bun run land` would demand a
+a markdown-only diff would classify as `skin` and landing would demand a
 byte-exact `check:ui` receipt for a file that cannot reach the DOM — a
 regression this pass would otherwise have introduced.
 

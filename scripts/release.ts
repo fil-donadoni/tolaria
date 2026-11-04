@@ -17,7 +17,8 @@
 // it refuses *specifically* because the verdict is RED — with a terminal, and
 // rounds remaining — hand the tip to `bun run health:fix`, which spawns an
 // interactive fixer session on the `/health-fix` skill and leaves a verdict
-// file. A `landed` verdict means the base branch moved, so the tip is re-read
+// file. A `handed-off` verdict means the queue holds the repair: this waits for
+// its merge (`repairQueueStep`), the base branch moved, so the tip is re-read
 // from the remote before the next round; the sha is new, so `health-main.ts`'s
 // own sha-dedup does not short-circuit the next gate. Anything else ends the
 // loop and reports what every round attempted.
@@ -47,6 +48,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import { netEnv } from "./lib/gh";
+import type { EpisodePr } from "./lib/health-ladder";
 import type { HealthStatus } from "./lib/health-verdict";
 import {
     isRepairProofGreen,
@@ -57,7 +59,8 @@ import {
 } from "./lib/health-verdict-store";
 import {
     MANUAL_COMMAND,
-    isLanded,
+    episodePrState,
+    isHandedOff,
     parseVerdict,
     verdictPath,
     type FixVerdict,
@@ -244,8 +247,8 @@ export type LoopDecision =
     /** `reason` is the health refusal that sent this round to the fixer — the
      *  handover names it when the loop later gives up. */
     | { kind: "fix"; sha: string; reason: string }
-    /** The fixer landed: re-read the tip and gate again. */
-    | { kind: "retry"; note: string }
+    /** The fixer handed off: wait for its merge, re-read the tip, gate again. */
+    | { kind: "retry"; pr: number; note: string }
     | { kind: "stop"; reason: string };
 
 export interface LoopInputs {
@@ -273,7 +276,7 @@ export interface LoopInputs {
  * spawning a real agent.
  *
  * With `verdict === null` it answers the gate: promote, repair, or refuse.
- * With a verdict it answers the fixer: only an unambiguous `landed` buys
+ * With a verdict it answers the fixer: only an unambiguous hand-off buys
  * another round, because everything else already read as `stuck` in
  * `parseVerdict` — fail-closed, since the failure mode of the alternative is
  * promoting a tip nobody fixed.
@@ -290,7 +293,7 @@ export function loopDecision(input: LoopInputs): LoopDecision {
     } = input;
 
     if (verdict !== null) {
-        if (!isLanded(verdict)) {
+        if (!isHandedOff(verdict)) {
             return {
                 kind: "stop",
                 reason: `the fixer is STUCK @ ${verdict.sha.slice(0, 8)}${verdict.pr ? ` (PR #${verdict.pr})` : ""} — ${verdict.note ?? "no note"}`,
@@ -298,7 +301,8 @@ export function loopDecision(input: LoopInputs): LoopDecision {
         }
         return {
             kind: "retry",
-            note: `round ${attempt}: the fixer LANDED${verdict.pr ? ` PR #${verdict.pr}` : ""}${verdict.classGuardIssue ? ` (class guard left to the owner: issue #${verdict.classGuardIssue})` : ""}${verdict.note ? ` — ${verdict.note}` : ""}`,
+            pr: verdict.pr as number,
+            note: `round ${attempt}: the fixer HANDED OFF${verdict.pr ? ` PR #${verdict.pr}` : ""}${verdict.classGuardIssue ? ` (class guard left to the owner: issue #${verdict.classGuardIssue})` : ""}${verdict.note ? ` — ${verdict.note}` : ""}`,
         };
     }
 
@@ -430,6 +434,70 @@ function runFixer(cwd: string, root: string, sha: string): FixVerdict {
     return verdict;
 }
 
+/** How long `release` waits on the queue for the fixer's repair. */
+export const REPAIR_QUEUE_WAIT_MS = 2 * 60 * 60 * 1000;
+const REPAIR_QUEUE_POLL_MS = 60 * 1000;
+
+/**
+ * What the queue made of the fixer's PR (issue #7990): merged → the next round
+ * gates its tip; refused, closed or held past the bound → `release` stops, and
+ * the RED stands with the ladder's rungs intact. Pure.
+ */
+export function repairQueueStep(input: {
+    pr: Pick<EpisodePr, "number" | "state" | "landFailed">;
+    waitedMs: number;
+    maxMs: number;
+}): { kind: "merged" | "wait" } | { kind: "stop"; reason: string } {
+    const { pr } = input;
+    if (pr.state === "merged") return { kind: "merged" };
+    if (pr.state === "closed")
+        return {
+            kind: "stop",
+            reason: `the repair PR #${pr.number} was closed unmerged`,
+        };
+    if (pr.landFailed)
+        return {
+            kind: "stop",
+            reason: `the queue refused the repair PR #${pr.number} (land-failed)`,
+        };
+    if (input.waitedMs >= input.maxMs)
+        return {
+            kind: "stop",
+            reason: `the repair PR #${pr.number} waited in the queue past ${input.maxMs / 3_600_000} h`,
+        };
+    return { kind: "wait" };
+}
+
+/** Blocks until the queue decides the PR; null = merged, else why not. */
+function awaitRepairMerge(cwd: string, pr: number): string | null {
+    const started = Date.now();
+    for (;;) {
+        const waitedMs = Date.now() - started;
+        let state: EpisodePr;
+        try {
+            state = episodePrState(cwd, pr);
+        } catch (err) {
+            // One failed read in a 2 h wait is no verdict on the PR; the bound
+            // still ends a GitHub outage, through the handover.
+            if (waitedMs >= REPAIR_QUEUE_WAIT_MS)
+                return `the repair PR #${pr} could not be read past the wait's bound — ${(err as Error).message}`;
+            console.error(
+                `release: PR #${pr} could not be read, retrying — ${(err as Error).message}`
+            );
+            Bun.sleepSync(REPAIR_QUEUE_POLL_MS);
+            continue;
+        }
+        const step = repairQueueStep({
+            pr: state,
+            waitedMs,
+            maxMs: REPAIR_QUEUE_WAIT_MS,
+        });
+        if (step.kind === "merged") return null;
+        if (step.kind === "stop") return step.reason;
+        Bun.sleepSync(REPAIR_QUEUE_POLL_MS);
+    }
+}
+
 /** The handover: every round's attempt, then today's refusal line verbatim. */
 function giveUp(attempts: string[], reason: string): never {
     for (const a of attempts) console.error(`release: ${a}`);
@@ -559,7 +627,9 @@ function main(): void {
         }
         console.log(`release: ${after.note}`);
 
-        // The fixer landed, so the base branch moved: re-read the tip, or the
+        const queued = awaitRepairMerge(cwd, after.pr);
+        if (queued !== null) giveUp(attempts, queued);
+        // The repair merged, so the base branch moved: re-read the tip, or the
         // next round would gate the tree that was already red.
         git(["fetch", "origin", BASE_BRANCH, "-q"], cwd);
         sha = git(["rev-parse", ORIGIN_BASE], cwd);

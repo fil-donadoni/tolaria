@@ -56,11 +56,8 @@ export interface SeedOutcome {
  *  `--push` is the load-bearing flag (issue #3253) — see constraint 1b above.
  *  The two it comes with are cost control, not behaviour:
  *
- *   - `--typecheck disable` — `land` has already run the lane gate over this
- *     exact tree, and `VERIFY_MERGED_TIP` (`scripts/land.ts`) is what makes
- *     "this exact tree" true: it refuses to continue unless the merged tip is
- *     the one commit `land` just gated, so a squash merge cannot slip a
- *     different tree past the type-check.
+ *   - `--typecheck disable` — the queue's draft has already run the lane gate
+ *     over this exact tree (tree landed = tree gated, issue #5643).
  *   - `--codegen disable` — `convex/_generated` is committed and `check:ts`
  *     inside `check:lane` is what keeps it fresh pre-merge. Codegen emits
  *     TypeScript declarations and boilerplate, not the runtime bundle, so

@@ -84,9 +84,9 @@ describe("the gate rule is ONE rule (#3698)", () => {
     it("the skill hands its PR to the merge queue and never runs `land` itself (issue #5469)", () => {
         // A rule stated and then contradicted two sections later by the
         // command the session actually copies is not a rule. Since issue
-        // #5469 the session's last command is the hand-off, not `land`: the
-        // one land-runner merges, and `deny-guard.sh` § 8 refuses a session's
-        // `land` — the skill must not tell it to run one.
+        // #5469 the session's last command is the hand-off: the merge queue
+        // merges, and `land` itself is gone (issue #7990) — the skill must
+        // not tell a session to run one.
         const skill = fs.readFileSync(SKILL, "utf8");
         expect(skill).toMatch(/bun run land:ready <PR#>/);
         expect(skill).not.toMatch(/gate:run land/);

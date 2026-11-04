@@ -33,8 +33,6 @@ import {
     retirementRefusal,
     retirementSection,
 } from "../lib/retirement-ack";
-import { refusalReason, type LandFacts } from "../land";
-import { BASE_BRANCH } from "../lib/branches";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 
@@ -432,29 +430,5 @@ describe("retirementRefusal", () => {
         expect(retirementSection(body)).toMatch(/Ashnod's Altar/);
         expect(retirementSection(body)).not.toMatch(/Other card names/);
         expect(retirementSection("## Summary\n\nx")).toBeNull();
-    });
-});
-
-describe("land's refusal matrix carries the retirement refusal", () => {
-    const facts = (overrides: Partial<LandFacts> = {}): LandFacts => ({
-        branch: "feat/issue-3049",
-        dirty: false,
-        prState: "OPEN",
-        prHeadRefName: "feat/issue-3049",
-        prBaseRefName: BASE_BRANCH,
-        skinReceiptInvalid: false,
-        scenarioRefusal: null,
-        retirementRefusal: null,
-        ...overrides,
-    });
-
-    it("refuses on an unacknowledged marked row", () => {
-        expect(refusalReason(facts({ retirementRefusal: "boom" }))).toBe(
-            "boom"
-        );
-    });
-
-    it("allows when there is nothing to acknowledge", () => {
-        expect(refusalReason(facts())).toBeNull();
     });
 });

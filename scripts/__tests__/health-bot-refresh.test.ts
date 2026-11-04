@@ -112,7 +112,7 @@ describe("where the refresh runs", () => {
             "check:guards",
         ])
             expect(pkg.scripts[name] ?? "").not.toMatch(REFRESH);
-        expect(read("scripts/land.ts")).not.toMatch(REFRESH);
+        expect(read("scripts/land-ready.ts")).not.toMatch(REFRESH);
     });
 });
 

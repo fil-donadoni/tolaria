@@ -11,7 +11,7 @@ import {
 import { githubVerdictStore, type GhRunner } from "../lib/health-verdict-store";
 import {
     ATTEMPT_STALE_MS,
-    LANDED_WAIT_MS,
+    HANDED_OFF_WAIT_MS,
     MAX_HOPS,
     MAX_REVERT_TRIES,
     mayRedispatch,
@@ -28,6 +28,7 @@ import {
     hostOfRunnerName,
     ownRepairPrs,
     ladderRung,
+    spentHandOffs,
     MAX_FIX_ATTEMPTS,
     parseCulprits,
     reopenComment,
@@ -76,6 +77,7 @@ function facts(over: Partial<LadderFacts> = {}): LadderFacts {
         repairPrs: [],
         episode: [{ sha: RED, attempt: null, culprits: [CULPRIT] }],
         revertPrs: [],
+        fixPrs: [],
         foreignRepairs: [],
         escalated: null,
         now: NOW,
@@ -458,7 +460,7 @@ describe("ladderRung — rung 5, fix forward only where a revert cannot, at most
         expect(
             ladderRung(
                 facts({
-                    episode: withAttempt({ outcome: "landed", pr: 5800 }),
+                    episode: withAttempt({ outcome: "handed-off", pr: 5800 }),
                 })
             )
         ).toMatchObject({ kind: "wait", why: expect.stringContaining("5800") });
@@ -469,7 +471,7 @@ describe("ladderRung — rung 5, fix forward only where a revert cannot, at most
             ladderRung(
                 facts({
                     episode: withAttempt({
-                        outcome: "landed",
+                        outcome: "handed-off",
                         pr: 5800,
                         classGuard: 6548,
                     }),
@@ -485,7 +487,7 @@ describe("ladderRung — rung 5, fix forward only where a revert cannot, at most
         const episode: EpisodeRed[] = [
             { sha: RED, attempt: null, culprits: [] },
             ...withAttempt(
-                { outcome: "landed", pr: 5800, classGuard: 6548 },
+                { outcome: "handed-off", pr: 5800, classGuard: 6548 },
                 OLD_RED
             ),
         ];
@@ -563,7 +565,7 @@ describe("ladderRung — rung 5, fix forward only where a revert cannot, at most
                 },
                 culprits: [CULPRIT],
             },
-            ...withAttempt({ outcome: "landed", pr: 5800 }, OLD_RED),
+            ...withAttempt({ outcome: "handed-off", pr: 5800 }, OLD_RED),
         ];
         expect(ladderRung(facts({ episode })).kind).toBe("stop");
     });
@@ -581,7 +583,7 @@ describe("ladderRung — the revert, whenever a repair did not hold", () => {
     it("a second RED after a landed repair → revert, no new fixer", () => {
         const episode: EpisodeRed[] = [
             { sha: RED, attempt: null, culprits: [] },
-            ...withAttempt({ outcome: "landed", pr: 5800 }, OLD_RED),
+            ...withAttempt({ outcome: "handed-off", pr: 5800 }, OLD_RED),
         ];
         expect(ladderRung(facts({ episode }))).toMatchObject({
             kind: "revert",
@@ -895,7 +897,7 @@ describe("the ladder's facts and texts", () => {
     it("a partial landing's class-guard issue round-trips through the commit status", () => {
         const a: FixAttempt = {
             sha: RED,
-            outcome: "landed",
+            outcome: "handed-off",
             rung: "fix",
             attempt: 1,
             machine: "macbook",
@@ -905,7 +907,7 @@ describe("the ladder's facts and texts", () => {
         };
         const description = encodeFixDescription(a);
         expect(description).toBe(
-            "LANDED · macbook · fix 1 · PR #6600 · guard #6548 · re-recorded"
+            "HANDED-OFF · macbook · fix 1 · PR #6600 · guard #6548 · re-recorded"
         );
         expect(
             decodeFixStatus({
@@ -1014,13 +1016,13 @@ describe("review fixes — the bounds no rung can escape", () => {
         ).toBe("stop");
     });
 
-    it("a `landed` that never moved the tip counts as used after the bound", () => {
-        const old = new Date(NOW - LANDED_WAIT_MS - 1).toISOString();
+    it("a hand-off that never moved the tip counts as used after the bound", () => {
+        const old = new Date(NOW - HANDED_OFF_WAIT_MS - 1).toISOString();
         expect(
             ladderRung(
                 noCulprit({
                     episode: withAttempt({
-                        outcome: "landed",
+                        outcome: "handed-off",
                         attempt: 1,
                         at: old,
                     }),
@@ -1503,5 +1505,101 @@ describe("revertGroups — the culprits cut into one revert PR each (issue #7656
             failed: { kind: "conflict" },
             culprits: ["b"],
         });
+    });
+});
+
+/**
+ * Issue #7990 — the fixer ends at the hand-off, the merge comes after it
+ * exits, so the ladder watches the PR its record names.
+ */
+describe("ladderRung — the fixer's hand-off to the queue (issue #7990)", () => {
+    const handedOff = (at = RECENT) =>
+        withAttempt({ outcome: "handed-off", attempt: 1, pr: 5800, at });
+    const pr = (state: "open" | "merged" | "closed", landFailed = false) => [
+        { number: 5800, state, landFailed },
+    ];
+    const old = new Date(NOW - HANDED_OFF_WAIT_MS - 1).toISOString();
+
+    it("in the queue → wait, and nothing is withdrawn", () => {
+        const f = noCulprit({ episode: handedOff(), fixPrs: pr("open") });
+        expect(ladderRung(f)).toMatchObject({
+            kind: "wait",
+            why: expect.stringContaining("in the queue"),
+        });
+        expect(spentHandOffs(f)).toEqual([]);
+    });
+
+    it("merged → wait for health on its tip", () => {
+        const f = noCulprit({ episode: handedOff(), fixPrs: pr("merged") });
+        expect(ladderRung(f)).toMatchObject({
+            kind: "wait",
+            why: expect.stringContaining("health confirms"),
+        });
+        expect(spentHandOffs(f)).toEqual([]);
+    });
+
+    it("`land-failed` → a used attempt, and the PR is withdrawn before the next rung", () => {
+        const f = noCulprit({ episode: handedOff(), fixPrs: pr("open", true) });
+        expect(ladderRung(f)).toMatchObject({ kind: "fix", attempt: 2 });
+        expect(spentHandOffs(f)).toEqual([5800]);
+    });
+
+    it("closed unmerged → a used attempt, nothing left to withdraw", () => {
+        const f = noCulprit({ episode: handedOff(), fixPrs: pr("closed") });
+        expect(ladderRung(f)).toMatchObject({ kind: "fix", attempt: 2 });
+        expect(spentHandOffs(f)).toEqual([]);
+    });
+
+    it("held in the queue past the bound → a used attempt, the PR withdrawn", () => {
+        const f = noCulprit({ episode: handedOff(old), fixPrs: pr("open") });
+        expect(ladderRung(f)).toMatchObject({ kind: "fix", attempt: 2 });
+        expect(spentHandOffs(f)).toEqual([5800]);
+    });
+
+    it("merged and no verdict within the bound → a used attempt, no PR to withdraw", () => {
+        const f = noCulprit({ episode: handedOff(old), fixPrs: pr("merged") });
+        expect(ladderRung(f)).toMatchObject({ kind: "fix", attempt: 2 });
+        expect(spentHandOffs(f)).toEqual([]);
+    });
+
+    it("a named culprit is reverted once the hand-off is spent", () => {
+        const f = facts({
+            episode: handedOff().map((r) => ({ ...r, culprits: [CULPRIT] })),
+            fixPrs: pr("closed"),
+        });
+        expect(ladderRung(f).kind).toBe("revert");
+    });
+
+    it("a hand-off on an older RED still in the queue waits — it is no second RED", () => {
+        const episode: EpisodeRed[] = [
+            { sha: RED, attempt: null, culprits: [CULPRIT] },
+            ...withAttempt(
+                { outcome: "handed-off", attempt: 1, pr: 5800, at: RECENT },
+                OLD_RED
+            ),
+        ];
+        expect(ladderRung(facts({ episode, fixPrs: pr("open") })).kind).toBe(
+            "wait"
+        );
+        expect(
+            ladderRung(facts({ episode, fixPrs: pr("merged") }))
+        ).toMatchObject({
+            kind: "revert",
+            why: expect.stringContaining("second RED"),
+        });
+    });
+
+    it("never withdraws a revert PR in flight: it names fix records only", () => {
+        const f = facts({
+            episode: withAttempt({
+                outcome: "handed-off",
+                rung: "revert",
+                attempt: 1,
+                pr: 5800,
+                at: RECENT,
+            }),
+            revertPrs: pr("open", true),
+        });
+        expect(spentHandOffs(f)).toEqual([]);
     });
 });
