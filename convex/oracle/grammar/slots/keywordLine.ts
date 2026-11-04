@@ -11,9 +11,8 @@
  * second authority that drifts. A name the registry does not carry is not a
  * keyword as far as this compiler is concerned, and the card fails — which is
  * also, for free, how PARAMETERISED keywords stay out of grammar v0: "Rampage
- * 1", "Protection from white" and "Ward {4}" are not registry names, so they do
- * not match, so the card is `unparsed` rather than compiled with the parameter
- * dropped. Dropping a parameter is precisely the misparse class this compiler
+ * 1" is not a registry name, so it does not match, so the card is `unparsed`
+ * rather than compiled with the parameter dropped. Dropping a parameter is precisely the misparse class this compiler
  * exists to refuse.
  *
  * The one parameterised keyword read here is Enchant (CR 702.5a), whose
@@ -23,6 +22,7 @@
  * itself lives in `shared/keywordVocabulary.ts`.
  */
 
+import { parseWard } from "../../../cards/abilities/ward";
 import type {
     ManaCost,
     PermanentFilter,
@@ -77,10 +77,35 @@ function opensWithKeyword(span: string): boolean {
     return false;
 }
 
+/** The registry's ward keyword spelled with its cost, as the card declares it
+ *  and `expandWard` reads it (ADR 0054). */
+function wardKeyword(ability: string, span: string): RuleResult<KeywordIR> {
+    const row = KEYWORD_VOCABULARY.get("ward");
+    if (row === undefined)
+        return fail("the Mechanics Registry names no ward row", span);
+    return ok({ ...row, ability });
+}
+
 /**
- * One keyword span: a registry name, or the parameterised "Protection from
- * [quality]" (CR 702.16a) — which may name two qualities (CR 702.16g) and so
- * yields a list.
+ * CR 702.21a — "Ward {N}" as one member of a keyword run ("Flying, ward {2}").
+ * The whole counter-unless-pay trigger is expanded from the string at the
+ * `getDefinition` seam, so the rule emits that string and nothing else.
+ *
+ * Refused: a coloured or variable mana cost, which no printed ward in the
+ * corpus reads this way and `parseWard` does not; "Ward {0}".
+ */
+const wardManaRule: Rule<readonly KeywordIR[]> = rule("ward", (span) => {
+    const ability = span.toLowerCase();
+    if (!ability.startsWith("ward {") || parseWard(ability) === null)
+        return fail('a mana ward is "Ward {N}"', span);
+    const keyword = wardKeyword(ability, span);
+    return keyword.ok ? ok([keyword.value]) : keyword;
+});
+
+/**
+ * One keyword span: a registry name, the parameterised "Ward {N}", or the
+ * parameterised "Protection from [quality]" (CR 702.16a) — which may name two
+ * qualities (CR 702.16g) and so yields a list.
  */
 const keyword: Rule<readonly KeywordIR[]> = subGrammar(
     KEYWORD_ABILITY,
@@ -89,6 +114,7 @@ const keyword: Rule<readonly KeywordIR[]> = subGrammar(
             atom(KEYWORD_ABILITY, KEYWORD_VOCABULARY),
             (k): RuleResult<readonly KeywordIR[]> => ok([k])
         ),
+        wardManaRule,
         protectionKeywordsRule,
     ]),
     opensWithKeyword
@@ -572,6 +598,29 @@ export const cumulativeUpkeepRule: Rule<SlotIR> = rule(
     }
 );
 
+// ── Ward—Pay N life (CR 702.21a) ───────────────────────────────────────────
+
+const WARD_DASH_HEAD = "Ward—";
+
+/**
+ * CR 702.21a — "Ward—Pay N life.": the dashed form, a whole line ended by its
+ * own full stop, emitting the string `expandWard` reads.
+ *
+ * Refused: every other dashed cost (discard, sacrifice, "pay life equal to …",
+ * a mana-and-life pair), which `parseWard` has no `MayPayCost` reading for;
+ * "Pay 0 life".
+ */
+export const wardLifeRule: Rule<SlotIR> = rule("ward life", (span) => {
+    if (!span.startsWith(WARD_DASH_HEAD) || !span.endsWith("."))
+        return fail('a dashed ward line is "Ward—Pay N life."', span);
+    const ability = span.slice(0, -1).toLowerCase();
+    if (parseWard(ability) === null)
+        return fail('the one dashed ward read is "Ward—Pay N life."', span);
+    const keyword = wardKeyword(ability, span);
+    if (!keyword.ok) return keyword;
+    return ok({ kind: "keywords" as const, keywords: [keyword.value] });
+});
+
 // ── Fading N (CR 702.32a) ──────────────────────────────────────────────────
 
 const FADING = /^Fading (\d+)$/;
@@ -758,8 +807,8 @@ export const offspringRule: Rule<SlotIR> = rule("offspring", (span) => {
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker line, or one cost-parameter keyword (cycling, madness, plot,
- * foretell, overload, morph, fading, mobilize, impending, equip, crew, saddle,
- * ninjutsu, offspring). They are disjoint by construction — no registry keyword name
+ * foretell, overload, morph, fading, mobilize, ward life, impending, equip, crew,
+ * saddle, ninjutsu, offspring). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
  * object, and each parameterised rule reads only its own head — and `oneOf`
  * enforces it rather than trusting it.
@@ -780,6 +829,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     cumulativeUpkeepRule,
     fadingRule,
     mobilizeRule,
+    wardLifeRule,
     impendingRule,
     equipRule,
     crewRule,

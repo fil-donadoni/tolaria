@@ -5,7 +5,6 @@
 
 import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { wardAbility } from "../../abilities/ward";
 
 // Kappa Cannoneer — {5}{U} Artifact Creature — Turtle Warrior, 4/4 (NEC 14,
 // Vintage Cube FREE wave 3: keyword-residue creatures, issue #1527, closes
@@ -24,10 +23,8 @@ import { wardAbility } from "../../abilities/ward";
 // want to see its own ETB, unlike the `another-yours`/`any-other` scopes).
 // Effects: `counters` (CR 122, add a +1/+1 on `$source`) then `restrictCombat`
 // (`restriction: "cant-be-blocked"`, CR 509.1b, the Creeping Tar Pit
-// precedent, `wwk/colorless.cards.ts`) on `$source`. Ward is
-// `wardAbility({ cost: { mana: {X:4} }, costLabel: "{4}" })` (CR 702.21a) —
-// the shared "counter unless pay" DSL shape (Miscalculation/Force Spike);
-// Kappa Cannoneer is the first catalogue card to prove the keyword.
+// precedent, `wwk/colorless.cards.ts`) on `$source`. Ward (CR 702.21a) is the
+// keyword string alone: `expandWard` injects its trigger.
 export const kappaCannoneer = defineCard(() => ({
     id: "85a89077-b384-4fca-9d26-7297962c1541", // NEC 14
     name: "Kappa Cannoneer",
@@ -41,7 +38,6 @@ export const kappaCannoneer = defineCard(() => ({
     toughness: 4,
     staticAbilities: ["improvise", "ward {4}"],
     triggeredAbilities: [
-        wardAbility({ cost: { mana: { X: 4 } }, costLabel: "{4}" }),
         enteredTrigger({
             id: "kappa-cannoneer-artifact-etb",
             oracleText:

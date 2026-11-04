@@ -52,23 +52,22 @@ function attributionOf(card: Partial<OracleCard>): Attribution | undefined {
 }
 
 describe("attribution — one real card per slot names the sub-grammar that failed", () => {
-    it("keyword-line: a parameterised keyword the vocabulary cannot read (Sleep-Cursed Faerie)", () => {
-        // The fixture was Air Response Unit ("Crew 1") until issue #7214
-        // taught the keyword line Crew; Ward has no compiled trigger shape.
+    it("keyword-line: a parameterised keyword the vocabulary cannot read (a coloured ward)", () => {
+        // A ward cost `parseWard` does not read: the refusal is the keyword
+        // run's, opened by a keyword name, whatever the line's first keyword.
         expect(
             attributionOf({
-                name: "Sleep-Cursed Faerie",
+                name: "Colour Warded",
                 manaCost: "{U}",
                 typeLine: "Creature — Faerie Wizard",
-                oracleText:
-                    "Flying, ward {2}\nThis creature enters tapped with three stun counters on it. (If it would become untapped, remove a stun counter from it instead.)\n{1}{U}: Untap this creature.",
+                oracleText: "Flying, ward {W}",
                 power: "3",
                 toughness: "3",
             })
         ).toEqual({
             slot: "keyword-line",
             path: [KEYWORD_ABILITY],
-            span: "ward {2}",
+            span: "ward {W}",
         });
     });
 
