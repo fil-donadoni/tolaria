@@ -464,6 +464,13 @@ export interface RedEpisode {
     greenAt: string | null;
     /** To the GREEN, or to the window's end while it stands. */
     hours: number;
+    /** Of `hours`, those the queue kept running: a Contained RED stood
+     *  (ADR 0163). An AMBER carries the class of the RED before it. */
+    containedHours: number;
+    /** Of `hours`, those the queue was stopped: `hours - containedHours`. */
+    blockingHours: number;
+    /** Times the episode went from a Contained RED to a blocking one. */
+    escalations: number;
     /** No RED of it reached the ladder's stop rung (an owner's issue). */
     ownerFree: boolean;
     /** The failing test files its REDs named (`tests:`), first seen first. */
@@ -505,16 +512,36 @@ export function redEpisodes(f: TrendFacts): RedEpisode[] {
         );
     const out: RedEpisode[] = [];
     const sentinels = f.sentinels === null ? null : new Set(f.sentinels);
-    let open: { shas: string[]; redAt: string; tests: string[] } | null = null;
+    type Open = {
+        shas: string[];
+        redAt: string;
+        tests: string[];
+        /** Where the current stretch began and what it is. */
+        since: string;
+        contained: boolean;
+        containedHours: number;
+        escalations: number;
+    };
+    let open: Open | null = null;
+    // Charge the stretch since the last verdict to its class.
+    const charge = (o: Open, until: string) => {
+        if (o.contained) o.containedHours += hoursBetween(o.since, until);
+        o.since = until;
+    };
     const close = (greenAt: string | null) => {
         if (open === null) return;
+        charge(open, greenAt ?? f.window.to);
+        const hours = hoursBetween(open.redAt, greenAt ?? f.window.to);
         const tests = open.tests;
         if (inWindow(open.redAt, f.window))
             out.push({
                 shas: open.shas,
                 redAt: open.redAt,
                 greenAt,
-                hours: hoursBetween(open.redAt, greenAt ?? f.window.to),
+                hours,
+                containedHours: open.containedHours,
+                blockingHours: hours - open.containedHours,
+                escalations: open.escalations,
                 ownerFree: !open.shas.some((s) =>
                     stops.has(escalationTitle(s))
                 ),
@@ -529,11 +556,27 @@ export function redEpisodes(f: TrendFacts): RedEpisode[] {
     for (const v of verdicts) {
         if (v === null || v.at === undefined) continue;
         if (v.status === "red") {
-            if (open === null) open = { shas: [], redAt: v.at, tests: [] };
+            const contained = v.redClass === "contained";
+            if (open === null)
+                open = {
+                    shas: [],
+                    redAt: v.at,
+                    tests: [],
+                    since: v.at,
+                    contained,
+                    containedHours: 0,
+                    escalations: 0,
+                };
+            else {
+                charge(open, v.at);
+                if (open.contained && !contained) open.escalations++;
+                open.contained = contained;
+            }
             open.shas.push(v.sha);
             for (const t of v.tests ?? [])
                 if (!open.tests.includes(t)) open.tests.push(t);
         } else if (v.status === "green") close(v.at);
+        else if (open !== null) charge(open, v.at);
     }
     close(null);
     return out;
@@ -543,6 +586,11 @@ export interface RedSummary {
     episodes: number;
     standing: number;
     hours: Spread;
+    /** Summed over the episodes: queue-running hours, queue-stopped hours,
+     *  and the Contained REDs that had to escalate (ADR 0163). */
+    containedHours: number;
+    blockingHours: number;
+    escalations: number;
     /** Share closed without the owner, of all episodes; `null` with none. */
     ownerFreePct: number | null;
     meetsOwnerFree: boolean | null;
@@ -557,6 +605,9 @@ export function redSummary(eps: readonly RedEpisode[]): RedSummary {
         episodes: eps.length,
         standing: eps.filter((e) => e.greenAt === null).length,
         hours,
+        containedHours: eps.reduce((n, e) => n + e.containedHours, 0),
+        blockingHours: eps.reduce((n, e) => n + e.blockingHours, 0),
+        escalations: eps.reduce((n, e) => n + e.escalations, 0),
         ownerFreePct,
         meetsOwnerFree:
             ownerFreePct === null
@@ -1061,6 +1112,7 @@ export function summaryMarkdown(t: Trends): string {
         `- episodes: ${t.red.episodes}${t.red.standing ? ` (${t.red.standing} still RED)` : ""}`,
         `- closed without the owner: ${pct(t.red.ownerFreePct)} — target ≥ ${RED_TARGET.ownerFreePct} % ${mark(t.red.meetsOwnerFree)}`,
         `- hours to green, median / p90: ${spreadCell(t.red.hours, (n) => fx(n))} — target p90 < ${RED_TARGET.p90Hours} h ${mark(t.red.meetsP90)}`,
+        `- hours contained / blocking: ${fx(t.red.containedHours)} / ${fx(t.red.blockingHours)} — ${t.red.escalations} escalation${t.red.escalations === 1 ? "" : "s"} to blocking`,
         ...(t.redEpisodes.length
             ? [
                   "",
