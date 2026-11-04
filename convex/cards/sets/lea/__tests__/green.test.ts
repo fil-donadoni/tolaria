@@ -75,7 +75,6 @@ const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const hurricane = getDefinition("52f5a19f-16e4-4d35-89e1-969ac8202f88");
 const hypnoticSpecter = getDefinition("b43b900f-2d9b-442b-9699-058483604ec9");
 const instillEnergy = getDefinition("5bd38716-874c-4e3c-a315-837839a6258c");
-const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 const kudzu = getDefinition("b2b72dcd-9ea1-4729-baae-ecd262fdff67");
 const lifeforce = getDefinition("e292577e-6232-44fa-a9c2-cc09949c6ed3");
 const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
@@ -96,7 +95,6 @@ const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 const thicketBasilisk = getDefinition("e92cce01-b3bd-4307-aae5-9a7c8fa386ab");
 const tranquility = getDefinition("774cc5a6-3a69-4812-add4-eb5eb6389238");
-const tsunami = getDefinition("9ed67d61-cf47-446b-b454-eb404a8686b7");
 const verduranEnchantress = getDefinition(
     "9f87178b-1221-4d7a-a7a5-20d7f01b8089"
 );
@@ -3107,44 +3105,6 @@ describe("Tranquility ({2}{G} — destroy all enchantments, CR 701.8)", () => {
         ).toBeUndefined();
         expect(
             state.players[0].battlefield.find((c) => c.id === "bear")
-        ).toBeDefined();
-    });
-});
-
-describe("Tsunami ({3}{G} — destroy all Islands, CR 701.8)", () => {
-    it("destroys every Island across both players and spares other lands", () => {
-        const p1Island = makeInstance(island.id, {
-            id: "p1-island",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const p1Forest = makeInstance(forest.id, {
-            id: "p1-forest",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const p2Island = makeInstance(island.id, {
-            id: "p2-island",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [p1Island, p1Forest] }),
-                makePlayer("p2", { battlefield: [p2Island] }),
-            ],
-        });
-        pushSpell(state, tsunami.id, "p1");
-        resolveTopOfStack(state);
-        expect(
-            state.players[0].battlefield.find((c) => c.id === "p1-island")
-        ).toBeUndefined();
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "p2-island")
-        ).toBeUndefined();
-        // Non-Island land survives.
-        expect(
-            state.players[0].battlefield.find((c) => c.id === "p1-forest")
         ).toBeDefined();
     });
 });

@@ -33,6 +33,7 @@
 import type {
     ActivatedAbility,
     CardDefinition,
+    EffectCardFilter,
     EffectCountSpec,
     EffectObjectSelector,
     EffectOp,
@@ -48,6 +49,7 @@ import { EFFECT_OP_REGISTRY } from "../../cards/mechanicsRegistry";
 // issue #4451 — the amount fields, derived from the tagged Op Schema.
 import { AMOUNT_KEYS } from "./validate";
 import { classLevelOf } from "../../cards/abilities/classLevels";
+import { LAND_SUBTYPE_MANA } from "../constants";
 import { hasPrepareSpell } from "../prepare";
 import { getEffectivePT } from "../layers";
 import { readPlayerCounters } from "../playerCounters";
@@ -389,6 +391,9 @@ export interface Scenario {
     /** The counters seeded on the source permanent, by type, when an amount
      *  reads a `$source` counter count (issue #5265); absent otherwise. */
     sourceCounters?: Readonly<Record<string, number>>;
+    /** The seeded boards of the script's `forEach` sweeps, one row per Op;
+     *  absent when it has none. Read by the `forEach` assertor. */
+    sweeps?: readonly SeededSweep[];
     /** True when the script targets a player in at least one slot (drives the
      *  synthetic card's `targetRequirement`). */
     targetKind: "player" | "permanent" | "none";
@@ -659,6 +664,11 @@ interface Requirements {
     /** Counter types an Op of the same script puts on `$source` — a read of
      *  one of them would see a count the static prediction cannot size. */
     sourceCounterWrites: Set<string>;
+    /** The `forEach` sweeps the scenario seeds a board for. */
+    sweeps: SweepPlan[];
+    /** Whether a `forEach` may be planned at all. False on the nested walk of
+     *  a skipped script: its Ops never run, so nothing there is proven. */
+    sweepsRun: boolean;
     /** The Op `analyseOp` is walking — stamped on each skip it raises. */
     currentOp?: EffectOp;
 }
@@ -1835,8 +1845,8 @@ const SCENARIO_SKIPS = {
     // 5). Every shipped INV card composes it inside a suspending
     // `optionChoice` ("choose a color, then set it") or a `forEach {
     // set: "targets" }` — both constructs already skip wholesale
-    // before descending into their body (see the `optionChoice` /
-    // `forEach` rows of this table), so this row is never reached by the
+    // before descending into their body (the `optionChoice` row of this
+    // table, `analyseForEach`), so this row is never reached by the
     // current catalogue; kept for exhaustiveness against a future
     // card composing it bare. Explicit skip — the Op is new (per-Op
     // regime, `.claude/rules/gre-development.md`) and earns its own
@@ -1895,14 +1905,6 @@ const SCENARIO_SKIPS = {
     setSubtype: {
         code: "op-own-tests",
         reason: `Op "setSubtype" is new — covered by the Op's own interpreter + wire-format tests`,
-    },
-    // The forEach construct (issue #807) iterates a runtime-selected
-    // set; the generator cannot predict per-member outcomes (and a
-    // body `choice` would suspend for live input). Explicit skip —
-    // forEach cards keep their own full per-card tests.
-    forEach: {
-        code: "source-or-each-subject",
-        reason: `construct "forEach" iterates a runtime-selected set — covered by the card's own tests`,
     },
     // CR 603.7 (ADR 0048) — the Op schedules a FUTURE trigger whose
     // body fires at a phase boundary the canned scenario never
@@ -2285,6 +2287,9 @@ function analyseOp(op: EffectOp, req: Requirements): void {
         return;
     }
     switch (op.op) {
+        case "forEach":
+            analyseForEach(op, req);
+            return;
         case "dealDamage":
             analyseValue(op.amount, req);
             if ("player" in op.to) {
@@ -2302,7 +2307,8 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
             } else {
                 // `{ ref: "$each" }` — only reachable inside a forEach body,
-                // and forEach scripts are skipped by its `SCENARIO_SKIPS` row.
+                // which `analyseForEach` reads itself; this is the nested walk
+                // of a skipped script.
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -3065,6 +3071,9 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
                       SMOKE_SOURCE_COUNTERS,
                   ])
               );
+    const sweeps = req.sweeps.map((plan, index) =>
+        seedSweep(plan, index, p1Bf, p2Bf)
+    );
     if (req.sourceSubject && source !== undefined) {
         for (const spec of req.countSets) {
             if (sourceContributesTo(source, spec) !== "undecidable") continue;
@@ -3119,11 +3128,670 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
             : { sourcePermanentId, sourceSpec: source }),
         ...(req.readsChosenX ? { chosenX: SMOKE_CHOSEN_X } : {}),
         ...(sourceCounters === undefined ? {} : { sourceCounters }),
+        ...(sweeps.length === 0 ? {} : { sweeps }),
         targetKind: sawPlayerSlot
             ? "player"
             : sawPermanentSlot
               ? "permanent"
               : "none",
+    };
+}
+
+// --- `forEach` sweeps ---------------------------------------------------------
+//
+// A mass effect over a set the filter fixes ("destroy all artifacts", "Elf
+// creatures get +2/+2") is scenario-ized by seeding the board the filter reads:
+// members, which the body must affect, and bystanders, each violating exactly
+// one clause of the selector, which it must not. A selector that read the wrong
+// characteristic or the wrong controller's board therefore mispredicts. The set
+// is read once as the construct begins (CR 608.2h), so the seeded board is the
+// set the script iterates.
+//
+// A selector it cannot seed — a bound or targeted set, a filter clause
+// `sweepFilterSpecs` does not name — keeps the fail-closed `FOR_EACH_UNMODELLED`
+// skip, and so does a body nothing else speaks for.
+
+type ForEachOp = Extract<EffectOp, { op: "forEach" }>;
+type SweepCardType = CardInstanceState["types"][number];
+
+/** The skip of a `forEach` the planner cannot seed. Its wording is part of every
+ *  golden fixture's form (`smokeSkipForm`). */
+const FOR_EACH_UNMODELLED: ScenarioSkipRow = {
+    code: "source-or-each-subject",
+    reason: `construct "forEach" iterates a runtime-selected set — covered by the card's own tests`,
+};
+
+/** What the body does to each member, as the assertor observes it. */
+type SweepOutcome =
+    | { readonly kind: "destroy" | "bounce" | "tap" | "untap" }
+    | {
+          readonly kind: "pump";
+          readonly power: number;
+          readonly toughness: number;
+      }
+    | { readonly kind: "damage"; readonly amount: EffectValue }
+    | { readonly kind: "life"; readonly amount: EffectValue };
+
+/** The characteristics of one seeded card; `sweepCardId` hydrates a definition
+ *  from them, the only place a filter clause can read them back from. */
+interface SweepCardSpec {
+    readonly types: readonly SweepCardType[];
+    readonly subtypes: readonly string[];
+    readonly color?: string;
+    readonly ability?: string;
+    readonly manaValue?: number;
+}
+
+interface SweepSeat {
+    readonly spec: SweepCardSpec;
+    readonly owner: string;
+    readonly role: "member" | "bystander";
+}
+
+interface SweepPlan {
+    readonly op: ForEachOp;
+    readonly outcome: SweepOutcome;
+    readonly seats: readonly SweepSeat[];
+    readonly excludesSource: boolean;
+}
+
+type SweepSelector =
+    | { readonly set: "players" }
+    | {
+          readonly set: "permanents";
+          readonly specs: {
+              members: SweepCardSpec[];
+              bystanders: SweepCardSpec[];
+          };
+          readonly seats: readonly string[];
+      };
+
+/** A sweep as the built scenario holds it, by seeded instance id. */
+export interface SeededSweep {
+    readonly op: ForEachOp;
+    readonly outcome: SweepOutcome;
+    readonly memberIds: readonly string[];
+    readonly bystanderIds: readonly string[];
+    readonly excludesSource: boolean;
+}
+
+/** Above the mana value of any announced X and any printed "X or less". */
+const SWEEP_HIGH_MANA_VALUE = 9;
+const SWEEP_LOW_MANA_VALUE = 1;
+const SWEEP_TYPE_BANK: readonly SweepCardType[] = [
+    "Creature",
+    "Artifact",
+    "Enchantment",
+    "Land",
+];
+const SWEEP_FILTER_KEYS: ReadonlySet<string> = new Set([
+    "type",
+    "subtype",
+    "color",
+    "excludeType",
+    "excludeSubtype",
+    "excludeAbility",
+]);
+/** The Ops a sweep's assertions stay independent of: neither reads or moves a
+ *  seeded permanent, a life total or a hand. */
+const SWEEP_COMPANION_OPS: ReadonlySet<string> = new Set([
+    "forEach",
+    "drainManaPool",
+]);
+
+function holdsOnlyKeys(op: object, keys: readonly string[]): boolean {
+    return Object.keys(op).every((key) => key === "op" || keys.includes(key));
+}
+
+function isEachRef(selector: unknown): boolean {
+    return (
+        typeof selector === "object" &&
+        selector !== null &&
+        (selector as { ref?: unknown }).ref === "$each"
+    );
+}
+
+function isLiteralOrX(value: EffectValue): boolean {
+    return typeof value === "number" || "X" in value;
+}
+
+function asList<T>(value: T | readonly T[] | undefined): readonly T[] {
+    if (value === undefined) return [];
+    return Array.isArray(value) ? (value as readonly T[]) : [value as T];
+}
+
+/** The body's effect on a permanent member, or null for a body the seeded board
+ *  cannot predict. */
+function permanentBodyOutcome(body: EffectOp): SweepOutcome | null {
+    switch (body.op) {
+        case "destroy":
+            return isEachRef(body.target) &&
+                holdsOnlyKeys(body, ["target", "cantBeRegenerated"])
+                ? { kind: "destroy" }
+                : null;
+        case "tapUntap":
+            return isEachRef(body.target) &&
+                holdsOnlyKeys(body, ["target", "action"])
+                ? { kind: body.action === "tap" ? "tap" : "untap" }
+                : null;
+        case "moveZone":
+            return "target" in body &&
+                isEachRef(body.target) &&
+                body.to === "hand" &&
+                holdsOnlyKeys(body, ["target", "to"])
+                ? { kind: "bounce" }
+                : null;
+        case "pump":
+            return isEachRef(body.target) &&
+                typeof body.power === "number" &&
+                typeof body.toughness === "number" &&
+                holdsOnlyKeys(body, [
+                    "target",
+                    "power",
+                    "toughness",
+                    "duration",
+                ])
+                ? {
+                      kind: "pump",
+                      power: body.power,
+                      toughness: body.toughness,
+                  }
+                : null;
+        case "dealDamage":
+            return isEachRef(body.to) &&
+                isLiteralOrX(body.amount) &&
+                holdsOnlyKeys(body, ["to", "amount"])
+                ? { kind: "damage", amount: body.amount }
+                : null;
+        default:
+            return null;
+    }
+}
+
+/** Whether a member the filler's toughness keeps on the battlefield can show the
+ *  outcome: P/T and marked damage are read off a creature (CR 208.1, CR 120.3),
+ *  and a creature that died would hide both (CR 704.5f, CR 704.5g). */
+function outcomeReadableOn(
+    outcome: SweepOutcome,
+    members: readonly SweepCardSpec[]
+): boolean {
+    const creatures = members.every((m) => m.types.includes("Creature"));
+    const toughness = FILLER_CARD_DEFINITION.toughness!;
+    if (outcome.kind === "pump")
+        return creatures && toughness + outcome.toughness > 0;
+    if (outcome.kind === "damage")
+        return (
+            creatures &&
+            (typeof outcome.amount !== "number" || outcome.amount < toughness)
+        );
+    return true;
+}
+
+/** Members and bystanders for a filter: one member per listed alternative (a
+ *  `type` / `subtype` list is an OR), one bystander per clause it violates.
+ *  Null for a clause this reader does not name, so it can never pass unread. */
+function sweepFilterSpecs(filter: EffectCardFilter | undefined): {
+    members: SweepCardSpec[];
+    bystanders: SweepCardSpec[];
+} | null {
+    const f = filter ?? {};
+    if (!Object.keys(f).every((key) => SWEEP_FILTER_KEYS.has(key))) return null;
+    if (typeof f.subtype === "object" && !Array.isArray(f.subtype)) return null;
+    if (f.color !== undefined && typeof f.color !== "string") return null;
+    const types = asList<SweepCardType>(f.type);
+    const subtypes = asList<string>(f.subtype as string | string[] | undefined);
+    const noTypes = asList<SweepCardType>(f.excludeType);
+    const noSubtypes = asList<string>(f.excludeSubtype);
+
+    const otherType = SWEEP_TYPE_BANK.find(
+        (t) => !types.includes(t) && !noTypes.includes(t)
+    );
+    const otherSubtype = [FILLER_SUBTYPE, "Wall"].find(
+        (s) => !subtypes.includes(s) && !noSubtypes.includes(s)
+    )!;
+    // A basic land type (CR 305.6) sits on a land; any other subtype on the
+    // first type the filter leaves open.
+    const baseType =
+        types[0] ??
+        (subtypes[0] !== undefined && subtypes[0] in LAND_SUBTYPE_MANA
+            ? "Land"
+            : otherType);
+    if (baseType === undefined) return null;
+    const base: SweepCardSpec = {
+        types: [baseType],
+        subtypes: [subtypes[0] ?? otherSubtype],
+        ...(f.color === undefined ? {} : { color: f.color }),
+    };
+
+    const bystanders: SweepCardSpec[] = [
+        ...noTypes.map((t) => ({ ...base, types: [baseType, t] })),
+        ...noSubtypes.map((s) => ({
+            ...base,
+            subtypes: [...base.subtypes, s],
+        })),
+    ];
+    if (types.length > 0) {
+        if (otherType === undefined) return null;
+        bystanders.push({ ...base, types: [otherType] });
+    }
+    if (subtypes.length > 0)
+        bystanders.push({ ...base, subtypes: [otherSubtype] });
+    if (f.color !== undefined)
+        bystanders.push({ ...base, color: f.color === "W" ? "U" : "W" });
+    if (f.excludeAbility !== undefined)
+        bystanders.push({ ...base, ability: f.excludeAbility });
+
+    return {
+        members: [
+            base,
+            ...types.slice(1).map((t) => ({ ...base, types: [t] })),
+            ...subtypes.slice(1).map((s) => ({ ...base, subtypes: [s] })),
+        ],
+        bystanders,
+    };
+}
+
+/** The seat a `controller` selector scopes the sweep to, or null for one the
+ *  scenario cannot name. A targeted player is always the opponent here. */
+function sweepControllerSeats(
+    controller: EffectPlayerRef | undefined
+): readonly string[] | null {
+    if (controller === undefined) return [CASTER_ID, OPPONENT_ID];
+    if (controller === "controller") return [CASTER_ID];
+    if (controller === "opponent" || "target" in controller)
+        return [OPPONENT_ID];
+    return null;
+}
+
+/** The `{ if manaValue($each) <cmp> N, then [body] }` guard of "each artifact
+ *  with mana value X or less", or null when `body` is anything else. */
+function manaValueGuard(body: EffectOp): {
+    then: EffectOp;
+    compare: "eq" | "ne" | "lt" | "le" | "gt" | "ge";
+    right: EffectValue;
+} | null {
+    if (body.op !== "if" || body.else !== undefined) return null;
+    if (body.then.length !== 1) return null;
+    const p = body.predicate;
+    if (!("left" in p && "right" in p)) return null;
+    if (typeof p.left === "number" || !("manaValue" in p.left)) return null;
+    if (!isEachRef(p.left.manaValue.of) || !isLiteralOrX(p.right)) return null;
+    return { then: body.then[0]!, compare: p.op, right: p.right };
+}
+
+/** What a modelled selector seeds; null when it reads something this planner
+ *  cannot put on a board. Pure: `planSweep` records the target slot. */
+function sweepSelector(select: ForEachOp["select"]): SweepSelector | null {
+    if (select.set === "players") return { set: "players" };
+    if (select.set !== "permanents") return null;
+    const allowed = ["set", "zone", "controller", "filter", "excludeSource"];
+    if (!holdsOnlyKeys(select, allowed)) return null;
+    const specs = sweepFilterSpecs(select.filter);
+    const seats = sweepControllerSeats(select.controller);
+    if (specs === null || seats === null) return null;
+    return { set: "permanents", specs, seats };
+}
+
+/** One seat for each card the selector reads: members, one bystander per clause,
+ *  and on the scoped-out seat the same members, which only the controller clause
+ *  can tell apart (CR 109.5). */
+function sweepSeats(
+    selector: Extract<SweepSelector, { set: "permanents" }>,
+    guard: ReturnType<typeof manaValueGuard>
+): SweepSeat[] {
+    const { specs, seats } = selector;
+    const seated: SweepSeat[] = [];
+    for (const owner of seats) {
+        for (const spec of specs.members) {
+            if (guard === null) {
+                seated.push({ spec, owner, role: "member" });
+                continue;
+            }
+            // CR 608.2h — the guard reads each member's own mana value, so one
+            // card on either side of it tells the guard from its absence.
+            const right =
+                typeof guard.right === "number" ? guard.right : SMOKE_CHOSEN_X;
+            for (const manaValue of [
+                SWEEP_LOW_MANA_VALUE,
+                SWEEP_HIGH_MANA_VALUE,
+            ])
+                seated.push({
+                    spec: { ...spec, manaValue },
+                    owner,
+                    role: compareValues(manaValue, guard.compare, right)
+                        ? "member"
+                        : "bystander",
+                });
+        }
+        for (const spec of specs.bystanders)
+            seated.push({ spec, owner, role: "bystander" });
+    }
+    if (seats.length === 1) {
+        const other = seats[0] === CASTER_ID ? OPPONENT_ID : CASTER_ID;
+        for (const spec of specs.members)
+            seated.push({ spec, owner: other, role: "bystander" });
+    }
+    return seated;
+}
+
+/** The plan for a modelled selector, or null for a body it cannot predict. */
+function planSweep(
+    op: ForEachOp,
+    selector: SweepSelector,
+    req: Requirements
+): SweepPlan | null {
+    if (op.effects.length !== 1 || op.simultaneous === true) return null;
+    const body = op.effects[0]!;
+    if (selector.set === "players") {
+        if (body.op !== "dealDamage" || !holdsOnlyKeys(body, ["to", "amount"]))
+            return null;
+        if (!("player" in body.to) || !isLiteralOrX(body.amount)) return null;
+        if (!isEachRef(body.to.player)) return null;
+        analyseValue(body.amount, req);
+        return {
+            op,
+            outcome: { kind: "life", amount: body.amount },
+            seats: [],
+            excludesSource: false,
+        };
+    }
+    const select = op.select as Extract<
+        ForEachOp["select"],
+        { set: "permanents" }
+    >;
+    const guard = manaValueGuard(body);
+    const outcome = permanentBodyOutcome(guard?.then ?? body);
+    if (outcome === null || !outcomeReadableOn(outcome, selector.specs.members))
+        return null;
+    if (
+        select.controller !== undefined &&
+        typeof select.controller === "object"
+    )
+        recordSlot(
+            req,
+            (select.controller as { target: number }).target,
+            "player"
+        );
+    if (guard !== null) analyseValue(guard.right, req);
+    if (outcome.kind === "damage") analyseValue(outcome.amount, req);
+    return {
+        op,
+        outcome,
+        seats: sweepSeats(selector, guard),
+        excludesSource: select.excludeSource === true,
+    };
+}
+
+/** Whether a body the seeded board cannot predict names its own card-dependent
+ *  reason. If it does, the nested walk reports that reason and the selector adds
+ *  nothing; if it does not, nothing would ever speak for the body, and the sweep
+ *  has to withhold the card itself. */
+function bodySpeaksForItself(op: ForEachOp, host: SmokeHost): boolean {
+    const body = emptyRequirements(SPELL_HOST);
+    for (const nested of [...op.effects, ...nestedOps(op.effects, host)])
+        analyseOpFully(nested, body);
+    return body.skips.some(
+        (skip) => SMOKE_SKIP_CLASS[skip.code] === "card-dependent"
+    );
+}
+
+function analyseForEach(op: ForEachOp, req: Requirements): void {
+    const selector = sweepSelector(op.select);
+    if (selector === null) {
+        skipBecause(req, FOR_EACH_UNMODELLED.code, FOR_EACH_UNMODELLED.reason);
+        return;
+    }
+    const excludesSource =
+        op.select.set === "permanents" && op.select.excludeSource === true;
+    // "other" names the source only where the source is a permanent (CR 113.7):
+    // a spell's script excludes nothing, so its sweep would run as if the word
+    // were absent. Whatever the card meant by "other", the script does not say
+    // it.
+    if (excludesSource && seedableSource(req) === undefined) {
+        skipBecause(
+            req,
+            "source-or-each-subject",
+            `construct "forEach" excludes its source at a site with no source permanent — the sweep would exclude nothing`
+        );
+        return;
+    }
+    const plan = req.sweepsRun ? planSweep(op, selector, req) : null;
+    if (plan === null) {
+        if (bodySpeaksForItself(op, req.host))
+            skipBecause(
+                req,
+                "op-own-tests",
+                `construct "forEach" seeds this selector but not this body — the body's Ops name their own reasons`
+            );
+        else
+            skipBecause(
+                req,
+                FOR_EACH_UNMODELLED.code,
+                FOR_EACH_UNMODELLED.reason
+            );
+        return;
+    }
+    if (excludesSource) {
+        req.sourceSubject = true;
+        if (plan.outcome.kind === "untap") req.sourceTapAction = "untap";
+    }
+    req.sweeps.push(plan);
+}
+
+/** A sweep's assertions read whole boards, so they hold only beside Ops that
+ *  touch nothing they read, and only when no two sweeps observe the same thing
+ *  (one's bystander may be the other's member). Otherwise the script does not
+ *  run; its sweeps' shapes are proven on their own, so this withholds nothing
+ *  and the companions name their own reasons. */
+function analyseSweepCompanions(
+    effects: readonly EffectOp[],
+    req: Requirements
+): void {
+    if (req.sweeps.length === 0) return;
+    const kinds = req.sweeps.map((sweep) => sweep.outcome.kind);
+    if (
+        effects.every((op) => SWEEP_COMPANION_OPS.has(op.op)) &&
+        new Set(kinds).size === kinds.length
+    )
+        return;
+    req.currentOp = req.sweeps[0]!.op;
+    skipBecause(
+        req,
+        "op-own-tests",
+        `construct "forEach" sits beside Ops that read the board it seeds — its shape is proven alone`
+    );
+    req.currentOp = undefined;
+}
+
+/** Whether a nested `forEach` would plan at `host`: its body needs no reading of
+ *  its own, which the nested walk would report as `$each` it cannot seed. */
+function isPlannedSweep(op: EffectOp, host: SmokeHost): boolean {
+    if (op.op !== "forEach") return false;
+    const req = emptyRequirements(host);
+    try {
+        analyseForEach(op, req);
+    } catch {
+        return false;
+    }
+    return req.skips.length === 0 && req.sweeps.length === 1;
+}
+
+/** Registers (idempotently) the definition a seeded card is hydrated from. Keyed
+ *  on the spec itself, as `sourceCardId` is. */
+function sweepCardId(spec: SweepCardSpec): string {
+    const manaValue = spec.manaValue ?? SWEEP_LOW_MANA_VALUE;
+    const id = `gen-sweep-${spec.types.join("-")}|${spec.subtypes.join("-")}|${spec.color ?? ""}|${spec.ability ?? ""}|${manaValue}`;
+    registerTokenDefinition({
+        id,
+        name: id,
+        rarity: "common",
+        // CR 202.2 — a card's colour is read off its mana cost.
+        manaCost: { [spec.color ?? "C"]: manaValue },
+        types: [...spec.types],
+        subtypes: [...spec.subtypes],
+        ...(spec.ability === undefined
+            ? {}
+            : { staticAbilities: [spec.ability] }),
+        ...(spec.types.includes("Creature")
+            ? {
+                  power: FILLER_CARD_DEFINITION.power!,
+                  toughness: FILLER_CARD_DEFINITION.toughness!,
+              }
+            : {}),
+    } as CardDefinition);
+    return id;
+}
+
+/** Puts a sweep's cards on the boards under construction. An untap starts them
+ *  tapped, so it has an outcome to observe. */
+function seedSweep(
+    plan: SweepPlan,
+    index: number,
+    p1Bf: CardInstanceState[],
+    p2Bf: CardInstanceState[]
+): SeededSweep {
+    const memberIds: string[] = [];
+    const bystanderIds: string[] = [];
+    plan.seats.forEach((seat, i) => {
+        const id = `gen-sweep-${index}-${seat.role}-${seat.owner}-${i}`;
+        (seat.role === "member" ? memberIds : bystanderIds).push(id);
+        (seat.owner === CASTER_ID ? p1Bf : p2Bf).push(
+            makeInstance(sweepCardId(seat.spec), {
+                id,
+                controllerId: seat.owner,
+                ownerId: seat.owner,
+                zone: "battlefield",
+                isTapped: plan.outcome.kind === "untap",
+            })
+        );
+    });
+    return {
+        op: plan.op,
+        outcome: plan.outcome,
+        memberIds,
+        bystanderIds,
+        excludesSource: plan.excludesSource,
+    };
+}
+
+function sweepPermanent(
+    state: GameState,
+    id: string
+): CardInstanceState | undefined {
+    return state.players.flatMap((p) => p.battlefield).find((c) => c.id === id);
+}
+
+/** A predicate over the post-state: whether `id` shows the outcome (`hit`) or
+ *  is exactly as seeded (`!hit`). `pre` is read NOW: resolution mutates it. */
+function sweepCheckFor(
+    outcome: SweepOutcome,
+    id: string,
+    pre: GameState,
+    amount: number | null
+): (post: GameState, hit: boolean) => boolean {
+    switch (outcome.kind) {
+        case "destroy":
+        case "bounce": {
+            const zone = outcome.kind === "destroy" ? "graveyard" : "hand";
+            return (post, hit) => {
+                const moved = post.players
+                    .flatMap((p) => p[zone])
+                    .some((c) => c.id === id);
+                const stayed = sweepPermanent(post, id) !== undefined;
+                return hit ? moved && !stayed : stayed && !moved;
+            };
+        }
+        case "tap":
+        case "untap": {
+            const tappedIfHit = outcome.kind === "tap";
+            return (post, hit) =>
+                (sweepPermanent(post, id)?.isTapped === true) ===
+                (hit ? tappedIfHit : !tappedIfHit);
+        }
+        case "pump": {
+            const seeded = sweepPermanent(pre, id);
+            if (seeded === undefined) return () => false;
+            const before = getEffectivePT(pre, seeded);
+            return (post, hit) => {
+                const card = sweepPermanent(post, id);
+                if (card === undefined) return false;
+                const now = getEffectivePT(post, card);
+                return (
+                    now.power === before.power + (hit ? outcome.power : 0) &&
+                    now.toughness ===
+                        before.toughness + (hit ? outcome.toughness : 0)
+                );
+            };
+        }
+        case "damage":
+            return (post, hit) => {
+                const card = sweepPermanent(post, id);
+                return (
+                    card !== undefined &&
+                    (card.damageMarked ?? 0) === (hit ? amount : 0)
+                );
+            };
+        case "life":
+            return () => false;
+    }
+}
+
+/** CR 608.2 — every member shows the body's outcome, every bystander and an
+ *  excluded source is as it was seeded. */
+function sweepAssertion(
+    rawOp: EffectOp,
+    scenario: Scenario,
+    pre: GameState
+): Assertion | null {
+    const sweep = scenario.sweeps?.find((s) => s.op === rawOp);
+    if (sweep === undefined) return null;
+    const { outcome } = sweep;
+    const amount =
+        outcome.kind === "damage" || outcome.kind === "life"
+            ? predictAmount(outcome.amount, scenario)
+            : null;
+    if (outcome.kind === "life") {
+        if (amount === null) return null;
+        const ids = [CASTER_ID, OPPONENT_ID];
+        const before = new Map(ids.map((id) => [id, findPlayer(pre, id).life]));
+        return {
+            label: `forEach player loses ${amount} life`,
+            check: (post) => {
+                const bad = ids.filter(
+                    (id) =>
+                        findPlayer(post, id).life !== before.get(id)! - amount
+                );
+                return {
+                    ok: bad.length === 0,
+                    detail: `life delta wrong for [${bad.join(", ")}]`,
+                };
+            },
+        };
+    }
+    const untouched = [
+        ...sweep.bystanderIds,
+        ...(sweep.excludesSource && scenario.sourcePermanentId !== undefined
+            ? [scenario.sourcePermanentId]
+            : []),
+    ];
+    const hits = sweep.memberIds.map(
+        (id) => [id, sweepCheckFor(outcome, id, pre, amount)] as const
+    );
+    const misses = untouched.map(
+        (id) => [id, sweepCheckFor(outcome, id, pre, amount)] as const
+    );
+    return {
+        label: `forEach ${outcome.kind} hits ${sweep.memberIds.length} member(s), spares ${untouched.length}`,
+        check: (post) => {
+            const bad = [
+                ...hits.filter(([, holds]) => !holds(post, true)),
+                ...misses.filter(([, holds]) => !holds(post, false)),
+            ].map(([id]) => id);
+            return {
+                ok: bad.length === 0,
+                detail: `wrong outcome on [${bad.join(", ")}]`,
+            };
+        },
     };
 }
 
@@ -3221,6 +3889,7 @@ function predictAmount(value: EffectValue, scenario: Scenario): number | null {
 }
 
 const OP_ASSERTORS: AssertorTable = {
+    forEach: sweepAssertion,
     // CR 120.3 — a players-only sweep is an observable life delta on each
     // scoped player (the creature half is skipped in analysis).
     dealDamageToEach(rawOp, scenario, pre) {
@@ -4508,6 +5177,7 @@ function planWith(
 
     const req = emptyRequirements(host);
     for (const op of effects) analyseOpFully(op, req);
+    analyseSweepCompanions(effects, req);
 
     const built = buildScenario(req);
     if ("skip" in built) {
@@ -4527,7 +5197,8 @@ function planWith(
         // container (`mayPay` + `if`) hide a body acting on `$source`. That is
         // the very fail-open this walk exists to close (ADR 0105 § 7.1).
         const nested = emptyRequirements(SPELL_HOST);
-        for (const op of nestedOps(effects)) analyseOpFully(op, nested);
+        nested.sweepsRun = false;
+        for (const op of nestedOps(effects, host)) analyseOpFully(op, nested);
         return skipPlan([...built.skip, ...nested.skips]);
     }
 
@@ -4583,6 +5254,8 @@ function emptyRequirements(host: SmokeHost): Requirements {
         sourceSubject: false,
         sourceCounterReads: new Set(),
         sourceCounterWrites: new Set(),
+        sweeps: [],
+        sweepsRun: true,
     };
 }
 
@@ -4591,19 +5264,27 @@ function skipPlan(skips: SmokeSkip[]): Plan {
 }
 
 /** Every Effect Script Op held INSIDE `effects`' Ops (a branch, a loop body, a
- *  payload), at any depth — the top-level Ops themselves excluded. */
-function nestedOps(effects: readonly EffectOp[]): EffectOp[] {
+ *  payload), at any depth — the top-level Ops themselves excluded. With a `host`,
+ *  a sweep that would plan there is left out with its body: its shape is proven
+ *  on its own and its `$each` is what the seeded board binds. */
+function nestedOps(effects: readonly EffectOp[], host?: SmokeHost): EffectOp[] {
     const found: EffectOp[] = [];
+    const planned = (op: EffectOp): boolean =>
+        host !== undefined && isPlannedSweep(op, host);
     const walk = (node: unknown): void => {
         if (Array.isArray(node)) {
             for (const child of node) walk(child);
             return;
         }
         if (node === null || typeof node !== "object") return;
-        if (isEffectOp(node)) found.push(node);
+        if (isEffectOp(node)) {
+            if (planned(node)) return;
+            found.push(node);
+        }
         for (const value of Object.values(node)) walk(value);
     };
     for (const op of effects) {
+        if (planned(op)) continue;
         for (const value of Object.values(op)) walk(value);
     }
     return found;

@@ -223,43 +223,6 @@ describe("Barl's Cage — {3}: target doesn't untap next untap step (CR 302.6/50
     });
 });
 
-describe("Bone Flute — {2},{T}: all creatures get -1/-0 EOT (CR 611.2)", () => {
-    it("shrinks every creature's power by 1", () => {
-        const flute = makeInstance(boneFlute.id, {
-            id: "flute",
-            controllerId: "p1",
-        });
-        const mine = makeInstance(
-            getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a").id,
-            {
-                id: "mine",
-                controllerId: "p1",
-            }
-        );
-        const theirs = makeInstance(
-            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
-            {
-                id: "theirs",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
-        );
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [flute, mine] }),
-                makePlayer("p2", { battlefield: [theirs] }),
-            ],
-        });
-        const beforeMine = getEffectivePower(state, mine);
-        const beforeTheirs = getEffectivePower(state, theirs);
-        resolveActivated(state, flute, "bone-flute-shrink");
-        expect(getEffectivePower(state, mine)).toBe(beforeMine - 1);
-        expect(getEffectivePower(state, theirs)).toBe(beforeTheirs - 1);
-        // Toughness unaffected (-1/-0).
-        expect(getEffectiveToughness(state, theirs)).toBe(2);
-    });
-});
-
 describe("Book of Rass — {2}, Pay 2 life: Draw a card (CR 119.4/121.1)", () => {
     it("draws one card (the life cost is enforced by the cost layer)", () => {
         const book = makeInstance("5a391ada-e9e3-45db-ae84-17421ac6b44d", {
