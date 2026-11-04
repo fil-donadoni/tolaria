@@ -9892,6 +9892,16 @@
         "source": "compiled"
     },
     {
+        "name": "Brontotherium",
+        "scryfallId": "a171f5e2-ed3d-4675-a4fc-953ebb907aa0",
+        "oracleId": "6e3301a5-a99b-4b17-aa40-34ccc5904977",
+        "firstSet": "lgn",
+        "firstPrintId": "a171f5e2-ed3d-4675-a4fc-953ebb907aa0",
+        "firstPrintSet": "lgn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Bronze Sable",
         "scryfallId": "ba7e563d-964c-4afd-9e21-9d400f8719d4",
         "oracleId": "f27e5e11-0ad0-448b-8760-75ed1b97e7d8",
@@ -15460,6 +15470,16 @@
         "source": "compiled"
     },
     {
+        "name": "Crested Craghorn",
+        "scryfallId": "aadb40c8-3d54-4705-82dc-54e8d6e315d5",
+        "oracleId": "597c390e-deeb-4452-aeda-7cf9312a8b01",
+        "firstSet": "lgn",
+        "firstPrintId": "aadb40c8-3d54-4705-82dc-54e8d6e315d5",
+        "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Crested Herdcaller",
         "scryfallId": "80bccca0-6425-4676-a98a-e0721a6beff7",
         "oracleId": "86c0ddaa-6926-450d-949a-6c89f43c71c2",
@@ -18300,6 +18320,16 @@
         "firstSet": "ala",
         "firstPrintId": "c4885a83-9410-4c88-b45e-1e1626fe90ea",
         "firstPrintSet": "ala",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Deftblade Elite",
+        "scryfallId": "76ffbae4-7aad-493c-86a0-c6e6425da8fd",
+        "oracleId": "9a3e3a8f-7c19-4b52-a1b4-08eb09f6127a",
+        "firstSet": "lgn",
+        "firstPrintId": "76ffbae4-7aad-493c-86a0-c6e6425da8fd",
+        "firstPrintSet": "lgn",
         "rarity": "common",
         "source": "compiled"
     },
@@ -31422,6 +31452,16 @@
         "source": "compiled"
     },
     {
+        "name": "Goblin Grappler",
+        "scryfallId": "5c948872-295c-41b9-8094-db7db7578b0d",
+        "oracleId": "48c1c84c-f690-42ce-9c5a-dd09b1e4197c",
+        "firstSet": "lgn",
+        "firstPrintId": "5c948872-295c-41b9-8094-db7db7578b0d",
+        "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Goblin Grenade",
         "scryfallId": "8837eaba-9602-4f63-9897-85583fcdcf51",
         "oracleId": "20aecb7b-7e37-4efe-ac27-f9f9042203f4",
@@ -36574,6 +36614,16 @@
         "firstSet": "grn",
         "firstPrintId": "8c31b8e5-2349-4119-9dc2-3e41c5364a78",
         "firstPrintSet": "grn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Hunter Sliver",
+        "scryfallId": "ca9aea1a-6f50-4f66-9f36-2e214dce41b4",
+        "oracleId": "f28b2ebe-49ef-4585-9bf2-7340abf3f0d3",
+        "firstSet": "lgn",
+        "firstPrintId": "ca9aea1a-6f50-4f66-9f36-2e214dce41b4",
+        "firstPrintSet": "lgn",
         "rarity": "common",
         "source": "compiled"
     },
@@ -44101,6 +44151,16 @@
         "firstSet": "tmp",
         "firstPrintId": "7398dec7-5e60-43c0-81a0-ab49beb37077",
         "firstPrintSet": "tmp",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Lowland Tracker",
+        "scryfallId": "f8eaaded-b18a-4614-b5b5-b4bb49a2e1b1",
+        "oracleId": "de06b33f-0793-419a-bf65-1961634af8e7",
+        "firstSet": "lgn",
+        "firstPrintId": "f8eaaded-b18a-4614-b5b5-b4bb49a2e1b1",
+        "firstPrintSet": "lgn",
         "rarity": "common",
         "source": "compiled"
     },
