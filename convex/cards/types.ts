@@ -3986,6 +3986,12 @@ export type AsEntersChoice =
      *  controller's opponents; with exactly one (every 2-player game) the
      *  choice is zero-branch and auto-answered. */
     | { kind: "opponent" }
+    /** CR 614.1c — "you may have this permanent enter with N additional
+     *  <type> counters on it" (Unleash, CR 702.98a). An accepted answer stamps
+     *  `CardInstanceState.acceptedEntryCounters`, which the entry's
+     *  `applyEntersWithCounters` folds into the permanent's entry counters; a
+     *  declined one writes nothing. */
+    | { kind: "mayEnterWithCounters"; counterType: string; count: number }
     /** CR 614.12 — "as this enters, you may pay <cost>" (shock lands, ADR 0051).
      *  Declared here so the family is whole; the shipped `land-entry-tapped`
      *  provisional park keeps its own shape until #1980 reconciles the two. */

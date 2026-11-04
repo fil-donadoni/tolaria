@@ -111,6 +111,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     // lord's bonus already shows in effective P/T), never the body.
     "changeling",
     // attach / vehicle / ETB-shaped, not a body quality
+    // CR 702.98a — an entry choice, then a block restriction read off the
+    // real counter: the search weighs both on the board it resulted in.
+    "unleash",
     "enchant",
     "equip",
     "reconfigure",
