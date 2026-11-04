@@ -9,12 +9,11 @@
 // never acts, so a ply there buys tree depth for no information).
 //
 // K is HOW MANY variants the enumerator emits per park kind, per KIND (not per
-// card). This table owns the CAST side only — the `cast:*` parks — because
+// card). This table owns the CAST side only — the six `cast:*` parks — because
 // that is what this issue ships (`gre/castCostPicks.ts`). Every one is K=1: the
 // pick is fungible, so the deterministic cheapest-first victim is carried on the
-// move and never multiplied into a variant axis. Assist's pick is not fungible,
-// but the Bot always names no one, so it has one plan too. K=1 everywhere was
-// considered and rejected in general (ADR 0091, alternatives — the variant machinery would
+// move and never multiplied into a variant axis. K=1 everywhere was considered
+// and rejected in general (ADR 0091, alternatives — the variant machinery would
 // be written and never traversed), but the ONE kind whose pick is a real
 // decision is the ACTIVATION discard (Survival of the Fittest, designed K=3),
 // which this table deliberately does not own — see the delimitation below.
@@ -73,6 +72,7 @@ export const PARK_VARIANT_K: Record<CastParkKind, number> = {
     "cast:exileFromGraveyardChoice": 1,
     "cast:alternativeCostHandChoice": 1,
     "cast:restrictedXSplitChoice": 1,
+    // Not fungible, but the Bot always names no one: one plan all the same.
     "cast:assistChoice": 1,
     "cast:manaSpendChoice": 1,
 };
