@@ -1,5 +1,5 @@
 import { countControlledMatching } from "../cards/controlledCount";
-import { CARD_TYPES } from "../cards/types";
+import { CARD_TYPES, countGraveyardCardTypes } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import type {
     ActivatedAbility,
@@ -123,7 +123,12 @@ function activationConditionValue(
               : p.hand.length;
     const players = scopedPlayers(state, source, spec);
     if (players === undefined) return undefined;
-    const total = players.reduce((n, p) => n + sizeOf(p), 0);
+    // Delirium (CR 207.2c ability word): the distinct card types AMONG the
+    // scoped graveyards, a tally over their union rather than a per-player sum.
+    const total =
+        spec.countTypes === true
+            ? countGraveyardCardTypes(players.flatMap((p) => p.graveyard ?? []))
+            : players.reduce((n, p) => n + sizeOf(p), 0);
     return total * ((spec.times as number | undefined) ?? 1);
 }
 
@@ -199,6 +204,7 @@ const COUNT_KEYS: ReadonlySet<string> = new Set([
     "acrossAllPlayers",
     "times",
     "filter",
+    "countTypes",
 ]);
 
 /** The `filter` keys a battlefield count may carry at activation time: the
@@ -219,14 +225,17 @@ const COLOR_WORDS: ReadonlySet<string> = new Set(COLORED_MANA_COLORS);
  * (`controller: "opponent"`) or every player's (`acrossAllPlayers: true`)
  * graveyard, hand or battlefield, optionally scaled by `times`. Only a
  * battlefield count carries a `filter`, of literal `type` / `color` only
- * (issue #5258 — "Activate only if you control five or more lands").
+ * (issue #5258 — "Activate only if you control five or more lands"). Only a
+ * graveyard count carries `countTypes: true` (Delirium's "four or more card
+ * types among cards in your graveyard"): a graveyard's contents are public and
+ * `types` is on every view of them.
  *
  * Everything else is refused, because it means something only during
  * resolution or reads what this evaluator cannot see: a binding / picks /
  * announced-target predicate (nothing is bound or announced before the
  * ability is activated), a `ref` operand, a hidden-zone `filter` or any other
- * filter key (the full card filter matcher lives on `SpellContext`),
- * `countTypes`, and the `library` zone.
+ * filter key (the full card filter matcher lives on `SpellContext`), and the
+ * `library` zone.
  */
 export function activationConditionErrors(condition: unknown): string[] {
     if (typeof condition !== "object" || condition === null) {
@@ -292,6 +301,16 @@ function operandErrors(value: unknown): string[] {
     }
     if (s.filter !== undefined) {
         errors.push(...filterErrors(s.zone, s.filter));
+    }
+    if (s.countTypes !== undefined) {
+        if (s.countTypes !== true) {
+            errors.push("count.countTypes must be the literal true");
+        }
+        if (s.zone !== "graveyard") {
+            errors.push(
+                `count.countTypes on ${JSON.stringify(s.zone)} — only a graveyard count tallies card types at activation time`
+            );
+        }
     }
     const scoped = s.controller === "controller" || s.controller === "opponent";
     const everyone = s.acrossAllPlayers === true;

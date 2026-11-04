@@ -12807,9 +12807,20 @@ export function buildSpellContext(
         becomeCopyOf(
             sourceCreatureId: string,
             opts?: CopyOptions,
-            placement?: { permanentId: string; duration?: DurationSpec }
+            placement?: {
+                permanentId: string;
+                duration?: DurationSpec;
+                sourceZone?: "graveyard";
+            }
         ): void {
-            const source = findOnBattlefield(state, sourceCreatureId)?.card;
+            // CR 707.2 — a graveyard card contributes its printed values; the
+            // departure funnel already reverted whatever it presented before.
+            const source =
+                placement?.sourceZone === "graveyard"
+                    ? state.players
+                          .flatMap((p) => p.graveyard)
+                          .find((c) => c.id === sourceCreatureId)
+                    : findOnBattlefield(state, sourceCreatureId)?.card;
             if (!source) return;
             if (placement) {
                 // CR 707.2 / 611.2a (issue #3236) — an explicitly named

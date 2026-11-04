@@ -6504,11 +6504,19 @@ export const OP_EXECUTORS: {
         const recipient = resolveObjectRef(ctx, op.target);
         const source = resolveObjectRef(ctx, op.source);
         if (!recipient || recipient.type !== "permanent") return;
-        if (!source || source.type !== "permanent") return;
+        if (
+            !source ||
+            (source.type !== "permanent" && source.type !== "graveyard-card")
+        ) {
+            return;
+        }
         if (recipient.id === source.id) return;
         ctx.becomeCopyOf(source.id, copyOptionsFromExcept(ctx, op.except), {
             permanentId: recipient.id,
             ...(op.duration ? { duration: op.duration } : {}),
+            ...(source.type === "graveyard-card"
+                ? { sourceZone: "graveyard" as const }
+                : {}),
         });
     },
     createTokenCopy(ctx, op) {
