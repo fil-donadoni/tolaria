@@ -52205,6 +52205,7 @@
         {"id":"702.73a","line":"// CR 702.73a — \"except it has changeling\" (a copiable value, CR 707.9b)","sites":1,"status":"confirmed","ruleHash":"31dbac5549847f6e"},
         {"id":"702.73a","line":"// CR 702.73a — a changeling token's placeholder has a line the width of a card","sites":1,"status":"confirmed","ruleHash":"31dbac5549847f6e"},
         {"id":"702.73a","line":"// CR 702.73a — a token created \"with changeling\" is every creature type, and","sites":1,"status":"confirmed","ruleHash":"31dbac5549847f6e"},
+        {"id":"702.73a","line":"// CR 702.73a — sets the subtype line; its worth is what reads that line (a","sites":1,"status":"confirmed","ruleHash":"31dbac5549847f6e"},
         {"id":"702.73a","line":"// CR 702.73a — the name lookup returns the raw row, whose subtype line misses","sites":1,"status":"confirmed","ruleHash":"31dbac5549847f6e"},
         {"id":"702.73a","line":"describe(\"Changeling is every creature type (CR 702.73a)\", () => {","sites":1,"status":"confirmed","ruleHash":"31dbac5549847f6e"},
         {"id":"702.73a","line":"describe(\"TokenPlaceholder on a changeling token (CR 702.73a)\", () => {","sites":1,"status":"confirmed","ruleHash":"31dbac5549847f6e"},
