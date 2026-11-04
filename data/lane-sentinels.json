@@ -204,12 +204,6 @@
             "ms": null
         },
         {
-            "file": "scripts/__tests__/raw-card-display-scan.test.ts",
-            "reds": 8,
-            "laneReds": 0,
-            "ms": null
-        },
-        {
             "file": "scripts/__tests__/sentence-kinds.test.ts",
             "reds": 0,
             "laneReds": 1,
@@ -348,7 +342,6 @@
         "scripts/__tests__/land.test.ts",
         "scripts/__tests__/machine-pins.test.ts",
         "scripts/__tests__/oracle-fragment-keys.test.ts",
-        "scripts/__tests__/raw-card-display-scan.test.ts",
         "scripts/__tests__/sentence-kinds.test.ts",
         "scripts/__tests__/test-tmp-teardown.test.ts",
         "scripts/__tests__/ui-census.test.ts",
