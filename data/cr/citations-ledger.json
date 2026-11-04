@@ -52863,7 +52863,6 @@
         {"id":"702.92a","line":"// - Living weapon (CR 702.92a) is the shared `livingWeapon()` self-ETB","sites":1,"status":"baseline"},
         {"id":"702.92a","line":"// - Living weapon (CR 702.92a) — the shared `livingWeapon()` self-ETB","sites":1,"status":"baseline"},
         {"id":"702.92a","line":"// CR 702.92a — create the Germ, THEN attach this Equipment to it.","sites":1,"status":"baseline"},
-        {"id":"702.93a","line":"* CR 702.93a's is the same. A permanent with BOTH keywords carries both ids:","sites":1,"status":"confirmed","ruleHash":"d5dc12242626c166"},
         {"id":"702.93a","line":"/** A NONCREATURE permanent with undying: CR 702.93a says \"this permanent\". */","sites":1,"status":"confirmed","ruleHash":"d5dc12242626c166"},
         {"id":"702.93a","line":"/** Persist's CR 702.79a and Undying's CR 702.93a triggered ability: the two","sites":1,"status":"confirmed","ruleHash":"d5dc12242626c166"},
         {"id":"702.93a","line":"/** The counter kind Undying both checks for and returns with (CR 702.93a). */","sites":1,"status":"confirmed","ruleHash":"d5dc12242626c166"},

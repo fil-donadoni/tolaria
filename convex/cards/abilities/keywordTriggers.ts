@@ -203,7 +203,7 @@ function battleCryTrigger(): TriggeredAbility {
  *  CR 702.79a's multiple-instance case (each instance triggers; the second
  *  finds no card) is unreachable by construction, as for battle cry: a
  *  `staticAbilities` list is a set of strings and this ability has ONE id.
- *  CR 702.93a's is the same. A permanent with BOTH keywords carries both ids:
+ *  Undying's is the same. A permanent with BOTH keywords carries both ids:
  *  each is checked against its own counter kind, so one that dies with neither
  *  counter triggers both and the second to resolve finds no card (CR 400.7). */
 function returnWithCounterTrigger(spec: {
