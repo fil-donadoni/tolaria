@@ -721,7 +721,10 @@ export function affordableAlternativeCosts(
     const morphCast = morphCastAlternativeCost(def);
     // CR 715.3 / 715.3d — instance-aware: the option is withdrawn on a card
     // exiled by its OWN Adventure (`adventureCastOptionFor`).
-    const adventureCast = adventureCastOptionFor(card);
+    const adventureCast = adventureCastOptionFor(card, {
+        state,
+        casterId: player.id,
+    });
     // CR 709.3 — BOTH half options, and they are the card's WHOLE cast menu:
     // "a player chooses which half of a split card they are casting before
     // putting it onto the stack", so there is no printed cast beside them

@@ -1485,16 +1485,19 @@ export type CardInstanceState = {
     plottedOnTurn?: number;
     /** CR 702.143a/c/d — the FORETOLD designation. On a card in exile: put
      *  there face down by the foretell special action (or made foretold by an
-     *  effect, CR 702.143d), set by `makeForetold` (`gre/foretell.ts`)
-     *  together with the owner's cast permission it carries, which rides the
-     *  general `castableFromExile*` record (`castableFromExileBy` = owner,
-     *  `castableFromExileFromTurn` = the turn after: "after the current turn
-     *  has ended"). The cost of that cast is the card's foretell cost
-     *  (`castRawManaCost`). On a STACK ITEM: the spell "was a foretold card
-     *  before it was cast" (CR 702.143c), stamped by the Cast Commit kernel
-     *  whatever cost the cast paid, and cleared when the spell leaves the
-     *  stack. Cleared when the card leaves exile any other way (CR 400.7). */
+     *  effect, CR 702.143d), set by `makeForetold` (`gre/foretell.ts`). On a
+     *  STACK ITEM: the spell "was a foretold card before it was cast" (CR
+     *  702.143c), stamped by the Cast Commit kernel whatever cost the cast
+     *  paid, and cleared when the spell leaves the stack. Cleared when the card
+     *  leaves exile any other way (CR 400.7). */
     foretold?: boolean;
+    /** CR 702.143a/d — the turn a card in exile became foretold, set only when
+     *  it has a foretell cost to be cast for. The owner's cast permission is
+     *  DERIVED from it ("after the current turn has ended",
+     *  `exileCastPermission`), never written into the `castableFromExile*`
+     *  record, so it coexists with any grant on that record. Cleared wherever
+     *  `foretold` is. */
+    foretoldOnTurn?: number;
     /** CR 702.143d — a foretell cost an EFFECT gave this foretold card ("that
      *  effect may give the card a foretell cost"); wins over the printed
      *  `CardDefinition.foretell` in `getForetellCost`. Rides `foretold`: set
@@ -1747,22 +1750,20 @@ export type CardInstanceState = {
      *  Cleared on any zone change (CR 400.7) — a blinked impending permanent
      *  returns as a new object whose impending cost was never paid. */
     impended?: boolean;
-    /** CR 702.185b — true iff this card in exile "is a warped card in exile":
-     *  one "exiled by the delayed triggered ability created by a warp ability"
-     *  (`applyWarpExile`, `gre/warp.ts`). The exile-zone sibling of
-     *  `madnessExiled` / `reboundExiled`, and, like them, what distinguishes
-     *  this exile from every other one that also carries a
-     *  `castableFromExileBy` grant.
-     *
-     *  Nothing QUERIES it yet — no shipped card reads "a warped card in exile"
-     *  (issue #1268 ships the keyword, not the cards that refer to it). It is
-     *  written because the referent is only derivable at the moment of the
-     *  exile: once the card is sitting in exile beside an ordinary impulse
-     *  grant there is no way to recover which ability put it there. Cleared
-     *  alongside `castableFromExileBy` wherever that field is cleared (the same
-     *  exile departure ends both facts). Persisted so it survives a DB
-     *  round-trip. */
-    warpExiled?: boolean;
+    /** CR 702.185a/b — the turn a warp ability's delayed trigger exiled this
+     *  card, which makes it a "warped card in exile". Its owner's cast
+     *  permission is DERIVED from it ("after the current turn has ended ... for
+     *  as long as it remains exiled", `exileCastPermission`), never written into
+     *  the `castableFromExile*` record, so it coexists with any grant on that
+     *  record. Set by `applyWarpExile` (`gre/warp.ts`), the only moment the fact
+     *  is observable, and ended only by the card leaving exile (CR 400.7). */
+    warpExiledOnTurn?: number;
+    /** CR 601.2b — the cast of this exiled card being announced was announced
+     *  under its second permission route (`exileCastRoutes`,
+     *  `declineManaCostReplacement`). Written by `announceCast` so the price,
+     *  the grant's tax and its fixing read one route until the cast commits or
+     *  is abandoned (`clearDeclinedExileRoute`). */
+    castDeclinedExileRoute?: boolean;
     /** CR 702.49c — the planeswalker (or battle) the returned creature was
      *  attacking, captured when a Ninjutsu cost was paid so the card entering
      *  the battlefield attacking joins combat against the SAME defender.

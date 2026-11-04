@@ -108,9 +108,7 @@ describe("Warp — the Bot and the recast window's lower bound (CR 702.185a)", (
             ownerId: "p1",
             zone: "exile",
         });
-        exiled.warpExiled = true;
-        exiled.castableFromExileBy = "p1";
-        exiled.castableFromExileFromTurn = 4;
+        exiled.warpExiledOnTurn = 3;
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -169,14 +167,10 @@ describe("Warp — the warped card is latent material before its window opens (i
     it("counts the closed-window warped card in the hand term, like an open one", () => {
         const gone = exiled({});
         const closed = exiled({
-            warpExiled: true,
-            castableFromExileBy: "p1",
-            castableFromExileFromTurn: 4,
+            warpExiledOnTurn: 3,
         });
         const open = exiled({
-            warpExiled: true,
-            castableFromExileBy: "p1",
-            castableFromExileFromTurn: 3,
+            warpExiledOnTurn: 2,
         });
         const hand = (s: GameState) => evaluateBreakdown(s, "p1").self.hand;
         expect(hand(closed)).toBeGreaterThan(hand(gone));

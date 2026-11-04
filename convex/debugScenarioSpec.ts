@@ -136,6 +136,12 @@ export const scenarioCardValidator = v.object({
     // shape (Ice Cauldron / Robber of the Rich / Ragavan). See
     // `scenarioBuilder.ts` for the full rationale.
     castableFromExileIncludesLand: v.optional(v.boolean()),
+    // CR 702.170c/d — stage the card as plotted on an earlier turn, so its
+    // owner's permission is open; beside `castableFromExile`, the two coexist.
+    plotted: v.optional(v.boolean()),
+    // CR 702.185a/b — stage the card as warped out on an earlier turn, so its
+    // owner's recast permission is open.
+    warpExiled: v.optional(v.boolean()),
     counters: v.optional(v.record(v.string(), v.number())),
     // CR 602.5 (issue #3448) — per-turn activation tallies ALREADY SPENT,
     // keyed by ability id exactly as the engine's
@@ -1043,6 +1049,8 @@ export type ScenarioCard = {
     faceDownExile?: boolean;
     castableFromExile?: boolean;
     castableFromExileIncludesLand?: boolean;
+    plotted?: boolean;
+    warpExiled?: boolean;
     counters?: Record<string, number>;
     /** CR 602.5 (issue #3448) — per-turn activation tallies already spent,
      *  keyed by ability id. Any zone; see the validator's own note. */
@@ -1862,6 +1870,8 @@ function normalizeCard(raw: unknown): ScenarioCard | null {
     set(card, "faceDown", pickBoolean(raw.faceDown));
     set(card, "faceDownExile", pickBoolean(raw.faceDownExile));
     set(card, "castableFromExile", pickBoolean(raw.castableFromExile));
+    set(card, "plotted", pickBoolean(raw.plotted));
+    set(card, "warpExiled", pickBoolean(raw.warpExiled));
     set(
         card,
         "castableFromExileIncludesLand",

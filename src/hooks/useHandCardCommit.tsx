@@ -13,6 +13,9 @@ import {
 } from "~/lib/pending-intent-store";
 import {
     affordableAltCostsForCard,
+    exileRouteChosenX,
+    exileRouteLocksX,
+    exileRouteRowLabel,
     libraryTopCastChoices,
     type LibraryTopCastChoice,
     affordableKickersForCard,
@@ -90,6 +93,9 @@ type AltCostPickerState = {
     replacementDeclinable: boolean;
     /** CR 119.4 (issue #7570) — the printed row pays life, not mana. */
     printedPaysLife: boolean;
+    /** CR 601.2b — the row wording when an exile permission decides the price. */
+    printedRowLabel?: string;
+    declineRowLabel?: string;
     /** CR 601.2b / 119.4 (issue #7570) — each option's payment rows. */
     altCostChoices: Record<string, LibraryTopCastChoice[]>;
 };
@@ -537,8 +543,11 @@ export function useHandCardCommit(
         // CR 601.2b / 118.9 (issue #7525) — a second covering permission
         // keeps the mana cost (Mystic Forge beside Bolas's Citadel): the
         // caster picks life or mana, so the picker opens with both rows.
+        // CR 601.2b — likewise a card in exile holding two permission routes.
+        const exileRouteChoice = cardInstance.exileCastRouteChoice;
         const replacementDeclinable =
-            cardInstance.castManaCostReplacementDeclinable === true;
+            cardInstance.castManaCostReplacementDeclinable === true ||
+            exileRouteChoice?.declined !== undefined;
         if (
             !cardInstance.castManaCostReplaced ||
             halfChoiceOwed ||
@@ -635,6 +644,22 @@ export function useHandCardCommit(
                     printedCostAvailable,
                     replacementDeclinable: declineRow,
                     printedPaysLife: cardInstance.castManaCostReplaced === true,
+                    ...(exileRouteChoice
+                        ? {
+                              printedRowLabel: exileRouteRowLabel(
+                                  exileRouteChoice,
+                                  cardInstance
+                              ),
+                              ...(exileRouteChoice.declined
+                                  ? {
+                                        declineRowLabel: exileRouteRowLabel(
+                                            exileRouteChoice.declined,
+                                            cardInstance
+                                        ),
+                                    }
+                                  : {}),
+                          }
+                        : {}),
                     altCostChoices,
                     chosenXColors,
                 });
@@ -761,7 +786,8 @@ export function useHandCardCommit(
         const hasX =
             (typeof def.manaCost?.X === "string" &&
                 !cardInstance.castManaCostReplaced &&
-                !cardInstance.printedCostCastUnavailable) ||
+                !cardInstance.printedCostCastUnavailable &&
+                !exileRouteLocksX(cardInstance.exileCastRouteChoice)) ||
             def.additionalCosts?.payXLife === true ||
             discardXMaxX !== undefined;
         const anchor = e.currentTarget as HTMLElement | null;
@@ -917,6 +943,8 @@ export function useHandCardCommit(
                 printedCostAvailable={altCostPickerState.printedCostAvailable}
                 replacementDeclinable={altCostPickerState.replacementDeclinable}
                 printedPaysLife={altCostPickerState.printedPaysLife}
+                printedRowLabel={altCostPickerState.printedRowLabel}
+                declineRowLabel={altCostPickerState.declineRowLabel}
                 altCostChoices={altCostPickerState.altCostChoices}
                 cardName={def.name}
                 position={altCostPickerState.position}
@@ -931,7 +959,12 @@ export function useHandCardCommit(
                     } = altCostPickerState;
                     setAltCostPickerState(null);
                     commitAnnounceCast({
-                        chosenX,
+                        chosenX: exileRouteChosenX(
+                            cardInstance.exileCastRouteChoice,
+                            altCostId,
+                            declineManaCostReplacement,
+                            chosenX
+                        ),
                         keepPriority,
                         chosenModeIds: undefined,
                         alternativeCostId: altCostId,

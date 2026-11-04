@@ -240,7 +240,7 @@ import { castProhibitionReason } from "../cards/castRestrictions";
 // (never at module top level), so this is safe despite `phases.ts` itself
 // importing from this module (the same lazy-cycle shape already used for
 // `./effects/interpreter` above).
-import { castsUnderPlotPermission } from "./castCost";
+import { exileCastRidesGrant } from "./castCost";
 import { wasCastOffSorceryTiming } from "./phases";
 import {
     hasControlledSinceTurnStart,
@@ -21652,13 +21652,15 @@ export function moveCard(
         // exile" referent ride the same permission window as the seven riders
         // beside them; a card pulled back out of exile keeps neither.
         delete card.castableFromExileFromTurn;
-        delete card.warpExiled;
+        delete card.warpExiledOnTurn;
         // CR 702.170d / 400.7 — the plotted designation, and so the permission
         // derived from it, leaves exile with the card.
         delete card.plottedOnTurn;
         // CR 702.143c / 400.7 — the foretold designation (and any foretell
         // cost an effect gave it, CR 702.143d) leaves exile with the card.
         delete card.foretold;
+        delete card.foretoldOnTurn;
+        delete card.castDeclinedExileRoute;
         delete card.grantedForetellCost;
         delete card.castFromExileWithoutPayingManaCost;
         // CR 715.3d — the SEVENTH sibling, cleared in the SAME permission
@@ -21995,7 +21997,7 @@ export function removeFromZone(
     // the upper bound directly above: the card is on the stack now, and a warp
     // recast must never leave a stale window behind for its next exile.
     delete card.castableFromExileFromTurn;
-    delete card.warpExiled;
+    delete card.warpExiledOnTurn;
     // CR 702.170d — the plotted designation is consumed with the permission
     // derived from it.
     delete card.plottedOnTurn;
@@ -22003,6 +22005,8 @@ export function removeFromZone(
     // it rides; the Cast Commit kernel reads it BEFORE this removal and
     // carries it onto the stack item (a spell that was a foretold card).
     delete card.foretold;
+    delete card.foretoldOnTurn;
+    delete card.castDeclinedExileRoute;
     delete card.grantedForetellCost;
     // CR 601.3 (issue #1156) — the free-cast waiver (Dauthi Voidwalker) rides
     // the SAME permission window as `castableFromExileBy`; consumed together.
@@ -23821,7 +23825,11 @@ export function getCostModifiers(
     card: PermanentView &
         Pick<
             Partial<CardInstanceState>,
-            "castFromExileCostIncrease" | "ownerId" | "plottedOnTurn"
+            | "castFromExileCostIncrease"
+            | "ownerId"
+            | "plottedOnTurn"
+            | "foretoldOnTurn"
+            | "warpExiledOnTurn"
         >,
     kind: "spell" | "ability",
     ability?: ActivatedAbility,
@@ -23845,12 +23853,12 @@ export function getCostModifiers(
     // issue #2383), the CLEANUP impulse sweep (`gre/phases.ts`) and
     // `consumeExilePlayGrant` (`gre/playLand.ts`).
     //
-    // CR 702.170d — the tax rides the grant, so a cast under the plotted
-    // permission of the same card does not owe it.
+    // CR 601.2f — the tax rides the grant, so a cast under the same card's own
+    // designation (plotted, foretold, warped) does not owe it.
     if (
         kind === "spell" &&
         card.castFromExileCostIncrease &&
-        !castsUnderPlotPermission(
+        exileCastRidesGrant(
             state,
             card as CardInstanceState,
             // A commit site names no announcer: the caster holds priority.
@@ -24256,9 +24264,9 @@ export function getManaSubstitutions(
                 c.id === castCardInstanceId &&
                 c.castableFromExileBy === playerId &&
                 c.castFromExileManaSubstitution !== undefined &&
-                // CR 702.170d — the fixing rides the grant, not a cast under
-                // the plotted permission of the same card.
-                !castsUnderPlotPermission(state, c, playerId)
+                // CR 609.4b — the fixing rides the grant, not a cast under the
+                // same card's own designation (plotted, foretold, warped).
+                exileCastRidesGrant(state, c, playerId)
         );
         if (granted?.castFromExileManaSubstitution) {
             out.push(

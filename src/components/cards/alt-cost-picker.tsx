@@ -26,6 +26,12 @@ type AltCostPickerProps = {
     /** CR 119.4 (issue #7570) — the printed row pays life rather than mana
      *  (Bolas's Citadel), with or without a second row. */
     printedPaysLife?: boolean;
+    /** CR 601.2b — what the printed row and the declining row say when the
+     *  permission a cast from exile is made under decides the price: "Cast
+     *  without paying its mana cost" beside "Pay mana cost". Absent = the
+     *  library wording above. */
+    printedRowLabel?: string;
+    declineRowLabel?: string;
     /** CR 601.2b / 118.9 (issue #7570) — how each `altCosts` entry may be paid
      *  off the top of the library, one row per choice: Petty Theft for life,
      *  and for mana under a second grant keeping its cost. Absent = one plain
@@ -56,6 +62,8 @@ export default function AltCostPicker({
     printedCostAvailable,
     replacementDeclinable = false,
     printedPaysLife = false,
+    printedRowLabel,
+    declineRowLabel = "Pay mana cost",
     altCostChoices,
     cardName,
     position,
@@ -82,16 +90,17 @@ export default function AltCostPicker({
             {printedCostAvailable ? (
                 <AnchoredPickerRow onSelect={() => onSelect(undefined)}>
                     <span className="text-display text-sm text-text">
-                        {replacementDeclinable || printedPaysLife
-                            ? "Pay life equal to its mana value"
-                            : "Pay mana cost"}
+                        {printedRowLabel ??
+                            (replacementDeclinable || printedPaysLife
+                                ? "Pay life equal to its mana value"
+                                : "Pay mana cost")}
                     </span>
                 </AnchoredPickerRow>
             ) : null}
             {replacementDeclinable ? (
                 <AnchoredPickerRow onSelect={() => onSelect(undefined, true)}>
                     <span className="text-display text-sm text-text">
-                        Pay mana cost
+                        {declineRowLabel}
                     </span>
                 </AnchoredPickerRow>
             ) : null}

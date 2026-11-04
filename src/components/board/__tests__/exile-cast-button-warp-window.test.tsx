@@ -68,9 +68,7 @@ function projectedWarpExile(turn: number, mana: number) {
         ownerId: "p1",
         zone: "exile",
         knownTo: ["p1"],
-        warpExiled: true,
-        castableFromExileBy: "p1",
-        castableFromExileFromTurn: 4,
+        warpExiledOnTurn: 3,
     });
     const state = makeState({
         players: [makePlayer("p1", { exile: [exiled] }), makePlayer("p2")],
@@ -120,7 +118,7 @@ describe("ExileCastButton during a CLOSED warp window (CR 702.185a, issue #3294)
 
     it("the projection withholds legalActions, so the button renders disabled", () => {
         const card = projectedWarpExile(3, 5);
-        expect(card.castableFromExileBy).toBe("p1");
+        expect(card.warpExiledOnTurn).toBe(3);
         expect(card.legalActions).toBeUndefined();
         renderButton(card, 3);
         expect(
@@ -146,7 +144,7 @@ describe("ExileCastButton during a CLOSED warp window (CR 702.185a, issue #3294)
     it("the lower bound reaches the client through the projection", () => {
         // The reason is derived from the wire field, so a projection that
         // dropped it would silently fall back to the mana tooltip.
-        expect(projectedWarpExile(3, 5).castableFromExileFromTurn).toBe(4);
+        expect(projectedWarpExile(3, 5).warpExiledOnTurn).toBe(3);
     });
 });
 

@@ -18306,6 +18306,53 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #7570 — reachability of the Adventure Move under a mana-cost-replacing grant. `MoveMatcher` has no field for `alternativeCostId`, so the predicate shape, as for the hand-cast Adventure entry.",
     },
     {
+        // CR 601.3 / 601.2b / 107.3b (issue #8022) — a plotted Rock Hydra also
+        // holding a grant. Cast free under the plotted permission X must be 0,
+        // and a 0/0 Hydra with no counters dies on arrival (CR 704.5f). Under
+        // the grant it pays {X}{R}{R} from four Mountains for a 2/2. Without
+        // the declined pass the free cast is the only Move the Bot sees.
+        label: "exile permissions: pays X under the grant, not a free dead Hydra under the plotted permission",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Rock Hydra",
+                    owner: "me",
+                    zone: "exile",
+                    plotted: true,
+                    castableFromExile: true,
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            landsPlayed: { me: 1 },
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // A PREDICATE: the decision is the announced permission, a field
+            // `MoveMatcher` does not name — a reachability claim.
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                move.castFromZone === "exile" &&
+                move.declineManaCostReplacement === true &&
+                (move.chosenX ?? 0) > 0,
+            describe:
+                "casts Rock Hydra out of exile under the grant, paying X > 0",
+        },
+        note: "Issue #8022 — the `declineManaCostReplacement` Move variant in `gre/moves.ts`'s exile block. Without it the only cast the Bot can enumerate is the free one at X = 0.",
+    },
+    {
         // CR 601.2b / 118.9 (issue #7525) — the caster picks among overlapping
         // cast-from-top permissions. Bolas's Citadel and Mystic Forge both
         // cover Juggernaut ({4}, an artifact) on top of the library: the

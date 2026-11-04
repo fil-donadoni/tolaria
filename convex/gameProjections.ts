@@ -36,7 +36,12 @@ import { canPlot } from "./gre/plot";
 import { canForetell } from "./gre/foretell";
 import { isRequiredAttacker } from "./gre/combat";
 import { isFaceDownExile } from "./gre/faceDown";
-import { exileCastPermitted } from "./gre/castCost";
+import {
+    exileCastPermitted,
+    exileCastRidesGrant,
+    exileCastRouteChoice,
+    type ExileCastRouteChoice,
+} from "./gre/castCost";
 import {
     computeLibraryTopLookedAtPlayers,
     computeLibraryTopRevealedPlayers,
@@ -121,6 +126,10 @@ export type SlimHandCard = SlimCardInstance & {
  *  colour) disables the button instead of throwing at the cast mutation. */
 export type SlimExileCard = SlimCardInstance & {
     legalActions?: CardAction[];
+    /** CR 601.2b — the VIEWER's permission route for this cast, where it asks
+     *  anything of the picker: a price other than the printed cost, or a second
+     *  route to choose (`exileCastRouteChoice`). */
+    exileCastRouteChoice?: ExileCastRouteChoice;
     /** Instance id of the battlefield permanent this exiled card is associated
      *  with — the permanent that exiled / holds it. Unifies every exile-linkage
      *  mechanism (Banishing Light / Tawnos's Coffin exile-and-return bundles,
@@ -824,6 +833,11 @@ function projectExileCard(
          *  by `exileCastPermitted`. Passed rather than derived: this projector
          *  takes a CARD, not the state. */
         castPermitted?: boolean;
+        /** The viewer's route for this cast; read only under `castPermitted`. */
+        routeFor?: () => {
+            choice: ExileCastRouteChoice | undefined;
+            ridesGrant: boolean;
+        };
     }
 ): SlimExileCard {
     // CR 601.3 — the viewer's own card it may cast from exile carries
@@ -845,6 +859,16 @@ function projectExileCard(
         // mutation refuses.
         if (opts?.legalActionsFor && opts.castPermitted === true) {
             out = { ...out, legalActions: opts.legalActionsFor() };
+            const route = opts.routeFor?.();
+            if (route?.choice) {
+                out = { ...out, exileCastRouteChoice: route.choice };
+            }
+            // CR 715.3d — "it can't be cast as an Adventure THIS WAY" rides the
+            // grant: under another permission the client's picker offers it.
+            if (route && !route.ridesGrant) {
+                out = { ...out };
+                delete out.castFromExileNotAsAdventure;
+            }
         }
         return out;
     };
@@ -1597,6 +1621,10 @@ export function projectPublicState(
                 withPrintedCastAvailability(
                     projectExileCard(c, viewerId, {
                         castPermitted: exileCastPermitted(state, c, viewerId),
+                        routeFor: () => ({
+                            choice: exileCastRouteChoice(state, c, viewerId),
+                            ridesGrant: exileCastRidesGrant(state, c, viewerId),
+                        }),
                         // CR 601.3 (issue #1156) — `casterId` disambiguates a
                         // CROSS-PLAYER grant (Robber of the Rich, Dauthi
                         // Voidwalker): the card lives in `player`'s exile, but
