@@ -13290,14 +13290,14 @@ export interface ChapterAbilityDefinition {
 }
 
 /** A `StaticEffect` a class level bar can level-gate (CR 716.2a): every layer
- *  kind whose activeness is decided by an `applies` predicate, which is where
- *  "as long as this Class is level N or greater" belongs. A kind with no such
- *  predicate has no seam to gate and is therefore not admissible in a bar's
- *  section — nothing in the pool prints one there. */
-export type GateableStaticEffect = Extract<
-    StaticEffect,
-    { applies: (...args: never[]) => boolean }
->;
+ *  kind whose activeness is decided by an `applies` predicate, and a cost
+ *  modifier, whose `appliesTo*` predicates receive the permanent carrying it.
+ *  Either is where "as long as this Class is level N or greater" belongs. A kind
+ *  with neither has no seam to gate and is therefore not admissible in a bar's
+ *  section. */
+export type GateableStaticEffect =
+    | Extract<StaticEffect, { applies: (...args: never[]) => boolean }>
+    | StaticCostModifier;
 
 /** One class level bar of a Class card (CR 716.2), declared as data: the
  *  activation cost, the level it grants, and the abilities printed in its own
@@ -13322,6 +13322,15 @@ export interface ClassLevelBarDefinition {
     /** Activated abilities printed in this section — activatable only at level
      *  N or greater (CR 716.2a). */
     activatedAbilities?: ActivatedAbility[];
+    /** {@link CardDefinition.extraLandDrops} printed in this section, read at
+     *  level N or greater by `extraLandDropsOf` (CR 716.2a). It stays on the bar
+     *  and is never lifted onto the definition, so a reader that does not know
+     *  about levels finds nothing rather than a static live below its level. */
+    extraLandDrops?: number;
+    /** {@link CardDefinition.looksAtLibraryTop} printed in this section, read at
+     *  level N or greater by `looksAtLibraryTopOf` (CR 716.2a); on the bar for
+     *  the same reason as `extraLandDrops` above. */
+    looksAtLibraryTop?: "controller";
     /** The compiler's JSON form of `staticEffects` above, for the reason
      *  {@link CardDefinition.compiledStaticEffects} exists: rebuilt into it by
      *  `expandCompiledStatics`, before `expandClassLevelBars` gates it. */

@@ -32,6 +32,7 @@
 
 import type { GameState } from "./state";
 import { tryGetDefinition } from "../cards";
+import { looksAtLibraryTopOf } from "../cards/abilities/classLevels";
 
 /** CR 401.5 / 604.2 — ids of the players currently playing with the top card of
  *  their library revealed, derived live from the battlefield.
@@ -86,9 +87,8 @@ export function computeLibraryTopLookedAtPlayers(
     for (const player of state.players) {
         for (const card of player.battlefield) {
             const cardId = (card.card as { id?: string }).id;
-            const scope = cardId
-                ? tryGetDefinition(cardId)?.looksAtLibraryTop
-                : undefined;
+            const def = cardId ? tryGetDefinition(cardId) : null;
+            const scope = def ? looksAtLibraryTopOf(def, card) : undefined;
             if (!scope) continue;
             // Only scope shipped today (see `CardDefinition.looksAtLibraryTop`);
             // widen here in lockstep with the union when a card needs it.

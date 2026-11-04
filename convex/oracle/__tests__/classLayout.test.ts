@@ -6,7 +6,8 @@
 //     never `incomparable`, which would pass a mismatch).
 //  3. REFUSALS — a card is refused whole, never truncated.
 //  4. THE ENGINE — a compiled Class driven through the real stack and the real
-//     layer system: what `compiledTriggeredAbilities` on a bar becomes.
+//     layer system: what `compiledTriggeredAbilities` on a bar becomes, and each
+//     section static that is not an `applies` predicate, below and at its level.
 
 import { describe, expect, it } from "vitest";
 import {
@@ -18,7 +19,9 @@ import { getCardByName, getDefinition } from "../../cards";
 import { withTemporaryDefinition } from "../../cards/registry";
 import type { CardDefinition } from "../../cards/types";
 import { getEffectivePower } from "../../gre/layers";
-import { resolveTopOfStack } from "../../gre/state";
+import { getExtraLandDrops, getLegalActions } from "../../gre/rules";
+import { getCostModifiers, resolveTopOfStack } from "../../gre/state";
+import { projectPublicState } from "../../gameProjections";
 import { collectTriggers } from "../../gre/triggers";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
@@ -62,6 +65,7 @@ const STORMCHASER_LINES = [
     "{5}{U}: Level 3",
     LEVEL_3_LINE,
 ];
+const ANTHEM_LINE = "Creatures you control get +1/+1.";
 const stormchaser = () =>
     classCard("Stormchaser's Talent", "{U}", STORMCHASER_LINES);
 
@@ -257,22 +261,18 @@ describe("Class layout — refusals (the card, never a truncation)", () => {
             refusals([
                 ETB_LINE,
                 bar2,
-                "You may play an additional land on each of your turns.",
+                "Play with the top card of your library revealed.",
             ])
         ).toEqual([
-            "class level 2 section carries extraLandDrops, which has no level gate",
+            "class level 2 section carries revealsLibraryTop, which has no level gate",
         ]);
     });
 
-    it("CR 716.2a — a section static whose kind has no `applies` seam", () => {
+    it("CR 716.2a — a section static whose kind has no predicate to gate", () => {
         expect(
-            refusals([
-                ETB_LINE,
-                bar2,
-                "Noncreature spells you cast cost {1} less to cast.",
-            ])
+            refusals([ETB_LINE, bar2, "Artifacts and lands enter tapped."])
         ).toEqual([
-            "class level 2 section holds a cost-modifier static, which has no level gate",
+            "class level 2 section holds a enters-tapped-restriction static, which has no level gate",
         ]);
     });
 });
@@ -428,5 +428,103 @@ describe("a compiled Class in the engine (CR 716.2a)", () => {
             levelUp(state, talent, 2);
             expect(getEffectivePower(state, creature)).toBe(3);
         });
+    });
+
+    function withSection<T>(sectionLine: string, fn: () => T): T {
+        const card = classCard("Test Class", "{U}", [
+            ETB_LINE,
+            "{2}{U}: Level 2",
+            ANTHEM_LINE,
+            "{4}{U}: Level 3",
+            sectionLine,
+        ]);
+        return withCompiled(card, fn);
+    }
+
+    it("CR 601.2f — a section cost modifier reduces only from its level", () => {
+        withSection(
+            "Noncreature spells you cast cost {1} less to cast.",
+            () => {
+                const { state, talent } = board();
+                const bolt = makeInstance(getCardByName("Lightning Bolt").id, {
+                    id: "bolt",
+                    controllerId: "p1",
+                });
+                const bears = makeInstance(getCardByName("Grizzly Bears").id, {
+                    id: "bears",
+                    controllerId: "p1",
+                });
+                const reduction = (spell: typeof bolt) =>
+                    getCostModifiers(state, spell, "spell").reductionGeneric;
+                expect(reduction(bolt)).toBe(0);
+                levelUp(state, talent, 2);
+                expect(reduction(bolt)).toBe(0);
+                levelUp(state, talent, 3);
+                expect(reduction(bolt)).toBe(1);
+                expect(reduction(bears)).toBe(0);
+            }
+        );
+    });
+
+    it("CR 305.2 — a section's additional land play counts only from its level", () => {
+        withSection(
+            "You may play an additional land on each of your turns.",
+            () => {
+                const { state, talent } = board();
+                const player = state.players[0];
+                const forest = makeInstance(getCardByName("Forest").id, {
+                    id: "forest",
+                    controllerId: "p1",
+                });
+                player.hand = [forest];
+                player.landsPlayedThisTurn = 1;
+                state.activePlayerId = "p1";
+                state.priorityPlayerId = "p1";
+                state.phase = "PRECOMBAT_MAIN";
+                const canPlay = () =>
+                    getLegalActions(state, player, forest).includes("play");
+                expect(getExtraLandDrops(state, player)).toBe(0);
+                expect(canPlay()).toBe(false);
+                levelUp(state, talent, 2);
+                expect(getExtraLandDrops(state, player)).toBe(0);
+                expect(canPlay()).toBe(false);
+                levelUp(state, talent, 3);
+                expect(getExtraLandDrops(state, player)).toBe(1);
+                expect(canPlay()).toBe(true);
+            }
+        );
+    });
+
+    it("CR 401.5 — a section's look reaches only its controller, only from its level (wire)", () => {
+        withSection(
+            "You may look at the top card of your library any time.",
+            () => {
+                const { state, talent } = board();
+                const top = makeInstance(getCardByName("Forest").id, {
+                    id: "top",
+                });
+                state.players[0].library = [top];
+                const known = (viewer: string) =>
+                    projectPublicState(state, 1, viewer).players[0].library
+                        .known.length;
+                expect(known("p1")).toBe(0);
+                levelUp(state, talent, 2);
+                expect(known("p1")).toBe(0);
+                levelUp(state, talent, 3);
+                expect(known("p1")).toBe(1);
+                expect(known("p2")).toBe(0);
+            }
+        );
+    });
+
+    it("the bar keeps its definition field: nothing is lifted onto the definition", () => {
+        withSection(
+            "You may play an additional land on each of your turns.",
+            () => {
+                const definition = getDefinition(ID);
+                expect(definition.extraLandDrops).toBeUndefined();
+                expect(definition.classLevelBars?.[1]?.extraLandDrops).toBe(1);
+            }
+        );
     });
 });

@@ -60,10 +60,10 @@ export const CLASS_LAYOUT = "class";
 
 /**
  * CR 716.2a — what a Class section's lines may compile to, beyond the identity
- * every compile carries: the two kinds of ability the corpus prints under a
- * bar. Anything else (a keyword line, an activated ability, a definition-level
- * field such as `extraLandDrops`) has no level gate to ride and would function
- * at every level, so it refuses the card rather than truncate it.
+ * every compile carries: the kinds of ability the corpus prints under a bar,
+ * each with a level gate the engine reads. Anything else (a keyword line, an
+ * activated ability, another definition-level field) has no gate to ride and
+ * would function at every level, so it refuses the card rather than truncate it.
  */
 const CLASS_SECTION_FIELDS = new Set<string>([
     "name",
@@ -74,6 +74,8 @@ const CLASS_SECTION_FIELDS = new Set<string>([
     "oracleText",
     "compiledTriggeredAbilities",
     "compiledStaticEffects",
+    "extraLandDrops",
+    "looksAtLibraryTop",
 ]);
 
 /**
@@ -640,7 +642,12 @@ function classSectionRefusal(
     const triggers = section.compiledTriggeredAbilities ?? [];
     const statics = section.compiledStaticEffects ?? [];
     // CR 716.2 — the corpus prints no bar over an empty section.
-    if (triggers.length === 0 && statics.length === 0)
+    if (
+        triggers.length === 0 &&
+        statics.length === 0 &&
+        section.extraLandDrops === undefined &&
+        section.looksAtLibraryTop === undefined
+    )
         return `class level ${level} section holds no ability`;
     for (const descriptor of statics) {
         if (!isGateableStaticEffect(resolveCompiledStatic(descriptor)))
@@ -721,8 +728,12 @@ function compileClassLayout(card: OracleCard): CompileOutcome {
             return unparsed([
                 { line: barLine, fragment: barLine, reason: refusal },
             ]);
-        const { compiledTriggeredAbilities, compiledStaticEffects } =
-            outcome.definition;
+        const {
+            compiledTriggeredAbilities,
+            compiledStaticEffects,
+            extraLandDrops,
+            looksAtLibraryTop,
+        } = outcome.definition;
         classLevelBars.push({
             ...bar,
             // Each section lowered alone, so each numbered its ids from one;
@@ -737,6 +748,8 @@ function compileClassLayout(card: OracleCard): CompileOutcome {
                   }
                 : {}),
             ...(compiledStaticEffects ? { compiledStaticEffects } : {}),
+            ...(extraLandDrops !== undefined ? { extraLandDrops } : {}),
+            ...(looksAtLibraryTop !== undefined ? { looksAtLibraryTop } : {}),
         });
     }
     const definition: CompiledDefinition = {

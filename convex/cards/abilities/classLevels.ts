@@ -47,6 +47,7 @@ import type {
     GateableStaticEffect,
     ManaCost,
     PermanentView,
+    StaticCostModifier,
     StaticEffect,
     TargetRequirement,
     TriggeredAbility,
@@ -209,11 +210,55 @@ export function buildLevelBarAbility(
 
 /** CR 716.2a — can this static effect be level-gated? `GateableStaticEffect`'s
  *  own test, at runtime, for a descriptor the compiler rebuilds: a kind with no
- *  `applies` predicate has no seam for "as long as this Class is level N or
+ *  predicate of its own has no seam for "as long as this Class is level N or
  *  greater", so the compiler refuses it in a section rather than ship it live
  *  at every level. */
 export function isGateableStaticEffect(effect: StaticEffect): boolean {
-    return typeof (effect as { applies?: unknown }).applies === "function";
+    return (
+        effect.kind === "cost-modifier" ||
+        typeof (effect as { applies?: unknown }).applies === "function"
+    );
+}
+
+/** CR 716.2a / 601.2f — the grant for a cost modifier: both `appliesTo*`
+ *  predicates, because a modifier may scope spells, abilities or both. An
+ *  absent `effectSource` fails closed, since the level cannot be read then. */
+function gateCostModifier(
+    effect: StaticCostModifier,
+    level: number
+): StaticCostModifier {
+    const { appliesToSpell, appliesToAbility } = effect;
+    const atLevel = (effectSource?: PermanentView): boolean =>
+        effectSource !== undefined && classLevelOf(effectSource) >= level;
+    return {
+        ...effect,
+        ...(appliesToSpell
+            ? {
+                  appliesToSpell: (card, ctx, effectSource) =>
+                      atLevel(effectSource) &&
+                      appliesToSpell(card, ctx, effectSource),
+              }
+            : {}),
+        ...(appliesToAbility
+            ? {
+                  appliesToAbility: (
+                      source,
+                      ctx,
+                      effectSource,
+                      ability,
+                      activatorId
+                  ) =>
+                      atLevel(effectSource) &&
+                      appliesToAbility(
+                          source,
+                          ctx,
+                          effectSource,
+                          ability,
+                          activatorId
+                      ),
+              }
+            : {}),
+    };
 }
 
 /** CR 716.2a — "as long as this Class is level N or greater, it has
@@ -223,6 +268,7 @@ function gateStaticEffect(
     effect: GateableStaticEffect,
     level: number
 ): GateableStaticEffect {
+    if (effect.kind === "cost-modifier") return gateCostModifier(effect, level);
     const applies = effect.applies as (
         target: PermanentView,
         source: PermanentView,
@@ -314,6 +360,42 @@ export function expandClassLevelBars(def: CardDefinition): CardDefinition {
         ],
         staticEffects: [...(def.staticEffects ?? []), ...sectionStatics],
     };
+}
+
+/** CR 716.2a — the sections `permanent` has the abilities of at its current
+ *  level. The expanded definition keeps its bars, so this reads them live. */
+function sectionsInForce(
+    def: Pick<CardDefinition, "classLevelBars">,
+    permanent: Pick<PermanentView, "classLevel">
+): readonly ClassLevelBarDefinition[] {
+    const bars = def.classLevelBars;
+    if (!bars) return [];
+    const level = classLevelOf(permanent);
+    return bars.filter((bar) => bar.level <= level);
+}
+
+/** CR 305.2 / 716.2a — the additional land plays `permanent` grants its
+ *  controller: the definition's own, plus those of the sections in force. */
+export function extraLandDropsOf(
+    def: Pick<CardDefinition, "extraLandDrops" | "classLevelBars">,
+    permanent: Pick<PermanentView, "classLevel">
+): number {
+    let extra = def.extraLandDrops ?? 0;
+    for (const bar of sectionsInForce(def, permanent)) {
+        extra += bar.extraLandDrops ?? 0;
+    }
+    return extra;
+}
+
+/** CR 401.5 / 716.2a — whose library top `permanent` lets its controller look
+ *  at: the definition's own scope, or that of a section in force. */
+export function looksAtLibraryTopOf(
+    def: Pick<CardDefinition, "looksAtLibraryTop" | "classLevelBars">,
+    permanent: Pick<PermanentView, "classLevel">
+): CardDefinition["looksAtLibraryTop"] {
+    if (def.looksAtLibraryTop) return def.looksAtLibraryTop;
+    return sectionsInForce(def, permanent).find((bar) => bar.looksAtLibraryTop)
+        ?.looksAtLibraryTop;
 }
 
 /** CR 716.2a — "When this Class becomes level N, …", the trigger shape every
