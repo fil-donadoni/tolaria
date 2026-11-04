@@ -1124,6 +1124,10 @@ export type CardInstanceState = {
      *  (`dropMustBlockRequirementsNaming`, `resetBattlefieldTransientState`).
      *  Cleared at CLEANUP and when this creature changes zones. */
     mustBlockAttackersThisTurn?: string[];
+    /** The same requirement for THIS combat only (CR 702.39a — Provoke), so an
+     *  extra combat phase does not re-bind it. Cleared by `endCombatStep`, and by
+     *  CLEANUP and a zone change like its turn-scoped twin. */
+    mustBlockAttackersThisCombat?: string[];
     /** Transient flag: this creature can't block this turn (CR 509.1b).
      *  Twin of `mustBlockAllThisTurn`. Set by Ydwen Efreet's lost block
      *  flip; enforced in `validateBlockerEligibility`. Cleared at CLEANUP. */

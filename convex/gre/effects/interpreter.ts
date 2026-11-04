@@ -7942,7 +7942,7 @@ export const OP_EXECUTORS: {
         if (op.restriction === "must-block") {
             const attacker = resolveObjectRef(ctx, op.attacker);
             if (!attacker) return;
-            ctx.setMustBlockAttacker(target, attacker);
+            ctx.setMustBlockAttacker(target, attacker, op.scope);
             return;
         }
         if (op.restriction === "cant-attack") {

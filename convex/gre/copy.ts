@@ -458,7 +458,7 @@ export function effectiveTriggeredAbilities(
     // grants the engine's activated-ability reader kept — the two authorities
     // disagreed about the same rule.
     const strippedAt = abilityLossTimestamp(card);
-    // Flanking and dethrone come from the composed multiset, printed or granted,
+    // Flanking, dethrone and provoke come from the composed multiset, printed or granted,
     // which has already applied any loss of abilities (`liveKeywordTriggers.ts`).
     const granted = [
         ...grantedTriggeredAbilities(card, strippedAt),

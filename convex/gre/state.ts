@@ -50,6 +50,7 @@ import {
     type SpellContext,
     type SpellStackDestination,
     type StaticEffect,
+    type MustBlockScope,
     type TargetCountQuantity,
     type TargetRequirement,
     type TargetSelection,
@@ -10084,20 +10085,26 @@ export function revertTypeLine(card: CardInstanceState): void {
 }
 
 /** CR 400.7 / 509.1c (issue #3713) — removes `attackerId` from every
- *  battlefield creature's `mustBlockAttackersThisTurn`. Called when the named
- *  attacker changes zones: the returned permanent is a new object that no
- *  earlier "blocks this creature if able" requirement named. */
+ *  battlefield creature's attacker-named block requirements, of either scope.
+ *  Called when the named attacker changes zones: the returned permanent is a
+ *  new object that no earlier "blocks this creature if able" requirement
+ *  named. */
 function dropMustBlockRequirementsNaming(
     state: GameState,
     attackerId: string
 ): void {
     for (const player of state.players) {
         for (const perm of player.battlefield) {
-            const named = perm.mustBlockAttackersThisTurn;
-            if (!named?.includes(attackerId)) continue;
-            const rest = named.filter((id) => id !== attackerId);
-            if (rest.length > 0) perm.mustBlockAttackersThisTurn = rest;
-            else delete perm.mustBlockAttackersThisTurn;
+            for (const field of [
+                "mustBlockAttackersThisTurn",
+                "mustBlockAttackersThisCombat",
+            ] as const) {
+                const named = perm[field];
+                if (!named?.includes(attackerId)) continue;
+                const rest = named.filter((id) => id !== attackerId);
+                if (rest.length > 0) perm[field] = rest;
+                else delete perm[field];
+            }
         }
     }
 }
@@ -17856,20 +17863,27 @@ export function buildSpellContext(
 
         setMustBlockAttacker(
             blocker: TargetSelection,
-            attacker: TargetSelection
+            attacker: TargetSelection,
+            scope: MustBlockScope = "turn"
         ): void {
             // CR 509.1c — "target creature blocks <attacker> this turn if
             // able". Records the attacker's instance id on the BLOCKER; the
             // requirement applies in every declare-blockers step of the turn
             // and is read by `getRequiredBlockerAssignments`. No-op when
             // either object is off the battlefield. Cleared at CLEANUP.
+            // CR 702.39a — the "combat" scope is the same requirement for this
+            // combat only, cleared by `endCombatStep`.
             if (blocker.type !== "permanent" || attacker.type !== "permanent")
                 return;
             const found = findOnBattlefield(state, blocker.id);
             if (!found || !findOnBattlefield(state, attacker.id)) return;
-            const existing = found.card.mustBlockAttackersThisTurn ?? [];
+            const field =
+                scope === "combat"
+                    ? "mustBlockAttackersThisCombat"
+                    : "mustBlockAttackersThisTurn";
+            const existing = found.card[field] ?? [];
             if (existing.includes(attacker.id)) return;
-            found.card.mustBlockAttackersThisTurn = [...existing, attacker.id];
+            found.card[field] = [...existing, attacker.id];
         },
 
         setCantBlockThisTurn(target: TargetSelection): void {

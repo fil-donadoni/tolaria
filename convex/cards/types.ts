@@ -6908,11 +6908,13 @@ export interface SpellContext {
      *  Rampant Elephant; Provoke's resolution half). The per-attacker twin of
      *  `setMustBlockAll`: records the attacker's instance id on the blocker,
      *  read by `getRequiredBlockerAssignments` in every declare-blockers step
-     *  of the turn. Cleared at CLEANUP. No-op unless both are permanents on
-     *  the battlefield. */
+     *  of the turn. Cleared at CLEANUP. `scope: "combat"` is Provoke's "this
+     *  combat" (CR 702.39a), cleared when the combat phase ends. No-op unless
+     *  both are permanents on the battlefield. */
     setMustBlockAttacker: (
         blocker: TargetSelection,
-        attacker: TargetSelection
+        attacker: TargetSelection,
+        scope?: MustBlockScope
     ) => void;
     /** Marks a target permanent as unable to block this turn (CR 509.1b).
      *  Twin of `setMustBlockAll`. Cleared at CLEANUP. Used by Ydwen Efreet's
@@ -14732,6 +14734,11 @@ export type EachDamagePlayerScope = "you" | "opponents";
  *  as it can). */
 export type EffectObjectSelector = EffectTargetRef | EffectRef;
 
+/** How long an attacker-named block requirement lasts: every declare-blockers
+ *  step of the turn (CR 509.1c, the default), or the current combat phase only
+ *  (CR 702.39a). */
+export type MustBlockScope = "turn" | "combat";
+
 /** CR 506.2 / 508.1b (issue #3244) — "the player or planeswalker THIS
  *  CREATURE IS ATTACKING": the recipient an attacking creature's own ability
  *  names without targeting it (Myr Battlesphere's "deals X damage to the
@@ -21442,12 +21449,15 @@ export type EffectOp =
      *  the turn but binds only while `attacker` is attacking and the block is
      *  legal (evasion, protection, a tapped blocker all excuse it). Skipped
      *  when either object is gone (CR 608.2b). Does NOT untap the blocker —
-     *  that is Provoke's keyword half (CR 702.39a), its own consumer. */
+     *  that is Provoke's keyword half (CR 702.39a), its own consumer. `scope:
+     *  "combat"` is Provoke's "this combat": the requirement ends with the
+     *  current combat phase instead of the turn. */
     | {
           op: "restrictCombat";
           restriction: "must-block";
           target: EffectObjectSelector;
           attacker: EffectObjectSelector;
+          scope?: MustBlockScope;
       }
     /** CR 508.1c (issue #1283) — Island Sanctuary's player-scoped "until your
      *  next turn, you can't be attacked except by creatures with flying
