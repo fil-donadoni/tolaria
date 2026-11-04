@@ -31,6 +31,7 @@ import {
 import { makeForetold } from "../foretell";
 import { finalizeCleanup } from "../phases";
 import { getLegalActions } from "../rules";
+import { specFromState } from "../scenarioBuilder";
 import { compactState, expandState } from "../serialize";
 import {
     getCostModifiers,
@@ -442,5 +443,18 @@ describe("the Adventure rider binds its own grant only (CR 715.3d)", () => {
             adventureCastOptionFor(subject(state), { state, casterId: "p1" })
         ).toBeUndefined();
         expect(adventureCastOptionFor(subject(state))).toBeUndefined();
+    });
+});
+
+describe("the scenario spec stages a designation's permission", () => {
+    it.each([
+        ["plottedOnTurn", "plotted"],
+        ["warpExiledOnTurn", "warpExiled"],
+    ] as const)("%s lowers to %s and rebuilds open", (field, specKey) => {
+        const state = board(HYDRA, MOUNTAIN, 0);
+        subject(state)[field] = 3;
+        const { spec } = specFromState(state, { mySeatId: "p1" });
+        const exiled = spec.cards.find((c) => c.zone === "exile");
+        expect(exiled?.[specKey]).toBe(true);
     });
 });

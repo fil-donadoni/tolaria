@@ -965,6 +965,12 @@ export function buildStateFromScenario(
                     (instance as CardInstanceState).plottedOnTurn =
                         state.turn - 1;
                 }
+                // CR 702.185a — warped out on an earlier turn: "after the
+                // current turn has ended" has arrived.
+                if (entry.warpExiled) {
+                    (instance as CardInstanceState).warpExiledOnTurn =
+                        state.turn - 1;
+                }
             } else {
                 if (entry.damageMarked && entry.damageMarked > 0) {
                     (instance as CardInstanceState).damageMarked =
@@ -3294,6 +3300,7 @@ function lowerCard(
         reportCharacteristicDrift(card, label, animated, dropped);
     } else if (zone === "exile") {
         if (card.plottedOnTurn !== undefined) entry.plotted = true;
+        if (card.warpExiledOnTurn !== undefined) entry.warpExiled = true;
         if (card.castableFromExileBy) {
             if (card.castableFromExileBy === player.id) {
                 entry.castableFromExile = true;

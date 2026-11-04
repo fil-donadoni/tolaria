@@ -15660,6 +15660,9 @@ export const debugSetupScenario = mutation({
                 /** CR 702.170c/d — stage the card as plotted on an earlier
                  *  turn, so its owner's permission is open. */
                 plotted: v.optional(v.boolean()),
+                /** CR 702.185a/b — stage the card as warped out on an earlier
+                 *  turn, so its owner's recast permission is open. */
+                warpExiled: v.optional(v.boolean()),
                 /** Pre-seed counters (CR 122) on a battlefield permanent —
                  *  e.g. `{ "+1/+1": 3 }` for Triskelion or `{ doom: 2 }` for
                  *  Armageddon Clock. Keyed by counter type. Battlefield only. */
