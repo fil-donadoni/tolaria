@@ -9020,6 +9020,11 @@ export function runModeInstanceScripts(
 /** Seeds the implicit `$source` / `$host` snapshot bindings on a FRESH entry
  *  (see `runEffectScript`). */
 function seedSourceBindings(ctx: SpellContext): void {
+    // CR 400.7 — a same-id permanent back on the battlefield is a NEW object
+    // with no relation to this ability: `sourceLkiMatchesFilter` answers only
+    // once the source has departed, so nothing is seeded from the returned one
+    // and `$source` reads skip exactly as for a source that stayed gone.
+    if (ctx.sourceLkiMatchesFilter({}) !== undefined) return;
     if (ctx.getOwnerId(ctx.sourceInstanceId) !== undefined) {
         bindSnapshot(ctx, SOURCE_BINDING, {
             type: "permanent",

@@ -170,6 +170,50 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "CR 107.3a / 702.33a Kicker {X} reachability — the deterministic halves (enumeration, both sandboxes charging X) are in `kickerXBot.bot.test.ts`. Issue #2141.",
     },
     {
+        // X SPENT FOR AN ETB TRIGGER reachability (CR 400.7d / 107.3a). The
+        // bot's main phase, seven untapped Islands, Wan Shi Tong, Librarian in
+        // hand, nothing else to spend on. The ETB is a trigger reading the
+        // permanent's cast-time X, so the whole pay-off sits behind a stack
+        // resolution: every spare mana buys a counter and half a card.
+        label: "X into an ETB trigger: casts Wan Shi Tong, Librarian for all its mana",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a second spell in hand to spend the spare mana on",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Wan Shi Tong, Librarian", owner: "me", zone: "hand" },
+                ...Array.from({ length: 7 }, () => ({
+                    name: "Island",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, like the Kicker {X} entries beside it: a reachability
+        // claim, kept out of the weight fit.
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                move.chosenX === 5,
+            describe:
+                "casts Wan Shi Tong, Librarian with X = 5, spending every mana",
+        },
+        note: "CR 400.7d cast-time X read from a trigger (issue #1993). A read that lost X between the trigger and its resolution would price every X alike, and the extra five mana would buy nothing.",
+    },
+    {
         // KICKER {X} WITH A MINIMUM X reachability (CR 107.3 / 601.2b, issue
         // #3248). The bot's main phase, four untapped Islands, Thieving
         // Skydiver in hand; the opponent controls Grizzly Bears and an

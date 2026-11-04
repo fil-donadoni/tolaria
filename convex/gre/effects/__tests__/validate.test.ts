@@ -6396,13 +6396,16 @@ describe("validateEffectScript — divide (issue #2385)", () => {
     });
 
     it("accepts the source's cast-time X as a dividend at an ability site, and refuses every other ref (CR 400.7d)", () => {
-        const drawHalf = (ref: string) => [
-            {
-                op: "draw",
-                player: "controller",
-                count: { divide: { value: { ref }, by: 2, rounding: "down" } },
-            },
-        ];
+        const drawHalf = (ref: string) =>
+            [
+                {
+                    op: "draw",
+                    player: "controller",
+                    count: {
+                        divide: { value: { ref }, by: 2, rounding: "down" },
+                    },
+                },
+            ] as EffectOp[];
         expect(
             validateAbilityEffectScript(
                 host({ effects: drawHalf("$source.chosenXOnCast") }),
@@ -6410,13 +6413,12 @@ describe("validateEffectScript — divide (issue #2385)", () => {
             )
         ).toEqual([]);
         // Not off another snapshot, not a stat read, not at a spell site.
-        for (const effects of [
-            drawHalf("$source.power"),
-            drawHalf("$host.chosenXOnCast"),
-        ]) {
+        for (const ref of ["$source.power", "$host.chosenXOnCast"]) {
             expect(
-                validateAbilityEffectScript(host({ effects }), "Test Card")
-                    .length
+                validateAbilityEffectScript(
+                    host({ effects: drawHalf(ref) }),
+                    "Test Card"
+                ).length
             ).toBeGreaterThan(0);
         }
         expect(
@@ -6428,45 +6430,25 @@ describe("validateEffectScript — divide (issue #2385)", () => {
 
     it("the cast-time X is a numeric read: legal as an amount, never a player, and still no difference or scaled operand", () => {
         const X = { ref: "$source.chosenXOnCast" };
+        const drawing = (count: unknown, player: unknown = "controller") =>
+            [{ op: "draw", player, count }] as unknown as EffectOp[];
         expect(
             validateAbilityEffectScript(
-                host({
-                    effects: [{ op: "draw", player: "controller", count: X }],
-                }),
+                host({ effects: drawing(X) }),
                 "Test Card"
             )
         ).toEqual([]);
         for (const effects of [
-            [{ op: "draw", player: X, count: 1 }],
-            [
-                {
-                    op: "draw",
-                    player: "controller",
-                    count: { difference: { from: X, minus: 1 } },
+            drawing(1, X),
+            drawing({ difference: { from: X, minus: 1 } }),
+            drawing({ scaled: { value: X, times: 2 } }),
+            drawing({
+                divide: {
+                    value: { divide: { value: X, by: 2, rounding: "up" } },
+                    by: 2,
+                    rounding: "down",
                 },
-            ],
-            [
-                {
-                    op: "draw",
-                    player: "controller",
-                    count: { scaled: { value: X, times: 2 } },
-                },
-            ],
-            [
-                {
-                    op: "draw",
-                    player: "controller",
-                    count: {
-                        divide: {
-                            value: {
-                                divide: { value: X, by: 2, rounding: "up" },
-                            },
-                            by: 2,
-                            rounding: "down",
-                        },
-                    },
-                },
-            ],
+            }),
         ]) {
             expect(
                 validateAbilityEffectScript(host({ effects }), "Test Card")
