@@ -9762,6 +9762,16 @@
         "source": "compiled"
     },
     {
+        "name": "Broodbirth Viper",
+        "scryfallId": "ebf51c44-aa06-476e-b081-b71c11b1e8ba",
+        "oracleId": "a8455828-9c61-4ef9-a5f1-1f0cc6fbf446",
+        "firstSet": "c15",
+        "firstPrintId": "ebf51c44-aa06-476e-b081-b71c11b1e8ba",
+        "firstPrintSet": "c15",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Broodhunter Wurm",
         "scryfallId": "c11c852d-9c7c-4d9b-8e79-70ea5ac865df",
         "oracleId": "02d50c11-51e3-4b3f-bf3d-3b1775d514f6",
@@ -10437,6 +10447,16 @@
         "firstPrintId": "a073459e-1f00-47e0-a1b3-d30203aa35d1",
         "firstPrintSet": "lgn",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Caller of the Pack",
+        "scryfallId": "1286208b-896b-4f41-a837-1c8a2b199a0f",
+        "oracleId": "3b6cbd2a-02ba-4afb-a081-0f25d830a8ee",
+        "firstSet": "c15",
+        "firstPrintId": "1286208b-896b-4f41-a837-1c8a2b199a0f",
+        "firstPrintSet": "c15",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -14058,6 +14078,16 @@
         "source": "compiled"
     },
     {
+        "name": "Conclave Evangelist",
+        "scryfallId": "0dcccbd8-2135-45e6-8802-8dcaa382a398",
+        "oracleId": "13c81fc5-dd35-481d-8e32-4d404fb0e4ac",
+        "firstSet": "clu",
+        "firstPrintId": "0dcccbd8-2135-45e6-8802-8dcaa382a398",
+        "firstPrintSet": "clu",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Conclave Naturalists",
         "scryfallId": "3759fc28-9adb-41ed-851c-566a3a424e09",
         "oracleId": "cb5de977-d420-41cc-85f0-6ffee8bbeff1",
@@ -16239,6 +16269,16 @@
         "firstPrintId": "2d860dee-93a9-48e5-ba7a-80ad8cdc84e4",
         "firstPrintSet": "p02",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dalek Squadron",
+        "scryfallId": "76573f9d-f0f2-47b8-88e7-17d58d0d20d3",
+        "oracleId": "18ae6be7-cfb6-42e3-a04e-99e9c1471ecd",
+        "firstSet": "who",
+        "firstPrintId": "76573f9d-f0f2-47b8-88e7-17d58d0d20d3",
+        "firstPrintSet": "who",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -34583,6 +34623,16 @@
         "firstPrintId": "ce9ed217-8378-4a58-a00d-fa4e4cb27c9d",
         "firstPrintSet": "kld",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Herald of the Host",
+        "scryfallId": "8c3ad215-3405-4026-b946-feadd5ee371a",
+        "oracleId": "4371d5bc-1760-477b-822e-6d4999fb0a6b",
+        "firstSet": "c15",
+        "firstPrintId": "8c3ad215-3405-4026-b946-feadd5ee371a",
+        "firstPrintSet": "c15",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -74538,6 +74588,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tabaxi Toucaneers",
+        "scryfallId": "43e38761-70e0-4f6e-a4c2-7c9a17557d25",
+        "oracleId": "36dd999e-53da-45c7-ae98-90f7aad78680",
+        "firstSet": "clb",
+        "firstPrintId": "43e38761-70e0-4f6e-a4c2-7c9a17557d25",
+        "firstPrintSet": "clb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Tablet of Epityr",
         "scryfallId": "6d7a2718-301f-4191-b348-0c44c7c07d43",
         "oracleId": "691896d7-9894-4845-be1d-08b053897fdb",
@@ -77378,6 +77438,16 @@
         "firstSet": "mmq",
         "firstPrintId": "c12a0717-e9ea-4be3-a29f-179671ed4489",
         "firstPrintSet": "mmq"
+    },
+    {
+        "name": "Tiamat's Fanatics",
+        "scryfallId": "279c2ec3-abfc-4054-bdd9-3c8fa7d8b426",
+        "oracleId": "6eef7583-0716-49b5-b70e-8feb0e7c99fb",
+        "firstSet": "clb",
+        "firstPrintId": "279c2ec3-abfc-4054-bdd9-3c8fa7d8b426",
+        "firstPrintSet": "clb",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Tibalt's Rager",
@@ -84473,6 +84543,16 @@
         "source": "compiled"
     },
     {
+        "name": "Warchief Giant",
+        "scryfallId": "b914dfce-3eb9-43e5-aecb-9137e140278c",
+        "oracleId": "589abb40-04b4-4dbe-9c2a-446b6c3075d1",
+        "firstSet": "c15",
+        "firstPrintId": "b914dfce-3eb9-43e5-aecb-9137e140278c",
+        "firstPrintSet": "c15",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Warclamp Mastiff",
         "scryfallId": "102e48e0-8a5f-499d-ac62-005d3c075ef3",
         "oracleId": "8bd301ea-32f0-4c3a-a215-c04b31fbdc7c",
@@ -86727,6 +86807,16 @@
         "source": "compiled"
     },
     {
+        "name": "Wizards of Thay",
+        "scryfallId": "952e4e6b-fe74-4f3c-95d1-8e043f72072c",
+        "oracleId": "cda1e3b5-ea80-4e83-b305-88993d307170",
+        "firstSet": "clb",
+        "firstPrintId": "952e4e6b-fe74-4f3c-95d1-8e043f72072c",
+        "firstPrintSet": "clb",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Wizards' School",
         "scryfallId": "cd736532-8e98-4f4a-b48f-a66c57efcbfd",
         "oracleId": "51635f96-af1d-4b33-9118-432495aaf07f",
@@ -87351,6 +87441,16 @@
         "firstSet": "arn",
         "firstPrintId": "15ccebe1-ef08-4805-a65f-a1c57abed9f2",
         "firstPrintSet": "arn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wyrm's Crossing Patrol",
+        "scryfallId": "f00a57fc-b4a6-48fa-a20c-864c10099e4b",
+        "oracleId": "fad2d14f-8825-4b08-8804-010d9659f6dc",
+        "firstSet": "clb",
+        "firstPrintId": "f00a57fc-b4a6-48fa-a20c-864c10099e4b",
+        "firstPrintSet": "clb",
         "rarity": "common",
         "source": "compiled"
     },

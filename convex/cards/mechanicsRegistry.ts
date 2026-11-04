@@ -1916,7 +1916,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Myriad",
         kind: "keyword-ability",
         cr: "702.116",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/cards/abilities/myriad.ts expandMyriad",
+        note: 'Issue #3999 — "myriad" is a TRIGGERED ability (CR 702.116a), expanded IMPLICITLY from the `staticAbilities` string at the `getDefinition` seam (`expandMyriad`, `convex/cards/registry.ts`, ADR 0054). The injected `attacksTrigger({ scope: "self" })` has a `resolve()` that does nothing (`effects[]` may not be empty and no no-op Op exists): this engine plays two-player games only, where "each opponent other than defending player" has no member (CR 506.2), so no token is ever offered. The trigger still goes on the stack (CR 603.3) and resolves doing nothing. CR 702.116b: one trigger per declared instance. NOT covered: a GRANTED myriad — a definition-level expander never reads the target instance, so a granting card stays quarantined as `ungrantable-keyword` (`isDefinitionLevelKeyword`).',
     },
     // 702.117 Surge
     {
