@@ -278,6 +278,8 @@ export type TriggerHeadIR =
           readonly kind: "spell-cast";
           readonly scope: "you" | "opponent" | "any" | "self";
           readonly filter?: SpellFilter;
+          /** CR 601.2i — only the caster's Nth spell this turn fires it. */
+          readonly nthSpellThisTurn?: number;
       };
 
 /**
@@ -541,6 +543,11 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     ],
     // CR 603.2 — casting.
     ["whenever you cast a spell", { kind: "spell-cast", scope: "you" }],
+    // CR 601.2i — the caster's own tally of spells this turn.
+    [
+        "whenever you cast your second spell each turn",
+        { kind: "spell-cast", scope: "you", nthSpellThisTurn: 2 },
+    ],
     [
         "whenever an opponent casts a spell",
         { kind: "spell-cast", scope: "opponent" },

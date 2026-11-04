@@ -15501,4 +15501,57 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 406.3 + CR 608.2g + CR 118.9 — "exile cards … until you exile a nonland
+    // card. You may cast that card without paying its mana cost": the walk's
+    // `bind` names the offered card. Exhibits `revealUntilMatch` on the
+    // controller's library and `castDuringResolution`, both a live library
+    // and Cast/Decline the canned smoke scenario cannot provision (issue #7354).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "1448eadb-e8b1-4e8f-9697-3bb919085dab",
+            name: "Wanda's Vision",
+            manaCost: "{3}{R}{R}",
+            typeLine: "Enchantment",
+            oracleText:
+                "Whenever you cast your second spell each turn, exile cards from the top of your library until you exile a nonland card. You may cast that card without paying its mana cost.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Wanda's Vision",
+            types: ["Enchantment"],
+            manaCost: { X: 3, R: 2 },
+            oracleText:
+                "Whenever you cast your second spell each turn, exile cards from the top of your library until you exile a nonland card. You may cast that card without paying its mana cost.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "wanda-s-vision-trigger",
+                    oracleText:
+                        "Whenever you cast your second spell each turn, exile cards from the top of your library until you exile a nonland card. You may cast that card without paying its mana cost.",
+                    head: {
+                        kind: "spell-cast",
+                        scope: "you",
+                        nthSpellThisTurn: 2,
+                    },
+                    effects: [
+                        {
+                            op: "revealUntilMatch",
+                            player: "controller",
+                            filter: { excludeType: "Land" },
+                            match: "exile",
+                            rest: "exile",
+                            bind: "$hit1",
+                        },
+                        {
+                            op: "castDuringResolution",
+                            player: "controller",
+                            card: { ref: "$hit1" },
+                            source: "exile",
+                            free: true,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

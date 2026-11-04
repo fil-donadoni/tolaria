@@ -4393,17 +4393,32 @@ function lowerSentenceBody(
                 },
             ]);
         }
-        case "reveal-until":
+        case "reveal-until": {
             // CR 701.20a — "your library": the controller's.
+            const walkOp = {
+                op: "revealUntilMatch",
+                player: "controller",
+                filter: sentence.filter,
+                match: sentence.match,
+                rest: sentence.rest,
+            } as const;
+            if (sentence.offerMatchFree !== true) return lowered([walkOp]);
+            // CR 406.3 — both routes exile, public anyway; the Op's `bind`
+            // names the card that ended the walk. CR 608.2g + CR 118.9 — that
+            // card is offered during this resolution, its cost waived. A
+            // library with no match binds nothing, so nothing is offered.
+            const hit = walk.nextBind("hit");
             return lowered([
+                { ...walkOp, bind: hit },
                 {
-                    op: "revealUntilMatch",
+                    op: "castDuringResolution",
                     player: "controller",
-                    filter: sentence.filter,
-                    match: sentence.match,
-                    rest: sentence.rest,
+                    card: { ref: hit },
+                    source: "exile",
+                    free: true,
                 },
             ]);
+        }
         case "first-player-may-reveal-until": {
             // CR 603.3d — the trigger announces an opposing player who
             // controls more creatures than the head's player; the strict
