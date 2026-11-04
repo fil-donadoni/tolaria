@@ -11890,6 +11890,11 @@ export interface CreatureDiedEvent {
  *  shape so the trigger collector can use the same lookup pattern. */
 export interface PermanentEnteredEvent {
     type: "PERMANENT_ENTERED";
+    /** CR 608.2h — the entered object as it last existed on the battlefield,
+     *  stamped by `removePermanentTo` on the stack item holding this event once
+     *  that object has left. Its presence is also the CR 400.7 gate: a same-id
+     *  permanent back on the battlefield is a new object. */
+    departedAs?: { isCreature: boolean; power: number; toughness: number };
     instanceId: string;
     controllerId: string;
     cardId?: string;
@@ -12678,6 +12683,9 @@ export interface CounterRemovedEvent {
  *  factory can gate on them without a live battlefield re-scan. */
 export interface CounterAddedEvent {
     type: "COUNTER_ADDED";
+    /** The triggered ability whose resolution put these counters on, when one
+     *  did. Read by "whenever this creature evolves" (CR 702.100b). */
+    byTriggeredAbilityId?: string;
     /** Instance id of the permanent the counters were added to. */
     instanceId: string;
     /** Controller of that permanent at the moment of placement. */

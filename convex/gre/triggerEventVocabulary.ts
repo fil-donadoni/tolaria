@@ -114,6 +114,7 @@ export const EVENT_FIELD_KINDS: {
         toughness: "scalar",
         manaValue: "scalar",
         isToken: "scalar",
+        departedAs: "scalar",
     },
     // CR 603.6c / 603.10 — a permanent left the battlefield.
     PERMANENT_LEFT: {
@@ -291,6 +292,7 @@ export const EVENT_FIELD_KINDS: {
         total: "scalar",
         types: "scalar",
         subtypes: "scalar",
+        byTriggeredAbilityId: "scalar",
     },
     LEVEL_GAINED: {
         instanceId: "object",
