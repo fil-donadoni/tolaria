@@ -10,16 +10,19 @@
 //   at `mayPay` execution time, so a future X-cost card composes without
 //   changes here.)
 //
-// Modeled as a keyword→triggered-ability factory (ADR 0002, mirroring
-// `echoTrigger`/`rampageTrigger`): the card carries the parametric keyword
-// `"ward <label>"` in `staticAbilities[]` (board-visible reminder data,
-// matched by the Mechanics Registry's `bindingPattern`) and a matching
-// `wardAbility({...})` in `triggeredAbilities[]`, so no per-card trigger code
-// is written.
+// Expanded implicitly from the keyword string at the `getDefinition` seam
+// (ADR 0054, the `expandMobilize` / `expandImpending` chain): a card declares
+// only `"ward {2}"` / `"ward—pay 2 life"` in `staticAbilities[]` (matched by
+// the Mechanics Registry's `bindingPattern`) and `expandWard` injects
+// `wardAbility({...})`, so a card can never print the keyword and enforce
+// nothing, and a compiled (JSON) definition reaches the `matches` closure below
+// without a second statement of it. A GRANTED ward (`keyword-grant` +
+// `triggered-grant`, Lavaspur Boots) calls the factory directly: the string is
+// not on the granting card's own `staticAbilities`.
 //
 // Routed entirely through EXISTING targeted-triggered-ability machinery
-// (CR 603.3d, issue #1193) — no parallel counter mechanism:
-//   - `event: "BECAME_TARGET"` (CR 603.2b, issue #1265) is the SAME
+// (CR 603.3d) — no parallel counter mechanism:
+//   - `event: "BECAME_TARGET"` (CR 603.2) is the SAME
 //     target-declaration event Leovold's "you or a permanent you control
 //     becomes the target" reads. `matches` narrows it to "THIS permanent
 //     specifically" (`event.target.id === self.id`, tighter than Leovold's
@@ -41,8 +44,7 @@
 //     (`mayPay`, `if`, `counter`) is already covered by the interpreter test
 //     suite — the per-Op regime applies, no new Op introduced.
 //
-// Two-simultaneous-targeters edge (CR 702.21a, issue #1361, resolved — was a
-// documented divergence when split from #1312): the FILTER-based instance
+// Two-simultaneous-targeters edge (CR 702.21a): the FILTER-based instance
 // pin above (`spellTargetsSelfSource` → `spellTargetsInstanceIds: [self.id]`)
 // alone can't distinguish WHICH of two spells/abilities simultaneously
 // targeting the same warded permanent caused a GIVEN ward trigger instance —
@@ -57,7 +59,7 @@
 // remains as a defensive fallback for the (never expected) case where the
 // causing event carries no `sourceInstanceId`.
 
-import type { MayPayCost, TriggeredAbility } from "../types";
+import type { CardDefinition, MayPayCost, TriggeredAbility } from "../types";
 
 export interface WardArgs {
     /** Stable id within the source card's `triggeredAbilities` array. */
@@ -70,16 +72,14 @@ export interface WardArgs {
      *  for a special-action cost ("Ward—Sacrifice a creature", "Ward—Pay 2
      *  life"). */
     cost: MayPayCost;
-    /** Label for the cost shown in the keyword name / may-pay prompt (e.g.
-     *  "{2}", "Pay 2 life", "Sacrifice a creature"). */
+    /** Label for the cost shown in the may-pay prompt and the default reminder
+     *  (e.g. "{2}", "2 life"). */
     costLabel: string;
 }
 
-/** Builds the Ward triggered ability (CR 702.21). Add it to a card's
- *  `triggeredAbilities`, and declare `"ward <costLabel>"` in the card's
- *  `staticAbilities` (Mechanics Registry `bindingPattern: /^ward /i`) so the
- *  keyword is board-visible and passes the catalogue-wide name-authority
- *  guard. */
+/** Builds the Ward triggered ability (CR 702.21). A printed ward declares the
+ *  keyword string and lets {@link expandWard} call this; only a granted ward
+ *  calls it by hand. */
 export function wardAbility(args: WardArgs): TriggeredAbility {
     const costLabel = args.costLabel;
     const oracle =
@@ -126,6 +126,62 @@ export function wardAbility(args: WardArgs): TriggeredAbility {
                 predicate: { not: { binding: "$paid" } },
                 then: [{ op: "counter", target: { target: 0 } }],
             },
+        ],
+    };
+}
+
+/** The id {@link wardAbility} gives its ability by default. */
+const WARD_TRIGGER_ID = "ward";
+
+/** `"ward {N}"` — a generic-mana ward, the keyword-run form. */
+const WARD_MANA = /^ward \{([1-9]\d*)\}$/;
+/** `"ward—pay N life"` — the dashed form. */
+const WARD_LIFE = /^ward—pay ([1-9]\d*) life$/;
+
+/** A printed ward's cost, read from its keyword string, or null for any string
+ *  that is not one of the two forms above: the one authority on what those
+ *  forms mean, read by the expander and by the Oracle keyword line. */
+export function parseWard(keyword: string): WardArgs | null {
+    const mana = WARD_MANA.exec(keyword);
+    if (mana !== null) {
+        const amount = Number(mana[1]);
+        return { cost: { mana: { X: amount } }, costLabel: `{${amount}}` };
+    }
+    const life = WARD_LIFE.exec(keyword);
+    if (life === null) return null;
+    const amount = Number(life[1]);
+    return {
+        cost: { life: amount },
+        costLabel: `${amount} life`,
+        oracleText: `Ward—Pay ${amount} life (Whenever this permanent becomes the target of a spell or ability an opponent controls, counter it unless that player pays ${amount} life.)`,
+    };
+}
+
+/** ADR 0054 — a no-op unless the card carries a ward keyword string. Appends
+ *  one trigger per declared ward, each triggering on its own; never mutates the
+ *  input. Idempotent: skips a definition already carrying the trigger, so a
+ *  definition spread from an expanded one does not ward twice. */
+export function expandWard(def: CardDefinition): CardDefinition {
+    const wards = (def.staticAbilities ?? []).flatMap((keyword) => {
+        const args = parseWard(keyword);
+        return args === null ? [] : [args];
+    });
+    if (wards.length === 0) return def;
+    const existing = def.triggeredAbilities ?? [];
+    if (existing.some((t) => t.id === WARD_TRIGGER_ID)) return def;
+    return {
+        ...def,
+        triggeredAbilities: [
+            ...existing,
+            ...wards.map((args, i) =>
+                wardAbility({
+                    ...args,
+                    id:
+                        i === 0
+                            ? WARD_TRIGGER_ID
+                            : `${WARD_TRIGGER_ID}-${i + 1}`,
+                })
+            ),
         ],
     };
 }

@@ -11,8 +11,8 @@
 //     `ninjutsuAbility`, `offspringTriggerParts`), never dropped.
 //  2. REFUSALS — the neighbours the rules must NOT read: a restricted equip
 //     (CR 702.6c), a cost the payment path cannot pay, crew off a Vehicle,
-//     commander ninjutsu, a second declaration — and Ward, which has no JSON
-//     trigger shape yet. Fail-closed is pinned, not assumed (ADR 0105 § 2).
+//     commander ninjutsu, a second declaration. Fail-closed is pinned, not
+//     assumed (ADR 0105 § 2).
 //  3. The compiled-trigger TWIN link (CR 702.175b): a descriptor's
 //     `additionalCostTwin` is stamped only onto a trigger gated on that same
 //     cost.
@@ -536,26 +536,6 @@ describe("Offspring [cost] (CR 702.175a)", () => {
                 name: "Double Offspring",
                 oracleText: "Offspring {1}\nOffspring {2}",
             })
-        );
-        expect(outcome.state).toBe("unparsed");
-    });
-});
-
-describe("Ward stays refused (CR 702.21a) — no JSON trigger shape yet", () => {
-    // `wardAbility` narrows its BECAME_TARGET trigger with a `matches`
-    // closure (this permanent, an opponent's spell or ability), which no
-    // compiled trigger head expresses; compiling the keyword string alone
-    // would ship a ward that never counters anything.
-    it.each([
-        ["a mana ward in a keyword run", "Flying, ward {2}"],
-        ["a bare mana ward", "Ward {2}"],
-    ])("REFUSES %s", (_why, line) => {
-        expect(readLine(line).ok).toBe(false);
-    });
-
-    it("REFUSES Ward—Pay N life", () => {
-        const outcome = compileCard(
-            oracleCard({ name: "Life Warded", oracleText: "Ward—Pay 2 life." })
         );
         expect(outcome.state).toBe("unparsed");
     });
