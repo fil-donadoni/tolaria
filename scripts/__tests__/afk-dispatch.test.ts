@@ -1176,6 +1176,14 @@ describe("afk-dispatch lost runs (issue #8062)", () => {
         expect(isLostRun(FAILED_ALIVE)).toBe(false);
     });
 
+    it("the upload step the lost-run reading keys on exists in afk-pass.yml", () => {
+        const yml = readFileSync(
+            join(__dirname, "../../.github/workflows/afk-pass.yml"),
+            "utf8"
+        );
+        expect(yml).toContain(`name: ${PASS_RECORD_UPLOAD_STEP}`);
+    });
+
     it("a run with no job read is unknown, never lost", () => {
         expect(isLostRun([])).toBe(false);
     });
