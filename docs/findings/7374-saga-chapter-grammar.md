@@ -1,7 +1,8 @@
 ---
 title: The Oracle compiler has no Saga chapter grammar, and no gap row or open issue says so
 discoveredBy: 7374
-status: draft
+status: triaged
+issue: 8056
 confidence: high
 ---
 
@@ -13,4 +14,4 @@ confidence: high
 - 29 of the 54 corpus lines "exile …, then return … transformed" are chapter lines (`III — Exile this Saga, …`). They report `no slot consumed the line`, attributed to the `static` slot.
 - The only mention of chapters in the compiler is a comment in `convex/oracle/lowerStatic.ts` noting that `expandChapterAbilities` reads `chapterAbilities`. The engine side exists; the grammar side does not.
 
-**Why it may not deserve its own issue.** The `(card) › layout …` rows may be ranked per Target rather than listed for every layout: `layout "class"` (35 cards) has no row either, until issue #8046. `gaps:sync` could therefore file this by itself once a ranked Target needs a Saga, in which case a hand-filed ticket would duplicate it. Why the two layouts have no row was not investigated. Issue #7374 left chapter lines out of its scope for this reason.
+**Why no row exists (investigated).** Working as designed. `buildFragmentGapFilings` files a fragment gap only for cards of an `enforced` Target; the only one is `set-apc`, with 0 Sagas, and `check:gaps` reads the same scope. Priority Targets are claimed by hand and only for non-playable cards (PR #7196): the one `saga`-layout card in `vintage-cube`, Urza's Saga, ships by hand, and `format-premodern` holds none. `gaps:sync` would therefore file nothing until a Target holding an unshipped Saga is enforced. `layout "class"` (issue #8046) and `layout "leveler"` have the same shape: one hand-shipped `vintage-cube` card each. Filed by hand as issue #8056.
