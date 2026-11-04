@@ -14,7 +14,7 @@ import { SPIRIT_SPIRITS_ONLY_COMBAT_TOKEN } from "../../sharedTokens";
 // line is "When ~ enters, put X counters…"), so its X is the reserved
 // `$source.chosenXOnCast` read (CR 400.7d), never `{ X: true }`, which reads the
 // trigger's own stack item. "Half X, rounded down" is `divide` (CR 107.1a). A
-// source gone before the trigger resolves takes no counters (CR 608.2b), yet the
+// source gone before the trigger resolves takes no counters (CR 400.7), yet the
 // draw still reads its last-known X (CR 608.2h). The second ability is the
 // `LIBRARY_SEARCHED` trigger, which never fires on a look-pick prompt.
 //
