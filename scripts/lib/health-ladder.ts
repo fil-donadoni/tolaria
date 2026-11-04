@@ -172,7 +172,7 @@ export type Rung =
     | { kind: "stop"; why: string };
 
 export interface LadderFacts {
-    /** The standing RED's sha (`lineageBlocks`), or null when none stands. */
+    /** The standing RED's sha (`lineageRedStands`), or null when none stands. */
     red: string | null;
     /** The lineage is `second-red`: an AMBER (a proved repair) stands
      *  between this RED and the last GREEN. */

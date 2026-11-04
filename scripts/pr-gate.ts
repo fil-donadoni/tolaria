@@ -38,6 +38,7 @@ import {
     githubEvidenceStore,
     githubVerdictStore,
     lineageBlocks,
+    lineageRedStands,
     originRepo,
     readVerdictLineage,
     realGh,
@@ -265,7 +266,7 @@ function main(): number {
     // repair is then held like any PR until a sweep reads it.
     let repairIssues: number[] = [];
     let failed = lineage.error ? 1 : 0;
-    if (lineageBlocks(lineage.kind)) {
+    if (lineageRedStands(lineage.kind)) {
         try {
             repairIssues = readPivotRepairIssues(ROOT, { run });
         } catch (e) {

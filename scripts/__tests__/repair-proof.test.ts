@@ -41,6 +41,17 @@ const noRun = () => {
     throw new Error("the proof ran");
 };
 
+// ADR 0163 §1: a Contained RED reads as a RED, or its repair never turns AMBER.
+describe("repairAmberDecision under a Contained RED (issue #8074)", () => {
+    it("a proved repair writes AMBER, as under any RED", () => {
+        expect(
+            repairAmberDecision(
+                facts({ lineage: redLineage({ redClass: "contained" }) })
+            ).kind
+        ).toBe("amber");
+    });
+});
+
 // Issue #7990: `land` was the only writer of AMBER. The hand-off leaves it to
 // the push that merges the repair.
 describe("repairAmberDecision — AMBER after a proved repair merges", () => {

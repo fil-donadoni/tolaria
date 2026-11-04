@@ -62,11 +62,7 @@ import {
     openPrFiles,
     readReadyQueue,
 } from "./queue-plan";
-import {
-    lineageBlocks,
-    readVerdictLineage,
-    verdictStore,
-} from "./lib/health-verdict-store";
+import { readVerdictLineage, verdictStore } from "./lib/health-verdict-store";
 import { readUsageWindow, DEFAULT_PROJECTS_DIR } from "./usage-window";
 import { CONFIG_PATH, ORIGIN_BASE } from "./lib/branches";
 import { FAILED_LABEL } from "./lib/land-labels";
@@ -82,6 +78,7 @@ import {
     failureStreak,
     holdAdmitsRepairs,
     holdFor,
+    redHoldOf,
     type HoldInput,
     holdReleases,
     hostOfRunnerName,
@@ -598,9 +595,7 @@ async function main(): Promise<void> {
         : null;
     if (lostLine) say(lostLine);
     const lineage = readVerdictLineage(() => verdictStore(primaryCheckout()));
-    const red = lineageBlocks(lineage.kind)
-        ? { sha: lineage.verdict?.sha, failedStep: lineage.verdict?.step }
-        : null;
+    const red = redHoldOf(lineage);
     const local = active
         ? (await readUsageWindow(DEFAULT_PROJECTS_DIR, sinceMs)).models
         : {};

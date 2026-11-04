@@ -30,7 +30,7 @@ import {
     type LandingKind,
 } from "./lib/red-land-gate";
 import {
-    lineageBlocks,
+    lineageRedStands,
     readVerdictLineage,
     verdictStore,
     type Lineage,
@@ -98,7 +98,7 @@ export function repairProofCheck(ctx: PrCheckContext): PrCheckResult {
             refusal: null,
             note: `repair proof: the health verdict store could not be read (${lineage.error}) — not provable here`,
         };
-    const red = lineageBlocks(lineage.kind);
+    const red = lineageRedStands(lineage.kind);
     const gate = redLandGate({
         red,
         prBody: ctx.prBody,

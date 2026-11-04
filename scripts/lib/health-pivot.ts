@@ -24,7 +24,7 @@
  */
 import {
     githubVerdictStore,
-    lineageBlocks,
+    lineageRedStands,
     machineName,
     originRepo,
     realGh,
@@ -127,7 +127,7 @@ function standingRedSha(root: string, opts: PivotOpts): string | null {
  *  GREEN or AMBER, newest first; [] when no RED stands. */
 function standingRedRun(root: string, opts: PivotOpts): string[] {
     const lineage = verdictStore(root, { run: opts.run }).lineage();
-    if (!lineageBlocks(lineage.kind) || !lineage.verdict) return [];
+    if (!lineageRedStands(lineage.kind) || !lineage.verdict) return [];
     return (lineage.reds ?? [lineage.verdict]).map((v) => v.sha);
 }
 

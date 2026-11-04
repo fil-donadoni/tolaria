@@ -192,7 +192,8 @@ import {
 } from "./lib/health-repair-proof";
 import {
     evidenceStore,
-    lineageBlocks,
+    lineageLabel,
+    lineageRedStands,
     machineName,
     readVerdictLineage,
     verdictAgeMs,
@@ -459,10 +460,10 @@ function status(root: string): never {
     const dir = join(root, HEALTH_DIR);
     const last = readLast(dir);
     const lineage = readVerdictLineage(() => verdictStore(root));
-    const red = lineage.kind === "red" || lineage.kind === "second-red";
+    const red = lineageRedStands(lineage.kind);
     console.log("health:status —", root);
     console.log(
-        `  verdict store: ${lineage.error ? `UNREADABLE — ${lineage.error}` : `${lineage.kind.toUpperCase()}${lineage.verdict ? ` @ ${lineage.verdict.sha.slice(0, 8)}${lineage.verdict.machine ? ` (${lineage.verdict.machine})` : ""}` : ""}`}`
+        `  verdict store: ${lineage.error ? `UNREADABLE — ${lineage.error}` : `${lineageLabel(lineage.kind)}${lineage.verdict ? ` @ ${lineage.verdict.sha.slice(0, 8)}${lineage.verdict.machine ? ` (${lineage.verdict.machine})` : ""}` : ""}`}`
     );
     if (red && lineage.verdict) {
         const v = lineage.verdict;
@@ -692,7 +693,7 @@ function finishInfra(
         previous: ctx.previous,
         // A RED stands on the store (`readVerdictLineage` is total: an
         // unreadable store reads as none, and the infra record is written).
-        redMarkerStanding: lineageBlocks(
+        redMarkerStanding: lineageRedStands(
             readVerdictLineage(() =>
                 verdictStore(ctx.root, { branch: ctx.branch })
             ).kind
@@ -832,7 +833,7 @@ function finishPending(ctx: RunCtx, reason: string): never {
             branch: ctx.branch,
         },
         previous: ctx.previous,
-        redMarkerStanding: lineageBlocks(
+        redMarkerStanding: lineageRedStands(
             readVerdictLineage(() =>
                 verdictStore(ctx.root, { branch: ctx.branch })
             ).kind
@@ -1195,7 +1196,7 @@ function repairProofFor(ctx: RunCtx, wt: string): ProofPlan | null {
         );
         return null;
     }
-    if (!lineageBlocks(lineage.kind) || !lineage.verdict) return null;
+    if (!lineageRedStands(lineage.kind) || !lineage.verdict) return null;
     const red = lineage.verdict;
     const repair = tipMergesDeclaredRepair(ctx.root, red.sha, ctx.tip, {
         warn: (line) =>

@@ -25,6 +25,8 @@ import { FAILED_LABEL, HELD_LABEL, READY_LABEL } from "./land-labels";
 import {
     DESCRIPTION_MAX,
     lineageBlocks,
+    lineageLabel,
+    lineageRedStands,
     type Lineage,
     type LineageKind,
 } from "./health-verdict-store";
@@ -236,11 +238,12 @@ export function heldPrAction(input: {
  * Whether a held PR's advisory lane red is the base's, left by a RED that has
  * since cleared (issue #7843): the lane tests the PR merged with the base,
  * and its run stays pinned to the merge it was cut from — under the RED,
- * broken — until a push re-runs it. Off RED (`green` / `amber` only), a
- * failed lane run that STARTED before the newest verdict was written is that
- * stale red; one started after it ran on the cleared base and is the PR's
- * own. The newest verdict, not the one that cleared the RED: a PR whose own
- * red outlives a later GREEN costs one more push, then fails after it.
+ * broken — until a push re-runs it. Off the hold (`green` / `amber` /
+ * `contained`), a failed lane run that STARTED before the newest verdict was
+ * written is that stale red; one started after it ran on the cleared base, or
+ * under the class, and is the PR's own. The newest verdict, not the one that
+ * cleared the RED: a PR whose own red outlives a later GREEN costs one more
+ * push, then fails after it.
  * Unknown times read as not stale: today's rules judge the PR.
  */
 export function laneRedPredatesRelease(input: {
@@ -251,7 +254,12 @@ export function laneRedPredatesRelease(input: {
     lineage: Pick<Lineage, "kind" | "verdict">;
 }): boolean {
     const { lineage } = input;
-    if (lineage.kind !== "green" && lineage.kind !== "amber") return false;
+    if (
+        lineage.kind !== "green" &&
+        lineage.kind !== "amber" &&
+        lineage.kind !== "contained"
+    )
+        return false;
     const released = Date.parse(lineage.verdict?.at ?? "");
     if (Number.isNaN(released)) return false;
     const startedAt = input.laneFailedRunStartedAt();
@@ -432,6 +440,11 @@ export function baseHealthStatus(input: {
             );
         if (lineage.kind === "none")
             return status("success", "no health verdict on the base yet");
+        if (lineage.kind === "contained")
+            return status(
+                "success",
+                `health ${lineageLabel(lineage.kind)} ${where} — it stops the release, not the queue`
+            );
         return status(
             "success",
             `health ${lineage.kind.toUpperCase()} ${where} — no RED stands`
@@ -477,7 +490,9 @@ export function declaredRepairStatus(input: {
     repairIssues: readonly number[];
 }): GateStatus | null {
     if (isMergifyQueuePr(input.pr)) return null;
-    const red = lineageBlocks(input.lineage.kind);
+    // A Contained RED holds nothing, and its repair still jumps the queue: the
+    // repair is what ends the episode (ADR 0163 §6).
+    const red = lineageRedStands(input.lineage.kind);
     if (!red) return null;
     const admission = healthAdmission({
         red,

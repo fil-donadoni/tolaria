@@ -179,3 +179,12 @@ describe("parseRepairWatchConfig", () => {
         ).toBe(DEFAULT_STALL_MINUTES);
     });
 });
+
+describe("a Contained RED (ADR 0163 §5, issue #8074)", () => {
+    it("sends no notice however long it stands, and keeps the marker", () => {
+        const d = repairWatchDecision(
+            input({ lineage: "contained", now: at(60 * 24) })
+        );
+        expect(d.action).toBe("none");
+    });
+});
