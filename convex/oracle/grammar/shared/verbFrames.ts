@@ -155,6 +155,7 @@ import {
     superlativeFromClause,
     zoneChoiceFilterFromDescriptor,
 } from "./targetFilter";
+import { CREATURE_SUBTYPES } from "./subtypes";
 import { readUnlessPayment, type UnlessPaymentIR } from "./unlessPayment";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { massSubjectRule, type PermanentSweepSelector } from "./massSubject";
@@ -468,6 +469,19 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 205.1b + CR 613.1d — "<object> becomes a <Subtype> in addition
+           * to its other types", "That creature is a <Subtype> …", "It's a
+           * <Subtype> …": one creature type added to one object, keeping the
+           * object's own (layer 4). No printed duration, so it never ends
+           * (CR 611.2c) — a timed or type-line-rewriting form is another
+           * clause and is not read.
+           */
+          readonly frame: "addSubtype";
+          readonly subject: SubjectIR;
+          readonly subtype: string;
+      }
+    | {
+          /**
            * CR 701.27a — "Transform <this permanent>": the permanent the
            * ability is printed on turns over to its other face. Self only —
            * a transform aimed at another object ("transform it", "transform
@@ -693,6 +707,10 @@ export const VERB_FRAMES: readonly {
     { name: "monstrosity", opens: /^monstrosity \S+$/i },
     { name: "becomePrepared", opens: /^\S+(?: \S+)? becomes prepared$/i },
     { name: "transform", opens: /^transform \S/i },
+    {
+        name: "addSubtype",
+        opens: /^(?:.+? (?:becomes|is)|it's) an? \S+ in addition to its other types$/i,
+    },
     {
         name: "playerCounters",
         // The finite verb behind a player reference, then a counter: the
@@ -1719,6 +1737,49 @@ export function readSearchFrame(
     };
 }
 
+const ADD_SUBTYPE =
+    /^(?:(.+?) (becomes|is)|(it)'s) an? (\S+) in addition to its other types$/i;
+
+/**
+ * CR 205.1b + CR 205.3m — the `addSubtype` frame. The added subtype must be a
+ * creature type: a land or artifact type lands on a recipient this frame has
+ * not been shown (CR 205.3d), and "an artifact" is a card type, not a subtype.
+ *
+ * A LATER sentence's "It" is the same referent as its "that creature" —
+ * CR 608.2c, the object the sentence before it named — and is read as that
+ * subject, so the lowering's one antecedent walk answers for both. `subjectRule`
+ * keeps the capitalised word unread for every other verb. "<subject> is a …"
+ * is read on "that creature" only: on the source it is a static ability, the
+ * static slot's to read.
+ */
+function readAddSubtypeFrame(
+    lower: string,
+    ctx: unknown
+):
+    | Extract<FrameIR, { frame: "addSubtype" }>
+    | { readonly refused: string; readonly failure?: RuleResult<never> } {
+    const [, named, verb, contraction, subtype] = lower.match(ADD_SUBTYPE)!;
+    if (!CREATURE_SUBTYPES.has(subtype!))
+        return { refused: `"${subtype}" is not a creature type (CR 205.3m)` };
+    if (contraction !== undefined || named === "it")
+        return {
+            frame: "addSubtype",
+            subject: { kind: "that-creature" },
+            subtype: subtype!,
+        };
+    const subject = subjectRule.run(named!, ctx);
+    if (!subject.ok) return { refused: subject.reason, failure: subject };
+    if (verb === "is" && subject.value.kind !== "that-creature")
+        return {
+            refused: `"${named} is a ${subtype}" is not a one-shot subtype grant`,
+        };
+    return {
+        frame: "addSubtype",
+        subject: subject.value,
+        subtype: subtype!,
+    };
+}
+
 /**
  * Read one member of the chain. Returns the frames it adds (a member may add
  * two: "shuffle and put that card on top"), the reveal it attaches to the
@@ -1994,6 +2055,10 @@ function readMember(
                 refused: `"${member}" — only the card itself becomes prepared`,
             };
         return { frames: [{ frame: "becomePrepared" }], referent };
+    }
+    if (opensFrame("addSubtype", lower)) {
+        const read = readAddSubtypeFrame(lower, ctx);
+        return "refused" in read ? read : { frames: [read], referent };
     }
     if (opensFrame("transform", lower)) {
         const object = lower.match(TRANSFORM_OBJECT)![1]!;
