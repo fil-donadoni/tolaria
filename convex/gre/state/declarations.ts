@@ -2851,7 +2851,6 @@ export type RestrictedXSplitChoice = {
     picked?: number;
 };
 
-/** Tracks an in-progress spell cast during the payment phase (CR 601.2). */
 /** The assistant's half of Assist (CR 702.132a), raised as a paying nomination
  *  so the assistant gets the mana window of `isManaPaymentChoiceWindow`. */
 export type AssistPaymentWindow = {
@@ -2893,6 +2892,7 @@ export type AssistChoice = {
     assistantTappedIds?: string[];
 };
 
+/** Tracks an in-progress spell cast during the payment phase (CR 601.2). */
 export type PendingCast = {
     playerId: string;
     cardInstanceId: string;
