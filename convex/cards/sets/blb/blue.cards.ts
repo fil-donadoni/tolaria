@@ -139,11 +139,6 @@ export const azureBeastbinder = defineCard(() => ({
 // The Otter is the shared `OTTER_TOKEN` spec (CR 111 / 707.2) — 1/1 blue and
 // red with prowess, art resolved per producer from the token print lockfile
 // against this card's own BLB printing.
-//
-// compiler-gap: "(Gain the next level as a sorcery to add its ability.)" (#2693)
-// compiler-gap: "{3}{U}: Level 2" (#2693)
-// compiler-gap: "When this Class becomes level 2, return target instant or sorcery card from your graveyard to your hand." (#2693)
-// compiler-gap: "{5}{U}: Level 3" (#2693)
 export const stormchasersTalent = defineCard(() => ({
     id: "a36e682d-b43d-4e08-bf5b-70d7e924dbe5", // BLB 75
     rarity: "rare",

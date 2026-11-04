@@ -108,6 +108,8 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             return { kind: "library-to-graveyard" };
         case "power-reached":
             return { kind: "power-reached", atLeast: head.atLeast };
+        case "class-level-gained":
+            return { kind: "class-level-gained", level: head.level };
         case "graveyard-entry":
             return {
                 kind: "graveyard-entry",

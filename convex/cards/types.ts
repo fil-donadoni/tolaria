@@ -13281,6 +13281,13 @@ export interface ClassLevelBarDefinition {
     /** Activated abilities printed in this section — activatable only at level
      *  N or greater (CR 716.2a). */
     activatedAbilities?: ActivatedAbility[];
+    /** The compiler's JSON form of `staticEffects` above, for the reason
+     *  {@link CardDefinition.compiledStaticEffects} exists: rebuilt into it by
+     *  `expandCompiledStatics`, before `expandClassLevelBars` gates it. */
+    compiledStaticEffects?: CompiledStaticEffect[];
+    /** The compiler's JSON form of `triggeredAbilities` above, rebuilt by
+     *  `expandCompiledTriggers` at the same seam. */
+    compiledTriggeredAbilities?: CompiledTriggeredAbility[];
 }
 
 /** A triggered ability's CR 603.4 check-time gate, RESTATED in a form a reader

@@ -46,11 +46,6 @@
             "key": "(op) › reduceSpellCostThisTurn",
             "op": "reduceSpellCostThisTurn",
             "issue": 5180
-        },
-        {
-            "key": "(op) › setLevel",
-            "op": "setLevel",
-            "issue": 7374
         }
     ],
     "claims": [

@@ -14,7 +14,8 @@
  * grammar rule by corpus count (PRD #2693 user story 9).
  */
 
-import { runGates } from "./gates";
+import { expanderOps, runGates } from "./gates";
+import { readClassSections } from "./grammar/classSections";
 import { groupLines } from "./grammar/lineGroups";
 import { routeLine } from "./grammar/router";
 import type { LineParse } from "./grammar/ir";
@@ -31,12 +32,18 @@ import type {
 } from "./types";
 import type {
     CardType,
+    ClassLevelBarDefinition,
     Color,
     InsetSpellKind,
     SplitHalf,
 } from "../cards/types";
 import { PERMANENT_TYPES } from "../cards/types";
 import { deriveSplitCombination } from "../cards/splitCard";
+import {
+    classLevelBarsViolation,
+    isGateableStaticEffect,
+} from "../cards/abilities/classLevels";
+import { resolveCompiledStatic } from "../cards/compiledStatics";
 import { MECHANICS_REGISTRY } from "../cards/mechanicsRegistry";
 import { MELD_CLAUSE, MELD_LAYOUT } from "./meldPairs";
 
@@ -47,6 +54,27 @@ import { MELD_CLAUSE, MELD_LAYOUT } from "./meldPairs";
  * would compile a fragment of the card while looking complete. Fail closed.
  */
 const SUPPORTED_LAYOUTS = new Set<string>(["normal"]);
+
+/** Scryfall's layout string for a Class card (CR 716). */
+export const CLASS_LAYOUT = "class";
+
+/**
+ * CR 716.2a — what a Class section's lines may compile to, beyond the identity
+ * every compile carries: the two kinds of ability the corpus prints under a
+ * bar. Anything else (a keyword line, an activated ability, a definition-level
+ * field such as `extraLandDrops`) has no level gate to ride and would function
+ * at every level, so it refuses the card rather than truncate it.
+ */
+const CLASS_SECTION_FIELDS = new Set<string>([
+    "name",
+    "manaCost",
+    "types",
+    "subtypes",
+    "supertypes",
+    "oracleText",
+    "compiledTriggeredAbilities",
+    "compiledStaticEffects",
+]);
 
 /**
  * CR 709.1–709.4 (ADR 0121 §5) — the SPLIT layout, admitted with a gate.
@@ -268,6 +296,7 @@ export function compileCard(card: OracleCard): CompileOutcome {
     if (layout === MODAL_DFC_LAYOUT) return compileModalDfcLayout(card);
     if (layout === MELD_LAYOUT) return compileMeldLayout(card);
     if (layout === TRANSFORM_LAYOUT) return compileTransformLayout(card);
+    if (layout === CLASS_LAYOUT) return compileClassLayout(card);
     if (!SUPPORTED_LAYOUTS.has(layout)) {
         return unparsed([
             {
@@ -590,6 +619,145 @@ function compileModalDfcLayout(card: OracleCard): CompileOutcome {
     ];
     // One card is one card (CR 712.8a): a quarantined FACE quarantines the
     // card, never half of it.
+    return reasons.length > 0
+        ? { state: "quarantine", definition, opsUsed, slots, reasons }
+        : { state: "ready", definition, opsUsed, slots };
+}
+
+/**
+ * What one bar's compiled section cannot carry, or `null`. Reads the definition
+ * the ordinary pipeline produced for the section's lines alone.
+ */
+function classSectionRefusal(
+    section: CompiledDefinition,
+    level: number
+): string | null {
+    const carried = Object.keys(section).filter(
+        (k) => !CLASS_SECTION_FIELDS.has(k)
+    );
+    if (carried.length > 0)
+        return `class level ${level} section carries ${carried.join(", ")}, which has no level gate`;
+    const triggers = section.compiledTriggeredAbilities ?? [];
+    const statics = section.compiledStaticEffects ?? [];
+    // CR 716.2 — the corpus prints no bar over an empty section.
+    if (triggers.length === 0 && statics.length === 0)
+        return `class level ${level} section holds no ability`;
+    for (const descriptor of statics) {
+        if (!isGateableStaticEffect(resolveCompiledStatic(descriptor)))
+            return `class level ${level} section holds a ${descriptor.kind} static, which has no level gate`;
+    }
+    for (const { head } of triggers) {
+        if (head.kind === "class-level-gained" && head.level !== level)
+            return `class level ${level} section prints a "becomes level ${head.level}" trigger`;
+    }
+    return null;
+}
+
+/**
+ * CR 716.2 / 716.3 — compile a CLASS layout: the lines above the first bar are
+ * the card, and each bar owns the lines printed under it.
+ *
+ * Every section runs the ordinary `"normal"` pipeline on its own lines, as a
+ * face of a multi-faced card does, so a grammar rule written for a normal card
+ * serves a section for free and neither can be half-read. Gaps from EVERY
+ * section are reported together, so the backlog still ranks them. A section is
+ * lowered alone, so a clause that needs a line of another section (a linked
+ * exile, CR 607.2a) finds no partner and refuses the card.
+ *
+ * The bars stay data on the definition: `expandClassLevelBars` turns each into
+ * its activated ability and level-gates its section at the registry seam, the
+ * same seam a hand-written Class goes through.
+ */
+function compileClassLayout(card: OracleCard): CompileOutcome {
+    const read = readClassSections(card.oracleText);
+    if (!read.ok) {
+        return unparsed([
+            {
+                line: read.fragment,
+                fragment: read.fragment,
+                reason: read.reason,
+            },
+        ]);
+    }
+    const asCard = (lines: readonly string[]): OracleCard => ({
+        ...card,
+        oracleText: lines.join("\n"),
+        layout: "normal",
+    });
+    const top = compileCard(asCard(read.top));
+    const sections = read.sections.map((s) => compileCard(asCard(s.lines)));
+    const outcomes = [top, ...sections];
+    const gaps = outcomes.flatMap((o) =>
+        o.state === "unparsed" ? o.gaps : []
+    );
+    const violation = classLevelBarsViolation(read.sections.map((s) => s.bar));
+    if (violation !== null) {
+        const line =
+            read.sections.map((s) => s.barLine).join("\n") || card.typeLine;
+        gaps.push({ line, fragment: line, reason: violation });
+    }
+    if (top.state === "unparsed" || gaps.length > 0) return unparsed(gaps);
+    // CR 716.3 — the top section functions at level 1, where no level is gained.
+    if (
+        top.definition.compiledTriggeredAbilities?.some(
+            (t) => t.head.kind === "class-level-gained"
+        )
+    ) {
+        return unparsed([
+            {
+                line: card.oracleText,
+                fragment: card.oracleText,
+                reason: 'the top section of a Class prints a "becomes level" trigger',
+            },
+        ]);
+    }
+
+    const classLevelBars: ClassLevelBarDefinition[] = [];
+    for (const [i, { bar, barLine }] of read.sections.entries()) {
+        const outcome = sections[i];
+        if (outcome.state === "unparsed") return unparsed(outcome.gaps);
+        const refusal = classSectionRefusal(outcome.definition, bar.level);
+        if (refusal !== null)
+            return unparsed([
+                { line: barLine, fragment: barLine, reason: refusal },
+            ]);
+        const { compiledTriggeredAbilities, compiledStaticEffects } =
+            outcome.definition;
+        classLevelBars.push({
+            ...bar,
+            // Each section lowered alone, so each numbered its ids from one;
+            // the card's abilities are told apart by id.
+            ...(compiledTriggeredAbilities
+                ? {
+                      compiledTriggeredAbilities:
+                          compiledTriggeredAbilities.map((t) => ({
+                              ...t,
+                              id: `${t.id}-level-${bar.level}`,
+                          })),
+                  }
+                : {}),
+            ...(compiledStaticEffects ? { compiledStaticEffects } : {}),
+        });
+    }
+    const definition: CompiledDefinition = {
+        ...top.definition,
+        oracleText: card.oracleText,
+        classLevelBars,
+    };
+    const parsed = outcomes.flatMap((o) => (o.state === "unparsed" ? [] : [o]));
+    const opsUsed = [
+        ...new Set([
+            ...parsed.flatMap((o) => o.opsUsed),
+            ...expanderOps(definition),
+        ]),
+    ].sort();
+    const slots = [
+        ...new Set([...parsed.flatMap((o) => o.slots), "class-level-bar"]),
+    ].sort();
+    // One card is one card: a quarantined section quarantines the card.
+    const reasons = parsed.flatMap((o) =>
+        o.state === "quarantine" ? o.reasons : []
+    );
     return reasons.length > 0
         ? { state: "quarantine", definition, opsUsed, slots, reasons }
         : { state: "ready", definition, opsUsed, slots };

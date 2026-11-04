@@ -53,6 +53,7 @@ import type {
     CardType,
     Color,
     CombatCounterpartFilter,
+    GateableStaticEffect,
     ManaCost,
     PermanentView,
     PTAmount,
@@ -1062,6 +1063,32 @@ export function resolveCompiledStatic(
     }
 }
 
+/** CR 716.2a — a Class section's descriptors, rebuilt in place on their bar so
+ *  `expandClassLevelBars`, which runs after this seam, gates them. The compiler
+ *  admits only a kind with an `applies` predicate into a section
+ *  (`isGateableStaticEffect`, `oracle/compile.ts`), which is what this cast
+ *  states. */
+function expandBarStatics(base: CardDefinition): CardDefinition {
+    const bars = base.classLevelBars;
+    if (bars?.some((b) => b.compiledStaticEffects) !== true) return base;
+    return {
+        ...base,
+        classLevelBars: bars.map((bar) => {
+            const { compiledStaticEffects: descriptors, ...rest } = bar;
+            if (descriptors === undefined) return bar;
+            return {
+                ...rest,
+                staticEffects: [
+                    ...(bar.staticEffects ?? []),
+                    ...(descriptors.map(
+                        resolveCompiledStatic
+                    ) as GateableStaticEffect[]),
+                ],
+            };
+        }),
+    };
+}
+
 /**
  * ADR 0054 seam — rebuild every compiled descriptor into a real static effect,
  * and REMOVE the descriptor field from the expanded definition.
@@ -1071,7 +1098,8 @@ export function resolveCompiledStatic(
  * what the gold harness compares against a hand-written card, so a leftover
  * descriptor would read as a compiler defect on every static card.
  */
-export function expandCompiledStatics(base: CardDefinition): CardDefinition {
+export function expandCompiledStatics(raw: CardDefinition): CardDefinition {
+    const base = expandBarStatics(raw);
     const descriptors = base.compiledStaticEffects;
     if (descriptors === undefined || descriptors.length === 0) return base;
     const expanded: CardDefinition = {
