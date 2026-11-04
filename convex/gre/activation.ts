@@ -829,6 +829,14 @@ export function buildPendingActivation(opts: {
                                 pickedPower: 0,
                             }
                           : {}),
+                      ...(ability.cost.tapOtherFilter.substitutesGeneric !==
+                      undefined
+                          ? {
+                                substitutesGeneric:
+                                    ability.cost.tapOtherFilter
+                                        .substitutesGeneric,
+                            }
+                          : {}),
                       pickedIds: [],
                   },
               }

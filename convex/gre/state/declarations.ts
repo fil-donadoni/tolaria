@@ -3250,11 +3250,17 @@ export type PendingActivation = {
      *  shapes (exactly one is set). `pickedPower` is the running sum of the
      *  picks' crew contributions (effective power + `crewPowerBonus`, CR
      *  702.122b), recomputed server-side on every pick so the client can render
-     *  the remaining-power hint without re-deriving effective power itself. */
+     *  the remaining-power hint without re-deriving effective power itself.
+     *
+     *  `substitutesGeneric` mirrors the CR 701.67a shape instead: it owes
+     *  nothing and never blocks commit. Each pick pays one generic pip by
+     *  decrementing this activation's `manaCost` when it is recorded, while the
+     *  tap itself still waits for commit, so a cancel taps nothing. */
     tapOtherChoice?: {
         filter: PermanentFilter;
         count?: number;
         totalPower?: number;
+        substitutesGeneric?: number;
         pickedIds: string[];
         pickedPower?: number;
     };

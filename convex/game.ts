@@ -293,6 +293,8 @@ import {
 } from "./gre/damageAssignment";
 import {
     canPayTapOtherCost,
+    genericSubstitutionsLeft,
+    manaCostAfterSubstitution,
     totalTapOtherPower,
     type TapOtherCandidate,
     type TapOtherCostSpec,
@@ -2437,6 +2439,12 @@ function payTapOtherAbilityCost(
             throw new Error("Permanent already selected to tap");
         }
         seen.add(id);
+        // CR 701.67a — a permanent already chosen to pay a generic pip by
+        // tapping can't also be tapped as fodder: the commit would find it
+        // tapped and drop the activation with its mana spent.
+        if (state.pendingActivation?.tapOtherChoice?.pickedIds.includes(id)) {
+            throw new Error("That permanent is already paying this cost");
+        }
         const perm = player.battlefield.find((c) => c.id === id);
         if (!perm) {
             throw new Error("Selected permanent not on your battlefield");
@@ -9071,6 +9079,12 @@ export const tapForActivationPayment = mutation({
                 "That permanent is an outstanding sacrifice candidate"
             );
         }
+        // CR 701.67a — a permanent already chosen to pay a generic pip is being
+        // tapped for that pip at commit. Tapping it for mana too would make the
+        // commit drop the activation with its mana spent.
+        if (pa.tapOtherChoice?.pickedIds.includes(card.id)) {
+            throw new Error("That permanent is already paying this cost");
+        }
 
         tapSourceIntoPayment(
             state,
@@ -9255,8 +9269,14 @@ export const autoTapForPayment = mutation({
             // the plan can under-admit a costed option but never over-admit one.
             abilityManaSubstitutions: getManaSubstitutions(state, player.id),
         };
+        // CR 701.67a — a permanent picked to pay a generic pip by tapping is
+        // spoken for: auto-tap planning it as a mana source too would make the
+        // commit drop the activation with its mana spent.
+        const spokenFor = state.pendingActivation?.tapOtherChoice?.pickedIds;
         const sources = buildAutoTapSources(
-            player.battlefield,
+            spokenFor && state.pendingActivation?.playerId === args.playerId
+                ? player.battlefield.filter((c) => !spokenFor.includes(c.id))
+                : player.battlefield,
             manaGateBattlefields(state),
             planContext,
             state
@@ -9513,7 +9533,14 @@ export function selectActivationCostOnState(
         // only the tap-other cost.
         throw new Error("This ability has no tap cost picker");
     }
-    if (isTapOtherPaid(state, player, toc)) {
+    // CR 701.67a — the substitution shape owes nothing of its own, so it reads
+    // "paid" from the first moment; what closes it is having no generic pip
+    // left that a tap may pay (CR 701.67b).
+    const substitutes = toc.substitutesGeneric !== undefined;
+    if (substitutes && genericSubstitutionsLeft(toc, pa.manaCost) === 0) {
+        throw new Error("No generic mana left to pay by tapping");
+    }
+    if (!substitutes && isTapOtherPaid(state, player, toc)) {
         throw new Error("Tap cost already paid");
     }
     if (candidate.id === pa.cardInstanceId) {
@@ -9545,6 +9572,11 @@ export function selectActivationCostOnState(
     if (toc.totalPower !== undefined) {
         toc.pickedPower = tapOtherPickedPower(state, player, toc.pickedIds);
     }
+    // CR 701.67a — the pick stands in for one generic pip. Writing it on the
+    // mana leg is what lets coverage, the CR 601.2g park, the payment and
+    // auto-tap all stay unaware of the substitution. It is not a mana ability
+    // (CR 605.1a): no mana enters the pool.
+    if (substitutes) pa.manaCost = manaCostAfterSubstitution(pa.manaCost, 1);
     tryAutoCommitPendingActivation(state, args.playerId);
 }
 

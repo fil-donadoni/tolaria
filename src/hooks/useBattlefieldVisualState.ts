@@ -37,6 +37,7 @@ import {
     isUntargetableByPending,
 } from "~/lib/targeting";
 import {
+    genericSubstitutionsLeft,
     isTapOtherChoicePaid,
     type TapOtherCandidate,
     type TapOtherCostSpec,
@@ -252,7 +253,25 @@ export function useBattlefieldVisualState(
         !!pendingActivation &&
         pendingActivation.playerId === playerId &&
         !!pendingActivation.tapOtherChoice &&
+        pendingActivation.tapOtherChoice.substitutesGeneric === undefined &&
         !isTapOtherChoicePaid(pendingActivation.tapOtherChoice);
+
+    /** CR 701.67a — the generic-substitution picker, open while a tap may still
+     *  pay a generic pip. Not modal: the mana leg stays payable beside it. */
+    const isSubstitutingGeneric =
+        isMe &&
+        !!pendingActivation &&
+        pendingActivation.playerId === playerId &&
+        !!pendingActivation.tapOtherChoice &&
+        genericSubstitutionsLeft(
+            pendingActivation.tapOtherChoice,
+            pendingActivation.manaCost
+        ) > 0;
+    /** A permanent already chosen to pay a pip by tapping (CR 701.67a). */
+    const isGenericSubstitutePick = (card: CardInstance) =>
+        pendingActivation?.playerId === playerId &&
+        pendingActivation.tapOtherChoice?.substitutesGeneric !== undefined &&
+        pendingActivation.tapOtherChoice.pickedIds.includes(card.id);
 
     /** Eligibility check for the tap-other cost picker — one permanent per call,
      *  gating BOTH `canInteract` (click-through) and the gold ring highlight so
@@ -262,7 +281,7 @@ export function useBattlefieldVisualState(
     function matchesActivationCostPick(card: CardInstance): boolean {
         if (!pendingActivation) return false;
         const toc = pendingActivation.tapOtherChoice;
-        if (toc && !isTapOtherChoicePaid(toc)) {
+        if (toc && (isSubstitutingGeneric || !isTapOtherChoicePaid(toc))) {
             return (
                 !card.isTapped &&
                 card.id !== pendingActivation.cardInstanceId &&
@@ -462,6 +481,12 @@ export function useBattlefieldVisualState(
 
         if (isPickingActivationCost) {
             return matchesActivationCostPick(card);
+        }
+        // CR 701.67a — a candidate is clickable; everything else falls through
+        // to the mana payment below, except a permanent already spoken for.
+        if (isGenericSubstitutePick(card)) return false;
+        if (isSubstitutingGeneric && matchesActivationCostPick(card)) {
+            return true;
         }
 
         if (isSelectingTarget) {
@@ -874,7 +899,8 @@ export function useBattlefieldVisualState(
                     pendingCast.additionalCost.filter,
                     controlContinuity
                 )) ||
-            (isPickingActivationCost && matchesActivationCostPick(card)) ||
+            ((isPickingActivationCost || isSubstitutingGeneric) &&
+                matchesActivationCostPick(card)) ||
             (isPickingManaTapOther && matchesManaTapOtherPick(card));
         // Already-committed picks in a multi-element cost choice (Fireblast's
         // two Mountains, Thwart's three Islands, Hand of Justice's tap-others).
@@ -889,6 +915,7 @@ export function useBattlefieldVisualState(
                 !!pendingActivation?.tapOtherChoice?.pickedIds.includes(
                     card.id
                 )) ||
+            isGenericSubstitutePick(card) ||
             (isPickingManaTapOther &&
                 !!manaTapOtherPick?.picked.some((p) => p.id === card.id));
         if (!ringClass && isCostPicked) {

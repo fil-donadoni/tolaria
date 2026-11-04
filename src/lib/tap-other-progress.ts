@@ -35,6 +35,20 @@ export function describeTapOtherProgress(
     return `tap ${label}`;
 }
 
+/** The prompt for a generic-substitution leg (CR 701.67a), which owes nothing of
+ *  its own: it says what the player MAY do beside paying the mana. */
+export function describeGenericSubstitution(
+    filter: TapOtherCostSpec["filter"],
+    upTo: number
+): string {
+    const noun = formatFilterLabel(filter);
+    const payable =
+        upTo > 1
+            ? `up to ${upTo} ${noun.replace(/^an? /, "").split(" or ").map(pluralizeBare).join(" or ")}`
+            : noun;
+    return `pay the activation costs, or tap ${payable} instead of paying generic mana`;
+}
+
 /** Strips the leading article ("a"/"an") before pluralizing —
  *  `formatFilterLabel` returns "a creature", and "tap 3 more a creatures"
  *  reads as broken English (#954 review). */

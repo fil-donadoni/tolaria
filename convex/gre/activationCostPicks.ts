@@ -27,6 +27,7 @@
 // `applyMove.ts` applies whatever the Move carries, `executor.ts` submits it.
 import type { ActivatedAbility } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
+import type { ManaTap } from "./moves";
 import { getStaticAdditionalSacrifices } from "./state";
 import { permanentGiveUpCostLegs } from "./constants";
 import { ninjutsuReturnRequirement } from "./ninjutsu";
@@ -64,6 +65,7 @@ import { handCardMatchesFilter } from "./alternativeCost";
 import {
     crewPowerContribution,
     isTapOtherSelectionComplete,
+    manaCostAfterSubstitution,
     pickTapOtherPayment,
 } from "./tapOtherCost";
 
@@ -300,6 +302,45 @@ function activationSacrificeSelection(
         player,
         def?.name ?? "Sacrifice"
     );
+}
+
+/** CR 701.67a — the Bot's payment of a generic-substitution cost: the FEWEST
+ *  taps that leave the rest of the mana leg fundable, so a board that can pay
+ *  in mana keeps its creatures untapped. `fund` is the caller's planner for the
+ *  reduced cost. A permanent the plan already taps for mana can't also be a
+ *  pick, or the commit would find it tapped and drop the activation. Cheapest
+ *  body first, ties on id. `null` when no mix pays.
+ *
+ *  Not a variant per mix: which permanents tap is not what these abilities are
+ *  about, and the search would pay a branch per subset of the board for it. */
+export function planGenericSubstitution<F extends { plan: ManaTap[] | null }>(
+    state: GameState,
+    player: PlayerState,
+    source: CardInstanceState,
+    ability: ActivatedAbility,
+    manaCost: Readonly<Record<string, number>>,
+    fund: (cost: Record<string, number>) => F
+): { tapOtherIds: string[]; funded: F } | null {
+    const cap = ability.cost.tapOtherFilter?.substitutesGeneric ?? 0;
+    const candidates = tapOtherCandidates(state, player, source, ability).sort(
+        (a, b) => a.power - b.power || a.id.localeCompare(b.id)
+    );
+    const maxTaps = Math.min(cap, manaCost.X ?? 0, candidates.length);
+    for (let taps = 0; taps <= maxTaps; taps++) {
+        const funded = fund(manaCostAfterSubstitution(manaCost, taps));
+        if (funded.plan === null) continue;
+        const spent = new Set(
+            funded.plan.flatMap((t) => [
+                t.cardInstanceId,
+                ...(t.tapOtherIds ?? []),
+            ])
+        );
+        const picks = candidates.filter((c) => !spent.has(c.id)).slice(0, taps);
+        if (picks.length === taps) {
+            return { tapOtherIds: picks.map((c) => c.id), funded };
+        }
+    }
+    return null;
 }
 
 /** The default (conservative, fully deterministic) picks for every deferred

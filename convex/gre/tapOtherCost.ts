@@ -9,12 +9,24 @@
 //                                          power N or greater" (CR 702.122a,
 //                                          Crew N).
 //
-// Both shapes share ONE pending picker (`PendingActivation.tapOtherChoice`),
+//   - **generic substitution**
+//     (`substitutesGeneric`)            — "For each generic mana in that cost,
+//                                          you may tap an untapped artifact or
+//                                          creature you control rather than pay
+//                                          that mana" (CR 701.67a, Waterbend).
+//
+// All three shapes share ONE pending picker (`PendingActivation.tapOtherChoice`),
 // ONE mutation (`selectActivationCost`) and ONE commit gate
 // (`tryAutoCommitPendingActivation`); only the "is the cost paid yet?" and
 // "can the cost be paid at all?" predicates differ, and both live here so the
 // server, the bot's move enumerator and the client affordance hint can never
 // disagree.
+//
+// The substitution shape is the odd one: it owes NOTHING of its own (with
+// neither `count` nor `totalPower` every predicate below reads "paid" at zero
+// picks, which is the "you MAY tap"), so it never parks the commit. Each pick
+// instead pays one generic pip of the mana leg, and whether the picker is still
+// open is `genericSubstitutionsLeft`, not those predicates.
 //
 // Deliberately NOT Vehicle-shaped: the totalPower leg is a generic
 // "sum of a characteristic reaches a threshold" selection cost. Crew is
@@ -24,12 +36,16 @@
 import type { PermanentFilter } from "../cards/filters";
 
 /** Declared shape of a `cost.tapOtherFilter` (see `ActivatedAbility.cost`).
- *  Exactly one of `count` / `totalPower` is meaningful; `totalPower` wins when
- *  both are set (a card should never declare both). */
+ *  Exactly one of `count` / `totalPower` / `substitutesGeneric` is meaningful;
+ *  `totalPower` wins when both it and `count` are set (a card should never
+ *  declare both). `substitutesGeneric` is the CAP on taps that may stand in for
+ *  generic mana: the generic mana IN the waterbend cost, not in the total cost
+ *  (CR 701.67b). */
 export interface TapOtherCostSpec {
     filter: PermanentFilter;
     count?: number;
     totalPower?: number;
+    substitutesGeneric?: number;
 }
 
 /** The minimum a candidate must expose to be weighed against a tap-other cost.
@@ -170,4 +186,37 @@ export function tapOtherRemaining(
         kind: "count",
         remaining: Math.max(0, (spec.count ?? 0) - pickedCount),
     };
+}
+
+/** How many more generic pips a tap may still pay (CR 701.67a), or 0 when the
+ *  picker is not the substitution shape. Bounded twice: by the declared cap,
+ *  which is the waterbend cost's own generic mana however much the total cost
+ *  carries (CR 701.67b), and by the generic the mana leg still owes, since a
+ *  cost reduction can leave less than the cap. */
+export function genericSubstitutionsLeft(
+    toc: { substitutesGeneric?: number; pickedIds: readonly string[] },
+    manaCost: Readonly<Record<string, number>> | undefined
+): number {
+    if (toc.substitutesGeneric === undefined) return 0;
+    return Math.max(
+        0,
+        Math.min(
+            toc.substitutesGeneric - toc.pickedIds.length,
+            manaCost?.X ?? 0
+        )
+    );
+}
+
+/** The mana leg once `taps` generic pips have been paid by tapping
+ *  (CR 701.67a). The key goes away at zero, the shape every reader of an empty
+ *  normalized cost already expects. Returns a new record. */
+export function manaCostAfterSubstitution(
+    manaCost: Readonly<Record<string, number>>,
+    taps: number
+): Record<string, number> {
+    const next = { ...manaCost };
+    const generic = (next.X ?? 0) - taps;
+    if (generic > 0) next.X = generic;
+    else delete next.X;
+    return next;
 }
