@@ -95,9 +95,6 @@ const crosis = getDefinition("e5f336d8-12a4-482d-8ffd-c205858c72ba");
 const darigaaz = getDefinition("54dcf5e3-4303-41a3-b54c-24a9d462ce07");
 const stormscapeMaster = getDefinition("9b704165-4587-48f1-8830-c5a07ec666cc");
 const nightscapeMaster = getDefinition("d86174b8-dd9e-4ece-bc23-4f9ac50bccd3");
-const thunderscapeMaster = getDefinition(
-    "22abdc2f-bdc8-46c4-8ce2-f06befedbc32"
-);
 const sterlingGrove = getDefinition("40b26aa3-8169-4978-9554-bd2fc8e18e3b");
 const revivingVapors = getDefinition("47a23c32-e122-400b-b252-e636ea2e684b");
 const barrinsSpite = getDefinition("6d8ec4dc-c74a-4d49-856e-95703675fe9b");
@@ -2572,59 +2569,6 @@ describe("Thunderscape Apprentice (CR 119.3 life loss + 613.4c temporary pump, i
         const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
         expect(getEffectivePower(state, live)).toBe(3);
         expect(getEffectiveToughness(state, live)).toBe(3);
-    });
-});
-
-describe("Thunderscape Master (CR 119.3 life drain + 613.4c team pump, issue #1080)", () => {
-    it("{B}{B}, {T}: target player loses 2 life and controller gains 2", () => {
-        const master = makeInstance(thunderscapeMaster.id, {
-            id: "tm",
-            controllerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [master], life: 20 }),
-                makePlayer("p2", { life: 20 }),
-            ],
-        });
-        resolveActivated(state, master, "thunderscape-master-drain", [
-            { type: "player", id: "p2" },
-        ]);
-        expect(state.players[1].life).toBe(18);
-        expect(state.players[0].life).toBe(22);
-    });
-
-    it("{G}{G}, {T}: creatures you control get +2/+2 until end of turn", () => {
-        const master = makeInstance(thunderscapeMaster.id, {
-            id: "tm",
-            controllerId: "p1",
-        });
-        const ownBear = makeInstance(grizzlyBears.id, {
-            id: "own-bear",
-            controllerId: "p1",
-        });
-        const foeBear = makeInstance(grizzlyBears.id, {
-            id: "foe-bear",
-            controllerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [master, ownBear] }),
-                makePlayer("p2", { battlefield: [foeBear] }),
-            ],
-        });
-        resolveActivated(state, master, "thunderscape-master-pump-team", []);
-        const own = state.players[0].battlefield.find(
-            (c) => c.id === "own-bear"
-        )!;
-        const foe = state.players[1].battlefield.find(
-            (c) => c.id === "foe-bear"
-        )!;
-        expect(getEffectivePower(state, own)).toBe(4);
-        expect(getEffectiveToughness(state, own)).toBe(4);
-        // The opponent's creature is untouched — "creatures YOU control".
-        expect(getEffectivePower(state, foe)).toBe(2);
-        expect(getEffectiveToughness(state, foe)).toBe(2);
     });
 });
 

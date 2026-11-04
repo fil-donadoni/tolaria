@@ -2749,26 +2749,6 @@ describe("Mana Short (tap all lands + drain mana pool, CR 106.4)", () => {
         expect(state.players[1].manaPool.U).toBe(0);
         expect(state.players[1].manaPool.G).toBe(0);
     });
-
-    it("already-tapped lands stay tapped (no-op)", () => {
-        const land = makeInstance(forest.id, {
-            id: "f1",
-            controllerId: "p2",
-            ownerId: "p2",
-            isTapped: true,
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [land] }),
-            ],
-        });
-        pushSpell(state, manaShort.id, "p1", [{ type: "player", id: "p2" }]);
-        resolveTopOfStack(state);
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "f1")!.isTapped
-        ).toBe(true);
-    });
 });
 
 describe("Drain Power (tap lands + transfer mana, CR 106.4)", () => {

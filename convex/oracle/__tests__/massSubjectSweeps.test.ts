@@ -14,10 +14,9 @@
 // Two layers:
 //
 //  1. GOLDENS — a REAL corpus card per accepted form, compared whole
-//     (`sortKeys` equality). Where the smoke generator cannot build the
-//     `forEach` / `$each` script the card is also a registered
-//     `GOLDEN_FIXTURES` row, and the golden here asserts the fixture takes the
-//     card all the way to `ready`.
+//     (`sortKeys` equality), and taken all the way to `ready`: by the smoke
+//     generator, or by a registered `GOLDEN_FIXTURES` row
+//     where the script is one it cannot stage.
 //  2. REFUSALS — the neighbours that stay `unparsed`.
 //
 // Dystopia's golden uses its second line only: the card also prints
@@ -599,18 +598,25 @@ describe("mass subjects (issue #4557) — goldens", () => {
     });
 });
 
-describe("mass subjects — golden fixtures take the card to ready", () => {
+describe("mass subjects — the smoke generator takes the card to ready", () => {
     it.each([
-        "Earthquake",
-        "Perish",
-        "Riptide",
-        "Guardians' Pledge",
-        "Upheaval",
-        "Powder Keg",
-        "Tranquil Domain",
-        "Goblin Pyromancer",
-    ])("%s", (name) => {
-        const fixture = GOLDEN_FIXTURES.find((f) => f.card.name === name);
+        EARTHQUAKE,
+        PERISH,
+        RIPTIDE,
+        GUARDIANS_PLEDGE,
+        UPHEAVAL,
+        TRANQUIL_DOMAIN,
+        GOBLIN_PYROMANCER,
+    ])("$name", (card) => {
+        expect(compileCard(card).state).toBe("ready");
+    });
+});
+
+describe("mass subjects — golden fixtures take the card to ready", () => {
+    it("Powder Keg", () => {
+        const fixture = GOLDEN_FIXTURES.find(
+            (f) => f.card.name === POWDER_KEG.name
+        );
         expect(fixture).toBeDefined();
         expect(compileCard(fixture!.card).state).toBe("ready");
     });

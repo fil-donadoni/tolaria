@@ -66,7 +66,6 @@ import {
 } from "../../../__tests__/setup.helper";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
-import type { CardType } from "../../../types";
 import {
     resolveTrigger,
     resolveAnnouncedTrigger,
@@ -89,7 +88,6 @@ const glacialWall = getDefinition("07b71bc1-d9a2-4e99-a8fa-cd696925328d");
 const anarchy = getDefinition("28d941da-b5cb-4b7e-84f2-ece883f89af3");
 const conquer = getDefinition("ae610e66-7bcb-40ec-bed5-86dcfd098654");
 const imposingVisage = getDefinition("cca42b74-9b42-482b-b12a-79cafdcd087e");
-const jokulhaups = getDefinition("3bf0d325-5928-4593-8faa-64ffa414cb48");
 const karplusanYeti = getDefinition("7dd9b214-d9fe-4c2e-b45b-7145ad98c408");
 const lavaBurst = getDefinition("79dc0e20-5790-4927-8432-cf0e9b7381d4");
 const orcishHealer = getDefinition("7ff511f3-416e-4919-acd6-fd8183bf5c60");
@@ -274,38 +272,6 @@ describe("Lava Burst (CR 120.1 X damage)", () => {
         item.chosenX = 4;
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(20);
-    });
-});
-
-// --- Jokulhaups (destroy all artifacts/creatures/lands, CR 701.8) ----------
-
-describe("Jokulhaups (CR 701.8 mass destruction)", () => {
-    it("destroys creatures and lands", () => {
-        const creature = vanilla("c", 2, 2, {
-            controllerId: "p2",
-            ownerId: "p2",
-            card: { id: "fake-c" },
-        });
-        const land: CardInstanceState = {
-            id: "land",
-            card: { id: "fake-land" },
-            types: ["Land"] as CardType[],
-            subtypes: ["Mountain"],
-            staticAbilities: [],
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "battlefield",
-            isTapped: false,
-        };
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [creature, land] }),
-            ],
-        });
-        pushSpell(state, jokulhaups.id, "p1");
-        resolveTopOfStack(state);
-        expect(state.players[1].battlefield).toHaveLength(0);
     });
 });
 

@@ -2,10 +2,11 @@
 // and a sweep that animates lands (issue #4132, CR 613.4c / 109.5 / 115.1 /
 // 207.2c / 205.1b).
 //
-//  1. GOLDENS — every accepted form is a real corpus card. The six whose
-//     scripts the canned smoke scenario cannot stage are `GOLDEN_FIXTURES`
-//     rows (compared whole by `goldenFixtures.test.ts`); here they must reach
+//  1. GOLDENS — every accepted form is a real corpus card. Those whose
+//     scripts the smoke generator cannot stage are `GOLDEN_FIXTURES` rows
+//     (compared whole by `goldenFixtures.test.ts`); here they must reach
 //     `ready`, and the neighbours that print the same form must follow them.
+//     Arms of Hadar's sweep the generator clears, so it reaches `ready` bare.
 //     Natural Affinity is the fixture for the animation; Life // Death's own
 //     line (its Death half is issue #4136) is compared as a sentence.
 //  2. REFUSALS — the neighbours the rules must NOT read: a verb that disagrees
@@ -39,7 +40,6 @@ import { oracleCard } from "./oracle.fixture";
 
 const NAMES = [
     "Strength of Night",
-    "Arms of Hadar",
     "Planar Despair",
     "Gaea's Might",
     "Drag Down",
@@ -100,6 +100,19 @@ describe("mass P/T — goldens (issue #4132)", () => {
         )
     )("%s reaches ready — its fixture clears its smoke form", (_n, f) => {
         expect(compileCard(f.card).state).toBe("ready");
+    });
+
+    it("Arms of Hadar reaches ready — the smoke generator clears its sweep", () => {
+        const card = oracleCard({
+            name: "Arms of Hadar",
+            manaCost: "{3}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Creatures target player controls get -2/-2 until end of turn.",
+            power: undefined,
+            toughness: undefined,
+        });
+        expect(compileCard(card).state).toBe("ready");
     });
 
     it("Charge: 'Creatures you control get' is a sweep of the CONTROLLER's creatures, not a target", () => {

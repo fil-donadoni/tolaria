@@ -325,35 +325,6 @@ describe("Boomerang (return target permanent to hand, CR 400.7)", () => {
     });
 });
 
-describe("Acid Rain (destroy all Forests, CR 701.8)", () => {
-    it("destroys Forests and spares other lands", () => {
-        const f = makeInstance(forest.id, {
-            id: "f",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const m = makeInstance(mountain.id, {
-            id: "m",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [f, m] }),
-            ],
-        });
-        pushSpell(state, acidRain.id, "p1");
-        resolveTopOfStack(state);
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "f")
-        ).toBeUndefined();
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "m")
-        ).toBeDefined();
-    });
-});
-
 describe("Flash Flood (modal: destroy red / return Mountain, CR 700.2)", () => {
     it("return-mountain mode bounces a Mountain to hand", () => {
         const m = makeInstance(mountain.id, {

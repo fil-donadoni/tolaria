@@ -10,13 +10,12 @@
 //
 // Goldens: Ashen Firebeast (plain source), Bloodfire Dwarf ("It" dealer
 // behind a sacrifice cost), Magma Vein (a non-creature source, "This
-// enchantment"). Ashen Firebeast is also a registered `GOLDEN_FIXTURES` row —
-// the smoke generator cannot build a `forEach`/`$each` script.
+// enchantment"). The smoke generator clears the sweep, so Ashen Firebeast
+// reaches `ready` with no fixture.
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { GOLDEN_FIXTURES } from "../grammar/fixtures";
 import type { OracleCard } from "../types";
 import { oracleCard } from "./oracle.fixture";
 
@@ -130,12 +129,8 @@ describe("each creature without <keyword> (CR 120.3 + CR 702.9a) — goldens", (
         );
     });
 
-    it("the Ashen Firebeast golden fixture takes it all the way to ready", () => {
-        const fixture = GOLDEN_FIXTURES.find(
-            (f) => f.card.name === "Ashen Firebeast"
-        );
-        expect(fixture?.rule).toBe("effect clause");
-        expect(compileCard(fixture!.card).state).toBe("ready");
+    it("the smoke generator takes Ashen Firebeast all the way to ready", () => {
+        expect(compileCard(ASHEN_FIREBEAST).state).toBe("ready");
     });
 });
 

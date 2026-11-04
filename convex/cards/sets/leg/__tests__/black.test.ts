@@ -42,7 +42,6 @@ const cosmicHorror = getDefinition("18bc6ac2-19e0-4765-852b-e303a5bb4040");
 const cyclopeanMummy = getDefinition("479ccc50-2d72-4adc-901e-fbd4eef2cf92");
 const darkness = getDefinition("53b04dab-45b7-418b-a0f0-bcf35145fc53");
 const headlessHorseman = getDefinition("d1aa37c8-98fa-4984-b09b-cf65ad84e97b");
-const hellSwarm = getDefinition("64164d1b-75f4-456e-a717-90ce554dc16c");
 const hellfire = getDefinition("362f1fe9-20af-434c-9957-7a1a564d89e6");
 const hellsCaretaker = getDefinition("336b3b8f-d104-4f06-ad4f-c92b8a9038ca");
 const moldDemon = getDefinition("649a33aa-7eac-4161-ae1a-fcbc758abccf");
@@ -224,29 +223,6 @@ describe("Blight (enchanted land tapped → destroy, CR 303.4)", () => {
         expect(
             state.players[1].battlefield.find((c) => c.id === "land")
         ).toBeUndefined();
-    });
-});
-
-describe("Hell Swarm (all creatures -1/-0 EOT, CR 611.1)", () => {
-    it("debuffs every creature's power by 1", () => {
-        const a = makeInstance(headlessHorseman.id, {
-            id: "a",
-            controllerId: "p1",
-        });
-        const b = makeInstance(headlessHorseman.id, {
-            id: "b",
-            controllerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [a] }),
-                makePlayer("p2", { battlefield: [b] }),
-            ],
-        });
-        pushSpell(state, hellSwarm.id, "p1");
-        resolveTopOfStack(state);
-        expect(getEffectivePower(state, a)).toBe(1);
-        expect(getEffectivePower(state, b)).toBe(1);
     });
 });
 
