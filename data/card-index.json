@@ -11752,6 +11752,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Chain of Smog",
+        "scryfallId": "6bfe64f9-8b03-41f6-a47b-fade397ad9d1",
+        "oracleId": "ea14c26b-bf2f-48b4-b879-6e63069ded1f",
+        "firstSet": "ons",
+        "firstPrintId": "6bfe64f9-8b03-41f6-a47b-fade397ad9d1",
+        "firstPrintSet": "ons"
+    },
+    {
         "name": "Chain of Vapor",
         "scryfallId": "30f6b4a2-5780-46e9-b239-459d2cf37743",
         "oracleId": "2167ac25-d042-4b48-b770-8b94acc1a965",

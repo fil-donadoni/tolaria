@@ -34,6 +34,16 @@
  * opponent's side or the stack does is judged through the margin: a lap that
  * helped the opponent reads as no progress; a lap that hurt them is progress.
  *
+ * THE OTHER EXIT (issue #3657). A cost-free "may" answered yes can be a lap too:
+ * two seats copying a self-copying discard spell at each other with empty hands
+ * never reach a priority node they could pass at, and nothing else ends the
+ * chain. There the decline is the floor `pass` is at a priority node. The margin
+ * rule is the wrong test for a yes, though: a seat paying the same punisher twice
+ * in a step is no better off and is right to pay, and a chain link that costs both
+ * sides two cards leaves the margin flat while still costing the opponent cards. So
+ * a yes is keyed by the exact position it was given in, and only a return to
+ * that very position denies it.
+ *
  * Nothing here names a card: the Parallax Wave refill under Opalescence and an
  * Aluren creature bounce are the same shape to this module.
  *
@@ -90,6 +100,12 @@ const KEPT_PRIORITY_KEYS: ReadonlySet<string> = new Set([
  *  which move on every save without the game moving. */
 const WIRE_STATE_KEYS = ["seq"] as const;
 
+/** What the search stamps on its own root for an informed seat (`searchWithTrace`):
+ *  what the seat knows about a decklist, never where the game stands. The history
+ *  is recorded on the unstamped root, so keeping it would split one position in
+ *  two (issue #3657). */
+const SEARCH_STAMP_KEYS = ["deckColorKnowledge"] as const;
+
 /** Game-level tallies a loop lap bumps without changing the board. */
 const TALLY_STATE_KEYS = [
     "deathsThisTurn",
@@ -134,6 +150,7 @@ function ignoreSets(keepSpellCount: boolean): IgnoreSets {
             [
                 ...IGNORED_STATE_KEYS,
                 ...WIRE_STATE_KEYS,
+                ...SEARCH_STAMP_KEYS,
                 ...TALLY_STATE_KEYS,
             ].filter((k) => !drop(k))
         ),
@@ -260,6 +277,35 @@ function withoutBundleIds(held: unknown): unknown {
     );
 }
 
+/** A spell copy's `id` comes from the same allocator, so the copy a chain puts
+ *  on the stack on a later lap is the same object under a fresh number. A real
+ *  card's id is its identity and stays. */
+function withoutCopyStackIds(stack: GameState["stack"]): unknown {
+    return stack.map((item) =>
+        item.isCopy ? { ...item, id: undefined } : item
+    );
+}
+
+/** The head choice of a suspended copy names that same allocator number. */
+function withoutCopyStackRefs(state: GameState): unknown {
+    const copies = new Set(
+        state.stack.filter((item) => item.isCopy).map((item) => item.id)
+    );
+    return state.pendingChoices?.map((choice) =>
+        copies.has(choice.stackItemId)
+            ? { ...choice, stackItemId: undefined }
+            : choice
+    );
+}
+
+/** What `key` of the state contributes to the position. */
+function positionField(state: GameState, key: string, value: unknown): unknown {
+    if (key === "exileHeld") return withoutBundleIds(value);
+    if (key === "stack") return withoutCopyStackIds(state.stack);
+    if (key === "pendingChoices") return withoutCopyStackRefs(state);
+    return value;
+}
+
 function fingerprintOf(state: GameState): string {
     const sets = spellCountIsRead(state)
         ? IGNORE_WITH_SPELL_COUNT
@@ -275,7 +321,7 @@ function fingerprintOf(state: GameState): string {
         first = false;
         out.push(JSON.stringify(key), ":");
         canonical(
-            key === "exileHeld" ? withoutBundleIds(v) : v,
+            positionField(state, key, v),
             key === "players" ? sets.player : IGNORED_INSTANCE,
             sets,
             out
@@ -330,6 +376,22 @@ export function repetitionMoveKey(move: Move): string {
 /** Separates the step from the move key; never part of a JSON move. */
 const STEP_SEPARATOR = "\u0000";
 
+/** A move that leaves an optional loop: `pass` at a priority node, the decline
+ *  of an optional cost mid-resolution. Never remembered, never denied. */
+export function isLoopExit(move: Move): boolean {
+    return move.kind === "pass" || (move.kind === "may-pay" && !move.accept);
+}
+
+/** The key `move` is remembered under when taken at `state`. A may-pay yes
+ *  carries the position it was given in (see the module header); every other
+ *  move is its bare `repetitionMoveKey`. */
+export function repetitionKeyAt(state: GameState, move: Move): string {
+    const key = repetitionMoveKey(move);
+    return move.kind === "may-pay"
+        ? `${key}${STEP_SEPARATOR}${fingerprintOf(state)}`
+        : key;
+}
+
 function stepPrefix(state: GameState): string {
     return `${state.phase}${STEP_SEPARATOR}`;
 }
@@ -349,8 +411,8 @@ function madeProgress(now: RepetitionEntry, then: RepetitionEntry): boolean {
 /** Record that `seatId` took `move` at `state`. Returns the updated history (a
  *  new object — the caller's value is never mutated). An entry is written the
  *  first time the move is taken in this step, and rewritten whenever it is
- *  taken again after progress; `pass` is never remembered, since it is never
- *  denied. */
+ *  taken again after progress; a loop exit is never remembered, since it is
+ *  never denied. */
 export function recordRepetition(
     history: RepetitionHistory | undefined,
     state: GameState,
@@ -361,8 +423,8 @@ export function recordRepetition(
         history && history.turn === state.turn
             ? history
             : { turn: state.turn, chosen: {} };
-    if (move.kind === "pass") return base;
-    const key = stepPrefix(state) + repetitionMoveKey(move);
+    if (isLoopExit(move)) return base;
+    const key = stepPrefix(state) + repetitionKeyAt(state, move);
     const now = progressOf(state, seatId);
     const prior = base.chosen[key];
     if (prior && !madeProgress(now, prior)) return base;

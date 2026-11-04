@@ -45,7 +45,8 @@ import { findCardInAnyZone, findPermanent } from "./lookup";
 import { announcedModeFields } from "./modeSelection";
 import {
     repeatedMoveKeys,
-    repetitionMoveKey,
+    isLoopExit,
+    repetitionKeyAt,
     type RepetitionHistory,
 } from "./ai/repetition";
 import { searchCombatDamageAssignments } from "./ai/damageSplit";
@@ -7020,12 +7021,13 @@ function runSearchWithTrace(
     // denied and the list is never emptied, so each no-progress repeat
     // strictly shrinks a finite set and the loop ends.
     const repeated = repeatedMoveKeys(repetition, state, playerId);
-    // Only at a PRIORITY node, where `pass` is the floor: a mandatory choice
-    // offers no way out of a loop, and forcing a different answer there would
-    // trade a correct answer for a worse one without stopping anything.
-    if (repeated.size > 0 && moves.some((m) => m.kind === "pass")) {
+    // Only where a loop exit is on offer (`pass` at a priority node, the decline
+    // of a may-pay, issue #3657): a mandatory choice offers no way out of a loop,
+    // and forcing a different answer there would trade a correct answer for a
+    // worse one without stopping anything.
+    if (repeated.size > 0 && moves.some(isLoopExit)) {
         const kept = moves.filter(
-            (m) => m.kind === "pass" || !repeated.has(repetitionMoveKey(m))
+            (m) => isLoopExit(m) || !repeated.has(repetitionKeyAt(state, m))
         );
         if (kept.length > 0 && kept.length < moves.length) {
             for (const m of moves) if (!kept.includes(m)) deniedAtRoot.push(m);
