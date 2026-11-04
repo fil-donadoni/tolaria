@@ -57520,6 +57520,16 @@
         "source": "compiled"
     },
     {
+        "name": "Raving Visionary",
+        "scryfallId": "347cee3a-6e0e-43c2-85e5-531b19297c3d",
+        "oracleId": "83157972-3a0b-40e2-a80a-7bfb2a8627ee",
+        "firstSet": "mh2",
+        "firstPrintId": "347cee3a-6e0e-43c2-85e5-531b19297c3d",
+        "firstPrintSet": "mh2",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Ray of Command",
         "scryfallId": "638abe5f-2a8a-42ca-bcdf-a52a3df66946",
         "oracleId": "adf41d29-403d-4936-9689-3148d103e700",
@@ -57781,6 +57791,16 @@
         "firstPrintId": "4defdead-19fa-4535-9f71-8808388b0332",
         "firstPrintSet": "dka",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Reaper of Flight Moonsilver",
+        "scryfallId": "58cf3ac8-db59-4acc-abb6-e63b95b849ac",
+        "oracleId": "94cce37a-a752-4cde-a5b5-e8a15f8af52c",
+        "firstSet": "soi",
+        "firstPrintId": "58cf3ac8-db59-4acc-abb6-e63b95b849ac",
+        "firstPrintSet": "soi",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -70625,6 +70645,16 @@
         "firstPrintId": "16705695-1ba8-4169-974f-d8c683ab2652",
         "firstPrintSet": "ody",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Stallion of Ashmouth",
+        "scryfallId": "7b465a5d-3ce4-4c96-a3f3-4ad9716946c4",
+        "oracleId": "0dc6a90e-c517-445e-9a93-29b3119fb4dc",
+        "firstSet": "soi",
+        "firstPrintId": "7b465a5d-3ce4-4c96-a3f3-4ad9716946c4",
+        "firstPrintSet": "soi",
+        "rarity": "common",
         "source": "compiled"
     },
     {
