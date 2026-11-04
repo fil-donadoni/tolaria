@@ -976,7 +976,7 @@ Orders that hold:
 (ADR 0156 Amendment I, issue #5646). Each run takes ONE rung, decided by
 `ladderRung` (`scripts/lib/health-ladder.ts`, a pure function with its
 tests in `scripts/__tests__/health-ladder.test.ts`) from facts read off the
-pivot: the standing RED (`lineageBlocks`), its evidence, the
+pivot: the standing RED (`lineageRedStands`), its evidence, the
 `health-fix-attempt` records of every RED since the last GREEN (the
 **episode**), the revert PR's state, and an open escalation issue. The job
 runs `bun run health:fix ladder` on a [`pass`](#g-pass) runner of the
@@ -1382,10 +1382,10 @@ the **base's** workflow and code that run, with a token that can write
 statuses: the job checks out the base only and reads the PR as data —
 author, body, file list — through the API, never its tree.
 
-| Status                                | Green when                                                                                                                                                                             | Red when                                                                                                                                                     |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`trusted-author`](#g-trusted-author) | the author is in [`TRUSTED_AUTHORS`](#g-trusted-authors); Mergify's own queue PRs (`mergify[bot]`, `mergify/merge-queue/…`, same repository) always                                    | the author is not, or the PR touches `.github/`, `.mergify/` or `.mergify.yml` (a rename counts both names), or its file list is truncated (over 3000 files) |
-| [`base-health`](#g-base-health)       | no RED stands on the base's health lineage (GREEN, AMBER, INFRA, no verdict yet), or the PR closes a repair issue declared on the pivot (`health-fix`); Mergify's own queue PRs always | a RED or second RED stands and the PR closes none of its declared repair issues                                                                              |
+| Status                                | Green when                                                                                                                                                                                                       | Red when                                                                                                                                                     |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`trusted-author`](#g-trusted-author) | the author is in [`TRUSTED_AUTHORS`](#g-trusted-authors); Mergify's own queue PRs (`mergify[bot]`, `mergify/merge-queue/…`, same repository) always                                                              | the author is not, or the PR touches `.github/`, `.mergify/` or `.mergify.yml` (a rename counts both names), or its file list is truncated (over 3000 files) |
+| [`base-health`](#g-base-health)       | no blocking RED stands on the base's health lineage (GREEN, AMBER, INFRA, no verdict yet, a Contained RED), or the PR closes a repair issue declared on the pivot (`health-fix`); Mergify's own queue PRs always | a blocking RED or second RED stands and the PR closes none of its declared repair issues                                                                     |
 
 `base-health` is the RED rule, `healthAdmission`. A commit status stands until
 something re-posts it, so on an unreadable verdict store `pr-gate`
@@ -2203,9 +2203,10 @@ The commit status [`pr-gate`](#pr-gate) posts: green for a PR by a
 
 ### <a id="g-base-health"></a>`base-health`
 
-The commit status [`pr-gate`](#pr-gate) posts: green unless a RED stands on
-the base branch's health lineage and the PR closes none of that RED's
-declared repair issues; always green for a Mergify queue PR.
+The commit status [`pr-gate`](#pr-gate) posts: green unless a blocking RED
+stands on the base branch's health lineage and the PR closes none of that RED's
+declared repair issues; always green for a Mergify queue PR. A Contained RED
+(ADR 0163) blocks nothing here: it stops the release, not the queue.
 
 ### <a id="g-infra"></a>INFRA
 

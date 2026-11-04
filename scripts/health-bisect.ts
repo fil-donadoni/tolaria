@@ -81,7 +81,7 @@ import {
     evidenceStore,
     HEALTH_DIR_REL,
     HISTORY_DEPTH,
-    lineageBlocks,
+    lineageRedStands,
     machineName,
     readVerdictLineage,
     verdictStore,
@@ -677,7 +677,7 @@ function main(): number {
         // store for it, and an older one standing would leave it unwritten.
         const held = readDeferredRed(join(root, HEALTH_DIR_REL));
         if (last?.status === "red" && held?.sha === last.sha) sha = held.sha;
-        else if (lineageBlocks(lineage.kind) && lineage.verdict)
+        else if (lineageRedStands(lineage.kind) && lineage.verdict)
             sha = lineage.verdict.sha;
         else if (last?.status === "red") sha = last.sha;
         else {

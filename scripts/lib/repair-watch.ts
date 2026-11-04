@@ -136,6 +136,9 @@ function ageLine(ms: number): string {
 export function repairWatchDecision(i: RepairWatchInput): RepairWatchDecision {
     if (i.lineage === "green" || i.lineage === "amber")
         return { action: "clear", reason: `base is ${i.lineage}` };
+    // Only its turning blocking notifies, and that reads as `red` (ADR 0163 §5).
+    if (i.lineage === "contained")
+        return { action: "none", reason: "a Contained RED notifies nobody" };
     if (i.lineage !== "red" && i.lineage !== "second-red")
         return { action: "none", reason: `no RED readable (${i.lineage})` };
     if (i.redSha === null) return { action: "none", reason: "RED with no sha" };

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { BASE_BRANCH } from "../lib/branches";
 import { CORPUS_EXCLUSION_ENV } from "../lib/corpus-exclusion";
+import { decodeStatus } from "../lib/health-verdict-store";
 import {
     DEFAULT_FIX_ATTEMPTS,
     HEALTH_GATE_ARGS,
@@ -31,6 +32,27 @@ import {
  * release branch moves iff the last health record is GREEN and is about the
  * exact base tip being promoted. Everything else is git plumbing.
  */
+describe("release refuses a Contained RED tip (ADR 0163 §6, issue #8074)", () => {
+    const tip = "a".repeat(40);
+    const stored = decodeStatus({
+        sha: tip,
+        state: "failure",
+        description:
+            "RED · test:bot · huawei · contained · tests: scripts/__tests__/a.test.ts",
+        targetUrl: null,
+        createdAt: null,
+    });
+
+    it("the store's Contained RED wins over this machine's green record, and refuses", () => {
+        expect(stored?.redClass).toBe("contained");
+        const d = releaseDecision(
+            tip,
+            reconcileRecord(tip, { sha: tip, status: "green" }, stored)
+        );
+        expect(d).toMatchObject({ kind: "refuse", red: true });
+    });
+});
+
 describe("release — releaseDecision", () => {
     const tip = "a".repeat(40);
     const other = "b".repeat(40);

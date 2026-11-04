@@ -170,7 +170,7 @@ describe("subjectsBetween — the compare endpoint's first lines", () => {
 // gate at once — a revert is GREEN in minutes, not at the next cron.
 describe("redTipOwesGate — the third classify predicate", () => {
     it("RED standing + tip unverdicted + no run in flight → dispatch", () => {
-        for (const lineage of ["red", "second-red"] as const)
+        for (const lineage of ["red", "second-red", "contained"] as const)
             expect(
                 redTipOwesGate({ lineage, tipStatus: null, inFlight: false })
             ).toBe(true);

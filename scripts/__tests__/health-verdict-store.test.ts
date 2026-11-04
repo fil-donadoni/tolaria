@@ -9,7 +9,9 @@ import {
     failedTestFiles,
     githubVerdictStore,
     lineageBlocks,
+    lineageLabel,
     lineageOf,
+    lineageRedStands,
     readVerdictLineage,
     repoFromRemote,
     verdictAgeMs,
@@ -418,6 +420,209 @@ function withRoot(fn: (root: string, dir: string) => void): void {
         });
     }
 }
+
+describe("a Contained RED (ADR 0163, issue #8074)", () => {
+    const contained = (s: string, extra: Partial<Verdict> = {}) =>
+        v(s, "red", { redClass: "contained", ...extra });
+    const back = (description: string, state = "failure") =>
+        decodeStatus({
+            sha: T1,
+            state,
+            description,
+            targetUrl: null,
+            createdAt: null,
+        });
+
+    it("round-trips through the store: the status stays failure, the description gains the class", () => {
+        const fake = fakeGh();
+        const store = ghStore(fake);
+        store.write(
+            contained(T2, {
+                step: "test:bot",
+                failure: "assertion",
+                tests: ["scripts/__tests__/a.test.ts"],
+            })
+        );
+        const written = fake.statuses.get(T2)?.[0];
+        expect(written?.state).toBe("failure");
+        expect(written?.description).toContain(" · contained");
+        expect(store.read(T2)).toMatchObject({
+            status: "red",
+            redClass: "contained",
+            failure: "assertion",
+            tests: ["scripts/__tests__/a.test.ts"],
+        });
+    });
+
+    it("costs no test path: every path a blocking RED keeps, the contained one keeps", () => {
+        const red = {
+            step: "test:app",
+            machine: "github-hosted/runnervmwhb2z",
+            failure: "assertion",
+        };
+        // The longest path the blocking RED has room for, to the character.
+        const room =
+            DESCRIPTION_MAX - encodeDescription(v(T1, "red", red)).length;
+        const tests = [`${"p".repeat(room - " · tests: ".length)}`];
+        const blocking = encodeDescription(v(T1, "red", { ...red, tests }));
+        expect(blocking.length).toBe(DESCRIPTION_MAX);
+        expect(back(blocking)?.tests).toEqual(tests);
+
+        const d = encodeDescription(contained(T1, { ...red, tests }));
+        expect(d.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+        expect(back(d)).toMatchObject({
+            redClass: "contained",
+            failure: "assertion",
+            tests,
+        });
+    });
+
+    it("a cut file list still says how much was cut, and keeps the class", () => {
+        const tests = Array.from(
+            { length: 8 },
+            (_, i) => `scripts/__tests__/a-rather-long-test-name-${i}.test.ts`
+        );
+        const d = encodeDescription(
+            contained(T1, { step: "test:app", failure: "assertion", tests })
+        );
+        expect(d.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+        const read = back(d);
+        expect(read?.redClass).toBe("contained");
+        expect(read?.tests?.length).toBeGreaterThan(0);
+        expect((read?.tests?.length ?? 0) + (read?.testsMore ?? 0)).toBe(8);
+    });
+
+    it("a kind the class does not imply is still written", () => {
+        const d = encodeDescription(contained(T1, { failure: "timeout" }));
+        expect(d).toContain("failure: timeout");
+        expect(back(d)?.failure).toBe("timeout");
+    });
+
+    it("no room for the class reads as blocking, and the failure kind stays", () => {
+        const d = encodeDescription(
+            contained(T1, {
+                step: "s".repeat(DESCRIPTION_MAX - 20),
+                machine: "m",
+                failure: "assertion",
+            })
+        );
+        expect(d).not.toContain("contained");
+        expect(back(d)?.redClass).toBeUndefined();
+    });
+
+    it("the class is a RED's only: never written on, nor read off, any other status", () => {
+        expect(
+            encodeDescription(
+                v(T1, "green", { step: "test:app", redClass: "contained" })
+            )
+        ).not.toContain("contained");
+        expect(
+            back("GREEN · test:app · huawei · contained", "success")?.redClass
+        ).toBeUndefined();
+    });
+
+    it("a machine or step named `contained` is no class", () => {
+        const read = back("RED · contained · contained");
+        expect(read).toMatchObject({ step: "contained", machine: "contained" });
+        expect(read?.redClass).toBeUndefined();
+    });
+
+    it("an unknown class reads as blocking", () => {
+        const read = back("RED · test · huawei · class: harmless · CONTAINED");
+        expect(read?.redClass).toBeUndefined();
+        expect(lineageOf([read as Verdict]).kind).toBe("red");
+    });
+
+    describe("lineageOf", () => {
+        it("all contained back to the GREEN answers contained, the standing RED first", () => {
+            const lineage = lineageOf([
+                contained(T4),
+                contained(T3),
+                v(T2, "green"),
+            ]);
+            expect(lineage.kind).toBe("contained");
+            expect(lineage.verdict?.sha).toBe(T4);
+            expect(lineage.reds?.map((r) => r.sha)).toEqual([T4, T3]);
+        });
+
+        it("a RED before the last GREEN is not the episode's", () => {
+            expect(
+                lineageOf([contained(T4), v(T3, "green"), v(T2, "red")]).kind
+            ).toBe("contained");
+        });
+
+        it("infra between two REDs changes nothing", () => {
+            expect(
+                lineageOf([contained(T4), v(T3, "infra"), contained(T2)]).kind
+            ).toBe("contained");
+        });
+
+        it("mixed answers red, whichever RED lacks the class", () => {
+            expect(lineageOf([contained(T4), v(T3, "red")]).kind).toBe("red");
+            expect(lineageOf([v(T4, "red"), contained(T3)]).kind).toBe("red");
+        });
+
+        it("a late RED on an older tip, without the class, turns the lineage blocking", () => {
+            // Commit order, not write order: T2 was written last.
+            expect(
+                lineageOf([contained(T4), v(T2, "red"), v(T1, "green")]).kind
+            ).toBe("red");
+        });
+
+        it("a late contained RED older than an AMBER is behind the repair", () => {
+            expect(
+                lineageOf([v(T4, "amber", { repairOf: T3 }), contained(T2)])
+                    .kind
+            ).toBe("amber");
+        });
+
+        it("an AMBER between keeps second-red, even all contained", () => {
+            const lineage = lineageOf([
+                contained(T4),
+                v(T3, "amber", { repairOf: T2 }),
+                contained(T2),
+            ]);
+            expect(lineage.kind).toBe("second-red");
+            expect(lineageBlocks(lineage.kind)).toBe(true);
+        });
+
+        it("a RED with no class still blocks", () => {
+            const { kind } = lineageOf([v(T4, "red"), v(T3, "green")]);
+            expect(kind).toBe("red");
+            expect(lineageBlocks(kind)).toBe(true);
+        });
+    });
+
+    it("the queue's question and the ladder's come apart on contained, and only there", () => {
+        expect(lineageBlocks("contained")).toBe(false);
+        expect(lineageRedStands("contained")).toBe(true);
+        for (const kind of ["red", "second-red"] as const) {
+            expect(lineageBlocks(kind)).toBe(true);
+            expect(lineageRedStands(kind)).toBe(true);
+        }
+        for (const kind of ["green", "amber", "infra", "none"] as const) {
+            expect(lineageBlocks(kind)).toBe(false);
+            expect(lineageRedStands(kind)).toBe(false);
+        }
+    });
+
+    it("health:status's label", () => {
+        expect(lineageLabel("contained")).toBe("RED (contained)");
+        expect(lineageLabel("second-red")).toBe("SECOND-RED");
+    });
+
+    it("the store's consumers: queue:plan picks, health:fix and the repair proof still see a RED", () => {
+        const fake = fakeGh();
+        const store = ghStore(fake);
+        store.write(contained(T4, { tests: ["scripts/__tests__/a.test.ts"] }));
+        expect(readHealthMarker("/nowhere", () => store)).toBeNull();
+        expect(readRedFromStore(() => store).redMarker).toBe(true);
+        expect(repairProofOf(store.lineage(), "repair")).toEqual({
+            tests: ["scripts/__tests__/a.test.ts"],
+            redSha: T4,
+        });
+    });
+});
 
 describe("the repository named by the origin remote", () => {
     it("reads owner/name from either origin URL form", () => {

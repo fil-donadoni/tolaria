@@ -25,6 +25,12 @@
  *    at once instead of waiting the 35–45 min a health run takes to confirm.
  *    The next GREEN clears it. A RED on an AMBER lineage is the SECOND RED —
  *    the repair did not hold — and stops the loop with a notification.
+ *  - **A Contained RED** (ADR 0163) stops the release, not the queue. It stays
+ *    a RED — the status stays `failure`, the description carries the class —
+ *    so the two questions a lineage answers come apart: `lineageBlocks` (does
+ *    the queue hold?) lets it through, `lineageRedStands` (is there a RED to
+ *    repair?) does not. A RED with no class blocks: a classification bug stops
+ *    the queue instead of letting it run.
  *  - The **lineage** is the run of verdicts since the last GREEN, newest
  *    first in COMMIT order: a RED written late about a tip OLDER than the
  *    repair is not a second red (the repair is already ahead of it).
@@ -52,6 +58,15 @@ export type VerdictBackend = "github";
 
 export type VerdictStatus = "green" | "red" | "infra" | "amber";
 
+/** The class a RED can carry (ADR 0163); no class is a blocking RED. */
+export type RedClass = "contained";
+
+/** The description's field for `RedClass`, and the `LineageKind` it yields. */
+const CONTAINED = "contained";
+
+/** The one failure kind a Contained RED can be (ADR 0163 §2). */
+const CONTAINED_FAILURE = "assertion";
+
 export interface Verdict {
     sha: string;
     status: VerdictStatus | HealthStatus;
@@ -71,6 +86,10 @@ export interface Verdict {
     /** RED only: what KIND of failure it was (`FailureKind`, issue #5589) —
      *  so a RED naming no test says why instead of saying nothing. */
     failure?: string;
+    /** RED only: the class that stops the release and not the queue (ADR
+     *  0163). Absent is blocking. The grant requires `failure: assertion`, so
+     *  the description carries the class in that field's place. */
+    redClass?: RedClass;
     /** AMBER only: the RED sha the repair landed against. */
     repairOf?: string;
     /** Written by a repair proof run (issue #7657): a GREEN earned on the
@@ -94,6 +113,8 @@ export interface Verdict {
  * The lineage's state, the one thing a refusal reads:
  *  - `red` / `second-red` — refuse new picks and non-repair landings;
  *    `second-red` also stops the loop and notifies;
+ *  - `contained` — the standing RED and every RED back to the last GREEN or
+ *    AMBER carry the class: the release stays refused, nothing else is;
  *  - `amber` — a proved repair landed: resume, health confirms later;
  *  - `green` / `infra` / `none` — nothing to refuse on.
  */
@@ -103,14 +124,16 @@ export type LineageKind =
     | "infra"
     | "red"
     | "amber"
-    | "second-red";
+    | "second-red"
+    | "contained";
 
 export interface Lineage {
     kind: LineageKind;
     /** The verdict the kind is about: the standing RED for `red` /
-     *  `second-red`, the AMBER for `amber`, the newest otherwise. */
+     *  `second-red` / `contained`, the AMBER for `amber`, the newest
+     *  otherwise. */
     verdict: Verdict | null;
-    /** `red` / `second-red` only: the standing RED and every RED before it
+    /** A RED kind only: the standing RED and every RED before it
      *  back to the last GREEN or AMBER, newest first — the REDs a repair
      *  declared on any of them still answers (issue #7139). */
     reds?: Verdict[];
@@ -155,9 +178,22 @@ export function isRepairProofGreen(
     );
 }
 
-/** Whether the lineage refuses a new pick / a non-repair landing. */
+/** Whether the lineage refuses a new pick / a non-repair landing: the QUEUE's
+ *  question. A Contained RED does not (ADR 0163). */
 export function lineageBlocks(kind: LineageKind): boolean {
     return kind === "red" || kind === "second-red";
+}
+
+/** Whether a RED stands to be repaired, contained or not: the question of the
+ *  ladder, the bisect, the repair proof and the pivot, which read a Contained
+ *  RED exactly as any other (ADR 0163 §1). */
+export function lineageRedStands(kind: LineageKind): boolean {
+    return lineageBlocks(kind) || kind === CONTAINED;
+}
+
+/** The lineage's kind as `health:status` prints it. */
+export function lineageLabel(kind: LineageKind): string {
+    return kind === CONTAINED ? "RED (contained)" : kind.toUpperCase();
 }
 
 /** How long ago `v` was written, or null when it carries no time. */
@@ -205,7 +241,11 @@ export function lineageOf(history: readonly Verdict[]): Lineage {
             return { kind: "second-red", verdict: head, reds };
         if (v.status === "red") reds.push(v);
     }
-    return { kind: "red", verdict: head, reds };
+    return {
+        kind: reds.every((r) => r.redClass === CONTAINED) ? CONTAINED : "red",
+        verdict: head,
+        reds,
+    };
 }
 
 /** The failing test files named in a vitest run's output — what a repair's
@@ -264,15 +304,22 @@ export function encodeDescription(v: Verdict): string {
         v.step ?? "-",
         v.machine ?? "-",
     ].join(SEP);
-    const fit = (extra: string) => {
-        if (out.length + SEP.length + extra.length <= DESCRIPTION_MAX)
-            out += SEP + extra;
+    const fit = (extra: string): boolean => {
+        const fits = out.length + SEP.length + extra.length <= DESCRIPTION_MAX;
+        if (fits) out += SEP + extra;
+        return fits;
     };
     if (v.repairOf) fit(`repair-of: ${v.repairOf}`);
     // Before the failure and the tests: a proof-written RED must never lose
     // the mark to a long file list (the next proof would trust it).
     if (v.proof) fit(`proof: ${v.proof}`);
-    if (v.failure) fit(`failure: ${v.failure}`);
+    // The class stands in for the failure kind it implies: shorter, so a
+    // Contained RED keeps every test path the same RED would have kept
+    // blocking. No room for it reads as blocking, the safe side.
+    const contained =
+        v.status === "red" && v.redClass === CONTAINED && fit(CONTAINED);
+    if (v.failure && !(contained && v.failure === CONTAINED_FAILURE))
+        fit(`failure: ${v.failure}`);
     out += testsField(out.length, v.tests ?? []);
     if (v.issues && v.issues.length > 0) fit(`issues: ${v.issues.join(",")}`);
     if (v.ladderIssues && v.ladderIssues.length > 0)
@@ -320,6 +367,10 @@ export function decodeStatus(input: {
     if (input.createdAt) v.at = input.createdAt;
     if (input.targetUrl) v.log = input.targetUrl;
     for (const field of rest) {
+        if (field === CONTAINED && status === "red") {
+            v.redClass = CONTAINED;
+            v.failure ??= CONTAINED_FAILURE;
+        }
         const m = /^([a-z-]+): (.*)$/.exec(field);
         if (!m) continue;
         if (m[1] === "tests") v.tests = m[2].split(",").filter(Boolean);

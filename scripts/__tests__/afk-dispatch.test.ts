@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
+import { lineageOf } from "../lib/health-verdict-store";
 import {
     ACK_MARKER,
     agedRepairLines,
@@ -10,6 +11,7 @@ import {
     failureStreak,
     holdAdmitsRepairs,
     holdFor,
+    redHoldOf,
     holdReleases,
     isLostRun,
     PASS_RECORD_UPLOAD_STEP,
@@ -1208,6 +1210,38 @@ describe("afk-dispatch lost runs (issue #8062)", () => {
         expect(isLostRun(FAILED_ALIVE)).toBe(false);
         expect(holdFor(holdInput({ missingRecords: 1 }))?.kind).toBe(
             "records-unknown"
+        );
+    });
+});
+
+describe("holdFor under a Contained RED (ADR 0163, issue #8074)", () => {
+    const SHA = "c".repeat(40);
+
+    it("a contained lineage holds nothing", () => {
+        const lineage = lineageOf([
+            { sha: SHA, status: "red", step: "test", redClass: "contained" },
+        ]);
+        expect(redHoldOf(lineage)).toBeNull();
+        expect(holdFor(holdInput({ red: redHoldOf(lineage) }))).toBeNull();
+    });
+
+    it("a RED with no class holds, naming the RED", () => {
+        const lineage = lineageOf([{ sha: SHA, status: "red", step: "test" }]);
+        expect(redHoldOf(lineage)).toEqual({ sha: SHA, failedStep: "test" });
+        expect(holdFor(holdInput({ red: redHoldOf(lineage) }))?.kind).toBe(
+            "red"
+        );
+    });
+
+    it("a second RED holds, even all contained", () => {
+        const contained = { status: "red", redClass: "contained" } as const;
+        const lineage = lineageOf([
+            { sha: SHA, ...contained },
+            { sha: "b".repeat(40), status: "amber" },
+            { sha: "a".repeat(40), ...contained },
+        ]);
+        expect(holdFor(holdInput({ red: redHoldOf(lineage) }))?.kind).toBe(
+            "red"
         );
     });
 });

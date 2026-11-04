@@ -116,7 +116,7 @@ import { primaryCheckout } from "./lib/primary-checkout";
 import {
     evidenceStore,
     HISTORY_DEPTH,
-    lineageBlocks,
+    lineageRedStands,
     machineName,
     readVerdictLineage,
     verdictStore,
@@ -397,7 +397,7 @@ export function readRedFromStore(store: () => VerdictStore): {
     const lineage = readVerdictLineage(store);
     const v = lineage.verdict;
     return {
-        redMarker: lineageBlocks(lineage.kind),
+        redMarker: lineageRedStands(lineage.kind),
         last: v
             ? {
                   sha: v.sha,
@@ -929,7 +929,7 @@ export function readLadderFacts(cwd: string, tip: string): LadderFacts {
     };
     const lineage = readVerdictLineage(() => verdictStore(cwd));
     if (lineage.error) return { ...empty, error: lineage.error };
-    if (!lineageBlocks(lineage.kind) || !lineage.verdict) return empty;
+    if (!lineageRedStands(lineage.kind) || !lineage.verdict) return empty;
     const red = lineage.verdict.sha;
     try {
         const verdicts = verdictStore(cwd);

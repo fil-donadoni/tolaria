@@ -36,6 +36,7 @@ import type { PassRunState } from "./claim-verdict";
 import type { HealthMarker, RepairItem } from "./queue-plan";
 import { CLAIM_LABEL } from "./claim-labels";
 import { FAILED_LABEL, READY_LABEL } from "./land-labels";
+import { lineageBlocks, type Lineage } from "./health-verdict-store";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Conventions shared with `afk-pass.yml` (issue #5650)
@@ -361,6 +362,16 @@ export type Hold =
     | { kind: "usage-limit"; message: string; until: string }
     | { kind: "no-budget"; message: string }
     | { kind: "budget"; message: string; reading: BudgetReading };
+
+/** The RED `holdFor` holds on, or null. A Contained RED holds nothing: it
+ *  stops the release, not the passes (ADR 0163). */
+export function redHoldOf(
+    lineage: Pick<Lineage, "kind" | "verdict">
+): HoldInput["red"] {
+    return lineageBlocks(lineage.kind)
+        ? { sha: lineage.verdict?.sha, failedStep: lineage.verdict?.step }
+        : null;
+}
 
 export interface HoldInput {
     /** `afk-dispatch.yml` itself is enabled: a run queued before the kill
