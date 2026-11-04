@@ -5,7 +5,12 @@
 //
 // Reference: set code mh3, Modern Horizons 3.
 
-import { defineCard, type LandEntryStateView } from "../../types";
+import {
+    defineCard,
+    DELIRIUM_CARD_TYPES,
+    PERMANENT_TYPES,
+    type LandEntryStateView,
+} from "../../types";
 
 // Shifting Woodland — Land.
 // "This land enters tapped unless you control a Forest.
@@ -14,20 +19,10 @@ import { defineCard, type LandEntryStateView } from "../../types";
 //  your graveyard until end of turn. Activate only if there are four or more
 //  card types among cards in your graveyard."
 //
-// TODO (tracked-by: #2766): Delirium copy ability — {2}{G}{G}: This land
-// becomes a copy of target permanent card in your graveyard until end of
-// turn. Activate only if delirium.
-//
-// NARROWED 2026-08-25 (#1841 audit): the old wording ("blocked on
-// copy-from-graveyard infrastructure and the 'becomes a copy' semantics for
-// non-creature permanents") overstated it. The copy engine ships —
-// `convex/gre/copy.ts` implements CR 707 copiable values with `applyCopy` /
-// `revertCopy` / `presentedDefId`, and it is card-type agnostic (it swaps
-// `card.id` and overwrites types/subtypes/P-T/staticAbilities). Four narrower
-// things are missing: a copiable-values path whose SOURCE is a graveyard card
-// rather than a battlefield instance; an Op wrapping `applyCopy` at all (the
-// copy family is `resolve()`-only today, and this is an ACTIVATED ability); a
-// duration-scoped revert; and the delirium activation gate.
+// CR 110.4a — "permanent card" is `PERMANENT_TYPES`. CR 707.2 — the `becomeCopy`
+// Op reads the announced graveyard card's printed values; CR 611.2a / 514.2 —
+// "until end of turn" is its timed form. CR 207.2c — Delirium is an ability
+// word: the rules weight is the printed restriction, carried as data.
 export const shiftingWoodland = defineCard(() => ({
     id: "059164e1-894d-4586-9800-e60d6fbd6eb6",
     rarity: "rare",
@@ -35,7 +30,6 @@ export const shiftingWoodland = defineCard(() => ({
     oracleText:
         "This land enters tapped unless you control a Forest.\n{T}: Add {G}.\nDelirium — {2}{G}{G}: This land becomes a copy of target permanent card in your graveyard until end of turn. Activate only if there are four or more card types among cards in your graveyard.",
     types: ["Land"],
-    subtypes: ["Forest"],
     entersTappedUnless(
         view: LandEntryStateView,
         controllerId: string
@@ -48,6 +42,48 @@ export const shiftingWoodland = defineCard(() => ({
         }
         return false;
     },
+    activatedAbilities: [
+        {
+            id: "shifting-woodland-mana",
+            oracleText: "{T}: Add {G}.",
+            cost: { tap: true },
+            useStack: false,
+            effects: [{ op: "addMana", mana: { G: 1 } }],
+            manaProduced: { G: 1 },
+        },
+        {
+            id: "shifting-woodland-delirium-copy",
+            oracleText:
+                "Delirium — {2}{G}{G}: This land becomes a copy of target permanent card in your graveyard until end of turn. Activate only if there are four or more card types among cards in your graveyard.",
+            cost: { mana: { X: 2, G: 2 } },
+            useStack: true,
+            activationCondition: {
+                left: {
+                    count: {
+                        zone: "graveyard",
+                        controller: "controller",
+                        countTypes: true,
+                    },
+                },
+                op: "ge",
+                right: DELIRIUM_CARD_TYPES,
+            },
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
+            effects: [
+                {
+                    op: "becomeCopy",
+                    target: { ref: "$source" },
+                    source: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
 }));
 
 // Arena of Glory — Land.
