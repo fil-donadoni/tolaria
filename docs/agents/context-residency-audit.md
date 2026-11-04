@@ -367,7 +367,7 @@ lands exactly where the measurement independently did.
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | **1 Prompt**  | Skill files, subagent briefs                                                                                                    | fine                                                                               |
 | **2 Context** | Resident scaffold, skill bodies, `bun run cr`, ADR index                                                                        | **where the remaining waste is** — this document                                   |
-| **3 Harness** | `.claude/hooks/` — `deny-guard`, `spawn-guard`, `claim-ledger`; gate tiers; worktree isolation                                  | done, and ahead of the article: "'be careful' is not a permission model" is a hook |
+| **3 Harness** | `.claude/hooks/` — `deny-guard`, `spawn-guard`; gate tiers; worktree isolation                                                  | done, and ahead of the article: "'be careful' is not a permission model" is a hook |
 | **4 Loop**    | `bun run check:all` / `bun run test`; proof-of-failure doctrine; the identity-only-test purge (#2363)                           | done, and the strongest layer in the repo                                          |
 | **5 Graph**   | `process-gh-issues`: file-disjoint batch → parallel implement (fan-out) → review in fresh context → serial merge-train (fan-in) | done, right-sized                                                                  |
 

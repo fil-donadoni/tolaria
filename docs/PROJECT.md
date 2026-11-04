@@ -71,9 +71,8 @@ alias default 24`, su Omarchy `mise install`. Il pin non sale oltre 24: il
 backend Convex locale esegue le azioni `"use node"` solo su Node 20/22/24
 (issue #5420). Prerequisiti su entrambe: `bun`,
 `git`, `gh`, `jq`, `perl`; per `check:ui` `bunx playwright install chromium`.
-Le sonde macchina (`scripts/lib/machine-admission.ts`) leggono `sysctl` /
-`vm_stat` / `lsof` su macOS e `/proc` (meminfo, PSI, `/proc/<pid>/cwd`) su
-Linux; il loop tiene sveglia la macchina con `caffeinate` o `systemd-inhibit`.
+I runner self-hosted tengono sveglia la macchina con `caffeinate` o
+`systemd-inhibit` (`docs/guides/github-pipeline.md`).
 
 ### Comandi essenziali
 
@@ -81,7 +80,7 @@ Linux; il loop tiene sveglia la macchina con `caffeinate` o `systemd-inhibit`.
 bun run dev            # dev server
 bun run worktree:init  # PRIMO comando in un worktree nuovo (deps + codegen + hook)
 bun run check:pr       # gate leggero: format + lint + tsc + guard offline
-bun run check:all      # gli stessi check, tier pesante (mutex machine-wide)
+bun run check:all      # gli stessi check, tier pesante
 bun run test           # suite completa (app + bot, in sequenza)
 bunx vitest run <path> # test mirati — questo è ciò che si usa mentre si lavora
 ```
@@ -909,18 +908,18 @@ project vitest separati — i project condividono un worker pool) danno alla sui
 bot una corsa non contesa. `bot-suite-boundary.test.ts` fallisce la suite app se un
 `*.test.ts` normale importa un modulo bot-only.
 
-### 9.2 Admission control sulla CPU
+### 9.2 Worker cap
 
 Più sessioni lavorano lo stesso repo in parallelo, ognuna nel suo worktree.
-`scripts/gate.ts` definisce due tier:
+`scripts/gate.ts` definisce due tier, senza lock né attese sulla macchina
+(ADR 0156 Amendment I, VII):
 
-| Tier      | Comandi                                      | Comportamento                                                             |
-| --------- | -------------------------------------------- | ------------------------------------------------------------------------- |
-| **heavy** | `test`, `test:app`, `test:bot`, `check:all`  | mutex machine-wide, `ncpu - 1` worker. Uno alla volta; gli altri accodano |
-| **light** | `bunx vitest run <path>`, `check:pr`, `lint` | nessun lock, vitest limitato a 2 worker                                   |
+| Tier      | Comandi                                      | Comportamento                                                |
+| --------- | -------------------------------------------- | ------------------------------------------------------------ |
+| **heavy** | `test`, `test:app`, `test:bot`, `check:all`  | `min(ncpu - 1, 4)` worker; vietato nei worktree di una issue |
+| **light** | `bunx vitest run <path>`, `check:pr`, `lint` | vitest limitato a 2 worker                                   |
 
-Un gate heavy in coda **non è un hang**: è la macchina che si rifiuta di far
-girare due suite complete a metà velocità ciascuna.
+I gate pesanti automatici li serializza l'unico runner `lane` (ADR 0160).
 
 ### 9.3 Cadenza
 
@@ -1242,11 +1241,11 @@ src/
 └── routes/                 TanStack Router
 
 scripts/
-├── gate.ts                 admission control CPU
+├── gate.ts                 worker cap dei gate
 ├── bootstrap-worktree.ts   `bun run worktree:init`
 ├── check-card-index.ts check-stub-coverage.ts
-├── queue-plan.ts queue-claim.ts queue-lint.ts   la coda (ADR 0110/0136)
-├── loop-drain.sh loop-handoff.sh loop-doctor.ts loop-status.ts   il driver AFK di /next-ticket
+├── queue-plan.ts queue-lint.ts   la coda (ADR 0110/0136)
+├── afk-dispatch.ts afk-pass.ts   i job AFK di /next-ticket (ADR 0156)
 └── list-to-cards.mjs       importer worklist (ADR 0041)
 
 data/

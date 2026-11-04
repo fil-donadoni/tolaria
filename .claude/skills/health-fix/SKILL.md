@@ -40,7 +40,7 @@ that is where the health telemetry lives. **Write its absolute path down now**
 standing in, and a shell variable does not survive from one command to the
 next.
 
-The RED may come from the OTHER machine (batch health runs on the Huawei).
+The RED may come from the OTHER machine, or a hosted runner (`health-early`).
 Its evidence is on the **pivot** (issue #5589), readable from either:
 
 ```bash
@@ -70,8 +70,8 @@ git worktree add --detach ../tolaria-health-repro <sha> && \
 
 Scrub any inherited gate hold **on the step's own command** —
 `env -u TOLARIA_GATE_HELD -u TOLARIA_ALLOW_FULL_SUITE bun run <step>`, as
-`health-main.ts` does for its children — so the step queues on the machine
-mutex like any other. A bare `unset` in an earlier command is a no-op: shell
+`health-main.ts` does for its children — so the step runs under its own
+gate like any other. A bare `unset` in an earlier command is a no-op: shell
 state does not survive between commands. Narrow before you run:
 
 | `failedStep`    | Run in the repro worktree                                                                                                                                                     |
@@ -206,7 +206,7 @@ whenever the diff touches`convex/gre/**`or`convex/cards/sets/**` — "none
 - a byte-exact `bun run check:ui` receipt whenever the diff can reach the DOM,
   or one line saying it cannot.
 
-`land` rebases, re-gates under the machine mutex and merges — a hand-typed
+`land` rebases, re-gates and merges — a hand-typed
 `gh pr merge` is denied (`deny-guard.sh` § 1). It can gate and push and still
 fail at the MERGE step: the retry is `bun scripts/pr-merge.ts <PR#>`, never a
 second `land`, which re-pays the whole gate. Close the issue by hand if the

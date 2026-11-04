@@ -33,7 +33,7 @@ Edit the right-hand column to match whatever vocabulary you actually use.
 
 | Label         | Set by                             | Removed by                                                 |
 | ------------- | ---------------------------------- | ---------------------------------------------------------- |
-| `in-progress` | `queue:claim` — the claim itself   | every release path (`releaseEditArgs`, `claim-sweep.sh`)   |
+| `in-progress` | `gh issue edit`, the claim itself  | every release path (`releaseEditArgs`)                     |
 | `pr-open`     | `land:ready`, beside `in-progress` | the same release paths, at merge (`housekeeping`) or abort |
 
 `pr-open` is the board's view of the claim journal's `pr-open` row (issue

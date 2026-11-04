@@ -121,9 +121,8 @@ Refuses, named, before taking any lock:
   its PR naming the card.
 
 No preflight runs before the queue (retired by ADR 0154 §5, issue #5457:
-every run printed `preflight skipped`, and the lane under the mutex is the one
-gate). Then, under the machine-wide [heavy mutex](#g-heavy-mutex), as ONE
-shell command so the tree that lands is the tree that was gated:
+every run printed `preflight skipped`, and the lane is the one gate). Then,
+inside one [heavy-tier](#g-heavy-tier) invocation, as ONE shell command so the tree that lands is the tree that was gated:
 
 1. `unset GITHUB_TOKEN` — the bug-report PAT `.env.local` carries cannot merge.
 2. `git fetch origin <base> && git rebase origin/<base>` — on conflict: prints
@@ -155,7 +154,7 @@ the `in-progress` claim release and the umbrella detach are the hourly
 so a GitHub 502 costs the cron a retry, never the session.
 
 **No health gate per landing**, and none held by the landing's own lock. A
-landing costs the mutex 3–5 minutes; a landing whose lane is skipped costs only
+landing costs 3–5 minutes; a landing whose lane is skipped costs only
 the rebase and the merge. The full gate runs once per BATCH — see below.
 
 If only the MERGE failed (step 6), retry `bun scripts/pr-merge.ts <PR#>`. A
@@ -220,7 +219,7 @@ Merged PRs are listed by last update, newest first, until one older than the
 watermark — a merge updates a PR, so none is missed however long it was open.
 Every step is idempotent, so a second run with nothing new merged is a no-op.
 
-`gaps:sync` now pushes to the base branch outside `land`'s mutex, often from
+`gaps:sync` now pushes to the base branch outside `land`, often from
 the other machine. `land`'s merged-tip check (step 7 above) does not count
 that one commit — the `gaps:sync` subject on a diff of `data/grammar-gaps.json`
 alone — and still refuses any other foreign push.
@@ -273,14 +272,13 @@ production deploy.
 
 1. Fetches both branches. Same tip → "nothing to release", exit 0.
 2. `--dry-run` stops here, printing the tip and the commit count.
-3. Runs the [health gate](#g-health-gate) on the `origin/<base>` tip under the
-   [heavy mutex](#g-heavy-mutex): a throwaway worktree at that sha,
+3. Runs the [health gate](#g-health-gate) on the `origin/<base>` tip on the
+   [heavy tier](#g-heavy-tier): a throwaway worktree at that sha,
    `check:all` then `bun run test` (app, bot, blade), ~13 minutes with the
    4-worker cap. Deduplicated by sha: a tip already GREEN is not re-gated.
    The terminal is never silent (issue #3487): each step prints
-   `health-main: [2/3] check:all — start` and `… — exit 0 after 4m12s`, the
-   gate's `[gate] waiting … for the heavy mutex` lines arrive live (a queue,
-   not a hang), and a long step prints `… — still running, 5m00s elapsed`
+   `health-main: [2/3] check:all — start` and `… — exit 0 after 4m12s`,
+   and a long step prints `… — still running, 5m00s elapsed`
    every minute. The full child output still goes only to the per-sha log.
 4. Reads `.claude/telemetry/health/last.json` and releases **only** if the
    record is GREEN and about exactly the tip being promoted. A record about
@@ -366,8 +364,8 @@ and then at `test:bot` is two legitimate reds, not an oscillating fixer.
 prints the command to type by hand — the fixer grills on ambiguity, and a
 question asked into a pipe hangs the run. So `release` inside another Claude
 session, or under `nohup`, behaves exactly as it did before ADR 0118.
-`loop-drain.sh` is unchanged for the same reason: it still **stops** on RED
-rather than spawning a fixer nobody authorised overnight.
+The `release` job passes `--no-fix` for the same reason: it **fails** on RED
+rather than spawning a fixer nobody authorised, and [the RED ladder](github-pipeline.md#g-red-ladder) takes it.
 
 `bun run health:fix` on its own is the manual entry point — same skill, same
 verdict, no release. It is how a standing RED blocking the AFK loop
@@ -417,39 +415,33 @@ when that (tip, base) was already gated green (ADR 0136 §1–2).
 
 `scripts/health-main.ts`: the full gate (`check:all`, the derived Op census
 `check:gaps`, all three test suites, and last — at `release` only
-(`--release`) — the browser step `check:game-download`, run off the heavy
-mutex and never RED on the environment, issue #4962; a batch run owes none
+(`--release`) — the browser step `check:game-download`, never RED on the environment, issue #4962; a batch run owes none
 and records it `skipped` (issue #5378); no run walks `check:ui --all`, a
 command run by hand (ADR 0131, issue #6143) — `HEALTH_SCRIPTS` in
 `scripts/lib/health-step.ts`) on one
 branch tip, leaving a durable verdict under
 `.claude/telemetry/health/`. Runs at release, per batch of landings, or by hand
 — never per landing (ADR 0116; the per-landing version cost ~213 minutes of
-mutex a day and produced 1.4 contention false-REDs a day).
+the machine a day and produced 1.4 contention false-REDs a day).
 
 ### <a id="g-batch-health"></a>Batch health gate
 
 The scheduled run of the [health gate](#g-health-gate):
 `.github/workflows/health.yml`, `bun run health --scheduled --retry-infra`
 (ADR 0156 §4, issue #5655). It replaced a landing-count cadence, deduplicated
-by sha, that `land` detached under `gate.ts yield`.
+by sha, that `land` once detached.
 
 ### <a id="g-fix-loop"></a>Fix loop
 
 `release`'s bounded repair of a RED base tip (ADR 0118): up to three rounds of
 [health gate](#g-health-gate) → `bun run health:fix` → an interactive
 `/health-fix` session → a fail-closed verdict file. Never spawns without a
-TTY; `--no-fix` disables it; `loop-drain.sh` does not use it and still stops
-on RED.
+TTY; `--no-fix` disables it, as the `release` job does.
 
-### <a id="g-heavy-mutex"></a>Heavy mutex
+### <a id="g-heavy-tier"></a>Heavy tier
 
-`scripts/gate.ts`'s machine-wide lock (`~/.cache/tolaria/gate.lock`) around
-anything that runs the full suites or `land`'s locked command. `bun run
-gate:who` names the holder AND the queue behind it; a holder that stops burning
-CPU is reclaimed. The light tier (`check:lane` by itself, targeted vitest)
-takes no lock. The queue has an order — `land` > `job` > hand-run heavy >
-`health`, each waiter rising one class per 30 min queued — and only its head
-may take the mutex; the `yield` tier is the heavy tier queued in the `health`
-class, which is how the batch health gate once let landings
-through.
+What `scripts/gate.ts` wraps the full suites and `land`'s one command in: the
+`min(ncpu - 1, 4)` worker cap and the issue-worktree guard. The light tier
+(`check:lane` by itself, targeted vitest) keeps 2 workers. It holds no lock: the
+machine-wide mutex it once took was retired by PR #7519; one
+[`lane` runner](github-pipeline.md#g-lane) now serialises the gates.

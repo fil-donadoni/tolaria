@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — amends ADR 0104 §2 (partitions), ADR 0110 §5 (the pre-PR gate) and
+accepted (retired names and §7 mapped in the 2026-11-04 amendment) — amends ADR 0104 §2 (partitions), ADR 0110 §5 (the pre-PR gate) and
 ADR 0116 (health cadence); retires the `check:lane` preflight of issue #3286
 together with the pre-PR gate it protected. Grilled 2026-09-17; the numbers
 below are that session's, re-derivable with `bun run telemetry:latency` and
@@ -229,3 +229,14 @@ telemetry:latency` prints PR throughput by concurrency, the per-reviewer
   fills the queue the loop exists to drain.
 - **RED blocks `land`.** Rejected: it walls off the fix-forward and discards
   finished work; blocking the pick costs one session's idle and nothing else.
+
+## Amendment (2026-11-04, issue #5657) — the names above are retired; §7 is gone
+
+**Stands**: the lane is paid once, on the rebased tip; the full gate runs per
+batch. **Who pays changed** under ADR 0156: `queue-lane` in Mergify's draft, not
+`land`, which survives only for `/health-fix`'s RED repair (issue #7990). §2's
+"inside the mutex" and §6's mutex and class queue are gone (PR #7519): one `lane`
+runner serialises, `health.yml` gates per batch. **§7 is retired**: PR #7503 and
+PR #7519 deleted the session cap, `queue:claim` and the claims journal. A claim is
+a label, and `queue:plan`'s one refusal is a standing RED
+(`docs/agents/quality-gates.md` § Claims and admission).
