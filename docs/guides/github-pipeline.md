@@ -520,6 +520,21 @@ re-run once, narrowed to the failed projects and the failing test **files**.
 The hosted [`pr-check`](#pr-check) lane runs the same flags, so its summary
 records flakes too. Locally: `bun run check:lane --retry-flaky`.
 
+**A Contained RED's names are tolerated** (ADR 0163 §4,
+`scripts/lib/contained-tolerance.ts`). A failed plain `bunx vitest run` step
+passes if a Contained RED stands and every failure is a test name, file and
+name together, in the evidence published on that RED's commit. The lane JSON
+records them (`outcomes[].tolerated`), the receipt and the job summary print
+`tolerated: <name>`, and such a run is never stored as the tree's lane verdict.
+`land:ready`'s pre-queue check applies the same function.
+
+Nothing is tolerated on an unreadable lineage or evidence, a name missing from
+the evidence (the same file included), a file that cannot load, a run with an
+unhandled error or no summary, a summary counting more failures than the FAIL
+lines name, or a chain such as `check:pr`: it stops at its first red, so passing
+it would pass the steps it never reached. A no-flag local run captures no output
+and tolerates nothing.
+
 **A PR's newer draft cancels its older draft's run** (issue #6020). Mergify
 re-creates a PR's draft on a new branch and deletes the old one; the old run,
 running or pending, would keep a [`lane`](#g-lane) runner the live draft waits

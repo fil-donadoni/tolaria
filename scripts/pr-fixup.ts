@@ -12,7 +12,8 @@
 //       lane that refused: it prints the refusal (`--log`, the lane's stderr)
 //       and exits 1.
 //   flakes --lane <lane.json>
-//       The flakes the lane recorded, as job-summary markdown (empty if none).
+//       The flakes and the tolerated tests the lane recorded, as job-summary
+//       markdown (empty if none).
 //   run --pr <N> --fixes <k,k> [--requeue]
 //       The fixup job: in the job worktree, check out the PR head, REBASE it
 //       onto the base tip (the staleness the queue finds appears only there:
@@ -354,23 +355,37 @@ function argOf(argv: string[], flag: string): string | undefined {
     return i >= 0 ? argv[i + 1] : undefined;
 }
 
-/** The job-summary lines for the flakes a lane's JSON recorded (`--retry-flaky`):
- *  empty when it recorded none. Test file names and counts only. */
+/** The job-summary lines for what a green lane's JSON forgave: the flakes
+ *  (`--retry-flaky`) and the tests a Contained RED tolerated by name (ADR 0163
+ *  §4). Empty when it recorded neither. Test names and counts only. */
 export function flakeSummary(lane: {
     outcomes?: {
         id: string;
         flake?: { projects: string[]; files: string[]; cause: string };
+        tolerated?: string[];
     }[];
 }): string {
-    const rows = (lane.outcomes ?? []).filter((o) => o.flake);
-    if (rows.length === 0) return "";
+    const outcomes = lane.outcomes ?? [];
+    const rows = outcomes.filter((o) => o.flake);
+    const tolerated = outcomes.flatMap((o) => o.tolerated ?? []);
     return [
-        "### Flaky tests — failed once, green on the re-run",
-        ...rows.map(
-            (o) =>
-                `- \`${o.id}\` (${o.flake?.cause}): ${o.flake?.files.join(", ")}`
-        ),
-        "",
+        ...(rows.length > 0
+            ? [
+                  "### Flaky tests — failed once, green on the re-run",
+                  ...rows.map(
+                      (o) =>
+                          `- \`${o.id}\` (${o.flake?.cause}): ${o.flake?.files.join(", ")}`
+                  ),
+                  "",
+              ]
+            : []),
+        ...(tolerated.length > 0
+            ? [
+                  "### Tolerated tests — the standing Contained RED's, by name",
+                  ...tolerated.map((name) => `- tolerated: ${name}`),
+                  "",
+              ]
+            : []),
     ].join("\n");
 }
 

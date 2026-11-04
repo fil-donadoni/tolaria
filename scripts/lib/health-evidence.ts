@@ -141,6 +141,31 @@ export function evidenceTests(body: string): FailingTest[] {
     return out;
 }
 
+/** One failing test as the lane prints and matches it: the FILE and the name
+ *  together, so a same-named test in another file is another test. */
+function testName(file: string, name: string): string {
+    return `${file} > ${name}`;
+}
+
+/** The failing tests a vitest run's FAIL lines name (`file > suite > test`),
+ *  sorted, unique. A FAIL line for a whole file adds nothing: read
+ *  `unattributedFailure` first. */
+export function failingTestNames(output: string): string[] {
+    const names = new Set<string>();
+    for (const l of failLines(output))
+        if (l.name !== undefined) names.add(testName(l.file, l.name));
+    return [...names].sort();
+}
+
+/** The tests a published body names by NAME (ADR 0163 §4): `evidenceTests`
+ *  without its whole-file rows, which vouch for no test. Sorted, unique. */
+export function evidenceTestNames(body: string): string[] {
+    const names = new Set<string>();
+    for (const t of evidenceTests(body))
+        if (t.name !== undefined) names.add(testName(t.file, t.name));
+    return [...names].sort();
+}
+
 /** The failing test FILES — what a repair's lane must run. Sorted, unique. */
 export function failingFiles(output: string): string[] {
     return [...new Set(failLines(output).map((l) => l.file))].sort();
@@ -158,6 +183,40 @@ export function failingProjects(output: string): string[] {
  *  phrase, which a test NAME or a passing test's console output can carry. */
 export const CRASH_LINE =
     /^.*⎯{3,}\s*Unhandled Errors?\s*⎯{3,}.*$|^\s*Vitest caught \d+ unhandled errors?.*$|^\s*(?:Error: )?\[?vitest-pool\]?.*Worker exited unexpectedly.*$|^\s*Error: Worker exited unexpectedly.*$|^.*FATAL ERROR: .*JavaScript heap out of memory.*$|^\s*(?:Segmentation fault|Aborted \(core dumped\)|Killed)\b.*$/m;
+
+/** Vitest's own report of an unhandled error: the `⎯⎯⎯ Unhandled Errors ⎯⎯⎯`
+ *  section header or the `Vitest caught N unhandled errors` line. Anchored,
+ *  never a bare phrase: a test NAME printed with its console output
+ *  (`stdout | …console-ring.test.ts > … an unhandled rejection`) matched the
+ *  old case-insensitive search and refused the re-run on 97 of 98 RED
+ *  evidences in the 2026-10-28..11-03 census (issue #8073). */
+export const UNHANDLED_ERROR_LINE =
+    /^.*⎯{3,}\s*Unhandled (?:Errors?|Rejections?)\s*⎯{3,}.*$|^\s*Vitest caught \d+ unhandled (?:errors?|rejections?).*$/m;
+
+/**
+ * Why a failed vitest run's FAIL lines do not account for the whole failure,
+ * or null when they do (ADR 0163 §4): the run died, it reported an unhandled
+ * error, it never printed its summary, a FAIL line names no test (a file that
+ * could not load), or the summary counts a failure no FAIL line names. A
+ * reason here means no failure of the run may be forgiven by name.
+ */
+export function unattributedFailure(output: string): string | null {
+    const plain = stripAnsi(output);
+    const crash = CRASH_LINE.exec(plain) ?? UNHANDLED_ERROR_LINE.exec(plain);
+    if (crash) return `the run died: ${crash[0].trim().slice(0, 200)}`;
+    if (!/^\s*Test Files\s/m.test(plain)) return "the run printed no summary";
+    const lines = failLines(plain);
+    const blocks = [...plain.matchAll(ANY_FAIL_LINE)].length;
+    if (lines.length !== blocks || lines.some((l) => l.name === undefined))
+        return "a FAIL line names no test";
+    const failed = [...plain.matchAll(/^\s*Tests\s+(\d+) failed/gm)].reduce(
+        (n, m) => n + Number(m[1]),
+        0
+    );
+    if (failed === 0 || failed !== blocks)
+        return `the summary counts ${failed} failed test(s), the FAIL lines ${blocks}`;
+    return null;
+}
 
 /** Every failed test timed out: vitest's per-test blocks, read whole. */
 function timeoutOnly(plain: string): boolean {
