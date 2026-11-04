@@ -268,7 +268,10 @@ describe("debugLoadBladeScenario — loaded position matches the harness's built
     }
 
     it("normalizes active/priority player to the 'me' seat and life to the starting total", () => {
-        const scenario = BLADE_SCENARIOS[0];
+        // An entry declaring no life of its own: a `spec.life` is the position
+        // under test and overrides the starting total this block asserts.
+        const scenario = BLADE_SCENARIOS.find((s) => s.spec.life === undefined);
+        if (!scenario) throw new Error("every blade entry declares a life");
         const harnessState = buildBladeState(scenario);
         const loaderState = runMutationBody(
             arbitraryCurrentGameBaseState(),
