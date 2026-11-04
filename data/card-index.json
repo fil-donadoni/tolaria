@@ -62130,6 +62130,14 @@
         "source": "compiled"
     },
     {
+        "name": "Sage of the Skies",
+        "scryfallId": "6ade6918-6d1d-448d-ab56-93996051e9a9",
+        "oracleId": "cfc7cef7-0a95-49f8-970f-abff2cacd82d",
+        "firstSet": "tdm",
+        "firstPrintId": "6ade6918-6d1d-448d-ab56-93996051e9a9",
+        "firstPrintSet": "tdm"
+    },
+    {
         "name": "Sage Owl",
         "scryfallId": "3ee2d6a1-8b1e-47e5-9720-5683ac458250",
         "oracleId": "d47fc902-51f7-4ad1-8ee4-c973e32192b8",

@@ -7036,11 +7036,14 @@ export interface SpellContext {
     /** Copies the CURRENTLY-RESOLVING spell itself — "copy this spell"
      *  (CR 707.10, Chain Lightning). Clones the resolving stack item, inserts
      *  the copy directly above it (so the copy resolves next), and returns the
-     *  copy's new stack id — or `null` if the resolving item isn't an
-     *  instant/sorcery spell. The copy starts a fresh resolution from step 0
-     *  (its own may-pay / choice steps re-run), is controlled by this spell's
-     *  controller, and ceases to exist after resolving instead of going to a
-     *  graveyard (CR 707.10a). Pair with `requestCopyRetarget` to let the
+     *  copy's new stack id — or `null` if the resolving item is an ability that
+     *  is not its source spell's own cast trigger. From that trigger "this
+     *  spell" is the source (CR 113.6k), or its last known information once it
+     *  has left the stack (CR 113.7a, 608.2h). The copy starts a fresh
+     *  resolution from step 0 (its own may-pay / choice steps re-run), is
+     *  controlled by this spell's controller, and ceases to exist after
+     *  resolving instead of going to a graveyard (CR 707.10a), unless it is a
+     *  permanent spell, which becomes a token (CR 707.10f). Pair with `requestCopyRetarget` to let the
      *  copy's controller choose new targets for it. Distinct from
      *  `copyStackItem`, which copies a DIFFERENT spell still on the stack.
      *
@@ -13028,6 +13031,11 @@ export interface TriggerStateView {
     players: ReadonlyArray<{
         id: string;
         life: number;
+        /** Spells this player cast this turn (CR 601.2i). Engine-read, by a
+         *  cast trigger's "if you've cast another spell this turn" (CR 603.4);
+         *  no client hint reads a cast trigger, so `buildTriggerStateView`
+         *  leaves it absent. */
+        spellsCastThisTurn?: number;
         battlefield: ReadonlyArray<{
             id: string;
             controllerId: string;
@@ -21009,9 +21017,11 @@ export type EffectOp =
      *  hand-written chain cards call. The "may" is NOT in the Op: the grammar
      *  gates it with a cost-free `mayPay` + `if`. The copy is a fresh
      *  resolution of the same script, so the chain can recur (CR 707.10).
-     *  Skipped when `player` does not resolve (CR 608.2b). Used from
-     *  a spell's script: the primitive clones the resolving stack item, which
-     *  only an instant or sorcery spell may be (CR 707.10). What it
+     *  Skipped when `player` does not resolve (CR 608.2b). Used from a spell's
+     *  script, where the primitive clones the resolving spell, or from that
+     *  spell's own cast trigger (CR 113.6k), where it clones the trigger's
+     *  source, even one countered in response (CR 113.7a, 608.2h). A copy of a
+     *  permanent spell becomes a token as it resolves (CR 707.10f). What it
      *  deliberately does NOT do: copy a DIFFERENT spell on the stack
      *  (`copyStackItem`). */
     | {
