@@ -28,12 +28,14 @@ import { projectPublicState } from "@convex/gameProjections";
 import { raiseTriggerTargetSelection } from "@convex/gre/rules";
 import { emitAttackersDeclaredEvents } from "@convex/gre/phases";
 import { markAttacking } from "@convex/gre/combat";
+import { miracleRevealChoice } from "@convex/gre/miracle";
 import {
     makeInstance,
     makePlayer,
     makeState,
 } from "@convex/cards/__tests__/setup.helper";
-import { getCardByName } from "@convex/cards";
+import { getCardByName, registerTokenDefinition } from "@convex/cards";
+import { metamorphosisFanatic } from "@convex/cards/sets/dsc/black.cards";
 import {
     decideBotAction,
     botActionRealisation,
@@ -45,6 +47,10 @@ import { projectedToGameState } from "../state-adapter";
 
 const BOT = "u1-p2";
 const HUMAN = "u1-p1";
+
+// The bare miracle card, registered directly: this file must not wait for the
+// packed catalogue the base regenerates after a merge (ADR 0157).
+registerTokenDefinition(metamorphosisFanatic());
 
 /** A board owned by the bot, carrying `choice` as the head pending choice.
  *  A mid-resolution choice arises from a resolving stack item, so a host with
@@ -278,6 +284,33 @@ function stateWithBotCastWindow(
     } else {
         state.reboundCastWindow = { cardId: "win-1", ownerId: BOT };
     }
+    return state;
+}
+
+/** The bot has just drawn a miracle card as its first draw of the turn: the
+ *  window is the real `miracleRevealChoice` entry, with no stack coupling. */
+function stateWithBotMiracleReveal(): GameState {
+    const drawn = makeInstance(metamorphosisFanatic().id, {
+        id: "miracle-1",
+        controllerId: BOT,
+        ownerId: BOT,
+        zone: "hand",
+    });
+    const state = makeState({
+        players: [
+            makePlayer(HUMAN),
+            makePlayer(BOT, { hand: [drawn], drawnThisTurn: [drawn.id] }),
+        ],
+        activePlayerId: BOT,
+        priorityPlayerId: BOT,
+    });
+    state.pendingChoices = [
+        miracleRevealChoice(drawn, BOT, {
+            stackItemId: "",
+            step: 0,
+            choiceId: "miracle-reveal-1",
+        }),
+    ];
     return state;
 }
 
@@ -559,6 +592,11 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
     // had a generator, so the search saw an EMPTY move list at the window.
     "madness-cast": () => stateWithBotCastWindow("madness-cast"),
     "rebound-cast": () => stateWithBotCastWindow("rebound-cast"),
+    // CR 702.94a (issue #1267) — the miracle reveal window, stackless as the
+    // turn-based draw raises it, through the engine's own builder. The bot
+    // owes it while the entry is `privateToChooser`, so this also proves the
+    // private filter keeps the choice for the seat that must answer it.
+    "miracle-reveal": stateWithBotMiracleReveal,
     // CR 701.22 / 701.25 / 701.44a (issue #2996) — the ordered-top family, in
     // its Scry 2 shape: the two looked-at cards are the whole answer space, and
     // the answer PARTITIONS them between the library top and the bottom. It is

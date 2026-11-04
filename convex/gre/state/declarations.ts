@@ -3675,6 +3675,16 @@ export type PendingChoice = {
      *  correct in substance — a madness card was publicly discarded, a rebound
      *  card was public on the stack. */
     subjectCardId?: string;
+    /** A PRIVATE CHOICE: projected only to a viewer who may act for its
+     *  chooser (`viewerMayActForChooser`, `convex/gameProjections.ts`), and
+     *  dropped from every other viewer's `pendingChoices`. For a choice whose
+     *  mere EXISTENCE discloses hidden information — a Miracle reveal window
+     *  (CR 702.94a) is raised only when a miracle card was in fact drawn, so
+     *  an opponent who saw the prompt (even declined) would learn that. The
+     *  opponent sees the pause (priority is with the chooser) and nothing
+     *  else. Because the entry never reaches that viewer, its `prompt` and
+     *  `subjectCardId` may name the card. */
+    privateToChooser?: true;
     /** For `kind: "may-pay"` only — a spend restriction the mana leg may draw
      *  on in addition to the fungible pool (CR 106.6, ADR 0022 / 0042). Set to
      *  `"cumulative-upkeep"` by the cumulative-upkeep trigger so Adarkar Unicorn

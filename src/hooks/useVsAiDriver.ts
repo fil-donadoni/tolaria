@@ -473,6 +473,7 @@ export function useVsAiDriver(
         submitDrawReplacementPay: useMutation(
             api.game.submitDrawReplacementPay
         ),
+        submitMiracleReveal: useMutation(api.game.submitMiracleReveal),
         submitMadnessDecline: useMutation(api.game.submitMadnessDecline),
         submitReboundDecline: useMutation(api.game.submitReboundDecline),
         submitNameCard: useMutation(api.game.submitNameCard),

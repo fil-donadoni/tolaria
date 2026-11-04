@@ -1945,6 +1945,7 @@ export function applyMoveForSearch(
         case "may-pay":
         case "land-entry":
         case "draw-replacement":
+        case "miracle-reveal":
         case "name-card":
         case "number-choice":
         case "random-reveal-ack":

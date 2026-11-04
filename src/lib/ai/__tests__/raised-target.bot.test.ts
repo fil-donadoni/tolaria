@@ -153,6 +153,7 @@ function engineMutations(state: GameState, calls: string[]): MoveMutations {
         submitMadnessDecline: reject,
         submitReboundDecline: reject,
         submitDrawReplacementPay: reject,
+        submitMiracleReveal: reject,
         submitLandEntryChoice: reject,
         submitNameCard: reject,
         submitNumberChoice: reject,

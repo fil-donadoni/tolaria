@@ -41,6 +41,7 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
     const submitDrawReplacementPay = useMutation(
         api.game.submitDrawReplacementPay
     );
+    const submitMiracleReveal = useMutation(api.game.submitMiracleReveal);
     const [isBusy, setIsBusy] = useState(false);
 
     const choice = pendingChoices?.[0];
@@ -104,6 +105,14 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
             } finally {
                 setIsBusy(false);
             }
+        } else if (choice.kind === "miracle-reveal") {
+            // CR 702.94a — the affirmative answer is Reveal.
+            setIsBusy(true);
+            try {
+                await submitMiracleReveal({ gameId, playerId, reveal: true });
+            } finally {
+                setIsBusy(false);
+            }
         } else {
             // Zone picks route through the buffer, which owns its own
             // in-flight + error state (see usePendingChoiceBuffer).
@@ -115,6 +124,7 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
         submitMayPay,
         submitLandEntryChoice,
         submitDrawReplacementPay,
+        submitMiracleReveal,
         gameId,
         playerId,
         bufferCtx,
@@ -215,6 +225,9 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                           chooser.graveyard
                       )
                     : false));
+    } else if (choice.kind === "miracle-reveal") {
+        // CR 702.94a — revealing costs nothing: always answerable.
+        canConfirm = !isBusy;
     } else {
         // Zone picks (incl. Sylvan Library's 0–N topdeck range): Done enables
         // at the minimum allowed selection — 0 when min === 0 (CR 608.2).

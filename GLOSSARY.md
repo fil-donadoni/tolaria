@@ -402,6 +402,14 @@ _Avoid_: Impulse-exiled card (face **up** in exile — CR 406.3's default, since
 The alternative cost (CR 601.2b) a **Foretold Card** may be cast for instead of its **Mana Cost**. Distinct from the {2} paid to foretell, which is a cost of the **Special Action**, not of the spell. A foretold card may also be cast for its normal cost by any other means — it stays "foretold" either way (CR 702.143c).
 _Avoid_: Foretell tax, alternate cost (the CR term is _alternative_)
 
+**Miracle**:
+A **Keyword** ability (CR 702.94) functioning while the card is in its owner's hand: as its owner draws it, if it is the first card they have drawn that **Turn**, they may reveal it — a **Private Choice** raised at the draw itself, never a later trigger, so the decision is made without seeing any card drawn after it. Revealing it fires a linked (CR 603.11) **Triggered Ability** whose resolution offers a **Cast** for the **Miracle Cost**, from the hand, ignoring the card's own timing restrictions (CR 608.2g) — which is what lets a revealed sorcery be cast on an opponent's turn. Not a **Draw Replacement**: the draw happens normally and the card reaches the hand.
+_Avoid_: Draw trigger, draw replacement, flash
+
+**Miracle Cost**:
+The alternative cost (CR 601.2b) a card revealed for **Miracle** may be **Cast** for instead of its **Mana Cost**. Payable only during the resolution of that one linked **Triggered Ability**; the window does not survive it, and a card that was revealed but not cast is an ordinary card in hand.
+_Avoid_: Miracle trigger, alternate cost (the CR term is _alternative_)
+
 **Cast Provenance**:
 The **Zone** a **Spell** was **Cast** from, remembered on the spell itself so its own effect can read it at **Resolution** ("if this spell was cast from exile"). A single fact with one authority, not a family of per-mechanism flags. Distinct from having been **Foretold**: a foretold card cast for its normal cost is still foretold, and a card cast from exile under an unrelated permission was never foretold.
 _Avoid_: Cast source, origin zone
@@ -1590,6 +1598,10 @@ _Avoid_: Pending Choice (that one is mid-resolution), **Entry Park** (that one i
 **Pending Choice**:
 A mid-resolution decision point where a **Spell** or **Ability** requires a **Player** to make a selection (choose targets, divide damage, search library). **Priority** is frozen until the choice is submitted.
 _Avoid_: Prompt, dialog, selection, **Payment Park** (that one is announcement-time)
+
+**Private Choice**:
+A **Pending Choice** projected only to viewers who may act for its chooser, because the mere existence of the prompt would disclose hidden information — a **Miracle** reveal window exists only when a miracle card was in fact drawn. The opponent sees the pause and nothing else, which is exactly what they would see across a table.
+_Avoid_: Hidden choice, secret prompt (the choice is not secret to the player making it)
 
 **As-Enters Choice**:
 A decision a **Permanent** requires before it enters the **Battlefield** (CR 614.12a): which colour, which name, which body, which **Permanent** to copy, which host to enchant, whether to pay a cost. It belongs to the entry, not to the **Cast** — the same choice is made whether the **Permanent** is cast, reanimated, put onto the **Battlefield** by an effect, created as a **Token**, or played as a land.
