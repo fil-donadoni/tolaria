@@ -2002,7 +2002,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         classification: {
             kind: "conditional",
             discriminant: {
-                kind: "opponent-creature",
+                kind: "card",
                 detail: "the target dies to the attacker in the forced block",
             },
         },
@@ -2051,7 +2051,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         classification: {
             kind: "conditional",
             discriminant: {
-                kind: "opponent-creature",
+                kind: "card",
                 detail: "the target kills the attacker in the forced block and survives",
             },
         },
