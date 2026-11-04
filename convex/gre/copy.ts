@@ -11,7 +11,7 @@
 // printed definition id is preserved in `copiedFrom` so the copy can be
 // reverted when it leaves the battlefield.
 
-import { flankingInstances } from "../cards/abilities/flanking";
+import { liveKeywordTriggerInstances } from "../cards/abilities/liveKeywordTriggers";
 import { meldResultParentId } from "../cards/meld";
 import { FACE_DOWN_CARD_ID, getDefinition, tryGetDefinition } from "../cards";
 import type { CopyEffectOptions, TriggeredAbility } from "../cards/types";
@@ -458,11 +458,11 @@ export function effectiveTriggeredAbilities(
     // grants the engine's activated-ability reader kept — the two authorities
     // disagreed about the same rule.
     const strippedAt = abilityLossTimestamp(card);
-    // CR 702.25b — flanking comes from the composed multiset, printed or granted,
-    // which has already applied any loss of abilities (`cards/abilities/flanking.ts`).
+    // Flanking and dethrone come from the composed multiset, printed or granted,
+    // which has already applied any loss of abilities (`liveKeywordTriggers.ts`).
     const granted = [
         ...grantedTriggeredAbilities(card, strippedAt),
-        ...flankingInstances(card.staticAbilities),
+        ...liveKeywordTriggerInstances(card.staticAbilities),
     ];
     if (strippedAt !== null) return granted;
     const presented = tryGetDefinition(presentedDefId(card));

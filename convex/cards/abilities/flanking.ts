@@ -9,14 +9,8 @@
 //
 // Flanking reaches a permanent three ways: printed (Mtenda Herder), through a
 // static grant (Agility, Sidewinder Sliver) and through a one-shot grant
-// (Jabari's Banner). The `getDefinition` keyword expansion reads only the printed
-// list, so it would miss the last two. The trigger is derived from the LIVE
-// layer-6 multiset instead (`card.staticAbilities`, `gre/layer6.ts`): each
-// occurrence there is one instance, which is CR 702.25b, and a removal or a "loses
-// all abilities" (CR 613.1f) has already taken the occurrence out.
-//
-// Instances are identical objects with one id, so `triggerOrderKey` auto-orders
-// them: their order cannot change the outcome (ADR 0003).
+// (Jabari's Banner), so the trigger comes from the live keyword multiset
+// (`liveKeywordTriggers.ts`): each occurrence is one instance, which is CR 702.25b.
 
 import type { TriggeredAbility } from "../types";
 
@@ -57,14 +51,3 @@ export const FLANKING_TRIGGER: TriggeredAbility = {
         },
     ],
 };
-
-/** One {@link FLANKING_TRIGGER} per flanking occurrence in the layer-6 multiset
- *  (CR 702.25b). A client slim stack item may carry no list at all. */
-export function flankingInstances(
-    staticAbilities: ReadonlyArray<string> | undefined
-): TriggeredAbility[] {
-    if (!staticAbilities?.includes(FLANKING_KEYWORD)) return [];
-    return staticAbilities
-        .filter((keyword) => keyword === FLANKING_KEYWORD)
-        .map(() => FLANKING_TRIGGER);
-}

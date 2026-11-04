@@ -1869,6 +1869,96 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #3994. Discriminating pair for the flanking entry: only the attacker's keyword changed.",
     },
     {
+        // CR 702.105a — tied at 3, the counter turns a 2/1 into exactly lethal
+        // past a tapped Craw Wurm. Unseen, the swing leaves the opponent at 1 and
+        // loses the only chump to the crackback. Pair: one more life on the bot's
+        // side (next entry).
+        label: "dethrone: swings for the lethal only the counter provides, tied for most life",
+        spec: {
+            cards: [
+                {
+                    name: "Enraged Revolutionary",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+            life: { me: 3, opp: 3 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "declare-attackers", card: "Enraged Revolutionary" },
+            ],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "life",
+                detail: "the life totals are tied, so the attacker gets the counter and the swing is lethal",
+            },
+        },
+        note: "Issue #4008. The search sees the dethrone trigger through emitAttackersDeclaredEvents and resolves the counter, so the 2/1 hits for exactly lethal.",
+    },
+    {
+        // The pair of the entry above: at 4 to 3 no counter arrives, the swing is
+        // not lethal, and the crackback kills a bot that kept no blocker.
+        label: "dethrone pair: keeps the chump home when its controller has the most life",
+        spec: {
+            cards: [
+                {
+                    name: "Enraged Revolutionary",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+            life: { me: 4, opp: 3 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "declare-attackers", card: "Enraged Revolutionary" },
+            ],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "life",
+                detail: "the attacker's controller has the most life, so no counter and no lethal",
+            },
+        },
+        note: "Issue #4008. Discriminating pair for the dethrone entry: only one life point changed.",
+    },
+    {
         // CR 701.67a — floating mana covers the waterbend cost with bodies to
         // spare, so the live commit parks on `genericSubstitutionOffer`. The
         // move stays reachable and the owed-payment seam spends that mana.
