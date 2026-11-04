@@ -24,9 +24,11 @@
 //
 // The substitution shape is the odd one: it owes NOTHING of its own (with
 // neither `count` nor `totalPower` every predicate below reads "paid" at zero
-// picks, which is the "you MAY tap"), so it never parks the commit. Each pick
-// instead pays one generic pip of the mana leg, and whether the picker is still
-// open is `genericSubstitutionsLeft`, not those predicates.
+// picks, which is the "you MAY tap"), so these predicates never park the commit.
+// Each pick instead pays one generic pip of the mana leg, and whether the picker
+// is still open is `genericSubstitutionsLeft`, not those predicates. The one
+// thing that holds its commit is `PendingActivation.genericSubstitutionOffer`,
+// so that mana already in the pool is not spent before the payer can tap instead.
 //
 // Deliberately NOT Vehicle-shaped: the totalPower leg is a generic
 // "sum of a characteristic reaches a threshold" selection cost. Crew is

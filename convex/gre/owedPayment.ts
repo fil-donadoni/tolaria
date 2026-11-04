@@ -45,9 +45,12 @@
 // not a park — nobody is waiting on the payer — and treating it as one would
 // make the gate never clear.
 
+import { matchesPermanentFilter } from "../cards/filters";
 import { tryGetDefinition } from "../cards/index";
 import { getEffectivePower } from "./layers";
+import { effectivePermanentView } from "./permanentView";
 import { isSacrificeSelectionComplete } from "./sacrificeChoice";
+import { liveSupertypesOf } from "./snow";
 import type {
     CardInstanceState,
     GameState,
@@ -57,6 +60,7 @@ import type {
 } from "./state/declarations";
 import {
     crewPowerContribution,
+    genericSubstitutionsLeft,
     isTapOtherSelectionComplete,
     type TapOtherCandidate,
 } from "./tapOtherCost";
@@ -263,6 +267,10 @@ export const ACTIVATION_KEY_CENSUS: Record<keyof PendingActivation, ParkClass> =
         /** CR 118.3 — "discard a card matching <filter>" (Survival of the
          *  Fittest). Submitted via `selectActivationDiscardCost`. */
         discardFilterChoice: "park",
+        /** CR 701.67a — floating mana covers the cost and a tap may still stand
+         *  in for a generic pip. Answered by another `selectActivationCost`
+         *  pick or by `declineGenericSubstitution`. */
+        genericSubstitutionOffer: "park",
         /** CR 601.2g — the ambiguous generic-mana spend. Submitted via
          *  `resolveManaSpendChoice`. LAST in gate order. */
         manaSpendChoice: "park",
@@ -311,6 +319,7 @@ export type ParkKind =
     | "activation:exileFromGraveyardChoice"
     | "activation:tapOtherChoice"
     | "activation:discardFilterChoice"
+    | "activation:genericSubstitutionOffer"
     | "activation:manaSpendChoice";
 
 /** Every park kind, in CANONICAL GATE ORDER (cast parks first, then activation
@@ -328,6 +337,7 @@ export const PARK_KINDS: readonly ParkKind[] = [
     "activation:exileFromGraveyardChoice",
     "activation:tapOtherChoice",
     "activation:discardFilterChoice",
+    "activation:genericSubstitutionOffer",
     "activation:manaSpendChoice",
 ];
 
@@ -391,6 +401,31 @@ export function isTapOtherPaid(
     );
 }
 
+/** True when a tap may still pay a generic pip of this activation (CR 701.67a):
+ *  the cost has a pip left to substitute (CR 701.67b) and the payer controls an
+ *  untapped, not-yet-picked permanent the leg's filter accepts other than the
+ *  source. Read LIVE, so a payer who tapped their last candidate for mana is
+ *  asked nothing. */
+export function canSubstituteGeneric(
+    state: GameState,
+    player: PlayerState,
+    pa: PendingActivation
+): boolean {
+    const toc = pa.tapOtherChoice;
+    if (!toc || genericSubstitutionsLeft(toc, pa.manaCost) === 0) return false;
+    return player.battlefield.some(
+        (c) =>
+            c.id !== pa.cardInstanceId &&
+            !c.isTapped &&
+            !toc.pickedIds.includes(c.id) &&
+            matchesPermanentFilter(
+                effectivePermanentView(state, c),
+                toc.filter,
+                { selfControllerId: player.id, supertypesOf: liveSupertypesOf }
+            )
+    );
+}
+
 /** The first unsatisfied payment park owed by `playerId`, or `null` when the
  *  announcement is fully paid (or there is none).
  *
@@ -405,7 +440,9 @@ export function isTapOtherPaid(
  *     picker is only built after convoke resolves (`recordConvokeCreaturePick`)
  *     — reporting delve first offers a pick that does not exist yet.
  *   - ACTIVATION: `sacrificeSelection` → `exileFromGraveyardChoice`
- *     → `tapOtherChoice` → `discardFilterChoice` → `manaSpendChoice`.
+ *     → `tapOtherChoice` → `discardFilterChoice`
+ *     → `genericSubstitutionOffer` → `manaSpendChoice`. The offer follows every
+ *     pick because it decides how the mana leg is paid.
  *
  *  `manaSpendChoice` is last in both: it is only meaningful once mana coverage
  *  is reached, which the gates check before calling in (coverage is not a park
@@ -508,7 +545,9 @@ export function nextOwedPayment(
 
 /** The activation half of {@link nextOwedPayment}, in its exact original order
  *  (CR 602.1 / 118 — sacrifice → graveyard exile → tap-other/crew → filtered
- *  discard → CR 601.2g mana spend). Extracted (issue #3455) so a MANA ability's
+ *  discard
+ *  → waterbend tap offer, CR 701.67a
+ *  → CR 601.2g mana spend). Extracted (issue #3455) so a MANA ability's
  *  park can be reported BEFORE the cast branch without a second copy of the
  *  chain: one authority, two entry orders. */
 function activationOwedPayment(
@@ -556,6 +595,18 @@ function activationOwedPayment(
         // CR 602.1 / 118.3 — "discard a card matching <filter>".
         if (pa.discardFilterChoice && !pa.discardFilterChoice.pickedCardIds) {
             return at("activation:discardFilterChoice", "discardFilterChoice");
+        }
+        // CR 701.67a — the mana that covers this cost may be kept by tapping
+        // instead. Lapses by itself once no tap can pay a pip.
+        if (
+            pa.genericSubstitutionOffer &&
+            player &&
+            canSubstituteGeneric(state, player, pa)
+        ) {
+            return at(
+                "activation:genericSubstitutionOffer",
+                "genericSubstitutionOffer"
+            );
         }
         // CR 601.2g — last, and only when the gate is not re-deriving it.
         if (!opts?.gateOwnsManaSpend && pa.manaSpendChoice) {

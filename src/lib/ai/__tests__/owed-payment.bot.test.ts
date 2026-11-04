@@ -24,7 +24,13 @@ import {
     makePlayer,
     makeState,
 } from "@convex/cards/__tests__/setup.helper";
+import {
+    activateAbilityOnState,
+    declineGenericSubstitutionOnState,
+    selectActivationCostOnState,
+} from "@convex/game";
 import { projectPublicState } from "@convex/gameProjections";
+import { enumerateMoves } from "@convex/gre/moves";
 import { PARK_KINDS } from "@convex/gre/owedPayment";
 import type { OwedPaymentSubmission } from "@convex/gre/paymentPicks";
 import type {
@@ -85,6 +91,7 @@ function recorder() {
         selectActivationCost: wrap("selectActivationCost"),
         selectActivationExileCost: wrap("selectActivationExileCost"),
         selectActivationDiscardCost: wrap("selectActivationDiscardCost"),
+        declineGenericSubstitution: wrap("declineGenericSubstitution"),
         resolveManaSpendChoice: wrap("resolveManaSpendChoice"),
     } as unknown as OwedPaymentMutations;
     return { calls, mutations };
@@ -175,6 +182,7 @@ describe("payment-park answer census (ADR 0091, issue #1209)", () => {
                 cardInstanceIds: ["a"],
             },
             { mutation: "selectActivationDiscardCost", cardInstanceIds: ["a"] },
+            { mutation: "declineGenericSubstitution" },
             { mutation: "resolveManaSpendChoice", spendOrder: ["R"] },
         ];
         for (const submission of submissions) {
@@ -239,6 +247,75 @@ describe("the restricted-X split park (CR 601.2f)", () => {
         expect(calls).toEqual([
             { mutation: "selectRestrictedXSplit", args: { pointsOnX: 0 } },
         ]);
+    });
+});
+
+describe("the waterbend tap offer (CR 701.67a)", () => {
+    const WATERBEND = "aangs-iceberg-waterbend";
+    const offerBoard = (R: number) =>
+        baseState(
+            {
+                battlefield: [
+                    inst(getCardByName("Aang's Iceberg").id, "iceberg"),
+                    inst(BEAR, "b1"),
+                    inst(BEAR, "b2"),
+                    inst(BEAR, "b3"),
+                ],
+                manaPool: { W: 0, U: 0, B: 0, R, G: 0, C: 0 },
+            },
+            {}
+        );
+
+    it("floating mana covers the cost: the Bot spends it and the ability commits", async () => {
+        const state = offerBoard(3);
+        activateAbilityOnState(state, {
+            playerId: BOT,
+            cardInstanceId: "iceberg",
+            abilityId: WATERBEND,
+        });
+        expect(state.stack).toHaveLength(0);
+
+        const { action, calls } = await realise(state);
+        expect(action.park).toBe("activation:genericSubstitutionOffer");
+        expect(calls).toEqual([
+            { mutation: "declineGenericSubstitution", args: {} },
+        ]);
+
+        declineGenericSubstitutionOnState(state, { playerId: BOT });
+        expect(state.pendingActivation).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+    });
+
+    it("the enumerated move's picks reach the offer: its answer is what commits", async () => {
+        const state = offerBoard(1);
+        const move = enumerateMoves(state, BOT).find(
+            (m) => m.kind === "activate-ability" && m.abilityId === WATERBEND
+        );
+        if (move?.kind !== "activate-ability") throw new Error("no move");
+        expect(move.tapPlan).toEqual([]);
+        const picks = move.costPicks?.tapOtherIds ?? [];
+        expect(picks).toHaveLength(2);
+
+        activateAbilityOnState(state, {
+            playerId: BOT,
+            cardInstanceId: "iceberg",
+            abilityId: WATERBEND,
+        });
+        for (const cardInstanceId of picks) {
+            selectActivationCostOnState(state, {
+                playerId: BOT,
+                cardInstanceId,
+            });
+        }
+        expect(state.stack).toHaveLength(0);
+
+        const { calls } = await realise(state);
+        expect(calls.map((c) => c.mutation)).toEqual([
+            "declineGenericSubstitution",
+        ]);
+        declineGenericSubstitutionOnState(state, { playerId: BOT });
+        expect(state.stack).toHaveLength(1);
+        expect(state.players[1].manaPool.R).toBe(0);
     });
 });
 

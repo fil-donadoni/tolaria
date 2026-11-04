@@ -539,7 +539,9 @@ export function useBattlefieldInteraction(player: Player) {
             card.id !== pendingActivation?.cardInstanceId &&
             !toc.pickedIds.includes(card.id) &&
             matchesPermanentFilter(card, toc.filter, controlContinuity) &&
-            !clickTapsSubstituteForMana(card, manaGateView, allPlayers)
+            // An offer means no mana is owed, so there is no mana tap to prefer.
+            (!!pendingActivation?.genericSubstitutionOffer ||
+                !clickTapsSubstituteForMana(card, manaGateView, allPlayers))
         );
     };
 

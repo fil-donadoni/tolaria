@@ -601,6 +601,7 @@ import {
     graveyardCardMatchesExileCost,
     locateCastSource,
     minTargetCount,
+    offerGenericSubstitution,
     resolveActivationManaCost,
     resolveActivatedAbility,
     resolveTargetCount,
@@ -5161,6 +5162,7 @@ export function finalizeTargetSelection(
             };
             // If mana was already covered (choice-only deferral), commit fires
             // once selectActivationCost sets the pickedId / completes the picks.
+            offerGenericSubstitution(state, playerId);
             tryAutoCommitPendingActivation(state, playerId);
             return;
         }
@@ -9612,7 +9614,10 @@ export function selectActivationCostOnState(
     // mana leg is what lets coverage, the CR 601.2g park, the payment and
     // auto-tap all stay unaware of the substitution. It is not a mana ability
     // (CR 605.1a): no mana enters the pool.
-    if (substitutes) pa.manaCost = manaCostAfterSubstitution(pa.manaCost, 1);
+    if (substitutes) {
+        pa.manaCost = manaCostAfterSubstitution(pa.manaCost, 1);
+        offerGenericSubstitution(state, args.playerId);
+    }
     tryAutoCommitPendingActivation(state, args.playerId);
 }
 
@@ -9633,6 +9638,54 @@ export const selectActivationCost = mutation({
         selectActivationCostOnState(state, {
             playerId: args.playerId,
             cardInstanceId: args.cardInstanceId,
+        });
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** Pure core of `declineGenericSubstitution` — the payer's answer to a
+ *  `genericSubstitutionOffer` (CR 701.67a): no more taps, spend the mana. */
+export function declineGenericSubstitutionOnState(
+    state: GameState,
+    args: { playerId: string }
+): void {
+    assertGameNotOver(state);
+    assertExpectedInput(state, {
+        playerId: args.playerId,
+        expect: "priority",
+    });
+
+    const pa = state.pendingActivation;
+    if (!pa) throw new Error("No ability being activated");
+    if (pa.playerId !== args.playerId) {
+        throw new Error("Not your pending activation");
+    }
+    if (!pa.genericSubstitutionOffer) {
+        throw new Error("No tap substitution on offer");
+    }
+    delete pa.genericSubstitutionOffer;
+    tryAutoCommitPendingActivation(state, args.playerId);
+}
+
+export const declineGenericSubstitution = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        declineGenericSubstitutionOnState(state, {
+            playerId: args.playerId,
         });
         await saveGameState(
             ctx,

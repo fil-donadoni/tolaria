@@ -1793,6 +1793,51 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "An Iceberg holding nothing does nothing on the battlefield, and the three artifacts untap in the bot's own untap step before they could matter, so the scry is free. Pins that the move exists on a board with no mana, and that its tap plan is empty because the costPicks pay the whole {3}.",
     },
     {
+        // CR 701.67a — floating mana covers the waterbend cost with bodies to
+        // spare, so the live commit parks on `genericSubstitutionOffer`. The
+        // move stays reachable and the owed-payment seam spends that mana.
+        label: "waterbend: floating mana pays {3} and no artifact taps",
+        spec: {
+            cards: [
+                { name: "Aang's Iceberg", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "library" },
+                { name: "Island", owner: "me", zone: "library" },
+                { name: "Island", owner: "me", zone: "library" },
+                { name: "Island", owner: "opp", zone: "library" },
+            ],
+            phase: "END_STEP",
+            turn: 3,
+            landCount: 0,
+            activePlayer: "opp",
+            priority: "me",
+            manaPool: { me: { U: 3 } },
+        },
+        bot: "me",
+        seeds: [1, 2, 3, 4, 5],
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Aang's Iceberg",
+                    taps: [],
+                },
+            ],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an Iceberg holding nothing, with mana the end step would empty anyway",
+            },
+        },
+        note: "The pool empties at the end of the step, so the {3} is free. Pins that the activation stays a move while the pool can pay it all, with no costPicks tap in the plan the search priced.",
+    },
+    {
         // CHARTER SCENARIO — the MODAL CHOICE (issue #1490, PRD #1423, charter
         // gate #1434). The root decision under test is the MODE of a modal
         // spell (CR 700.2): the bot holds Blue Elemental Blast — "Choose one —

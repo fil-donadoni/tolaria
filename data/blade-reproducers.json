@@ -3789,6 +3789,60 @@
         "landCount": 4,
         "libraryCount": 20
     },
+    "waterbend: floating mana pays {3} and no artifact taps": {
+        "cards": [
+            {
+                "name": "Aang's Iceberg",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Ornithopter",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Ornithopter",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Ornithopter",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "library"
+            }
+        ],
+        "phase": "END_STEP",
+        "turn": 3,
+        "landCount": 0,
+        "activePlayer": "opp",
+        "priority": "me",
+        "manaPool": {
+            "me": {
+                "U": 3
+            }
+        }
+    },
     "waterbend: taps three artifacts at the opponent's end step to pay {3}": {
         "cards": [
             {

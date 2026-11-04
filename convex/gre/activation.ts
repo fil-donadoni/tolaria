@@ -71,7 +71,11 @@ import {
     captureNinjutsuAttackTarget,
     ninjutsuReturnCandidateIds,
 } from "./ninjutsu";
-import { nextOwedPayment, tapOtherContribution } from "./owedPayment";
+import {
+    canSubstituteGeneric,
+    nextOwedPayment,
+    tapOtherContribution,
+} from "./owedPayment";
 import { resolveDivideTotal } from "./pendingTargetOrigin";
 import { effectivePermanentView } from "./permanentView";
 import { drainAutoPasses, isSorceryTimingFor } from "./phases";
@@ -935,6 +939,36 @@ export function findPendingActivationSource(
         if (found) return found;
     }
     return undefined;
+}
+
+/** CR 701.67a — "you may tap ... rather than pay that mana". Commit fires on
+ *  coverage, so mana already in the pool would always be spent before the payer
+ *  could choose to tap instead. Called where a decision other than a mana
+ *  ability makes the cost covered (the announcement, a tap pick); it holds that
+ *  commit behind `genericSubstitutionOffer`. A mana ability never calls it: the
+ *  payer who taps a source for mana has answered, and a board with no candidate
+ *  is asked nothing. */
+export function offerGenericSubstitution(
+    state: GameState,
+    playerId: string
+): void {
+    const pa = state.pendingActivation;
+    if (!pa || pa.playerId !== playerId) return;
+    const player = getPlayer(state, playerId);
+    if (!canSubstituteGeneric(state, player, pa)) return;
+    const covered = isManaCostCovered(
+        spendablePoolForAbility(
+            player,
+            activationSourceTypes(state, pa.cardInstanceId)
+        ),
+        pa.manaCost,
+        getAbilityManaSubstitutions(
+            state,
+            player.id,
+            findPendingActivationSource(state, player, pa)
+        )
+    );
+    if (covered) pa.genericSubstitutionOffer = true;
 }
 
 /** If the activator's pool now covers pendingActivation, pay mana, apply the
@@ -2856,6 +2890,7 @@ export function activateAbilityOnState(
         // sacrifice choice, this branch isn't reached (mana covered path).
         // tryAutoCommitPendingActivation handles the eventual commit (after
         // the sacrifice pick) including when mana is already covered.
+        offerGenericSubstitution(state, args.playerId);
         tryAutoCommitPendingActivation(state, args.playerId);
 
         return;

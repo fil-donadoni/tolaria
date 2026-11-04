@@ -50,6 +50,7 @@ export type OwedPaymentMutations = {
     selectActivationDiscardCost: (
         a: Seat & { cardInstanceIds: string[] }
     ) => Promise<unknown>;
+    declineGenericSubstitution: (a: Seat) => Promise<unknown>;
     resolveManaSpendChoice: (
         a: Seat & { spendOrder: string[] }
     ) => Promise<unknown>;
@@ -125,6 +126,9 @@ export async function submitOwedPayment(
                 ...seat,
                 cardInstanceIds: submission.cardInstanceIds,
             });
+            return;
+        case "declineGenericSubstitution":
+            await mutations.declineGenericSubstitution(seat);
             return;
         case "resolveManaSpendChoice":
             await mutations.resolveManaSpendChoice({

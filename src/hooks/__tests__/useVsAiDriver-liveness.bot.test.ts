@@ -75,6 +75,7 @@ vi.mock("@convex/_generated/api", () => {
         "selectActivationCost",
         "selectActivationExileCost",
         "selectActivationDiscardCost",
+        "declineGenericSubstitution",
         "declareAttackers",
         "confirmAttackers",
         "declareBlockers",
