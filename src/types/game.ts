@@ -757,6 +757,7 @@ export interface StackItem extends CardInstance {
 
 export type {
     GenericSpendAmbiguity,
+    RestrictedXSplitChoice,
     MulliganState,
     PendingActivation,
     PendingCast,

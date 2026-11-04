@@ -500,6 +500,7 @@ export function useVsAiDriver(
     // Kept OUT of `MoveMutations` for the same reason: it hangs off
     // `pendingCast`, not `pendingChoices[]`, so it is driven directly.
     const selectConvokeCreatures = useMutation(api.game.selectConvokeCreatures);
+    const selectRestrictedXSplit = useMutation(api.game.selectRestrictedXSplit);
     // ADR 0091 / issue #1209 — the remaining CAST-side payment pickers. Like the
     // three above they hang off `pendingCast`, are not Move-realised, and are
     // driven directly — through the generic `pay-owed-payment` branch rather
@@ -524,6 +525,7 @@ export function useVsAiDriver(
         selectSacrifice: mutations.selectSacrifice,
         selectAdditionalCost: mutations.selectAdditionalCost,
         selectConvokeCreatures,
+        selectRestrictedXSplit,
         selectCastExileCost,
         selectCastAlternativeHandCost,
         selectActivationCost: mutations.selectActivationCost,

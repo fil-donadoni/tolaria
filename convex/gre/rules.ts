@@ -35,6 +35,9 @@ import {
     manaValue,
     normalizedHybridPips,
     pendingSourceIsSpell,
+    restrictedXCostKey,
+    restrictedXPipCount,
+    takeGenericPoints,
     resolvePendingTargetKind,
 } from "./constants";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
@@ -120,6 +123,7 @@ import {
     spellHasDelve,
 } from "./payWith";
 import type { CombatRole, ManaCost } from "../cards/types";
+import type { RestrictedXSplitChoice } from "./state/declarations";
 import {
     applyCostModifiers,
     getCostModifiers,
@@ -2822,14 +2826,31 @@ function coloredCostLeftover(
     // vanished and the mutation threw. Reading the passed cost also retires the
     // same mismatch for a flashback / escape / madness override cost on a
     // hybrid-printed card, where the override replaces the printed pips.
-    const hybridPips = normalizedHybridPips(cost as Record<string, number>);
+    // CR 702.66a / 107.4b — a delve card pays a restricted X point as readily as
+    // a fixed generic one (exiling spends no mana), and X is the half mana finds
+    // harder, so the probe spends the fuel there first. Delve's pseudo-source has
+    // an empty colour set, so the greedy below cannot place it on the pip itself.
+    const delved =
+        (opts.payWith ?? true) && spellHasDelve(card)
+            ? Math.min(
+                  delveEligibleCards(player, card.id).length,
+                  restrictedXPipCount(cost)
+              )
+            : 0;
+    let priced = cost;
+    if (delved > 0) {
+        priced = { ...cost };
+        takeGenericPoints(priced, delved);
+    }
+    const hybridPips = normalizedHybridPips(priced as Record<string, number>);
     const sources = buildManaSourceUnits(player, card, opts);
     // Greedy: assign single-colour then guild-hybrid pips, each to the
     // least-flexible source able to pay it, and return the leftover sources the
     // generic portion ({cost.X}) draws from — or null when a coloured/hybrid pip
     // can't be covered. The one shared primitive (`gre/payWith.ts`) the convoke
     // coverage computation reuses (primitive-reuse rule).
-    return coverColoredAndHybridPips(sources, cost, hybridPips);
+    const leftover = coverColoredAndHybridPips(sources, priced, hybridPips);
+    return leftover === null ? null : leftover - delved;
 }
 
 /** CR 107.3a / 601.2h (issue #4506) — the castability CEILING for a "spend
@@ -3231,9 +3252,10 @@ function canPotentiallyPayCost(
  *  target-legality gate ({@link hasEnoughLegalTargets}) so a spell like Dominate
  *  ({X}{1}{U}{U}, "target creature with mana value X or less") is judged
  *  castable whenever ANY reachable X exposes a legal target — not only X = 0.
- *  Cost modifiers are not folded here, and since issue #2981
- *  `canPotentiallyPayCost` folds them on every branch, so the two deliberately
- *  differ. A REDUCTION makes this under-estimate the ceiling, which is safe: a
+ *  For an unrestricted X, cost modifiers are not folded here, and since issue
+ *  #2981 `canPotentiallyPayCost` folds them on every branch, so the two
+ *  deliberately differ (a restricted X prices every candidate, below). A
+ *  REDUCTION makes this under-estimate the ceiling, which is safe: a
  *  narrower X range never offers a cast the probe would refuse. An INCREASE
  *  makes it over-estimate, so a high X can widen the target-legality gate past
  *  what the caster could announce — harmless today, because the probe still
@@ -3266,22 +3288,29 @@ export function maxAffordableX(
     if (!rawCost || typeof rawCost.X !== "string") return 0;
     const cost = normalizeManaCost(rawCost);
     const leftover = coloredCostLeftover(player, card, cost, { state });
-    if (leftover === null) return 0;
-    const unrestricted = Math.max(0, leftover - (cost.X ?? 0));
-    if (!rawCost.xSpendColors?.length) return unrestricted;
-    // CR 107.3a / 601.2h (issue #3811) — "Spend only [colour(s)] mana on X":
-    // the announced X is owed as coloured pips (`normalizeManaCost`), so only
-    // mana of the permitted colours counts toward it. The unrestricted ceiling
-    // bounds the search; each candidate is priced through the SAME coloured
-    // coverage the payment uses, so the ceiling never offers an X the payment
-    // then refuses. Coverage is monotone in X, so the first miss ends it.
+    if (!rawCost.xSpendColors?.length) {
+        return leftover === null ? 0 : Math.max(0, leftover - (cost.X ?? 0));
+    }
+    // CR 107.4b / 601.2f / 601.2h — "Spend only [colour(s)] mana on X": a
+    // reduction or delve can pay X, and only mana of the permitted colours pays
+    // the rest. Each candidate is priced through the SAME modifiers and coverage
+    // the payment uses, so the ceiling agrees with it in both directions. Cost is
+    // monotone in X, so the first miss ends the search; the bound counts every
+    // source plus the whole reduction, which no X above can beat.
+    const modifiers = state
+        ? getCostModifiers(state, card, "spell", undefined, player.id)
+        : undefined;
     const xFactor =
         typeof rawCost.xFactor === "number" && rawCost.xFactor > 0
             ? rawCost.xFactor
             : 1;
+    const bound =
+        buildManaSourceUnits(player, card, { state }).length +
+        (modifiers?.reductionGeneric ?? 0);
     let best = 0;
-    for (let x = 1; x * xFactor <= unrestricted; x++) {
+    for (let x = 1; x * xFactor <= bound; x++) {
         const priced = normalizeManaCost(rawCost, { chosenX: x });
+        if (modifiers) applyCostModifiers(priced, modifiers);
         const left = coloredCostLeftover(player, card, priced, { state });
         if (left === null || left < (priced.X ?? 0)) break;
         best = x;
@@ -3344,12 +3373,78 @@ export function genericManaShortfall(
     cost: Record<string, number>,
     state?: GameState
 ): number {
-    const leftover = coloredCostLeftover(player, card, cost, {
-        payWith: false,
-        state,
-    });
-    if (leftover === null) return Infinity;
-    return Math.max(0, (cost.X ?? 0) - leftover);
+    // CR 702.66a / 107.4b — a restricted X point mana cannot pay is a forced
+    // exile too. Each point handed to delve frees one source for the rest, so
+    // the first count that lets mana cover the pips is the minimum.
+    const restricted = restrictedXPipCount(cost);
+    for (let delved = 0; delved <= restricted; delved++) {
+        const priced = { ...cost };
+        takeGenericPoints(priced, delved);
+        const leftover = coloredCostLeftover(player, card, priced, {
+            payWith: false,
+            state,
+        });
+        if (leftover === null) continue;
+        return delved + Math.max(0, (priced.X ?? 0) - leftover);
+    }
+    return Infinity;
+}
+
+/** CR 601.2f — the split prompt for a restricted X (`ManaCost.xSpendColors`).
+ *  Reductions and delve land on X first (`takeGenericPoints`), which leaves the
+ *  cost payable in the most ways, so the caster only has a real decision when
+ *  the spell reads the mana spent on X (`noteManaSpent`) and at least two splits
+ *  are affordable; otherwise `undefined` and X-first stands. An option `k` moves
+ *  `k` covered points back onto X, taking them off the fixed generic instead.
+ *  Asked after delve has been answered, so only mana pays what is left. */
+export function buildRestrictedXSplitChoice(
+    player: PlayerState,
+    card: CardInstanceState,
+    cost: Record<string, number>,
+    chosenX: number | undefined,
+    state: GameState
+): RestrictedXSplitChoice | undefined {
+    const rawCost = getInstanceManaCost(card);
+    const colors = rawCost?.xSpendColors;
+    if (!rawCost || !colors?.length || typeof rawCost.X !== "string") {
+        return undefined;
+    }
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    if (!def?.noteManaSpent) return undefined;
+    const xFactor =
+        typeof rawCost.xFactor === "number" && rawCost.xFactor > 0
+            ? rawCost.xFactor
+            : 1;
+    const key = restrictedXCostKey(colors);
+    const covered = (chosenX ?? 0) * xFactor - (cost[key] ?? 0);
+    const movable = Math.min(covered, cost.X ?? 0);
+    const options: number[] = [];
+    for (let points = 0; points <= movable; points++) {
+        const priced = withPointsOnRestrictedX(cost, key, points);
+        const leftover = coloredCostLeftover(player, card, priced, {
+            payWith: false,
+            state,
+        });
+        if (leftover !== null && leftover >= (priced.X ?? 0)) {
+            options.push(points);
+        }
+    }
+    return options.length >= 2 ? { options } : undefined;
+}
+
+/** `cost` with `points` moved from the fixed generic onto the restricted X
+ *  key — the priced outcome of one {@link buildRestrictedXSplitChoice} option. */
+export function withPointsOnRestrictedX(
+    cost: Record<string, number>,
+    key: string,
+    points: number
+): Record<string, number> {
+    const priced = { ...cost };
+    if (points <= 0) return priced;
+    priced[key] = (priced[key] ?? 0) + points;
+    priced.X = (priced.X ?? 0) - points;
+    if (priced.X <= 0) delete priced.X;
+    return priced;
 }
 
 /** CR 117.1b: some spells have phase-limited casting windows (e.g. Berserk

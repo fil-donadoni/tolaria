@@ -3,9 +3,9 @@
 //
 // X is announced before payment (CR 107.3a), so by the time the cost is paid
 // (CR 601.2h) the restriction is a fixed per-pip constraint on the announced n
-// mana. `normalizeManaCost` therefore owes the X as coloured pips (one colour)
-// or guild-hybrid pips (two colours) instead of generic, and every payment
-// consumer — pool coverage, auto-tap, the castability ceiling — inherits it.
+// mana. `normalizeManaCost` therefore owes the X under its own key (`X/B`,
+// `X/B/R`) instead of plain generic, and every payment consumer — pool coverage,
+// auto-tap, the castability ceiling — reads it as one mana of a permitted colour.
 //
 //  1. **Unit** — the normalized shape, the X ceiling (`maxAffordableX`, shared
 //     by the target-legality gate and the Bot's X enumeration), card colour.
@@ -73,21 +73,22 @@ function withSpell(
     });
 }
 
-describe("normalizeManaCost owes a restricted X as coloured pips (CR 107.3a / 601.2h)", () => {
-    it("one permitted colour → n pips of that colour, the fixed generic untouched", () => {
+describe("normalizeManaCost keeps a restricted X under its own key (CR 107.3a / 601.2h)", () => {
+    it("one permitted colour → n points under X/colour, the rest untouched", () => {
         expect(
             normalizeManaCost(drainLife().manaCost!, { chosenX: 3 })
         ).toEqual({
-            B: 4,
+            B: 1,
+            "X/B": 3,
             X: 1,
         });
     });
 
-    it("two permitted colours → n guild-hybrid pips under the composite key", () => {
+    it("two permitted colours → n points under the composite key", () => {
         expect(normalizeManaCost(soulBurn().manaCost!, { chosenX: 2 })).toEqual(
             {
                 B: 1,
-                "B/R": 2,
+                "X/B/R": 2,
                 X: 2,
             }
         );
@@ -196,7 +197,11 @@ describe("Drain Life full path — X paid with the wrong colour is refused serve
     it("{B}{R}{R}{R} cannot pay {X=2}{1}{B}: the cast parks owing {B}{B}{B}", async () => {
         const state = await cast({ B: 1, R: 3 });
         expect(state.stack).toHaveLength(0);
-        expect(state.pendingCast?.manaCost).toMatchObject({ B: 3, X: 1 });
+        expect(state.pendingCast?.manaCost).toMatchObject({
+            B: 1,
+            "X/B": 2,
+            X: 1,
+        });
     });
 
     it("{B}{B}{B}{R} pays it: the spell resolves for X = 2", async () => {

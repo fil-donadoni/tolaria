@@ -358,6 +358,7 @@ export type OwedPaymentSubmission =
     | { mutation: "selectAdditionalCost"; cardInstanceId: string }
     /** CR 702.51 — convoke. */
     | { mutation: "selectConvokeCreatures"; creatureInstanceIds: string[] }
+    | { mutation: "selectRestrictedXSplit"; pointsOnX: number }
     /** CR 702.34a / 702.66 — the cast-side graveyard/hand exile cost. */
     | { mutation: "selectCastExileCost"; cardInstanceIds: string[] }
     /** CR 118.9 — the alternative-cost / kicker hand leg. */
@@ -628,6 +629,17 @@ export function pickForOwedPayment(
             return {
                 mutation: "selectCastAlternativeHandCost",
                 cardInstanceIds: ids,
+            };
+        }
+        case "cast:restrictedXSplitChoice": {
+            // CR 601.2f — the deterministic pick is the option moving the fewest
+            // points, X-first when that is affordable: it is what an unprompted
+            // cast pays.
+            const options = pc?.restrictedXSplitChoice?.options;
+            if (!options?.length) return null;
+            return {
+                mutation: "selectRestrictedXSplit",
+                pointsOnX: Math.min(...options),
             };
         }
         // ── ACTIVATION ──────────────────────────────────────────────────────

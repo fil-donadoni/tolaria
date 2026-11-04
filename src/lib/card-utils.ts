@@ -3882,7 +3882,13 @@ export function manaCostToString(cost?: ManaCost): string {
         ...(cost.hybrid ?? []),
         ...normalizedHybridPips(cost as Record<string, number>),
     ]) {
-        parts.push(`{${hybridCostKey(pip[0], pip[1])}}`);
+        // CR 601.2h — a one-colour restricted X point pairs its colour with
+        // itself, and shows as that colour's symbol.
+        parts.push(
+            pip[0] === pip[1]
+                ? `{${pip[0]}}`
+                : `{${hybridCostKey(pip[0], pip[1])}}`
+        );
     }
     // CR 107.4e — monocolour hybrid pips render as `{2/W}`; the oracle-text
     // tokenizer maps them to the `2_W.svg` asset (slash → underscore).

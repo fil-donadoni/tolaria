@@ -35,7 +35,12 @@ import type {
 } from "./state/declarations";
 import type { Color } from "../cards/types";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
-import { MANA_COLORS, COLORED_MANA_COLORS } from "./manaColors";
+import {
+    MANA_COLORS,
+    COLORED_MANA_COLORS,
+    restrictedXPipCount,
+    takeGenericPoints,
+} from "./manaColors";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { isCreature } from "./constants";
 
@@ -62,11 +67,12 @@ export function delveEligibleCards(
     return player.graveyard.filter((c) => c.id !== castInstanceId);
 }
 
-/** The GENERIC portion of a normalized cost (`normalizeManaCost` folds every
- *  generic pip into the numeric `X` key). Delve/convoke/improvise offset only
+/** The GENERIC portion of a normalized cost: the numeric `X` key plus any
+ *  restricted X (CR 107.4b — a spending restriction binds mana, and a resource
+ *  paid "rather than pay that mana" spends none). Delve/convoke offset only
  *  this — never a coloured pip (CR 702.66a). */
 export function genericPortion(cost: Record<string, number>): number {
-    return cost.X ?? 0;
+    return (cost.X ?? 0) + restrictedXPipCount(cost);
 }
 
 /** Apply `n` paid-with resources to a pending cast's remaining cost: each one
@@ -78,7 +84,8 @@ export function applyGenericOffset(
     cost: Record<string, number>,
     n: number
 ): void {
-    cost.X = Math.max(0, genericPortion(cost) - n);
+    takeGenericPoints(cost, n);
+    cost.X = cost.X ?? 0;
 }
 
 /** CR 601.2g / 702.66 — build the delve picker for a cast that is about to be

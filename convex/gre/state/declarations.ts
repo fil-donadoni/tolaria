@@ -2447,6 +2447,11 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  type and amount of mana spent"). Per-colour counts. Undefined for the
      *  overwhelming majority of activations that don't note their mana. */
     notedManaSpent?: Record<string, number>;
+    /** How many points of a restricted X (`ManaCost.xSpendColors`) were left for
+     *  mana to pay at commit, for a `noteManaSpent` spell: points covered by a
+     *  reduction or delve are not mana spent (CR 601.2h). Undefined on any other
+     *  spell. */
+    restrictedXManaOwed?: number;
     /** CR 106.6 / 701.13 (issue #1559, Delighted Halfling) — set at cast-cost
      *  commit when ANY mana leg spent on this spell carried the
      *  `RestrictedMana.cantBeCounteredRider` (`payManaCostForSpell`'s return
@@ -2829,6 +2834,14 @@ export type DelayedTriggerInstance = {
     warpCardInstanceId?: string;
 };
 
+/** CR 601.2f — the caster's open decision on a restricted X: each option is how
+ *  many covered points to move back onto X, taking them off the fixed generic.
+ *  `picked` closes the park. */
+export type RestrictedXSplitChoice = {
+    options: number[];
+    picked?: number;
+};
+
 /** Tracks an in-progress spell cast during the payment phase (CR 601.2). */
 export type PendingCast = {
     playerId: string;
@@ -3101,6 +3114,11 @@ export type PendingCast = {
      *  untaps the artifact. Mirrors `tappedLandIds`'s rollback-tracking shape,
      *  kept as a separate list since these taps never add to the mana pool. */
     improviseTappedArtifactIds?: string[];
+    /** CR 601.2f — how a reduction or delve splits between the restricted X and
+     *  the fixed generic ({@link RestrictedXSplitChoice}). Submitted via
+     *  `selectRestrictedXSplit`. Raised only when the caster has a real decision
+     *  (`buildRestrictedXSplitChoice`). */
+    restrictedXSplitChoice?: RestrictedXSplitChoice;
     /** CR 702.51 / 601.2g (`payWith`, ADR 0063 — issue #1338) — Convoke: the
      *  in-progress creature-tap picker for a cast being paid by tapping
      *  creatures. Convoke is a COLOURED `payWith`: each tapped creature pays for

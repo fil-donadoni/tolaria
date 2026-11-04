@@ -1852,6 +1852,22 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
         },
     },
     {
+        slug: "restricted-x-split",
+        module: "board/restricted-x-split-dialog.tsx",
+        label: "Restricted X split chooser",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Apply the cost reduction",
+            locator: { role: "dialog", name: "Apply the cost reduction" },
+            check: "visible",
+        },
+        entry: {
+            label: "chooser contrast",
+            locator: { role: "dialog", name: "Apply the cost reduction" },
+            check: "contrast",
+        },
+    },
+    {
         slug: "manual-game-over",
         module: "board/manual-game-over-dialog.tsx",
         label: "Manual Game Over",

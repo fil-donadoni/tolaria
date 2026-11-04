@@ -26,6 +26,7 @@ import type { AlternativeCost, CardDefinition } from "../cards/types";
 import type { GameState, PlayerState } from "./state/declarations";
 import { matchingPermanentsForAltCost } from "./alternativeCost";
 import { permanentManaValue } from "./permanentView";
+import { takeGenericPoints } from "./manaColors";
 import type { SacrificeSelection } from "./sacrificeChoice";
 import { isSacrificeSelectionComplete } from "./sacrificeChoice";
 
@@ -86,9 +87,8 @@ export function reduceGenericCost(
     amount: number
 ): void {
     if (amount <= 0) return;
-    const reduced = Math.max(0, (cost.X ?? 0) - amount);
-    if (reduced > 0) cost.X = reduced;
-    else delete cost.X;
+    takeGenericPoints(cost, amount);
+    if (!cost.X) delete cost.X;
 }
 
 /** CR 702.119a / 202.3 — the emerge reduction a given victim buys: its mana

@@ -153,7 +153,11 @@ import {
 } from "./sacrificeChoice";
 import { captureNinjutsuAttackTarget } from "./ninjutsu";
 import { payExertActivationCost } from "./exert";
-import { applyTapPlanInSearch, searchCastManaSpent } from "./searchTapPlan";
+import {
+    applyTapPlanInSearch,
+    searchCastManaSpent,
+    searchRestrictedXManaOwedStamp,
+} from "./searchTapPlan";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
 import {
@@ -1430,6 +1434,15 @@ export function commitCastInSearch(
                   : undefined
           )
         : undefined;
+    const restrictedXManaOwedStamp = preCastSpell
+        ? searchRestrictedXManaOwedStamp(
+              state,
+              playerId,
+              preCastSpell,
+              castDef,
+              move.chosenX
+          )
+        : {};
     applyTapPlanInSearch(state, playerId, move.tapPlan);
     // CR 609.4b / 118.14 (issue #2890) — a one-shot "for one spell this turn,
     // you may spend mana as though it were mana of any type" grant (North Star)
@@ -1658,6 +1671,7 @@ export function commitCastInSearch(
         ),
         ...(move.buybackPaid ? { buybackPaid: move.buybackPaid } : {}),
         ...(notedManaSpent ? { notedManaSpent } : {}),
+        ...restrictedXManaOwedStamp,
         // CR 118.8 / 608.2h — the additional-cost victim snapshot the cost
         // payment above collected, stamped exactly as `tryCommitCast` stamps
         // it, so a spell reading the victim back at resolve

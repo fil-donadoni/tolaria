@@ -5730,6 +5730,17 @@ describe("shouldShowOracleText — preview Oracle-text gate", () => {
 // `generic` key (fixed generic mana that coexists with a variable {X}) was
 // dropped, so any card using it lost its generic pip. This is a bug CLASS:
 // every card encoding fixed generic via `generic` — not just Dominate.
+describe("manaCostToString renders a restricted X left to pay (CR 601.2h)", () => {
+    it("one colour shows that colour's symbol, two show the hybrid symbol", () => {
+        expect(manaCostToString({ X: 1, B: 1, "X/B": 2 } as never)).toBe(
+            "{1}{B}{B}{B}"
+        );
+        expect(manaCostToString({ B: 1, "X/B/R": 1 } as never)).toBe(
+            "{B}{B/R}"
+        );
+    });
+});
+
 describe("manaCostToString renders fixed generic mana (bug class)", () => {
     it("renders Dominate's {X}{1}{U}{U} — the generic:1 is not dropped", () => {
         expect(manaCostToString(dominate().manaCost)).toBe("{X}{1}{U}{U}");

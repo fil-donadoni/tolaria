@@ -51,6 +51,10 @@ import {
     COLORED_MANA_COLORS,
     LAND_SUBTYPE_MANA,
     hybridCostKey,
+    restrictedXCostKey,
+    parseRestrictedXCostKey,
+    restrictedXPipCount,
+    takeGenericPoints,
     parseHybridCostKey,
     normalizedHybridPips,
     assignHybridPips,
@@ -170,6 +174,10 @@ export { MANA_COLORS, COLORED_MANA_COLORS };
  *  here so call sites keep importing mana helpers from one module. */
 export {
     hybridCostKey,
+    restrictedXCostKey,
+    parseRestrictedXCostKey,
+    restrictedXPipCount,
+    takeGenericPoints,
     parseHybridCostKey,
     normalizedHybridPips,
     assignHybridPips,

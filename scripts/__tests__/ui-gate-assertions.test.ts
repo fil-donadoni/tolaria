@@ -389,6 +389,10 @@ describe("check:ui surface table — Named Assertions", () => {
                 "visible role=dialog name=Choose mana to spend",
                 "contrast role=dialog name=Choose mana to spend",
             ],
+            "dlg-restricted-x-split": [
+                "visible role=dialog name=Apply the cost reduction",
+                "contrast role=dialog name=Apply the cost reduction",
+            ],
             "dlg-manual-game-over": [
                 "visible role=dialog name=Game Over",
                 "reachable role=button name=Back to Lobby",

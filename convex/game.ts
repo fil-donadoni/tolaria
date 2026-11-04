@@ -136,6 +136,12 @@ import {
     spellHasConvoke,
     spellHasDelve,
 } from "./gre/payWith";
+import {
+    buildRestrictedXSplitChoice,
+    withPointsOnRestrictedX,
+} from "./gre/rules";
+import { restrictedXCostKey } from "./gre/manaColors";
+import { getInstanceManaCost } from "./cards";
 import { declineMadness, consumeMadnessCastChoice } from "./gre/madness";
 import { declineRebound, consumeReboundCastChoice } from "./gre/rebound";
 import { assertDeckLegal, toFormatId, type ResolvePool } from "./formats";
@@ -5786,10 +5792,25 @@ export function finalizeTargetSelection(
             manaCost
         );
     }
+    // CR 601.2f — the restricted-X split, unless a delve still to answer may
+    // change what it divides (then `recordCastExileCostPick` builds it).
+    const xSplitChoice =
+        !chosenAltCost &&
+        !castConvokeChoice &&
+        (!castExileChoice || castExileChoice.pickedCardIds)
+            ? buildRestrictedXSplitChoice(
+                  player,
+                  cardInHand,
+                  manaCost,
+                  chosenX,
+                  state
+              )
+            : undefined;
     const parkForSacrifice =
         !!exilePicker ||
         !!castExileChoice ||
         !!castConvokeChoice ||
+        !!xSplitChoice ||
         (castSac !== undefined && !isSacrificeSelectionComplete(castSac)) ||
         (altHandChoice !== undefined && !altHandChoice.pickedCardIds);
     if (parkForSacrifice) {
@@ -5817,6 +5838,7 @@ export function finalizeTargetSelection(
             ...(castExileChoice
                 ? { exileFromGraveyardChoice: castExileChoice }
                 : {}),
+            ...(xSplitChoice ? { restrictedXSplitChoice: xSplitChoice } : {}),
             ...(altHandChoice
                 ? { alternativeCostHandChoice: altHandChoice }
                 : {}),
@@ -8019,11 +8041,24 @@ export const announceCast = mutation({
                 manaCost
             );
         }
+        // CR 601.2f — as in `finalizeTargetSelection`.
+        const xSplitChoice =
+            !castConvokeChoice &&
+            (!castExileChoice || castExileChoice.pickedCardIds)
+                ? buildRestrictedXSplitChoice(
+                      player,
+                      cardInHand,
+                      manaCost,
+                      chosenX,
+                      state
+                  )
+                : undefined;
 
         const parkForSacrifice =
             !!exilePicker ||
             !!castExileChoice ||
             !!castConvokeChoice ||
+            !!xSplitChoice ||
             // CR 702.33a — a Kicker HAND leg always parks: the discard/exile is
             // applied by the deferred commit's existing hand-cost path, so the
             // immediate branch below never has to duplicate it. A forced pick is
@@ -8060,6 +8095,9 @@ export const announceCast = mutation({
                     : {}),
                 ...(castExileChoice
                     ? { exileFromGraveyardChoice: castExileChoice }
+                    : {}),
+                ...(xSplitChoice
+                    ? { restrictedXSplitChoice: xSplitChoice }
                     : {}),
                 ...(kickerHandChoice
                     ? { alternativeCostHandChoice: kickerHandChoice }
@@ -9823,8 +9861,88 @@ export function recordCastExileCostPick(
     // untouched (`rollbackPendingCast` drops the whole pendingCast).
     if (ec.offsetGeneric) {
         applyGenericOffset(pc.manaCost, cardInstanceIds.length);
+        // CR 601.2f — delve has answered, so what it covered can now be split.
+        const castCard = locateCastSource(
+            state,
+            player,
+            pc.cardInstanceId
+        ).card;
+        const xSplitChoice = castCard
+            ? buildRestrictedXSplitChoice(
+                  player,
+                  castCard,
+                  pc.manaCost,
+                  pc.chosenX,
+                  state
+              )
+            : undefined;
+        if (xSplitChoice) pc.restrictedXSplitChoice = xSplitChoice;
     }
 }
+
+/** CR 601.2f — records the caster's restricted-X split: `pointsOnX` covered
+ *  points move back onto X, off the fixed generic. Only an offered option is
+ *  accepted, so the server re-validates what the client was shown. */
+export function recordRestrictedXSplit(
+    state: GameState,
+    playerId: string,
+    pointsOnX: number
+): void {
+    const pc = state.pendingCast;
+    if (!pc) throw new Error("No spell being cast");
+    if (pc.playerId !== playerId) throw new Error("Not your pending cast");
+    const choice = pc.restrictedXSplitChoice;
+    if (!choice) throw new Error("This cast has no X split to choose");
+    if (choice.picked !== undefined) throw new Error("X split already chosen");
+    if (!choice.options.includes(pointsOnX)) {
+        throw new Error("That X split is not available");
+    }
+    const player = getPlayer(state, playerId);
+    const castCard = locateCastSource(state, player, pc.cardInstanceId).card;
+    const colors = castCard
+        ? getInstanceManaCost(castCard)?.xSpendColors
+        : undefined;
+    if (!colors?.length) throw new Error("This spell has no restricted X");
+    pc.manaCost = withPointsOnRestrictedX(
+        pc.manaCost,
+        restrictedXCostKey(colors),
+        pointsOnX
+    );
+    choice.picked = pointsOnX;
+}
+
+export const selectRestrictedXSplit = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        pointsOnX: v.number(),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY: seat-addressed mutation — the caller must own the handle
+        // they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+
+        recordRestrictedXSplit(state, args.playerId, args.pointsOnX);
+        tryAutoCommitPendingCast(state, args.playerId);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
 
 /** Records the player's pick for a FLASHBACK "exile X blue cards from your
  *  graveyard" cast cost (CR 702.34a / 118.5 — Flash of Insight). Mirrors

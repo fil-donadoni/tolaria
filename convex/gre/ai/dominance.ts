@@ -142,7 +142,11 @@ import { isCreature, isLand, PERMANENT_TYPES } from "../constants";
 // paid that way is never proved dominated. That prunes strictly LESS than the
 // exert-only copy this replaced, never more — the fail-safe direction, since a
 // move left unpruned is still scored by the search.
-import { applyTapPlanInSearch, searchCastManaSpent } from "../searchTapPlan";
+import {
+    applyTapPlanInSearch,
+    searchCastManaSpent,
+    searchRestrictedXManaOwedStamp,
+} from "../searchTapPlan";
 import { tryGetDefinition } from "../../cards";
 import { spellHasDelve } from "../payWith";
 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared cast-timing snapshot
@@ -1022,6 +1026,13 @@ export function applyProbeCast(
                   : undefined
           )
         : undefined;
+    const restrictedXManaOwedStamp = searchRestrictedXManaOwedStamp(
+        probe,
+        pid,
+        handCard,
+        castDef,
+        move.chosenX
+    );
     applyTapPlanInSearch(probe, pid, move.tapPlan);
     const spellCard = removeFromZone(
         probe,
@@ -1037,6 +1048,7 @@ export function applyProbeCast(
         ...(move.targets.length > 0 ? { targets: move.targets } : {}),
         ...(move.chosenX !== undefined ? { chosenX: move.chosenX } : {}),
         ...(notedManaSpent ? { notedManaSpent } : {}),
+        ...restrictedXManaOwedStamp,
         ...announcedModeFields(move),
         // CR 601.2a — Cast Provenance: the probe only casts from hand, and
         // stamps it as every real cast commit does.
