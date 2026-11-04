@@ -2805,13 +2805,17 @@ export const soulBurn = defineCard(() => ({
         ctx.dealDamage(target, x);
         // CR 119 — gain life equal to the damage dealt, but not more than the
         // {B} spent on X. `notedManaSpent.B` includes the one fixed {B} pip; the
-        // remainder is the black spent on the X portion (clamped to [0, X]). The
+        // remainder is the black spent on the X portion, clamped to the points of
+        // X that mana paid (CR 601.2h — a reduction spends no mana). The
         // damage-dealt amount is X here (the toughness / life-total sub-caps are
         // the same secondary clause Drain Life also leaves unmodelled).
         const blackSpent = ctx.getNotedManaSpent().B ?? 0;
         const blackOnX = Math.max(
             0,
-            Math.min(x, blackSpent - SOUL_BURN_FIXED_BLACK_PIPS)
+            Math.min(
+                ctx.getRestrictedXManaOwed() ?? x,
+                blackSpent - SOUL_BURN_FIXED_BLACK_PIPS
+            )
         );
         if (blackOnX > 0) ctx.gainLife(ctx.caster, blackOnX);
     },

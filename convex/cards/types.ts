@@ -175,14 +175,13 @@ export type ManaCost = {
     hybridGeneric?: Array<{ generic: number; color: Color }>;
     /** CR 107.3a / 601.2h (issue #3811, #1330) — "Spend only [colour(s)] mana
      *  on X.": the colours permitted to pay the VARIABLE `{X}`. X is announced
-     *  before payment (CR 107.3a), so by CR 601.2h the restriction is a fixed
-     *  per-pip constraint on the announced n mana: `normalizeManaCost` owes
-     *  them as n pips of the one colour (Drain Life, `["B"]`) or as n
-     *  guild-hybrid pips of the pair (Soul Burn, `["B","R"]`), never as
-     *  generic — so every payment consumer that already owes coloured and
-     *  composite hybrid keys enforces it with no bespoke branch, and a CR
-     *  609.4b substitution ("spend as though it were mana of any colour")
-     *  still reaches those pips exactly as it reaches printed ones.
+     *  before payment (CR 107.3a) and stays generic mana in the total cost, so
+     *  a reduction or delve may remove it; by CR 601.2h the restriction binds
+     *  the mana that pays what is left. `normalizeManaCost` owes it under its
+     *  own key (`X/B`, Drain Life; `X/B/R`, Soul Burn), which every payment
+     *  consumer reads as a pip of a permitted colour with no bespoke branch, and
+     *  a CR 609.4b substitution ("spend as though it were mana of any colour")
+     *  still reaches those points exactly as it reaches printed pips.
      *
      *  RULES TEXT, not a mana symbol: `getColorsFromCost` ignores it (CR 105.2
      *  — Soul Burn stays mono-black), and `manaValue` is unaffected (variable
@@ -5583,6 +5582,11 @@ export interface SpellContext {
      *  noted-mana batteries (Jeweled Amulet, Ice Cauldron) on resolution to
      *  decide which colour to note. */
     getNotedManaSpent: () => Record<string, number>;
+    /** The points of a restricted X that mana had to pay on this spell, or
+     *  `undefined` when the stack item carries no such record. X points covered
+     *  by a reduction or delve are not mana spent (CR 601.2h), so a "mana spent
+     *  on X" cap (Soul Burn) reads this rather than `getX`. */
+    getRestrictedXManaOwed: () => number | undefined;
     /** Noted-mana battery write (CR 106.10 — Jeweled Amulet, Ice Cauldron).
      *  Stores the noted colour + amount on the source permanent `cardInstanceId`
      *  so the later "add the noted mana" ability can replay it. Overwrites the

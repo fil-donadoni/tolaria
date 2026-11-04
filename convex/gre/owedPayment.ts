@@ -165,6 +165,9 @@ export const CAST_KEY_CENSUS: Record<keyof PendingCast, ParkClass> = {
      *  Kicker hand legs that ride the same picker (ADR 0079). Submitted via
      *  `selectCastAlternativeHandCost`. */
     alternativeCostHandChoice: "park",
+    /** CR 601.2f — how a reduction or delve splits between a restricted X and
+     *  the fixed generic. Submitted via `selectRestrictedXSplit`. */
+    restrictedXSplitChoice: "park",
     /** CR 601.2g — the ambiguous generic-mana spend. Submitted via
      *  `resolveManaSpendChoice`. LAST in gate order. */
     manaSpendChoice: "park",
@@ -302,6 +305,7 @@ export type ParkKind =
     | "cast:convokeCreatureChoice"
     | "cast:exileFromGraveyardChoice"
     | "cast:alternativeCostHandChoice"
+    | "cast:restrictedXSplitChoice"
     | "cast:manaSpendChoice"
     | "activation:sacrificeSelection"
     | "activation:exileFromGraveyardChoice"
@@ -318,6 +322,7 @@ export const PARK_KINDS: readonly ParkKind[] = [
     "cast:convokeCreatureChoice",
     "cast:exileFromGraveyardChoice",
     "cast:alternativeCostHandChoice",
+    "cast:restrictedXSplitChoice",
     "cast:manaSpendChoice",
     "activation:sacrificeSelection",
     "activation:exileFromGraveyardChoice",
@@ -394,7 +399,8 @@ export function isTapOtherPaid(
  *
  *   - CAST: `sacrificeSelection` → `additionalCost` → `convokeCreatureChoice`
  *     → `exileFromGraveyardChoice` → `alternativeCostHandChoice`
- *     → `manaSpendChoice`. Convoke MUST precede the exile park: the convoke
+ *     → `restrictedXSplitChoice` → `manaSpendChoice`. The split follows delve:
+ *     it divides the points delve just covered. Convoke MUST precede the exile park: the convoke
  *     pick pays the coloured/hybrid pips and reduces the generic, so the DELVE
  *     picker is only built after convoke resolves (`recordConvokeCreaturePick`)
  *     — reporting delve first offers a pick that does not exist yet.
@@ -477,6 +483,13 @@ export function nextOwedPayment(
                 "cast:alternativeCostHandChoice",
                 "alternativeCostHandChoice"
             );
+        }
+        // CR 601.2f — the restricted-X split, once delve has answered.
+        if (
+            pc.restrictedXSplitChoice &&
+            pc.restrictedXSplitChoice.picked === undefined
+        ) {
+            return at("cast:restrictedXSplitChoice", "restrictedXSplitChoice");
         }
         // CR 601.2g — last, and only when the gate is not re-deriving it.
         if (!opts?.gateOwnsManaSpend && pc.manaSpendChoice) {

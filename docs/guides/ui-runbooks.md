@@ -326,25 +326,26 @@ each from fixture props instead
 Each opener carries `data-board-dialog-specimen="<slug>"`, and the lane's row
 for it is `dlg-<slug>`:
 
-| Slug                  | Layer                                | Module                                  |
-| --------------------- | ------------------------------------ | --------------------------------------- |
-| `activatable-ability` | `[data-action-sheet]`                | `activatable-ability-menu.tsx`          |
-| `attack-all`          | `role=dialog` Attack with all        | `attack-all-confirm-dialog.tsx`         |
-| `cast-alt-hand-cost`  | `role=dialog` Alternative cost       | `cast-alternative-hand-cost-dialog.tsx` |
-| `cast-exile-cost`     | `role=dialog` Flashback cost         | `cast-exile-cost-dialog.tsx`            |
-| `controller-phases`   | `role=dialog` Turn phases            | `controller-phase-list.tsx`             |
-| `convoke`             | `role=dialog` Convoke                | `convoke-creature-dialog.tsx`           |
-| `discard-cost`        | `role=dialog` Discard a card         | `discard-cost-dialog.tsx`               |
-| `exile-cost`          | `role=dialog` Exile from a graveyard | `exile-cost-dialog.tsx`                 |
-| `game-over`           | `role=dialog` Game Over              | `game-over-dialog.tsx`                  |
-| `graveyard-target`    | `role=dialog` Lightning Bolt         | `graveyard-target-dialog.tsx`           |
-| `hand-card-actions`   | `[data-action-sheet]`                | `hand-card-action-menu.tsx`             |
-| `mana-choice`         | `[data-slot="dialog-content"]`       | `mana-choice-picker.tsx`                |
-| `mana-spend`          | `role=dialog` Choose mana to spend   | `mana-spend-choice-dialog.tsx`          |
-| `manual-game-over`    | `role=dialog` Game Over              | `manual-game-over-dialog.tsx`           |
-| `manual-verb`         | `role=dialog` Draw how many?         | `manual-verb-popover.tsx`               |
-| `pause-menu`          | `role=dialog` Game Menu              | `pause-menu-dialog.tsx`                 |
-| `sideboarding`        | `role=dialog` Sideboarding           | `sideboarding-dialog.tsx`               |
+| Slug                  | Layer                                  | Module                                  |
+| --------------------- | -------------------------------------- | --------------------------------------- |
+| `activatable-ability` | `[data-action-sheet]`                  | `activatable-ability-menu.tsx`          |
+| `attack-all`          | `role=dialog` Attack with all          | `attack-all-confirm-dialog.tsx`         |
+| `cast-alt-hand-cost`  | `role=dialog` Alternative cost         | `cast-alternative-hand-cost-dialog.tsx` |
+| `cast-exile-cost`     | `role=dialog` Flashback cost           | `cast-exile-cost-dialog.tsx`            |
+| `controller-phases`   | `role=dialog` Turn phases              | `controller-phase-list.tsx`             |
+| `convoke`             | `role=dialog` Convoke                  | `convoke-creature-dialog.tsx`           |
+| `discard-cost`        | `role=dialog` Discard a card           | `discard-cost-dialog.tsx`               |
+| `exile-cost`          | `role=dialog` Exile from a graveyard   | `exile-cost-dialog.tsx`                 |
+| `game-over`           | `role=dialog` Game Over                | `game-over-dialog.tsx`                  |
+| `graveyard-target`    | `role=dialog` Lightning Bolt           | `graveyard-target-dialog.tsx`           |
+| `hand-card-actions`   | `[data-action-sheet]`                  | `hand-card-action-menu.tsx`             |
+| `mana-choice`         | `[data-slot="dialog-content"]`         | `mana-choice-picker.tsx`                |
+| `mana-spend`          | `role=dialog` Choose mana to spend     | `mana-spend-choice-dialog.tsx`          |
+| `restricted-x-split`  | `role=dialog` Apply the cost reduction | `restricted-x-split-dialog.tsx`         |
+| `manual-game-over`    | `role=dialog` Game Over                | `manual-game-over-dialog.tsx`           |
+| `manual-verb`         | `role=dialog` Draw how many?           | `manual-verb-popover.tsx`               |
+| `pause-menu`          | `role=dialog` Game Menu                | `pause-menu-dialog.tsx`                 |
+| `sideboarding`        | `role=dialog` Sideboarding             | `sideboarding-dialog.tsx`               |
 
 **One at a time.** Every one of these portals to `document.body` at
 `position: fixed`: pressing a second opener while one is up would stack two

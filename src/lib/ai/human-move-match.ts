@@ -58,6 +58,7 @@ const PAYMENT_CALLS: ReadonlySet<string> = new Set([
     "untapForAttackTax",
     "resolveManaSpendChoice",
     "selectConvokeCreatures",
+    "selectRestrictedXSplit",
     "confirmTargets",
 ]);
 

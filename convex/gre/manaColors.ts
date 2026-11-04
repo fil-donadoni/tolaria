@@ -139,15 +139,78 @@ export function parseHybridCostKey(key: string): [Color, Color] | null {
     return [a as Color, b as Color];
 }
 
+const RESTRICTED_X_KEY_PREFIX = "X/";
+
+/** CR 107.4b / 601.2h — the normalized-cost key of an announced `{X}` restricted
+ *  by `ManaCost.xSpendColors`: `"X/B"`, or `"X/B/R"` for two colours. The points
+ *  under it are GENERIC mana in the total cost (a generic reduction or delve may
+ *  remove them) that mana of another colour cannot pay. Throws on three or more
+ *  colours: folding that to plain generic would pay X with a forbidden colour. */
+export function restrictedXCostKey(colors: readonly Color[]): string {
+    if (colors.length === 1) return `${RESTRICTED_X_KEY_PREFIX}${colors[0]}`;
+    if (colors.length === 2) {
+        return `${RESTRICTED_X_KEY_PREFIX}${hybridCostKey(colors[0], colors[1])}`;
+    }
+    throw new Error(
+        `xSpendColors supports one or two colours, got ${colors.join(",")}`
+    );
+}
+
+/** The colours permitted by a {@link restrictedXCostKey} key as a pip pair (one
+ *  colour pairs with itself), or `null` for any other key. */
+export function parseRestrictedXCostKey(key: string): [Color, Color] | null {
+    if (!key.startsWith(RESTRICTED_X_KEY_PREFIX)) return null;
+    const rest = key.slice(RESTRICTED_X_KEY_PREFIX.length);
+    const colors = MANA_COLORS as readonly string[];
+    if (colors.includes(rest)) return [rest as Color, rest as Color];
+    return parseHybridCostKey(rest);
+}
+
+/** How many restricted-X points a normalized cost still owes. */
+export function restrictedXPipCount(cost: Record<string, number>): number {
+    let total = 0;
+    for (const key of Object.keys(cost)) {
+        if (parseRestrictedXCostKey(key)) total += cost[key] ?? 0;
+    }
+    return total;
+}
+
+/** CR 107.4b / 601.2f — remove up to `points` GENERIC points from a normalized
+ *  cost, restricted X first: X is the harder half to pay, so what remains can be
+ *  paid in the most ways. Leaves the numeric `X` slot in place (possibly 0) for
+ *  the caller to tidy. Returns how many points were removed. */
+export function takeGenericPoints(
+    cost: Record<string, number>,
+    points: number
+): number {
+    let left = Math.max(0, points);
+    for (const key of Object.keys(cost).sort()) {
+        if (left <= 0) break;
+        if (!parseRestrictedXCostKey(key)) continue;
+        const take = Math.min(left, cost[key] ?? 0);
+        left -= take;
+        if ((cost[key] ?? 0) - take > 0) cost[key] -= take;
+        else delete cost[key];
+    }
+    const fixed = Math.min(left, cost.X ?? 0);
+    if (fixed > 0) {
+        cost.X -= fixed;
+        left -= fixed;
+    }
+    return Math.max(0, points) - left;
+}
+
 /** Every hybrid pip owed by a normalized cost, EXPANDED one entry per pip (a
  *  `"R/W": 2` key yields two `["R","W"]` pairs) and emitted in deterministic
- *  key order — the payment layer assigns a colour per pip, not per key. */
+ *  key order — the payment layer assigns a colour per pip, not per key. A
+ *  restricted X point is the same payment shape (one mana of a permitted
+ *  colour, CR 601.2h), so every payer honours it through this one reader. */
 export function normalizedHybridPips(
     cost: Record<string, number>
 ): [Color, Color][] {
     const pips: [Color, Color][] = [];
     for (const key of Object.keys(cost).sort()) {
-        const pair = parseHybridCostKey(key);
+        const pair = parseHybridCostKey(key) ?? parseRestrictedXCostKey(key);
         if (!pair) continue;
         const count = cost[key] ?? 0;
         for (let i = 0; i < count; i++) pips.push([pair[0], pair[1]]);
