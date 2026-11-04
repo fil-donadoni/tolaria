@@ -31,6 +31,12 @@ import {
     type GapFiling,
 } from "./gap-issues";
 import { gapOf } from "./grammar-gaps";
+import {
+    botGapTargetFiles,
+    migrationTargetFiles,
+    quarantineTargetFiles,
+    renderTargetFilesSection,
+} from "./gap-target-files";
 import { renderGrammarGapTargetFiles } from "./grammar-gap-target-files";
 import { isMustCovered } from "./target-completed";
 import type { BotFindingVerdict } from "./bot-findings-merge";
@@ -446,6 +452,7 @@ export function buildQuarantineFilings(
                     `Cards held (${held.length}): ${held.slice(0, 60).join(", ")}${held.length > 60 ? `, … (+${held.length - 60})` : ""}`,
                     "",
                     "The class disappears when no card carries the reason any more — this issue closes through the PR that does it, or at the next landing's `gaps:sync` once no card carries it.",
+                    ...renderTargetFilesSection(quarantineTargetFiles(key)),
                 ].join("\n"),
         };
     });
@@ -729,6 +736,9 @@ export function buildMigrationFilings(
                     "3. rewrite each per-card test onto the registry seam — the behaviour is still owed a test, the DEFINITION is not. The third column lists every test file that names the card, which is a superset: a file may only use it as a fixture.",
                     "",
                     "A closure card is deliberately absent from this cluster: `incomparable` proves the text compiles, never that the definition equals the closure (issue #3867).",
+                    ...renderTargetFilesSection(
+                        migrationTargetFiles(members.map((m) => m.module))
+                    ),
                 ].join("\n"),
         };
     });
@@ -1018,6 +1028,7 @@ export function buildBotGapFilings(inputs: KindInputs): GapFiling[] {
                     `Cards held (${held.length}): ${held.slice(0, 60).join(", ")}${held.length > 60 ? `, … (+${held.length - 60})` : ""}`,
                     "",
                     "The gap disappears when the sweep's next verdict plays every card above — `oracle:compile` re-plays a card whenever its definition or the Bot changes. This issue closes through the PR that does it, or at the next landing's `gaps:sync` once no card carries it. A behaviour change to the Bot owes a `must` blade entry (`/bot-change`).",
+                    ...renderTargetFilesSection(botGapTargetFiles(key)),
                 ].join("\n"),
         });
     }
