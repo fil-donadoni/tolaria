@@ -258,6 +258,42 @@ export function budgetReading(
     return { weighted, pct: pctOfBudget(weighted, budget), remote };
 }
 
+/** The step of `afk-pass.yml` that uploads the pass record. It runs under
+ *  `if: always()`: a run whose runner is alive concludes it, success or
+ *  failure, whatever the pass did. */
+export const PASS_RECORD_UPLOAD_STEP = "Upload the pass record";
+
+/** One step of a pass job, as `gh run view --json jobs` reads it. */
+export interface JobStep {
+    name: string;
+    conclusion: string | null;
+}
+
+/**
+ * A pass run LOST with its runner (issue #8062): the job exists but never
+ * concluded its always-run record-upload step, so no record was ever
+ * written — there is no reading to lose. Distinct from a record that exists
+ * and cannot be parsed or downloaded, which stays an unknown fact. No job
+ * at all is not "lost" (nothing is known about it): the caller keeps it
+ * unreadable.
+ *
+ * A lost run is charged NOTHING to the budget: its tokens are unknowable
+ * (the transcript died with the runner) and the host that lost it is
+ * offline, so it cannot be spending either. The gap is named in the job
+ * summary, never hidden.
+ */
+export function isLostRun(jobs: readonly (readonly JobStep[])[]): boolean {
+    if (jobs.length === 0) return false;
+    return jobs.every(
+        (steps) =>
+            !steps.some(
+                (s) =>
+                    s.name === PASS_RECORD_UPLOAD_STEP &&
+                    (s.conclusion === "success" || s.conclusion === "failure")
+            )
+    );
+}
+
 /** The latest usage-limit reset still in the future, or `null`. */
 export function usageLimitResetAt(
     records: readonly PassRecord[],

@@ -77,6 +77,8 @@ import {
     agedRepairLines,
     agedRepairNotice,
     budgetReading,
+    isLostRun,
+    type JobStep,
     failureStreak,
     holdAdmitsRepairs,
     holdFor,
@@ -180,17 +182,40 @@ function workflowActive(slug: string, workflow: string): boolean {
     }
 }
 
+/** The job steps of a run (`gh run view --json jobs`); `null` when the read
+ *  failed, which is an unknown, never a lost run. */
+function runJobSteps(id: number): JobStep[][] | null {
+    try {
+        const out = JSON.parse(
+            gh(["run", "view", String(id), "--json", "jobs"])
+        ) as {
+            jobs: { steps?: { name: string; conclusion: string | null }[] }[];
+        };
+        return out.jobs.map((j) =>
+            (j.steps ?? []).map((s) => ({
+                name: s.name,
+                conclusion: s.conclusion || null,
+            }))
+        );
+    } catch {
+        return null;
+    }
+}
+
 /** The records of the pass runs that ended inside the window. `missing`
  *  counts runs that finished (success or failure) and so owe one, but whose
- *  record could not be read — a fact the budget guard must not lose. */
+ *  record could not be read — a fact the budget guard must not lose. `lost`
+ *  names runs whose runner died before the job could write one (issue
+ *  #8062): no record exists, so nothing was unreadable. */
 function passRecords(
     runs: readonly WorkflowRun[],
     sinceMs: number
-): { records: PassRecord[]; missing: number } {
+): { records: PassRecord[]; missing: number; lost: number[] } {
     const dir = mkdtempSync(join(tmpdir(), "afk-dispatch-"));
     try {
         const records: PassRecord[] = [];
         let missing = 0;
+        const lost: number[] = [];
         for (const r of runs) {
             if (r.status !== "completed" || Date.parse(r.updatedAt) < sinceMs)
                 continue;
@@ -217,10 +242,14 @@ function passRecords(
                 rec = null;
             }
             if (rec) records.push(rec);
-            else if (r.conclusion === "success" || r.conclusion === "failure")
-                missing++;
+            else if (r.conclusion === "success" || r.conclusion === "failure") {
+                const jobs =
+                    r.conclusion === "failure" ? runJobSteps(r.id) : null;
+                if (jobs && isLostRun(jobs)) lost.push(r.id);
+                else missing++;
+            }
         }
-        return { records, missing };
+        return { records, missing, lost };
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
@@ -561,9 +590,13 @@ async function main(): Promise<void> {
         ]),
         ...workflowRuns(DISPATCH_WORKFLOW, 20, ["--status", "failure"]),
     ];
-    const { records, missing } = active
+    const { records, missing, lost } = active
         ? passRecords(passRuns, sinceMs)
-        : { records: [], missing: 0 };
+        : { records: [], missing: 0, lost: [] as number[] };
+    const lostLine = lost.length
+        ? `lost with their runner, no record, charged nothing to the budget: run ${lost.join(", run ")}`
+        : null;
+    if (lostLine) say(lostLine);
     const lineage = readVerdictLineage(() => verdictStore(primaryCheckout()));
     const red = lineageBlocks(lineage.kind)
         ? { sha: lineage.verdict?.sha, failedStep: lineage.verdict?.step }
@@ -659,6 +692,7 @@ async function main(): Promise<void> {
             ...(agedLines.length ? [""] : []),
             ...released.map((l) => `- ${l}`),
             ...(released.length ? [""] : []),
+            ...(lostLine ? [lostLine, ""] : []),
             budgetLine,
         ]);
         let fail = releaseFailed;
@@ -687,7 +721,12 @@ async function main(): Promise<void> {
     const slots = passSlots(runners(slug), selfRunner, passRuns);
     if (slots.free.length === 0) {
         say("nothing to do: no free pass runner");
-        summary(["nothing to do: no free `pass` runner", "", budgetLine]);
+        summary([
+            "nothing to do: no free `pass` runner",
+            "",
+            ...(lostLine ? [lostLine, ""] : []),
+            budgetLine,
+        ]);
         return;
     }
 
@@ -846,7 +885,12 @@ async function main(): Promise<void> {
             attempt(`release #${d.issue}`, () => gh(releaseEditArgs(d.issue)));
     }
     for (const l of done) say(l);
-    summary([...lines.map((l) => `- ${l}`), "", ...done.map((l) => `- ${l}`)]);
+    summary([
+        ...lines.map((l) => `- ${l}`),
+        "",
+        ...done.map((l) => `- ${l}`),
+        ...(lostLine ? ["", lostLine] : []),
+    ]);
     if (failures > 0) process.exit(1);
 }
 
