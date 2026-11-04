@@ -959,6 +959,12 @@ export function buildStateFromScenario(
                         exiled.castableFromExileIncludesLand = true;
                     }
                 }
+                // CR 702.170c/d — plotted on an earlier turn: "any turn after
+                // the turn in which it became plotted" has arrived.
+                if (entry.plotted) {
+                    (instance as CardInstanceState).plottedOnTurn =
+                        state.turn - 1;
+                }
             } else {
                 if (entry.damageMarked && entry.damageMarked > 0) {
                     (instance as CardInstanceState).damageMarked =
@@ -3287,6 +3293,7 @@ function lowerCard(
         }
         reportCharacteristicDrift(card, label, animated, dropped);
     } else if (zone === "exile") {
+        if (card.plottedOnTurn !== undefined) entry.plotted = true;
         if (card.castableFromExileBy) {
             if (card.castableFromExileBy === player.id) {
                 entry.castableFromExile = true;
