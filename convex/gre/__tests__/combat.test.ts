@@ -547,6 +547,65 @@ describe("validateBlockerEligibility — fear (CR 702.36b)", () => {
     });
 });
 
+describe("validateBlockerEligibility — intimidate (CR 702.13b)", () => {
+    // Real cards with known colors, as for fear above: Hypnotic Specter (black)
+    // attacks, Grizzly Bears (green) and Jade Statue (colorless artifact) block.
+    const attacker = (overrides = {}) =>
+        makeInstance(hypnoticSpecter().id, {
+            staticAbilities: ["intimidate"],
+            ...overrides,
+        });
+    const canBlock = (
+        atk: ReturnType<typeof attacker>,
+        blocker: ReturnType<typeof attacker>
+    ) => validateBlockerEligibility(atk, blocker, [blocker]).eligible;
+
+    it("rejects a creature sharing no color", () => {
+        expect(canBlock(attacker(), makeInstance(grizzlyBears().id))).toBe(
+            false
+        );
+    });
+
+    it("accepts a creature sharing the attacker's color", () => {
+        expect(
+            canBlock(
+                attacker(),
+                makeInstance("23614289-0d73-4747-a849-5cb67cc97d6a")
+            )
+        ).toBe(true);
+    });
+
+    it("accepts an artifact creature sharing no color", () => {
+        expect(
+            canBlock(
+                attacker(),
+                makeInstance(jadeStatue().id, {
+                    types: ["Artifact", "Creature"],
+                })
+            )
+        ).toBe(true);
+    });
+
+    it("reads the live layer-5 color of the attacker (CR 613.1e)", () => {
+        const green = attacker({ colorOverride: ["G"] });
+        expect(canBlock(green, makeInstance(grizzlyBears().id))).toBe(true);
+    });
+
+    it("reads the live layer-5 color of the blocker (CR 613.1e)", () => {
+        const black = makeInstance(grizzlyBears().id, {
+            colorOverride: ["B"],
+        });
+        expect(canBlock(attacker(), black)).toBe(true);
+    });
+
+    it("a colored attacker turned colorless is blockable only by artifacts (CR 105.2c)", () => {
+        const colorless = attacker({ colorOverride: [] });
+        expect(canBlock(colorless, makeInstance(grizzlyBears().id))).toBe(
+            false
+        );
+    });
+});
+
 describe("validateBlockerEligibility — Ironclaw Orcs power-bound (CR 509.1b + 613)", () => {
     it("rejects blocking an attacker with power ≥ 2", () => {
         const orc = makeInstance(ironclawOrcs().id, {
