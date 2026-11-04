@@ -21,6 +21,7 @@
 // views, one layer down.
 
 import { describe, expect, it } from "vitest";
+import { MECHANICS_REGISTRY } from "../../cards/mechanicsRegistry";
 import { withTemporaryDefinition } from "../../cards/registry";
 import type { CardDefinition } from "../../cards/types";
 import {
@@ -574,9 +575,17 @@ describe("spell slot — a granted keyword is censused, not trusted", () => {
         // resolution. So nothing else in the pipeline asks whether the keyword
         // is implemented, and Undying Evil ("Target creature gains undying
         // until end of turn.") reached `ready` promising an inert effect.
+        //
+        // The keyword is READ from the registry: a named one reds this test on
+        // the merged tree of whichever PR implements it, and its own lane never
+        // sees that (undying's PR named flanking, PR #8107 implements flanking).
+        const planned = MECHANICS_REGISTRY.find(
+            (row) => row.kind === "keyword-ability" && row.status === "planned"
+        )?.name.toLowerCase();
+        expect(planned).toBeDefined();
         const outcome = compileCard(
             spellCard({
-                oracleText: "Target creature gains flanking until end of turn.",
+                oracleText: `Target creature gains ${planned} until end of turn.`,
             })
         );
         expect(outcome.state).toBe("quarantine");
@@ -585,7 +594,7 @@ describe("spell slot — a granted keyword is censused, not trusted", () => {
                 outcome.reasons.some(
                     (r) =>
                         r.kind === "planned-mechanic" &&
-                        r.detail.includes("flanking")
+                        r.detail.includes(`"${planned}"`)
                 )
             ).toBe(true);
     });

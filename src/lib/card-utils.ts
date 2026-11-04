@@ -11,6 +11,10 @@ import type { CardType, Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
 import { displaySubtypes } from "@convex/cards/abilities/changeling";
 import { classLevelActivationViolation } from "@convex/cards/abilities/classLevels";
+import {
+    FLANKING_TRIGGER,
+    FLANKING_TRIGGER_ID,
+} from "@convex/cards/abilities/flanking";
 import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import {
     matchesPermanentFilter as matchesEnginePermanentFilter,
@@ -3229,6 +3233,10 @@ export function getTriggeredAbilityOracleText(
 ): string | null {
     const castCopyText = CAST_COPY_TRIGGER_ORACLE_TEXT.get(triggeredAbilityId);
     if (castCopyText) return castCopyText;
+    // CR 702.25a — flanking lives on no definition: it is derived from the
+    // permanent's live keyword list, printed or granted.
+    if (triggeredAbilityId === FLANKING_TRIGGER_ID)
+        return FLANKING_TRIGGER.oracleText ?? null;
     // `tryGetDefinition` (not throwing): an emblem-sourced trigger's
     // `card.id` is an emblem KEY, absent from the card registry (CR 114 —
     // emblems live in `EMBLEM_REGISTRY`, resolved just below), so a hard
