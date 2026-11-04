@@ -20045,7 +20045,7 @@ export function buildSpellContext(
                         return false;
                     }
                     // CR 601.2c — a mode's requirement is asked of the mode
-                    // once it is chosen, not here (CR 700.2d).
+                    // once it is chosen, not here.
                     const req = subject?.targetRequirement;
                     if (
                         req &&
@@ -20058,8 +20058,8 @@ export function buildSpellContext(
                     ) {
                         return false;
                     }
-                    // CR 601.2g / 107.3 — a face no payment covers, at the
-                    // cheapest value of X, is no cast to offer.
+                    // CR 601.2h — a face no payment covers, at the cheapest
+                    // value of X, is no cast to offer.
                     return (
                         opts?.free === true ||
                         planResolutionCastPayment(
