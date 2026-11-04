@@ -1036,6 +1036,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Agility",
+        "scryfallId": "5694cb42-7489-40c5-b21a-aeb36636015f",
+        "oracleId": "0f5f8b47-d104-4e29-b052-02d730d76ec0",
+        "firstSet": "mir",
+        "firstPrintId": "5694cb42-7489-40c5-b21a-aeb36636015f",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Agonizing Demise",
         "scryfallId": "539ac5e1-4bad-4f70-abac-e70c406bebec",
         "oracleId": "41681a1f-0777-4b96-8c7e-d6a5d1b1c8fc",
@@ -6372,6 +6382,16 @@
         "source": "compiled"
     },
     {
+        "name": "Benalish Cavalry",
+        "scryfallId": "1013ca9c-1d29-42f6-8665-92f98d076ff8",
+        "oracleId": "0bf619f9-4b19-404c-995f-f23a4b859dd4",
+        "firstSet": "tsp",
+        "firstPrintId": "1013ca9c-1d29-42f6-8665-92f98d076ff8",
+        "firstPrintSet": "tsp",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Benalish Emissary",
         "scryfallId": "6b82d56e-80d7-4be9-ac22-de3257efc458",
         "oracleId": "99f2e195-5da5-4239-87e0-ed552643e7b5",
@@ -9916,6 +9936,16 @@
         "source": "compiled"
     },
     {
+        "name": "Burning Shield Askari",
+        "scryfallId": "486547cd-d2e7-4c46-9f7b-81c4267d65cc",
+        "oracleId": "042fd95a-5e85-4ce5-bb68-066a295c54fb",
+        "firstSet": "mir",
+        "firstPrintId": "486547cd-d2e7-4c46-9f7b-81c4267d65cc",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Burning Wish",
         "scryfallId": "1c9b692a-e832-4612-a6ec-93b52f6a0410",
         "oracleId": "13a884b5-8970-4d71-9082-a8b6c8db9a01",
@@ -10222,6 +10252,16 @@
         "firstSet": "roe",
         "firstPrintId": "1b2f83d5-9269-4297-b507-558c2bdec32b",
         "firstPrintSet": "roe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Cadaverous Knight",
+        "scryfallId": "06e954b2-c8ce-4b6c-a118-4a14ffa72063",
+        "oracleId": "250a027f-2b3e-4eaf-899a-a9da8be20070",
+        "firstSet": "mir",
+        "firstPrintId": "06e954b2-c8ce-4b6c-a118-4a14ffa72063",
+        "firstPrintSet": "mir",
         "rarity": "common",
         "source": "compiled"
     },
@@ -24578,6 +24618,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Fallen Askari",
+        "scryfallId": "00107210-313f-49c1-84ff-92628f75b764",
+        "oracleId": "4956008e-d912-48ba-9b82-176258281060",
+        "firstSet": "vis",
+        "firstPrintId": "00107210-313f-49c1-84ff-92628f75b764",
+        "firstPrintSet": "vis",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Fallen Cleric",
         "scryfallId": "7652dc61-9170-4895-a0bf-c32a1ee0350e",
         "oracleId": "7330201a-41ff-44bf-a623-2ed062878c58",
@@ -25147,6 +25197,16 @@
         "oracleId": "e2117373-6f0a-41c8-ab6a-9014b9628e64",
         "firstSet": "mir",
         "firstPrintId": "90dedd5e-e2ee-46ec-8541-27f1548b2a2a",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Femeref Knight",
+        "scryfallId": "915a2e07-b449-4d94-93e3-e756e891c542",
+        "oracleId": "4365521e-996d-4eca-bbc9-b0988fa973ae",
+        "firstSet": "mir",
+        "firstPrintId": "915a2e07-b449-4d94-93e3-e756e891c542",
         "firstPrintSet": "mir",
         "rarity": "common",
         "source": "compiled"
@@ -38652,6 +38712,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Jolrael's Centaur",
+        "scryfallId": "31588ea3-31d2-4118-9b9f-4ce820c16a15",
+        "oracleId": "39b699e1-79c6-4960-97dc-d58574181bbe",
+        "firstSet": "mir",
+        "firstPrintId": "31588ea3-31d2-4118-9b9f-4ce820c16a15",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Jolting Merfolk",
         "scryfallId": "8b4d1c74-8b73-445c-b226-349c57a972f6",
         "oracleId": "3b71aeee-a4a8-46d3-9973-06db14d8bf6c",
@@ -48231,6 +48301,16 @@
         "firstSet": "lea",
         "firstPrintId": "82da0972-b17b-4600-9efd-e9430a0db04b",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Mtenda Herder",
+        "scryfallId": "51f30a3d-1421-4706-b17f-39a9ec7a0d8b",
+        "oracleId": "0edf5bac-36a9-4f35-afd1-73f7e1aab51b",
+        "firstSet": "mir",
+        "firstPrintId": "51f30a3d-1421-4706-b17f-39a9ec7a0d8b",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Muck Rats",
@@ -63596,6 +63676,16 @@
         "source": "compiled"
     },
     {
+        "name": "Searing Spear Askari",
+        "scryfallId": "5cf66916-7f6b-412f-acd6-f96ad4539a46",
+        "oracleId": "d3c68573-95b1-4db5-bbea-363b86f713c1",
+        "firstSet": "mir",
+        "firstPrintId": "5cf66916-7f6b-412f-acd6-f96ad4539a46",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Searing Wind",
         "scryfallId": "7b761f97-3690-497a-b6ab-c71f61b8e841",
         "oracleId": "b196045d-ece1-46ac-a647-b65f04225c10",
@@ -64699,6 +64789,16 @@
         "firstPrintId": "924863b6-6d7b-441b-90cc-4e98e1c41aa9",
         "firstPrintSet": "gpt",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Shadow Rider",
+        "scryfallId": "5bfdec24-e689-4cca-a546-a8f5d0929f8d",
+        "oracleId": "a518b31a-7e9a-460d-839f-39cb1de4f570",
+        "firstSet": "wth",
+        "firstPrintId": "5bfdec24-e689-4cca-a546-a8f5d0929f8d",
+        "firstPrintSet": "wth",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -65995,6 +66095,26 @@
         "firstPrintId": "d44746d5-3d34-4480-b4cd-c66de72f0622",
         "firstPrintSet": "nph",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Sidar Jabari",
+        "scryfallId": "743f0d06-cd14-49f3-ad3c-0d419a0c30bc",
+        "oracleId": "cb637dfd-4022-43a4-8632-77e614436f38",
+        "firstSet": "mir",
+        "firstPrintId": "743f0d06-cd14-49f3-ad3c-0d419a0c30bc",
+        "firstPrintSet": "mir",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Sidewinder Sliver",
+        "scryfallId": "b073b8f2-b42d-40f2-b5fb-e78ffb1733ea",
+        "oracleId": "de8ccd32-f537-4a11-8dc4-e48836a0b139",
+        "firstSet": "tsp",
+        "firstPrintId": "b073b8f2-b42d-40f2-b5fb-e78ffb1733ea",
+        "firstPrintSet": "tsp",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -73277,6 +73397,16 @@
         "firstPrintId": "1b7178c6-f989-437d-83e3-04b9817f2c54",
         "firstPrintSet": "vis",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Suq'Ata Lancer",
+        "scryfallId": "2884d8df-7fd5-4247-9da5-38c31333ff5d",
+        "oracleId": "f348b326-8a73-4df9-8faf-e271a36ce373",
+        "firstSet": "vis",
+        "firstPrintId": "2884d8df-7fd5-4247-9da5-38c31333ff5d",
+        "firstPrintSet": "vis",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -87198,6 +87328,26 @@
         "firstPrintId": "78c71a23-8e73-406e-bbd0-4474c17c1d04",
         "firstPrintSet": "tdc",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Zhalfirin Commander",
+        "scryfallId": "cb0e63cb-6da5-4f65-a976-e79d201e9fc7",
+        "oracleId": "1053a778-da6a-4b8e-81fb-537a355d4bfe",
+        "firstSet": "mir",
+        "firstPrintId": "cb0e63cb-6da5-4f65-a976-e79d201e9fc7",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Zhalfirin Knight",
+        "scryfallId": "eb65d104-bd50-481e-a70e-62aeb2f2c12b",
+        "oracleId": "a534f06e-dae4-4d1a-96e9-7693bbb21e12",
+        "firstSet": "mir",
+        "firstPrintId": "eb65d104-bd50-481e-a70e-62aeb2f2c12b",
+        "firstPrintSet": "mir",
+        "rarity": "common",
         "source": "compiled"
     },
     {

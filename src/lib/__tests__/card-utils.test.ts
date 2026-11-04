@@ -2560,6 +2560,14 @@ describe("getAbilityOracleText", () => {
 // getTriggeredAbilityOracleText — emblem source (CR 114)
 // ---------------------------------------------------------------------------
 
+describe("getTriggeredAbilityOracleText — flanking (CR 702.25a)", () => {
+    it("names the trigger of a keyword no definition lists as an ability", () => {
+        expect(getTriggeredAbilityOracleText("any-card", "flanking")).toContain(
+            "the blocking creature gets -1/-1"
+        );
+    });
+});
+
 describe("getTriggeredAbilityOracleText — emblem source (CR 114)", () => {
     // Regression: an emblem-sourced trigger's `card.id` is an emblem KEY, not a
     // card registry id, so a hard `getDefinition` threw "Card not found" and

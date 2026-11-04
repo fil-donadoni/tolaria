@@ -351,6 +351,11 @@
             "label": "depletion land: pays the two-drop with the basics, sparing the land's charge",
             "tier": "must",
             "needsSetup": false
+        },
+        {
+            "label": "flanking pair: a vanilla 2/2 attacker is still blocked by a 2/2",
+            "tier": "must",
+            "needsSetup": true
         }
     ],
     "Hibernation": [
