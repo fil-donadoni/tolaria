@@ -24,7 +24,7 @@ import { getEffectiveColors } from "../cards/effectiveColors";
 import { hasSupertypeLive } from "./snow";
 import { compareContinuousEffects } from "./continuousEffects";
 import { orderByDependency } from "./dependency";
-import { bindEffectivePowerReader } from "../cards/compiledTriggers";
+import { bindEffectivePTReader } from "../cards/effectivePT";
 import type {
     ContinuousEffect,
     ContinuousEffectSublayer,
@@ -1142,10 +1142,11 @@ export function getEffectivePower(
 }
 
 // CR 603.8 + CR 613.4 — a compiled "when this creature's power is N or
-// greater" state trigger reads power through the layers, bound from here
-// because `cards/` cannot import this module (see `bindEffectivePowerReader`).
-bindEffectivePowerReader((self, state) =>
-    getEffectivePower(state as unknown as LayerStateView, self)
+// greater" state trigger and evolve's comparison read P/T through the layers,
+// bound from here because `cards/` cannot import this module (see
+// `bindEffectivePTReader`).
+bindEffectivePTReader((self, state) =>
+    getEffectivePT(state as unknown as LayerStateView, self)
 );
 
 /** Effective toughness after the CR 613.4 layer pipeline. */

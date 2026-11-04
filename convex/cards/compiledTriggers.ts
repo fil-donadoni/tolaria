@@ -30,6 +30,7 @@
  */
 
 import { countControlledMatching } from "./controlledCount";
+import { readEffectivePT } from "./effectivePT";
 import type { PermanentFilter, SpellFilter } from "./filters";
 import type {
     AdditionalCostTwin,
@@ -944,29 +945,11 @@ function spellOrdinalGate(
     };
 }
 
-type EffectivePowerReader = (
-    self: PermanentView,
-    state: TriggerStateView
-) => number;
-
-let effectivePowerReader: EffectivePowerReader | null = null;
-
-/**
- * `gre/layers.ts` registers its CR 613.4 power reader here. `cards/` cannot
- * import the layer pipeline (it sits above this module in the import graph and
- * the cycle breaks registry initialisation), so the dependency is inverted.
- */
-export function bindEffectivePowerReader(reader: EffectivePowerReader): void {
-    effectivePowerReader = reader;
-}
-
 function readEffectivePower(
     self: PermanentView,
     state: TriggerStateView
 ): number {
-    // Unbound only where the layer pipeline was never loaded (a pure card
-    // fixture): the printed power is then the only power there is.
-    return effectivePowerReader?.(self, state) ?? self.power ?? 0;
+    return readEffectivePT(self, state).power;
 }
 
 /** CR 716.2a — a Class section's descriptors, rebuilt in place on their bar so

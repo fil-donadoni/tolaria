@@ -534,6 +534,16 @@
         "source": "compiled"
     },
     {
+        "name": "Adaptive Snapjaw",
+        "scryfallId": "0d3c0c43-2d6d-49b8-a112-07611a23ae69",
+        "oracleId": "0a56e2ad-684d-45a7-9145-479d1505bba2",
+        "firstSet": "gtc",
+        "firstPrintId": "0d3c0c43-2d6d-49b8-a112-07611a23ae69",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Adarkar Sentinel",
         "scryfallId": "ff62754b-f4f0-4731-8dd7-327a820f60a8",
         "oracleId": "bd372a53-48f9-4e9a-ab00-0f9c4606d452",
@@ -5932,6 +5942,16 @@
         "firstSet": "ons",
         "firstPrintId": "9ef71f42-87e5-4b1d-aac1-3752b81cee7c",
         "firstPrintSet": "ons",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Battering Krasis",
+        "scryfallId": "5d9aa740-9adf-412a-b6ec-0b9bb1b4618b",
+        "oracleId": "3d0c1301-4fa7-4245-a13f-f613188eb638",
+        "firstSet": "dgm",
+        "firstPrintId": "5d9aa740-9adf-412a-b6ec-0b9bb1b4618b",
+        "firstPrintSet": "dgm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -13304,6 +13324,16 @@
         "source": "compiled"
     },
     {
+        "name": "Clinging Anemones",
+        "scryfallId": "4e183069-096d-4977-8154-e7b60f17a787",
+        "oracleId": "7058e7c3-b704-47f6-85f8-ee584f76a1fe",
+        "firstSet": "gtc",
+        "firstPrintId": "4e183069-096d-4977-8154-e7b60f17a787",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Clinging Darkness",
         "scryfallId": "2a939a4e-5a9e-454f-8716-cee7470f05e2",
         "oracleId": "5ad3abf3-1ae5-4c4c-9950-ba7bff0d75ad",
@@ -13508,6 +13538,16 @@
         "firstSet": "lrw",
         "firstPrintId": "e742366f-e726-406e-bcbe-51a3bfd0151e",
         "firstPrintSet": "lrw",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Cloudfin Raptor",
+        "scryfallId": "e2931f27-43f9-4e52-aab3-967c26739e43",
+        "oracleId": "cb0e1afa-fd9e-4bf9-bcb1-6e8110d6e2ff",
+        "firstSet": "gtc",
+        "firstPrintId": "e2931f27-43f9-4e52-aab3-967c26739e43",
+        "firstPrintSet": "gtc",
         "rarity": "common",
         "source": "compiled"
     },
@@ -15472,6 +15512,16 @@
         "source": "compiled"
     },
     {
+        "name": "Crocanura",
+        "scryfallId": "b459a988-97b0-4370-b89a-2565f8721b60",
+        "oracleId": "2071f278-77ba-46f8-85a0-ccd761199f29",
+        "firstSet": "gtc",
+        "firstPrintId": "b459a988-97b0-4370-b89a-2565f8721b60",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Crocodile of the Crossing",
         "scryfallId": "2f64ca9c-99c4-45d4-bd21-3ede61702250",
         "oracleId": "e5e31d27-3907-4c65-a988-a754f217e061",
@@ -17080,6 +17130,16 @@
         "firstSet": "scg",
         "firstPrintId": "2630d3b5-8f3a-4aad-a45e-22a7979429f3",
         "firstPrintSet": "scg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Darwin, Adaptive Mutant",
+        "scryfallId": "95ccd8dd-9759-49d7-9380-3811912ce4d6",
+        "oracleId": "4061572b-b7ff-4d06-9f71-9e66e064593d",
+        "firstSet": "msc",
+        "firstPrintId": "95ccd8dd-9759-49d7-9380-3811912ce4d6",
+        "firstPrintSet": "msc",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -30760,6 +30820,16 @@
         "firstSet": "jou",
         "firstPrintId": "e583f6be-3d78-4085-9059-c3c989a4977f",
         "firstPrintSet": "jou",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Gluttonous Slug",
+        "scryfallId": "9514ce0d-8d61-4cce-b2ad-8f417869d04e",
+        "oracleId": "68fbc13c-00b3-49bb-b343-4f2f1e8f5a7c",
+        "firstSet": "mh1",
+        "firstPrintId": "9514ce0d-8d61-4cce-b2ad-8f417869d04e",
+        "firstPrintSet": "mh1",
         "rarity": "common",
         "source": "compiled"
     },
@@ -65832,6 +65902,16 @@
         "firstSet": "soi",
         "firstPrintId": "f6913dce-05f5-4e1b-9dd9-67eb347b5be8",
         "firstPrintSet": "soi",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Shambleshark",
+        "scryfallId": "07855a17-4e68-4257-af7f-275c9fb0a9b8",
+        "oracleId": "0e235b96-9507-4f4b-9578-4fb8ed854cc2",
+        "firstSet": "gtc",
+        "firstPrintId": "07855a17-4e68-4257-af7f-275c9fb0a9b8",
+        "firstPrintSet": "gtc",
         "rarity": "common",
         "source": "compiled"
     },
