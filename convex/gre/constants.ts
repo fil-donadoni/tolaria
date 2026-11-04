@@ -35,7 +35,10 @@ import { tryGetDefinition } from "../cards";
 // `{T}: Add …` (Urza's Saga chapter I) is visible to the auto-tap solver and
 // the castability probe exactly like a printed one.
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
-import { activationRestrictionViolation } from "./activationRestrictions";
+import {
+    activationRestrictionViolation,
+    boardDeclaresActivationRestriction,
+} from "./activationRestrictions";
 import type {
     CardInstanceState,
     GameState,
@@ -2285,7 +2288,7 @@ export function getManaTapOptionsDetailed(
         playerId: string;
         battlefield: readonly CardInstanceState[];
     }>,
-    opts?: { requireTap?: boolean },
+    opts?: { requireTap?: boolean; boardScan?: ManaBoardScan },
     /** CR 613 (PRD #2064 S6) — the Continuous Effects Registry, for the layer-7
      *  read behind a board-conditional `manaAmount`. See `manaLayerView`. */
     continuousEffects?: readonly ContinuousEffect[],
@@ -2300,6 +2303,7 @@ export function getManaTapOptionsDetailed(
     // planner, the castability census and the client menu all see none.
     if (
         battlefields &&
+        opts?.boardScan?.activationRestricted !== false &&
         activationRestrictionViolation(
             { players: battlefields },
             card.id,
@@ -2541,7 +2545,10 @@ export function getManaTapOptionsDetailed(
         out,
         card,
         controllerId,
-        battlefields,
+        // The board is read only for the substitution a clear scan rules out.
+        opts?.boardScan?.landManaSubstituted === false
+            ? undefined
+            : battlefields,
         replacements
     );
 }
@@ -2642,6 +2649,40 @@ export function totalManaCount(produced: ManaCost): number {
     let total = 0;
     for (const c of MANA_COLORS) total += produced[c] ?? 0;
     return total;
+}
+
+/** What one read-only walk over every battlefield proves for every source on
+ *  them, so that a reader asking about each source in turn (a mana census) does
+ *  not walk the board once per source. Valid only while those battlefields are
+ *  not mutated. A `false` is a proof the board has none; a `true` only sends
+ *  the reader to the per-source check. */
+export type ManaBoardScan = {
+    /** CR 602.5 — some permanent declares an `activation-restriction` static. */
+    activationRestricted: boolean;
+    /** CR 614 — some permanent declares a `landManaSubstitution`. */
+    landManaSubstituted: boolean;
+};
+
+export function scanManaBoard(
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): ManaBoardScan {
+    return {
+        activationRestricted: boardDeclaresActivationRestriction({
+            players: battlefields,
+        }),
+        landManaSubstituted: battlefields.some((player) =>
+            player.battlefield.some((source) => {
+                const cardId = (source.card as { id?: string } | undefined)?.id;
+                return (
+                    !!cardId &&
+                    tryGetDefinition(cardId)?.landManaSubstitution !== undefined
+                );
+            })
+        ),
+    };
 }
 
 /** Scans every battlefield for an active continuous land-mana substitution

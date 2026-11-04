@@ -1615,6 +1615,7 @@ export function rollout(
             // of typical play: never draws a transient sacrifice conversion, whose
             // variants (one per sacrificable permanent and target) would
             // otherwise outnumber every other move at the node.
+            const bodyCosts: BodyCostMemo = new Map();
             const drawn = moves.filter(
                 (m) =>
                     !isTransientSacrificeConversion(state, pid, m) &&
@@ -1624,7 +1625,13 @@ export function rollout(
                     !isDrainExchangeSacrifice(state, pid, botId, m) &&
                     !isDrawExchangeSacrifice(state, pid, botId, m) &&
                     !isDenialExchangeSacrifice(state, pid, botId, m) &&
-                    !isSourceBodyDamageConversion(state, pid, botId, m)
+                    !isSourceBodyDamageConversion(
+                        state,
+                        pid,
+                        botId,
+                        m,
+                        bodyCosts
+                    )
             );
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
@@ -2982,12 +2989,17 @@ export function isDenialExchangeSacrifice(
  *  decision, and kept in the tree it handed `pass` a win one step later that
  *  `hold-trick` read as outcome-equal to the shot now (measured, issue #3376).
  *
- *  Per-card-agnostic, never a card name (ADR 0102). */
+ *  Per-card-agnostic, never a card name (ADR 0102).
+ *
+ *  The cost is a simulation and every target variant of one ability pays the
+ *  same cost, so a filter over a node's moves opens one `BodyCostMemo` and the
+ *  variants share one answer (issue #7994). */
 export function isSourceBodyDamageConversion(
     state: GameState,
     pid: string,
     botId: string,
-    move: Move
+    move: Move,
+    bodyCosts?: BodyCostMemo
 ): boolean {
     if (pid !== botId || state.stack.length > 0) return false;
     if (move.kind !== "activate-ability") return false;
@@ -3001,8 +3013,21 @@ export function isSourceBodyDamageConversion(
     const effects = ability.effects;
     if (!effects?.length || !effects.every((op) => op.op === "dealDamage"))
         return false;
-    return costShrinksSource(state, source, ability);
+    if (!bodyCosts) return costShrinksSource(state, source, ability);
+    const key = `${source.id}|${move.abilityId}`;
+    let shrinks = bodyCosts.get(key);
+    if (shrinks === undefined) {
+        shrinks = costShrinksSource(state, source, ability);
+        bodyCosts.set(key, shrinks);
+    }
+    return shrinks;
 }
+
+/** `costShrinksSource`'s answers on ONE fixed position, by source and ability.
+ *  Valid only while the position is not mutated, like a `ManaCensusMemo`: its
+ *  owner is the filter that reads the position, never the ply that applies a
+ *  move to it. */
+export type BodyCostMemo = Map<string, boolean>;
 
 /** Whether `move` is the BOT's own cast through an ALTERNATIVE cost whose
  *  permanent leg SACRIFICES lands (CR 118.9 / 701.21a), in ANY window (issue
@@ -3377,6 +3402,7 @@ function iterate(
         // stay a scored option. Cost-shape only, so cheap enough for every
         // node (unlike the dominance probe); never emptying, `pass` is kept.
         if (depth > 0) {
+            const bodyCosts: BodyCostMemo = new Map();
             const kept = keyed.filter(
                 (k) =>
                     !isDeferrableTransientSacrifice(world, pid, k.move) &&
@@ -3421,7 +3447,8 @@ function iterate(
                                 world,
                                 pid,
                                 botId,
-                                k.move
+                                k.move,
+                                bodyCosts
                             ))
                     ) &&
                     !isManaBaseSacrificeCast(world, pid, botId, k.move)

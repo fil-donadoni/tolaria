@@ -65,6 +65,22 @@ function bonusAppliesToLand(
     );
 }
 
+/** Whether any permanent on `battlefield` declares an on-tap-for-mana bonus.
+ *  False proves {@link getActiveTapManaBonuses} is empty for every land here;
+ *  neither suppression nor the land is read, so a true only sends the caller to
+ *  the per-land check. */
+export function declaresTapManaBonus(
+    battlefield: readonly CardInstanceState[]
+): boolean {
+    return battlefield.some((perm) => {
+        const cardId = (perm.card as { id?: string }).id;
+        const def = cardId ? tryGetDefinition(cardId) : undefined;
+        return def?.triggeredAbilities?.some(
+            (ability) => ability.manaBonusForPotential !== undefined
+        );
+    });
+}
+
 /** The active on-tap-for-mana bonus AMOUNTS that apply to `land` right now,
  *  gathered from every Wild-Growth-style triggered mana ability on
  *  `battlefield` (CR 605.4). A permanent whose abilities are suppressed
