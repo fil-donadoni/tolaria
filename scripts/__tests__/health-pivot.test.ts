@@ -197,6 +197,17 @@ describe("repair issues on the pivot", () => {
         created_at: clock(),
     });
 
+    it("a Contained RED is a pivot like any RED (ADR 0163 §1, issue #8074)", () => {
+        const repo = sharedRepo([TIP, OLD], clock);
+        repo.seed(TIP, {
+            ...red(),
+            description: "RED · test · omarchy · contained",
+        });
+        const o = { run: repo.run } as const;
+        expect(recordPivotRepairIssue(root, 7, o)).toMatch(/#7 recorded/);
+        expect(pivotRepairIssues(root, o)).toEqual([7]);
+    });
+
     it("an issue recorded on one machine is read by the other", () => {
         const repo = sharedRepo([TIP, OLD], clock);
         repo.seed(TIP, red());

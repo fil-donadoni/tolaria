@@ -92,6 +92,33 @@ describe("repair-proof (issue #5462)", () => {
         expect(ran).toBe(false);
     });
 
+    describe("under a Contained RED (ADR 0163 §6, issue #8074)", () => {
+        const contained = (): Lineage => ({
+            ...redLineage(),
+            kind: "contained",
+        });
+
+        it("a declared repair is proven as today", () => {
+            const r = repairProofCheck(
+                ctx({ lineage: contained, runTests: exitAll(1) })
+            );
+            expect(r.refusal).toContain("still fail");
+        });
+
+        it("an ordinary PR owes nothing and is refused nothing", () => {
+            let ran = false;
+            const r = repairProofCheck(
+                ctx({
+                    lineage: contained,
+                    prBody: "Closes #1",
+                    runTests: (t) => ((ran = true), exitAll(1)(t)),
+                })
+            );
+            expect(r.refusal).toBeNull();
+            expect(ran).toBe(false);
+        });
+    });
+
     it("owes nothing when no RED stands", () => {
         const r = repairProofCheck(
             ctx({

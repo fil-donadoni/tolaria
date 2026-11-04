@@ -17,7 +17,7 @@ import { FITTED_WEIGHTS_PATH } from "./bot-refit";
 import { readsLockedCorpus } from "./corpus-exclusion";
 import { DERIVED_PATHS } from "./derive-sync";
 import {
-    lineageBlocks,
+    lineageRedStands,
     type Lineage,
     type Verdict,
 } from "./health-verdict-store";
@@ -39,7 +39,7 @@ export function repairProofOf(
     landingKind: LandingKind | undefined
 ): RepairProof | undefined {
     const v = lineage.verdict;
-    if (landingKind !== "repair" || !lineageBlocks(lineage.kind) || !v)
+    if (landingKind !== "repair" || !lineageRedStands(lineage.kind) || !v)
         return undefined;
     // `*.test.*` only: a blade `*.spec.ts` belongs to `vitest.blade.config.ts`
     // and the default config would answer "No test files found" — refusing
@@ -139,7 +139,7 @@ export function repairAmberDecision(f: RepairAmberFacts): RepairAmberDecision {
     const none = (why: string): RepairAmberDecision => ({ kind: "none", why });
     if (f.lineage.error)
         return none(`the verdict store could not be read: ${f.lineage.error}`);
-    if (!lineageBlocks(f.lineage.kind)) return none("no RED stands");
+    if (!lineageRedStands(f.lineage.kind)) return none("no RED stands");
     if (f.stored() !== null)
         return none(`${f.tip.slice(0, 8)} already holds a verdict`);
     if (!f.mergesRepair())

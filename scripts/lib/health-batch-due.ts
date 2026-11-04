@@ -39,7 +39,7 @@ export function healthRunsPending(
     return false;
 }
 import {
-    lineageBlocks,
+    lineageRedStands,
     originRepo,
     verdictStore,
     type LineageKind,
@@ -212,7 +212,7 @@ export function redTipOwesGate(input: {
     readonly tipStatus: string | null;
     readonly inFlight: boolean;
 }): boolean {
-    if (!lineageBlocks(input.lineage)) return false;
+    if (!lineageRedStands(input.lineage)) return false;
     if (input.tipStatus !== null && SETTLED.has(input.tipStatus)) return false;
     return !input.inFlight;
 }
@@ -231,7 +231,7 @@ export function pushOwesRedRegate(
         const lineage = (
             deps.lineage ?? (() => verdictStore(root).lineage().kind)
         )();
-        if (!lineageBlocks(lineage)) return false;
+        if (!lineageRedStands(lineage)) return false;
         const tipStatus = (
             deps.tipStatus ??
             ((s) => verdictStore(root).read(s)?.status ?? null)

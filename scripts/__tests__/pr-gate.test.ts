@@ -4,7 +4,7 @@
  * `scripts/pr-gate.ts` is the I/O.
  */
 import { describe, expect, it } from "vitest";
-import type { Lineage } from "../lib/health-verdict-store";
+import { lineageOf, type Lineage } from "../lib/health-verdict-store";
 import { failingFiles } from "../lib/health-evidence";
 import { lastRequeueSince } from "../lib/land-requeue";
 import {
@@ -960,5 +960,130 @@ describe("a declared repair under a RED — priority, never held (issue #7658)",
             repairIssues: [7135],
         });
         expect(s.state).toBe("success");
+    });
+});
+
+describe("a Contained RED holds nothing at the queue (ADR 0163, issue #8074)", () => {
+    const RED_SHA = "c".repeat(40);
+    const containedLineage = (at = "2026-11-02T09:10:17Z") =>
+        lineageOf([{ sha: RED_SHA, status: "red", redClass: "contained", at }]);
+
+    it("base-health is green for a non-repair PR, and names what it is", () => {
+        const s = baseHealthStatus({
+            lineage: containedLineage(),
+            pr: pr({ body: "" }),
+            repairIssues: [],
+        });
+        expect(s.state).toBe("success");
+        expect(s.description).toMatch(/RED \(contained\)/);
+        expect(s.description).not.toMatch(/no RED stands/);
+    });
+
+    it("the same RED with no class holds the same PR", () => {
+        const s = baseHealthStatus({
+            lineage: lineageOf([{ sha: RED_SHA, status: "red" }]),
+            pr: pr({ body: "" }),
+            repairIssues: [],
+        });
+        expect(s.state).toBe("failure");
+    });
+
+    it("a declared repair keeps its queue priority: the repair is what ends the episode", () => {
+        const s = declaredRepairStatus({
+            lineage: containedLineage(),
+            pr: pr({ body: "Closes #777" }),
+            repairIssues: [777],
+        });
+        expect(s?.state).toBe("success");
+    });
+
+    it("an ordinary PR gets no priority", () => {
+        expect(
+            declaredRepairStatus({
+                lineage: containedLineage(),
+                pr: pr({ body: "Closes #12" }),
+                repairIssues: [777],
+            })
+        ).toBeNull();
+    });
+
+    describe("the re-gate of a PR an earlier blocking RED held", () => {
+        const heldInput = (labels: string[]) => {
+            const lineage = containedLineage();
+            return {
+                labels,
+                lineage,
+                baseHealth: baseHealthStatus({
+                    lineage,
+                    pr: pr({ body: "" }),
+                    repairIssues: [],
+                }).state,
+                trustedAuthor: "success" as const,
+                lastRequeueAt: (): string | null => null,
+                laneRedStale: () => false,
+                now: Date.parse("2026-11-02T10:00:00Z"),
+            };
+        };
+
+        it("requeues it, then releases the label once it is queued", () => {
+            expect(
+                heldPrAction(heldInput(["ready-to-land", "queue:held"]))
+            ).toBe("requeue");
+            expect(
+                heldPrAction(
+                    heldInput(["ready-to-land", "queue:held", "queued"])
+                )
+            ).toBe("release");
+        });
+
+        it("a blocking RED keeps it held", () => {
+            const lineage = lineageOf([{ sha: RED_SHA, status: "red" }]);
+            expect(
+                heldPrAction({
+                    ...heldInput(["ready-to-land", "queue:held"]),
+                    lineage,
+                    baseHealth: baseHealthStatus({
+                        lineage,
+                        pr: pr({ body: "" }),
+                        repairIssues: [],
+                    }).state,
+                })
+            ).toBe("none");
+        });
+    });
+
+    describe("laneRedPredatesRelease: a lane red from before the class", () => {
+        it("started before the class was written, it is the base's, and pr-refresh owes a push", () => {
+            expect(
+                laneRedPredatesRelease({
+                    laneFailedRunStartedAt: () => "2026-11-02T00:14:16Z",
+                    lineage: containedLineage("2026-11-02T09:10:17Z"),
+                })
+            ).toBe(true);
+        });
+
+        it("started after it, it is the PR's own", () => {
+            expect(
+                laneRedPredatesRelease({
+                    laneFailedRunStartedAt: () => "2026-11-02T09:30:00Z",
+                    lineage: containedLineage("2026-11-02T09:10:17Z"),
+                })
+            ).toBe(false);
+        });
+
+        it("under a blocking RED, nothing is stale", () => {
+            expect(
+                laneRedPredatesRelease({
+                    laneFailedRunStartedAt: () => "2026-11-02T00:14:16Z",
+                    lineage: lineageOf([
+                        {
+                            sha: RED_SHA,
+                            status: "red",
+                            at: "2026-11-02T09:10:17Z",
+                        },
+                    ]),
+                })
+            ).toBe(false);
+        });
     });
 });
