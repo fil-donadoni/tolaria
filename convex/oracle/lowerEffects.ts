@@ -5650,7 +5650,7 @@ function lowerFrameChain(
                 ops.push({ op: "becomePrepared", target: { ref: "$source" } });
                 break;
             // CR 205.1b + CR 613.1d — one creature type added, indefinitely
-            // (CR 611.2c). CR 205.3d — a creature type needs a creature.
+            // (CR 611.2a). CR 205.3d — a creature type needs a creature.
             case "addSubtype": {
                 const subject = frame.subject;
                 if (

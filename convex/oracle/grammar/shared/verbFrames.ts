@@ -473,7 +473,7 @@ export type FrameIR =
            * to its other types", "That creature is a <Subtype> …", "It's a
            * <Subtype> …": one creature type added to one object, keeping the
            * object's own (layer 4). No printed duration, so it never ends
-           * (CR 611.2c) — a timed or type-line-rewriting form is another
+           * (CR 611.2a) — a timed or type-line-rewriting form is another
            * clause and is not read.
            */
           readonly frame: "addSubtype";

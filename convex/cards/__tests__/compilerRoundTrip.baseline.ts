@@ -843,7 +843,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Polar Kraken",
     "Pollen Remedy",
     "Ponder",
-    "Portal to Phyrexia",
     "Portent",
     "Power Artifact",
     "Power Leak",
