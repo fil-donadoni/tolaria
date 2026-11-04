@@ -406,7 +406,7 @@ import {
     placeTriggersOnStack,
     triggerHandlesEventType,
 } from "./triggers";
-import { getColorsFromCost } from "../cards/colors";
+import { getCardColors } from "../cards/colors";
 import { combatDeclarationCap } from "../cards/attackRestrictions";
 import {
     applyCopy,
@@ -19499,7 +19499,7 @@ export function buildSpellContext(
                     supertypes: def?.supertypes ?? [],
                     manaValue: manaValue(def?.manaCost),
                     // CR 202.2 — mana-cost-derived colors of the hand card.
-                    colors: getColorsFromCost(def?.manaCost),
+                    colors: def ? getCardColors(def) : [],
                     // CR 202 (issue #1881) — full printed cost for
                     // `EffectCardFilter.manaCostEquals`'s exact structural
                     // comparison.
@@ -19542,7 +19542,7 @@ export function buildSpellContext(
                     // library cards carry none on the instance.
                     supertypes: def?.supertypes ?? [],
                     // CR 202.2 — mana-cost-derived colors of the library card.
-                    colors: getColorsFromCost(def?.manaCost),
+                    colors: def ? getCardColors(def) : [],
                     manaValue: manaValue(def?.manaCost),
                     // CR 202 (issue #1881) — full printed cost for
                     // `EffectCardFilter.manaCostEquals`'s exact structural
@@ -19580,7 +19580,7 @@ export function buildSpellContext(
                     types: def?.types ?? c.types,
                     subtypes: def?.subtypes ?? c.subtypes,
                     supertypes: def?.supertypes ?? [],
-                    colors: getColorsFromCost(def?.manaCost),
+                    colors: def ? getCardColors(def) : [],
                     manaValue: manaValue(def?.manaCost),
                     cost: manaCostForCardFilter(def),
                     flashback: hasFlashback(c),
@@ -19625,7 +19625,7 @@ export function buildSpellContext(
                     // basics too.
                     supertypes: def?.supertypes ?? [],
                     manaValue: manaValue(def?.manaCost),
-                    colors: getColorsFromCost(def?.manaCost),
+                    colors: def ? getCardColors(def) : [],
                     // CR 202 (issue #1881) — full printed cost for
                     // `EffectCardFilter.manaCostEquals`'s exact structural
                     // comparison.
@@ -19678,7 +19678,7 @@ export function buildSpellContext(
                     // CR 205.4a (issue #2711) — see `getGraveyardCards`.
                     supertypes: def?.supertypes ?? [],
                     manaValue: manaValue(def?.manaCost),
-                    colors: getColorsFromCost(def?.manaCost),
+                    colors: def ? getCardColors(def) : [],
                     counters: c.counters ?? {},
                     // CR 202 (issue #1881) — full printed cost for
                     // `EffectCardFilter.manaCostEquals`'s exact structural
@@ -19770,7 +19770,7 @@ export function buildSpellContext(
                     // linked-pile snapshot feeds the SAME `matchesCardFilter`.
                     supertypes: def?.supertypes ?? [],
                     manaValue: manaValue(def?.manaCost),
-                    colors: getColorsFromCost(def?.manaCost),
+                    colors: def ? getCardColors(def) : [],
                     counters: c.counters ?? {},
                 });
             }

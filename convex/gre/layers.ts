@@ -282,7 +282,7 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
  *  `countDomain` (`cards/types.ts`) because it needs the registry lookup
  *  `countDomain` doesn't — `cards/types.ts` is a deliberately dependency-free
  *  leaf (ADR-adjacent to the `colors.ts` cycle-avoidance comment above
- *  `setCardManaCostLookup`), and this module already imports
+ *  `setColorDefiningCostLookup`), and this module already imports
  *  `getInstanceManaCost` for exactly this class of scan. Backs the tenth
  *  `EffectValue` grammar member (`{ devotion: { of, color } }`,
  *  `SpellContext.getDevotion`, Thassa's Oracle). Single-colour only — CR

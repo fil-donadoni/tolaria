@@ -16,7 +16,7 @@ import {
     AURA_AFFECTS_HOST,
     EFFECT_AFFECTS_SELF,
 } from "../../types";
-import { manaCostForCardId } from "../../manaCostLookup";
+import { colorDefiningCostForCardId } from "../../manaCostLookup";
 import { payOrSacrificeUpkeepTrigger } from "../leg/index.cards";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -58,7 +58,8 @@ function colorsOfView(view: {
     const card = view.card ?? {};
     const inlined = (card as { manaCost?: ManaCost }).manaCost;
     const cardId = (card as { id?: string }).id;
-    const cost = inlined ?? (cardId ? manaCostForCardId(cardId) : undefined);
+    const cost =
+        inlined ?? (cardId ? colorDefiningCostForCardId(cardId) : undefined);
     if (!cost) return [];
     return (["W", "U", "B", "R", "G"] as const).filter(
         (c) => (cost[c] ?? 0) > 0

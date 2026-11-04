@@ -1896,7 +1896,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Devoid",
         kind: "keyword-ability",
         cr: "702.114",
-        status: "planned",
+        status: "implemented",
+        binding: "devoid",
+        note: "CR 702.114a is a characteristic-defining ability read off the definition by `hasDevoid` (`cards/colors.ts`): `getCardColors` and `getEffectiveColors` report no printed colour in every zone, the mana cost stays payable.",
     },
     // 702.115 Ingest
     {

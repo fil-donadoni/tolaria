@@ -1423,7 +1423,7 @@ function viewOf(
  *
  *  Injected rather than imported because every one of those lives in
  *  `gre/state.ts`, which imports THIS module — the same cycle
- *  `setCardManaCostLookup` (`cards/colors.ts`) is registered to break. The
+ *  `setColorDefiningCostLookup` (`cards/colors.ts`) is registered to break. The
  *  registration is unconditional at `gre/state.ts` module scope, so a sync that
  *  ran without it would be a load-order bug, not a silent no-op: the default
  *  throws. */

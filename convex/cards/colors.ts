@@ -42,6 +42,19 @@ export function getColorsFromCost(cost?: ManaCost): Color[] {
     return colors;
 }
 
+/** CR 702.114a — devoid: "This object is colorless." A characteristic-defining
+ *  ability (CR 604.3), so it holds in every zone and outside the game, and it
+ *  overrides the cost's colours without touching the cost: the card still costs
+ *  its coloured pips ({@link getColorsFromCost} stays the reader for the mana a
+ *  card DEMANDS). Read off the DEFINITION, the copiable values (CR 707.2a), and
+ *  not off a live ability list: colour is layer 5, ability removal layer 6, so
+ *  an effect that strips abilities leaves the object colourless (CR 613.6). */
+export function hasDevoid(
+    def: Pick<CardDefinition, "staticAbilities">
+): boolean {
+    return def.staticAbilities?.includes("devoid") ?? false;
+}
+
 /** Coloured pip COUNTS in a mana cost (CR 202.2) — the counting twin of
  *  {@link getColorsFromCost}'s presence-only colours: `{U}{U}` returns
  *  `{ U: 2 }`, `{4}{U}` returns `{ U: 1 }`. Colour Commitment
@@ -74,15 +87,15 @@ export function getPipCountsFromCost(
 /** CR 105.2 / 202.2 — the card's actual printed COLOUR(s): exactly the colours
  *  of its mana cost. A card with no coloured mana in its cost is COLOURLESS
  *  (CR 105.2a) even when it TAPS for coloured mana — a basic Island is
- *  colourless, an artifact with a generic cost is colourless. Colour indicators
+ *  colourless, an artifact with a generic cost is colourless, a devoid card is
+ *  colourless whatever it costs ({@link hasDevoid}). Colour indicators
  *  (CR 202.2b) are not modelled on `CardDefinition`, matching the layer-5 base
- *  colour (`gre/layers.ts`), so a card's colour is exactly the colours of its
- *  mana cost. This is the gameplay authority for every "a <colour> card"
+ *  colour (`gre/layers.ts`). This is the gameplay authority for every "a <colour> card"
  *  cost / filter (Flash of Insight, Force of Will, flashback exile). For the
  *  deck-builder / draft notion — which folds a land's PRODUCED mana in so an
  *  Island groups under blue — use {@link getCardColorIdentity} instead. */
 export function getCardColors(def: CardDefinition): Color[] {
-    return getColorsFromCost(def.manaCost);
+    return hasDevoid(def) ? [] : getColorsFromCost(def.manaCost);
 }
 
 /** CR 105.2 / 202.2 — true iff the card's actual printed COLOUR (its
@@ -133,6 +146,8 @@ export function basicLandsForColors(colors: Iterable<Color>): string[] {
  *  short-circuits to its cost colours, so a Talisman of Creativity ({2} with a
  *  "{T}: Add {U} or {R}" ability) reads as colourless here rather than its true
  *  Izzet ({U}{R}) identity — mana symbols in rules text are not scanned.
+ *  A devoid card keeps its cost's colours here: CR 903.4 counts the mana symbols
+ *  in its cost, whatever colour the card is.
  *  Returned colours are deduped, in canonical WUBRG order. */
 export function getCardColorIdentity(def: CardDefinition): Color[] {
     if (def.manaCost) return getColorsFromCost(def.manaCost);

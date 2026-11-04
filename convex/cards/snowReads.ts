@@ -5,7 +5,7 @@
 // (Coldsnap) addition that ICE never uses (see GLOSSARY.md "Snow"). These reads
 // resolve the LIVE snow status of a permanent: printed supertypes (from the
 // registry via the injected `supertypesForCardId` — cycle-free, mirrors
-// `manaCostForCardId`) overlaid by any `supertype-set` static effect or
+// `colorDefiningCostForCardId`) overlaid by any `supertype-set` static effect or
 // indefinite `setSupertype` mutation (Melting / Arcum's Weathervane) recorded
 // on the instance's `grantedSupertypes` / `removedSupertypes`.
 //
