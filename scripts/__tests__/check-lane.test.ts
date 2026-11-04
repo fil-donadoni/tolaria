@@ -3448,6 +3448,8 @@ describe("every code lane runs the derived sentinel set (issue #7651)", () => {
         [PAIRS]: "bot-node",
         [CENSUS]: "bot-node",
         [SCAN]: "dom",
+        [DEAR]: "bot-node",
+        "convex/gre/__tests__/damageLock.test.ts": "node-engine",
     };
     const sentinels: SentinelSource = {
         read: () => SET,
@@ -3523,6 +3525,32 @@ describe("every code lane runs the derived sentinel set (issue #7651)", () => {
         );
         expect(skipOf(p, `${SENTINEL_STEP}:gone`)).toContain(GONE);
         expect(p.run.map((c) => c.command).join("\n")).not.toContain(GONE);
+    });
+
+    it("a deleted file in overCap or unmeasured is on :gone, off :over-cap and :unmeasured", () => {
+        const DEAD_CAP = "convex/gre/ai/__tests__/deletedCap.bot.test.ts";
+        const DEAD_UNM = "scripts/__tests__/deletedUnmeasured.test.ts";
+        const src: SentinelSource = {
+            read: () => ({
+                ...EMPTY_SENTINELS,
+                overCap: [{ file: DEAD_CAP, ms: 9_004 }],
+                unmeasured: [DEAD_UNM],
+            }),
+            projectOf: () => null,
+        };
+        const p = classifyLaneLive(
+            ["convex/gre/sba.ts"],
+            undefined,
+            reachNothing,
+            undefined,
+            bot([]),
+            () => [],
+            src
+        );
+        expect(skipOf(p, `${SENTINEL_STEP}:gone`)).toContain(DEAD_CAP);
+        expect(skipOf(p, `${SENTINEL_STEP}:gone`)).toContain(DEAD_UNM);
+        expect(skipOf(p, `${SENTINEL_STEP}:over-cap`)).toBeUndefined();
+        expect(skipOf(p, `${SENTINEL_STEP}:unmeasured`)).toBeUndefined();
     });
 
     it("a sentinel an admitted cheap guard runs whole is not run twice", () => {

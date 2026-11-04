@@ -1473,17 +1473,28 @@ function plannedSentinels(
         if (!ranElsewhere(s.file, project))
             runs.push({ file: s.file, project });
     }
+    // The file is generated and the tree moves between refreshes: a deleted
+    // file left in `overCap` / `unmeasured` is `gone` too, never "health's"
+    // (health cannot run what is not there). The run list is untouched.
+    const alive = <T extends { file: string }>(xs: T[]): T[] =>
+        xs.filter((x) => {
+            if (source.projectOf(x.file) !== null) return true;
+            gone.push(x.file);
+            return false;
+        });
+    const overCap = alive(set.overCap);
+    const unmeasured = alive(set.unmeasured.map((file) => ({ file })));
     const listed = (xs: { file: string; ms: number }[]) =>
         xs.map((x) => `${x.file} (${formatCost(x.ms)})`).join(", ");
-    if (set.overCap.length > 0)
+    if (overCap.length > 0)
         skip.push({
             id: `${SENTINEL_STEP}:over-cap`,
-            reason: `health's — past laneSentinels.capS (${set.capS} s) once the cheaper sentinels were in: ${listed(set.overCap)}`,
+            reason: `health's — past laneSentinels.capS (${set.capS} s) once the cheaper sentinels were in: ${listed(overCap)}`,
         });
-    if (set.unmeasured.length > 0)
+    if (unmeasured.length > 0)
         skip.push({
             id: `${SENTINEL_STEP}:unmeasured`,
-            reason: `health's until measured — no row in ${COSTS_PATH}: ${set.unmeasured.join(", ")}`,
+            reason: `health's until measured — no row in ${COSTS_PATH}: ${unmeasured.map((x) => x.file).join(", ")}`,
         });
     if (gone.length > 0)
         skip.push({
