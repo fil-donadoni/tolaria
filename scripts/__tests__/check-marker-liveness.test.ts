@@ -428,11 +428,10 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
             expect(liveHitsUsingThisSyntax).toEqual([]);
         });
 
-        it("dsk/red.cards.ts and mh3/colorless.cards.ts no longer name the closed #691 anywhere — of the three successor slices only #2766 (Shifting Woodland's delirium copy) is still open and still marked; #2761 (Silence — freed) and #2494 (Fear of Missing Out's delirium attack trigger, shipped by #2885) both had their markers DELETED outright rather than re-pointed, per Guard B's own rule that a marker is deleted, never left to rot, once its blocker is gone", () => {
+        it("dsk/red.cards.ts and mh3/colorless.cards.ts no longer name the closed #691 anywhere — all three successor slices have shipped: #2761 (Silence — freed), #2494 (Fear of Missing Out's delirium attack trigger, shipped by #2885) and #2766 (Shifting Woodland's delirium copy) each had their markers DELETED outright rather than re-pointed, per Guard B's own rule that a marker is deleted, never left to rot, once its blocker is gone", () => {
             const hits = scanRepoMarkers(readSources()).filter((m) =>
                 /dsk\/red\.cards\.ts|mh3\/colorless\.cards\.ts/.test(m.file)
             );
-            expect(hits.length).toBeGreaterThanOrEqual(1);
             for (const h of hits) {
                 expect(h.issueNumbers).not.toContain(691);
                 // The bucket this census used to pin was #1841, retired as
@@ -452,7 +451,8 @@ describe("scanRepoMarkers — resolves tracked-by: independent of Guard B's MARK
             // still show up here; a lingering hit would mean the delete
             // failed or a duplicate marker was left behind.
             expect(allNumbers.has(2761)).toBe(false);
-            expect(allNumbers.has(2766)).toBe(true);
+            // Shifting Woodland's delirium ability shipped: same rule.
+            expect(allNumbers.has(2766)).toBe(false);
         });
     });
 });
