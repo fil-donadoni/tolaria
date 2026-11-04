@@ -2081,13 +2081,17 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.133",
         status: "planned",
     },
-    // 702.134 Mentor
+    // 702.134 Mentor (issue #4003) — the attack trigger expanded from the bare
+    // `staticAbilities: ["mentor"]` string at the `getDefinition` seam
+    // (`expandMentor`, `convex/cards/abilities/mentor.ts`, ADR 0054).
     {
         id: "mentor",
         name: "Mentor",
         kind: "keyword-ability",
         cr: "702.134",
-        status: "planned",
+        status: "implemented",
+        binding: "mentor",
+        note: 'CR 702.134a — a trigger whose target carries the power comparison as `powerBelowSource`, checked as it goes on the stack and again at resolution, with the source\'s last known information once it has left (CR 608.2b). CR 702.134b — one injected trigger per declared instance. CR 702.134c — a resolved mentor ability queues `CREATURE_MENTORED`; its one reader, Aegis of the Legion, stays behind its own "Whenever equipped creature mentors a creature" Grammar Gap. Definition-level, so `isDefinitionLevelKeyword` quarantines a compiled grant of mentor.',
     },
     // 702.135 Afterlife
     {

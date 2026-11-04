@@ -371,7 +371,11 @@ type StructuralKey =
     // A directive read by `applySourceDirectives` (`rules.ts`) that BINDS the
     // source's instance id into `combatPartnerOf` (the real, registered
     // filter) — never itself checked against a candidate.
-    | "combatPartnerOfSource";
+    | "combatPartnerOfSource"
+    // A directive read by `powerFilterDescriptor.lower`, folding the source's
+    // power into `powerFilter`'s `max` (the real, registered filter) — never
+    // itself checked against a candidate.
+    | "powerBelowSource";
 
 /** The forcing function itself: every requirement-declared filter field,
  *  derived by omission rather than a hand-maintained list. `REGISTRY`
@@ -419,8 +423,9 @@ export interface FilterDescriptor<V> {
      *
      *  `sourcePower` (issue #1378) is the announcing trigger/ability source's
      *  live effective power, threaded through ONLY for `mvFilterDescriptor`'s
-     *  `"sourcePower"` placeholder — every other descriptor ignores the extra
-     *  argument (TS function-type compatibility permits a narrower-arity
+     *  `"sourcePower"` placeholder and `powerFilterDescriptor`'s
+     *  `powerBelowSource` — every other descriptor ignores the extra argument
+     *  (TS function-type compatibility permits a narrower-arity
      *  implementation). */
     lower(
         req: TargetRequirement,
@@ -942,7 +947,18 @@ const excludeInstanceIdsDescriptor = defineFilter<ReadonlyArray<string>>({
 
 // CR 613 layer 7c — effective power bounds.
 const powerFilterDescriptor = defineFilter<{ min?: number; max?: number }>({
-    lower: (req) => req.powerFilter,
+    // CR 702.134a — "power less than this creature's power" lowers onto the
+    // inclusive `max` (power is an integer, CR 107.1), so every reader of the
+    // bound (offered set, carried `PendingTarget`, client) needs no second rule.
+    lower: (req, _chosenX, sourcePower) => {
+        if (!req.powerBelowSource) return req.powerFilter;
+        const below = (sourcePower ?? 0) - 1;
+        const max = req.powerFilter?.max;
+        return {
+            ...req.powerFilter,
+            max: max === undefined ? below : Math.min(max, below),
+        };
+    },
     checks: {
         permanent: (card, value, ctx) => {
             const power = getEffectivePower(ctx.state, card);

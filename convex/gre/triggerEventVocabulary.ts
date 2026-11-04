@@ -190,6 +190,13 @@ export const EVENT_FIELD_KINDS: {
         permanentId: "object",
         controllerId: "player",
     },
+    // CR 702.134c — the mentor may have left the battlefield; the name-and-seat
+    // walk refuses an object it cannot name.
+    CREATURE_MENTORED: {
+        mentorId: "object",
+        mentoredId: "object",
+        controllerId: "player",
+    },
     PERMANENT_EXERTED: {
         permanentId: "object",
         controllerId: "player",

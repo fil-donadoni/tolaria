@@ -150,6 +150,14 @@ export const EVENT_FIELD_REGISTRY: Record<
             resolve: soleDeclaredAttacker,
         },
     },
+    // CR 702.134c — "whenever this creature mentors a creature, … that creature".
+    CREATURE_MENTORED: {
+        mentoredId: {
+            family: "object",
+            resolve: (e) =>
+                e.type === "CREATURE_MENTORED" ? e.mentoredId : undefined,
+        },
+    },
     // CR 509.3a — a creature declared as a blocker, once per creature. The
     // event carries exactly one, so `combatant` names it with no pair to
     // disambiguate (see `BlockerDeclaredEvent`).
