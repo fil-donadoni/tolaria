@@ -57,6 +57,7 @@ import {
     type PlayerCounterKind,
     type TokenSpec,
     type TriggerFizzledEvent,
+    type TriggeredAbility,
     countDomain,
 } from "../cards/types";
 import {
@@ -2184,6 +2185,41 @@ function playerTargetStillMeetsRestrictions(
     return checkPlayerTargetFilters(ctx, candidate, values) === null;
 }
 
+/** CR 702.134c — a mentor ability that resolved makes its source mentor its
+ *  target. Called past the legality gate, so the sole target is legal. */
+function queueCreatureMentored(
+    state: GameState,
+    item: StackItem,
+    ability: TriggeredAbility
+): void {
+    if (!ability.mentorResolution || !item.triggerSourceId) return;
+    const target = item.targets?.[0];
+    if (target?.type !== "permanent") return;
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "CREATURE_MENTORED",
+            mentorId: item.triggerSourceId,
+            mentoredId: target.id,
+            controllerId: item.controllerId,
+        },
+    ];
+}
+
+/** CR 608.2b — the power a resolving ability reads off its source: the
+ *  departure-time snapshot once the source has left (it stays authoritative
+ *  through a blink, CR 400.7), else the permanent's current effective power.
+ *  An activated ability's stack item carries its source's id; a triggered one
+ *  names it in `triggerSourceId`. */
+function resolvingAbilitySourcePower(
+    state: GameState,
+    item: StackItem
+): number {
+    if (item.sourceLkiPower !== undefined) return item.sourceLkiPower;
+    const source = findOnBattlefield(state, item.triggerSourceId ?? item.id);
+    return source ? getEffectivePT(state, source.card).power : 0;
+}
+
 /** CR 608.2b, permanent-kind half (issue #1853 review) — re-checks a
  *  still-on-the-battlefield PERMANENT target against the resolving item's
  *  own permanent target filters (subtype, tap-state, attachment, …), not
@@ -2243,7 +2279,13 @@ function permanentTargetStillMeetsRestrictions(
     // be disambiguated from here.
     if (resolved.hasAdditionalGroups) return true;
     const { req } = resolved;
-    const values = lowerPermanentFilters(req, undefined, undefined);
+    const values = lowerPermanentFilters(
+        req,
+        undefined,
+        req.powerBelowSource
+            ? resolvingAbilitySourcePower(state, item)
+            : undefined
+    );
     delete values.mvFilter;
     if (Object.keys(values).length === 0) return true;
     const ctx: TargetFilterCtx = {
@@ -3137,6 +3179,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                         return null;
                 }
             }
+            queueCreatureMentored(state, top, ability);
         }
         delete top.collectedChoices;
         state.stack.pop();
