@@ -241,6 +241,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         impended: true,
         warpExiledOnTurn: 26,
         enterAttackingTarget: "p2",
+        acceptedEntryCounters: { "+1/+1": 1 },
         bestowed: true,
         castOffSorceryTiming: true,
         notedManaSpentOnCast: { G: 2 },

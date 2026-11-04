@@ -39,6 +39,7 @@ import {
 } from "./abilities/impending";
 import { expandHideaway } from "./abilities/hideaway";
 import { expandKeywordTriggers } from "./abilities/keywordTriggers";
+import { expandUnleash } from "./abilities/unleash";
 import { expandChapterAbilities } from "./abilities/sagas";
 import { expandClassLevelBars } from "./abilities/classLevels";
 import { expandCompiledStatics } from "./compiledStatics";
@@ -675,8 +676,9 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
             )
         )
     );
-    expansionCache.set(base, expanded);
-    return expanded;
+    const withUnleash = expandUnleash(expanded);
+    expansionCache.set(base, withUnleash);
+    return withUnleash;
 };
 
 // Issue #4165 (PRD #4161) — the LAZY source behind the resident map. When

@@ -189,6 +189,9 @@
             ]
           },
           "enterAttackingTarget": "p2",
+          "acceptedEntryCounters": {
+            "+1/+1": 1
+          },
           "entersAsTypeLine": {
             "types": [
               "Enchantment"
@@ -632,6 +635,9 @@
         ]
       },
       "enterAttackingTarget": "p2",
+      "acceptedEntryCounters": {
+        "+1/+1": 1
+      },
       "entersAsTypeLine": {
         "types": [
           "Enchantment"

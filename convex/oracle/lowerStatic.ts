@@ -43,6 +43,7 @@
 import { expandAnnihilator } from "../cards/abilities/annihilator";
 import { expandChangeling } from "../cards/abilities/changeling";
 import { expandMobilize } from "../cards/abilities/mobilize";
+import { expandUnleash } from "../cards/abilities/unleash";
 import { expandFadingVanishing } from "../cards/abilities/fadingVanishing";
 import { expandHideaway } from "../cards/abilities/hideaway";
 import { expandKeywordTriggers } from "../cards/abilities/keywordTriggers";
@@ -251,7 +252,9 @@ export function isDefinitionLevelKeyword(keyword: string): boolean {
         expandMobilize(
             expandAnnihilator(
                 expandHideaway(
-                    expandFadingVanishing(expandKeywordTriggers(bare))
+                    expandFadingVanishing(
+                        expandKeywordTriggers(expandUnleash(bare))
+                    )
                 )
             )
         )
