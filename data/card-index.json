@@ -5334,6 +5334,16 @@
         "source": "compiled"
     },
     {
+        "name": "Barbarian General",
+        "scryfallId": "060da652-03c7-45e3-ad83-f0a9fa9d1049",
+        "oracleId": "d4f2e305-bec0-48c8-8040-f85618c71cc9",
+        "firstSet": "ptk",
+        "firstPrintId": "060da652-03c7-45e3-ad83-f0a9fa9d1049",
+        "firstPrintSet": "ptk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Barbarian Guides",
         "scryfallId": "fe65a045-dacb-4392-bcb6-843394ef98c9",
         "oracleId": "ef8c324a-582b-401e-add1-1985c5596908",
@@ -10587,6 +10597,16 @@
         "firstPrintId": "0169e52b-7909-4a8f-8ca2-62f030f9a85a",
         "firstPrintSet": "tmp",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Cao Ren, Wei Commander",
+        "scryfallId": "4f7e8366-82ba-4df0-b9df-7d0aa9b972eb",
+        "oracleId": "99cbc054-2757-4c07-ad04-9ac67dad4abc",
+        "firstSet": "ptk",
+        "firstPrintId": "4f7e8366-82ba-4df0-b9df-7d0aa9b972eb",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -34426,6 +34446,16 @@
         "source": "compiled"
     },
     {
+        "name": "Herald of Hoofbeats",
+        "scryfallId": "7beebc99-b027-49e2-95ad-e51ce302457f",
+        "oracleId": "c9b40f24-c08e-4e05-a141-0a8a670d37c9",
+        "firstSet": "moc",
+        "firstPrintId": "7beebc99-b027-49e2-95ad-e51ce302457f",
+        "firstPrintSet": "moc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Herald of Serra",
         "scryfallId": "22a2b882-d616-495e-99f6-196031235f93",
         "oracleId": "bc42f32d-e4e1-4174-904c-6058e487f963",
@@ -41092,6 +41122,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Lady Zhurong, Warrior Queen",
+        "scryfallId": "009661e7-c704-43a1-82e3-7da0b609844e",
+        "oracleId": "531e6ffb-28e0-4e8e-ad88-2f3a243789cf",
+        "firstSet": "ptk",
+        "firstPrintId": "009661e7-c704-43a1-82e3-7da0b609844e",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Laelia, the Blade Reforged",
         "scryfallId": "a3bb2881-e8fb-4fba-a9f9-d93e6ca24378",
         "oracleId": "a0be9bb2-3234-4c6c-b8ce-0879b1f43003",
@@ -43342,6 +43382,36 @@
         "firstPrintId": "356c5e6a-c0bd-43f7-bc84-a6ae8718a7a2",
         "firstPrintSet": "som",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Lu Bu, Master-at-Arms",
+        "scryfallId": "07d60c27-8625-48eb-a3f0-1e26d6930ae7",
+        "oracleId": "ff959f1f-0982-4761-a6b0-3044dff1d617",
+        "firstSet": "ptk",
+        "firstPrintId": "07d60c27-8625-48eb-a3f0-1e26d6930ae7",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Lu Meng, Wu General",
+        "scryfallId": "77a8b376-eda5-4bf9-9093-9518c09e50e8",
+        "oracleId": "a1e2a966-6aad-4325-b644-3ced319bdd7d",
+        "firstSet": "ptk",
+        "firstPrintId": "77a8b376-eda5-4bf9-9093-9518c09e50e8",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Lu Xun, Scholar General",
+        "scryfallId": "0882d4c8-32f1-4d86-b5c5-75a16697004c",
+        "oracleId": "ea658352-abef-4201-b20c-f5c5809d1d3e",
+        "firstSet": "ptk",
+        "firstPrintId": "0882d4c8-32f1-4d86-b5c5-75a16697004c",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -65984,6 +66054,26 @@
         "source": "compiled"
     },
     {
+        "name": "Shu Cavalry",
+        "scryfallId": "0433bee7-406d-4dd3-8d1b-dfd6cb64d038",
+        "oracleId": "d9180f63-c745-41a1-9f01-273e7ee13176",
+        "firstSet": "ptk",
+        "firstPrintId": "0433bee7-406d-4dd3-8d1b-dfd6cb64d038",
+        "firstPrintSet": "ptk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Shu Elite Companions",
+        "scryfallId": "11ac63f6-cd61-4334-902a-777410311b2d",
+        "oracleId": "edf304b8-523e-4233-8d77-1d45d33cbb86",
+        "firstSet": "ptk",
+        "firstPrintId": "11ac63f6-cd61-4334-902a-777410311b2d",
+        "firstPrintSet": "ptk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Shu Elite Infantry",
         "scryfallId": "36bcd751-1142-4e72-9d87-7a25c74c038b",
         "oracleId": "806b4f0c-f577-4d7f-b826-09e4479c314e",
@@ -66001,6 +66091,16 @@
         "firstPrintId": "cd4268d5-f27b-44a5-91f6-6c90521825fd",
         "firstPrintSet": "ptk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Shu General",
+        "scryfallId": "c9c3be7a-82a8-411c-bfe2-16749ada1244",
+        "oracleId": "0fef6729-b044-4daf-834a-ac8c9711ad8a",
+        "firstSet": "ptk",
+        "firstPrintId": "c9c3be7a-82a8-411c-bfe2-16749ada1244",
+        "firstPrintSet": "ptk",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -72951,6 +73051,26 @@
         "firstPrintId": "44d0277c-ca82-4334-a15a-cd67a9db0d02",
         "firstPrintSet": "sos",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Sun Ce, Young Conquerer",
+        "scryfallId": "16114a68-58d1-4aad-9b3a-890e9c84b253",
+        "oracleId": "93b0185c-b86f-4137-bc6d-96212eee1708",
+        "firstSet": "ptk",
+        "firstPrintId": "16114a68-58d1-4aad-9b3a-890e9c84b253",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Sun Quan, Lord of Wu",
+        "scryfallId": "6def4492-3f67-4cdb-8a25-c3ddebd125c7",
+        "oracleId": "70503280-6bdf-431d-8213-367a9783463a",
+        "firstSet": "ptk",
+        "firstPrintId": "6def4492-3f67-4cdb-8a25-c3ddebd125c7",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -84781,11 +84901,51 @@
         "source": "compiled"
     },
     {
+        "name": "Wei Elite Companions",
+        "scryfallId": "843cbf18-60ac-4d97-b156-874735db61c6",
+        "oracleId": "2db5e0cd-c991-4fda-9001-9e4f10e8a805",
+        "firstSet": "ptk",
+        "firstPrintId": "843cbf18-60ac-4d97-b156-874735db61c6",
+        "firstPrintSet": "ptk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Wei Infantry",
         "scryfallId": "72c6465f-3144-4faf-b248-a9fb941dc002",
         "oracleId": "41283a82-ce3f-41a6-995e-bc30d8ab5cf9",
         "firstSet": "ptk",
         "firstPrintId": "72c6465f-3144-4faf-b248-a9fb941dc002",
+        "firstPrintSet": "ptk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wei Night Raiders",
+        "scryfallId": "f5a0292e-ecf4-42df-8abf-f4479f8ad6cb",
+        "oracleId": "d24ee48a-86a9-4a72-9311-79b6ea3f41f2",
+        "firstSet": "ptk",
+        "firstPrintId": "f5a0292e-ecf4-42df-8abf-f4479f8ad6cb",
+        "firstPrintSet": "ptk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Wei Scout",
+        "scryfallId": "a11d58fb-fb70-4e8f-8f64-232ad2c1f59b",
+        "oracleId": "f7fa054f-39cb-47d3-a55d-3f70ae164063",
+        "firstSet": "ptk",
+        "firstPrintId": "a11d58fb-fb70-4e8f-8f64-232ad2c1f59b",
+        "firstPrintSet": "ptk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wei Strike Force",
+        "scryfallId": "6eae8ce1-b21f-4d64-91ff-e98bf6a4548a",
+        "oracleId": "002ad5fa-a20c-4d30-beef-401d89868d67",
+        "firstSet": "ptk",
+        "firstPrintId": "6eae8ce1-b21f-4d64-91ff-e98bf6a4548a",
         "firstPrintSet": "ptk",
         "rarity": "common",
         "source": "compiled"
@@ -86795,11 +86955,41 @@
         "source": "compiled"
     },
     {
+        "name": "Wu Elite Cavalry",
+        "scryfallId": "7cf562e2-be8e-4514-b2c8-3268dc1ab0db",
+        "oracleId": "7dc5d729-0553-46fb-aff7-2f0d9573837b",
+        "firstSet": "ptk",
+        "firstPrintId": "7cf562e2-be8e-4514-b2c8-3268dc1ab0db",
+        "firstPrintSet": "ptk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Wu Infantry",
         "scryfallId": "ebe4115e-7ca3-4996-a390-133c2e6d09b7",
         "oracleId": "a5a39eaf-104d-4dfa-b370-5d3de0d158fe",
         "firstSet": "ptk",
         "firstPrintId": "ebe4115e-7ca3-4996-a390-133c2e6d09b7",
+        "firstPrintSet": "ptk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wu Light Cavalry",
+        "scryfallId": "60e55b25-fde2-4b57-b5db-65b75262ff3d",
+        "oracleId": "c24da532-311b-4b83-82d2-7dc80409ba12",
+        "firstSet": "ptk",
+        "firstPrintId": "60e55b25-fde2-4b57-b5db-65b75262ff3d",
+        "firstPrintSet": "ptk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wu Scout",
+        "scryfallId": "8d13330f-6e07-451f-b17a-4e1606a74c3f",
+        "oracleId": "ef577d7d-7a24-4bd3-b86b-f69e37bb2ce7",
+        "firstSet": "ptk",
+        "firstPrintId": "8d13330f-6e07-451f-b17a-4e1606a74c3f",
         "firstPrintSet": "ptk",
         "rarity": "common",
         "source": "compiled"
@@ -87101,6 +87291,26 @@
         "firstSet": "arn",
         "firstPrintId": "efdba2a9-d171-45ed-8dd4-9d0046128f68",
         "firstPrintSet": "arn"
+    },
+    {
+        "name": "Yellow Scarves Cavalry",
+        "scryfallId": "84460666-4f6b-422c-b20e-dc1651c66e15",
+        "oracleId": "8ff7e8e9-11b4-4a77-a423-70777f00482b",
+        "firstSet": "ptk",
+        "firstPrintId": "84460666-4f6b-422c-b20e-dc1651c66e15",
+        "firstPrintSet": "ptk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Yellow Scarves General",
+        "scryfallId": "06e98691-6227-41f2-a3f4-3131b07a3a6f",
+        "oracleId": "6fbade4d-502d-45d7-a79e-3fd9e3e7ccdf",
+        "firstSet": "ptk",
+        "firstPrintId": "06e98691-6227-41f2-a3f4-3131b07a3a6f",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Yellow Scarves Troops",
@@ -87428,6 +87638,16 @@
         "firstPrintId": "e03f41f3-7304-4b45-bc16-fa1ddcc5eff0",
         "firstPrintSet": "dom",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Zhang Fei, Fierce Warrior",
+        "scryfallId": "2a58ec38-f1dc-4c69-9d26-a4599bce586a",
+        "oracleId": "f3f815b8-75c6-40e0-9716-872f0f5c9d46",
+        "firstSet": "ptk",
+        "firstPrintId": "2a58ec38-f1dc-4c69-9d26-a4599bce586a",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

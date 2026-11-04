@@ -46,6 +46,10 @@ const PUMP: EffectOp[] = [
     },
 ];
 
+/** Printed by no card, so a requirement naming it can only be posed by a grant
+ *  — whatever keywords the catalogue's creatures happen to print. */
+const GRANT_ONLY_KEYWORD = "test-grant-only-keyword";
+
 function instant(
     slug: string,
     requirement: Partial<TargetRequirement>,
@@ -108,7 +112,7 @@ describe("the generated position poses a narrowed creature target (CR 115.1)", (
         ],
         [
             "a keyword no plain body carries",
-            instant("horsemanship", { requireAbility: "horsemanship" }),
+            instant("grant-only", { requireAbility: GRANT_ONLY_KEYWORD }),
         ],
     ];
     it.each(shapes)("%s", (_label, def) => {
@@ -678,8 +682,10 @@ describe("a sorcery removal spell's narrowed target is posed and played (CR 115.
             removal("sorcery-defender", { requireAbility: "defender" }),
         ],
         [
-            "a keyword only a grant can supply (horsemanship)",
-            removal("sorcery-horsemanship", { requireAbility: "horsemanship" }),
+            "a keyword only a grant can supply",
+            removal("sorcery-grant-only", {
+                requireAbility: GRANT_ONLY_KEYWORD,
+            }),
         ],
     ];
     it.each(shapes)("%s", (_label, def) => {
@@ -707,8 +713,8 @@ describe("mana value equality and granted keyword with a combat role (issue #426
     });
 
     it("a granted keyword with a combat role poses nothing", () => {
-        const def = instant("hm-attacking", {
-            requireAbility: "horsemanship",
+        const def = instant("grant-only-attacking", {
+            requireAbility: GRANT_ONLY_KEYWORD,
             combatRoleFilter: ["attacking"],
         });
         expect(targetPose(def).cards).toEqual([]);

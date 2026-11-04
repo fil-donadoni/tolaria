@@ -141,6 +141,75 @@ describe("evaluateBlockerKeywords — landwalk (CR 702.14b)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// evaluateBlockerKeywords — horsemanship (CR 702.31b)
+// ---------------------------------------------------------------------------
+
+describe("evaluateBlockerKeywords — horsemanship (CR 702.31b)", () => {
+    const rider = (...extra: string[]) =>
+        makeCard({
+            types: ["Creature"],
+            staticAbilities: ["horsemanship", ...extra],
+        });
+    const plain = (...abilities: string[]) =>
+        makeCard({ types: ["Creature"], staticAbilities: abilities });
+
+    it("rejects a blocker without horsemanship, naming the keyword", () => {
+        const blocker = plain();
+        const result = evaluateBlockerKeywords(rider(), blocker, [blocker]);
+        expect(result.eligible).toBe(false);
+        if (!result.eligible) {
+            expect(result.reason).toMatch(/horsemanship/);
+        }
+    });
+
+    it("accepts a blocker with horsemanship", () => {
+        const blocker = rider();
+        expect(evaluateBlockerKeywords(rider(), blocker, [blocker])).toEqual({
+            eligible: true,
+        });
+    });
+
+    it("leaves a horsemanship blocker free to block a plain attacker", () => {
+        const blocker = rider();
+        expect(evaluateBlockerKeywords(plain(), blocker, [blocker])).toEqual({
+            eligible: true,
+        });
+    });
+
+    it("multiple instances are redundant (CR 702.31c)", () => {
+        const plainBlocker = plain();
+        const riderBlocker = rider("horsemanship");
+        const attacker = rider("horsemanship");
+        expect(
+            evaluateBlockerKeywords(attacker, plainBlocker, [plainBlocker])
+                .eligible
+        ).toBe(false);
+        expect(
+            evaluateBlockerKeywords(attacker, riderBlocker, [riderBlocker])
+                .eligible
+        ).toBe(true);
+    });
+
+    it("is cumulative with another evasion ability (CR 509.1b)", () => {
+        const attacker = rider("flying");
+        const flyer = plain("flying");
+        const groundedRider = rider();
+        const flyingRider = rider("flying");
+        expect(evaluateBlockerKeywords(attacker, flyer, [flyer]).eligible).toBe(
+            false
+        );
+        expect(
+            evaluateBlockerKeywords(attacker, groundedRider, [groundedRider])
+                .eligible
+        ).toBe(false);
+        expect(
+            evaluateBlockerKeywords(attacker, flyingRider, [flyingRider])
+                .eligible
+        ).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // evaluateBlockerKeywords — fear (CR 702.36b)
 // ---------------------------------------------------------------------------
 

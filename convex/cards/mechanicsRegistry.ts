@@ -1058,7 +1058,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Horsemanship",
         kind: "keyword-ability",
         cr: "702.31",
-        status: "planned",
+        status: "implemented",
+        binding: "horsemanship",
+        note: "combatRegistry.ts EvasionRule — attacker-keyed only: CR 702.31b lets a horsemanship creature block anything, so unlike Shadow it owes no blocker-keyed check in validateBlockerEligibility. The client's block affordance reads the same rule through card-utils.ts (isHorsemanshipBarred).",
     },
     // 702.32 Fading
     {
