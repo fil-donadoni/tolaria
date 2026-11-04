@@ -25280,6 +25280,16 @@
         "source": "compiled"
     },
     {
+        "name": "Fiend Artisan",
+        "scryfallId": "6cd9d800-6d31-42e2-87d2-772db0ff95ed",
+        "oracleId": "43b8456a-3333-4936-a09c-324327619c36",
+        "firstSet": "iko",
+        "firstPrintId": "6cd9d800-6d31-42e2-87d2-772db0ff95ed",
+        "firstPrintSet": "iko",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Fiend Binder",
         "scryfallId": "d0870d21-603f-4d36-8054-943adba06301",
         "oracleId": "060c7999-ab81-4e37-af65-7cd219b693c8",
@@ -41739,6 +41749,16 @@
         "firstSet": "isd",
         "firstPrintId": "ac506c17-adc8-49c6-9d8d-43db7cb1ec9d",
         "firstPrintSet": "isd"
+    },
+    {
+        "name": "Liliana's Elite",
+        "scryfallId": "ad542aa9-5c0e-4962-b167-9071e66f9c03",
+        "oracleId": "b6492082-d0ef-4f7c-a4b1-f8ecf6eb0890",
+        "firstSet": "emn",
+        "firstPrintId": "ad542aa9-5c0e-4962-b167-9071e66f9c03",
+        "firstPrintSet": "emn",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Liliana's Mastery",
@@ -84024,6 +84044,16 @@
         "firstPrintId": "2b138167-8129-4109-a58b-af26c95577e4",
         "firstPrintSet": "ptk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wight of the Reliquary",
+        "scryfallId": "a15570c0-4210-4959-8584-987ec85f8283",
+        "oracleId": "4507df69-6bf7-43d6-a609-c032b61835d5",
+        "firstSet": "mh3",
+        "firstPrintId": "a15570c0-4210-4959-8584-987ec85f8283",
+        "firstPrintSet": "mh3",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

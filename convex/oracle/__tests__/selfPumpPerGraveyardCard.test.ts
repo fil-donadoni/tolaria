@@ -96,6 +96,10 @@ describe("self pump per graveyard card — refused neighbours (fail-closed)", ()
             "This creature gets +1/+1 for each creature you control and each creature card in your graveyard.",
         ],
         [
+            "the card's own name as the subject",
+            "Probe gets +1/+1 for each creature card in your graveyard.",
+        ],
+        [
             "a debuff",
             "This creature gets -1/-1 for each creature card in your graveyard.",
         ],
