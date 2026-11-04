@@ -1023,19 +1023,16 @@ function resolveValueAgainstBoard(
         );
     }
     // divide (issue #2385) — a terminal divided by a fixed divisor, rounded
-    // per `rounding`. Both operand shapes (a literal or a `count`) are
-    // genuinely resolvable pre-cast, the same board-read `difference`/
-    // `scaled` already use.
+    // per `rounding`. A literal or a `count` is genuinely resolvable pre-cast,
+    // the same board-read `difference`/`scaled` already use; the cast-time X
+    // takes the bare ref's representative fallback through the recursion.
     if ("divide" in v) {
-        const operand = (o: number | { count: EffectCountSpec }): number =>
-            typeof o === "number"
-                ? o
-                : resolveCountSpecAgainstBoard(
-                      state,
-                      perspectivePlayerId,
-                      o.count
-                  );
-        const quotient = operand(v.divide.value) / v.divide.by;
+        const quotient =
+            resolveValueAgainstBoard(
+                state,
+                perspectivePlayerId,
+                v.divide.value
+            ) / v.divide.by;
         return v.divide.rounding === "up"
             ? Math.ceil(quotient)
             : Math.floor(quotient);

@@ -6,41 +6,78 @@
 import { defineCard, PERMANENT_TYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { cardsPutIntoLibraryTrigger } from "../../abilities/triggers/cardsPutIntoLibraryTrigger";
+import { librarySearchedTrigger } from "../../abilities/triggers/librarySearchedTrigger";
 import { SPIRIT_SPIRITS_ONLY_COMBAT_TOKEN } from "../../sharedTokens";
 
-// Wan Shi Tong, Librarian (issue #788, cube slice #674) — {X}{U}{U}
-// Legendary Creature — Bird Spirit, 1/1, TLA #78. STOP-AND-ISSUE
-// (ADR 0061, tracked-by: #1993): the ETB is "put X +1/+1 counters on him.
-// Then draw half X cards, rounded down." — a genuine CR 603.6b TRIGGERED
-// ability (not `entersWith`, since the Oracle line is "When ~ enters, put X
-// counters..."), and "half X, rounded down" needs `Math.floor(x / 2)`
-// integer division the Effect Script `EffectValue` grammar structurally
-// cannot express (ADR 0045 — "no arithmetic, no expressions"). That forces
-// this ability onto `resolve()` — but ADR 0061 forbids a `resolve()` /
-// `resolveSteps` closure from calling the raw draw primitive
-// (`SpellContext.drawCards` silently skips interactive replacements; only
-// the DSL `draw` Op suspends/resumes) and calls exactly this shape — a
-// protocol-like card needing both a draw and inexpressible logic — a
-// stop-and-issue tracked stub, never shipped silently broken. There is no
-// replacement-aware draw callable from a closure today, so the card cannot
-// ship until one exists. The card's OTHER half — "whenever an opponent
-// searches their library, put a +1/+1 counter on Wan Shi Tong and draw a
-// card" — is pure DSL with no arithmetic and was the actual capability
-// issue #788 was chartered to ship (`LIBRARY_SEARCHED` event +
-// `librarySearchedTrigger` factory, `abilities/triggers/librarySearchedTrigger.ts`);
-// that capability ships fully tested with no catalogue card consuming it
-// yet, pending this card's draw-primitive gap closing.
-// export const wanShiTongLibrarian: CardDefinition = {
-//     id: "e20da6b5-1057-4a28-9e85-07de714e262f",
-//     name: "Wan Shi Tong, Librarian",
-//     rarity: "mythic",
-//     manaCost: { X: "X", U: 2 },
-//     types: ["Creature"],
-//     supertypes: ["Legendary"],
-//     subtypes: ["Bird", "Spirit"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Wan Shi Tong, Librarian — {X}{U}{U} Legendary Creature — Bird Spirit 1/1, TLA
+// #78. The ETB is a CR 603.6a TRIGGERED ability, not `entersWith` (the Oracle
+// line is "When ~ enters, put X counters…"), so its X is the reserved
+// `$source.chosenXOnCast` read (CR 400.7d), never `{ X: true }`, which reads the
+// trigger's own stack item. "Half X, rounded down" is `divide` (CR 107.1a). A
+// source gone before the trigger resolves takes no counters (CR 400.7), yet the
+// draw still reads its last-known X (CR 608.2h). The second ability is the
+// `LIBRARY_SEARCHED` trigger, which never fires on a look-pick prompt.
+//
+// hand-tail: "When Wan Shi Tong enters, put X +1/+1 counters on him. Then draw half X cards, rounded down." (#1993)
+// hand-tail: "Whenever an opponent searches their library, put a +1/+1 counter on Wan Shi Tong and draw a card." (#1993)
+export const wanShiTongLibrarian = defineCard(() => ({
+    id: "e20da6b5-1057-4a28-9e85-07de714e262f",
+    name: "Wan Shi Tong, Librarian",
+    rarity: "mythic",
+    oracleText:
+        "Flash\nFlying, vigilance\nWhen Wan Shi Tong enters, put X +1/+1 counters on him. Then draw half X cards, rounded down.\nWhenever an opponent searches their library, put a +1/+1 counter on Wan Shi Tong and draw a card.",
+    manaCost: { X: "X", U: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Bird", "Spirit"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flash", "flying", "vigilance"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "wan-shi-tong-librarian-etb",
+            oracleText:
+                "When Wan Shi Tong enters, put X +1/+1 counters on him. Then draw half X cards, rounded down.",
+            scope: "self",
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    count: { ref: "$source.chosenXOnCast" },
+                    target: { ref: "$source" },
+                },
+                {
+                    op: "draw",
+                    player: "controller",
+                    count: {
+                        divide: {
+                            value: { ref: "$source.chosenXOnCast" },
+                            by: 2,
+                            rounding: "down",
+                        },
+                    },
+                },
+            ],
+        }),
+        librarySearchedTrigger({
+            id: "wan-shi-tong-librarian-opponent-search",
+            oracleText:
+                "Whenever an opponent searches their library, put a +1/+1 counter on Wan Shi Tong and draw a card.",
+            scope: "opponents",
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    count: 1,
+                    target: { ref: "$source" },
+                },
+                { op: "draw", player: "controller", count: 1 },
+            ],
+        }),
+    ],
+}));
 
 // Wan Shi Tong, All-Knowing (issue #3242) — {3}{U}{U} Legendary Creature —
 // Bird Spirit 4/4, TLE #98. The ETB's chooser is the target's OWNER, who may be

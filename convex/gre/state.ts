@@ -12772,6 +12772,14 @@ export function buildSpellContext(
             );
             return src?.card.chosenSubtypes;
         },
+        getSourceChosenXOnCast(): number {
+            if (item.sourceLki) return item.sourceLki.chosenXOnCast ?? 0;
+            const src = findOnBattlefield(
+                state,
+                item.triggerSourceId ?? item.id
+            );
+            return src?.card.chosenXOnCast ?? 0;
+        },
 
         getChosenModeId(): string | undefined {
             const src = findOnBattlefield(

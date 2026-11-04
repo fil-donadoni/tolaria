@@ -6395,6 +6395,68 @@ describe("validateEffectScript — divide (issue #2385)", () => {
         ).toBeGreaterThan(0);
     });
 
+    it("accepts the source's cast-time X as a dividend at an ability site, and refuses every other ref (CR 400.7d)", () => {
+        const drawHalf = (ref: string) =>
+            [
+                {
+                    op: "draw",
+                    player: "controller",
+                    count: {
+                        divide: { value: { ref }, by: 2, rounding: "down" },
+                    },
+                },
+            ] as EffectOp[];
+        expect(
+            validateAbilityEffectScript(
+                host({ effects: drawHalf("$source.chosenXOnCast") }),
+                "Test Card"
+            )
+        ).toEqual([]);
+        // Not off another snapshot, not a stat read, not at a spell site.
+        for (const ref of ["$source.power", "$host.chosenXOnCast"]) {
+            expect(
+                validateAbilityEffectScript(
+                    host({ effects: drawHalf(ref) }),
+                    "Test Card"
+                ).length
+            ).toBeGreaterThan(0);
+        }
+        expect(
+            validateEffectScript(
+                host({ effects: drawHalf("$source.chosenXOnCast") })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("the cast-time X is a numeric read: legal as an amount, never a player, and still no difference or scaled operand", () => {
+        const X = { ref: "$source.chosenXOnCast" };
+        const drawing = (count: unknown, player: unknown = "controller") =>
+            [{ op: "draw", player, count }] as unknown as EffectOp[];
+        expect(
+            validateAbilityEffectScript(
+                host({ effects: drawing(X) }),
+                "Test Card"
+            )
+        ).toEqual([]);
+        for (const effects of [
+            drawing(1, X),
+            drawing({ difference: { from: X, minus: 1 } }),
+            drawing({ scaled: { value: X, times: 2 } }),
+            drawing({
+                divide: {
+                    value: { divide: { value: X, by: 2, rounding: "up" } },
+                    by: 2,
+                    rounding: "down",
+                },
+            }),
+        ]) {
+            expect(
+                validateAbilityEffectScript(host({ effects }), "Test Card")
+                    .length
+            ).toBeGreaterThan(0);
+        }
+    });
+
     it("rejects a NESTED divide — the operand type is a terminal, so the grammar stays depth-1", () => {
         expect(
             validateEffectScript(

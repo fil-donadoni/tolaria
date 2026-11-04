@@ -125,6 +125,7 @@ import {
     parseSnapshotNameRef,
     parseTargetNameRef,
     SOURCE_CHOSEN_SUBTYPE_REF,
+    SOURCE_CHOSEN_X_ON_CAST_REF,
 } from "./targetRef";
 import { librarySearchFloor } from "./librarySearchFloor";
 import { tallyVotes } from "../voteTally";
@@ -856,6 +857,13 @@ function resolveValue(
         return inner === undefined ? undefined : -inner;
     }
     if ("ref" in value) {
+        // CR 400.7d / 608.2h — the X the source permanent was cast with. Read
+        // off the source rather than a binding: `$source` is not seeded for a
+        // source that left before this ability resolved, and the draw half of
+        // "put X counters on him, then draw half X" still has to answer.
+        if (value.ref === SOURCE_CHOSEN_X_ON_CAST_REF) {
+            return ctx.getSourceChosenXOnCast();
+        }
         // CR 120.3 — `{ ref: "$event.amount" }`: a censused NUMBER field of the
         // firing event ("you gain that much life"). Tried before the bindings
         // below because the `$event.` prefix is reserved and can never be a
@@ -1190,15 +1198,17 @@ function resolveValue(
         return base === undefined ? undefined : base * value.scaled.times;
     }
     // divide (issue #2385) — a terminal divided by a fixed positive-integer
-    // divisor, rounded per the mandatory `rounding` field (CR 107.1a). The
-    // operand is `EffectDifferenceOperand` — the narrow literal-or-`count` set,
-    // a SUBSET of what `difference` accepts since issue #3240 widened its own
-    // operand — so it reads through the identical `resolveDifferenceOperand`
-    // helper; no separate resolver needed. The extra terminal that helper
-    // handles is unreachable from here because the TYPE forbids it, which is
-    // the whole point of `EffectDifferenceTallyOperand` being a sibling.
+    // divisor, rounded per the mandatory `rounding` field (CR 107.1a). A
+    // literal or `count` operand reads through `resolveDifferenceOperand`, whose
+    // extra tally terminal the TYPE keeps unreachable from here; the one ref
+    // the validator admits reads through the `ref` branch above.
     if ("divide" in value) {
-        const dividend = resolveDifferenceOperand(ctx, value.divide.value);
+        const operand = value.divide.value;
+        const dividend =
+            typeof operand === "object" && "ref" in operand
+                ? resolveValue(ctx, operand)
+                : resolveDifferenceOperand(ctx, operand);
+        if (dividend === undefined) return undefined;
         const quotient = dividend / value.divide.by;
         return value.divide.rounding === "up"
             ? Math.ceil(quotient)
@@ -9010,6 +9020,11 @@ export function runModeInstanceScripts(
 /** Seeds the implicit `$source` / `$host` snapshot bindings on a FRESH entry
  *  (see `runEffectScript`). */
 function seedSourceBindings(ctx: SpellContext): void {
+    // CR 400.7 — a same-id permanent back on the battlefield is a NEW object
+    // with no relation to this ability: `sourceLkiMatchesFilter` answers only
+    // once the source has departed, so nothing is seeded from the returned one
+    // and `$source` reads skip exactly as for a source that stayed gone.
+    if (ctx.sourceLkiMatchesFilter({}) !== undefined) return;
     if (ctx.getOwnerId(ctx.sourceInstanceId) !== undefined) {
         bindSnapshot(ctx, SOURCE_BINDING, {
             type: "permanent",

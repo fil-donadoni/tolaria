@@ -260,9 +260,9 @@ export const martyrsOfKorlis = defineCard(() => ({
 // damage dealt to you so far this turn by artifacts." (CR 119 lifegain; reads
 // the artifact-narrowed per-turn damage tally.)
 // NOT DSL-migratable: X = twice getArtifactDamageDealtThisTurn(caster) needs a
-// per-turn artifact-damage EffectValue plus an arithmetic (×2) value construct;
-// neither exists in the grammar (literal|ref|count|manaValue), so the amount
-// can't be expressed as an Op today. tracked-by: #1993
+// per-turn artifact-damage EffectValue as a `scaled` operand; no such value
+// member exists, so the amount can't be expressed as an Op today.
+// tracked-by: #3663
 export const reversePolarity = defineCard(() => ({
     id: "da7ed8ba-3886-4779-a9b3-6892a7ed3527",
     rarity: "common",
