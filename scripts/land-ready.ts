@@ -122,7 +122,11 @@ import {
     type GateStatus,
     type RestPr,
 } from "./lib/pr-gate";
-import { isCheapStep, preQueueSteps } from "./lib/pre-queue-steps";
+import {
+    isCheapStep,
+    isTimeoutOnlyRed,
+    preQueueSteps,
+} from "./lib/pre-queue-steps";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { proofReceiptRefusal } from "./lib/proof-receipt";
 import {
@@ -138,7 +142,7 @@ export const PREQUEUE_ESCAPE_ENV = "TOLARIA_PREQUEUE_RED_OK";
 
 export interface PreQueueDeps {
     /** Run one command in the worktree; its output goes to the terminal. */
-    exec: (command: string) => { ok: boolean; ms: number };
+    exec: (command: string) => { ok: boolean; ms: number; output?: string };
     log: (line: string) => void;
     /** The lane plan, the paths the diff adds, and those that still exist. */
     plan: LanePlan;
@@ -176,6 +180,8 @@ export const REGENERATE_FIX =
 export function runPreQueue(deps: PreQueueDeps): {
     failed: string | null;
     failedAll: string[];
+    /** Every red step failed only by `Test timed out` (issue #8063). */
+    timeoutOnly: boolean;
     result: RunResult;
 } {
     const { run, skip } = preQueueSteps(deps.plan, deps.added, deps.present);
@@ -187,6 +193,8 @@ export function runPreQueue(deps: PreQueueDeps): {
     const costly = run.filter((c) => !isCheapStep(c));
     const failedAll: string[] = [];
     const outcomes: RunResult["outcomes"] = [];
+    // Ids whose output holds only timeouts; REGENERATE_STEP never is.
+    const timedOut = new Set<string>();
     let totalMs = 0;
     // Issue #6491: the lane was classified on the PR's own diff; the steps
     // run on a tree whose derived state is rebuilt, like the queue's draft
@@ -207,17 +215,34 @@ export function runPreQueue(deps: PreQueueDeps): {
                 status: r.ok ? "pass" : "fail",
                 ms: r.ms,
             });
-            if (!r.ok) failedAll.push(check.id);
+            if (!r.ok) {
+                failedAll.push(check.id);
+                if (isTimeoutOnlyRed(r.output ?? "")) timedOut.add(check.id);
+            }
         }
         if (failedAll.length > 0 || deps.skipCostly === true) {
             for (const check of costly)
                 outcomes.push({ id: check.id, status: "not-run", ms: 0 });
         } else {
+            const outputs = new Map<string, string>();
             const rest = runPlan(
                 { ...deps.plan, run: costly },
-                deps.exec,
+                (command) => {
+                    const r = deps.exec(command);
+                    outputs.set(command, r.output ?? "");
+                    return r;
+                },
                 () => undefined
             );
+            for (const o of rest.outcomes) {
+                const c = costly.find((k) => k.id === o.id);
+                if (
+                    o.status === "fail" &&
+                    c !== undefined &&
+                    isTimeoutOnlyRed(outputs.get(c.command) ?? "")
+                )
+                    timedOut.add(o.id);
+            }
             outcomes.push(...rest.outcomes);
             totalMs += rest.totalMs;
             for (const o of rest.outcomes)
@@ -226,6 +251,9 @@ export function runPreQueue(deps: PreQueueDeps): {
         return {
             failed: failedAll[0] ?? null,
             failedAll,
+            timeoutOnly:
+                failedAll.length > 0 &&
+                failedAll.every((id) => timedOut.has(id)),
             result: { ok: failedAll.length === 0, outcomes, totalMs },
         };
     } finally {
@@ -275,23 +303,33 @@ function execLight(
     command: string,
     cwd: string,
     role: TreeRole
-): { ok: boolean; ms: number } {
+): { ok: boolean; ms: number; output: string } {
     const t0 = Date.now();
     const r = spawnSync(
         "bun",
         [resolve(import.meta.dirname, "gate.ts"), "light", command],
         {
-            stdio: "inherit",
+            // Captured, then replayed: a red made only of `Test timed out`
+            // is told apart from an assertion by its output (issue #8063).
+            stdio: ["inherit", "pipe", "pipe"],
+            encoding: "utf8",
+            maxBuffer: 256 * 1024 * 1024,
             cwd,
             env: { ...process.env, [TREE_ROLE_ENV]: role },
         }
     );
+    process.stdout.write(r.stdout ?? "");
+    process.stderr.write(r.stderr ?? "");
     if (r.status === GATE_INFRA) {
         throw new Error(
             `\`${command}\` exited ${GATE_INFRA} (machine saturated, nothing ran) — not a red step; re-issue land:ready`
         );
     }
-    return { ok: r.status === 0, ms: Date.now() - t0 };
+    return {
+        ok: r.status === 0,
+        ms: Date.now() - t0,
+        output: `${r.stdout ?? ""}\n${r.stderr ?? ""}`,
+    };
 }
 
 function git(args: string[]): string {
@@ -650,7 +688,7 @@ function preQueueGate(
     });
     if (proof !== null) refusals.push(`land:ready: refusing — ${proof}`);
     const t0 = Date.now();
-    const { failed, failedAll, result } = runPreQueue({
+    const { failed, failedAll, timeoutOnly, result } = runPreQueue({
         skipCostly: refusals.length > 0,
         plan,
         present,
@@ -677,6 +715,14 @@ function preQueueGate(
     }
     if (failed === null) {
         console.log(`land:ready: pre-queue check green in ${seconds}s`);
+        return;
+    }
+    if (timeoutOnly) {
+        // Issue #8063: a timeout under load says nothing the queue's own lane
+        // will not re-judge; an assertion beside it would not reach here.
+        const note = `land:ready: pre-queue check — ${failedAll.map((id) => `\`${id}\``).join(", ")} red only by \`Test timed out\` after ${seconds}s (load, not an assertion) — queued anyway; the queue's lane re-judges it`;
+        console.log(note);
+        gh(["pr", "comment", String(pr), "--body", note]);
         return;
     }
     if (process.env[PREQUEUE_ESCAPE_ENV] === "1") {

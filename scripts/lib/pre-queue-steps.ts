@@ -23,6 +23,8 @@ import {
     type LanePlan,
     type PlannedCheck,
 } from "../check-lane";
+import { CRASH_LINE, stripAnsi } from "./health-evidence";
+import { timeoutOnlyFailure } from "./health-retry";
 
 /** Steps the lane plans that are NOT seconds-cost, by id, with the reason. */
 export const EXCLUDED_FROM_PRE_QUEUE: Readonly<Record<string, string>> = {
@@ -111,12 +113,22 @@ export interface PreQueuePlan {
 }
 
 /**
- * Reached test files past which the lane's scoped run is not seconds-cost
- * (issue #6992): the lane runs a hub edit's reach file by file now, never the
- * bare project `WHOLE_PROJECT_VITEST` used to drop, so the reach's SIZE says
- * what the bare command said — minutes, the runner's to pay.
+ * The time budget (seconds) of the scoped test run before queuing (issue
+ * #8063). Pre-queue is for errors a session fixes inline, reported in
+ * seconds (issue #5554); a run whose estimated cost passes this is skipped
+ * with a line naming the cost, and the queue's lane pays it once on the
+ * rebased tip (ADR 0136).
  */
-export const PRE_QUEUE_RELATED_MAX = 400;
+export const PRE_QUEUE_BUDGET_S = 120;
+
+/**
+ * Estimated seconds one reached test file costs on the light gate (vitest
+ * <= 2 workers, load around 14). Anchored on issue #8063's observation: a
+ * diff under the old 400-file bound ran 7426 tests and one `land:ready`
+ * attempt took ~35 min, i.e. seconds per file, not tenths. A file COUNT was
+ * never a cost; this constant turns it into one, so the bound is a time.
+ */
+export const RELATED_FILE_COST_S = 1.5;
 
 /** The lane's scoped node/dom run, one id or one per chunk (`pushRelated`). */
 const RELATED_ID = /^vitest\(related\)( \d+\/\d+)?$/;
@@ -124,6 +136,11 @@ const RELATED_ID = /^vitest\(related\)( \d+\/\d+)?$/;
 /** Quoted filters in a planned vitest command. */
 function filterCount(command: string): number {
     return command.match(/'(?:[^']|'\\'')*'/g)?.length ?? 0;
+}
+
+/** Estimated seconds of the plan's whole scoped reach (all chunks). */
+export function relatedCostS(relatedFiles: number): number {
+    return relatedFiles * RELATED_FILE_COST_S;
 }
 
 /**
@@ -139,10 +156,26 @@ export function notSecondsCost(
     if (WHOLE_PROJECT_VITEST.test(check.command)) {
         return "a whole vitest project, not scoped to the diff — the runner's to pay";
     }
-    if (RELATED_ID.test(check.id) && relatedFiles > PRE_QUEUE_RELATED_MAX) {
-        return `the diff reaches ${relatedFiles} test files (> ${PRE_QUEUE_RELATED_MAX}) — minutes, the runner's to pay`;
+    const cost = relatedCostS(relatedFiles);
+    if (RELATED_ID.test(check.id) && cost > PRE_QUEUE_BUDGET_S) {
+        return `the diff reaches ${relatedFiles} test files, ~${Math.round(cost)} s estimated (> ${PRE_QUEUE_BUDGET_S} s budget) — the runner's to pay`;
     }
     return null;
+}
+
+/**
+ * True when a failed vitest run's output holds failures and EVERY one is a
+ * timeout (issue #8063): a `Test timed out` under load says nothing the
+ * queue's own lane will not re-judge. One assertion beside them, an
+ * unhandled error, a crash, or no readable failure at all → false (still a
+ * refusal). The reading is health's own (`timeoutOnlyFailure`) — one
+ * authority for "timeouts only".
+ */
+export function isTimeoutOnlyRed(output: string): boolean {
+    const text = stripAnsi(output);
+    if (/Unhandled (Errors?|Rejections?)/i.test(text)) return false;
+    if (CRASH_LINE.test(text)) return false;
+    return timeoutOnlyFailure(text);
 }
 
 /**

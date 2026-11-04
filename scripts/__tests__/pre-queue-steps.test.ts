@@ -17,8 +17,11 @@ import type { Lineage } from "../lib/health-verdict-store";
 import { SKIN_RECEIPT_REFUSAL } from "../lib/pr-refusals";
 import {
     EXCLUDED_FROM_PRE_QUEUE,
-    PRE_QUEUE_RELATED_MAX,
+    PRE_QUEUE_BUDGET_S,
+    RELATED_FILE_COST_S,
     isCheapStep,
+    isTimeoutOnlyRed,
+    relatedCostS,
     preQueueSteps,
 } from "../lib/pre-queue-steps";
 
@@ -47,7 +50,7 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
         expect(run.map((c) => c.id)).toContain("cr:lint");
     });
 
-    it("drops a scoped run past PRE_QUEUE_RELATED_MAX reached files, every chunk, with a reason", () => {
+    it("drops a scoped run whose estimated cost passes the budget, every chunk, naming the cost", () => {
         const files = ["convex/gre/types.ts"];
         const at = (n: number) =>
             preQueueSteps(
@@ -65,16 +68,21 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
                 [],
                 files
             );
-        const over = at(1_500);
+        const overN = Math.floor(PRE_QUEUE_BUDGET_S / RELATED_FILE_COST_S) + 1;
+        const over = at(overN);
         const overSkips = over.skip.filter((s) =>
             s.id.startsWith("vitest(related)")
         );
-        expect(overSkips.length).toBeGreaterThan(1);
-        for (const s of overSkips) expect(s.reason).toMatch(/1500 test files/);
+        expect(overSkips.length).toBeGreaterThanOrEqual(1);
+        for (const s of overSkips) {
+            expect(s.reason).toContain(`${overN} test files`);
+            expect(s.reason).toContain(`${PRE_QUEUE_BUDGET_S} s budget`);
+        }
         expect(
             over.run.filter((c) => c.id.startsWith("vitest(related)"))
         ).toEqual([]);
-        const within = at(PRE_QUEUE_RELATED_MAX);
+        const within = at(Math.floor(PRE_QUEUE_BUDGET_S / RELATED_FILE_COST_S));
+        expect(relatedCostS(overN)).toBeGreaterThan(PRE_QUEUE_BUDGET_S);
         expect(within.run.map((c) => c.id)).toContain("vitest(related)");
     });
 
@@ -434,5 +442,71 @@ describe("landRefusals — land's refusals before the PR is queued", () => {
                 "## Preset scenario\n\nnone owed — a refactor."
             )
         ).toEqual([]);
+    });
+});
+
+// Issue #8063 — a red made only of `Test timed out` is announced, not refused.
+describe("isTimeoutOnlyRed / runPreQueue — timeouts under load (issue #8063)", () => {
+    const timeout = (name: string) =>
+        ` FAIL  node-engine a.test.ts > ${name}\nError: Test timed out in 5000ms.\n`;
+    const assertion = (name: string) =>
+        ` FAIL  node-engine b.test.ts > ${name}\nAssertionError: expected 1 to be 2\n`;
+
+    it("all failures timeouts → true; one assertion beside them → false", () => {
+        expect(
+            isTimeoutOnlyRed(
+                timeout("a") + timeout("b") + "      Tests  2 failed (2)\n"
+            )
+        ).toBe(true);
+        expect(
+            isTimeoutOnlyRed(
+                timeout("a") + assertion("c") + "      Tests  2 failed (2)\n"
+            )
+        ).toBe(false);
+        expect(isTimeoutOnlyRed("")).toBe(false);
+        expect(isTimeoutOnlyRed("error: tsc failed")).toBe(false);
+    });
+
+    const files = ["convex/gre/foo.ts"];
+    const plan = inertClassifyLane(files, files, related({}));
+    const run = (output: string) =>
+        runPreQueue({
+            plan,
+            added: [],
+            present: files,
+            log: () => undefined,
+            regenerate: () => true,
+            restore: () => undefined,
+            exec: (command) =>
+                command.includes("vitest")
+                    ? { ok: false, ms: 1, output }
+                    : { ok: true, ms: 1 },
+        });
+
+    it("a vitest step red only by timeouts reports timeoutOnly", () => {
+        const r = run(timeout("a") + "      Tests  1 failed (1)\n");
+        expect(r.failed).not.toBeNull();
+        expect(r.timeoutOnly).toBe(true);
+    });
+
+    it("an assertion failure beside timeouts is not timeoutOnly", () => {
+        expect(
+            run(timeout("a") + assertion("c") + "      Tests  2 failed (2)\n")
+                .timeoutOnly
+        ).toBe(false);
+    });
+
+    it("a red step with no output (a script) is not timeoutOnly", () => {
+        const r = runPreQueue({
+            plan,
+            added: [],
+            present: files,
+            log: () => undefined,
+            regenerate: () => true,
+            restore: () => undefined,
+            exec: (command) => ({ ok: !command.includes("check:ts"), ms: 1 }),
+        });
+        expect(r.failed).toBe("tsc[all]");
+        expect(r.timeoutOnly).toBe(false);
     });
 });
