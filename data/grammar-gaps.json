@@ -596,6 +596,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery › dealDamage",
+            "issue": 8027
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery › dealDamage+forEach",
             "issue": 4467
         },
