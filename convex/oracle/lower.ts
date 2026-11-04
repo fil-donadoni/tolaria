@@ -22,6 +22,7 @@ import type {
     KickerCost,
     ManaCost,
     MayPayCost,
+    ModeSelection,
     SpellMode,
     TargetRequirement,
 } from "../cards/types";
@@ -166,6 +167,7 @@ interface Accumulator {
     /** Every id this card has handed out, so a second one is never minted. */
     mintedIds: Set<string>;
     spellModes?: SpellMode[];
+    spellModeSelection?: ModeSelection;
     additionalCosts?: NonNullable<CardDefinition["additionalCosts"]>;
     flashback?: NonNullable<CardDefinition["flashback"]>;
     /** CR 118.9 — the card's alternative costs, one per printed line. */
@@ -774,6 +776,8 @@ function lowerLine(
             );
             if (!modes.ok) return modes.reason;
             acc.spellModes = modes.value;
+            if (ir.selection !== undefined)
+                acc.spellModeSelection = ir.selection;
             return null;
         }
         case "additional-cost": {
@@ -1554,6 +1558,8 @@ export function lowerCard(
     if (acc.spellKickedTargetRequirement !== undefined)
         definition.kickedTargetRequirement = acc.spellKickedTargetRequirement;
     if (acc.spellModes !== undefined) definition.modes = acc.spellModes;
+    if (acc.spellModeSelection !== undefined)
+        definition.modeSelection = acc.spellModeSelection;
     if (acc.additionalCosts !== undefined)
         definition.additionalCosts = acc.additionalCosts;
     if (acc.flashback !== undefined) definition.flashback = acc.flashback;

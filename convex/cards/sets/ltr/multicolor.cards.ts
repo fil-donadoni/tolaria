@@ -10,7 +10,6 @@ import { defineCard } from "../../types";
 // (`modeSelection.when`, ADR 0094): the Wizard is read from the board at
 // announcement, and the "may" makes it a RANGE 1..2, never a forced two.
 // Distinct modes (CR 700.2d), resolved in printed order (CR 608.2c).
-// compiler-gap: "Choose one. If you control a Wizard as you cast this spell, you may choose two instead." (#7224)
 export const flameOfAnor = defineCard(() => ({
     id: "04779a7e-b453-48b9-b392-6d6fd0b8d283",
     name: "Flame of Anor",

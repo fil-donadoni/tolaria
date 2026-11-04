@@ -15,6 +15,7 @@ import type {
     AlternativeCost,
     Color,
     ManaCost,
+    ModeSelection,
     PermanentFilter,
     TargetRequirement,
 } from "../../cards/types";
@@ -273,6 +274,8 @@ export type SlotIR =
     | {
           readonly kind: "spell-modal";
           readonly modes: readonly SpellModeIR[];
+          /** CR 700.2 — how many modes the head prints; absent = exactly one. */
+          readonly selection?: ModeSelection;
       }
     /**
      * CR 601.2f / 118.8 — "As an additional cost to cast this spell, …". Its
