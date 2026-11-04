@@ -4220,6 +4220,11 @@
             "issue": 7800
         },
         {
+            "kind": "mechanic",
+            "key": "ungrantable-keyword › keyword \"undying\" is implemented by definition-level expansion (ADR 0054), so granting it to another permanent would produce nothing",
+            "issue": 8116
+        },
+        {
             "kind": "migration",
             "key": "(no slot)",
             "issue": 4039
