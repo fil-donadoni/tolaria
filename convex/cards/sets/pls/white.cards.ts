@@ -17,7 +17,7 @@ import {
     mostCommonColors,
 } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { manaCostForCardId } from "../../manaCostLookup";
+import { colorDefiningCostForCardId } from "../../manaCostLookup";
 
 // The five colours a "choose a color" effect can name (CR 105.1), in WUBRG
 // order — Voice of All's CR 614.12 as-enters pick, mirroring the
@@ -53,7 +53,7 @@ function effectiveColors(perm: PermanentView): Color[] {
     if (raw.colorOverride) return raw.colorOverride;
     const cost =
         raw.card?.manaCost ??
-        (raw.card?.id ? manaCostForCardId(raw.card.id) : undefined);
+        (raw.card?.id ? colorDefiningCostForCardId(raw.card.id) : undefined);
     const base = cost
         ? (["W", "U", "B", "R", "G"] as const).filter((c) => (cost[c] ?? 0) > 0)
         : [];

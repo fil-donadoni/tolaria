@@ -50,7 +50,7 @@ import type {
     TokenCreatedReplacementEvent,
 } from "../cards/types";
 import { tryGetDefinition } from "../cards";
-import { getColorsFromCost } from "../cards/colors";
+import { getCardColors } from "../cards/colors";
 import { isDamageablePermanent } from "./constants";
 import { turnFaceUpOnBattlefield } from "./faceDown";
 import { STATIC_EFFECT_CTX } from "./layers";
@@ -1359,9 +1359,7 @@ export function describeDamageSource(
             if (card.id !== sourceInstanceId) continue;
             const cardId = (card.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : null;
-            const rawColors = def?.manaCost
-                ? getColorsFromCost(def.manaCost)
-                : [];
+            const rawColors = def ? getCardColors(def) : [];
             return {
                 colors: applyGhostlyFlameColorOverride(state, rawColors),
                 types: card.types,
@@ -1374,7 +1372,7 @@ export function describeDamageSource(
     if (stackItem) {
         const cardId = (stackItem.card as { id?: string }).id;
         const def = cardId ? tryGetDefinition(cardId) : null;
-        const rawColors = def?.manaCost ? getColorsFromCost(def.manaCost) : [];
+        const rawColors = def ? getCardColors(def) : [];
         return {
             colors: applyGhostlyFlameColorOverride(state, rawColors),
             types: stackItem.types,

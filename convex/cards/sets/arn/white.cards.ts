@@ -13,7 +13,7 @@ import {
     type SpellContext,
 } from "../../types";
 import { pickDamageSource } from "../../abilities";
-import { manaCostForCardId } from "../../manaCostLookup";
+import { colorDefiningCostForCardId } from "../../manaCostLookup";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 
@@ -222,7 +222,8 @@ function permanentColors(perm: {
 }): ReadonlyArray<Color> {
     const ref = perm.card as { id?: string; manaCost?: ManaCost } | undefined;
     const cost =
-        ref?.manaCost ?? (ref?.id ? manaCostForCardId(ref.id) : undefined);
+        ref?.manaCost ??
+        (ref?.id ? colorDefiningCostForCardId(ref.id) : undefined);
     if (!cost) return [];
     // Inline of `getColorsFromCost` (CR 202.2) — importing `../colors` would
     // pull in `gre/constants → cards/index`, re-introducing the set↔registry

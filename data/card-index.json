@@ -6154,6 +6154,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bearer of Silence",
+        "scryfallId": "50460cce-ee1c-4384-bb0c-d90616e0d2e9",
+        "oracleId": "d69c8c55-6433-4cc5-bdc7-9722f121b8e2",
+        "firstSet": "ogw",
+        "firstPrintId": "50460cce-ee1c-4384-bb0c-d90616e0d2e9",
+        "firstPrintSet": "ogw",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Bearscape",
         "scryfallId": "3284b61a-bd95-4846-ad3f-903cd1158867",
         "oracleId": "7e481e22-4122-4259-8978-4727eb307195",
@@ -7392,6 +7402,16 @@
         "firstSet": "inv",
         "firstPrintId": "5c54ec26-c7f1-4258-9cc9-1709987f293c",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Blinding Drone",
+        "scryfallId": "4eb60957-0811-40c3-a92b-cce3e6a94745",
+        "oracleId": "c924e240-02a0-46b5-b004-d5c42db277ec",
+        "firstSet": "ogw",
+        "firstPrintId": "4eb60957-0811-40c3-a92b-cce3e6a94745",
+        "firstPrintSet": "ogw",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Blinding Mage",
@@ -13850,6 +13870,16 @@
         "firstSet": "akh",
         "firstPrintId": "7c35f4d5-2337-4ea0-a571-5a73e2d0d54a",
         "firstPrintSet": "akh",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Complete Disregard",
+        "scryfallId": "7d94e878-6c49-4420-9d34-f9ee64e811ba",
+        "oracleId": "b0bd842c-d518-42b3-850c-22a70f7f1436",
+        "firstSet": "bfz",
+        "firstPrintId": "7d94e878-6c49-4420-9d34-f9ee64e811ba",
+        "firstPrintSet": "bfz",
         "rarity": "common",
         "source": "compiled"
     },
@@ -23468,6 +23498,16 @@
         "firstSet": "con",
         "firstPrintId": "def637cb-40b2-4715-9b43-872c8f9aaabe",
         "firstPrintSet": "con",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Essence Depleter",
+        "scryfallId": "996da623-1c34-4545-a800-648238ea91ae",
+        "oracleId": "19ea37cc-e715-4a3c-87f3-5ed9d44f42d9",
+        "firstSet": "ogw",
+        "firstPrintId": "996da623-1c34-4545-a800-648238ea91ae",
+        "firstPrintSet": "ogw",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -33735,6 +33775,16 @@
         "firstPrintId": "2f003678-0f17-4f1d-87d5-83613a82044b",
         "firstPrintSet": "m19",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Havoc Sower",
+        "scryfallId": "f8585871-24a2-41d7-ae12-29aabfbc9ccc",
+        "oracleId": "098e6926-4a6a-4bbb-96bc-1f35cc7982ae",
+        "firstSet": "ogw",
+        "firstPrintId": "f8585871-24a2-41d7-ae12-29aabfbc9ccc",
+        "firstPrintSet": "ogw",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -45129,6 +45179,16 @@
         "source": "compiled"
     },
     {
+        "name": "Maw of Kozilek",
+        "scryfallId": "48669993-ad68-499e-8f2e-bc5c651b4b28",
+        "oracleId": "11b529f0-e365-4500-b54a-44e2ac6e709f",
+        "firstSet": "ogw",
+        "firstPrintId": "48669993-ad68-499e-8f2e-bc5c651b4b28",
+        "firstPrintSet": "ogw",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Maw of the Mire",
         "scryfallId": "90b34a03-3270-412c-90ca-03c1b3e61222",
         "oracleId": "44e9030d-dd49-46b4-a0eb-75a49b6638a2",
@@ -50731,6 +50791,16 @@
         "source": "compiled"
     },
     {
+        "name": "Oblivion Strike",
+        "scryfallId": "24e30acf-b30f-4bb3-b80e-dc7e9559da51",
+        "oracleId": "ad3564f5-11f7-456b-8881-4db00a18a2ed",
+        "firstSet": "ogw",
+        "firstPrintId": "24e30acf-b30f-4bb3-b80e-dc7e9559da51",
+        "firstPrintSet": "ogw",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Oboro Breezecaller",
         "scryfallId": "a382a9b8-0b19-46c2-a547-a22d6e23d0ac",
         "oracleId": "257ee9a0-5ee0-49c4-8619-e75e1134d7ac",
@@ -55671,6 +55741,16 @@
         "source": "compiled"
     },
     {
+        "name": "Prophet of Distortion",
+        "scryfallId": "03ee2d7e-50ee-4f5a-b787-cf9669a892f3",
+        "oracleId": "6bc82093-0246-4c60-bf30-0b605bef01cd",
+        "firstSet": "ogw",
+        "firstPrintId": "03ee2d7e-50ee-4f5a-b787-cf9669a892f3",
+        "firstPrintSet": "ogw",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Prophet of the Peak",
         "scryfallId": "58131bf2-2a9f-4b81-9eeb-810372f3896c",
         "oracleId": "eaa1634e-6ba1-41c2-91c0-967b36d13e14",
@@ -57962,6 +58042,16 @@
         "firstSet": "snc",
         "firstPrintId": "16998689-345d-41e3-a368-e97b696ed689",
         "firstPrintSet": "snc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Reality Hemorrhage",
+        "scryfallId": "c044168d-cb08-493d-98c1-b66b6149fe5a",
+        "oracleId": "21465dcd-c93a-4a2c-ae10-e22ebd5cae2f",
+        "firstSet": "ogw",
+        "firstPrintId": "c044168d-cb08-493d-98c1-b66b6149fe5a",
+        "firstPrintSet": "ogw",
         "rarity": "common",
         "source": "compiled"
     },
@@ -66244,6 +66334,16 @@
         "source": "compiled"
     },
     {
+        "name": "Silent Skimmer",
+        "scryfallId": "9b715fc0-9c36-4619-8d65-6d1064ed8a32",
+        "oracleId": "92198967-e89b-4213-a0fa-71361c8420dc",
+        "firstSet": "bfz",
+        "firstPrintId": "9b715fc0-9c36-4619-8d65-6d1064ed8a32",
+        "firstPrintSet": "bfz",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Silicate Surveyor",
         "scryfallId": "6359ab5d-4151-4a0c-af13-d59c1b381bb0",
         "oracleId": "1b248ef5-ec57-481d-b47a-357d3867054f",
@@ -67768,6 +67868,16 @@
         "source": "compiled"
     },
     {
+        "name": "Slaughter Drone",
+        "scryfallId": "275b1185-49aa-45ae-8e2d-12aa469a7d77",
+        "oracleId": "047e09c0-cbd9-45ba-9729-bf35ebe24e69",
+        "firstSet": "ogw",
+        "firstPrintId": "275b1185-49aa-45ae-8e2d-12aa469a7d77",
+        "firstPrintSet": "ogw",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Slay",
         "scryfallId": "eccda747-2680-4793-8a13-35e49b4de12f",
         "oracleId": "64418e1f-4fb1-4029-a31e-135b2d2c0ab9",
@@ -67952,6 +68062,16 @@
         "firstSet": "uds",
         "firstPrintId": "00522c4b-4e64-4403-96b1-df41afbe255f",
         "firstPrintSet": "uds",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Slip Through Space",
+        "scryfallId": "2dee6dca-9c7e-4347-bea7-7fecc69e5827",
+        "oracleId": "2516949d-75bb-4aea-a41d-0298bb129471",
+        "firstSet": "ogw",
+        "firstPrintId": "2dee6dca-9c7e-4347-bea7-7fecc69e5827",
+        "firstPrintSet": "ogw",
         "rarity": "common",
         "source": "compiled"
     },
@@ -68285,6 +68405,16 @@
         "firstPrintId": "0af1eadf-f7ea-40be-a0cc-b79e4161db34",
         "firstPrintSet": "xln",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Snapping Voidcraw",
+        "scryfallId": "7ab3a5a5-9cb1-4ee5-b7b2-d870c9a56097",
+        "oracleId": "e495033b-f727-41e3-b7fc-7f5fa8abdd87",
+        "firstSet": "mh3",
+        "firstPrintId": "7ab3a5a5-9cb1-4ee5-b7b2-d870c9a56097",
+        "firstPrintSet": "mh3",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -70893,6 +71023,16 @@
         "firstPrintId": "16705695-1ba8-4169-974f-d8c683ab2652",
         "firstPrintSet": "ody",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Stalking Drone",
+        "scryfallId": "12bc5b4c-a809-43f0-8848-38812ce865c2",
+        "oracleId": "2659cc53-d20d-476f-bc64-4b35a4288d0e",
+        "firstSet": "ogw",
+        "firstPrintId": "12bc5b4c-a809-43f0-8848-38812ce865c2",
+        "firstPrintSet": "ogw",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -81517,6 +81657,16 @@
         "firstSet": "soi",
         "firstPrintId": "81647b86-2c84-4a14-8d5a-919f7a5b8bc7",
         "firstPrintSet": "soi",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Vestige of Emrakul",
+        "scryfallId": "a5d84986-64a1-4bd1-a4f6-3eb147aca357",
+        "oracleId": "55187899-c445-48e9-80b9-235eaf42f803",
+        "firstSet": "bfz",
+        "firstPrintId": "a5d84986-64a1-4bd1-a4f6-3eb147aca357",
+        "firstPrintSet": "bfz",
         "rarity": "common",
         "source": "compiled"
     },

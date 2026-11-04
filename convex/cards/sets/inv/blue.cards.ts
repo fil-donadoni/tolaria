@@ -70,7 +70,7 @@ import {
     colorChoiceModes,
 } from "../../abilities/chooseColor";
 import { landTypeChangeEffects } from "../../abilities/chooseLandType";
-import { manaCostForCardId } from "../../manaCostLookup";
+import { colorDefiningCostForCardId } from "../../manaCostLookup";
 
 /** Colors (CR 202.2, layer 5 colorOverride, issue #1083) of a battlefield
  *  view permanent, for a `StaticBlockRestriction.predicate` — which gets
@@ -81,7 +81,7 @@ import { manaCostForCardId } from "../../manaCostLookup";
  *  than imported: `gre/layers.ts` imports `tryGetDefinition` from the card
  *  registry (`cards/index.cards.ts`), which imports every set module including
  *  this one — importing it back here would be an eval-time cycle. Uses the
- *  cycle-free `manaCostForCardId` accessor instead (same precedent as
+ *  cycle-free `colorDefiningCostForCardId` accessor instead (same precedent as
  *  arn/white.cards.ts's `permanentColors`). `perm` carries `colorOverride`/
  *  `grantedColors` at runtime even though `PermanentView`'s declared type
  *  doesn't list them — the combat validator passes the raw (fat)
@@ -95,7 +95,7 @@ function effectiveColors(perm: PermanentView): Color[] {
     if (raw.colorOverride) return raw.colorOverride;
     const cost =
         raw.card?.manaCost ??
-        (raw.card?.id ? manaCostForCardId(raw.card.id) : undefined);
+        (raw.card?.id ? colorDefiningCostForCardId(raw.card.id) : undefined);
     const base = cost
         ? (["W", "U", "B", "R", "G"] as const).filter((c) => (cost[c] ?? 0) > 0)
         : [];

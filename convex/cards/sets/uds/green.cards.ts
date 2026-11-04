@@ -1,6 +1,6 @@
 // uds — green cards (ADR 0043 colour split).
 import { defineCard, type ManaCost } from "../../types";
-import { manaCostForCardId } from "../../manaCostLookup";
+import { colorDefiningCostForCardId } from "../../manaCostLookup";
 
 /** CR 105.2 / 202.2 — is a card with this mana cost black? A normal, Phyrexian
  *  or hybrid `{B}` pip each makes it so. The same reading as
@@ -92,7 +92,7 @@ export const compost = defineCard(() => ({
                 const cardId = raw.card?.id;
                 return (
                     cardId !== undefined &&
-                    costIsBlack(manaCostForCardId(cardId))
+                    costIsBlack(colorDefiningCostForCardId(cardId))
                 );
             },
             effects: [

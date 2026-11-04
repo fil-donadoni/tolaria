@@ -104,7 +104,7 @@ function placedCard(
     return { def: front, backFaceUp: zone === "battlefield" };
 }
 import { ensureLayer6Base, INDEFINITE_SOURCE_ID, syncLayer6 } from "./layer6";
-import { basicLandsForColors, getCardColors } from "../cards/colors";
+import { basicLandsForColors, getColorsFromCost } from "../cards/colors";
 import { findTokenSpec, listTokenCatalogue } from "../cards/tokenCatalogue";
 import type {
     AnimateSpec,
@@ -739,7 +739,9 @@ export function buildStateFromScenario(
             entry.zone ?? "battlefield"
         );
         const def = backFaceUp ? getCardByName(entry.name) : placed;
-        for (const c of getCardColors(def)) colorsPresent.add(c);
+        // The lands that CAST it: its cost's colours, which CR 702.114a devoid
+        // leaves standing even though the card itself is colourless.
+        for (const c of getColorsFromCost(def.manaCost)) colorsPresent.add(c);
     }
     const basicLandCycle = basicLandsForColors(colorsPresent);
     const basicLandAt = (i: number) =>

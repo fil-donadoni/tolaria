@@ -19,7 +19,7 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { rampageTrigger } from "../../abilities/triggers/rampageTrigger";
 import { combatPairKill } from "../../abilities/triggers/combatPairKillTrigger";
-import { manaCostForCardId } from "../../manaCostLookup";
+import { colorDefiningCostForCardId } from "../../manaCostLookup";
 import { isEnchantedByAura } from "../../combatDamagePrevention";
 import { makeCircleOfProtection } from "../../abilities";
 
@@ -1035,12 +1035,13 @@ export const equinox = defineCard(() => ({
 /** Colour of a permanent view (CR 202.2), derived from its registered mana
  *  cost. Used by the Seeker block predicate, which receives a raw permanent
  *  view (no `StaticEffectContext`). Production instances carry only `{ id }` on
- *  `card`, so the cost is looked up cycle-safely via `manaCostForCardId`; test
+ *  `card`, so the cost is looked up cycle-safely via `colorDefiningCostForCardId`; test
  *  fixtures that inline `manaCost` on the view are honoured first. */
 function colorsOf(view: { card: Record<string, unknown> }): string[] {
     const inlined = (view.card as { manaCost?: ManaCost }).manaCost;
     const cardId = (view.card as { id?: string }).id;
-    const cost = inlined ?? (cardId ? manaCostForCardId(cardId) : undefined);
+    const cost =
+        inlined ?? (cardId ? colorDefiningCostForCardId(cardId) : undefined);
     if (!cost) return [];
     return (["W", "U", "B", "R", "G"] as const).filter(
         (c) => (cost[c] ?? 0) > 0
