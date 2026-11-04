@@ -254,7 +254,7 @@ describe("modal double-faced card cast during resolution (CR 712.11b / 712.11c)"
             lands("Mountain", 1)
         );
         // {R} covers the back; the front's {1}{W} stays a row, as a printed cast
-        // always has (its payment is what the offer does not ask, CR 601.2g).
+        // always has (the offer does not ask its payment, CR 601.2h).
         expect(offeredIds(state)).toEqual(["cast", FLARE, "decline"]);
         submit(state, FLARE);
         submit(state, "p2");
