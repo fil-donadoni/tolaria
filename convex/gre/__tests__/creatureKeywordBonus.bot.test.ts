@@ -38,6 +38,7 @@ const SCRIPT_PRICED: Record<
     persist: { declared: "persist" },
     undying: { declared: "undying" },
     evolve: { declared: "evolve" },
+    extort: { declared: "extort" },
     annihilator: { declared: "annihilator 2" },
     // CR 702.181a — the expanded attack trigger's createToken script.
     mobilize: { declared: "mobilize 2" },

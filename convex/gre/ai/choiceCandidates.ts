@@ -57,6 +57,7 @@ import {
     mayPayHandLegCount,
     mayPaySacrificeChoiceRequired,
     mayPaySacrificeThreshold,
+    normalizeManaCost,
     normalizeMayPayCost,
 } from "../state";
 import { getEffectivePower, getEffectivePT } from "../layers";
@@ -91,7 +92,7 @@ import {
 } from "../state";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import { boardCensusFor } from "../manaAvailability";
-import type { Color } from "../../cards/types";
+import type { Color, MayPayCost } from "../../cards/types";
 import {
     getChoicePriorGeneration,
     priorFor,
@@ -218,6 +219,29 @@ function thresholdPick(
     return total >= threshold && picked.length > 0 ? picked : null;
 }
 
+/** CR 608.2g — "if an effect gives a player the option to pay mana, they may
+ *  activate mana abilities before taking that action". The taps an accept owes:
+ *  none when the pool already covers the cost, `null` when no tap can make it
+ *  payable (a short non-mana leg, or a mana leg this board cannot produce). */
+function mayPayTapPlan(
+    state: GameState,
+    playerId: string,
+    cost: MayPayCost,
+    manaRestriction: ManaRestriction | undefined
+): ManaTap[] | null {
+    if (canPayMayPayCost(state, playerId, cost, manaRestriction)) return [];
+    const { mana, ...otherLegs } = normalizeMayPayCost(cost);
+    if (!mana) return null;
+    if (!canPayMayPayCost(state, playerId, otherLegs, manaRestriction)) {
+        return null;
+    }
+    return planManaPayment(
+        state,
+        getPlayer(state, playerId),
+        normalizeManaCost(mana)
+    );
+}
+
 /** `may-pay` (CR 117.3a / 118.4): decline, plus the accept variants the cost's
  *  legs admit. Self-pruning — an unaffordable cost yields the decline only, and
  *  a threshold sacrifice leg yields at most two policy picks (fewest bodies /
@@ -238,9 +262,14 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
         });
         return out;
     }
-    if (!canPayMayPayCost(state, playerId, cost, choice.manaRestriction)) {
-        return out;
-    }
+    const tapPlan = mayPayTapPlan(
+        state,
+        playerId,
+        cost,
+        choice.manaRestriction
+    );
+    if (tapPlan === null) return out;
+    const taps = tapPlan.length > 0 ? { tapPlan } : {};
 
     const norm = normalizeMayPayCost(cost);
     const lifePaid = norm.life ?? 0;
@@ -336,6 +365,7 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
             move: {
                 kind: "may-pay",
                 accept: true,
+                ...taps,
                 ...(discardIds ? { discardIds } : {}),
                 ...(graveyardIds ? { graveyardIds } : {}),
             },
@@ -354,6 +384,7 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
             move: {
                 kind: "may-pay",
                 accept: true,
+                ...taps,
                 sacrificeIds: set.map((c) => c.id),
                 ...(discardIds ? { discardIds } : {}),
                 ...(graveyardIds ? { graveyardIds } : {}),

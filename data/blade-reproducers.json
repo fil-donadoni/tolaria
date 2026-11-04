@@ -2234,6 +2234,7 @@
     },
     "madness-cast-when-affordable": null,
     "madness-decline-when-unaffordable": null,
+    "mana may-pay: taps untapped lands to pay the tax that keeps its creature": null,
     "may-search tutor: casts Tinker for the artifact the find puts onto the battlefield": {
         "cards": [
             {

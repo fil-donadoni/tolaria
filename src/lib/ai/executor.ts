@@ -368,6 +368,19 @@ export async function executeMove(
             // submitResolutionChoice (ADR 0016). CR 701.21a — a sacrifice-leg
             // pick rides along as `sacrificeIds`; CR 701.9 discard / 118.3 (issue
             // #899 / #1507) — a discard-leg pick rides along as `discardIds`.
+            // CR 608.2g — the mana leg's taps come first, as a human's would:
+            // `submitMayPay` pays from the pool.
+            if (move.tapPlan && move.tapPlan.length > 0) {
+                await runTapPlan(
+                    move.tapPlan,
+                    async (batch) => {
+                        for (const tap of batch) {
+                            await mutations.tapUntap({ ...base, ...tap });
+                        }
+                    },
+                    (tap) => mutations.activateManaAbility({ ...base, ...tap })
+                );
+            }
             await mutations.submitMayPay({
                 ...base,
                 accept: move.accept,

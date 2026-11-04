@@ -17,10 +17,12 @@ import type { CardDefinition, ManaCost } from "../cards/types";
 import type { CardInstanceState, GameState } from "./state";
 import {
     applyCostModifiers,
+    canPayMayPayCost,
     canPayRemoveCounterCost,
     getCostModifiers,
     moveCard,
     normalizeManaCost,
+    normalizeMayPayCost,
     payRemoveCounterCost,
     restrictedXManaOwedStamp,
 } from "./state";
@@ -37,7 +39,7 @@ import {
 } from "./constants";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { payExertActivationCost } from "./exert";
-import { MANA_COLORS } from "./manaColors";
+import { MANA_COLORS, normalizedHybridPips } from "./manaColors";
 
 /** One entry of a Move's `tapPlan` (`gre/moves.ts`). */
 export type SearchTapPlanEntry = {
@@ -305,4 +307,35 @@ export function searchRestrictedXManaOwedStamp(
         getCostModifiers(state, card, "spell", undefined, playerId)
     );
     return restrictedXManaOwedStamp(def, priced);
+}
+
+/** CR 608.2g — a may-pay accept's taps, for a sandbox that is about to run the
+ *  real `applyMayPaySubmit`, which pays from the pool and throws when it cannot.
+ *  The coarse tap above credits nothing, so the mana those sources would have
+ *  made is floated here, one pip at a time and only until the cost is covered:
+ *  the sandbox never ends up holding more than the payment consumes. */
+export function applyMayPayTapPlanInSearch(
+    state: GameState,
+    playerId: string,
+    tapPlan: readonly SearchTapPlanEntry[] | undefined
+): void {
+    if (!tapPlan || tapPlan.length === 0) return;
+    applyTapPlanInSearch(state, playerId, tapPlan);
+    const head = state.pendingChoices?.[0];
+    const player = state.players.find((p) => p.id === playerId);
+    if (!head?.cost || !player) return;
+    const mana = normalizeMayPayCost(head.cost).mana;
+    if (!mana) return;
+    const owed = normalizeManaCost(mana);
+    const pips = [
+        ...MANA_COLORS.flatMap((c) => Array<string>(owed[c] ?? 0).fill(c)),
+        ...normalizedHybridPips(owed).map(([first]) => first as string),
+        ...Array<string>(owed.X ?? 0).fill("C"),
+    ];
+    const pool = player.manaPool as Record<string, number>;
+    for (const pip of pips) {
+        if (canPayMayPayCost(state, playerId, head.cost, head.manaRestriction))
+            return;
+        pool[pip] = (pool[pip] ?? 0) + 1;
+    }
 }
