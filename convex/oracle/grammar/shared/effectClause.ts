@@ -4889,6 +4889,24 @@ const OPTIONAL_HAND_COSTS = {
 } as const;
 
 /**
+ * CR 608.2c — "you may exile / discard a card …", the first instruction of an
+ * `optional-hand-cost-then`, read from either casing's `uncapitalise`d probe:
+ * the trigger site prints it lowercase (`optionalSentenceRule`), a full stop
+ * capitalises it (`sentenceRule`). Null for any other sentence.
+ */
+function readOptionalHandCost(probe: string): SentenceIR | null {
+    if (!probe.startsWith(MAY_PREFIX)) return null;
+    const clause = probe.slice(MAY_PREFIX.length);
+    if (!Object.prototype.hasOwnProperty.call(OPTIONAL_HAND_COSTS, clause))
+        return null;
+    return {
+        role: "optional-hand-cost",
+        text: capitalise(clause),
+        action: OPTIONAL_HAND_COSTS[clause as keyof typeof OPTIONAL_HAND_COSTS],
+    };
+}
+
+/**
  * Wrap a sentence rule so it also reads CR 603.2's "you may <effect>".
  *
  * A COMBINATOR over the caller's sentence rule rather than a branch inside
@@ -4976,14 +4994,8 @@ export function optionalSentenceRule(
         // CR 608.2c — "you may exile a card from your hand" is the first half
         // of an `optional-hand-cost-then`: what it gates is the "If you do"
         // after it, not an effect of its own.
-        if (Object.prototype.hasOwnProperty.call(OPTIONAL_HAND_COSTS, clause))
-            return ok({
-                role: "optional-hand-cost" as const,
-                text: capitalise(clause),
-                action: OPTIONAL_HAND_COSTS[
-                    clause as keyof typeof OPTIONAL_HAND_COSTS
-                ],
-            });
+        const handCost = readOptionalHandCost(probe);
+        if (handCost !== null) return ok(handCost);
         // CR 121.1 + CR 603.5 — "you may draw N additional cards" is the
         // first of the three sentences of a `draw-then-ranged-topdeck`.
         const additional = clause.match(DRAW_ADDITIONAL_CARDS);
@@ -6575,6 +6587,11 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
                 mana: read.cost,
             });
         }
+        // CR 608.2c + CR 701.9a — an optional hand cost in its two sentences;
+        // the capitalised spelling a full stop introduces, which a spell and
+        // a loyalty ability print (they have no `optionalSentenceRule`).
+        const handCost = readOptionalHandCost(uncapitalise(span));
+        if (handCost !== null) return ok(handCost);
         const chooseDrawn = span.match(CHOOSE_DRAWN_THIS_TURN);
         if (chooseDrawn !== null) {
             const max = readNumberWord(chooseDrawn[1]!);
