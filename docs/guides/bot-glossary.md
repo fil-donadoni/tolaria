@@ -346,7 +346,7 @@ a broken harness or an over-eager rule is caught.
 <a id="ladder"></a>**Ladder** — an EXPERIMENT, no longer a metric (the strength
 number is [held-out agreement](#held-out-agreement)): no change owes a run, no
 pipeline starts one; by hand, on an idle machine, for a large claim only —
-hours on the shared mutex and a noise floor as wide as a placebo bought too
+hours of the machine and a noise floor as wide as a placebo bought too
 little. Paired bot-vs-bot games
 where both seats play the same decks with the same shuffles and only the Brain
 configuration differs by seat, then swapped. The decks cancel out; the

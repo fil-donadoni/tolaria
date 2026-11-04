@@ -675,8 +675,8 @@ fi
 # verdict: not `run_in_background` (the notification never arrives — under
 # `claude -p` the end of a turn is the end of the process), and not piped into a
 # pager (the exit code becomes the pager's). A gate that can outlive the Bash
-# tool's cap — `land`, and any lane gate run by hand, both of which queue behind
-# the machine-wide gate mutex — runs through `bun run gate:run <script>`
+# tool's cap — any lane gate run by hand — runs through
+# `bun run gate:run <script>`
 # instead, issued with the tool's `timeout` set to its 600000ms MAXIMUM, because
 # the 120000ms DEFAULT is shorter than the wait this script does: each call
 # blocks in the FOREGROUND for at most 480s and then either returns the gate's

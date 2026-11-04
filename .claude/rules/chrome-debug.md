@@ -22,12 +22,12 @@ walks nothing, PR line `check:ui: scope undecided, not walked (<reasons>)`.
 the runbook surfaces at all five viewports (ADR 0101), probes, runs axe; nine
 Floors at zero (ADR 0132). It is a gate outside `check:all` (offline; this
 needs a deployment + browser), so the PR receipt is the whole enforcement.
-**Its output IS the receipt — paste it byte-exact** (#2760); `bun run land`
+**Its output IS the receipt — paste it byte-exact** (#2760); `bun run land:ready`
 re-derives its verdict block, refusing a mismatch or a non-`PASS` line. The
 block no longer fits a PR body (GitHub caps it at 65,536 characters): paste the
 three lines under `receipt digest` — banner, `verdict-sha256:`, coverage —
-which `land` accepts on the same terms (#4419). A no-flag run walks the diff's
-surfaces and prints `SCOPED` (ADR 0131), re-derived by `land`; `RECEIPT` covers
+which `land:ready` accepts on the same terms (#4419). A no-flag run walks the diff's
+surfaces and prints `SCOPED` (ADR 0131), re-derived by `land:ready`; `RECEIPT` covers
 any diff; never `DIAGNOSTIC`; never reflow a row. **The full walk (`--all`) is run by hand only — no automated run, `release` included** (issue #6143).
 
 **Unreached prints `UNWALKED`; a walk the machine cut short, `INFRA` (#3644)** —

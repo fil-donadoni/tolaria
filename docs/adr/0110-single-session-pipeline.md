@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (reshapes the fan-out pipeline of ADR 0097/0099; builds on ADR 0109)
+accepted (reshapes the fan-out pipeline of ADR 0097/0099; builds on ADR 0109; retired names mapped in the 2026-11-04 amendment)
 
 Renamed 2026-10-05 (issue #5105): the skill `/next-issue` is now `/next-ticket`; telemetry keeps reading the old name for sessions already recorded.
 
@@ -121,3 +121,13 @@ holds**: latency in issue #3079, cost share in issue #3080 — see Consequences.
   (vitest.setup.node.ts, #2871); vacuous tests → a mechanized
   mutation-smoke gate (planned follow-up); cross-boundary breaks → the
   full-path integration test requirement stays.
+
+## Amendment (2026-11-04, issue #5657) — the names above are retired, the decision stands
+
+One context still closes one issue, with one risk-routed review round. What ran
+it changed under ADR 0156: `land` no longer merges a session's PR (a session ends
+at `bun run land:ready`, the Mergify queue pays the lane and merges); the full
+gate is `bun run health` per batch in `health.yml`, not a detached `health:main`;
+the machine mutex is deleted (PR #7519); the AFK driver is the `afk-dispatch`
+workflow, not `loop-drain` (PR #7493). Read the text above with that map; it is
+kept as written, as the record of the decision.

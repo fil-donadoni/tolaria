@@ -32,15 +32,15 @@ made these changes, in this order; every step is re-runnable (run it again on
 a machine that has it and nothing changes). What the machine then measured:
 `docs/research/huawei-gate-bench-2026-10-11.md` § 4.
 
-| Need                                            | Check                                                                            | Why                                                                                                                         |
-| ----------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| The machine never suspends on lid, keys or idle | `systemd-analyze cat-config systemd/logind.conf` shows the `Handle*=ignore` rows | A suspended health step is recorded `infra`, never a verdict (sleep detection, `lib/health-verdict.ts`)                     |
-| Read access to the system journal               | `journalctl --system -n1` prints a line                                          | Sleep detection reads it                                                                                                    |
-| Playwright's Chromium and its shared libraries  | `bunx playwright install chromium` exits 0; `ldd` on both binaries finds all     | `check:ui` drives it                                                                                                        |
-| GNU `time`                                      | `/usr/bin/time --version`                                                        | Peak RSS of a gate (`time -v`); without it every wrapped step exits 127 in under a second                                   |
-| Node at the repo's pin                          | `mise current node` equals `.nvmrc`                                              | Vitest and the Convex CLI run under it                                                                                      |
-| `perl`                                          | `perl -v`                                                                        | The AFK loop's detach path (`loop-handoff.sh`: `POSIX::setsid`, log stamping)                                               |
-| A local Convex deployment                       | `bun run convex:ensure` prints `answers`                                         | `check:ui` signs in against it; the [`tolaria-convex` unit](#convex-on-the-huawei) runs the watcher in the primary checkout |
+| Need                                            | Check                                                                            | Why                                                                                                                               |
+| ----------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| The machine never suspends on lid, keys or idle | `systemd-analyze cat-config systemd/logind.conf` shows the `Handle*=ignore` rows | A suspended health step is recorded `infra`, never a verdict (sleep detection, `lib/health-verdict.ts`)                           |
+| Read access to the system journal               | `journalctl --system -n1` prints a line                                          | Sleep detection reads it                                                                                                          |
+| Playwright's Chromium and its shared libraries  | `bunx playwright install chromium` exits 0; `ldd` on both binaries finds all     | `check:ui` drives it                                                                                                              |
+| GNU `time`                                      | `/usr/bin/time --version`                                                        | Peak RSS of a gate (`time -v`); without it every wrapped step exits 127 in under a second                                         |
+| Node at the repo's pin                          | `mise current node` equals `.nvmrc`                                              | Vitest and the Convex CLI run under it                                                                                            |
+| `perl`                                          | `perl -v`                                                                        | Process-tree teardown (`lib/process-tree.ts`) and `land`; historically the AFK loop's detach path (`POSIX::setsid`, log stamping) |
+| A local Convex deployment                       | `bun run convex:ensure` prints `answers`                                         | `check:ui` signs in against it; the [`tolaria-convex` unit](#convex-on-the-huawei) runs the watcher in the primary checkout       |
 
 ### 1. logind and the journal — one root script
 
@@ -105,16 +105,16 @@ ships Perl 5 (5.42.2 on 2026-10-12).
 ### 5. Check the whole machine
 
 ```bash
-bun run machine
+bun run runner status
 journalctl --system -n1 --no-pager
 systemd-inhibit --list
 perl -v
 ```
 
-`bun run machine` prints the admission thresholds from `tolaria.config.json`
-beside the live readings. Linux counts runnable **and** uninterruptible tasks
-in the load average, so the same `loadMax` can read higher here than on macOS
-for the same work; compare with the idle reading in the bench's § 4.
+`bun run runner status` prints the runners, their busy column and the
+heartbeat. Linux counts runnable **and** uninterruptible tasks in the load
+average, so the same load can read higher here than on macOS for the same work;
+compare with the idle reading in the bench's § 4.
 `systemd-inhibit --list` must show no `block`-mode sleep inhibitor you did
 not expect: only `delay` ones (NetworkManager, UPower, Omarchy's lock).
 
