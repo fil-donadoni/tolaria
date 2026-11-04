@@ -171,6 +171,7 @@ export type RuleId =
     | "pass-run-name"
     | "pass-setup-record"
     | "owner-merge-trigger"
+    | "health-verdict-contained"
     | "local-action-unscanned"
     | "unparseable";
 
@@ -1108,6 +1109,52 @@ function checkOwnerMergeTrigger(
     }
 }
 
+export const HEALTH_WORKFLOW_FILE = ".github/workflows/health.yml";
+
+/** A Contained RED sends no email (ADR 0163 § 5, issue #8077): every `Verdict`
+ *  step of health.yml — the run's failed-run email — asks `health:fix verdict`,
+ *  which exits 0 for a contained lineage, instead of failing unconditionally;
+ *  and the dry-run dispatch lists `escalate`, the rung of a transition to
+ *  blocking owed on an idle ladder. */
+function checkHealthVerdictContained(
+    workflows: SourceFile[],
+    out: Violation[]
+): void {
+    const f = workflows.find((w) => w.path === HEALTH_WORKFLOW_FILE);
+    if (!f) return;
+    let doc: unknown;
+    try {
+        doc = parse(f.text);
+    } catch {
+        return; // reported by checkWorkflow
+    }
+    const jobs = isObj(doc) && isObj(doc.jobs) ? Object.entries(doc.jobs) : [];
+    for (const [id, job] of jobs) {
+        if (!isObj(job)) continue;
+        const fail = (message: string): void => {
+            out.push({
+                file: f.path,
+                job: id,
+                rule: "health-verdict-contained",
+                message,
+            });
+        };
+        const steps = asArray(job.steps).filter(isObj);
+        const verdict = steps.find((s) => s.name === "Verdict");
+        if (!verdict)
+            fail("no `Verdict` step — a RED left standing sends no email");
+        else if (!/\bhealth:fix verdict\b/.test(stepRun(verdict) ?? ""))
+            fail(
+                "the `Verdict` step must run `health:fix verdict`: failing unconditionally emails the owner for a Contained RED, which sends none (ADR 0163 § 5)"
+            );
+        const dispatch = steps.find((s) => s.name === "Dispatch health-fix");
+        if (dispatch && !/"escalate"/.test(String(dispatch.if ?? "")))
+            fail(
+                "the `Dispatch health-fix` condition must list `escalate`: a Contained RED that becomes blocking on the landing cap has an idle ladder rung, and no run would carry the transition"
+            );
+    }
+}
+
 export function checkStructure(input: StructureInput): Violation[] {
     const out: Violation[] = [];
     const localActions = new Set(
@@ -1118,6 +1165,7 @@ export function checkStructure(input: StructureInput): Violation[] {
     checkPassRunName(input.workflows, out);
     checkPassSetupRecord(input.workflows, out);
     checkOwnerMergeTrigger(input.workflows, out);
+    checkHealthVerdictContained(input.workflows, out);
     checkDraftLanesRegenerateDerived(input.workflows, out);
     if (input.mergify) {
         checkMergify(input.mergify, out);

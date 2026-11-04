@@ -41,6 +41,8 @@
  * `scripts/health-fix.ts ladder` and `scripts/health-revert.ts` are the I/O.
  */
 import { LADDER_MARK } from "./health-bisect";
+import { LANDINGS_PER_BATCH } from "./health-batch-due";
+import type { LineageKind, Verdict } from "./health-verdict-store";
 import { prsOf, type FixAttempt } from "./health-fix-attempts";
 import { RUNNER_ROLES } from "./github-runner";
 import type {
@@ -200,6 +202,12 @@ export interface LadderFacts {
     foreignRepairs: readonly ForeignRepair[];
     /** An open escalation issue for the standing RED, by number. */
     escalated: number | null;
+    /** The lineage is `contained` (ADR 0163): the standing RED and every RED
+     *  of the episode carry the class. Absent reads as blocking. */
+    contained?: boolean;
+    /** Commits landed since the episode's FIRST RED (`episodeFirstRed`); read
+     *  only for a Contained RED, null when unreadable. */
+    landingsSinceFirstRed?: number | null;
     /** A read the decision rests on failed. */
     error?: string;
     now: number;
@@ -914,4 +922,98 @@ export function reopenComment(input: {
         "",
         input.evidence ?? "_no evidence published_",
     ].join("\n");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A Contained RED becomes blocking (ADR 0163 § 5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Why a Contained RED stops being contained. Events and a landing count,
+ *  never a clock (ADR 0163 § 5): a quiet night consumes nothing. */
+export type EscalationTrigger = "stop" | "revert-not-applied" | "landing-cap";
+
+export interface Escalation {
+    trigger: EscalationTrigger;
+    why: string;
+}
+
+/** The RED that opened the episode: the OLDEST of `episode` (newest first).
+ *  The landing cap counts from it, so a second RED with new names inside the
+ *  episode never resets the count (ADR 0163 § 5). */
+export function episodeFirstRed(
+    episode: readonly EpisodeRed[]
+): EpisodeRed | null {
+    return episode.length > 0 ? episode[episode.length - 1] : null;
+}
+
+/** The episode's revert was tried and does not apply (a later PR depends on
+ *  the culprit): a stuck record that is neither a transient failure (retried)
+ *  nor the revert-set cap (a stop of its own). */
+export function revertDoesNotApply(facts: LadderFacts): boolean {
+    const revert = facts.episode
+        .map((r) => r.attempt)
+        .find((a): a is FixAttempt => a !== null && rungOf(a) === "revert");
+    return (
+        revert !== undefined &&
+        revert.outcome === "stuck" &&
+        !revert.note?.startsWith(TRANSIENT_NOTE) &&
+        !revert.note?.startsWith(CAP_NOTE)
+    );
+}
+
+/**
+ * Does the standing Contained RED become blocking now (ADR 0163 § 5)? Pure.
+ * null for a RED that is not contained — a blocking one has nothing to lose.
+ * Three triggers, in this order: the ladder is at its stop rung (or already
+ * stopped: `hold` — a stop whose transition failed to write is retried); the
+ * revert does not apply; `LANDINGS_PER_BATCH` landings since the episode's
+ * first RED. A wait, however long, is none: no clock reads here (`facts.now`
+ * is not consulted).
+ */
+export function escalationOf(
+    facts: LadderFacts,
+    rung: Rung
+): Escalation | null {
+    if (facts.contained !== true || facts.red === null) return null;
+    if (rung.kind === "stop" || rung.kind === "hold")
+        return {
+            trigger: "stop",
+            why: `the ladder reached its stop — ${rung.why}`,
+        };
+    if (revertDoesNotApply(facts))
+        return {
+            trigger: "revert-not-applied",
+            why: `the revert of the culprit of ${short(facts.red)} does not apply`,
+        };
+    const landings = facts.landingsSinceFirstRed ?? null;
+    if (landings !== null && landings >= LANDINGS_PER_BATCH)
+        return {
+            trigger: "landing-cap",
+            why: `${landings} commits landed since the episode's first RED ${short(episodeFirstRed(facts.episode)?.sha ?? facts.red)} (cap ${LANDINGS_PER_BATCH})`,
+        };
+    return null;
+}
+
+/** The standing verdict rewritten without its class: the same RED, blocking.
+ *  `lineageOf` then answers `red` and the re-gate holds the queue. */
+export function withoutClass(v: Verdict, at: string): Verdict {
+    const out: Verdict = { ...v, at };
+    delete out.redClass;
+    return out;
+}
+
+/**
+ * Whether a run whose RED ladder step did not succeed fails its `Verdict`
+ * step — GitHub's failed-run email. A Contained RED sends none (ADR 0163 §
+ * 5): only the transition to blocking does, from the ladder's own run. An
+ * unreadable lineage fails: no email is ever dropped on a missing fact.
+ */
+export function verdictRunFails(input: {
+    ladderSucceeded: boolean;
+    kind: LineageKind;
+    readError?: string;
+}): boolean {
+    if (input.ladderSucceeded) return false;
+    if (input.readError) return true;
+    return input.kind !== "contained";
 }

@@ -86,7 +86,9 @@ import {
 import {
     ESCALATION_LABEL,
     escalationBody,
+    escalationOf,
     escalationTitle,
+    episodeFirstRed,
     FIX_ATTEMPT_TIMEOUT_MS,
     hostOfRunnerName,
     fixRecordsOf,
@@ -98,12 +100,16 @@ import {
     revertRecordsOf,
     REVERT_UNRECORDED,
     spentHandOffs,
+    verdictRunFails,
     walkEpisode,
+    withoutClass,
+    type Escalation,
     type ForeignRepair,
     type LadderFacts,
     type LineageCommit,
     type EpisodePr,
 } from "./lib/health-ladder";
+import { landingsIn, subjectsBetween } from "./lib/health-batch-due";
 import { closingIssueRefs } from "./lib/red-land-gate";
 import {
     LADDER_ATTEMPT_ENV,
@@ -519,6 +525,8 @@ function main(): void {
     if (own[0] === "repair-issue")
         process.exit(repairIssueMain(own.slice(1), cwd));
     if (own[0] === "amber") process.exit(amberMain(own.slice(1), cwd));
+    if (own[0] === "verdict")
+        process.exit(verdictMain(own.slice(1), primaryCheckout(cwd)));
     // `host`: this runner's machine, for a dispatch that must come back to
     // it (`health.yml` → `health-fix.yml`); empty off a runner.
     if (own[0] === "host") {
@@ -971,10 +979,90 @@ export function readLadderFacts(cwd: string, tip: string): LadderFacts {
             fixPrs,
             foreignRepairs: readForeignRepairs(cwd),
             escalated: escalationIssue(cwd, red),
+            contained: lineage.kind === "contained",
+            landingsSinceFirstRed:
+                lineage.kind === "contained"
+                    ? landingsSinceFirstRed(cwd, episode, tip)
+                    : null,
         };
     } catch (e) {
         return { ...empty, red, error: (e as Error).message };
     }
+}
+
+/** Landings since the episode's FIRST RED (ADR 0163 § 5), or null when they
+ *  cannot be read: an unreadable count escalates nothing — the other triggers
+ *  stand, and the next run counts again. */
+function landingsSinceFirstRed(
+    cwd: string,
+    episode: LadderFacts["episode"],
+    tip: string
+): number | null {
+    const first = episodeFirstRed(episode);
+    if (first === null) return null;
+    try {
+        return landingsIn(subjectsBetween(cwd, first.sha, tip));
+    } catch (e) {
+        console.error(
+            `health:fix ladder: landings since the first RED could not be counted — ${(e as Error).message}`
+        );
+        return null;
+    }
+}
+
+/**
+ * The transition (ADR 0163 § 5): the standing verdict is rewritten without
+ * its class, which blocks the queue (`lineageOf` answers `red`). False when
+ * the write was declined or failed — the next run decides again; the email is
+ * owed only once it stands.
+ */
+function makeBlocking(cwd: string, red: string, esc: Escalation): boolean {
+    try {
+        const store = verdictStore(cwd);
+        const stored = store.read(red);
+        if (stored === null || stored.status !== "red") return false;
+        const out = store.write(withoutClass(stored, new Date().toISOString()));
+        if (!out.written) {
+            console.error(
+                `health:fix ladder: the RED could not be made blocking — ${out.reason ?? "declined"}`
+            );
+            return false;
+        }
+        console.log(
+            `health:fix ladder: ESCALATED (${esc.trigger}) — ${esc.why}; ${red.slice(0, 8)} now blocks the queue`
+        );
+        return true;
+    } catch (e) {
+        console.error(
+            `health:fix ladder: the RED could not be made blocking — ${(e as Error).message}`
+        );
+        return false;
+    }
+}
+
+/**
+ * `health:fix verdict [--why=<text>]` — the `Verdict` step of `health.yml`
+ * (ADR 0163 § 5): exit 1, GitHub's failed-run email, unless the RED standing
+ * is contained. Only called when the ladder step did not succeed.
+ */
+function verdictMain(argv: readonly string[], cwd: string): number {
+    const lineage = readVerdictLineage(() => verdictStore(cwd));
+    const fails = verdictRunFails({
+        ladderSucceeded: false,
+        kind: lineage.kind,
+        readError: lineage.error,
+    });
+    if (!fails) {
+        console.log(
+            "health:fix verdict: the RED is contained — it stops the release, not the queue, and sends no email"
+        );
+        return 0;
+    }
+    const why =
+        argv.find((a) => a.startsWith("--why="))?.slice("--why=".length) ??
+        "health is RED or INFRA";
+    console.log(`::error::${why}`);
+    return 1;
 }
 
 function runUrl(): string | undefined {
@@ -1071,21 +1159,40 @@ function ladderRun(argv: readonly string[]): number {
     const tip = git(["rev-parse", ORIGIN_BASE], cwd);
     const facts = readLadderFacts(cwd, tip);
     const rung = ladderRung(facts);
+    const escalation = escalationOf(facts, rung);
     const label =
         rung.kind === "fix" || rung.kind === "revert"
             ? `${rung.kind} (attempt ${rung.attempt})`
             : rung.kind;
     console.log(`health:fix ladder: ${label} — ${rung.why}`);
     // `health.yml` asks with `--dry-run` whether a ladder run is owed.
+    const idle =
+        rung.kind === "none" || rung.kind === "wait" || rung.kind === "hold";
+    if (escalation !== null)
+        console.log(
+            `health:fix ladder: a Contained RED becomes blocking (${escalation.trigger}) — ${escalation.why}`
+        );
+    // An escalation owed on an idle rung is a run of its own: `escalate`.
     if (process.env.GITHUB_OUTPUT)
-        appendFileSync(process.env.GITHUB_OUTPUT, `rung=${rung.kind}\n`);
-    if (rung.kind === "none" || rung.kind === "wait" || rung.kind === "hold")
-        return 0;
+        appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `rung=${idle && escalation !== null ? "escalate" : rung.kind}\n`
+        );
+    if (idle && escalation === null) return 0;
     if (dryRun) {
         console.log("health:fix ladder: (dry run) nothing acted on");
         return 0;
     }
     const red = facts.red as string;
+    if (escalation !== null) {
+        if (!makeBlocking(cwd, red, escalation)) return 0;
+        // The stop below is the email; any other rung is the next run's, now
+        // that the RED blocks — and this run is the one that fails.
+        if (rung.kind !== "stop") {
+            if (rung.kind === "fix" || rung.kind === "revert") redispatch(hop);
+            return 1;
+        }
+    }
     // A hand-off the queue refused or sat on: spent, and the rung below must
     // not land beside it (issue #7990).
     withdrawPrs(cwd, spentHandOffs(facts), "a spent hand-off");

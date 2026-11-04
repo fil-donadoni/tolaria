@@ -1129,3 +1129,34 @@ describe("the owner-merge workflow (issue #6188)", () => {
         expect(check(text)).toContain("owner-merge-trigger");
     });
 });
+
+describe("health.yml's Verdict step sends no email for a Contained RED (issue #8077)", () => {
+    const real = readFileSync(
+        join(REPO, ".github/workflows/health.yml"),
+        "utf8"
+    );
+    const check = (text: string) =>
+        rules({
+            ...fixture(),
+            workflows: [{ path: ".github/workflows/health.yml", text }],
+        });
+
+    it("admits the shipped workflow", () => {
+        expect(check(real)).not.toContain("health-verdict-contained");
+    });
+
+    it("refuses a Verdict step that fails unconditionally", () => {
+        const text = real.replace(
+            /run: bun run health:fix verdict .*\n/,
+            'run: |\n                  echo "::error::RED"\n                  exit 1\n'
+        );
+        expect(text).not.toBe(real);
+        expect(check(text)).toContain("health-verdict-contained");
+    });
+
+    it("refuses a dispatch condition that cannot carry an escalation", () => {
+        const text = real.replaceAll(',"escalate"', "");
+        expect(text).not.toBe(real);
+        expect(check(text)).toContain("health-verdict-contained");
+    });
+});
