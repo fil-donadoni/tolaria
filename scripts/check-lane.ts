@@ -2157,7 +2157,11 @@ export function renderReceipt(
 
 /** What the working tree looked like at one instant during the run. */
 export interface TreeSnapshot {
-    /** `git rev-parse --short HEAD`. */
+    /**
+     * `git rev-parse HEAD`, the FULL sha (issue #8011): `--short` sizes itself
+     * from the object count of the store every worktree shares, so one commit
+     * could read at two lengths within a run and `treeMoved` refused it.
+     */
     head: string;
     /** `git status --porcelain`, verbatim — compared, never parsed. */
     status: string;
@@ -2190,7 +2194,7 @@ export function treeMoved(
     const moved =
         "the tree moved under the lane — a lint-staged stash or a concurrent commit; re-run on a quiet tree";
     if (start.head !== now.head) {
-        return `${moved} (HEAD ${start.head} → ${now.head}${cause})`;
+        return `${moved} (HEAD ${start.head.slice(0, 10)} → ${now.head.slice(0, 10)}${cause})`;
     }
     if (start.status !== now.status) {
         const first = now.status.trim().split("\n")[0] ?? "";
@@ -2317,9 +2321,9 @@ export function stashListOf(r: {
 }
 
 /** One instant of the working tree. Thin plumbing; `treeMoved` decides. */
-function snapshotTree(cwd: string): TreeSnapshot {
+export function snapshotTree(cwd: string): TreeSnapshot {
     return {
-        head: git(["rev-parse", "--short", "HEAD"], cwd).trim(),
+        head: git(["rev-parse", "HEAD"], cwd).trim(),
         status: git(["status", "--porcelain"], cwd),
         stash: stashListOf(
             spawnSync("git", ["stash", "list", "--format=%gs"], {
