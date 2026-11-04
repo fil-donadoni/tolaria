@@ -2531,6 +2531,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › When {self} die",
+            "issue": 8183
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › When {self} enter",
             "issue": 7216
         },
@@ -2622,6 +2627,21 @@
         {
             "kind": "grammar",
             "key": "triggered › trigger head › Whenever {self} attack",
+            "issue": 8183
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever {self} become tapped",
+            "issue": 8183
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever {self} deal combat damage to a player",
+            "issue": 8183
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever {self} enter or attack",
             "issue": 8183
         },
         {
