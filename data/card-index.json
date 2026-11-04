@@ -5246,6 +5246,16 @@
         "firstPrintSet": "jou"
     },
     {
+        "name": "Banishing Stroke",
+        "scryfallId": "238d8437-1abd-4bb7-8b5b-54f959bc2c79",
+        "oracleId": "a6898364-c29e-4b97-a500-344efa3ec24a",
+        "firstSet": "avr",
+        "firstPrintId": "238d8437-1abd-4bb7-8b5b-54f959bc2c79",
+        "firstPrintSet": "avr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Banishment Decree",
         "scryfallId": "2c5f605c-9d16-493e-bc44-0e15bdf8c0bf",
         "oracleId": "567b676b-54f3-44c7-8654-4d2b0262ea12",
@@ -7140,6 +7150,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Blessings of Nature",
+        "scryfallId": "d16453f1-c6ca-4288-ab72-315ed9bb0ab0",
+        "oracleId": "1e77cf90-ac51-4ac7-b123-be04aabe1688",
+        "firstSet": "avr",
+        "firstPrintId": "d16453f1-c6ca-4288-ab72-315ed9bb0ab0",
+        "firstPrintSet": "avr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Blight",
         "scryfallId": "9ca19b39-4201-463c-bd40-fbffa31c9eda",
         "oracleId": "19066c43-eccd-461b-9695-c3fad95dc1da",
@@ -8572,6 +8592,16 @@
         "firstSet": "tla",
         "firstPrintId": "17ab958a-abc6-472e-ad6a-97c731d89c74",
         "firstPrintSet": "tla"
+    },
+    {
+        "name": "Boompile",
+        "scryfallId": "e27c6a13-d19f-44c5-9e68-0153a627b343",
+        "oracleId": "85b8902f-2515-4ded-b28a-a83334f089f1",
+        "firstSet": "c16",
+        "firstPrintId": "e27c6a13-d19f-44c5-9e68-0153a627b343",
+        "firstPrintSet": "c16",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Boon of Emrakul",
@@ -12093,6 +12123,16 @@
         "firstPrintId": "3c34660c-25e3-4ff5-9b2b-5554ded2bcc3",
         "firstPrintSet": "sos",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Child of Alara",
+        "scryfallId": "863f701f-fba2-48db-95ef-0926986cdac9",
+        "oracleId": "70dbe8a9-505d-41c2-9b5b-a991d13ab459",
+        "firstSet": "con",
+        "firstPrintId": "863f701f-fba2-48db-95ef-0926986cdac9",
+        "firstPrintSet": "con",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -18376,6 +18416,16 @@
         "source": "compiled"
     },
     {
+        "name": "Devastation Tide",
+        "scryfallId": "23b62be6-1a80-4f16-a94a-374203052662",
+        "oracleId": "4245ee98-2d4c-49d1-8d07-80760cae2bf9",
+        "firstSet": "avr",
+        "firstPrintId": "23b62be6-1a80-4f16-a94a-374203052662",
+        "firstPrintSet": "avr",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Deviant Glee",
         "scryfallId": "e150896e-8745-42ac-894b-8f42a92bd7a7",
         "oracleId": "13aeccd5-cca2-4249-904d-d5516f977440",
@@ -19049,6 +19099,16 @@
         "firstPrintId": "69db0298-f6d5-450f-add3-a28c0a43f33f",
         "firstPrintSet": "ons",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Displacement Wave",
+        "scryfallId": "ad6fef1f-6cc9-4e24-a1be-fc313774f28d",
+        "oracleId": "2b3fc609-7b19-441a-ab7e-58ccd70d955b",
+        "firstSet": "ori",
+        "firstPrintId": "ad6fef1f-6cc9-4e24-a1be-fc313774f28d",
+        "firstPrintSet": "ori",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -28581,6 +28641,16 @@
         "firstPrintId": "21f4c713-089b-497c-8c0f-826cab10aa87",
         "firstPrintSet": "emn",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Gaze of Granite",
+        "scryfallId": "96c9ac10-d114-4aa5-87ac-f1069cde8e40",
+        "oracleId": "103d9ad0-d655-4bd5-a899-e9f8869e333d",
+        "firstSet": "dgm",
+        "firstPrintId": "96c9ac10-d114-4aa5-87ac-f1069cde8e40",
+        "firstPrintSet": "dgm",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -45357,6 +45427,14 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Metamorphosis Fanatic",
+        "scryfallId": "16448d95-ee21-4def-b880-26f6f159c213",
+        "oracleId": "017aa9b3-a8ea-4588-9c50-e914a7d8e4ee",
+        "firstSet": "dsc",
+        "firstPrintId": "16448d95-ee21-4def-b880-26f6f159c213",
+        "firstPrintSet": "dsc"
+    },
+    {
         "name": "Metathran Aerostat",
         "scryfallId": "59f34850-fb6f-4ac5-8309-4d53d770e28c",
         "oracleId": "093daf01-d83b-4d49-a6b3-ec9a799b9582",
@@ -53771,6 +53849,16 @@
         "firstSet": "lea",
         "firstPrintId": "b1623d57-4729-4796-b3f7-f1837a05c6ed",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Planar Cleansing",
+        "scryfallId": "30ee0d57-e404-4599-9b6e-f8ab8a95f9fa",
+        "oracleId": "a98c2d81-4add-4292-bbdd-e1b69ff936d4",
+        "firstSet": "m10",
+        "firstPrintId": "30ee0d57-e404-4599-9b6e-f8ab8a95f9fa",
+        "firstPrintSet": "m10",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Planar Despair",
@@ -74126,6 +74214,16 @@
         "source": "compiled"
     },
     {
+        "name": "Temporal Mastery",
+        "scryfallId": "266e5267-2288-4bb0-8c54-0c556521cec3",
+        "oracleId": "5c58b8e6-c572-461e-893e-a8c05f20ba17",
+        "firstSet": "avr",
+        "firstPrintId": "266e5267-2288-4bb0-8c54-0c556521cec3",
+        "firstPrintSet": "avr",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Temporal Spring",
         "scryfallId": "b584dfd1-a56c-406e-8504-47ea136dc102",
         "oracleId": "1d7a4e9c-b3c9-421e-b5f4-82d51d7d5125",
@@ -75811,6 +75909,16 @@
         "firstPrintId": "59a9f3f5-c80f-47a4-bf84-b7262437017f",
         "firstPrintSet": "por",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Thunderous Wrath",
+        "scryfallId": "daa39826-7f89-41cb-a7fe-7f7be817d5cd",
+        "oracleId": "78260893-c443-44c8-ab45-ce86ef347d98",
+        "firstSet": "avr",
+        "firstPrintId": "daa39826-7f89-41cb-a7fe-7f7be817d5cd",
+        "firstPrintSet": "avr",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -79907,6 +80015,16 @@
         "firstSet": "rtr",
         "firstPrintId": "5925c559-3e3c-481b-ba95-20a405cbffce",
         "firstPrintSet": "rtr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Vanishment",
+        "scryfallId": "dece40c1-790c-4471-a790-1d356b345603",
+        "oracleId": "a2ae1a1b-5c4f-46ed-90da-bd50ca914e7c",
+        "firstSet": "avr",
+        "firstPrintId": "dece40c1-790c-4471-a790-1d356b345603",
+        "firstPrintSet": "avr",
         "rarity": "uncommon",
         "source": "compiled"
     },

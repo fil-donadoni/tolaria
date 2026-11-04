@@ -64,6 +64,7 @@ import {
     tickDuration,
     withCardsPutIntoLibraryBatch,
 } from "./state";
+import { drawnThisTurnCount, offerStacklessMiracleReveal } from "./miracle";
 import { tryGetDefinition } from "../cards";
 import { payDeclaredExertCosts } from "./exert";
 import { returnMarkedPermanentsToHand } from "./untapReturn";
@@ -901,8 +902,11 @@ function drawStep(state: GameState): void {
             // CR 504.1 — still the draw step's turn-based draw: the draw-look
             // replacement (Aladdin's Lamp) replaced it, it did not add a
             // second draw.
+            const drawnBefore = drawnThisTurnCount(state, player.id);
             if (drawCard(player) !== null)
                 emitCardDrawn(state, player.id, 1, true);
+            // CR 702.94a — the miracle reveal window, as the card is drawn.
+            offerStacklessMiracleReveal(state, player.id, drawnBefore);
             return;
         }
         const topIds = player.library.slice(0, x).map((c) => c.id);
@@ -936,6 +940,7 @@ function drawStep(state: GameState): void {
  *  (`isTurnBasedDrawStepDraw: true`); the interactive branch (Zur's Weirding)
  *  raises a `draw-replacement` choice for the other player. */
 function performDrawStepDraw(state: GameState, playerId: string): void {
+    const drawnBefore = drawnThisTurnCount(state, playerId);
     const plan = planDrawStep(state, playerId, 1, true);
     if (plan.kind === "may-pay-bin") {
         enqueueDrawReplacementPay(state, playerId, plan);
@@ -944,6 +949,8 @@ function performDrawStepDraw(state: GameState, playerId: string): void {
     // Deterministic / no replacement — commit and emit CARD_DRAWN inline.
     // CR 504.1 — this IS the draw step's turn-based draw.
     commitDrawPlan(state, playerId, plan, { isTurnBasedDrawStepDraw: true });
+    // CR 702.94a — the miracle reveal window, as the card is drawn.
+    offerStacklessMiracleReveal(state, playerId, drawnBefore);
 }
 
 /** Raises the interactive draw-replacement pay-choice (CR 614, ADR 0061 —
@@ -994,6 +1001,7 @@ export function finalizeDrawReplacementPay(
     }
     // The seam's `may-pay-bin` commit reads only `paid` (bins the current top
     // or draws it); the life/revealed-card fields are inert at commit time.
+    const drawnBefore = drawnThisTurnCount(state, drawingPlayerId);
     commitDrawPlan(
         state,
         drawingPlayerId,
@@ -1011,6 +1019,8 @@ export function finalizeDrawReplacementPay(
 
     queue.shift();
     state.pendingChoices = queue.length > 0 ? queue : undefined;
+    // CR 702.94a — the declined pay let the card be drawn: its miracle window.
+    offerStacklessMiracleReveal(state, drawingPlayerId, drawnBefore);
     processPendingActionTriggers(state);
 
     if ((state.pendingChoices?.length ?? 0) > 0) {
@@ -1054,7 +1064,10 @@ export function finalizeDrawLookKeep(
     // CR — "then draw a card" (the kept card is now on top). CR 504.1 — the
     // draw-look replacement replaced the draw step's turn-based draw, so this
     // resumed draw IS that draw.
+    const drawnBefore = drawnThisTurnCount(state, player.id);
     if (drawCard(player) !== null) emitCardDrawn(state, player.id, 1, true);
+    // CR 702.94a — the miracle reveal window, as the kept card is drawn.
+    offerStacklessMiracleReveal(state, player.id, drawnBefore);
     processPendingActionTriggers(state);
 
     if ((state.pendingChoices?.length ?? 0) > 0) {

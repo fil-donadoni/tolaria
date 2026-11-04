@@ -116,6 +116,10 @@ export type ChoiceAction =
      *  (`submitLandEntryChoice`, CR 614.12, ADR 0051). `accept: true` (pay to
      *  enter untapped) is enumerated only when the cost is payable. */
     | { kind: "submit-land-entry"; accept: boolean }
+    /** Yes/no answer to a `miracle-reveal` choice (`submitMiracleReveal`,
+     *  CR 702.94a) — reveal the just-drawn card for its miracle ability, or
+     *  keep it hidden. Both answers are always legal. */
+    | { kind: "submit-miracle-reveal"; reveal: boolean }
     /** Name a card (`submitNameCard`, CR 201.2 / 202.3). The payload domain is
      *  the entire card registry, so it is carried OPEN — one action stands for
      *  the whole family and the caller supplies the name. */

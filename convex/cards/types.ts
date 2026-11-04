@@ -5291,6 +5291,28 @@ export interface SpellContext {
         plan: DrawStepPlan,
         paid?: boolean
     ) => number;
+    /** CR 702.94a — the Miracle reveal window at the DSL `draw` Op's seam
+     *  (`gre/miracle.ts`). `drawnThisTurnCount` is the snapshot the Op takes
+     *  BEFORE a `commitDraw`; `miracleRevealCandidate` then names the card
+     *  that draw made eligible ("the first card you've drawn this turn", with
+     *  a miracle cost, still in hand), or `undefined`. */
+    drawnThisTurnCount: (playerId: string) => number;
+    miracleRevealCandidate: (
+        playerId: string,
+        drawnBefore: number
+    ) => string | undefined;
+    /** CR 702.94a — ask `playerId` whether to reveal `cardInstanceId` for its
+     *  miracle ability: a stack-coupled `miracle-reveal` Pending Choice,
+     *  private to its chooser. Returns the stored answer on a re-walk, else
+     *  enqueues and returns `undefined` (the Op suspends). */
+    requestMiracleReveal: (req: {
+        playerId: string;
+        choiceId: string;
+        cardInstanceId: string;
+    }) => boolean | undefined;
+    /** CR 702.94a / 702.94b — reveal the card to every player and emit the
+     *  MIRACLE_REVEALED event its linked triggered ability fires on. */
+    revealForMiracle: (playerId: string, cardInstanceId: string) => void;
     /** CR 701.17 — mills the top `amount` cards of a player's library into
      *  their graveyard, one at a time (re-reading the live top each pass so
      *  successive mills chase the receding library top), stopping early once
@@ -8086,6 +8108,12 @@ export interface SpellContext {
              *  a waived cost is 0 (CR 107.3b). Additional costs (e.g. sacrifice)
              *  still apply. Defaults to false (pay normally). */
             free?: boolean;
+            /** CR 118.9 / 601.2f — pay THIS mana cost rather than the card's
+             *  printed one (the miracle cost, CR 702.94a): the third payment
+             *  mode beside `free` and the printed cost. Cost modifiers still
+             *  apply (CR 601.2f) and payment is the same auto-tap. Ignored
+             *  when `free` is set. */
+            alternativeCost?: ManaCost;
         }
     ) => boolean;
     /** ADR 0037 / CR 700.2 — the modes of a card in `casterId`'s hand, read
@@ -8184,10 +8212,11 @@ export interface SpellContext {
      *  (`isFaceDownExile`, `gre/faceDown.ts`), so "public enough to pin" and
      *  "public on the opponent's screen" cannot drift apart.
      *
-     *  `zone` admits only the two OPEN zones. A hidden zone has no answer this
-     *  function could give — a hand card is private by definition (CR 402.1) —
-     *  so rather than a branch returning `undefined` that a later reader might
-     *  "improve", the question is unrepresentable.
+     *  `zone` admits the two OPEN zones and the hand. A hand card is hidden
+     *  (CR 400.2) and answers `undefined` UNLESS every player already knows it
+     *  (`knownTo` names them all — a card revealed for Miracle, CR 702.94b),
+     *  which is the only way a hidden-zone card is public. The library is not
+     *  in the type: no cast-during-resolution offer names a library card.
      *
      *  VIEWER-BLIND, and it has to be: `subjectCardId` is ONE value reaching
      *  BOTH viewers, so "public" here means public to everyone, not to the
@@ -8205,7 +8234,7 @@ export interface SpellContext {
     getPublicCardIdentity: (
         playerId: string,
         cardInstanceId: string,
-        zone: "graveyard" | "exile"
+        zone: "graveyard" | "exile" | "hand"
     ) => string | undefined;
     /** CR 116.2a / 305.2a / 305.3 / 305.2b (issue #1961) — the LAND twin of
      *  {@link getChosenCardCastable}, for a play-during-resolution permission
@@ -11659,7 +11688,8 @@ export type GameEventType =
     | "CARDS_PUT_INTO_LIBRARY"
     | "LIBRARY_SEARCHED"
     | "LEVEL_GAINED"
-    | "PERMANENT_BECAME_MONSTROUS";
+    | "PERMANENT_BECAME_MONSTROUS"
+    | "MIRACLE_REVEALED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -12593,6 +12623,20 @@ export interface LevelGainedEvent {
  *  with — CR 701.37c's "the value of X as that permanent became monstrous",
  *  readable by the trigger as `$event.count`. `types`/`subtypes` snapshot the
  *  permanent at emit time, like `LevelGainedEvent`. */
+/** CR 702.94a / 603.11 — a player revealed a card for its MIRACLE ability as
+ *  they drew it ("When you reveal this card this way, …"). Raised ONLY by the
+ *  miracle reveal window (`revealForMiracle`, `gre/miracle.ts`), never by a
+ *  generic reveal effect: the triggered ability is LINKED to the static one
+ *  (CR 603.11 / 607), so a card revealed by anything else must not trigger
+ *  it. `collectTriggers` turns it into the linked triggered ability. */
+export interface MiracleRevealedEvent {
+    type: "MIRACLE_REVEALED";
+    /** The revealing player — the card's owner, who drew it. */
+    playerId: string;
+    /** Instance id of the revealed card, in that player's hand. */
+    cardInstanceId: string;
+}
+
 export interface PermanentBecameMonstrousEvent {
     type: "PERMANENT_BECAME_MONSTROUS";
     /** Instance id of the permanent that became monstrous. */
@@ -12853,7 +12897,8 @@ export type GameEvent =
     | TokensCreatedEvent
     | CardsExiledEvent
     | CardsPutIntoLibraryEvent
-    | LibrarySearchedEvent;
+    | LibrarySearchedEvent
+    | MiracleRevealedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can
@@ -17098,9 +17143,18 @@ export type EffectOp =
           op: "castDuringResolution";
           card?: EffectRef | EffectExiledWithSourceSelector;
           player: EffectPlayerRef;
-          source?: "graveyard" | "exile";
+          /** The zone the bound `card` is cast from. `"hand"` is the Miracle
+           *  source (CR 702.94a — the revealed card is cast from its owner's
+           *  hand); valid only with a bound `card`. */
+          source?: "graveyard" | "exile" | "hand";
           fromTopOfLibrary?: boolean;
           free?: boolean;
+          /** CR 118.9 / 601.2f — cast it "by paying [cost] rather than its
+           *  mana cost": the alternative mana cost to pay instead of the
+           *  printed one, cost modifiers still applied (Miracle, CR 702.94a).
+           *  Mutually exclusive with `free` (validator-enforced). Carries no
+           *  {X} leg: X is prompted only for a printed-cost cast. */
+          alternativeCost?: ManaCost;
           includesLand?: boolean;
           resultBind?: string;
           anyNumber?: true;
@@ -22724,6 +22778,16 @@ export interface CardDefinition {
      *  Read by `convex/gre/foretell.ts` (`getForetellCost`), the cast-cost
      *  chokepoint (`castRawManaCost`) and `getLegalActions`. */
     foretell?: ManaCost;
+    /** CR 702.94a — Miracle [cost]. The cost this card may be cast for "rather
+     *  than its mana cost" (an alternative cost, CR 118.9) during the
+     *  resolution of the triggered ability its reveal fires. Its presence is
+     *  also what opens the reveal window: the first card a player draws each
+     *  turn, if it has this field, raises the private reveal choice at the
+     *  draw itself. Read by `convex/gre/miracle.ts` (`getMiracleCost`). A
+     *  dedicated field, not an `AlternativeCost` entry: the cost is payable
+     *  only inside the linked trigger's resolution, never from the cast
+     *  picker. */
+    miracle?: ManaCost;
     /** CR 702.30a — Echo [cost]. The echo cost, declared as DATA (ADR 0155):
      *  the `getDefinition` seam (`expandEchoCumulativeUpkeep`) synthesizes the
      *  CR 702.30a upkeep trigger from it and the engine arms `echoPending` on

@@ -8038,6 +8038,44 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 400.3 + CR 702.94a — "Return all nonland permanents to their owners' hands", a bounce sweep under a type exclusion, beside a Miracle line. Exhibits the sweep `moveZone` of `$each` over `excludeType: "Land"` the canned smoke scenario cannot model (issue #1267); the miracle cost lands on `CardDefinition.miracle`.
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "4245ee98-2d4c-49d1-8d07-80760cae2bf9",
+            name: "Devastation Tide",
+            manaCost: "{3}{U}{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Return all nonland permanents to their owners' hands.\nMiracle {1}{U} (You may cast this card for its miracle cost when you draw it if it's the first card you drew this turn.)",
+            layout: "normal",
+        },
+        expected: {
+            name: "Devastation Tide",
+            types: ["Sorcery"],
+            manaCost: { X: 3, U: 2 },
+            oracleText:
+                "Return all nonland permanents to their owners' hands.\nMiracle {1}{U} (You may cast this card for its miracle cost when you draw it if it's the first card you drew this turn.)",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { excludeType: "Land" },
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+            miracle: { X: 1, U: 1 },
+        },
+    },
     // CR 400.3 — "Return all artifacts target player owns to their hand": a bounce sweep scoped to an announced player's battlefield, one `moveZone` to the hand per artifact. Exhibits the sweep `moveZone` of `$each` under a target-player controller the canned smoke scenario cannot model (issue #5701).
     {
         rule: "effect clause",
