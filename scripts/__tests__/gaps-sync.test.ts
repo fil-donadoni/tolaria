@@ -384,6 +384,17 @@ describe("the mechanic and scenario kinds — one issue per quarantine class", (
         ],
     };
 
+    it("declares the class's Target files, so the planner does not schedule it solo (issue #8055)", () => {
+        const [mechanic] = buildQuarantineFilings(inputs(lock), "mechanic");
+        expect(parseTargetFiles(mechanic!.body(1))).toEqual([
+            "convex/cards/abilities/changeling.ts",
+        ]);
+        const [scenario] = buildQuarantineFilings(inputs(lock), "scenario");
+        expect(parseTargetFiles(scenario!.body(1))).toEqual([
+            "convex/gre/effects/scenarioGenerator.ts",
+        ]);
+    });
+
     it("files a mechanic class with area:mechanics, the per-Target body and both measures named", () => {
         const filings = buildQuarantineFilings(inputs(lock), "mechanic");
         expect(filings).toHaveLength(1);
@@ -565,6 +576,18 @@ describe("the bot kind — one issue per Bot Gap key, scoped to the ranked Targe
             )!;
             expect(botCauseOf(key)).toBe(cause);
         }
+    });
+
+    it("declares the cause's Target files, so the planner does not schedule it solo (issue #8055)", () => {
+        const [neverChosen, unmodelled] = buildBotGapFilings(inputs(lock));
+        expect(parseTargetFiles(neverChosen!.body(1))).toEqual([
+            "convex/gre/ai/botReach.ts",
+            "convex/gre/ai/opValuers.ts",
+        ]);
+        expect(parseTargetFiles(unmodelled!.body(1))).toEqual([
+            "convex/gre/ai/botReach.ts",
+            "convex/gre/ai/botReachTarget.ts",
+        ]);
     });
 
     it("says what each cause MEANS — the text differs, the filing rule does not", () => {
@@ -1039,6 +1062,28 @@ describe("the migration kind — graduates cluster by the rule that unlocked the
         expect(body).toContain("Air Elemental");
         expect(body).toContain("Black Ward");
         expect(body).not.toContain("Bad Moon");
+    });
+
+    it("declares its members' set modules as Target files (issue #8055)", () => {
+        const [filing] = buildMigrationFilings(inputs(lock), [
+            graduate("Air Elemental", ["keyword-line"], {
+                module: "convex/cards/sets/lea/blue.cards.ts",
+            }),
+            graduate("Bad Moon", ["keyword-line"]),
+        ]);
+        expect(parseTargetFiles(filing!.body(1))).toEqual([
+            "convex/cards/sets/lea/blue.cards.ts",
+            "convex/cards/sets/lea/white.cards.ts",
+        ]);
+    });
+
+    it("a cluster with no module found declares nothing, never an empty list (issue #8055)", () => {
+        const [filing] = buildMigrationFilings(inputs(lock), [
+            graduate("Air Elemental", ["keyword-line"], {
+                module: "(module not found)",
+            }),
+        ]);
+        expect(filing!.body(1)).not.toContain("## Target files");
     });
 
     it("`unlockingRule` folds a repeated slot and sorts, so one cluster is one key", () => {
