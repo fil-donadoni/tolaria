@@ -792,6 +792,14 @@ export interface TargetRequirement {
      *  less" (Dwarven Warriors) and the modern "target creature with power 4
      *  or greater" pattern. Ignored for player / spell targets. */
     powerFilter?: { min?: number; max?: number };
+    /** Restricts legal permanent targets to power LESS THAN the effective power
+     *  (CR 613.4c) of the ability's source: "target attacking creature with
+     *  power less than this creature's power" (Mentor, CR 702.134a). Lowered
+     *  onto `powerFilter`'s numeric `max`, so the offered set, the carried
+     *  `PendingTarget` and the client read one bound. Unlike `mvFilter`'s
+     *  `"sourcePower"`, the comparison is re-read at resolution, with the
+     *  source's last known information if it has left (CR 608.2b). */
+    powerBelowSource?: true;
     /** Restricts legal targets by mana value (CR 202.3). Inclusive bounds;
      *  string `"X"` resolves to the chosen value of X at announcement
      *  (CR 107.3) — used by Spell Blast ("counter target spell with mana
@@ -11757,6 +11765,7 @@ export type GameEventType =
     | "PERMANENT_TAPPED"
     | "PERMANENT_UNTAPPED"
     | "PERMANENT_EXERTED"
+    | "CREATURE_MENTORED"
     | "PERMANENT_TURNED_FACE_UP"
     | "ABILITY_ACTIVATED"
     | "STATE_CHECK"
@@ -12252,6 +12261,18 @@ export interface PermanentUntappedEvent {
 export interface PermanentTurnedFaceUpEvent {
     type: "PERMANENT_TURNED_FACE_UP";
     permanentId: string;
+    controllerId: string;
+}
+
+/** CR 702.134c — a mentor ability resolved: its source mentored its target. */
+export interface CreatureMentoredEvent {
+    type: "CREATURE_MENTORED";
+    /** The mentor ability's source, which may have left the battlefield by the
+     *  time the ability resolved (CR 113.7a). */
+    mentorId: string;
+    /** The mentor ability's target. */
+    mentoredId: string;
+    /** Controller of the mentor ability. */
     controllerId: string;
 }
 
@@ -12996,6 +13017,7 @@ export type GameEvent =
     | PermanentTappedEvent
     | PermanentUntappedEvent
     | PermanentExertedEvent
+    | CreatureMentoredEvent
     | PermanentTurnedFaceUpEvent
     | AbilityActivatedEvent
     | StateCheckEvent
@@ -13417,6 +13439,10 @@ export interface TriggeredAbility {
      *  per ability; the legality gate (`targetLegalityGate`) is the only
      *  reader. */
     resolvesIfTargetsIllegal?: boolean;
+    /** CR 702.134c — this ability is a mentor ability: when it resolves, its
+     *  source "mentors" its target, and the resolution path queues
+     *  `CREATURE_MENTORED`. Set only by `mentorTrigger`. */
+    mentorResolution?: true;
     /** Issue #4758 — is this an **ETB Ability** (GLOSSARY.md): "When [this
      *  object] enters, …" (CR 603.6a), fired by its OWN permanent entering and
      *  by nothing else? `true` means it is SPENT on entering: the Bot's value

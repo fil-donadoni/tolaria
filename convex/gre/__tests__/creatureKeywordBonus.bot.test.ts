@@ -40,6 +40,8 @@ const SCRIPT_PRICED: Record<
     annihilator: { declared: "annihilator 2" },
     // CR 702.181a — the expanded attack trigger's createToken script.
     mobilize: { declared: "mobilize 2" },
+    // CR 702.134a — the expanded attack trigger's counters script.
+    mentor: { declared: "mentor" },
     ward: {
         declared: "ward {2}",
         triggered: [

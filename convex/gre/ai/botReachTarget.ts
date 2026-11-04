@@ -629,6 +629,7 @@ const NO_POSE: TargetPose = {
 function narrows(req: TargetRequirement): boolean {
     return (
         req.powerFilter !== undefined ||
+        req.powerBelowSource === true ||
         req.toughnessFilter !== undefined ||
         req.totalPowerToughnessFilter !== undefined ||
         req.colorFilter !== undefined ||
