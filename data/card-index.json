@@ -5486,6 +5486,16 @@
         "source": "compiled"
     },
     {
+        "name": "Barging Sergeant",
+        "scryfallId": "52a54ebc-008a-4180-a023-2e1d5318780c",
+        "oracleId": "af422a4b-087c-4753-9288-c31fb3457740",
+        "firstSet": "grn",
+        "firstPrintId": "52a54ebc-008a-4180-a023-2e1d5318780c",
+        "firstPrintSet": "grn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Barkchannel Pathway // Tidechannel Pathway",
         "scryfallId": "b6de14ae-0132-4261-af00-630bf15918cd",
         "oracleId": "59d22de5-e310-44d7-89cf-ef3529e40cef",
@@ -6982,6 +6992,16 @@
         "firstSet": "iko",
         "firstPrintId": "35a30091-7f68-4a67-b47e-f44318fc93b2",
         "firstPrintSet": "iko",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Blade Instructor",
+        "scryfallId": "9b1c7f07-8d39-425b-8ae9-b3ab317cc0fe",
+        "oracleId": "77cff683-013c-4568-8ae0-f86ef0590fe1",
+        "firstSet": "grn",
+        "firstPrintId": "9b1c7f07-8d39-425b-8ae9-b3ab317cc0fe",
+        "firstPrintSet": "grn",
         "rarity": "common",
         "source": "compiled"
     },
@@ -8890,6 +8910,16 @@
         "firstSet": "leg",
         "firstPrintId": "82ae30e8-2dcd-46b8-925b-cc24e11fb95d",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Boros Challenger",
+        "scryfallId": "545f3a30-7984-4046-8a14-51bc9cbc3fe0",
+        "oracleId": "bc6b40b1-0d17-4dd2-bec9-f1653611dba3",
+        "firstSet": "grn",
+        "firstPrintId": "545f3a30-7984-4046-8a14-51bc9cbc3fe0",
+        "firstPrintSet": "grn",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Boros Cluestone",
@@ -30798,6 +30828,16 @@
         "source": "compiled"
     },
     {
+        "name": "Goblin Banneret",
+        "scryfallId": "90b3b56c-5236-4319-b17e-5f71143a7906",
+        "oracleId": "a2d9554e-70c0-4213-ba5e-f0954ad32854",
+        "firstSet": "grn",
+        "firstPrintId": "90b3b56c-5236-4319-b17e-5f71143a7906",
+        "firstPrintSet": "grn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Goblin Battle Jester",
         "scryfallId": "c13e56b0-becc-4bc2-9ba3-23b3ca8bfe58",
         "oracleId": "eba01ee1-55c4-48db-843b-fd6d48c32eda",
@@ -33697,6 +33737,16 @@
         "firstPrintId": "5f96344c-4b1f-42a6-bbf2-dc5cf11cdb02",
         "firstPrintSet": "zen",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Hammer Dropper",
+        "scryfallId": "9efac789-587b-45c1-b16e-616e9486b59b",
+        "oracleId": "088c9fa7-65ec-48c6-90cc-9087bc9df43e",
+        "firstSet": "grn",
+        "firstPrintId": "9efac789-587b-45c1-b16e-616e9486b59b",
+        "firstPrintSet": "grn",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -53287,6 +53337,16 @@
         "firstSet": "dom",
         "firstPrintId": "2fffe967-3a99-4f00-af46-f4e5567598df",
         "firstPrintSet": "dom",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Parhelion Patrol",
+        "scryfallId": "eef126f2-7e72-4338-8021-3ad95e4ab982",
+        "oracleId": "d4891bfc-12b7-4412-be11-d02e6d014463",
+        "firstSet": "grn",
+        "firstPrintId": "eef126f2-7e72-4338-8021-3ad95e4ab982",
+        "firstPrintSet": "grn",
         "rarity": "common",
         "source": "compiled"
     },
@@ -73860,6 +73920,16 @@
         "firstSet": "gtc",
         "firstPrintId": "42d1122a-099b-49bf-9b53-52429658816a",
         "firstPrintSet": "gtc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Sunhome Stalwart",
+        "scryfallId": "a431f183-17eb-4a6c-a137-d106bdc8c997",
+        "oracleId": "340d6218-d351-4b2e-80da-7d4afa77190a",
+        "firstSet": "grn",
+        "firstPrintId": "a431f183-17eb-4a6c-a137-d106bdc8c997",
+        "firstPrintSet": "grn",
         "rarity": "uncommon",
         "source": "compiled"
     },
