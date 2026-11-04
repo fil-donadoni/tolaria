@@ -233,6 +233,31 @@ describe("fixupRefusal", () => {
 });
 
 describe("flakeSummary", () => {
+    it("prints each name a Contained RED tolerated (ADR 0163 §4, issue #8076)", () => {
+        const text = flakeSummary({
+            outcomes: [
+                { id: "vitest", tolerated: ["a.test.ts > x", "a.test.ts > y"] },
+            ],
+        });
+        expect(text).toContain("- tolerated: a.test.ts > x");
+        expect(text).toContain("- tolerated: a.test.ts > y");
+    });
+
+    it("a tolerated step is no red to the fixup classifier: its failedFiles stay unread", () => {
+        expect(
+            classifyLane({
+                ok: true,
+                outcomes: [
+                    {
+                        id: "vitest",
+                        status: "pass",
+                        failedFiles: ["a.test.ts"],
+                    },
+                ],
+            })
+        ).toBeNull();
+    });
+
     it("names each flake's step, cause and files; empty when none", () => {
         expect(
             flakeSummary({ outcomes: [{ id: "dom", flake: undefined }] })
