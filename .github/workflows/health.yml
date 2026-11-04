@@ -18,7 +18,10 @@
 # when the base has landed a batch (`LANDINGS_PER_BATCH`) with no verdict —
 # the two-hourly schedule is the fallback, not the clock that decides GREEN. Every job re-dispatches `pr-gate` when it is done, so
 # the queue's `base-health` follows the verdict. A RED left standing fails the
-# job: GitHub's failed-run email is the owner's notice.
+# job: GitHub's failed-run email is the owner's notice — except a Contained RED
+# (ADR 0163 § 5), which sends none: `health:fix verdict` decides, and only the
+# ladder's transition to blocking (`health:fix ladder`, `rung=escalate`) fails
+# a run.
 #
 # A schedule fires from the DEFAULT branch only, and a dispatch needs the file
 # there too: both start once a release carries this file (as post-merge's
@@ -90,7 +93,7 @@ jobs:
               continue-on-error: true
               run: bun run health:fix ladder --dry-run
             - name: Dispatch health-fix
-              if: ${{ always() && contains(fromJSON('["fix","revert","stop"]'), steps.rung.outputs.rung) }}
+              if: ${{ always() && contains(fromJSON('["fix","revert","stop","escalate"]'), steps.rung.outputs.rung) }}
               continue-on-error: true
               run: gh workflow run health-fix.yml --ref staging -f host="$(bun run --silent health:fix host)"
             - name: Re-gate the queue
@@ -99,9 +102,7 @@ jobs:
               run: gh workflow run pr-gate.yml --ref staging
             - name: Verdict
               if: ${{ steps.ladder.outcome != 'success' }}
-              run: |
-                  echo "::error::health is RED or INFRA on the base tip — bun run health:status"
-                  exit 1
+              run: bun run health:fix verdict "--why=health is RED or INFRA on the base tip — bun run health:status"
             - name: Remove the job worktree
               if: always()
               shell: bash
@@ -136,7 +137,7 @@ jobs:
               continue-on-error: true
               run: bun run health:fix ladder --dry-run
             - name: Dispatch health-fix
-              if: ${{ always() && contains(fromJSON('["fix","revert","stop"]'), steps.rung.outputs.rung) }}
+              if: ${{ always() && contains(fromJSON('["fix","revert","stop","escalate"]'), steps.rung.outputs.rung) }}
               continue-on-error: true
               env:
                   SHA: ${{ inputs.sha }}
@@ -147,9 +148,7 @@ jobs:
               run: gh workflow run pr-gate.yml --ref staging
             - name: Verdict
               if: ${{ steps.ladder.outcome != 'success' }}
-              run: |
-                  echo "::error::the RED stands — bun run health:status --evidence"
-                  exit 1
+              run: bun run health:fix verdict "--why=the RED stands — bun run health:status --evidence"
             - name: Remove the job worktree
               if: always()
               shell: bash

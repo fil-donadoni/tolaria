@@ -8,7 +8,16 @@ import {
     prsOf,
     type FixAttempt,
 } from "../lib/health-fix-attempts";
-import { githubVerdictStore, type GhRunner } from "../lib/health-verdict-store";
+import {
+    decodeStatus,
+    encodeDescription,
+    githubVerdictStore,
+    lineageBlocks,
+    lineageOf,
+    type GhRunner,
+    type Verdict,
+} from "../lib/health-verdict-store";
+import { LANDINGS_PER_BATCH } from "../lib/health-batch-due";
 import {
     ATTEMPT_STALE_MS,
     HANDED_OFF_WAIT_MS,
@@ -28,6 +37,11 @@ import {
     hostOfRunnerName,
     ownRepairPrs,
     ladderRung,
+    escalationOf,
+    episodeFirstRed,
+    revertDoesNotApply,
+    verdictRunFails,
+    withoutClass,
     spentHandOffs,
     MAX_FIX_ATTEMPTS,
     parseCulprits,
@@ -1601,5 +1615,191 @@ describe("ladderRung — the fixer's hand-off to the queue (issue #7990)", () =>
             revertPrs: pr("open", true),
         });
         expect(spentHandOffs(f)).toEqual([]);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A Contained RED becomes blocking (ADR 0163 § 5, issue #8077)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("escalationOf — a Contained RED becomes blocking by event or landing cap", () => {
+    const contained = (over: Partial<LadderFacts> = {}) =>
+        facts({ contained: true, landingsSinceFirstRed: 0, ...over });
+    const escalate = (f: LadderFacts) => escalationOf(f, ladderRung(f));
+
+    it("a blocking RED has nothing to escalate", () => {
+        const f = facts({ landingsSinceFirstRed: 99 });
+        expect(escalationOf(f, { kind: "stop", why: "x" })).toBeNull();
+    });
+
+    it("the ladder's stop rung escalates", () => {
+        const f = contained({
+            episode: withAttempt({ rung: "revert", outcome: "handed-off" }),
+        });
+        expect(escalationOf(f, { kind: "stop", why: "cannot land" })).toEqual({
+            trigger: "stop",
+            why: expect.stringContaining("cannot land"),
+        });
+    });
+
+    it("a stop already recorded (hold) still escalates — the transition may not have been written", () => {
+        const f = contained({ escalated: 42 });
+        expect(ladderRung(f).kind).toBe("hold");
+        expect(escalate(f)?.trigger).toBe("stop");
+    });
+
+    it("a revert that does not apply escalates", () => {
+        const f = contained({
+            episode: withAttempt({ rung: "revert", outcome: "stuck" }),
+        });
+        expect(revertDoesNotApply(f)).toBe(true);
+        expect(escalate(f)?.trigger).toBe("revert-not-applied");
+    });
+
+    it("a transient revert failure or the revert-set cap is not 'does not apply'", () => {
+        for (const note of [`${TRANSIENT_NOTE}network`, `${CAP_NOTE}5 commits`])
+            expect(
+                revertDoesNotApply(
+                    contained({
+                        episode: withAttempt({
+                            rung: "revert",
+                            outcome: "stuck",
+                            note,
+                        }),
+                    })
+                )
+            ).toBe(false);
+    });
+
+    it("the landing cap escalates at LANDINGS_PER_BATCH, not before", () => {
+        expect(
+            escalate(
+                contained({ landingsSinceFirstRed: LANDINGS_PER_BATCH - 1 })
+            )
+        ).toBeNull();
+        expect(
+            escalate(contained({ landingsSinceFirstRed: LANDINGS_PER_BATCH }))
+        ).toMatchObject({ trigger: "landing-cap" });
+    });
+
+    it("an unreadable landing count escalates nothing", () => {
+        expect(escalate(contained({ landingsSinceFirstRed: null }))).toBeNull();
+    });
+
+    it("elapsed time alone never escalates", () => {
+        const waiting = contained({
+            // A fixer attempt running for a month: a wait, no event.
+            episode: withAttempt({
+                rung: "fix",
+                outcome: "attempting",
+                at: new Date(NOW - 30 * 86_400_000).toISOString(),
+            }),
+            now: NOW + 30 * 86_400_000,
+        });
+        expect(ladderRung(waiting).kind).not.toBe("stop");
+        const quiet = contained({ now: NOW + 365 * 86_400_000 });
+        expect(escalate(quiet)).toBeNull();
+    });
+
+    it("the cap counts from the episode's FIRST RED, across a second RED with new names", () => {
+        const episode: EpisodeRed[] = [
+            { sha: RED, attempt: null, culprits: [CULPRIT] },
+            { sha: OLD_RED, attempt: null, culprits: [] },
+        ];
+        expect(episodeFirstRed(episode)?.sha).toBe(OLD_RED);
+        expect(episodeFirstRed([])).toBeNull();
+        // 12 landings before the second RED + 9 after it: the count the I/O
+        // reads from OLD_RED is 21, never reset by the second RED.
+        expect(
+            escalate(contained({ episode, landingsSinceFirstRed: 12 + 9 }))
+        ).toMatchObject({
+            trigger: "landing-cap",
+            why: expect.stringContaining(OLD_RED.slice(0, 8)),
+        });
+    });
+});
+
+describe("a Contained RED made blocking — the queue is held by the re-gate", () => {
+    const red = (sha: string, redClass?: "contained"): Verdict => ({
+        sha,
+        status: "red",
+        step: "test",
+        tests: ["convex/gre/__tests__/x.test.ts"],
+        failure: "assertion",
+        ...(redClass ? { redClass } : {}),
+    });
+
+    it("lineageOf answers contained before and red after", () => {
+        const before = lineageOf([red(RED, "contained")]);
+        expect(before.kind).toBe("contained");
+        expect(lineageBlocks(before.kind)).toBe(false);
+        const stored = withoutClass(
+            red(RED, "contained"),
+            "2026-11-04T12:00:00Z"
+        );
+        expect(stored.redClass).toBeUndefined();
+        const after = lineageOf([stored]);
+        expect(after.kind).toBe("red");
+        expect(lineageBlocks(after.kind)).toBe(true);
+    });
+
+    it("survives the commit-status description round trip", () => {
+        const written = encodeDescription(
+            withoutClass(red(RED, "contained"), "2026-11-04T12:00:00Z")
+        );
+        const read = decodeStatus({
+            state: "failure",
+            description: written,
+        } as never);
+        expect(read?.redClass).toBeUndefined();
+        expect(lineageOf(read ? [{ ...read, sha: RED }] : []).kind).toBe("red");
+    });
+
+    it("an older RED of the episode keeps the head, not the class, deciding", () => {
+        // The head rewritten blocking: contained older REDs cannot make it so.
+        const head = withoutClass(red(RED, "contained"), "t");
+        expect(lineageOf([head, red(OLD_RED, "contained")]).kind).toBe("red");
+    });
+});
+
+describe("verdictRunFails — a Contained RED sends no email; the transition sends one", () => {
+    it("a ladder that succeeded fails nothing", () => {
+        expect(verdictRunFails({ ladderSucceeded: true, kind: "red" })).toBe(
+            false
+        );
+    });
+
+    it("a Contained RED fails no run", () => {
+        expect(
+            verdictRunFails({ ladderSucceeded: false, kind: "contained" })
+        ).toBe(false);
+    });
+
+    it("a blocking RED, INFRA or nothing fails the run", () => {
+        for (const kind of ["red", "second-red", "infra", "none"] as const)
+            expect(verdictRunFails({ ladderSucceeded: false, kind })).toBe(
+                true
+            );
+    });
+
+    it("an unreadable lineage fails: an email is never dropped on a missing fact", () => {
+        expect(
+            verdictRunFails({
+                ladderSucceeded: false,
+                kind: "none",
+                readError: "502",
+            })
+        ).toBe(true);
+    });
+
+    it("the transition fails exactly one run: once blocking, the next escalation is null", () => {
+        const f = facts({
+            contained: true,
+            landingsSinceFirstRed: LANDINGS_PER_BATCH,
+        });
+        expect(escalationOf(f, ladderRung(f))).not.toBeNull();
+        // After the rewrite the lineage is `red`: `contained` is false.
+        const after = { ...f, contained: false };
+        expect(escalationOf(after, ladderRung(after))).toBeNull();
     });
 });
