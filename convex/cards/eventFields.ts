@@ -88,7 +88,8 @@ export interface EventFieldRow {
      *  returns undefined and the reading Op skips (CR 608.2h). */
     resolve: (
         event: GameEvent,
-        sourceInstanceId?: string
+        sourceInstanceId?: string,
+        readLivePower?: (instanceId: string) => number | undefined
     ) => string | undefined;
 }
 
@@ -172,6 +173,31 @@ export const EVENT_FIELD_REGISTRY: Record<
     // PAIR (phases.ts), so a per-pair capture reads exactly one attacker and one
     // blocker even under multi-block / banding. Both ids are OBJECT refs
     // (permanents expected on the battlefield when the trigger fires).
+    CREATURE_ENLISTED: {
+        attackerId: {
+            family: "object",
+            resolve: (e) =>
+                e.type === "CREATURE_ENLISTED" ? e.attackerId : undefined,
+        },
+        enlistedId: {
+            family: "object",
+            resolve: (e) =>
+                e.type === "CREATURE_ENLISTED" ? e.enlistedId : undefined,
+        },
+        // CR 702.154a / 608.2h — "the tapped creature's power", read as the
+        // trigger resolves: current while it is on the battlefield, last known
+        // once it is not (the event's stamp, kept up by `removePermanentTo`).
+        // CR 107.1b — a negative power is a +0, never a shrink, per the rule's
+        // Chameleon Colossus example.
+        enlistedPower: {
+            family: "number",
+            resolve: (e, _sourceInstanceId, readLivePower) => {
+                if (e.type !== "CREATURE_ENLISTED") return undefined;
+                const power = readLivePower?.(e.enlistedId) ?? e.enlistedPower;
+                return String(Math.max(0, power));
+            },
+        },
+    },
     BLOCKERS_CONFIRMED: {
         attackerId: {
             family: "object",

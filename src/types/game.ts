@@ -1,4 +1,5 @@
 import type { Color } from "./cards";
+import type { EnlistPair } from "@convex/cards/abilities/enlist";
 import type { Zone, CardAction } from "@convex/gre/types";
 import type { ExileCastRouteChoice } from "@convex/gre/castCost";
 import type {
@@ -680,6 +681,9 @@ export interface Combat {
      *  the optional "you may exert this creature as it attacks" cost. Mirrors
      *  the GRE `combat.exertedIds`; absent when nothing was exerted. */
     exertedIds?: string[];
+    /** CR 508.1g / 702.154 — the optional enlist costs chosen: each attacker
+     *  with the creature it taps. Mirrors the GRE `combat.enlists`. */
+    enlists?: EnlistPair[];
     confirmed: boolean;
     blockerAssignments: Record<string, string[]>;
     pendingBlockerId?: string;

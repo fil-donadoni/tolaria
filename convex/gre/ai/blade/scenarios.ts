@@ -1171,6 +1171,55 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #3214 — the exert seam. The position is chosen so the exert payoff and its price cannot be confused: 4 damage removes the only blocker (which would otherwise trade one-for-one with Glorybringer), and the price — not untapping next turn — is a cost the search only sees beyond its horizon, so a passing entry proves the payoff reaches the root decision rather than that the price was mispriced.",
     },
     {
+        // MUST. The CR 508.1g optional-attack-cost seam, enlist (issue #4009).
+        // Coalition Warbrute 3/4 swings at an empty board and a player on 6. The
+        // Wall of Swords beside it has defender, so it can't attack: its 3 power
+        // reaches the player only by being tapped to enlist. Declining deals 3
+        // and leaves the game going; paying deals 6 and wins.
+        //
+        // A `predicate` for exert's reason: the decision is not WHICH creatures
+        // attack but whether the declaration pays the cost. Guards enumeration
+        // (`enlistVariants`), application (`applyMoveInSearch` carrying
+        // `Move.enlists` into `combat.enlists`) and payment
+        // (`payDeclaredEnlistCosts`, whose trigger is the 3 damage). Drop any one
+        // and the paid variant is never offered or scores the same as declining.
+        label: "must: enlists a defender to swing for lethal",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Coalition Warbrute",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Wall of Swords",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 9,
+            landCount: 5,
+            libraryCount: 20,
+            life: { opp: 6 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xe8e27, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move?.kind === "declare-attackers" &&
+                (move.enlists ?? []).length > 0,
+            describe:
+                "declares an attack that PAYS the optional enlist cost (CR 508.1g / 702.154a)",
+        },
+        note: "Issue #4009 — the enlist seam. A defender is the one partner whose power cannot arrive any other way, so the attack with and without the tap differ by exactly the lethal 3 damage.",
+    },
+    {
         // MUST. The CR 508.1c set-dependent attack restriction (issue #5495).
         // Scarred Puma "can't attack unless a black or green creature also
         // attacks"; its only companion is a red Gray Ogre, into an empty board.

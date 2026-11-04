@@ -7358,6 +7358,17 @@ export function removePermanentTo(
                 item.sourceLkiPower = getEffectivePT(state, creature).power;
             }
         }
+        // CR 702.154a / 608.2h — an enlist trigger still on the stack reads the
+        // tapped creature's power as it last existed.
+        if (
+            item.triggerEvent?.type === "CREATURE_ENLISTED" &&
+            item.triggerEvent.enlistedId === creature.id
+        ) {
+            item.triggerEvent = {
+                ...item.triggerEvent,
+                enlistedPower: getEffectivePT(state, creature).power,
+            };
+        }
     }
     stampDepartedTargets(state, creature.id);
     const wasCreature = creature.types.includes("Creature");

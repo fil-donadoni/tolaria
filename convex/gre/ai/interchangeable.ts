@@ -270,6 +270,14 @@ export function mapMoveCardRefs(
                 ...move,
                 attackerIds: many(move.attackerIds),
                 ...(move.exertIds ? { exertIds: many(move.exertIds) } : {}),
+                ...(move.enlists
+                    ? {
+                          enlists: move.enlists.map((pair) => ({
+                              attackerId: one(pair.attackerId),
+                              enlistedId: one(pair.enlistedId),
+                          })),
+                      }
+                    : {}),
                 // `attackTargets` maps an attacker id to the planeswalker /
                 // battle / player it attacks. The KEY is a card; the value's
                 // half of the union is not always one, so only the key is
