@@ -61,7 +61,7 @@ export function handPriorityOn(
     if ((state.pendingChoices?.length ?? 0) > 0) {
         state.priorityPlayerId = state.pendingChoices![0].playerId;
     } else if (pendingTargetHandoff && state.pendingTarget) {
-        // Resolution requested a copy-retarget (CR 707.10b, Fork).
+        // Resolution requested a copy-retarget (CR 707.10c, Fork).
         state.priorityPlayerId = state.pendingTarget.playerId;
     } else {
         // Full resolution completed — priority returns to the active

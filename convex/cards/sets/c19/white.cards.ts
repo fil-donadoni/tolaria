@@ -7,12 +7,12 @@ import { defineCard, type SpellContext } from "../../types";
 // the copy." with Flashback {4}{W} (CR 702.34). The reanimation is a graveyard
 // target (CR 400.7) filtered to permanent cards of MV ≤ 3; when the spell is
 // itself flashed back (cast from the graveyard, CR 702.34a), its controller may
-// copy it (CR 707.12) and retarget the copy — the card's whole point.
+// copy it (CR 707.10) and retarget the copy — the card's whole point.
 //
 // protocol card: the copy clause is conditional on the cast zone
 // (`wasCastFromGraveyard`, CR 702.34) and drives the "copy this spell + choose a
 // new target" machinery (`copyResolvingSpell` / `requestCopyRetarget`,
-// CR 707.12) behind a free "you may" — none of which the Op vocabulary expresses
+// CR 707.10) behind a free "you may" — none of which the Op vocabulary expresses
 // (there is no spell-copy Op). Split into resolveSteps so the copy may-choice
 // suspends without re-reanimating.
 export const sevinnesReclamation = defineCard(() => ({
@@ -40,7 +40,7 @@ export const sevinnesReclamation = defineCard(() => ({
             if (target?.type !== "graveyard-card" || !target.playerId) return;
             ctx.returnToBattlefield(target.playerId, target.id, "graveyard");
         },
-        // Step 1 — CR 702.34a / 707.12: only when this spell was cast from a
+        // Step 1 — CR 702.34a / 707.10: only when this spell was cast from a
         // graveyard (flashed back), its controller may copy it and retarget the
         // copy. Isolated in its own step so the may-choice suspension never
         // re-runs the reanimation.
