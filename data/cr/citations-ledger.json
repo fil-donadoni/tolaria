@@ -47162,7 +47162,6 @@
         {"id":"702.116","line":"// Myriad (CR 702.116) expands from its bare string into the attack","sites":1,"status":"confirmed","ruleHash":"1cf1b149e9d541ca"},
         {"id":"702.116","line":"// Myriad (CR 702.116) — a TRIGGERED-ability keyword expanded implicitly from","sites":1,"status":"confirmed","ruleHash":"1cf1b149e9d541ca"},
         {"id":"702.116","line":"// Myriad (CR 702.116): the `getDefinition` expansion seam, the trigger scan","sites":1,"status":"confirmed","ruleHash":"1cf1b149e9d541ca"},
-        {"id":"702.116","line":"describe(\"Myriad — Mechanics Registry (CR 702.116)\", () => {","sites":1,"status":"confirmed","ruleHash":"1cf1b149e9d541ca"},
         {"id":"702.116a","line":"/** CR 702.116a rules text for the injected trigger, as printed in reminder","sites":1,"status":"confirmed","ruleHash":"0ec97785dd1f3795"},
         {"id":"702.116a","line":"/** CR 702.116a — the synthesized attack trigger for one instance of myriad. */","sites":1,"status":"confirmed","ruleHash":"0ec97785dd1f3795"},
         {"id":"702.116a","line":"// CR 702.116a — no token in a two-player game, so nothing to price.","sites":1,"status":"confirmed","ruleHash":"0ec97785dd1f3795"},

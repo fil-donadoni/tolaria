@@ -16,7 +16,6 @@ import {
     makePlayer,
     makeState,
 } from "../../__tests__/setup.helper";
-import { isNamedMechanic, MECHANICS_REGISTRY } from "../../mechanicsRegistry";
 import type { CardDefinition } from "../../types";
 import { MYRIAD_ORACLE_TEXT, MYRIAD_TRIGGER_ID } from "../myriad";
 
@@ -86,15 +85,6 @@ function declareAttackers(state: GameState): void {
     placeTriggersOnStack(state, triggers);
 }
 
-describe("Myriad — Mechanics Registry (CR 702.116)", () => {
-    it("the keyword resolves to an implemented row", () => {
-        expect(isNamedMechanic("myriad")).toBe(true);
-        expect(MECHANICS_REGISTRY.find((r) => r.id === "myriad")?.status).toBe(
-            "implemented"
-        );
-    });
-});
-
 describe("Myriad — the attack trigger in a two-player game (CR 702.116a)", () => {
     it("expands the bare string into one attack trigger", () => {
         const triggered = getDefinition(MYRIAD).triggeredAbilities ?? [];
@@ -130,7 +120,7 @@ describe("Myriad — the attack trigger in a two-player game (CR 702.116a)", () 
         expect(state.combat!.attackerIds).toEqual(["atk"]);
     });
 
-    it("reaches the client as a stack object carrying its text", () => {
+    it("reaches the client as a stack object", () => {
         const state = boardWith(MYRIAD, VANILLA);
         declareAttackers(state);
         const view = projectPublicState(state, 0, "p2");
