@@ -540,7 +540,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "meldedFrom",
             "notedMana",
             "pileLabel",
-            "plotted",
+            "plottedOnTurn",
             "preCopyImagePrintId",
             "reboundExiled",
             "sourcePrintId",

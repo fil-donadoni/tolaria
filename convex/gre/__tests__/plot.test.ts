@@ -8,7 +8,9 @@
 //     their own handlers — plot on one turn, cast for free on a later one.
 //   - Wire format: the hand card's `canPlot`, and the plotted card in exile as
 //     both players see it (face up, CR 406.3) through `projectPublicState`.
-//   - Serialization: the designation and its riders survive the DB round-trip.
+//   - Serialization: the designation survives the DB round-trip.
+//   - Coexistence: the plotted permission beside another exile grant, each with
+//     its own cost and timing (issue #7586).
 import { describe, expect, it } from "vitest";
 import {
     makeInstance,
@@ -28,7 +30,22 @@ import type { Id } from "../../_generated/dataModel";
 import { applyPlot, becomePlotted, canPlot, plottableHandCards } from "../plot";
 import { projectPublicState } from "../../gameProjections";
 import { compactState, expandState } from "../serialize";
-import { getPlayer, type CardInstanceState, type GameState } from "../state";
+import {
+    castRawManaCost,
+    exileCastPermitted,
+    exileGrantPermitted,
+} from "../castCost";
+import { finalizeCleanup } from "../phases";
+import { resolvePlayLandSourceZone } from "../playLand";
+import { getLegalActions } from "../rules";
+import {
+    buildSpellContext,
+    getCostModifiers,
+    getPlayer,
+    type CardInstanceState,
+    type GameState,
+} from "../state";
+import type { SpellContext } from "../../cards/types";
 
 const PILLAGE = pillageTheBog().id;
 const SWAMP = getCardByName("Swamp").id;
@@ -152,7 +169,7 @@ describe("Plot — taking the action (CR 702.170a/b)", () => {
         expect(p1(state).hand).toHaveLength(0);
         const exiled = p1(state).exile.find((c) => c.id === "pillage")!;
         expect(exiled.zone).toBe("exile");
-        expect(exiled.plotted).toBe(true);
+        expect(exiled.plottedOnTurn).toBe(3);
         // CR 406.3 — a plotted card is exiled face up.
         expect(exiled.faceDown).toBeUndefined();
         // {1}{B}{G} — all three lands tapped, nothing left floating.
@@ -271,8 +288,7 @@ describe("Plot — full path through the mutations (CR 702.170a/d)", () => {
         expect(cast.stack.map((s) => s.id)).toEqual(["pillage"]);
         expect(p1(cast).exile).toHaveLength(0);
         // The designation does not ride the spell (CR 400.7).
-        expect(cast.stack[0].plotted).toBeUndefined();
-        expect(cast.stack[0].castableFromExileSorceryTiming).toBeUndefined();
+        expect(cast.stack[0].plottedOnTurn).toBeUndefined();
     });
 });
 
@@ -293,7 +309,7 @@ describe("Plot — wire format (CR 406.3)", () => {
             .exile[0];
         // Face up: the opponent sees the real card and the designation.
         expect(theirView.card.id).toBe(PILLAGE);
-        expect(theirView.plotted).toBe(true);
+        expect(theirView.plottedOnTurn).toBe(3);
 
         const ownSame = projectPublicState(sameTurn, 1, "p1").players[0]
             .exile[0];
@@ -305,16 +321,263 @@ describe("Plot — wire format (CR 406.3)", () => {
 });
 
 describe("Plot — serialization", () => {
-    it("round-trips the designation and every rider of its permission", () => {
+    it("round-trips the designation its permission is derived from", () => {
         const state = plottedOnTurn3(3);
         const back = expandState(compactState(state));
         const exiled = p1(back).exile[0];
-        expect(exiled).toMatchObject({
-            plotted: true,
-            castableFromExileBy: "p1",
-            castableFromExileFromTurn: 4,
-            castFromExileWithoutPayingManaCost: true,
-            castableFromExileSorceryTiming: true,
+        expect(exiled.plottedOnTurn).toBe(3);
+        expect(castOffered(back)).toBe(false);
+        back.turn = 5;
+        expect(castOffered(back)).toBe(true);
+    });
+});
+
+const MOUNTAIN = getCardByName("Mountain").id;
+
+/** p1, in their precombat main on turn 2 with priority, holds Lightning Bolt in
+ *  exile and one untapped Mountain. */
+function exiledBoltBoard(): GameState {
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                exile: [
+                    makeInstance(BOLT, {
+                        id: "bolt",
+                        controllerId: "p1",
+                        ownerId: "p1",
+                        zone: "exile",
+                    }),
+                ],
+                battlefield: [land(MOUNTAIN, "mountain")],
+            }),
+            makePlayer("p2", {
+                battlefield: [
+                    makeInstance(MOUNTAIN, {
+                        id: "their-mountain",
+                        controllerId: "p2",
+                        ownerId: "p2",
+                        zone: "battlefield",
+                    }),
+                ],
+            }),
+        ],
+    });
+    state.turn = 2;
+    return state;
+}
+
+const exiledBolt = (state: GameState) => p1(state).exile[0];
+
+/** A real `grantCastFromExile`, as an effect resolving under `grantee` makes it. */
+function grant(
+    state: GameState,
+    grantee: string,
+    window?: Parameters<SpellContext["grantCastFromExile"]>[3],
+    opts?: Parameters<SpellContext["grantCastFromExile"]>[4]
+): void {
+    const source = {
+        ...makeInstance(BOLT, { id: "source", zone: "stack" }),
+        castById: grantee,
+    };
+    buildSpellContext(state, source).grantCastFromExile(
+        "bolt",
+        grantee,
+        "p1",
+        window,
+        opts
+    );
+}
+
+function setMountainTapped(state: GameState, tapped: boolean): void {
+    for (const l of p1(state).battlefield) l.isTapped = tapped;
+}
+
+describe("Plot — the plotted permission coexists with another exile grant (CR 702.170d, CR 601.3)", () => {
+    describe("scenario A: a card holding a grant becomes plotted", () => {
+        it("keeps the grant whole, every rider included", () => {
+            const state = exiledBoltBoard();
+            grant(state, "p1", undefined, { costIncrease: { generic: 2 } });
+            const before = structuredClone(exiledBolt(state));
+
+            becomePlotted(state, exiledBolt(state));
+
+            expect(exiledBolt(state)).toEqual({
+                ...before,
+                plottedOnTurn: 2,
+            });
         });
+
+        it("the grant still licenses the cast, at its own price, on the turn the plot window is closed", () => {
+            const state = exiledBoltBoard();
+            grant(state, "p1");
+            becomePlotted(state, exiledBolt(state));
+
+            expect(castOffered(state, "bolt")).toBe(true);
+            expect(castRawManaCost(state, exiledBolt(state), "exile")).toEqual(
+                getCardByName("Lightning Bolt").manaCost
+            );
+            setMountainTapped(state, true);
+            expect(castOffered(state, "bolt")).toBe(false);
+        });
+    });
+
+    describe("scenario B: a plotted card receives a grant", () => {
+        it("keeps its permission once the grant has expired", () => {
+            const state = exiledBoltBoard();
+            becomePlotted(state, exiledBolt(state));
+            state.turn = 3;
+            grant(state, "p1", "this-turn");
+
+            finalizeCleanup(state);
+
+            state.turn = 4;
+            state.phase = "PRECOMBAT_MAIN";
+            state.activePlayerId = "p1";
+            state.priorityPlayerId = "p1";
+            expect(exiledBolt(state).castableFromExileBy).toBeUndefined();
+            setMountainTapped(state, true);
+            expect(castOffered(state, "bolt")).toBe(true);
+        });
+
+        it("is free in the plot window: the grant's tax and price do not apply to that cast", () => {
+            const state = exiledBoltBoard();
+            becomePlotted(state, exiledBolt(state));
+            grant(state, "p1", undefined, { costIncrease: { generic: 2 } });
+            state.turn = 3;
+            setMountainTapped(state, true);
+
+            expect(castRawManaCost(state, exiledBolt(state), "exile")).toEqual(
+                {}
+            );
+            expect(
+                getCostModifiers(
+                    state,
+                    exiledBolt(state),
+                    "spell",
+                    undefined,
+                    "p1"
+                ).increase
+            ).toEqual({});
+            expect(castOffered(state, "bolt")).toBe(true);
+        });
+
+        it("outside the plot window the grant's own cost and timing carry the cast", () => {
+            const state = exiledBoltBoard();
+            becomePlotted(state, exiledBolt(state));
+            grant(state, "p1");
+            state.turn = 3;
+            // An instant, with priority on the opponent's turn: the grant's
+            // timing allows it, CR 702.170d's does not.
+            state.activePlayerId = "p2";
+
+            expect(castRawManaCost(state, exiledBolt(state), "exile")).toEqual(
+                getCardByName("Lightning Bolt").manaCost
+            );
+            expect(castOffered(state, "bolt")).toBe(true);
+            setMountainTapped(state, true);
+            expect(castOffered(state, "bolt")).toBe(false);
+        });
+
+        it("the grant's board condition never closes the plotted permission", () => {
+            const state = exiledBoltBoard();
+            becomePlotted(state, exiledBolt(state));
+            grant(state, "p1");
+            // "If it's not your turn": false on the owner's own.
+            exiledBolt(state).castableFromExileCondition = {
+                kind: "not-your-turn",
+            };
+            state.turn = 3;
+
+            expect(exileCastPermitted(state, exiledBolt(state), "p1")).toBe(
+                true
+            );
+            expect(exileGrantPermitted(state, exiledBolt(state), "p1")).toBe(
+                false
+            );
+        });
+    });
+
+    it("a cross-player grant is the grantee's, at its own price, while the owner's plot stays free", () => {
+        const state = exiledBoltBoard();
+        becomePlotted(state, exiledBolt(state));
+        grant(state, "p2");
+        state.turn = 3;
+        const price = () => castRawManaCost(state, exiledBolt(state), "exile");
+        expect(price()).toEqual({});
+
+        state.activePlayerId = "p2";
+        state.priorityPlayerId = "p2";
+        expect(price()).toEqual(getCardByName("Lightning Bolt").manaCost);
+        for (const l of getPlayer(state, "p2").battlefield) l.isTapped = false;
+        const seen = projectPublicState(state, 1, "p2").players[0].exile[0];
+        expect(seen.legalActions).toContain("cast");
+    });
+
+    it("a cross-player grant's tax is owed by its grantee, announcer named or not", () => {
+        const state = exiledBoltBoard();
+        becomePlotted(state, exiledBolt(state));
+        grant(state, "p2", undefined, { costIncrease: { generic: 2 } });
+        state.turn = 3;
+        state.activePlayerId = "p2";
+        state.priorityPlayerId = "p2";
+        // Normalized: generic mana is keyed `X` once folded.
+        const tax = { X: 2 };
+
+        expect(
+            getCostModifiers(state, exiledBolt(state), "spell", undefined, "p2")
+                .increase
+        ).toEqual(tax);
+        expect(
+            getCostModifiers(state, exiledBolt(state), "spell").increase
+        ).toEqual(tax);
+    });
+
+    it("the owner's Cast button is offered through a grant held by the other player", () => {
+        const state = exiledBoltBoard();
+        becomePlotted(state, exiledBolt(state));
+        grant(state, "p2");
+        state.turn = 3;
+        setMountainTapped(state, true);
+        expect(castOffered(state, "bolt")).toBe(true);
+    });
+
+    it("the permission is to CAST: a plotted land is not played under a grant that is closed (CR 116.2a)", () => {
+        const state = exiledBoltBoard();
+        const forest = makeInstance(FOREST, {
+            id: "exiled-forest",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+        });
+        p1(state).exile.push(forest);
+        becomePlotted(state, forest);
+        forest.castableFromExileBy = "p1";
+        forest.castableFromExileIncludesLand = true;
+        forest.castableFromExileFromTurn = 9;
+        state.turn = 3;
+
+        expect(
+            resolvePlayLandSourceZone(state, p1(state), forest.id)
+        ).toBeNull();
+        expect(getLegalActions(state, p1(state), forest, false)).not.toContain(
+            "play"
+        );
+        state.turn = 9;
+        expect(resolvePlayLandSourceZone(state, p1(state), forest.id)).toBe(
+            "exile"
+        );
+    });
+
+    it("full path: plot, a later grant, then `announceCast` on a later turn for free", async () => {
+        const seeded = plottedOnTurn3(5);
+        const pillage = p1(seeded).exile[0];
+        pillage.castableFromExileBy = "p1";
+        pillage.castFromExileCostIncrease = { generic: 2 };
+        setMountainTapped(seeded, true);
+        const harness = makeMutationCtx("p1", [gameStateSeed(seeded)]);
+        await run(harness, announceCast, "pillage");
+        const cast = harness.state();
+        expect(cast.stack.map((s) => s.id)).toEqual(["pillage"]);
+        expect(p1(cast).exile).toHaveLength(0);
     });
 });

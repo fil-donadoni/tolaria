@@ -128,7 +128,7 @@ describe("plot — the search appliers exile the card as plotted", () => {
     it("greedy sandbox (applyMoveForSearch)", () => {
         const next = applyMoveForSearch(board(), "p1", plotMove);
         const exiled = next.players[0].exile.find((c) => c.id === "pillage");
-        expect(exiled?.plotted).toBe(true);
+        expect(exiled?.plottedOnTurn).toBe(next.turn);
         expect(next.players[0].hand).toHaveLength(0);
         expect(next.stack).toHaveLength(0);
         expect(next.players[0].battlefield.every((l) => l.isTapped)).toBe(true);
@@ -139,8 +139,9 @@ describe("plot — the search appliers exile the card as plotted", () => {
         state.passCount = 1;
         applyMoveInSearch(state, "p1", plotMove);
         expect(
-            state.players[0].exile.find((c) => c.id === "pillage")?.plotted
-        ).toBe(true);
+            state.players[0].exile.find((c) => c.id === "pillage")
+                ?.plottedOnTurn
+        ).toBe(state.turn);
         expect(state.stack).toHaveLength(0);
         expect(state.passCount).toBe(0);
         expect(state.priorityPlayerId).toBe("p1");

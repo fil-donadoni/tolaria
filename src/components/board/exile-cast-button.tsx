@@ -1,7 +1,7 @@
 import { cardHasLegalAction, exileActionSources } from "~/lib/card-actionable";
 import type { CardInstance } from "~/types/game";
 import { getDefinition } from "@convex/cards";
-import { exileCastPermission } from "@convex/gre/castCost";
+import { exileCastOpensOnTurn } from "@convex/gre/castCost";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { V4_ZONE_CTA_DISABLED, V4_ZONE_CTA_PLATE } from "~/lib/board-chrome-v4";
@@ -53,10 +53,8 @@ export default function ExileCastButton({
 
     // CR 702.185a (issue #3294) — the disabled REASON, asked of the SAME
     // authority the projection gated `legalActions` on rather than re-derived
-    // here: a grant whose lower bound has not been reached is refused for the
-    // window, not for the mana. `castableFromExileBy` is the caster by
-    // construction (the render gate upstream matched it against the viewer), so
-    // a `false` here can only mean the window. Undefined = no bound, or open.
+    // here: a permission whose lower bound has not been reached is refused for
+    // the window, not for the mana. Undefined = no bound, or open.
     // `engineTurn` is read defensively, the way every other consumer does
     // (`useBattlefieldVisualState`): `undefined >= N` is false, so a context
     // carrying anything but a number would report the WINDOW for a cast that is
@@ -64,10 +62,8 @@ export default function ExileCastButton({
     // `GameContext` types the field as required, so no test can reach this
     // without defeating the type; it carries none rather than a double cast.
     const windowOpensOnTurn =
-        typeof engineTurn === "number" &&
-        card.castableFromExileBy !== undefined &&
-        !exileCastPermission(card, card.castableFromExileBy, engineTurn)
-            ? card.castableFromExileFromTurn
+        typeof engineTurn === "number"
+            ? exileCastOpensOnTurn(card, playerId, engineTurn)
             : undefined;
 
     // CR 601.3 / 601.2f / 305.2 — the projection attaches `legalActions` to the
@@ -94,10 +90,11 @@ export default function ExileCastButton({
             ? // CR 702.143a — the window is open (else the branch above), so
               // the foretell cost is what is not covered.
               "Can't cast now — its foretell cost isn't covered, or it's not a time you could cast it."
-            : card.castableFromExileSorceryTiming
+            : card.plottedOnTurn !== undefined &&
+                card.castableFromExileBy !== playerId
               ? // CR 702.170d — a plotted card's free cast is open only in its
                 // owner's main phase with an empty stack, so timing, not mana,
-                // is what closes it.
+                // is what closes it. Beside a grant the mana may be the reason.
                 "Can't cast now — only in your main phase while the stack is empty."
               : "Can't cast yet — not enough usable mana (the noted mana must match this card's cost).";
 
