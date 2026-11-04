@@ -46,6 +46,10 @@ import { expandMentor } from "../cards/abilities/mentor";
 import { expandMyriad } from "../cards/abilities/myriad";
 import { expandMobilize } from "../cards/abilities/mobilize";
 import { expandUnleash } from "../cards/abilities/unleash";
+import {
+    expandExtort,
+    staticGrantOfKeywordIsExpanded,
+} from "../cards/abilities/extort";
 import { expandFadingVanishing } from "../cards/abilities/fadingVanishing";
 import { expandHideaway } from "../cards/abilities/hideaway";
 import { expandKeywordTriggers } from "../cards/abilities/keywordTriggers";
@@ -257,7 +261,7 @@ export function isDefinitionLevelKeyword(keyword: string): boolean {
                     expandHideaway(
                         expandFadingVanishing(
                             expandKeywordTriggers(
-                                expandMentor(expandUnleash(bare))
+                                expandExtort(expandMentor(expandUnleash(bare)))
                             )
                         )
                     )
@@ -388,7 +392,7 @@ export function lowerStaticClause(
             return {
                 ok: true,
                 lowered: {
-                    ...grantCensus([clause.keyword]),
+                    ...grantCensus([clause.keyword], true),
                     effects: [
                         {
                             kind: "keyword-grant",
@@ -1134,11 +1138,19 @@ function lowerKickedRider(
  * into the backlog histogram that ranks the next grammar rule (`compile.ts`).
  */
 function grantCensus(
-    keywords: readonly { ability: string; status: string }[]
+    keywords: readonly { ability: string; status: string }[],
+    unconditionalStaticGrant = false
 ): Pick<LoweredStatic, "grantedKeywords" | "ungrantableKeywords"> {
     const ungrantable = keywords
         .map((k) => k.ability)
-        .filter(isDefinitionLevelKeyword);
+        .filter(isDefinitionLevelKeyword)
+        .filter(
+            (keyword) =>
+                !(
+                    unconditionalStaticGrant &&
+                    staticGrantOfKeywordIsExpanded(keyword)
+                )
+        );
     return {
         grantedKeywords: keywords.map((k) => ({
             ability: k.ability,

@@ -8730,6 +8730,32 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Half 2 of the discriminating pair. Accepting empties a twenty-card library, which `libraryTerm` (evaluate.ts, CR 104.3c / 704.5b) scores steeply negative below its 12-card horizon; declining costs nothing. The pair is what proves the answer comes from the search applying the Op, not from the announcement's flat valuation — the valuer scores the two announcements identically.",
     },
     {
+        // CR 608.2g — "if an effect gives a player the option to pay mana, they
+        // may activate mana abilities before taking that action". The upkeep's
+        // pool is empty by rule (CR 500.5), so without a tap plan the accept is
+        // never offered and the Bot sacrifices a 5/3 it holds two lands to keep.
+        label: "mana may-pay: taps untapped lands to pay the tax that keeps its creature",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Energy Flux", owner: "opp", zone: "battlefield" },
+                { name: "Juggernaut", owner: "me", zone: "battlefield" },
+            ],
+            phase: "UPKEEP",
+            turn: 4,
+            landCount: 2,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        setup: [{ kind: "phase-trigger" }, { kind: "resolve-top" }],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: { moves: [{ kind: "may-pay", accept: true }] },
+        note: "Capability, not preference: before the tap plan `mayPayCandidates` read the empty pool and offered only the decline, so every mana may-pay the Bot faced at a step boundary went unpaid.",
+    },
+    {
         // Issue #6761 — a "may search" tutor whose find is a strict gain. CR
         // 701.23b lets the searcher fail to find, so Tinker's choice admits an
         // empty pick (`count: { min: 0, max: 1 }`, PR #6562). ISMCTS backs the

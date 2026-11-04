@@ -126,6 +126,22 @@ describe("executeMove (issue #110)", () => {
         expect(m.submitResolutionChoice).not.toHaveBeenCalled();
     });
 
+    it("may-pay with a tap plan taps BEFORE it submits (CR 608.2g)", async () => {
+        const m = await run({
+            kind: "may-pay",
+            accept: true,
+            tapPlan: [{ cardInstanceId: "plains" }],
+        });
+        expect(m.tapUntap).toHaveBeenCalledWith({
+            ...GP,
+            cardInstanceId: "plains",
+        });
+        expect(m.tapUntap.mock.invocationCallOrder[0]).toBeLessThan(
+            m.submitMayPay.mock.invocationCallOrder[0]
+        );
+        expect(m.submitMayPay).toHaveBeenCalledWith({ ...GP, accept: true });
+    });
+
     it("random-reveal-ack → submitRandomRevealAck with the choice identity (#301)", async () => {
         const m = await run({
             kind: "random-reveal-ack",

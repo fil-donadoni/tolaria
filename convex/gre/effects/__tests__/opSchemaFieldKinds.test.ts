@@ -45,6 +45,7 @@ const DECLARATIONS = [
     "exile.bind:snapshot",
     "exileTopOfLibrary.bindAll:picks",
     "lookDistribute.bind:snapshot",
+    "loseLife.bindLost:number",
     "mayPay.bind:boolean",
     "mill.bind:snapshot",
     "mill.bindAll:picks",

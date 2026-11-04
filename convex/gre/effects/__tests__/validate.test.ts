@@ -5,7 +5,12 @@
 // 1:1 correspondence.
 
 import { describe, it, expect } from "vitest";
-import type { AbilityMode, CardType, EffectOp } from "../../../cards/types";
+import type {
+    CardDefinition,
+    AbilityMode,
+    CardType,
+    EffectOp,
+} from "../../../cards/types";
 import { EFFECT_OP_REGISTRY } from "../../../cards/mechanicsRegistry";
 import { enteredTrigger } from "../../../cards/abilities/triggers/enteredTrigger";
 import { OP_EXECUTORS } from "../interpreter";
@@ -2359,6 +2364,58 @@ describe("validateEffectScript — if construct + mayPay/counter (issue #806)", 
         expect(errors.some((e) => /undefined binding "\$b"/.test(e))).toBe(
             true
         );
+    });
+
+    it("accepts a guild-hybrid may-pay pip and refuses a malformed one (CR 702.101a)", () => {
+        const withCost = (cost: unknown) =>
+            validateEffectScript({
+                id: "t",
+                name: "T",
+                rarity: "common",
+                types: ["Sorcery"],
+                effects: [
+                    {
+                        op: "mayPay",
+                        player: "controller",
+                        cost,
+                        prompt: "Pay?",
+                        bind: "$paid",
+                    },
+                    {
+                        op: "if",
+                        predicate: { binding: "$paid" },
+                        then: [{ op: "draw", player: "controller", count: 1 }],
+                    },
+                ],
+            } as unknown as CardDefinition);
+        expect(withCost({ hybrid: [["W", "B"]] })).toEqual([]);
+        expect(withCost({ mana: { hybrid: [["W", "B"]], X: 1 } })).toEqual([]);
+        expect(withCost({ hybrid: [["W"]] })).not.toEqual([]);
+        expect(withCost({ hybrid: [["W", "nope"]] })).not.toEqual([]);
+    });
+
+    it("reads loseLife's bindLost as a number, and only after the Op (CR 119.3)", () => {
+        const script = (effects: unknown[]) =>
+            validateEffectScript({
+                id: "t",
+                name: "T",
+                rarity: "common",
+                types: ["Sorcery"],
+                effects,
+            } as unknown as CardDefinition);
+        const lose = {
+            op: "loseLife",
+            player: "opponent",
+            amount: 1,
+            bindLost: "$lost",
+        };
+        const gain = {
+            op: "gainLife",
+            player: "controller",
+            amount: { ref: "$lost" },
+        };
+        expect(script([lose, gain])).toEqual([]);
+        expect(script([gain, lose])).not.toEqual([]);
     });
 
     it("rejects a mayPay whose bind is missing (a boolean nothing reads is meaningless)", () => {

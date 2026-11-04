@@ -3255,6 +3255,17 @@ function isSacrificeCount(value: unknown): boolean {
     return isPositiveInt(obj.minTotalPower);
 }
 
+/** A may-pay's mana leg: `isManaCost` plus guild-hybrid pips ("you may pay {W/B}",
+ *  CR 702.101a), which the pool check and the payment settle as a cast's do. */
+function isMayPayManaLeg(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const { hybrid, ...pips } = value as Record<string, unknown>;
+    return (
+        isManaCost(pips) &&
+        (hybrid === undefined || isManaCostFilterValue({ hybrid }))
+    );
+}
+
 /** A `mayPay` cost (CR 117.3a / 118.4 / 118.9 / 702.24 / 701.9 / 122.1): a bare
  *  `ManaCost`, or the shared `CostLegs` shape
  *  `{ mana?, life?, permanent?, hand?, energy?, graveyard? }` (ADR 0079). At
@@ -3274,7 +3285,7 @@ function isMayPayCost(value: unknown): boolean {
     ]);
     const isUnion = Object.keys(obj).every((k) => unionKeys.has(k));
     if (isUnion && Object.keys(obj).length > 0) {
-        if ("mana" in obj && !isManaCost(obj.mana)) return false;
+        if ("mana" in obj && !isMayPayManaLeg(obj.mana)) return false;
         if (
             "life" in obj &&
             !(
@@ -3363,7 +3374,7 @@ function isMayPayCost(value: unknown): boolean {
         return true;
     }
     // Bare ManaCost shape (the historical mana-only value).
-    return isManaCost(value);
+    return isMayPayManaLeg(value);
 }
 
 /** A `mayPay` Op's dynamically-derived mana cost (issue #1150, generalized
@@ -4338,7 +4349,14 @@ const OP_SCHEMAS: OpSchemaTable = {
             amount: isEffectValue,
         },
     },
-    loseLife: { required: { player: isPlayerRef, amount: isEffectValue } },
+    loseLife: {
+        required: { player: isPlayerRef, amount: isEffectValue },
+        optional: {
+            // CR 119.3 — NUMBER binding: the life actually lost ("the total
+            // life lost this way", CR 702.101a).
+            bindLost: bindingDeclaration("number"),
+        },
+    },
     // CR 500.7 (issue #686) — schedule an extra turn for `player` (Time Warp).
     extraTurn: { required: { player: isPlayerRef } },
     // CR 500.8 (issue #2886) — add one additional combat phase to the turn in
