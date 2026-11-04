@@ -72,6 +72,24 @@ function findBattlefieldRow(
     return undefined;
 }
 
+/** Whether any permanent on `state` declares an `activation-restriction` static
+ *  at all. False proves {@link activationRestrictionViolation} is `null` for
+ *  every source on this board, which is what lets one mana census ask once
+ *  rather than once per source. Suppression is not read: a true here only sends
+ *  the caller to the full check. */
+export function boardDeclaresActivationRestriction(
+    state: RestrictionBoardView
+): boolean {
+    for (const player of state.players) {
+        for (const lock of player.battlefield) {
+            const cardId = (lock.card as { id?: string } | undefined)?.id;
+            const def = cardId ? tryGetDefinition(cardId) : null;
+            if (def && restrictionsOf(def).length > 0) return true;
+        }
+    }
+    return false;
+}
+
 /** CR 602.5 — the rejection reason (the restricting card's Oracle text) when
  *  an `activation-restriction` static on any battlefield prohibits activating
  *  an ability of the permanent `sourceId`, else `null`.

@@ -58,11 +58,12 @@ import {
     isTapLockedBySummoningSickness,
     manaGateBattlefields,
     pureGenericManaSubCost,
+    scanManaBoard,
 } from "./constants";
-import type { ManaReplacementView } from "./constants";
+import type { ManaBoardScan, ManaReplacementView } from "./constants";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { manaConverterColors } from "./manaConverters";
-import { tapManaBonusUnits } from "./tapManaBonus";
+import { declaresTapManaBonus, tapManaBonusUnits } from "./tapManaBonus";
 import { coverColoredAndHybridPips } from "./payWith";
 import { applyCostModifiers, getCostModifiers } from "./state";
 import { tryGetDefinition } from "../cards";
@@ -175,7 +176,9 @@ function producibleManaUnitsWithDebt(
     spell?: ManaSpellContext,
     /** CR 106.7 / 614 — the per-turn mana replacements, so the unit colours
      *  are the mana a tap WOULD add (`getManaTapOptionsDetailed`). */
-    replacements?: ManaReplacementView
+    replacements?: ManaReplacementView,
+    /** The census's one walk over `battlefields`, see `ManaBoardScan`. */
+    boardScan?: ManaBoardScan
 ): { units: Set<Color>[]; debt: number } {
     // requireTap: only a genuine {T} ability counts as an auto-payable "unit"
     // — the SAME `requireTap: true` invariant `getProducibleManaOptions` (the
@@ -209,6 +212,7 @@ function producibleManaUnitsWithDebt(
         battlefields,
         {
             requireTap: true,
+            boardScan,
         },
         undefined,
         replacements
@@ -433,6 +437,12 @@ export function boardManaCensus(
     const wantBase = opts.wantBase ?? true;
     const now: ManaSegment[] = [];
     const base: ManaSegment[] = [];
+    // The whole-board questions every source would otherwise ask in turn. The
+    // census only reads, so one walk answers them for the whole loop.
+    const boardScan = opts.battlefields
+        ? scanManaBoard(opts.battlefields)
+        : undefined;
+    const tapBonuses = declaresTapManaBonus(battlefield);
     for (const perm of battlefield) {
         const widen = converters?.get(perm.id);
         // CR 302.1 — a summoning-sick permanent can't pay {T}. It CAN still be
@@ -452,7 +462,8 @@ export function boardManaCensus(
             opts.controllerId,
             opts.battlefields,
             opts.spell,
-            opts.replacements
+            opts.replacements,
+            boardScan
         );
         const row: Set<Color>[] = [];
         if (widen && widen.size > 0) {
@@ -469,7 +480,7 @@ export function boardManaCensus(
         } else {
             for (const unit of units) row.push(unit);
         }
-        if (units.length > 0) {
+        if (tapBonuses && units.length > 0) {
             for (const unit of tapManaBonusUnits(battlefield, perm)) {
                 row.push(unit);
             }
