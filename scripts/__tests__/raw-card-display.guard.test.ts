@@ -1,3 +1,5 @@
+// lane-scans: src/**
+// lane-cost: 1 s (vitest "tests" 0.5-0.9 s of 2 runs, 2026-11-04, load ~69; the transform/setup wall is shared with the other guards(diff) files)
 import { describe, it, expect } from "vitest";
 import * as path from "path";
 import {
