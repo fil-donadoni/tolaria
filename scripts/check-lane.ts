@@ -95,6 +95,11 @@ import { BLADE_INDEX_DRIFT_TEST } from "./lib/blade-card-index";
 import { ORIGIN_BASE } from "./lib/branches";
 import { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
 import { LEDGER_PATH } from "./lib/cr-ledger-path";
+import {
+    laneStepFailedTests,
+    liveContainedTolerance,
+    type ContainedTolerance,
+} from "./lib/contained-tolerance";
 import { failingFiles } from "./lib/health-evidence";
 import { laneFlakeOf, planLaneRetry, type LaneFlake } from "./lib/health-retry";
 import { matchesBotGlob } from "./lib/bot-globs";
@@ -2043,6 +2048,11 @@ export interface ExecResult {
     /** The test files a failed vitest command named — what the fixup job
      *  reads to tell a stale generated artefact from a real red. */
     failedFiles?: string[];
+    /** The tests a failed vitest command named, `file > suite > test`
+     *  (`laneStepFailedTests`): what a Contained RED may forgive by name (ADR
+     *  0163 §4). Absent when the run's FAIL lines do not account for the
+     *  whole failure, or the command is not a plain vitest run. */
+    failedTests?: string[];
 }
 
 export interface CheckOutcome {
@@ -2051,6 +2061,11 @@ export interface CheckOutcome {
     ms: number;
     flake?: LaneFlake;
     failedFiles?: string[];
+    failedTests?: string[];
+    /** The step failed and every failure is a test name the standing
+     *  Contained RED's evidence lists (ADR 0163 §4): its status reads `pass`,
+     *  this says what was forgiven. */
+    tolerated?: string[];
 }
 
 export interface RunResult {
@@ -2076,7 +2091,9 @@ export interface RunResult {
 export function runPlan(
     plan: LanePlan,
     exec: (command: string) => ExecResult,
-    assertQuiet: () => unknown
+    assertQuiet: () => unknown,
+    /** What a Contained RED forgives; absent, a failure is a failure. */
+    tolerate?: ContainedTolerance
 ): RunResult {
     const outcomes: CheckOutcome[] = [];
     let ok = true;
@@ -2098,14 +2115,19 @@ export function runPlan(
         assertQuiet();
         const result = exec(check.command);
         totalMs += result.ms;
+        const tolerated = result.ok
+            ? null
+            : (tolerate?.(result.failedTests) ?? null);
         outcomes.push({
             id: check.id,
-            status: result.ok ? "pass" : "fail",
+            status: result.ok || tolerated !== null ? "pass" : "fail",
             ms: result.ms,
             ...(result.flake ? { flake: result.flake } : {}),
             ...(result.failedFiles ? { failedFiles: result.failedFiles } : {}),
+            ...(result.failedTests ? { failedTests: result.failedTests } : {}),
+            ...(tolerated !== null ? { tolerated } : {}),
         });
-        if (!result.ok) ok = false;
+        if (!result.ok && tolerated === null) ok = false;
     }
     return { outcomes, ok, totalMs };
 }
@@ -2137,6 +2159,8 @@ export function renderReceipt(
         const time =
             o.status === "not-run" ? "" : `  ${(o.ms / 1000).toFixed(1)}s`;
         lines.push(`  ${mark[o.status]} ${o.id.padEnd(width)}${time}`);
+        for (const name of o.tolerated ?? [])
+            lines.push(`    tolerated: ${name}`);
     }
     lines.push("");
     lines.push(`tree:  ${heads.start} → ${heads.end}   (start → end)`);
@@ -2395,7 +2419,8 @@ function shellRun(command: string, cwd: string, json: boolean): ExecResult {
 /**
  * `shellRun` with the command's output captured and replayed (issue #5955):
  * a failed step records the vitest test files its output named
- * (`failedFiles`), whatever the command — a `full` lane runs its tests
+ * (`failedFiles`, and the test names beside them when they account for the
+ * failure, ADR 0163 §4), whatever the command — a `full` lane runs its tests
  * inside `check:pr`, and the fixup classifier (`pr-fixup.ts`) tells a stale
  * blade card index from a real red by the files, never by the step. Used
  * whenever the JSON receipt is being recorded (`--json`, or the sidecar
@@ -2434,7 +2459,20 @@ function shellRunCapturing(
         // No copy (tee could not write): no files named, never a crash.
     }
     if (r.status === 0) return { ok: true, ms: Date.now() - t0 };
-    return { ok: false, ms: Date.now() - t0, failedFiles: failingFiles(out) };
+    return { ok: false, ms: Date.now() - t0, ...failedStepFacts(command, out) };
+}
+
+/** What a failed command's output says about it: its files, and its test
+ *  names when they account for the whole failure. */
+function failedStepFacts(
+    command: string,
+    output: string
+): Pick<ExecResult, "failedFiles" | "failedTests"> {
+    const failedTests = laneStepFailedTests(command, output);
+    return {
+        failedFiles: failingFiles(output),
+        ...(failedTests ? { failedTests } : {}),
+    };
 }
 
 /**
@@ -2488,7 +2526,7 @@ export function shellRunRetrying(
     return {
         ok: false,
         ms: Date.now() - t0,
-        failedFiles: failingFiles(second.out),
+        ...failedStepFacts(plan.command, second.out),
     };
 }
 
@@ -2533,14 +2571,16 @@ export function executePlan(
     /** Where the JSON receipt ALSO goes (`TOLARIA_LANE_JSON_OUT`, issue
      *  #5955), in either mode — the same `renderJson` call, never a second
      *  renderer. */
-    jsonSink?: (json: string) => void
+    jsonSink?: (json: string) => void,
+    /** What a Contained RED forgives (ADR 0163 §4). */
+    tolerate?: ContainedTolerance
 ): RunResult {
     if (!json) log(renderPlan(plan, head));
 
     // `endHeadOf` goes down into the loop as well, so the tree is asserted
     // before every check and not only around the phase (round-1 review of
     // #4379).
-    const result = runPlan(plan, exec, endHeadOf);
+    const result = runPlan(plan, exec, endHeadOf, tolerate);
 
     // BEFORE either rendering, never after (issue #4379): `endHeadOf` is
     // `main()`'s re-assertion, which exits on a tree that moved under the
@@ -2554,6 +2594,16 @@ export function executePlan(
     else log(renderReceipt(result, { start: head, end: endHead }));
 
     return result;
+}
+
+/**
+ * Whether this run may stand as the tree's lane verdict (issue #6650): a green
+ * run that forgave nothing. A Contained RED's tolerance (ADR 0163 §4) holds
+ * only while that RED stands; recorded, it would pass the same tree after the
+ * RED turned blocking or cleared, with no test run to say so.
+ */
+export function provesTreeGreen(result: RunResult): boolean {
+    return result.ok && !result.outcomes.some((o) => o.tolerated);
 }
 
 /**
@@ -2740,10 +2790,11 @@ function main(): void {
                   : shellRun)(command, cwd, json),
         console.log,
         assertQuiet,
-        jsonOut ? (blob) => writeFileSync(jsonOut, blob) : undefined
+        jsonOut ? (blob) => writeFileSync(jsonOut, blob) : undefined,
+        liveContainedTolerance(cwd, (line) => console.error(line))
     );
 
-    if (result.ok) {
+    if (provesTreeGreen(result)) {
         // A store failure is a future miss, never a red lane.
         try {
             writeLaneVerdict(verdictDir, {

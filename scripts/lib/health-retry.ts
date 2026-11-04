@@ -35,6 +35,7 @@ import {
     failLines,
     failingFiles,
     stripAnsi,
+    UNHANDLED_ERROR_LINE,
 } from "./health-evidence";
 import type { HealthStep, StepResult } from "./health-step";
 
@@ -84,15 +85,6 @@ function startLine(marker: string): RegExp {
 }
 
 const plainOf = stripAnsi;
-
-/** Vitest's own report of an unhandled error: the `⎯⎯⎯ Unhandled Errors ⎯⎯⎯`
- *  section header or the `Vitest caught N unhandled errors` line. Anchored,
- *  never a bare phrase: a test NAME printed with its console output
- *  (`stdout | …console-ring.test.ts > … an unhandled rejection`) matched the
- *  old case-insensitive search and refused the re-run on 97 of 98 RED
- *  evidences in the 2026-10-28..11-03 census (issue #8073). */
-const UNHANDLED_ERROR_LINE =
-    /^.*⎯{3,}\s*Unhandled (?:Errors?|Rejections?)\s*⎯{3,}.*$|^\s*Vitest caught \d+ unhandled (?:errors?|rejections?).*$/m;
 
 /** The vitest projects with a failing test in `output`, sorted, unique — or
  *  null when some failure carries no project tag (so no retry can cover it).
