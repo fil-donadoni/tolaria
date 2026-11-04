@@ -3992,18 +3992,18 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  Wave-1 Op sequence (architecture-setting first, then by blocked-closure
  *  frequency, as measured at #826 authoring time). `X` is intentionally absent — it is a fifth
  *  `EffectValue` grammar member (the chosen-cost value, `{ X: true }`, a thin
- *  skin over SpellContext.getX()), not an Op. It SHIPPED in issue #852 as a
+ *  skin over SpellContext.getX()), not an Op. It SHIPPED as a
  *  value-grammar member (EffectValue = literal | ref | count | X); adding it did
  *  NOT reopen ADR 0045 (only a fifth STRUCTURAL construct would) and it earns no
- *  EFFECT_OP_REGISTRY row (PRD #826). `counters` (issue #1015, CR 122.6) is
+ *  EFFECT_OP_REGISTRY row (PRD #826). `counters` (CR 122.6) is
  *  likewise a value-grammar member and NOT an Op — the number of counters of a
  *  type on a selected object (`{ counters: { of, type } }`), a thin skin over
  *  SpellContext.getCounterCount. It extends the value grammar to
  *  `literal | ref | count | X | counters`; like `X` it does NOT reopen ADR 0045
  *  (not a structural construct) and earns no EFFECT_OP_REGISTRY row. It unblocks
  *  the "value equal to the number of <type> counters on it" class (Powder Keg's
- *  MV-matched sweep, issue #997). The `count` value's `times` multiplier and
- *  the `EffectCardFilter.excludeSupertype` field (issue #999, CR 122 / 205.4a)
+ *  MV-matched sweep). The `count` value's `times` multiplier and
+ *  the `EffectCardFilter.excludeSupertype` field (CR 122 / 205.4a)
  *  are likewise NOT Ops and NOT new grammar members — they are REFINEMENTS of
  *  the existing `count` value (a fixed literal scaling factor and a
  *  supertype-exclusion filter, the "nonbasic land" selector), mirroring the
@@ -4011,7 +4011,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  reopens ADR 0045 (no structural construct, no arithmetic composition — a
  *  constant baked into one count) and neither earns an EFFECT_OP_REGISTRY row.
  *  They unblock the "damage/value equal to TWICE the number of nonbasic lands"
- *  class (Price of Progress, issue #999). `negate` (issue #926, `{ negate:
+ *  class (Price of Progress). `negate` (`{ negate:
  *  <value> }`) is likewise NOT an Op and NOT a new grammar member — it is a
  *  unary sign flip scoped to the SIGNED value grammar (`EffectSignedValue`,
  *  today only `pump`'s power/toughness), not a tenth `EffectValue` member, so
@@ -4019,7 +4019,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  (unlike Domain, it names no CR keyword or ability word). It unblocks
  *  "-X/-X" style pump amounts driven off a non-negative-by-nature value
  *  member (Toxic Deluge's chosen-cost X, CR 118.4 / 119.4 pay-X-life).
- *  `EffectCardFilter.enteredThisTurn` (issue #1458, CR 302.6) is likewise NOT
+ *  `EffectCardFilter.enteredThisTurn` (CR 302.6) is likewise NOT
  *  an Op and NOT a new grammar member — it is a REFINEMENT of the existing
  *  card-filter shape (a plain boolean clause, mirroring `isToken`'s own shape
  *  and battlefield-only scope exactly), read straight off the engine's
@@ -4029,8 +4029,8 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  `forEach { set: "permanents" }` (both route through `toPermanentFilter` →
  *  `ctx.getBattlefieldIds`) — and composes with every other clause,
  *  including `isToken`. Deliberately shipped with no card consumer of its
- *  own; its first consumer is Ocelot Pride (issue #1461).
- *  `EffectCardFilter.controlledSinceTurnStart` (issue #1944, Keldon Twilight)
+ *  own; its first consumer is Ocelot Pride.
+ *  `EffectCardFilter.controlledSinceTurnStart` (Keldon Twilight)
  *  is its sibling and likewise NOT an Op and NOT a new grammar member — a
  *  plain boolean card-filter clause, battlefield-only, mirroring
  *  `enteredThisTurn`'s shape and scope exactly and earning no
@@ -4042,11 +4042,11 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  battlefield-guaranteed selector sites (`allowControlledSinceTurnStart`,
  *  the `hasAbility`/`isAttacking` opt-IN gate), since a card in a hidden zone
  *  has no controller at all (CR 108.4).
- *  `EffectCountSpec.zone: "hand"` (issue #2006, CR 402) is likewise NOT an Op
+ *  `EffectCountSpec.zone: "hand"` (CR 402) is likewise NOT an Op
  *  and NOT a new grammar member — it is a REFINEMENT of the existing `count`
  *  value, the twin of the already-shipped `library` zone member (#783): a
  *  hidden zone (CR 402.3) whose SIZE is public information, therefore a pure
- *  CARDINALITY read. It earns no EFFECT_OP_REGISTRY row. Issue #2150 lifted
+ *  CARDINALITY read. It earns no EFFECT_OP_REGISTRY row. A later change lifted
  *  ONE of its two restrictions: a `filter` is now legal on `zone: "hand"`
  *  (still refused on `library`), because CR 701.20a's `reveal { player, zone:
  *  "hand" }` makes the whole hand public within the same script and "the
@@ -4058,7 +4058,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  predicate. `countTypes` stays rejected on both hidden zones (Delirium is
  *  an ability word with no CR entry of its own, CR 207.2c, and is a
  *  graveyard reading).
- *  `EffectCountSpec.picks` (issue #3807) is the same class again: a REFINEMENT
+ *  `EffectCountSpec.picks` is the same class again: a REFINEMENT
  *  of the existing `count` value, not an Op and not a new grammar member. It
  *  narrows the counted set to a picks-family binding an earlier Op captured —
  *  "3 life for each land card discarded this way" (Gerrard's Verdict) — and
@@ -4069,7 +4069,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  `EffectScaledOperand` to wrap it in a `scaled`. Validator-restricted to
  *  `zone: "graveyard"` with a `controller`, and `countTypes` refused. It earns
  *  no EFFECT_OP_REGISTRY row.
- *  `difference` (issue #2006, `{ difference: { from, minus } }`) IS a new
+ *  `difference` (`{ difference: { from, minus } }`) IS a new
  *  value-grammar member — the THIRTEENTH — and the only one that performs
  *  arithmetic between two operands. It earns no EFFECT_OP_REGISTRY row (not an
  *  Op) and it does NOT reopen ADR 0045: the frozen set is the four STRUCTURAL
@@ -4087,7 +4087,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  hand" — the literal-minus-count variants the operand union also covers.
  *  A `plus` / `max` / nested difference is deliberately absent and is a NEW
  *  design decision with its own issue, not an implied widening of this row.
- *  `scaled` (issue #2366, `{ scaled: { value, times } }`) IS a new
+ *  `scaled` (`{ scaled: { value, times } }`) IS a new
  *  value-grammar member — the FOURTEENTH — and the value grammar's ONE
  *  multiplication operator, `difference`'s sibling (subtraction). Same
  *  non-Op, non-ADR-0045-reopening status: a value member, not a structural
@@ -4104,7 +4104,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  `{ twiceX: true }`, is "generalize, don't add". One operator, one
  *  non-literal operand, that operand a TERMINAL — the value grammar stays
  *  depth-1 exactly as `difference` keeps it.
- *  `divide` (issue #2385, `{ divide: { value, by, rounding } }`) IS a new
+ *  `divide` (`{ divide: { value, by, rounding } }`) IS a new
  *  value-grammar member — the FIFTEENTH — and the value grammar's ONE
  *  division operator, `scaled`'s inverse (`difference` subtracts, `scaled`
  *  multiplies, `divide` divides). Same non-Op, non-ADR-0045-reopening
@@ -4124,7 +4124,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  of the grammar silently assuming one. One operator, one non-literal
  *  operand, that operand a TERMINAL — the value grammar stays depth-1
  *  exactly as `difference`/`scaled` keep it.
- *  `playerCounters` (issue #1969, `{ playerCounters: { of, type } }`) IS a new
+ *  `playerCounters` (`{ playerCounters: { of, type } }`) IS a new
  *  value-grammar member — the SIXTEENTH — and the PLAYER-scoped sibling of the
  *  object-scoped `counters` (#1015): `of` is an `EffectPlayerRef`, `type` a
  *  member of the CLOSED `PLAYER_COUNTER_KINDS` vocabulary (poison / energy /
@@ -4137,7 +4137,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  poison and energy became readable in the same change ("generalize, don't
  *  add"). Its WRITE half IS an Op — `addPlayerCounter`, itself the
  *  generalization of the energy-only `getEnergy` Op.
- *  `sacrificed` (issue #2375, `{ sacrificed: { read, plus? } }`) IS a new
+ *  `sacrificed` (`{ sacrificed: { read, plus? } }`) IS a new
  *  value-grammar member — the SEVENTEENTH — and like every member since `X`
  *  (#852) it is NOT an Op and NOT a structural construct, so it earns no
  *  EFFECT_OP_REGISTRY row and does not reopen ADR 0045. It reads a
@@ -4158,7 +4158,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  `EffectCountSpec.times` already ship — NOT a general addition operator and
  *  NOT a widening of `difference`'s OPERAND set (see the next paragraph for
  *  the one change that did widen it).
- *  `cardsDrawnThisTurn` (issue #3240, `{ cardsDrawnThisTurn: { of } }`) IS a
+ *  `cardsDrawnThisTurn` (`{ cardsDrawnThisTurn: { of } }`) IS a
  *  new value-grammar member — the EIGHTEENTH — and like every member since
  *  `X` (#852) it is NOT an Op and NOT a structural construct, so it earns no
  *  EFFECT_OP_REGISTRY row and does not reopen ADR 0045. CR 121.1: how many
@@ -4177,7 +4177,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  #2366) rather than a widening in place — `divide` keeps the narrow type,
  *  and `X` stays excluded from both. The grammar is still depth-1: this member
  *  is a leaf read with no nested value slot.
- *  `setSize` (issue #3244, `{ setSize: { of } }`) IS a new value-grammar member
+ *  `setSize` (`{ setSize: { of } }`) IS a new value-grammar member
  *  — the cardinality sibling of `sum` (#3243) — with the same non-Op,
  *  non-ADR-0045-reopening status: HOW MANY ids a picks binding holds, the X of
  *  a resolution-time "you may tap X untapped <things>" cost (CR 118.12, Myr
@@ -4187,13 +4187,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  attacking", untargeted, over `SpellContext.getAttackTarget`) and the
  *  battlefield-only `EffectCardFilter.tapped` status field (CR 110.5), gated in
  *  the validator exactly like `isAttacking`.
- *  `choice.count` as a computed `EffectValue` (issue #5559) is NOT an Op and
+ *  `choice.count` as a computed `EffectValue` is NOT an Op and
  *  NOT a new value member: the existing `choice` Op's exact count widened
  *  from a literal to any non-literal `EffectValue`, resolved once as the
  *  choice is raised (a non-positive result raises nothing). It is the
  *  cross-player minimum count Balance's "the rest" needed, written with
  *  members that already existed — `difference` of the chooser's own `count`
- *  and the `smallestAcrossPlayers` one (issue #783). It earns no
+ *  and the `smallestAcrossPlayers` one. It earns no
  *  EFFECT_OP_REGISTRY row. */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
