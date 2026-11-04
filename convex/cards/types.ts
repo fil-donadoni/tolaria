@@ -4464,11 +4464,21 @@ export interface SpellContext {
      *  that boundary while the permanent stays on the battlefield
      *  (`applyTimedCopy`, `gre/copy.ts`). No-op when that permanent is gone
      *  (CR 608.2b). Omitted, the recipient is the resolving permanent and the
-     *  effect is indefinite, exactly as before. */
+     *  effect is indefinite, exactly as before.
+     *
+     *  `recipient.sourceZone: "graveyard"` reads `sourceCreatureId` as a card in
+     *  a graveyard rather than a permanent ("becomes a copy of target permanent
+     *  card in your graveyard"). CR 707.2 — a card's copiable values are its
+     *  printed ones, which is exactly what a card off the battlefield presents.
+     *  No-op when that card is gone. */
     becomeCopyOf: (
         sourceCreatureId: string,
         opts?: CopyEffectOptions,
-        recipient?: { permanentId: string; duration?: DurationSpec }
+        recipient?: {
+            permanentId: string;
+            duration?: DurationSpec;
+            sourceZone?: "graveyard";
+        }
     ) => void;
     /** Token-recipient form of `becomeCopyOf` (CR 707.2 + CR 111.1): creates a
      *  fresh token under `controllerId` and immediately applies a copy effect
@@ -19808,7 +19818,11 @@ export type EffectOp =
      *  every timed copy effect keeps its own expiry, so two overlapping ones
      *  never clobber each other (`CardInstanceState.timedCopyEffects`).
      *
-     *  Skipped when either object has left the battlefield (CR 608.2b), and
+     *  `source` may also be an announced graveyard-card target ("target
+     *  permanent card in your graveyard"): a card off the battlefield
+     *  contributes its printed values (CR 707.2).
+     *
+     *  Skipped when either object has left its zone (CR 608.2b), and
      *  when both selectors name the same permanent (copying itself changes no
      *  copiable value). What it deliberately does NOT do: pick "another"
      *  target — distinctness of two announced targets is a targeting rule

@@ -38,6 +38,7 @@
 
 import { describe, it, expect } from "vitest";
 import { getAllCards } from "@convex/cards";
+import { CARD_TYPES } from "@convex/cards/types";
 import type {
     ActivatedAbility,
     CardDefinition,
@@ -446,9 +447,12 @@ function holds(n: number, op: string, lit: number): boolean {
  *  `count` of the controller's graveyard or hand compared with a literal.
  *  `broken` is the violating size NEAREST `ok` — the boundary case. `null` for
  *  any other shape (reported by `skipReason`). */
-function conditionSizes(
-    a: ActivatedAbility
-): { zone: "graveyard" | "hand"; ok: number; broken: number } | null {
+function conditionSizes(a: ActivatedAbility): {
+    zone: "graveyard" | "hand";
+    ok: number;
+    broken: number;
+    countTypes: boolean;
+} | null {
     const c = a.activationCondition;
     if (!c || !("op" in c)) return null;
     const flip: Record<string, string> = {
@@ -478,7 +482,7 @@ function conditionSizes(
     const broken = failing.reduce((best, n) =>
         Math.abs(n - ok) < Math.abs(best - ok) ? n : best
     );
-    return { zone: spec.zone, ok, broken };
+    return { zone: spec.zone, ok, broken, countTypes: !!spec.countTypes };
 }
 
 /** True when a `useStack: false` mana ability both reaches the mana-ability
@@ -716,6 +720,13 @@ function env(c: Case, broken: boolean) {
         viewerGrave.length = Math.min(viewerGrave.length, conditionSize);
         while (viewerGrave.length < conditionSize) {
             viewerGrave.push(gvCard(`cg${viewerGrave.length}`, VIEWER));
+        }
+        // A card-type tally reads the pile's distinct types, so one type per
+        // card keeps "N cards" meaning "N types" at the boundary.
+        if (condition.countTypes) {
+            viewerGrave.forEach((card, i) => {
+                card.types = [CARD_TYPES[i]!];
+            });
         }
     }
     const viewerHand: CardInstance[] =
