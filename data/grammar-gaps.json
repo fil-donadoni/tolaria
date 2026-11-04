@@ -4206,6 +4206,11 @@
         },
         {
             "kind": "mechanic",
+            "key": "ungrantable-keyword › keyword \"myriad\" is implemented by definition-level expansion (ADR 0054), so granting it to another permanent would produce nothing",
+            "issue": 8137
+        },
+        {
+            "kind": "mechanic",
             "key": "ungrantable-keyword › keyword \"persist\" is implemented by definition-level expansion (ADR 0054), so granting it to another permanent would produce nothing",
             "issue": 6928
         },
