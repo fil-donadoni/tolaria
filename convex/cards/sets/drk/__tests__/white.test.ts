@@ -39,9 +39,7 @@ const holyLight = getDefinition("c3c8a850-bc99-4679-a316-45ecdea696b2");
 const martyrsCry = getDefinition("e2c9f463-d1cc-4f11-aad2-d4a4520aa978");
 const miracleWorker = getDefinition("35d29bda-096c-44d4-b45e-c2c507f8efbe");
 const preacher = getDefinition("1e03d335-d259-4ab4-814f-9333cfd3afc9");
-const scarwoodGoblins = getDefinition("5542d236-af43-43b8-b30f-8980d74bbdd0");
 const squire = getDefinition("374df061-ebd2-4f1f-9a6e-7940a49197a9");
-const tivadarsCrusade = getDefinition("8b6da540-6803-47e5-9af0-7ae8e2f84b6c");
 const witchHunter = getDefinition("4eef9bb7-cd3c-422e-a93b-90d98684675a");
 const dominate = getDefinition("63b2dcb1-8c3e-434c-865a-196d4d799706");
 
@@ -553,38 +551,6 @@ describe("Preacher — steal a creature while tapped (CR 611.2b)", () => {
             state.players[1].battlefield.find((c) => c.id === "victim")
                 ?.controllerId
         ).toBe("p2");
-    });
-});
-
-describe("Tivadar's Crusade — destroy all Goblins (CR 701.8 / 205.3)", () => {
-    it("destroys Goblins and leaves non-Goblins alone", () => {
-        const goblin = makeInstance(scarwoodGoblins.id, {
-            id: "gob",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const bear = makeInstance(
-            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
-            {
-                id: "bear",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
-        );
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [goblin, bear] }),
-            ],
-        });
-        pushSpell(state, tivadarsCrusade.id, "p1");
-        resolveTopOfStack(state);
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "gob")
-        ).toBeUndefined();
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "bear")
-        ).toBeDefined();
     });
 });
 

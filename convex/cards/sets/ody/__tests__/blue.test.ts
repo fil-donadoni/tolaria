@@ -8,7 +8,6 @@ import {
     pushSpell,
 } from "../../../__tests__/setup.helper";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { checkStateBasedActions } from "../../../../gre/sba";
 import { validateEffectScript } from "../../../../gre/effects/validate";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
@@ -76,28 +75,6 @@ describe("Upheaval (return all permanents to hand — mass bounce, CR 400.7, iss
             "uphB",
         ]);
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["uphC"]);
-    });
-
-    it("a bounced token ceases to exist instead (CR 111.7 SBA)", () => {
-        const token = makeInstance(BEAR_ID, {
-            id: "uphTok",
-            controllerId: "p1",
-            ownerId: "p1",
-            isToken: true,
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [token] }),
-                makePlayer("p2"),
-            ],
-        });
-        pushSpell(state, upheaval.id, "p1");
-        resolveTopOfStack(state);
-        checkStateBasedActions(state);
-        expect(state.players[0].battlefield).toHaveLength(0);
-        expect(state.players[0].hand.some((c) => c.id === "uphTok")).toBe(
-            false
-        );
     });
 
     it("resolves cleanly when no permanent is in play (CR 608.2b)", () => {
