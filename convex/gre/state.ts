@@ -402,6 +402,7 @@ import {
     getApplicableDrawReplacements,
     graveyardDestinationFor,
 } from "./replacements";
+import { attachmentsLast, findUmbraArmorAura } from "./umbraArmor";
 import {
     collectTriggers,
     placeTriggersOnStack,
@@ -6600,6 +6601,10 @@ export function tapPermanent(
  *  unspent and the permanent goes to the graveyard. Indestructible still
  *  protects (CR 702.12).
  *
+ *  Umbra armor (CR 702.89a) is the last replacement consulted, so a permanent
+ *  that can regenerate keeps its Aura: CR 616.1's choice between the two is not
+ *  yet modelled for destroy replacements (tracked-by: #3353).
+ *
  *  Returns true if the permanent was actually destroyed (sent to graveyard),
  *  false if a shield saved it. Callers that emit follow-up events on death
  *  (e.g. CREATURE_DIED) should gate on the return value.
@@ -6678,6 +6683,22 @@ export function regenerateOrDestroy(
                 state.combat.blockerAssignments = next;
             }
         }
+        return false;
+    }
+    // CR 702.89a — umbra armor replaces the destruction: all marked damage goes,
+    // and the Aura is destroyed in the permanent's place. It is no regeneration,
+    // so "can't be regenerated" (CR 701.19c) doesn't reach it; nothing dies, so
+    // neither does a rider on the death. An Aura that survives its own destruction
+    // (indestructible, a shield) has still applied the replacement. The deathtouch mark goes with
+    // the damage so CR 704.5h's sweep doesn't destroy the permanent again for the
+    // same damage; both SBAs in one check are one event a single Aura answers.
+    const umbraArmorAura = findUmbraArmorAura(state, cardId);
+    if (umbraArmorAura) {
+        delete found.card.damageMarked;
+        delete found.card.dealtDeathtouchDamage;
+        destroyWithReplacements(state, umbraArmorAura.id, {
+            causerControllerId: umbraArmorAura.controllerId,
+        });
         return false;
     }
     // CR 701.8 / issue #1054 — every path through `regenerateOrDestroy` (the
@@ -14903,7 +14924,10 @@ export function buildSpellContext(
                     }
                 }
             }
-            for (const id of ids) {
+            // CR 702.89a — one event: a host is reached before its own Aura.
+            const hostOf = (id: string) =>
+                findOnBattlefield(state, id)?.card.attachedTo;
+            for (const id of attachmentsLast(ids, hostOf)) {
                 // Each victim independently gets a chance to consume a destroy
                 // replacement (CR 614, ADR 0125) or a regeneration shield
                 // (CR 614.5, 701.19a) — unless the caller opts out via
