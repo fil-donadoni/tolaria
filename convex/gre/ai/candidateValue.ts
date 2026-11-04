@@ -33,7 +33,6 @@ import {
     dslSpellScriptOpValue,
 } from "./cardScriptValue";
 import { contextAwareGrounding, type GroundingContext } from "./grounding";
-import { SOURCE_CHOSEN_X_ON_CAST_REF } from "../effects/targetRef";
 import {
     hasGraveyardRecursionAccess,
     isSelfReachableInGraveyard,
@@ -929,10 +928,6 @@ function resolveValueAgainstBoard(
             v.count
         );
     if ("X" in v) return CF_ASSUMED_X_FALLBACK;
-    // MUST mirror `contextFreeGrounding`: the source's cast-time X is an X.
-    if ("ref" in v && v.ref === SOURCE_CHOSEN_X_ON_CAST_REF) {
-        return CF_ASSUMED_X_FALLBACK;
-    }
     // counters / kickerCount / additionalCostPaid — an object-scoped read with no bound
     // object or announced kicker pre-cast, same as `ref`/`manaValue`/`domain`
     // below. MUST mirror `contextFreeGrounding`'s floor (its
@@ -1030,7 +1025,7 @@ function resolveValueAgainstBoard(
     // divide (issue #2385) — a terminal divided by a fixed divisor, rounded
     // per `rounding`. A literal or a `count` is genuinely resolvable pre-cast,
     // the same board-read `difference`/`scaled` already use; the cast-time X
-    // takes the bare read's representative fallback through the recursion.
+    // takes the bare ref's representative fallback through the recursion.
     if ("divide" in v) {
         const quotient =
             resolveValueAgainstBoard(

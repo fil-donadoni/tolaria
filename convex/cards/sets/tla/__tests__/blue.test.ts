@@ -27,6 +27,8 @@ import { compactState, expandState } from "../../../../gre/serialize";
 import { validateBlockerEligibility } from "../../../../gre/combat";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
+import { preloadDefinitions } from "../../../registry";
+import { wanShiTongLibrarian } from "../../blue.cards";
 
 const wanShiTongAllKnowing = getDefinition(
     "777fcc21-2856-4181-8ecd-c272f9769e36"
@@ -205,13 +207,15 @@ describe("Wan Shi Tong, All-Knowing (issue #3242)", () => {
 // Wan Shi Tong, Librarian (issue #1993) — the ETB reads the cast-time X through
 // `$source.chosenXOnCast`, surviving the save/load between the trigger going on
 // the stack and it resolving, and the source leaving in response (CR 608.2h).
-const WAN_SHI_TONG_LIBRARIAN_ID = "e20da6b5-1057-4a28-9e85-07de714e262f";
+const WAN_SHI_TONG_LIBRARIAN_ID = wanShiTongLibrarian.id;
 const LIBRARIAN_ETB_ID = "wan-shi-tong-librarian-etb";
 const LIBRARIAN_SEARCH_ID = "wan-shi-tong-librarian-opponent-search";
 const PATH_TO_EXILE_ID = "29b7a8b1-b98e-483a-87a4-73bd831c03d4";
 const EXPRESSIVE_ITERATION_ID = "31b770cc-09e7-4c0b-b2a4-462ab4f7200d";
 const REANIMATE_ID = "ae1ef31c-8ca5-444c-8f39-e1d1827318f5";
 const FOREST_ID = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
+
+preloadDefinitions([wanShiTongLibrarian]);
 
 function libraryOf(ownerId: string, count: number): CardInstanceState[] {
     return Array.from({ length: count }, (_, i) =>
