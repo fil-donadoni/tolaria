@@ -1537,7 +1537,7 @@ the machine; it gives a gate's command the contract it needs around it:
 | Tier                    | Scripts                                                  | What the wrapper does                                                                                                             |
 | ----------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `heavy`, `job`, `yield` | `test`, `test:app`, `test:bot`, `check:all`, a Bot sweep | raises `TOLARIA_VITEST_WORKERS` to `min(ncpu - 1, TOLARIA_HEAVY_WORKERS_CAP)` (default cap 4, RAM-bound) unless the caller set it |
-| `light`                 | `check:pr`, `check:ts`, `lint`, `format`                 | leaves the `vitest.config.ts` default of 2 workers                                                                                |
+| `light`                 | `check:pr`, `check:docs`, `test:blade`                   | leaves the `vitest.config.ts` default of 2 workers                                                                                |
 
 On every tier: `TOLARIA_VITEST_FS_CACHE=0` (issue #4614), the command runs
 detached and a signal takes its whole tree down, seen to be gone
@@ -1545,9 +1545,10 @@ detached and a signal takes its whole tree down, seen to be gone
 `package.json` wrappers stay for exactly this contract (PR #7519).
 
 The full gate is blocked inside an issue worktree (`feat/issue-N` /
-`fix/issue-N` → exit 1), except the `job` tier: it is owed on the base tip, by
-health and by `release`, not on a branch tree. `TOLARIA_ALLOW_FULL_SUITE=1` is
-the escape hatch.
+`fix/issue-N` → exit 1): it is owed on the base tip, by health and by `release`,
+not on a branch tree. `TOLARIA_ALLOW_FULL_SUITE=1` is the escape hatch. The `job`
+tier is exempt: `bot:reach`, `verdicts:search`, `verdicts:pick-agreement` and the
+Bot sweep are not the full gate.
 
 **Nothing waits for the machine.** One [`lane` runner](../guides/github-pipeline.md#serialising-heavy-work)
 runs one gate at a time (ADR 0156 Amendment I, ADR 0160) and its unit is

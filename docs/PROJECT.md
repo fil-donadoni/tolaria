@@ -914,10 +914,10 @@ Più sessioni lavorano lo stesso repo in parallelo, ognuna nel suo worktree.
 `scripts/gate.ts` definisce due tier, senza lock né attese sulla macchina
 (ADR 0156 Amendment I, VII):
 
-| Tier      | Comandi                                      | Comportamento                                                |
-| --------- | -------------------------------------------- | ------------------------------------------------------------ |
-| **heavy** | `test`, `test:app`, `test:bot`, `check:all`  | `min(ncpu - 1, 4)` worker; vietato nei worktree di una issue |
-| **light** | `bunx vitest run <path>`, `check:pr`, `lint` | vitest limitato a 2 worker                                   |
+| Tier      | Comandi                                     | Comportamento                                                |
+| --------- | ------------------------------------------- | ------------------------------------------------------------ |
+| **heavy** | `test`, `test:app`, `test:bot`, `check:all` | `min(ncpu - 1, 4)` worker; vietato nei worktree di una issue |
+| **light** | `bunx vitest run <path>`, `check:pr`        | vitest limitato a 2 worker                                   |
 
 I gate pesanti automatici li serializza l'unico runner `lane` (ADR 0160).
 

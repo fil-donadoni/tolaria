@@ -204,7 +204,7 @@ Resident only if acting without it is a mistake **before** opening any file.
 7. **Preset scenario** — any new card/gameplay feature (ADR 0044; DB is source
    of truth, #770/#1455): `json` fence `{ "label", "spec": { "cards" } }` under
    a `## Preset scenario` heading. **`land:ready` refuses without one** on a
-   `convex/{cards/sets,gre}/**` diff, seeds it post-merge; a refactor owes
+   `convex/{cards/sets,gre}/**` diff, `post-merge` seeds it; a refactor owes
    nothing (say so there). `owner` only `"me"`/`"opp"` (else silently `"me"`).
    Sweep: `bun run seed:backlog`.
 8. **Bot reachability** — Bot must PLAY it (`gre-development.md` § Bot
@@ -255,7 +255,7 @@ over two machines); the rest is batch health's.
 - **Worker caps, no admission** (`scripts/gate.ts`, ADR 0156 Amendments I,
   VII): **heavy** = `bun run test`, `test:app`, `test:bot`, `check:all` →
   `min(ncpu - 1, 4)` workers (RAM-capped); **light** = `bunx vitest run`,
-  `check:pr`, `check:ts`, `lint`, `format` → vitest ≤2 workers
+  `check:pr` → vitest ≤2 workers
   (`TOLARIA_VITEST_WORKERS`). No mutex, no load wait. **Full gate blocked in
   issue worktrees** (exit 1). **Exit 77 = INFRA, nothing ran, never a red lane**
   (re-issue).

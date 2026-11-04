@@ -29,14 +29,14 @@ still involved" excludes the queue label.
 
 Edit the right-hand column to match whatever vocabulary you actually use.
 
-## Claim labels (scripts only, never typed by hand)
+## Claim labels (the claim itself: ADR 0156)
 
 | Label         | Set by                             | Removed by                                                 |
 | ------------- | ---------------------------------- | ---------------------------------------------------------- |
 | `in-progress` | `gh issue edit`, the claim itself  | every release path (`releaseEditArgs`)                     |
 | `pr-open`     | `land:ready`, beside `in-progress` | the same release paths, at merge (`housekeeping`) or abort |
 
-`pr-open` is the board's view of the claim journal's `pr-open` row (issue
+`pr-open` is the board's view of the hand-off (issue
 #5562): the PR is with its merger (the Mergify queue, or the owner for a `merge:manual` PR). It never replaces `in-progress`, which
 every queue reader keys "claimed" on. The PR itself carries `ready-to-land` /
 `land-failed`. Both label sets live in `scripts/lib/claim-labels.ts`.
