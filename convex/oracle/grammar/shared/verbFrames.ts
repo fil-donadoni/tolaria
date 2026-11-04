@@ -491,6 +491,22 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 712.14a + CR 400.7 — "Exile <this permanent>, then return it to
+           * the battlefield transformed under <controller>'s control": read
+           * whole, because nothing may be interposed between the two legs and
+           * what returns is a new object showing its back face. Self only: the
+           * named source, or the pronoun the lowering checks is the source
+           * (CR 608.2c). `control` is the printed wording, `owner` the
+           * possessive agreeing with the returned pronoun; `delayed` is CR
+           * 603.7a's "exile it at end of combat, then …".
+           */
+          readonly frame: "exileReturnTransformed";
+          readonly subject: "self" | "pronoun";
+          readonly control: "owner" | "you";
+          readonly delayed?: "next-end-of-combat";
+      }
+    | {
+          /**
            * CR 122.1 — "<player> gets N poison/experience counters" and
            * "you get {E}{E}" (CR 107.14: one energy counter per symbol): a
            * counter kind a PLAYER holds is added to that player.
@@ -662,6 +678,12 @@ export const VERB_FRAMES: readonly {
     readonly opens: RegExp;
 }[] = [
     { name: "search", opens: /^search your library for /i },
+    // Before `moveZone`, whose opener also reads "exile": a member this opens
+    // and the reader refuses never falls back to a plain exile or flicker.
+    {
+        name: "exileReturnTransformed",
+        opens: /^exile .+, then return \S+ to the battlefield transformed\b/i,
+    },
     { name: "moveZone", opens: /^(?:put|exile|return) /i },
     {
         name: "shuffle",
@@ -781,6 +803,19 @@ export function frameOf(span: string): FrameName | null {
         if (frame.opens.test(member)) return frame.name;
     return null;
 }
+
+/**
+ * CR 712.14a — the printed shape of the `exileReturnTransformed` frame: the
+ * exiled phrase, the delay, the returned pronoun, the control wording.
+ */
+const EXILE_RETURN_TRANSFORMED =
+    /^exile (.+?)( at end of combat)?, then return (it|him|her) to the battlefield transformed under (its owner's|his owner's|her owner's|your) control$/;
+/** The possessive each returned pronoun agrees with, as the corpus prints it. */
+const OWNER_POSSESSIVE: Readonly<Record<string, string>> = {
+    it: "its owner's",
+    him: "his owner's",
+    her: "her owner's",
+};
 
 /** CR 701.23a — the quantity classes the search frame reads. */
 const SEARCH_ONE = /^(an?) (.+)$/;
@@ -1781,6 +1816,43 @@ function readAddSubtypeFrame(
 }
 
 /**
+ * CR 712.14a — one `exileReturnTransformed` member, or why it is refused. A
+ * control wording the shape does not name, or a possessive disagreeing with
+ * the returned pronoun, refuses rather than falling to the owner default.
+ */
+function readExileReturnTransformed(
+    lower: string
+):
+    | Extract<FrameIR, { frame: "exileReturnTransformed" }>
+    | { readonly refused: string } {
+    const m = lower.match(EXILE_RETURN_TRANSFORMED);
+    if (m === null)
+        return {
+            refused: `"${lower}" — not a return wording this frame reads`,
+        };
+    const [, exiled, delayed, returned, control] = m;
+    const subject = isSelfPhrase(exiled!)
+        ? ("self" as const)
+        : /^(?:it|him|her)$/.test(exiled!)
+          ? ("pronoun" as const)
+          : null;
+    if (subject === null)
+        return {
+            refused: `"${exiled}" — only the card itself returns transformed`,
+        };
+    if (control !== "your" && control !== OWNER_POSSESSIVE[returned!])
+        return { refused: `"${returned}" does not agree with "${control}"` };
+    return {
+        frame: "exileReturnTransformed",
+        subject,
+        control: control === "your" ? "you" : "owner",
+        ...(delayed !== undefined
+            ? { delayed: "next-end-of-combat" as const }
+            : {}),
+    };
+}
+
+/**
  * Read one member of the chain. Returns the frames it adds (a member may add
  * two: "shuffle and put that card on top"), the reveal it attaches to the
  * last search (`reveal`), or the reason it is refused. `null` when the member
@@ -1814,6 +1886,11 @@ function readMember(
                 consumed: false,
             },
         };
+    }
+
+    if (opensFrame("exileReturnTransformed", lower)) {
+        const read = readExileReturnTransformed(lower);
+        return "refused" in read ? read : { frames: [read], referent };
     }
 
     const reveal = lower.match(REVEAL);
@@ -2267,6 +2344,9 @@ function voteCandidates(
  * card and a Plains card" reaches the descriptor whole and is refused there.
  */
 function splitMembers(body: string): string[] {
+    // CR 712.14a — the exile and its transformed return are ONE member: the
+    // ", then" inside it is the clause's own, never a join of two instructions.
+    if (frameOf(body) === "exileReturnTransformed") return [body];
     // CR 608.2c — ", " joins members; a comma INSIDE a member (a type list,
     // "target artifact, creature, or enchantment") opens nothing and is
     // rejoined to the member it belongs to.
