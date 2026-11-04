@@ -16,6 +16,7 @@ import {
     LANDWALK_SUPERTYPE_KEYWORDS,
     LANDWALK_SNOW_SUBTYPE_KEYWORDS,
 } from "./constants";
+import { STATIC_EFFECT_CTX } from "./layers";
 import { hasColor } from "./rules";
 import { applySubstitution } from "./textChanges";
 import {
@@ -154,6 +155,22 @@ const FEAR_RULE: EvasionRule = {
     reason: "Attacker has fear — only artifact or black creatures can block",
 };
 
+// CR 702.13b — Intimidate: "A creature with intimidate can't be blocked except
+// by artifact creatures and/or creatures that share a color with it." Both sides
+// read the layer-5 colour (CR 613.1e), so a colour change on either creature moves
+// the answer; a colourless attacker has no colour to share (CR 105.2c), which
+// leaves only artifact creatures.
+const INTIMIDATE_RULE: EvasionRule = {
+    keyword: "intimidate",
+    cr: "702.13b",
+    canBlock: (attacker, blocker) =>
+        blocker.types.includes("Artifact") ||
+        STATIC_EFFECT_CTX.getColors(attacker).some((color) =>
+            hasColor(blocker, color)
+        ),
+    reason: "Attacker has intimidate — only artifact creatures or creatures sharing a color with it can block",
+};
+
 // CR 702.9b — Flying: "A creature with flying can't be blocked except by
 // creatures with flying and/or reach."
 const FLYING_RULE: EvasionRule = {
@@ -199,6 +216,7 @@ export const EVASION_RULES: readonly EvasionRule[] = [
     ...LANDWALK_SUPERTYPE_RULES,
     ...LANDWALK_SNOW_RULES,
     FEAR_RULE,
+    INTIMIDATE_RULE,
     FLYING_RULE,
     SHADOW_RULE,
     HORSEMANSHIP_RULE,
