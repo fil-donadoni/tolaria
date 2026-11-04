@@ -85,6 +85,15 @@ function startLine(marker: string): RegExp {
 
 const plainOf = stripAnsi;
 
+/** Vitest's own report of an unhandled error: the `⎯⎯⎯ Unhandled Errors ⎯⎯⎯`
+ *  section header or the `Vitest caught N unhandled errors` line. Anchored,
+ *  never a bare phrase: a test NAME printed with its console output
+ *  (`stdout | …console-ring.test.ts > … an unhandled rejection`) matched the
+ *  old case-insensitive search and refused the re-run on 97 of 98 RED
+ *  evidences in the 2026-10-28..11-03 census (issue #8073). */
+const UNHANDLED_ERROR_LINE =
+    /^.*⎯{3,}\s*Unhandled (?:Errors?|Rejections?)\s*⎯{3,}.*$|^\s*Vitest caught \d+ unhandled (?:errors?|rejections?).*$/m;
+
 /** The vitest projects with a failing test in `output`, sorted, unique — or
  *  null when some failure carries no project tag (so no retry can cover it).
  *  Both label forms count (`lib/health-evidence.ts`, issue #5589): a
@@ -129,7 +138,7 @@ export function retryDecision(stepName: string, output: string): RetryDecision {
                     : "a FAIL line names no vitest project",
         };
     // A failure the FAIL lines do not explain is not a flake to absorb.
-    if (/Unhandled (Errors|Rejection)/i.test(plain))
+    if (UNHANDLED_ERROR_LINE.test(plain))
         return {
             refused:
                 "vitest reported an unhandled error the FAIL lines do not explain",
@@ -265,7 +274,7 @@ export function planLaneRetry(
     if (!LANE_VITEST.test(command)) return null;
     const projects = failedVitestProjects(output);
     if (projects === null) return null;
-    if (/Unhandled (Errors|Rejection)/i.test(plainOf(output))) return null;
+    if (UNHANDLED_ERROR_LINE.test(plainOf(output))) return null;
     // A narrowed re-run would green files that never ran: a crashed run (OOM,
     // worker exit) or one with no summary is not a flake (review of #5640).
     if (CRASH_LINE.test(plainOf(output))) return null;
