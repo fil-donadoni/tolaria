@@ -205,11 +205,12 @@ describe("Warp — the delayed exile (CR 702.185a, CR 603.7a)", () => {
 
         expect(state.delayedTriggers).toHaveLength(1);
         expect(state.delayedTriggers![0].controller).toBe("p2");
-        // …and the GRANT the resolution opens still names the OWNER.
+        // …and the PERMISSION the resolution opens still names the OWNER.
         fireDelayedTriggers(state, "next-end-step");
         resolveTopOfStack(state);
         const exiled = state.players[0].exile.find((c) => c.id === "probe")!;
-        expect(exiled.castableFromExileBy).toBe("p1");
+        expect(exileCastPermission(exiled, "p1", state.turn + 1)).toBe(true);
+        expect(exileCastPermission(exiled, "p2", state.turn + 1)).toBe(false);
     });
 
     it("a permanent cast for its PRINTED cost schedules nothing and is never exiled", () => {
@@ -235,10 +236,12 @@ describe("Warp — the delayed exile (CR 702.185a, CR 603.7a)", () => {
         const exiled = state.players[0].exile.find((c) => c.id === "probe")!;
         expect(exiled).toBeDefined();
         // CR 702.185b — a "warped card in exile".
-        expect(exiled.warpExiled).toBe(true);
+        expect(exiled.warpExiledOnTurn).toBe(3);
         // CR 702.185a — castable by its OWNER, from the FOLLOWING turn.
-        expect(exiled.castableFromExileBy).toBe("p1");
-        expect(exiled.castableFromExileFromTurn).toBe(4);
+        expect(exileCastPermission(exiled, "p1", 3)).toBe(false);
+        expect(exileCastPermission(exiled, "p1", 4)).toBe(true);
+        // Derived from the designation: the grant record stays free.
+        expect(exiled.castableFromExileBy).toBeUndefined();
         // No expiry: "for as long as it remains exiled".
         expect(exiled.castableFromExileUntilTurn).toBeUndefined();
         // An ordinary cast for the printed cost — no waiver rider.
@@ -293,9 +296,7 @@ function warpedInExile(turn: number, exiledOnTurn = 3): GameState {
         ownerId: "p1",
         zone: "exile",
     });
-    exiled.warpExiled = true;
-    exiled.castableFromExileBy = "p1";
-    exiled.castableFromExileFromTurn = exiledOnTurn + 1;
+    exiled.warpExiledOnTurn = exiledOnTurn;
     const state = makeState({
         players: [makePlayer("p1", { exile: [exiled] }), makePlayer("p2")],
         activePlayerId: "p1",
@@ -324,7 +325,7 @@ describe("Warp — the recast window's LOWER bound (CR 702.185a)", () => {
         // warp grant is untouched by it, and still not yet open.
         finalizeCleanup(state);
         const afterCleanup = state.players[0].exile[0];
-        expect(afterCleanup.castableFromExileBy).toBe("p1");
+        expect(afterCleanup.warpExiledOnTurn).toBe(3);
         expect(exileCastPermission(afterCleanup, "p1", 3)).toBe(false);
     });
 
@@ -355,8 +356,8 @@ describe("Warp — the lower bound at every consumer (CR 702.185a, issue #1268)"
 
     it("the projection withholds legalActions while the window is closed", () => {
         const closed = projectedExileCard(warpedInExile(3));
-        expect(closed.castableFromExileBy).toBe("p1");
-        // The grant is visible (the card IS warped) but the affordance is not:
+        expect(closed.warpExiledOnTurn).toBe(3);
+        // The designation is visible (the card IS warped) but the affordance is not:
         // `ExileCastButton` gates its enabled state on exactly this array.
         expect(closed.legalActions ?? []).not.toContain("cast");
     });
@@ -421,7 +422,7 @@ describe("Warp — the recast is an ORDINARY cast (CR 702.185a)", () => {
         // Nothing consumes the window: the card simply stays exiled.
         const later = warpedInExile(7);
         const exiled = later.players[0].exile[0];
-        expect(exiled.castableFromExileBy).toBe("p1");
+        expect(exiled.warpExiledOnTurn).toBeDefined();
         expect(exileCastPermission(exiled, "p1", 7)).toBe(true);
     });
 
@@ -431,9 +432,7 @@ describe("Warp — the recast is an ORDINARY cast (CR 702.185a)", () => {
         // it is not "cast from your hand" (CR 702.185a).
         const [card] = state.players[0].exile.splice(0, 1);
         const item: StackItem = { ...card, zone: "stack", castById: "p1" };
-        delete item.castableFromExileBy;
-        delete item.castableFromExileFromTurn;
-        delete item.warpExiled;
+        delete item.warpExiledOnTurn;
         state.stack.push(item);
         resolveTopOfStack(state);
 
@@ -456,8 +455,7 @@ describe("Warp — serialization (issue #1268)", () => {
 
         const round = expandState(compactState(state));
         const exiled = round.players[0].exile.find((c) => c.id === "probe")!;
-        expect(exiled.warpExiled).toBe(true);
-        expect(exiled.castableFromExileFromTurn).toBe(4);
+        expect(exiled.warpExiledOnTurn).toBe(3);
         expect(round.players[0].spellsWarpedThisTurn).toBe(2);
     });
 

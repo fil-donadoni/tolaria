@@ -959,6 +959,18 @@ export function buildStateFromScenario(
                         exiled.castableFromExileIncludesLand = true;
                     }
                 }
+                // CR 702.170c/d — plotted on an earlier turn: "any turn after
+                // the turn in which it became plotted" has arrived.
+                if (entry.plotted) {
+                    (instance as CardInstanceState).plottedOnTurn =
+                        state.turn - 1;
+                }
+                // CR 702.185a — warped out on an earlier turn: "after the
+                // current turn has ended" has arrived.
+                if (entry.warpExiled) {
+                    (instance as CardInstanceState).warpExiledOnTurn =
+                        state.turn - 1;
+                }
             } else {
                 if (entry.damageMarked && entry.damageMarked > 0) {
                     (instance as CardInstanceState).damageMarked =
@@ -2951,7 +2963,7 @@ export const CARD_STATE_ALLOWLIST = new Set<string>([
     // three exile-grant keys around them, not continuous-effect residue.
     "castableFromExileFromTurn",
     "warped",
-    "warpExiled",
+    "warpExiledOnTurn",
     "castableFromExileIncludesLand",
     // Rebuild behaviour, not spec-keyed data: `beginApplyingStaticEffects`
     // (CR 611.2) re-derives every CONTINUOUS grant/strip from a
@@ -3287,6 +3299,8 @@ function lowerCard(
         }
         reportCharacteristicDrift(card, label, animated, dropped);
     } else if (zone === "exile") {
+        if (card.plottedOnTurn !== undefined) entry.plotted = true;
+        if (card.warpExiledOnTurn !== undefined) entry.warpExiled = true;
         if (card.castableFromExileBy) {
             if (card.castableFromExileBy === player.id) {
                 entry.castableFromExile = true;

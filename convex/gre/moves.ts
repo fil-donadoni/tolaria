@@ -65,6 +65,8 @@ import {
     castRawManaCost,
     flashbackLifeCost,
     exileCastPermitted,
+    exileCastRoutes,
+    stateWithDeclinedExileRoute,
     graveyardCastMechanism,
     modalBackCastLicensed,
     type CastFromZone,
@@ -4745,7 +4747,10 @@ function enumerateCastMovesFromZone(
                   card,
                   castFromZone,
                   player.id
-              )
+              ),
+              castFromZone === "exile"
+                  ? { state, casterId: player.id }
+                  : undefined
           )
         : // CR 601.2b — "a player can't apply two alternative methods of
           // casting or two alternative costs to a single spell": an Adventure
@@ -5988,6 +5993,36 @@ export type EnumerateMovesOptions = {
     onTruncated?: (truncation: ModeCombinationTruncation) => void;
 };
 
+/** CR 601.3 / 601.2b — the OTHER permission choice out of exile: a plotted {X}
+ *  spell also holding a grant may pay X under the grant. A separate pass priced
+ *  under that route (`stateWithDeclinedExileRoute`), stamped so the executor
+ *  announces it. The printed cast only: another option costs what it costs under
+ *  either route, so the default pass already offers it. */
+function declinedExileCastMoves(
+    state: GameState,
+    player: PlayerState,
+    zoneOwner: PlayerState,
+    card: CardInstanceState,
+    onTruncated: ((t: ModeCombinationTruncation) => void) | undefined
+): Move[] {
+    if (exileCastRoutes(state, card, player.id).length !== 2) return [];
+    const declined = stateWithDeclinedExileRoute(state, card.id);
+    const declinedCaster = declined.players.find((p) => p.id === player.id);
+    const declinedCard = declined.players
+        .find((p) => p.id === zoneOwner.id)
+        ?.exile.find((c) => c.id === card.id);
+    if (!declinedCaster || !declinedCard) return [];
+    return enumerateCastMoves(declined, declinedCaster, declinedCard, {
+        castFromZone: "exile",
+        onTruncated,
+        declineManaCostReplacement: true,
+    }).flatMap((m) =>
+        m.kind === "cast-spell" && m.alternativeCostId === undefined
+            ? [{ ...m, declineManaCostReplacement: true as const }]
+            : []
+    );
+}
+
 /** The complete set of legal macro-moves for `playerId` at the current decision
  *  point. Empty when the player owes no action right now. Pure. */
 export function enumerateMoves(
@@ -6274,11 +6309,20 @@ export function enumerateMoves(
             ) {
                 continue;
             }
+            // One push for both permission choices: the same exile move
+            // source `onlyPassIsLegal` already rules out.
             moves.push(
                 ...enumerateCastMoves(state, player, card, {
                     castFromZone: "exile",
                     onTruncated,
-                })
+                }),
+                ...declinedExileCastMoves(
+                    state,
+                    player,
+                    zoneOwner,
+                    card,
+                    onTruncated
+                )
             );
         }
     }

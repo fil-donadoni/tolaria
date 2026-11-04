@@ -43,15 +43,15 @@
 //      The {2} is paid BEFORE the card leaves the hand: it is a cost of the
 //      action, and an unpayable cost leaves the card where it was.
 //   2. The FORETOLD designation (702.143a/c/d) is {@link makeForetold}: the
-//      marker plus the owner's cast permission on the GENERAL exile-cast record
-//      every exile cast already reads — `castableFromExileBy` (the owner) and
-//      the lower turn bound `castableFromExileFromTurn` ("after the current
-//      turn has ended": every later turn, the opponent's included). No upper
-//      bound and no timing rider: the cast follows the card's own timing (a
-//      foretold instant is held up through the opponent's turn). The cost is
-//      the card's foretell cost, substituted at the one cast-cost chokepoint
-//      (`castRawManaCost`, `gre/castCost.ts`) and probed by `getLegalActions`
-//      (`gre/rules.ts`).
+//      marker plus the turn it was made, from which the owner's cast permission
+//      is DERIVED at read time ("after the current turn has ended": every later
+//      turn, the opponent's included; `exileCastPermission`, `gre/castCost.ts`).
+//      It is not written into the `castableFromExile*` grant record, so it and
+//      a grant coexist. No upper bound and no timing rider: the cast follows the
+//      card's own timing (a foretold instant is held up through the opponent's
+//      turn). The cost is the card's foretell cost, substituted at the one
+//      cast-cost chokepoint (`castRawManaCost`, `gre/castCost.ts`) and probed by
+//      `getLegalActions` (`gre/rules.ts`).
 //
 // 702.143c on the STACK: the Cast Commit kernel (`gre/castCommit.ts`) and the
 // search kernel (`commitCastInSearch`, `gre/applyMove.ts`) read the card's
@@ -65,11 +65,6 @@
 // end-of-game reveal covers both sentences here.
 // 702.143f: `endGame` (`gre/state.ts`, `revealForetoldCards`) widens `knownTo`
 // to every player on each foretold card still in exile.
-//
-// KNOWN BOUNDARY: the exile-cast record is ONE slot per card (see `plot.ts`);
-// `makeForetold` replaces any prior grant, and a later unrelated grant would
-// replace the foretell window while `foretold` stays set. No shipped card
-// reaches either. tracked-by: #7586
 import { tryGetDefinition } from "../cards";
 import type { ManaCost } from "../cards/types";
 import type { AutoTapPlan } from "./autoTap";
@@ -99,19 +94,20 @@ export function hasForetell(card: CardInstanceState): boolean {
  *  effect gave it (CR 702.143d) or else the one printed on it, `undefined`
  *  when it has none (a foretold card with no foretell cost has no foretell
  *  cast). */
-export function getForetellCost(card: CardInstanceState): ManaCost | undefined {
+export function getForetellCost(
+    card: Pick<CardInstanceState, "card" | "grantedForetellCost">
+): ManaCost | undefined {
     return (
         card.grantedForetellCost ??
         tryGetDefinition((card.card as { id?: string }).id ?? "")?.foretell
     );
 }
 
-/** True iff `card` is a FORETOLD card in exile whose foretell cast is the one
- *  its exile permission licenses: the designation, a foretell cost to pay,
- *  and no free-cast waiver on the same record (a waiver wins, CR 118.9 —
- *  "no cost" is stronger than any alternative cost). Shared by
- *  `castRawManaCost` and `getLegalActions` so the price the gate probes and
- *  the price the commit charges are one decision. */
+/** True iff `card` is a FORETOLD card in exile whose default cast is its
+ *  foretell cast, read off the card alone: the designation, a foretell cost to
+ *  pay, and no free-cast waiver on the same record (the cheaper route is the
+ *  default). The route authority with a caster and a board is
+ *  `exileCastRoutes` (`gre/castCost.ts`). */
 export function isForetellCast(card: CardInstanceState): boolean {
     return (
         card.foretold === true &&
@@ -170,12 +166,12 @@ export function foretellableHandCards(
     return player.hand.filter((c) => canForetell(state, player, c));
 }
 
-/** CR 702.143a/c/d — `card`, already in exile, becomes foretold: the
- *  designation plus its owner's cast permission. The permission REPLACES any
- *  grant the card had (a new window, not a second one), so every bound and
- *  rider of the old window is dropped. `opts.foretellCost` is the foretell
- *  cost an effect gives the card (CR 702.143d); the special action passes
- *  none, so the printed cost applies.
+/** CR 702.143a/c/d — `card`, already in exile, becomes foretold. Only the
+ *  designation is written: the permission it carries is derived from it, so a
+ *  grant the card already holds stands untouched. `opts.foretellCost` is the
+ *  foretell cost an effect gives the card (CR 702.143d); the special action
+ *  passes none, so the printed cost applies. A foretold card with no foretell
+ *  cost has no foretell cast, and so no permission turn.
  *
  *  The seam a future "becomes foretold" effect calls. */
 export function makeForetold(
@@ -189,24 +185,13 @@ export function makeForetold(
     } else {
         delete card.grantedForetellCost;
     }
-    // CR 702.143a — "THEY may cast that card": the player who foretold it,
-    // its owner (the card came from their hand).
-    card.castableFromExileBy = card.ownerId;
-    // CR 702.143a — "after the current turn has ended": any later turn.
-    card.castableFromExileFromTurn = state.turn + 1;
-    delete card.castableFromExileUntilTurn;
-    delete card.castableFromExileUntilOwnTurn;
-    delete card.castableFromExileUntilOwnUpkeep;
-    delete card.castableFromExileIncludesLand;
-    delete card.castFromExileWithoutPayingManaCost;
-    delete card.castFromExileManaSubstitution;
-    delete card.castFromExileCostIncrease;
-    delete card.castableFromExileCondition;
-    delete card.castFromExileNotAsAdventure;
-    // Other mechanics' exile-cast riders: each would otherwise win the
-    // price at `castRawManaCost` (madness) or mislabel the card.
-    delete card.warpExiled;
-    delete card.madnessExiled;
+    // CR 702.143d — "it may be cast for any foretell cost it has after the turn
+    // it became a foretold card has ended".
+    if (getForetellCost(card) !== undefined) {
+        card.foretoldOnTurn = state.turn;
+    } else {
+        delete card.foretoldOnTurn;
+    }
 }
 
 /** The hand → face-down exile move and the designation, shared by the real

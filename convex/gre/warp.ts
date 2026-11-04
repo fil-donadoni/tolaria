@@ -32,10 +32,10 @@
 //   2. The delayed EXILE is this file, scheduled the moment the permanent
 //      enters (`scheduleWarpExile`, called from `finalizeSpellResolution`) and
 //      fired by the delayed-trigger infra at the next end step.
-//   3. The RECAST permission is the existing `castableFromExileBy` grant plus
-//      the new LOWER turn bound `castableFromExileFromTurn` — a general rider,
-//      never a Warp-specific field, honoured at the one shared authority
-//      `exileCastPermission` (`gre/castCost.ts`) every consumer reads.
+//   3. The RECAST permission is derived from the `warpExiledOnTurn` designation
+//      at read time, never written into the `castableFromExile*` grant record,
+//      so it and a grant coexist. The one shared authority is
+//      `exileCastPermission` (`gre/castCost.ts`), which every consumer reads.
 //
 // Why engine infra and not a `warpTrigger` DSL template the way Dash is
 // (`convex/cards/abilities/dash.ts`): CR 400.7. The ability exiles "the
@@ -142,13 +142,11 @@ export function applyWarpExile(state: GameState, permanentId: string): boolean {
     // CR 702.185b — "a warped card in exile is one that was exiled by the
     // delayed triggered ability created by a warp ability". This IS that
     // ability, and this is the only moment the fact is observable.
-    moved.warpExiled = true;
     // CR 702.185a — "its owner may cast this card AFTER THE CURRENT TURN HAS
-    // ENDED for as long as it remains exiled": an open-ended grant (no expiry)
-    // that has not OPENED yet. The recast is an ordinary cast for the printed
-    // mana cost — no waiver rider — and it is not "cast from your hand", so it
-    // never warps again and schedules no second exile.
-    moved.castableFromExileBy = moved.ownerId;
-    moved.castableFromExileFromTurn = state.turn + 1;
+    // ENDED for as long as it remains exiled": the turn is what the permission
+    // is derived from. The recast is an ordinary cast for the printed mana cost
+    // and it is not "cast from your hand", so it never warps again and schedules
+    // no second exile.
+    moved.warpExiledOnTurn = state.turn;
     return true;
 }

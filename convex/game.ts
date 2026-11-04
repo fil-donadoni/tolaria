@@ -2521,6 +2521,8 @@ import {
     buildCastExileCostChoice,
     castAlternativeCostForZone,
     castRawManaCost,
+    clearDeclinedExileRoute,
+    exileCastRoutes,
     flashbackLifeCost,
     libraryTopCastPayment,
     modalBackCastLicensed,
@@ -2864,6 +2866,7 @@ function rollbackPendingCast(state: GameState): void {
         if (!card) continue;
         card.isTapped = false;
     }
+    clearDeclinedExileRoute(state, state.pendingCast.cardInstanceId);
     state.pendingCast = undefined;
 }
 
@@ -6409,14 +6412,16 @@ export const announceCast = mutation({
         // for Ice Cauldron, or graveyard for Flashback). Used at commit for
         // `removeFromZone` and to override the cost with the flashback cost.
         const castFromZone = castSource.zone;
-        // CR 601.2b / 118.9 (issue #7525) — the announced permission choice
-        // off the top of the library. Refused wherever it chooses nothing: off
-        // the library, or where no covering grant replaces the mana cost while
-        // another keeps it — so every commit path below may read it blindly.
+        // CR 601.2b / 118.9 (issue #7525) — the announced permission choice,
+        // off the top of the library or out of exile. Refused wherever it
+        // chooses nothing: in any other zone, where no covering grant replaces
+        // the mana cost while another keeps it, or where the card holds one
+        // exile route — so every commit path below may read it blindly.
         const declineManaCostReplacement =
             args.declineManaCostReplacement === true ? true : undefined;
         if (
             declineManaCostReplacement &&
+            castFromZone !== "exile" &&
             (castFromZone !== "library" ||
                 !libraryTopReplacementChoices(
                     state,
@@ -6428,6 +6433,19 @@ export const announceCast = mutation({
             throw new Error(
                 "No permission lets you cast that spell from your library paying its mana cost"
             );
+        }
+        if (declineManaCostReplacement && castFromZone === "exile") {
+            if (
+                exileCastRoutes(state, cardInHand, args.playerId).length !== 2
+            ) {
+                throw new Error(
+                    "No other permission lets you cast that spell from exile"
+                );
+            }
+            // CR 601.2b — the route is announced once: the tax, the fixing and
+            // the price read it from here until the cast commits or is
+            // abandoned (`clearDeclinedExileRoute`).
+            cardInHand.castDeclinedExileRoute = true;
         }
 
         // CR 702.47a (issue #2394) — the splice seam; see the twin call in
@@ -6687,7 +6705,10 @@ export const announceCast = mutation({
         // surface reads.
         if (
             isAdventureCast &&
-            adventureCastOptionFor(cardInHand) === undefined
+            adventureCastOptionFor(cardInHand, {
+                state,
+                casterId: args.playerId,
+            }) === undefined
         ) {
             throw new Error(
                 "This card can't be cast as an Adventure this way (CR 715.3d)"
@@ -6801,9 +6822,24 @@ export const announceCast = mutation({
             args.alternativeCostId !== undefined &&
             isCastPermissionAltCostId(args.alternativeCostId) &&
             chosenAltCost !== undefined;
+        // CR 107.3b — likewise a cast from exile under a permission whose cost
+        // includes no X: a plotted card's, a free-cast waiver, a foretell cost
+        // with no {X} of its own.
+        const exileCostHasNoX =
+            castFromZone === "exile" &&
+            args.alternativeCostId === undefined &&
+            typeof castRawManaCost(
+                state,
+                cardInHand,
+                castFromZone,
+                undefined,
+                declineManaCostReplacement
+            )?.X !== "string";
         const xLockedToZero =
             hasX &&
-            (libraryTopPayment !== undefined || freeCastUnderPermission);
+            (libraryTopPayment !== undefined ||
+                freeCastUnderPermission ||
+                exileCostHasNoX);
         if (xLockedToZero) {
             if (args.chosenX !== undefined && args.chosenX !== 0) {
                 throw new Error(
@@ -10969,6 +11005,7 @@ export const cancelTarget = mutation({
         // resolved).
         const wasRetarget =
             cancelKind === "copy-retarget" || cancelKind === "retarget";
+        clearDeclinedExileRoute(state, state.pendingTarget.cardInstanceId);
         state.pendingTarget = undefined;
         if (wasRetarget) {
             state.priorityPlayerId = state.activePlayerId;
@@ -15620,6 +15657,12 @@ export const debugSetupScenario = mutation({
                  *  Cauldron / Robber of the Rich / Ragavan), under which a
                  *  land in exile has no legal play OR cast. Exile zone only. */
                 castableFromExileIncludesLand: v.optional(v.boolean()),
+                /** CR 702.170c/d — stage the card as plotted on an earlier
+                 *  turn, so its owner's permission is open. */
+                plotted: v.optional(v.boolean()),
+                /** CR 702.185a/b — stage the card as warped out on an earlier
+                 *  turn, so its owner's recast permission is open. */
+                warpExiled: v.optional(v.boolean()),
                 /** Pre-seed counters (CR 122) on a battlefield permanent —
                  *  e.g. `{ "+1/+1": 3 }` for Triskelion or `{ doom: 2 }` for
                  *  Armageddon Clock. Keyed by counter type. Battlefield only. */

@@ -23,6 +23,7 @@ import { fireDelayedTriggers } from "../../../../gre/phases";
 import { tryAutoCommitPendingCast } from "../../../../game";
 import { affordableAlternativeCosts } from "../../../../gre/alternativeCost";
 import { getLegalActions } from "../../../../gre/rules";
+import { exileCastOpensOnTurn } from "../../../../gre/castCost";
 import { getDefinition, registerTokenDefinition } from "../../../index";
 import type { EffectOp, ManaCost } from "../../../types";
 
@@ -432,10 +433,11 @@ describe("Quantum Riddler (CR 614 / CR 121.2a / CR 702.185 — issue #3294)", ()
                 (c) => c.id === "riddler-hand"
             )!;
             expect(exiled).toBeDefined();
-            expect(exiled.warpExiled).toBe(true);
             // "Its owner may cast this card AFTER THE CURRENT TURN HAS ENDED."
-            expect(exiled.castableFromExileBy).toBe("p1");
-            expect(exiled.castableFromExileFromTurn).toBe(4);
+            expect(exiled.warpExiledOnTurn).toBe(state.turn);
+            expect(exileCastOpensOnTurn(exiled, "p1", state.turn)).toBe(
+                state.turn + 1
+            );
         });
     });
 });

@@ -100,6 +100,8 @@ type ProjectedZoneCard = {
     castableFromExileIncludesLand?: boolean;
     ownerId?: string;
     plottedOnTurn?: number;
+    foretoldOnTurn?: number;
+    warpExiledOnTurn?: number;
     types?: readonly string[];
 };
 

@@ -37,7 +37,8 @@ import {
 } from "../cards/insetSpell";
 import { tryGetDefinition } from "../cards";
 import type { AlternativeCost, CardDefinition } from "../cards/types";
-import type { CardInstanceState } from "./state/declarations";
+import { exileCastRidesGrant } from "./castCost";
+import type { CardInstanceState, GameState } from "./state/declarations";
 
 /** Namespace prefix for the `alternativeCostId` that announces an Adventure
  *  cast. Mirrors `CAST_PERMISSION_ALT_COST_PREFIX`'s shape (`castPermissions.ts`)
@@ -107,11 +108,23 @@ export function adventureCastAlternativeCost(
  *  surface that offers or accepts the option (`affordableAlternativeCosts`,
  *  `getLegalActions`, `enumerateCastMoves`, `announceCast`), never
  *  `adventureCastAlternativeCost` directly: a surface that skipped the check
- *  would re-offer the very cast the card just exiled itself for. */
+ *  would re-offer the very cast the card just exiled itself for.
+ *
+ *  `exileCaster` names the state and caster of a cast whose permission is
+ *  known: the restriction binds only a cast made under the grant it rides, so a
+ *  plotted card's own permission (CR 702.170d) leaves the Adventure available.
+ *  Omitted, the restriction binds. */
 export function adventureCastOptionFor(
-    card: CardInstanceState
+    card: CardInstanceState,
+    exileCaster?: { state: GameState; casterId: string }
 ): AlternativeCost | undefined {
-    if (card.castFromExileNotAsAdventure === true) return undefined;
+    if (
+        card.castFromExileNotAsAdventure === true &&
+        (exileCaster === undefined ||
+            exileCastRidesGrant(exileCaster.state, card, exileCaster.casterId))
+    ) {
+        return undefined;
+    }
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return undefined;
     return adventureCastAlternativeCost(tryGetDefinition(cardId) ?? undefined);

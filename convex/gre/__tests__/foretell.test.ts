@@ -183,10 +183,10 @@ describe("Foretell — taking the action (CR 702.143a/b)", () => {
             // card as long as it remains in exile."
             knownTo: ["p1"],
             faceDownBy: "face-down-exile",
-            castableFromExileBy: "p1",
-            // "after the current turn has ended"
-            castableFromExileFromTurn: 4,
+            // "after the current turn has ended": derived from this turn.
+            foretoldOnTurn: 3,
         });
+        expect(exiled.castableFromExileBy).toBeUndefined();
         expect(p1(state).battlefield.every((l) => l.isTapped)).toBe(true);
         expect(Object.values(p1(state).manaPool).every((n) => !n)).toBe(true);
         // CR 702.143b — no stack; passes reset, priority stays (CR 116.3).
@@ -306,11 +306,12 @@ describe("Foretell — full path through the mutations (CR 702.143a/c)", () => {
     });
 
     it("CR 702.143c — a foretold card cast for a cost OTHER than its foretell cost is still foretold", async () => {
-        // A free-cast waiver on the same card (CR 118.9 — wins over the
-        // foretell cost): the cast pays nothing, and the spell is still a
-        // foretold spell.
+        // A free-cast waiver on a grant on the same card (the cheaper route
+        // is the default): the cast pays nothing, and the spell
+        // is still a foretold spell.
         const later = foretoldOn3(5, { lands: 2 });
         for (const l of p1(later).battlefield) l.isTapped = true;
+        omenIn(later).castableFromExileBy = "p1";
         omenIn(later).castFromExileWithoutPayingManaCost = true;
         expect(castRawManaCost(later, omenIn(later), "exile")).toEqual({});
         const harness = makeMutationCtx("p1", [gameStateSeed(later)]);
@@ -405,8 +406,7 @@ describe("Foretell — serialization", () => {
             foretold: true,
             grantedForetellCost: { U: 1 },
             knownTo: ["p1"],
-            castableFromExileBy: "p1",
-            castableFromExileFromTurn: 4,
+            foretoldOnTurn: 3,
         });
     });
 });
