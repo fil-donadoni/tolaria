@@ -5217,28 +5217,31 @@ export function snapshotLingeringStaticEffects(
     }
 }
 
-export function stopApplyingStaticEffects(
-    state: GameState,
-    source: CardInstanceState
-): void {
+/** CR 611.2b — the ONE thing a departing source still owes: its row in the
+ *  ability-loss LEDGER (Tishana's Tidebinder's hold, keyed to this permanent).
+ *  Everything else `stopApplyingStaticEffects` used to unwind — granted types,
+ *  suppressed types, subtype sets and adds, colour grants, supertype markers,
+ *  granted abilities, removed keywords — is DERIVED OUTPUT since PRD #2064
+ *  S3/S4. Revocation is not an operation: once the source stops applying the
+ *  derivation simply stops producing its entries, so there is no occupancy to
+ *  hand back and nothing that can drift. */
+function releaseAbilityLossHolds(state: GameState, sourceId: string): void {
     for (const player of state.players) {
         for (const card of player.battlefield) {
-            // CR 611.2b — the ONE thing a departing source still owes: its row
-            // in the ability-loss LEDGER (Tishana's Tidebinder's hold, keyed to
-            // this permanent). Everything else this function used to unwind —
-            // granted types, suppressed types, subtype sets and adds, colour
-            // grants, supertype markers, granted abilities, removed keywords —
-            // is DERIVED OUTPUT since PRD #2064 S3/S4. Revocation is not an
-            // operation: once the source stops applying the derivation simply
-            // stops producing its entries, so there is no occupancy to hand
-            // back and nothing that can drift.
             const holds = card.abilityLossHolds;
             if (holds && holds.length > 0) {
-                const kept = holds.filter((h) => h.sourceId !== source.id);
+                const kept = holds.filter((h) => h.sourceId !== sourceId);
                 card.abilityLossHolds = kept.length > 0 ? kept : undefined;
             }
         }
     }
+}
+
+export function stopApplyingStaticEffects(
+    state: GameState,
+    source: CardInstanceState
+): void {
+    releaseAbilityLossHolds(state, source.id);
     // CR 611.2 — recompose as of the moment this source STOPS applying. It is
     // still in the battlefield array (this runs before the permanent is spliced
     // out, and on a re-attach it never leaves at all), so both derivations are
@@ -5755,12 +5758,15 @@ export function revertControlChange(
     hostId: string,
     sourceId: string
 ): void {
-    const found = findOnBattlefield(state, hostId);
-    if (!found) return;
-    const stack = found.card.controlChanges ?? [];
+    // CR 702.26f — a control change can expire while its host is phased out.
+    const host =
+        findOnBattlefield(state, hostId)?.card ??
+        phasedOutPermanents(state).find((card) => card.id === hostId);
+    if (!host) return;
+    const stack = host.controlChanges ?? [];
     const kept = stack.filter((e) => e.auraId !== sourceId);
     if (kept.length === stack.length) return;
-    found.card.controlChanges = kept.length > 0 ? kept : undefined;
+    host.controlChanges = kept.length > 0 ? kept : undefined;
     syncLayers2to5(state);
 }
 
@@ -7741,13 +7747,49 @@ export function removePermanentTo(
     return creature;
 }
 
-/** CR 702.26 — silently phase `permanentId` and everything attached to it out
- *  of existence. Pulls the host plus every Aura/Equipment attached to it off
- *  the battlefield into a `PhasedOutBundle`, with NO `PERMANENT_LEFT` event and
- *  NO zone change (phasing is not leaving, CR 702.26h) — so no triggers fire
- *  and the aura-attachment SBA never sees the detached auras. Counters and
- *  `attachedTo` links ride along untouched. Returns the bundle id, or null if
- *  the permanent isn't on the battlefield. */
+/** Every permanent attached to `hostId`, directly or through another
+ *  attachment (an Aura on an Equipment on the host), across all battlefields.
+ *  CR 702.26g reads recursively: an attachment that phases out takes its own
+ *  attachments with it. */
+function collectAttachedPermanents(
+    state: GameState,
+    hostId: string
+): CardInstanceState[] {
+    const attached: CardInstanceState[] = [];
+    const seen = new Set([hostId]);
+    const frontier = [hostId];
+    for (let id = frontier.pop(); id !== undefined; id = frontier.pop()) {
+        for (const player of state.players) {
+            for (const card of player.battlefield) {
+                if (card.attachedTo !== id || seen.has(card.id)) continue;
+                seen.add(card.id);
+                attached.push(card);
+                frontier.push(card.id);
+            }
+        }
+    }
+    return attached;
+}
+
+/** CR 702.26f — "for as long as" durations that track this permanent end when
+ *  it phases out, and stay ended when it phases back in. These are the rows the
+ *  phased-out card itself holds: a conditional control change and the "as long
+ *  as the source remains tapped" modifiers. A row whose SOURCE phased out needs
+ *  nothing here: the SBAs that read the source no longer find it. */
+function endTrackedDurations(card: CardInstanceState): void {
+    const controlChanges = card.controlChanges?.filter((e) => !e.condition);
+    card.controlChanges = controlChanges?.length ? controlChanges : undefined;
+    card.sourceTappedPTMods = undefined;
+    card.untapLockedBy = undefined;
+}
+
+/** CR 702.26b — silently phase `permanentId` and everything attached to it out
+ *  of existence (CR 702.26g). Pulls the host plus its attachments off the
+ *  battlefield into a `PhasedOutBundle`, with NO `PERMANENT_LEFT` event and NO
+ *  zone change (CR 702.26d) and no attach/unattach event (CR 702.26j) — so no
+ *  triggers fire and the aura-attachment SBA never sees the detached Auras.
+ *  Counters and `attachedTo` links ride along untouched. Returns the bundle id,
+ *  or null if the permanent isn't on the battlefield. */
 export function phaseOutPermanent(
     state: GameState,
     permanentId: string,
@@ -7758,50 +7800,59 @@ export function phaseOutPermanent(
     // CR 702.26b — "A permanent that phases out is removed from combat", so it
     // cannot come back still flagged as attacking or blocking.
     removePermanentFromCombat(state, permanentId);
-    // CR 702.26d indirect phasing — collect every permanent attached to the
-    // host (Auras and Equipment) across all battlefields. They phase as a unit.
-    const attached: CardInstanceState[] = [];
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
-            if (card.id !== permanentId && card.attachedTo === permanentId) {
-                attached.push(card);
-            }
+    const phasing = [
+        host.card,
+        ...collectAttachedPermanents(state, permanentId),
+    ];
+    // Splice in place: a caller may hold the battlefield array.
+    for (const card of phasing) {
+        for (const player of state.players) {
+            const idx = player.battlefield.indexOf(card);
+            if (idx !== -1) player.battlefield.splice(idx, 1);
         }
     }
-    // Remove host + attachments from their battlefield arrays. Splice by id so
-    // we don't depend on stale indices as the arrays shrink.
-    const removeById = (id: string): CardInstanceState | undefined => {
-        for (const player of state.players) {
-            const idx = player.battlefield.findIndex((c) => c.id === id);
-            if (idx !== -1) return player.battlefield.splice(idx, 1)[0];
-        }
-        return undefined;
-    };
-    const cards: CardInstanceState[] = [];
-    const hostCard = removeById(permanentId);
-    if (hostCard) cards.push(hostCard);
-    for (const a of attached) {
-        const card = removeById(a.id);
-        if (card) cards.push(card);
+    // Off the battlefield first: a layer pass run while a bundled card still
+    // stands there would move a host whose control change stops applying, and
+    // it must stay under the player it phased out under (CR 702.26a, 702.26d).
+    for (const card of phasing) {
+        releaseAbilityLossHolds(state, card.id);
+        endTrackedDurations(card);
     }
     const bundle: PhasedOutBundle = {
         id: allocInstanceId(state),
-        cards,
+        cards: phasing,
         returnOn: opts.returnOn,
         ...(opts.onPhaseIn ? { onPhaseIn: opts.onPhaseIn } : {}),
-        // CR 702.26f — stamp the turn so `untap-cycle` phase-in skips the same
-        // turn's untap step (a permanent phased out this turn returns on the
-        // controller's NEXT untap step, not this one).
+        // Stamp the turn so `untap-cycle` phase-in leaves it out for the rest
+        // of this turn's untap step: the toggle of CR 702.26a is simultaneous,
+        // so what just phased out does not phase straight back in.
         phasedOutTurn: state.turn,
     };
     state.phasedOut = [...(state.phasedOut ?? []), bundle];
+    // CR 702.26b — a permanent treated as though it doesn't exist can't affect
+    // anything else: recompose without the whole bundle.
+    recomputeContinuousEffects(state);
     return bundle.id;
 }
 
-/** CR 702.26 — silently phase a bundle back in: restore each permanent to its
- *  controller's battlefield (phasing never changes control, CR 702.26g). No
- *  events, so no enters triggers. The host taps if `onPhaseIn.tap` (Oubliette).
- *  Returns false if the bundle id is unknown. */
+/** Every permanent currently phased out, across all bundles. For the rules that
+ *  specifically reach them (CR 702.26b): the cleanup step's damage wipe (CR
+ *  514.2) and durations that expire while phased out (CR 702.26f). */
+export function phasedOutPermanents(state: GameState): CardInstanceState[] {
+    return (state.phasedOut ?? []).flatMap((bundle) => bundle.cards);
+}
+
+/** CR 702.26c — silently phase a bundle back in: restore each permanent to the
+ *  battlefield of the player it phased out under (CR 702.26d: phasing never
+ *  changes control); the next layer pass moves it if a control change expired
+ *  meanwhile (CR 702.26f). No events, so no enters triggers. The host taps if
+ *  `onPhaseIn.tap` (Oubliette). Returns false if the bundle id is unknown.
+ *
+ *  CR 702.26i — a host that phased out DIRECTLY while attached keeps its
+ *  `attachedTo`. If that object has left, or is itself phased out and so treated
+ *  as though it doesn't exist, the link dangles and the attachment SBAs (CR
+ *  704.5m, 704.5n) settle it: an Aura goes to the graveyard, an Equipment comes
+ *  off. */
 export function phaseInBundle(state: GameState, bundleId: string): boolean {
     const bundles = state.phasedOut ?? [];
     const idx = bundles.findIndex((b) => b.id === bundleId);
@@ -7822,14 +7873,11 @@ export function phaseInBundle(state: GameState, bundleId: string): boolean {
     return true;
 }
 
-/** CR 702.26c/f — phase in every `untap-cycle` bundle controlled by
- *  `controllerId` at the start of their untap step. Phasing never changes
- *  control (CR 702.26g), so the controller is read off the host (`cards[0]`).
- *  The skip-first-untap guard (CR 702.26f): a bundle phased out on the CURRENT
- *  turn is not yet eligible — it returns on the controller's NEXT untap step,
- *  not the same turn's — so a bundle whose `phasedOutTurn` is the current turn
- *  is left phased out. Called from `untapStep` (once, at first entry, before
- *  the active player untaps — CR 502.1). */
+/** CR 702.26a — phase in every `untap-cycle` bundle that phased out under
+ *  `controllerId`, read off the host (`cards[0]`): nothing rewrites a bundled
+ *  card's `controllerId` (CR 702.26d). A bundle whose `phasedOutTurn` is the
+ *  current turn is left phased out — it returns on the controller's NEXT untap
+ *  step. Called from `phasingTurnBasedAction` (CR 502.1). */
 export function phaseInUntapCycleBundles(
     state: GameState,
     controllerId: string

@@ -67,6 +67,7 @@ import {
     isCounterClockCreature,
 } from "./ai/counterClockCreature";
 import {
+    PHASE_IN_RETURN,
     pendingBattlefieldReturns,
     returnMissesBlocks,
     stateWithPendingReturns,
@@ -836,11 +837,15 @@ function pendingReturnsWorth(
     const worth = { creatures: 0, permanents: 0 };
     for (const { card, to, timing } of pendingBattlefieldReturns(state)) {
         if (to !== player.id) continue;
-        const etb = dslEtbAbilityValueById(
-            String(card.card.id ?? ""),
-            latentBoardFor(state, player, card, weights, seat, pass),
-            weights.latent
-        );
+        // CR 702.26d — phasing in is not entering: no enters ability fires.
+        const etb =
+            timing === PHASE_IN_RETURN
+                ? 0
+                : dslEtbAbilityValueById(
+                      String(card.card.id ?? ""),
+                      latentBoardFor(state, player, card, weights, seat, pass),
+                      weights.latent
+                  );
         worth.permanents += weights.permanentWeight;
         if (isCreature(card)) {
             worth.creatures +=

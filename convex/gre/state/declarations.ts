@@ -5909,9 +5909,9 @@ export type DamageTriggeredLifegain = {
     duration: Duration;
 };
 
-/** CR 702.26 — a group of permanents silently pulled off the battlefield while
+/** CR 702.26b — a group of permanents silently pulled off the battlefield while
  *  phased out. The host plus every Aura/Equipment attached to it phase as a
- *  unit (CR 702.26d indirect phasing): they stay attached, keep their counters
+ *  unit (CR 702.26g indirect phasing): they stay attached, keep their counters
  *  and `attachedTo` links, and do NOT hit the graveyard (the aura-attachment
  *  SBA never sees them because they're not in any battlefield array). Phased
  *  permanents are "treated as though they don't exist" for free — every reader
@@ -5921,14 +5921,14 @@ export interface PhasedOutBundle {
     id: string;
     /** Full fat state of each phased permanent, host first. Each card's
      *  `controllerId` determines which battlefield it returns to on phase-in
-     *  (phasing never changes control, CR 702.26g). */
+     *  (phasing never changes control, CR 702.26d). */
     cards: CardInstanceState[];
     /** When this bundle phases back in. */
     returnOn: PhaseReturnCondition;
     /** Applied to the HOST (cards[0]) on phase-in. Oubliette taps the
      *  creature "as it phases in this way". */
     onPhaseIn?: { tap?: boolean };
-    /** CR 702.26f — `GameState.turn` on which this permanent phased out. An
+    /** CR 702.26a — `GameState.turn` on which this permanent phased out. An
      *  `untap-cycle` bundle does NOT phase in during the untap step of THIS
      *  turn; it waits for the controller's NEXT untap step. The untap-step
      *  phase-in (`phaseInUntapCycleBundles`) skips a bundle whose

@@ -841,6 +841,13 @@
             "needsSetup": true
         }
     ],
+    "Teferi's Drake": [
+        {
+            "label": "phasing: casts a phasing creature rather than holding it",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Teferi's Response": [
         {
             "label": "held answer: counters Stone Rain with Teferi's Response when the opponent has no cards left",

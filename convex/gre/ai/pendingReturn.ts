@@ -21,6 +21,11 @@
 // phase-boundary timing (one that fires on the next such boundary whatever
 // happens on the board), only a body-level `moveZone` (not one under an `if`
 // or a `forEach`), only a card the payload names that still sits in exile.
+//
+// A phased-out permanent is the same read for the evaluator (CR 702.26a): it
+// returns at its controller's next untap step whatever happens on the board. A
+// bundle waiting on a source leaving (`source-leaves`) may never come back and
+// stays unread.
 
 import type { DelayedTriggerTiming, EffectOp } from "../../cards/types";
 import { evaluateAttackerKeywords } from "../combatRegistry";
@@ -88,17 +93,23 @@ export function blinkReturnedBindings(
     return exiled;
 }
 
-/** One exiled card a scheduled delayed trigger returns to the battlefield,
- *  and the player it returns under. */
+/** The return of a phased-out permanent, at its controller's next untap step
+ *  (CR 702.26a). Not an entering: no enters ability fires (CR 702.26d). */
+export const PHASE_IN_RETURN = "phase-in";
+
+/** One card that returns to the battlefield on its own: exiled with a scheduled
+ *  delayed trigger, or phased out. And the player it returns under. */
 export type PendingReturn = {
     card: CardInstanceState;
     to: string;
-    /** When the returning trigger fires (issue #7791 — whether the card is
-     *  back before this turn's combat). */
-    timing: DelayedTriggerTiming;
+    /** When it comes back (issue #7791 — whether the card is back before this
+     *  turn's combat). */
+    timing: DelayedTriggerTiming | typeof PHASE_IN_RETURN;
 };
 
-/** Every exiled card `state.delayedTriggers` will return to the battlefield.
+/** Every card that returns to the battlefield on its own. A phased-out
+ *  permanent returns under the player it phased out under (CR 702.26a, 702.26d).
+ *  An exiled card is one `state.delayedTriggers` will return.
  *  The recipient is the card's OWNER (a `moveZone` with no `controller` — the
  *  DSL's "under its owner's control") or the delayed trigger's controller
  *  (`controller: "controller"`; CR 603.7e — the player who controlled the
@@ -128,21 +139,34 @@ export function pendingBattlefieldReturns(state: GameState): PendingReturn[] {
             }
         }
     }
+    for (const bundle of state.phasedOut ?? []) {
+        if (bundle.returnOn.kind !== "untap-cycle") continue;
+        for (const card of bundle.cards) {
+            out.push({
+                card,
+                to: card.controllerId,
+                timing: PHASE_IN_RETURN,
+            });
+        }
+    }
     return out;
 }
 
 /** Issue #7791 — the timings whose return fires AFTER this turn's combat
  *  whenever that combat is still ahead: the end step (CR 513), the cleanup
- *  step (CR 514), the end of combat (CR 511) and a named player's next end
- *  step, which is never earlier than this turn's. `next-upkeep`,
+ *  step (CR 514), the end of combat (CR 511), a named player's next end step,
+ *  which is never earlier than this turn's, and a non-active player's untap
+ *  step (CR 702.26a), which is the only way `returnMissesBlocks` reads it. `next-upkeep`,
  *  `next-draw-step` and `next-main-phase` can fire before the combat (an
  *  exile in the upkeep returning in the draw step) and are not read. */
-const AFTER_COMBAT_RETURN_TIMINGS: ReadonlySet<DelayedTriggerTiming> = new Set([
-    "next-end-step",
-    "player-next-turn-end-step",
-    "next-end-of-combat",
-    "next-cleanup-step",
-]);
+const AFTER_COMBAT_RETURN_TIMINGS: ReadonlySet<PendingReturn["timing"]> =
+    new Set([
+        "next-end-step",
+        "player-next-turn-end-step",
+        "next-end-of-combat",
+        "next-cleanup-step",
+        PHASE_IN_RETURN,
+    ]);
 
 /** The steps of a turn in which no attacker has been declared yet (CR 506.1,
  *  CR 508.1): its combat is still ahead. */

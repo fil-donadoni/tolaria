@@ -18883,4 +18883,65 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #2088 — the `becomeSaddled` Op and Saddle's tap-other cost (the owed-payment park the Brain realises). Attacking with all three creatures deals 6 and costs the bot 4 life (Bronco unsaddled, every library card has mana value 4); saddling with both Bears first deals 2 and drains 4 — the same 6 to the opponent, and the bot keeps its 4 life. Only the saddled designation tells the two lines apart: with `becomeSaddled` made a no-op, saddling just throws away 4 damage.",
     },
+    // CR 702.26a — a phasing creature comes back at its controller's next untap
+    // step. Read as gone for good, the rollouts priced casting it below holding
+    // it, and the bot never did (`ai/pendingReturn.ts`).
+    {
+        label: "phasing: casts a phasing creature rather than holding it",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Teferi's Drake", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield", count: 3 },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 3 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Teferi's Drake" }],
+        },
+        note: "Issue #4006 — the first play of a phasing creature. The evaluator read a phased-out permanent as lost, so the body the rollouts saw vanish at the bot's own untap step made the cast worth less than the held card.",
+    },
+    // CR 702.26a — phasing granted to a creature is a drawback on that creature:
+    // it is out of the game every other turn of its controller.
+    {
+        label: "phasing: an Aura granting phasing never enchants its own creature",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Teferi's Curse", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Teferi's Curse",
+                    target: "Grizzly Bears",
+                },
+            ],
+        },
+        note: "Issue #4006 — `auraAttachmentSign` read every `keyword-grant` as beneficial, so the Aura granting phasing was steered onto the bot's own creature. Asserted as `forbidden`, like the Wild Growth entry: holding the Aura is legitimate play, weakening its own creature never is.",
+    },
 ];
