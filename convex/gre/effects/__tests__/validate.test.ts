@@ -4875,7 +4875,7 @@ describe("validateEffectScript — moveZone target → library position (issue #
             op: "restrictCombat",
             restriction: "must-block",
             target: { target: 0 },
-            attacker: { ref: "$source" },
+            attacker: { target: 1 },
         };
         expect(check({ ...mustBlock, scope: "combat" })).toEqual([]);
         expect(check({ ...mustBlock, scope: "phase" })).not.toEqual([]);
