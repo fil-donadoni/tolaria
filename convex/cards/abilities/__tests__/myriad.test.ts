@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { projectPublicState } from "../../../gameProjections";
 import type { GameState } from "../../../gre/state";
 import { resolveTopOfStack } from "../../../gre/state";
+import { validateAbilityEffectScript } from "../../../gre/effects/validate";
 import { collectTriggers, placeTriggersOnStack } from "../../../gre/triggers";
 import { oracleCard } from "../../../oracle/__tests__/oracle.fixture";
 import { compileCard } from "../../../oracle/compile";
@@ -17,7 +18,11 @@ import {
     makeState,
 } from "../../__tests__/setup.helper";
 import type { CardDefinition } from "../../types";
-import { MYRIAD_ORACLE_TEXT, MYRIAD_TRIGGER_ID } from "../myriad";
+import {
+    MYRIAD_ORACLE_TEXT,
+    MYRIAD_TRIGGER_ID,
+    myriadTrigger,
+} from "../myriad";
 
 /** Registers a creature so `getDefinition` runs it through the real expansion
  *  chain, the seam a printed card uses. */
@@ -90,6 +95,16 @@ describe("Myriad — the attack trigger in a two-player game (CR 702.116a)", () 
         const triggered = getDefinition(MYRIAD).triggeredAbilities ?? [];
         expect(triggered.map((t) => t.id)).toEqual([MYRIAD_TRIGGER_ID]);
         expect(triggered[0].oracleText).toBe(MYRIAD_ORACLE_TEXT);
+    });
+
+    it("passes the catalogue-wide ability script validator", () => {
+        expect(
+            validateAbilityEffectScript(
+                myriadTrigger(),
+                "Myriad",
+                "ATTACKERS_DECLARED"
+            )
+        ).toEqual([]);
     });
 
     it("goes on the stack when the creature attacks (CR 603.3)", () => {
