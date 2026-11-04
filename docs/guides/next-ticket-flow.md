@@ -47,7 +47,7 @@ catch what the session can still fix for free.
 ## 2. The rules of a RED
 
 - **Who sees it**: `health` writes the `health` commit status on the gated sha.
-  `queue:plan`, [`base-health`](github-pipeline.md#g-base-health) and `land` read
+  `queue:plan` and [`base-health`](github-pipeline.md#g-base-health) read
   it through the verdict store, on every machine.
 - **What stops**: new picks, and the queue for every PR that is not a declared
   repair. A queued PR is [held](github-pipeline.md#a-red-dequeue-is-a-hold), never

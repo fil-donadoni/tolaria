@@ -252,7 +252,7 @@ over two machines); the rest is batch health's.
   (`health-early`; the 2-hourly cron and the heartbeat are the fallback); a
   failed vitest project is re-run once before RED. **The verdict is shared**
   (`health` commit status on the gated sha, read through the verdict store by
-  `queue:plan`, `base-health`, `land`); `release` re-proves the tip.
+  `queue:plan`, `base-health`); `release` re-proves the tip.
 - **Worker caps, no admission** (`scripts/gate.ts`, ADR 0156 Amendments I,
   VII): **heavy** = `bun run test`, `test:app`, `test:bot`, `check:all` →
   `min(ncpu - 1, 4)` workers (RAM-capped); **light** = `bunx vitest run`,

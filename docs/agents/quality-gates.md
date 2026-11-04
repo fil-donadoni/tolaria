@@ -16,7 +16,7 @@ land-runner, the AFK loop driver (`loop:afk`, `loop:drain`, `loop:doctor`), the
 gate mutex, machine and session admission, the health cadence — is gone. Where a
 section below names those pieces it is recording the measurement that shaped a
 rule, in the past tense or under a `Retired` note: history, not an instruction.
-`land` stays for one caller, `/health-fix`'s RED repair (issue #7990).
+`land`'s last caller is `/health-fix`'s RED repair; issue #7990 retires it.
 
 ## Why `check:pr` may never be hand-picked
 
@@ -989,14 +989,14 @@ queued behind it.
 So the full gate moved. `tolaria.config.json` names a **base** branch
 (`staging`) and a **release** branch (`main`):
 
-| Step                 | Runs                                                                      | Where (ADR 0154)                        | Mutex                      |
-| -------------------- | ------------------------------------------------------------------------- | --------------------------------------- | -------------------------- |
-| `bun run land <PR#>` | rebase onto `origin/<base>` → scoped `check:lane` → push → merge to base  | MacBook, by `/health-fix` (issue #5654) | ≤ 3 min budget (6.8 meas.) |
-| batch health         | `health` on the CURRENT `origin/<base>` tip, on a schedule (`health.yml`) | either machine's `lane` runner          | its own machine's          |
-| `bun run release`    | `health` + `check:game-download` on the `origin/<base>` tip → fast-fwd    | MacBook                                 | ~13 min + 34 s, once       |
-| `bun run health`     | the same full gate, by hand, on the base tip                              | either                                  | ~13 min                    |
+| Step              | Runs                                                                   | Where (ADR 0160)  | Cost                 |
+| ----------------- | ---------------------------------------------------------------------- | ----------------- | -------------------- |
+| merge queue       | rebase onto `origin/<base>` in a draft → scoped `check:lane` → merge   | the `lane` runner | ≤ 3 min budget       |
+| batch health      | `health` on the CURRENT `origin/<base>` tip, per batch (`health.yml`)  | the `lane` runner | ~13 min              |
+| `bun run release` | `health` + `check:game-download` on the `origin/<base>` tip → fast-fwd | the `lane` runner | ~13 min + 34 s, once |
+| `bun run health`  | the same full gate, by hand, on the base tip                           | either machine    | ~13 min              |
 
-`land` refuses a PR whose base is not the base branch (the API merge lands
+A PR whose base is not the base branch is refused (the API merge lands
 wherever the PR points). `release` moves the release branch only on a GREEN
 record about exactly the tip it gated, by plain-refspec push. A RED blocks the
 release, not development.
@@ -1099,14 +1099,13 @@ red. The verdict (GREEN / RED / infra, sha, step, machine, log pointer) now
 goes through a store — a GitHub commit
 status on the gated sha (`context=health`; the advisory Linux walk's
 `context=ui-walk`, its `ui-walk.gating` flag and `bun run ui:calibrate` went
-with the automated walk, issue #6143). `queue:plan`, `base-health`, `land`'s RED gate
+with the automated walk, issue #6143). `queue:plan`, `base-health`
 and `health:fix` read through the store on both machines.
 Last writer per sha wins; `infra` never
 overwrites `RED`; `release` on the MacBook re-proves the exact tip and is the
 final authority (ADR 0116 unchanged). RED on tip T blocks NEW picks on both
-machines and refuses non-repair landings (`--red-ok`, issue #4964) while
-in-flight PRs land; a second RED on the same lineage stops the loop and
-notifies the owner. (The stale-verdict fallback, a local health run when the
+machines and holds every non-repair PR in the queue (issue #4964); a second RED
+on the same lineage goes to the RED ladder's revert. (The stale-verdict fallback, a local health run when the
 Huawei's runner went silent, was deleted with the runner, issue #5655.)
 
 **Health judges the tree, not the replay (ADR 0159, issue #6990).** Before
@@ -1548,7 +1547,7 @@ detached and a signal takes its whole tree down, seen to be gone
 The full gate is blocked inside an issue worktree (`feat/issue-N` /
 `fix/issue-N` → exit 1), except the `job` tier: it is owed on the base tip, by
 health and by `release`, not on a branch tree. `TOLARIA_ALLOW_FULL_SUITE=1` is
-the escape hatch `land` alone uses.
+the escape hatch.
 
 **Nothing waits for the machine.** One [`lane` runner](../guides/github-pipeline.md#serialising-heavy-work)
 runs one gate at a time (ADR 0156 Amendment I, ADR 0160) and its unit is
