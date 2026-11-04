@@ -126,6 +126,16 @@
         "source": "compiled"
     },
     {
+        "name": "Abandon Attachments",
+        "scryfallId": "74ca45a4-97ab-4255-9129-884e8b42b984",
+        "oracleId": "82333385-631f-4abf-b159-bb367f1c6fd9",
+        "firstSet": "tla",
+        "firstPrintId": "74ca45a4-97ab-4255-9129-884e8b42b984",
+        "firstPrintSet": "tla",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Abandoned Air Temple",
         "scryfallId": "9c0433f9-8f1e-4a19-a83f-a41925f1b1a9",
         "oracleId": "9575d7ce-f26d-4b90-87a3-6329e9799572",
@@ -36252,6 +36262,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Incinerating Blast",
+        "scryfallId": "d58e20ab-c5ca-4295-884d-78efdaa83243",
+        "oracleId": "49f0da4a-e046-4220-b90e-e105a5f2ef00",
+        "firstSet": "fdn",
+        "firstPrintId": "d58e20ab-c5ca-4295-884d-78efdaa83243",
+        "firstPrintSet": "fdn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Incorrigible Youths",
         "scryfallId": "4e826571-6f00-4b40-975b-d51b2b17b4a4",
         "oracleId": "9c239027-c5cb-43c6-b4f3-93c269a1d853",
@@ -44925,6 +44945,16 @@
         "firstSet": "lgn",
         "firstPrintId": "d1109bdd-a5ce-4e63-adee-54e43a4c4a1e",
         "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Merchant of the Vale // Haggle",
+        "scryfallId": "0b4399b6-e67f-40d8-8676-f5db7e04a6c9",
+        "oracleId": "f88a096e-7497-4297-ab65-f18769b1cc47",
+        "firstSet": "eld",
+        "firstPrintId": "0b4399b6-e67f-40d8-8676-f5db7e04a6c9",
+        "firstPrintSet": "eld",
         "rarity": "common",
         "source": "compiled"
     },
@@ -53777,6 +53807,16 @@
         "source": "compiled"
     },
     {
+        "name": "Plasma Cascade",
+        "scryfallId": "3c786a2f-3de4-4b24-a3a0-15b1f2a07324",
+        "oracleId": "46ce40e9-b7fb-4f40-a7ab-f8a2234d1d63",
+        "firstSet": "trk",
+        "firstPrintId": "3c786a2f-3de4-4b24-a3a0-15b1f2a07324",
+        "firstPrintSet": "trk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Plateau",
         "scryfallId": "6eafa00b-c628-40f6-86eb-88e1361fc7a0",
         "oracleId": "c7a15ca4-085f-4d92-8387-c3711c04c8fa",
@@ -54046,6 +54086,16 @@
         "firstPrintId": "f8965a3a-93fe-4021-a665-b6013bdc86f7",
         "firstPrintSet": "rix",
         "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Pompous Battlemage // Improvised Act",
+        "scryfallId": "aa0f77ac-741a-444a-8bf0-a42c644726bf",
+        "oracleId": "33e3793c-098f-4897-88f3-9f9ce9081e0f",
+        "firstSet": "fra",
+        "firstPrintId": "aa0f77ac-741a-444a-8bf0-a42c644726bf",
+        "firstPrintSet": "fra",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -55261,6 +55311,16 @@
         "firstSet": "gs1",
         "firstPrintId": "e26c576d-94c8-4f63-9f54-732fb1eade12",
         "firstPrintSet": "gs1",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Pursue the Past",
+        "scryfallId": "4584d5f7-b1f1-4c8e-80c5-ad35e44a968e",
+        "oracleId": "4384996f-aeaa-41ac-aa0e-12d72c887731",
+        "firstSet": "sos",
+        "firstPrintId": "4584d5f7-b1f1-4c8e-80c5-ad35e44a968e",
+        "firstPrintSet": "sos",
         "rarity": "common",
         "source": "compiled"
     },
@@ -77998,6 +78058,16 @@
         "firstSet": "ktk",
         "firstPrintId": "2d511407-0c1e-4342-a578-ca557c6886fd",
         "firstPrintSet": "ktk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Tweeze",
+        "scryfallId": "3ceab0e6-1bb8-487d-ab4b-2da8457b970a",
+        "oracleId": "9a294cbd-df18-4ee0-acaa-e31390a7f508",
+        "firstSet": "ecl",
+        "firstPrintId": "3ceab0e6-1bb8-487d-ab4b-2da8457b970a",
+        "firstPrintSet": "ecl",
         "rarity": "common",
         "source": "compiled"
     },
