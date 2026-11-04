@@ -65,7 +65,7 @@ describe("add a subtype indefinitely (CR 205.1b / CR 613.1d, issue #7369)", () =
         expect(
             activatedEffects(
                 "{1}: This creature deals 1 damage to target creature. That creature becomes a Vampire in addition to its other types."
-            )?.at(-1)
+            )?.slice(-1)[0]
         ).toEqual(VAMPIRE_ON_THE_TARGET);
     });
 
@@ -89,7 +89,7 @@ describe("add a subtype indefinitely (CR 205.1b / CR 613.1d, issue #7369)", () =
         expect(
             activatedEffects(
                 "{1}: Return target creature card from your graveyard to the battlefield. That creature is a Vampire in addition to its other types."
-            )?.at(-1)
+            )?.slice(-1)[0]
         ).toEqual({
             op: "addSubtype",
             target: { ref: "$that1" },
