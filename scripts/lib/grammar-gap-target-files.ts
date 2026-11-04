@@ -18,6 +18,7 @@
  * lockfile blames that has no row.
  */
 
+import { renderTargetFilesSection } from "./gap-target-files";
 import { CARD_LEVEL, NO_SLOT, OP_LEVEL } from "./grammar-gaps";
 
 const GRAMMAR = "convex/oracle/grammar";
@@ -95,7 +96,5 @@ export function grammarGapTargetFiles(key: string): string[] | null {
  * or no lines when the key blames nothing.
  */
 export function renderGrammarGapTargetFiles(key: string): string[] {
-    const files = grammarGapTargetFiles(key);
-    if (files === null) return [];
-    return ["", "## Target files", "", ...files.map((f) => `- \`${f}\``)];
+    return renderTargetFilesSection(grammarGapTargetFiles(key));
 }
