@@ -78,6 +78,7 @@ function announced(): GameState {
                     on("Llanowar Elves", "elf"),
                     on("Sol Ring", "ring"),
                     on("Ornithopter", "thopter"),
+                    on("Farrelite Priest", "priest"),
                     on("Mountain", "mountain"),
                 ],
             }),
@@ -154,6 +155,16 @@ describe("waterbend picker on the board (CR 701.67a)", () => {
         expect(
             selectActivationCost.mock.calls.map((c) => c[0]?.cardInstanceId)
         ).toEqual(["thopter", "sickElf"]);
+    });
+
+    it("a source whose mana needs mana of its own is a pick, not a dead click", () => {
+        const { handle, card } = mount(announced());
+        act(() => handle.handleClick(card("priest")));
+        expect(selectActivationCost).toHaveBeenCalledWith({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "priest",
+        });
     });
 
     it("the picker is not modal: a land still pays the mana leg", () => {

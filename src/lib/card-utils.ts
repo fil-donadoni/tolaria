@@ -515,10 +515,11 @@ export function hasManaAbility(
 }
 
 /** CR 701.67a — where a click on a generic-substitution candidate goes. A
- *  permanent that can tap for mana at no further cost does that: the pip is paid
- *  either way, and a source making more than one mana pays more. Anything else
- *  is a pick: a summoning-sick creature (CR 302.6 bars only its own {T}), or a
- *  Treasure, whose mana would cost the Treasure. */
+ *  permanent whose mana costs nothing but its own {T} taps for mana: the pip is
+ *  paid either way, and a source making more than one mana pays more. Anything
+ *  else is a pick: a summoning-sick creature (CR 302.6 bars only its own {T}), a
+ *  Treasure, whose mana would cost the Treasure, or a source whose mana needs
+ *  mana of its own. */
 export function clickTapsSubstituteForMana(
     card: CardInstance,
     stateView?: TriggerStateView,
@@ -526,7 +527,9 @@ export function clickTapsSubstituteForMana(
 ): boolean {
     if (!hasManaAbility(card, stateView, players)) return false;
     if (isTapLockedBySummoningSickness(card)) return false;
-    return !findClientManaAbility(card)?.cost.sacrifice;
+    // No printed ability here is a land's intrinsic {T}: Add (CR 305.6).
+    const ability = findClientManaAbility(card);
+    return !ability || Object.keys(ability.cost).every((leg) => leg === "tap");
 }
 
 /** Returns the native mana ability of a card as a menu entry (id + oracleText),

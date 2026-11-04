@@ -3,7 +3,11 @@
 // activation with its mana spent. Drives the REAL registered mutations.
 
 import { describe, it, expect } from "vitest";
-import { autoTapForPayment, tapForActivationPayment } from "../game";
+import {
+    activateManaAbility,
+    autoTapForPayment,
+    tapForActivationPayment,
+} from "../game";
 import { selectActivationCostOnState, activateAbilityOnState } from "../game";
 import {
     makeInstance,
@@ -27,6 +31,7 @@ type TapArgs = {
     cardInstanceId: string;
 };
 type AutoArgs = { gameId: Id<"games">; playerId: string };
+type ManaArgs = TapArgs & { abilityId: string; tapOtherIds: string[] };
 
 function pickedRing(): GameState {
     const on = (name: string, id: string) =>
@@ -71,6 +76,32 @@ describe("waterbend picks are not mana sources (CR 701.67a)", () => {
                 tapForActivationPayment as unknown as Handler<TapArgs, void>,
                 stub.ctx,
                 { gameId: GAME_ID, playerId: "p1", cardInstanceId: "ring" }
+            )
+        ).rejects.toThrow(/already paying/);
+    });
+
+    it("activateManaAbility refuses a picked permanent as another ability's fodder", async () => {
+        const state = pickedRing();
+        state.players[0].battlefield.push(
+            makeInstance(getCardByName("Urza, Lord High Artificer").id, {
+                id: "urza",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+            })
+        );
+        const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await expect(
+            runMutation<ManaArgs, void>(
+                activateManaAbility as unknown as Handler<ManaArgs, void>,
+                stub.ctx,
+                {
+                    gameId: GAME_ID,
+                    playerId: "p1",
+                    cardInstanceId: "urza",
+                    abilityId: "urza-lha-mana",
+                    tapOtherIds: ["ring"],
+                }
             )
         ).rejects.toThrow(/already paying/);
     });

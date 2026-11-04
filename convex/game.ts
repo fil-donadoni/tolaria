@@ -2439,6 +2439,12 @@ function payTapOtherAbilityCost(
             throw new Error("Permanent already selected to tap");
         }
         seen.add(id);
+        // CR 701.67a — a permanent already chosen to pay a generic pip by
+        // tapping can't also be tapped as fodder: the commit would find it
+        // tapped and drop the activation with its mana spent.
+        if (state.pendingActivation?.tapOtherChoice?.pickedIds.includes(id)) {
+            throw new Error("That permanent is already paying this cost");
+        }
         const perm = player.battlefield.find((c) => c.id === id);
         if (!perm) {
             throw new Error("Selected permanent not on your battlefield");
