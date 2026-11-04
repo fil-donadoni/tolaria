@@ -83,6 +83,7 @@ import {
 import { hasFlashback } from "./flashback";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
+import { withChangelingSubtypes } from "../cards/abilities/changeling";
 import { classLevelOf } from "../cards/abilities/classLevels";
 import {
     deriveLayer6,
@@ -20859,6 +20860,10 @@ export function createTokenPermanents(
         placement?: boolean;
     }
 ): string[] {
+    // CR 702.73a — a token created "with changeling" is every creature type, and
+    // the events below name the line it actually enters with.
+    const tokenSubtypes =
+        withChangelingSubtypes(spec.subtypes, spec.staticAbilities) ?? [];
     const owner = getPlayer(state, controllerId);
     // CR 111.1 / 614 (issue #3230) — the token-CREATION replacement chokepoint
     // (Elspeth, Storm Slayer: "twice that many of those tokens are created
@@ -20880,7 +20885,7 @@ export function createTokenPermanents(
             controllerId,
             tokenName: spec.name,
             types: [...spec.types],
-            subtypes: spec.subtypes ? [...spec.subtypes] : [],
+            subtypes: [...tokenSubtypes],
             isCopy: opts?.copyOf !== undefined,
             count: effectiveCount,
         }).count;
@@ -20970,7 +20975,7 @@ export function createTokenPermanents(
             ownerId: controllerId,
             zone: "battlefield",
             types: [...spec.types],
-            subtypes: spec.subtypes ? [...spec.subtypes] : [],
+            subtypes: [...tokenSubtypes],
             staticAbilities: spec.staticAbilities
                 ? [...spec.staticAbilities]
                 : [],
@@ -21214,7 +21219,7 @@ export function createTokenPermanents(
                 controllerId,
                 count: effectiveCount,
                 types: [...spec.types],
-                subtypes: spec.subtypes ? [...spec.subtypes] : [],
+                subtypes: [...tokenSubtypes],
             },
         ];
     }

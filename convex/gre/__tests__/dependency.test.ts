@@ -456,9 +456,9 @@ describe("CR 613.8a clause (c) — the CDA guard", () => {
     it("no layer-2-to-6 static effect kind generates a characteristic-defining ability", () => {
         // ADR 0115: clause (c) is enforced through `characteristicDefining`,
         // which every layer-2-to-6 producer hardcodes to `false`. That is
-        // catalogue-conditional — CR 702.73 Changeling is a CDA defining
-        // subtypes in layer 4 — so this reds the day such a kind lands, instead
-        // of clause (c) failing open and silently.
+        // catalogue-conditional — CR 702.73 Changeling stays outside it only by
+        // being a base subtype line — so this reds the day such a kind lands,
+        // instead of clause (c) failing open and silently.
         const layered = [
             ...Object.keys(LAYER_2_5_STATIC_EFFECT_KINDS),
             ...Object.keys(LAYER_6_STATIC_EFFECT_KINDS),

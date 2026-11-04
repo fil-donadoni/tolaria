@@ -557,8 +557,8 @@ function collectSourceEntries(state: LayerStateView): SourceEntries {
                 // layer-4 kind becomes characteristic-defining. No layer-2-5
                 // kind is one today — a CDA defines a characteristic of the
                 // object it is ON, and every kind here changes another
-                // object's — but CR 702.73 Changeling is exactly such an
-                // ability and is `planned` in the Mechanics Registry.
+                // object's. CR 702.73 Changeling is the object's base subtype
+                // line (`cards/abilities/changeling.ts`), not an entry here.
                 characteristicDefining: CDA_STATIC_EFFECT_KINDS.has(
                     effect.kind
                 ),

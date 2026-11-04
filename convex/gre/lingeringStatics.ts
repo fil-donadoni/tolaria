@@ -158,10 +158,9 @@ export function collectLingeringSnapshots(
                         // authority both sibling collectors read
                         // (`CDA_STATIC_EFFECT_KINDS`, `gre/dependency.ts`),
                         // never from the sublayer: the two agree only while
-                        // `pt-cda` is the set's sole member, and CR 702.73
-                        // Changeling is a layer-4 CDA sitting `planned` in the
-                        // Mechanics Registry. Deriving it from `"7a"` would make
-                        // clause (c) fail open the day that lands.
+                        // `pt-cda` is the set's sole member. Deriving it from
+                        // `"7a"` would make clause (c) fail open the day a
+                        // CDA kind lands in another layer.
                         characteristicDefining: CDA_STATIC_EFFECT_KINDS.has(
                             effect.kind
                         ),

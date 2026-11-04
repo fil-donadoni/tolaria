@@ -4,6 +4,8 @@
 // surfacing the only information the player actually needs: name, type
 // line, abilities, and P/T.
 
+import { displaySubtypes } from "@convex/cards/abilities/changeling";
+
 type TokenPlaceholderProps = {
     name: string;
     types: ReadonlyArray<string>;
@@ -19,7 +21,7 @@ function formatTypeLine(
 ): string {
     const head = types.join(" ");
     if (subtypes.length === 0) return head;
-    return `${head} — ${subtypes.join(" ")}`;
+    return `${head} — ${displaySubtypes(subtypes).join(" ")}`;
 }
 
 function formatAbility(keyword: string): string {

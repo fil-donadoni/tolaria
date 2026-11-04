@@ -55,7 +55,11 @@ function getCardByName(name: string) {
     if (isTwinDefinitionId(def.id) && !modalBackFaceParentId(def.id)) {
         throw new Error(unplaceableTwinMessage(name, def.id));
     }
-    return def;
+    // CR 702.73a — the name lookup returns the raw row, whose subtype line misses
+    // a keyword-defined type and would differ from every later read of the card.
+    // Only that line: the rest of the raw row is what a spec's defaults key on.
+    const line = tryGetDefinition(def.id)?.subtypes;
+    return line && line !== def.subtypes ? { ...def, subtypes: line } : def;
 }
 
 /** The refusal {@link getCardByName} throws, naming the half for what it IS —
