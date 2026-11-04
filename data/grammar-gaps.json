@@ -13,11 +13,6 @@
             "issue": 4537
         },
         {
-            "key": "(op) › exileAndReturnTransformed",
-            "op": "exileAndReturnTransformed",
-            "issue": 7374
-        },
-        {
             "key": "(op) › extraCombat",
             "op": "extraCombat",
             "issue": 4535

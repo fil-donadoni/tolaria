@@ -14452,6 +14452,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Conqueror's Galleon // Conqueror's Foothold",
+        "scryfallId": "02bb4b2a-3c9f-48ab-b2a5-ae31f06b82d9",
+        "oracleId": "88b18901-50cd-461c-b1bc-be900210be8e",
+        "firstSet": "xln",
+        "firstPrintId": "02bb4b2a-3c9f-48ab-b2a5-ae31f06b82d9",
+        "firstPrintSet": "xln",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Conscripted Infantry",
         "scryfallId": "f50b0449-8ff7-4549-893b-aeca93720c64",
         "oracleId": "cf0f3aee-78b6-4a98-8e09-8861b73c2e74",
