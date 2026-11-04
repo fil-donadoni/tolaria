@@ -811,6 +811,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › activation cost › Waterbend {…}",
+            "issue": 8182
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › Activate no more than twice each turn",
             "issue": 4585
         },
@@ -1123,6 +1128,11 @@
             "kind": "grammar",
             "key": "keyword-line › keyword ability › Protection from green",
             "issue": 4312
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Unearth {…}",
+            "issue": 8165
         },
         {
             "kind": "grammar",
@@ -2386,6 +2396,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › or untap target creature",
+            "issue": 8169
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › target filter › colors",
             "issue": 4589
         },
@@ -2501,6 +2516,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › When this creature transforms into {self}",
+            "issue": 8164
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › When this creature's power is N or greater",
             "issue": 5206
         },
@@ -2600,9 +2620,24 @@
             "issue": 7216
         },
         {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever {self} attack",
+            "issue": 8183
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Aang, Swift Savior // Aang and La, Ocean's Fury",
+            "issue": 3551
+        },
+        {
             "kind": "hand-tail",
             "key": "Abhorrent Oculus",
             "issue": 2072
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Absorbing Man",
+            "issue": 8175
         },
         {
             "kind": "hand-tail",
@@ -2741,6 +2776,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Cloak and Dagger, Entwined",
+            "issue": 8172
+        },
+        {
+            "kind": "hand-tail",
             "key": "Cloud Cover",
             "issue": 4595
         },
@@ -2842,7 +2882,7 @@
         {
             "kind": "hand-tail",
             "key": "Detective's Phoenix",
-            "issue": 2074
+            "issue": 7723
         },
         {
             "kind": "hand-tail",
@@ -2937,7 +2977,7 @@
         {
             "kind": "hand-tail",
             "key": "Emeritus of Ideation // Ancestral Recall",
-            "issue": 3689
+            "issue": 8034
         },
         {
             "kind": "hand-tail",
@@ -3016,6 +3056,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Garruk, Curse Breaker",
+            "issue": 8174
+        },
+        {
+            "kind": "hand-tail",
             "key": "Gerrard Capashen",
             "issue": 4331
         },
@@ -3028,6 +3073,11 @@
             "kind": "hand-tail",
             "key": "Get Lost",
             "issue": 7234
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ginger, Queen of Sweets",
+            "issue": 8173
         },
         {
             "kind": "hand-tail",
@@ -3148,6 +3198,11 @@
             "kind": "hand-tail",
             "key": "Jaded Response",
             "issue": 4336
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Jennifer Walters // The Sensational She-Hulk",
+            "issue": 8171
         },
         {
             "kind": "hand-tail",
@@ -3398,6 +3453,11 @@
             "kind": "hand-tail",
             "key": "Phantasmal Terrain",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Phyrexian Dragon Engine",
+            "issue": 8176
         },
         {
             "kind": "hand-tail",
@@ -3706,6 +3766,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Sowing Mycospawn",
+            "issue": 8170
+        },
+        {
+            "kind": "hand-tail",
             "key": "Sphinx of False Conclusions",
             "issue": 7250
         },
@@ -3843,6 +3908,11 @@
             "kind": "hand-tail",
             "key": "The Fantasticar",
             "issue": 7255
+        },
+        {
+            "kind": "hand-tail",
+            "key": "The Mightstone and Weakstone",
+            "issue": 3341
         },
         {
             "kind": "hand-tail",
