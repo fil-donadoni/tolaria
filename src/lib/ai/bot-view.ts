@@ -1099,7 +1099,7 @@ export function buildBotView(state: PublicGameState, botId: string): BotView {
     // projection), so the adapter round-trip below loses nothing the picks need.
     view.owedPayment = buildOwedPaymentView(state, botId);
 
-    // CR 603.3d / 115.7 / 707.10b (issue #2283) — an engine-raised target
+    // CR 603.3d / 115.7 / 707.10c (issue #2283) — an engine-raised target
     // selection owed to the bot (targeted trigger / retarget / copy retarget).
     view.owedTarget = buildOwedTargetView(state, botId);
 
@@ -1146,7 +1146,7 @@ function buildAttackSacrificeView(
     return ids && ids.length > 0 ? { cardInstanceIds: ids } : undefined;
 }
 
-/** CR 603.3d / 115.7 / 707.10b (issue #2283) — the engine-raised target
+/** CR 603.3d / 115.7 / 707.10c (issue #2283) — the engine-raised target
  *  selection the bot owes, with its minimal-legal answer precomputed.
  *
  *  Runs through `projectedToGameState` rather than reading the projection
@@ -1369,7 +1369,7 @@ export function botActionToMove(
             return { kind: "rebound-decline" };
         }
         case "submit-target": {
-            // CR 603.3d / 115.7 / 707.10b (issue #2283) — the minimal-legal
+            // CR 603.3d / 115.7 / 707.10c (issue #2283) — the minimal-legal
             // answer to an engine-raised target selection. Guarded against a
             // stale gate decision: the selection must still be live, still owed
             // to the bot, and still a RAISED origin — writing these targets

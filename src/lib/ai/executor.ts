@@ -484,7 +484,7 @@ export async function executeMove(
             return;
 
         case "submit-target": {
-            // CR 603.3d / 115.7 / 707.10b (issue #2283) — answer an
+            // CR 603.3d / 115.7 / 707.10c (issue #2283) — answer an
             // ENGINE-RAISED target selection (a targeted trigger, a retarget, a
             // spell copy's retarget). A STANDALONE submission: unlike the
             // target tuple that rides on `cast-spell` / `activate-ability`,

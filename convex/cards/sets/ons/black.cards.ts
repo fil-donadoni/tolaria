@@ -15,9 +15,9 @@
 // (`.claude/rules/gre-development.md`); (b) the decision-maker here is the
 // DISCARDING (target) player, not the caster — no existing card composes a
 // non-caster-driven self-copy decision. #931 (the card-list residue this
-// was split from) is CLOSED and decomposed; the capability lives at #2087
-// (`copySpell` Op + non-caster chooser + `SPELL_COPIED` event).
-// tracked-by: #2087
+// was split from) is CLOSED and decomposed; the `SPELL_COPIED` event shipped,
+// and the capability lives at #3657 (`copySpell` Op + non-caster chooser).
+// tracked-by: #3657
 // export const chainOfSmog: CardDefinition = {
 //     id: "6bfe64f9-8b03-41f6-a47b-fade397ad9d1",
 //     name: "Chain of Smog",

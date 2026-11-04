@@ -144,7 +144,7 @@ export type BotView = {
         park: OwedPayment;
         submission: OwedPaymentSubmission | null;
     };
-    /** CR 603.3d / 115.7 / 707.10b (issue #2283) — an ENGINE-RAISED target
+    /** CR 603.3d / 115.7 / 707.10c (issue #2283) — an ENGINE-RAISED target
      *  selection owed to the bot: a targeted trigger it controls (Flickerwisp,
      *  Badgermole Cub), a retarget, or a spell copy's retarget. It is NOT the
      *  bot's own half-built cast/activation target selection — that stays a
@@ -490,7 +490,7 @@ export type BotAction =
           kind: "search-target";
       }
     | {
-          /** CR 603.3d / 115.7 / 707.10b (issue #2283) — the deterministic
+          /** CR 603.3d / 115.7 / 707.10c (issue #2283) — the deterministic
            *  minimal-legal answer to an engine-raised target selection, used
            *  when the search yields no move (mirroring how `search-choice`
            *  degrades to `chooseOwedChoiceAction`). Realised by the executor
@@ -666,7 +666,7 @@ export function botActionRealisation(
         case "madness-decline":
         case "rebound-decline":
         case "submit-target":
-            // CR 603.3d / 115.7 / 707.10b (issue #2283) — `submit-target` is
+            // CR 603.3d / 115.7 / 707.10c (issue #2283) — `submit-target` is
             // the minimal-legal answer to an ENGINE-RAISED target selection,
             // realised through the executor (`selectTargets` +
             // `confirmTargets`) like every other brain-resolved fallback. The
@@ -1397,7 +1397,7 @@ function answerOwedInput(kind: ExpectedInputKind, view: BotView): BotAction {
             }
             return NONE;
 
-        // CR 601.2c / 603.3d / 115.7 / 707.10b — a target selection. An
+        // CR 601.2c / 603.3d / 115.7 / 707.10c — a target selection. An
         // ENGINE-RAISED one (targeted trigger, retarget, copy retarget — issue
         // #2283) is a search node with a precomputed minimal-legal fallback; an
         // ANNOUNCED one is the bot's own half-built cast, which the executor

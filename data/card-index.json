@@ -63496,6 +63496,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Sedgemoor Witch",
+        "scryfallId": "e900c1eb-968b-4046-b824-c167a7a5b682",
+        "oracleId": "25dce517-ac0a-4577-89ed-04296c7c4069",
+        "firstSet": "stx",
+        "firstPrintId": "e900c1eb-968b-4046-b824-c167a7a5b682",
+        "firstPrintSet": "stx"
+    },
+    {
         "name": "Sedraxis Alchemist",
         "scryfallId": "7fbbc5d7-86d0-4e09-b37c-e40eb88f3f33",
         "oracleId": "56f3f1b4-c36a-41f3-95a1-45e9d7e74cf9",
@@ -85575,6 +85583,14 @@
         "firstPrintSet": "eld",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Witherbloom Apprentice",
+        "scryfallId": "7f80a11b-188b-464c-b00d-c9d1cfb8ddee",
+        "oracleId": "696f554d-0485-48a5-9273-3f6fb7d16a5d",
+        "firstSet": "stx",
+        "firstPrintId": "7f80a11b-188b-464c-b00d-c9d1cfb8ddee",
+        "firstPrintSet": "stx"
     },
     {
         "name": "Witherbloom Campus",

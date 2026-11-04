@@ -15,6 +15,7 @@ import type {
     PermanentView,
     SpellCastEvent,
     SpellContext,
+    SpellCopiedEvent,
     TargetRequirement,
     TriggerStateView,
     TriggeredAbility,
@@ -59,6 +60,12 @@ export interface SpellCastTriggerArgs {
     oracleText: string;
     /** Caster gate (see `SpellCastScope`). */
     scope: SpellCastScope;
+    /** "Whenever you cast OR COPY a … spell" (CR 707.10 — a copy isn't cast, so
+     *  the one Oracle line fires on two events, CR 603.2). Only `scope`,
+     *  `filter` and `effects` apply to a copy: `condition`, `interveningIf` and
+     *  `resolve` are typed against the cast event's cast-only tallies, so
+     *  pairing them with this flag throws, as does `scope: "self"`. */
+    alsoOnCopy?: boolean;
     /** Optional filter against the cast spell's characteristics
      *  (CR 601.2i — types / subtypes / colors). Spells are not permanents,
      *  so `SpellFilter` is intentionally narrower than `PermanentFilter`. */
@@ -173,13 +180,17 @@ export function nthSpellOfTypeThisTurn(
 }
 
 function castInScope(
-    event: SpellCastEvent,
+    event: SpellCastEvent | SpellCopiedEvent,
     self: PermanentView,
     scope: SpellCastScope
 ): boolean {
+    // CR 707.10 — a copy belongs to the player who copied it, never to the
+    // original spell's caster.
+    const playerId =
+        event.type === "SPELL_COPIED" ? event.copierId : event.casterId;
     if (scope === "any") return true;
-    if (scope === "you") return event.casterId === self.controllerId;
-    if (scope === "opponents") return event.casterId !== self.controllerId;
+    if (scope === "you") return playerId === self.controllerId;
+    if (scope === "opponents") return playerId !== self.controllerId;
     // "self" — the spell being cast IS this source (CR 603.6e).
     return event.spellInstanceId === self.id;
 }
@@ -194,12 +205,28 @@ export function spellCastTrigger(args: SpellCastTriggerArgs): TriggeredAbility {
             `spellCastTrigger(${args.id}): supply exactly one of resolve / effects`
         );
     }
+    if (
+        args.alsoOnCopy &&
+        (args.resolve ||
+            args.condition ||
+            args.interveningIf ||
+            args.scope === "self")
+    ) {
+        throw new Error(
+            `spellCastTrigger(${args.id}): alsoOnCopy takes only scope you/opponents/any, filter and effects`
+        );
+    }
     const built: TriggeredAbility = {
         id: args.id,
         oracleText: args.oracleText,
-        event: "SPELL_CAST",
+        event: args.alsoOnCopy ? ["SPELL_CAST", "SPELL_COPIED"] : "SPELL_CAST",
         matches: (event: GameEvent, self, state) => {
-            if (event.type !== "SPELL_CAST") return false;
+            if (
+                event.type !== "SPELL_CAST" &&
+                !(args.alsoOnCopy && event.type === "SPELL_COPIED")
+            ) {
+                return false;
+            }
             if (!castInScope(event, self, args.scope)) return false;
             if (args.filter !== undefined) {
                 const spell = {
@@ -209,7 +236,11 @@ export function spellCastTrigger(args: SpellCastTriggerArgs): TriggeredAbility {
                 };
                 if (!matchesSpellFilter(spell, args.filter)) return false;
             }
-            if (args.condition && !args.condition(event, self, state)) {
+            if (
+                args.condition &&
+                event.type === "SPELL_CAST" &&
+                !args.condition(event, self, state)
+            ) {
                 return false;
             }
             return true;

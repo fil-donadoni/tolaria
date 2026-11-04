@@ -78,7 +78,7 @@ export default function TargetSelectionBanner({
         usePromptBannerPosition({ pinned: true });
     const divide = useDivideBuffer();
 
-    // CR 707.10b — a copy-retarget selection points at a spell copy on the
+    // CR 707.10c — a copy-retarget selection points at a spell copy on the
     // stack (not a card in hand); declining keeps the copy's inherited
     // targets, so the source line reads "Copy" and Cancel reads "Keep
     // targets" to convey the optionality.
