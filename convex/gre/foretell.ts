@@ -198,7 +198,6 @@ export function makeForetold(
     delete card.castableFromExileUntilOwnTurn;
     delete card.castableFromExileUntilOwnUpkeep;
     delete card.castableFromExileIncludesLand;
-    delete card.castableFromExileSorceryTiming;
     delete card.castFromExileWithoutPayingManaCost;
     delete card.castFromExileManaSubstitution;
     delete card.castFromExileCostIncrease;
@@ -206,7 +205,6 @@ export function makeForetold(
     delete card.castFromExileNotAsAdventure;
     // Other mechanics' exile-cast riders: each would otherwise win the
     // price at `castRawManaCost` (madness) or mislabel the card.
-    delete card.plotted;
     delete card.warpExiled;
     delete card.madnessExiled;
 }

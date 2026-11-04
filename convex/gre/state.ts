@@ -239,6 +239,7 @@ import { castProhibitionReason } from "../cards/castRestrictions";
 // (never at module top level), so this is safe despite `phases.ts` itself
 // importing from this module (the same lazy-cycle shape already used for
 // `./effects/interpreter` above).
+import { castsUnderPlotPermission } from "./castCost";
 import { wasCastOffSorceryTiming } from "./phases";
 import {
     hasControlledSinceTurnStart,
@@ -15688,9 +15689,6 @@ export function buildSpellContext(
             } else {
                 delete card.castableFromExileFromTurn;
             }
-            // CR 702.170d — a re-grant replaces the window whole; a stale
-            // sorcery-timing rider must not outlive the grant it rode.
-            delete card.castableFromExileSorceryTiming;
             if (opts?.withoutPayingManaCost) {
                 card.castFromExileWithoutPayingManaCost = true;
             } else {
@@ -21614,10 +21612,9 @@ export function moveCard(
         // beside them; a card pulled back out of exile keeps neither.
         delete card.castableFromExileFromTurn;
         delete card.warpExiled;
-        // CR 702.170d / 400.7 — the plot window's timing rider and the plotted
-        // designation leave exile with the card.
-        delete card.castableFromExileSorceryTiming;
-        delete card.plotted;
+        // CR 702.170d / 400.7 — the plotted designation, and so the permission
+        // derived from it, leaves exile with the card.
+        delete card.plottedOnTurn;
         // CR 702.143c / 400.7 — the foretold designation (and any foretell
         // cost an effect gave it, CR 702.143d) leaves exile with the card.
         delete card.foretold;
@@ -21958,10 +21955,9 @@ export function removeFromZone(
     // recast must never leave a stale window behind for its next exile.
     delete card.castableFromExileFromTurn;
     delete card.warpExiled;
-    // CR 702.170d — the plot window's timing rider and the plotted
-    // designation are consumed with the permission they ride.
-    delete card.castableFromExileSorceryTiming;
-    delete card.plotted;
+    // CR 702.170d — the plotted designation is consumed with the permission
+    // derived from it.
+    delete card.plottedOnTurn;
     // CR 702.143c — the foretold designation is consumed with the permission
     // it rides; the Cast Commit kernel reads it BEFORE this removal and
     // carries it onto the stack item (a spell that was a foretold card).
@@ -23782,7 +23778,10 @@ function resolveCostReductionGeneric(
 export function getCostModifiers(
     state: GameState,
     card: PermanentView &
-        Pick<Partial<CardInstanceState>, "castFromExileCostIncrease">,
+        Pick<
+            Partial<CardInstanceState>,
+            "castFromExileCostIncrease" | "ownerId" | "plottedOnTurn"
+        >,
     kind: "spell" | "ability",
     ability?: ActivatedAbility,
     announcerId?: string
@@ -23804,7 +23803,19 @@ export function getCostModifiers(
     // `moveCard`'s `from === "exile"` block (every other zone move,
     // issue #2383), the CLEANUP impulse sweep (`gre/phases.ts`) and
     // `consumeExilePlayGrant` (`gre/playLand.ts`).
-    if (kind === "spell" && card.castFromExileCostIncrease) {
+    //
+    // CR 702.170d — the tax rides the grant, so a cast under the plotted
+    // permission of the same card does not owe it.
+    if (
+        kind === "spell" &&
+        card.castFromExileCostIncrease &&
+        !castsUnderPlotPermission(
+            state,
+            card as CardInstanceState,
+            // A commit site names no announcer: the caster holds priority.
+            announcerId ?? state.priorityPlayerId
+        )
+    ) {
         for (const [k, v] of Object.entries(
             normalizeManaCost(card.castFromExileCostIncrease)
         )) {
@@ -24203,7 +24214,10 @@ export function getManaSubstitutions(
             (c) =>
                 c.id === castCardInstanceId &&
                 c.castableFromExileBy === playerId &&
-                c.castFromExileManaSubstitution !== undefined
+                c.castFromExileManaSubstitution !== undefined &&
+                // CR 702.170d — the fixing rides the grant, not a cast under
+                // the plotted permission of the same card.
+                !castsUnderPlotPermission(state, c, playerId)
         );
         if (granted?.castFromExileManaSubstitution) {
             out.push(

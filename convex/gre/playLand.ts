@@ -56,7 +56,7 @@ import {
     spendGraveyardPlayPermission,
     stampGraveyardPermissionRider,
 } from "./rules";
-import { exileCastPermitted } from "./castCost";
+import { exileGrantPermitted } from "./castCost";
 import { checkAscendCityBlessing } from "./cityBlessing";
 import { tryGetDefinition } from "../cards";
 import type { MayPayCost } from "../cards/types";
@@ -424,9 +424,8 @@ function consumeExilePlayGrant(card: CardInstanceState): void {
     // exile" referent ride the same consumed permission.
     delete card.castableFromExileFromTurn;
     delete card.warpExiled;
-    // CR 702.170d — the plot window's rider and designation, likewise.
-    delete card.castableFromExileSorceryTiming;
-    delete card.plotted;
+    // CR 702.170d — the plotted designation, likewise.
+    delete card.plottedOnTurn;
     delete card.foretold;
     delete card.grantedForetellCost;
     // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides the same
@@ -640,7 +639,7 @@ export function resolvePlayLandSourceZone(
         .find((c) => c.id === cardInstanceId);
     if (
         exileCard &&
-        exileCastPermitted(state, exileCard, player.id) &&
+        exileGrantPermitted(state, exileCard, player.id) &&
         exileCard.castableFromExileIncludesLand === true
     ) {
         return "exile";

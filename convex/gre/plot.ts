@@ -26,24 +26,13 @@
 //      {@link applyPlot} (the `plotCard` mutation, `convex/game.ts`) and
 //      {@link plotInSearch} (the Bot's sandboxes). Like the morph turn-up the
 //      cost is auto-tapped and paid in the one call that takes the action.
-//   2. The PLOTTED designation (702.170c/d) is {@link becomePlotted}: a marker
-//      on the exiled card plus the GENERAL cast-from-exile record every exile
-//      cast already reads — `castableFromExileBy` (the owner),
-//      `castableFromExileFromTurn` (the lower turn bound Warp introduced: "any
-//      turn AFTER the turn in which it became plotted"),
-//      `castFromExileWithoutPayingManaCost` (the alternative-cost waiver, CR
-//      118.9) and `castableFromExileSorceryTiming` ("during their main phase
-//      while the stack is empty"). The record is independent of the plot
-//      ability, which is what 702.170c and 702.170d's last sentence require,
-//      and it is the same "exiled now, cast later" record Foretell (CR
-//      702.143) and Suspend need: they stamp their own riders onto it rather
-//      than growing a second permission store.
-//
-// KNOWN BOUNDARY: the exile-cast record is ONE slot per card, so the plotted
-// permission and another effect's exile grant overwrite each other where the
-// CR has them coexist (`becomePlotted` drops a prior grant; a later grant
-// replaces the plot window while `plotted` stays set). No shipped card reaches
-// either. tracked-by: #7586
+//   2. The PLOTTED designation (702.170c/d) is {@link becomePlotted}: the turn
+//      the card became plotted, stamped on the exiled card. The CR 702.170d
+//      permission is DERIVED from it at read time (`gre/castCost.ts`), never
+//      written into the `castableFromExile*` grant record, so a plotted card's
+//      permission and another effect's grant coexist, each with its own cost
+//      and timing. The designation is independent of the plot ability, which
+//      is what 702.170c and 702.170d's last sentence require.
 //
 // 702.170e/f need no code: no shipped card refers to plotting, and no effect
 // lets plot function outside the hand. The action reads the hand only.
@@ -113,30 +102,13 @@ export function plottableHandCards(
     return player.hand.filter((c) => canPlot(state, player, c));
 }
 
-/** CR 702.170c/d — `card`, already in exile, becomes plotted: the designation
- *  plus the owner's cast permission it carries. The permission REPLACES any
- *  grant the card had (a new window, not a second one), so every upper bound
- *  and rider of the old window is dropped. Exiled face up (CR 406.3): the
- *  designation is public. */
+/** CR 702.170c/d — `card`, already in exile, becomes plotted. Only the
+ *  designation is written: the permission it carries is derived from it, so a
+ *  grant the card already holds stands untouched. Exiled face up (CR 406.3):
+ *  the designation is public. */
 export function becomePlotted(state: GameState, card: CardInstanceState): void {
-    card.plotted = true;
-    // CR 702.170d — "a plotted card's OWNER may cast it".
-    card.castableFromExileBy = card.ownerId;
-    // CR 702.170d — "during any turn AFTER the turn in which it became plotted".
-    card.castableFromExileFromTurn = state.turn + 1;
-    // CR 702.170d / 118.9 — "without paying its mana cost", an alternative
-    // cost: additional costs and cost increases still apply.
-    card.castFromExileWithoutPayingManaCost = true;
-    // CR 702.170d — "during their main phase while the stack is empty".
-    card.castableFromExileSorceryTiming = true;
-    delete card.castableFromExileUntilTurn;
-    delete card.castableFromExileUntilOwnTurn;
-    delete card.castableFromExileUntilOwnUpkeep;
-    delete card.castableFromExileIncludesLand;
-    delete card.castFromExileManaSubstitution;
-    delete card.castFromExileCostIncrease;
-    delete card.castableFromExileCondition;
-    delete card.castFromExileNotAsAdventure;
+    // CR 702.170d — "during any turn after the turn in which it became plotted".
+    card.plottedOnTurn = state.turn;
     delete card.faceDown;
     delete card.faceDownBy;
 }

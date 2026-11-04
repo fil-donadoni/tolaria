@@ -35,6 +35,7 @@ import ExileCastButton from "./exile-cast-button";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 import { usePlainPriorityWindow } from "~/hooks/usePlainPriorityWindow";
+import { holdsExileCastPermission } from "@convex/gre/castCost";
 import { actionableRingClass, cardHasLegalAction } from "~/lib/card-actionable";
 
 /** Clockwise screen rotation a tapped permanent's presentational layer carries
@@ -582,7 +583,7 @@ export default function BoardBattlefieldCard({
                     interactiveMembers={false}
                     pileTitle="Held in exile"
                     renderPileAction={(exiled, onClose) =>
-                        exiled.castableFromExileBy === playerId ? (
+                        holdsExileCastPermission(exiled, playerId) ? (
                             <ExileCastButton
                                 card={exiled}
                                 onCommitted={onClose}

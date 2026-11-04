@@ -1472,27 +1472,17 @@ export type CardInstanceState = {
      *  `castableFromExileBy` wherever that field is cleared. Persisted so the
      *  window survives a DB round-trip. */
     castableFromExileFromTurn?: number;
-    /** CR 702.170d — a TIMING rider on {@link castableFromExileBy}: the grant
-     *  licenses a cast only "during their main phase while the stack is
-     *  empty", i.e. inside the grantee's sorcery window (CR 117.1a), whatever
-     *  the card's own speed — a plotted instant is cast at sorcery timing.
-     *  Read by `castNeedsSorceryWindow` (`gre/rules.ts`) for an EXILE cast, so
-     *  the affordance, the payment path and the Bot's exile enumeration (all
-     *  behind `getLegalActions`) share one answer. A general rider, never a
-     *  plot field: any grant worded "during your main phase" stamps it.
-     *  Cleared wherever `castableFromExileBy` is cleared. */
-    castableFromExileSorceryTiming?: boolean;
-    /** CR 702.170a/c — the PLOTTED designation on a card in exile. Set by
-     *  `becomePlotted` (`gre/plot.ts`) — the plot special action, or any effect
-     *  that makes an exiled card plotted (CR 702.170c) — together with the
-     *  permission it carries (CR 702.170d: the owner's free cast on a later
-     *  turn, at sorcery timing), which rides the general `castableFromExile*`
-     *  record rather than this marker. The marker is the referent effects
-     *  name ("plotted cards"); it is independent of the plot ability (CR
-     *  702.170d: castable "even if it doesn't have the plot ability while in
-     *  exile"). Public: plotted cards are exiled face up (CR 406.3). Cleared
-     *  when the card leaves exile (CR 400.7). */
-    plotted?: boolean;
+    /** CR 702.170a/c/d — the PLOTTED designation on a card in exile: the turn
+     *  it became plotted, set by `becomePlotted` (`gre/plot.ts`) — the plot
+     *  special action, or any effect that makes an exiled card plotted. The
+     *  owner's permission (a free cast on a later turn, at sorcery timing) is
+     *  DERIVED from it by `exileCastPermission` (`gre/castCost.ts`) and never
+     *  written into the `castableFromExile*` record, so it coexists with any
+     *  grant on that record. Independent of the plot ability (CR 702.170d:
+     *  castable "even if it doesn't have the plot ability while in exile").
+     *  Public: plotted cards are exiled face up (CR 406.3). Cleared when the
+     *  card leaves exile (CR 400.7). */
+    plottedOnTurn?: number;
     /** CR 702.143a/c/d — the FORETOLD designation. On a card in exile: put
      *  there face down by the foretell special action (or made foretold by an
      *  effect, CR 702.143d), set by `makeForetold` (`gre/foretell.ts`)
