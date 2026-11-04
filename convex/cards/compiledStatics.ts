@@ -52,6 +52,7 @@ import type {
     CombatCounterpartFilter,
     ManaCost,
     PermanentView,
+    PTAmount,
     StaticActivationRestriction,
     StaticCastPermission,
     StaticEffect,
@@ -235,6 +236,19 @@ export type CompiledCdaCount =
      *  power / toughness of the cards exiled with the source (CR 607.2a). */
     | { readonly kind: "exiled-with-source-totals" };
 
+/**
+ * CR 613.4c — what multiplies a compiled `pt-buff`'s amount ("+N/+N for each
+ * …"). Each member is read at every stat read, so the buff follows the count
+ * (CR 611.3a).
+ */
+export type CompiledPtBuffCount =
+    /** "<type> card in your graveyard": the graveyard of the source's CURRENT
+     *  controller (CR 109.5), so a stolen permanent reads its new controller's. */
+    {
+        readonly kind: "controller-graveyard-cards";
+        readonly types: readonly CardType[];
+    };
+
 /** The continuous static effects the compiler can emit (CR 611). Closed.
  *
  *  Every member's `kind` is the kind of the `StaticEffect` it rebuilds into —
@@ -253,6 +267,9 @@ export type CompiledStaticEffect =
            *  same JSON condition a compiled trigger's intervening-if carries
            *  (`CompiledControlsCondition`), read here off the layer view. */
           readonly condition?: CompiledStaticCondition;
+          /** CR 613.4c — "+N/+N for each …": `power` and `toughness` are the
+           *  amount PER counted object. */
+          readonly count?: CompiledPtBuffCount;
       } & CompiledStaticScope)
     /** CR 613.4b sublayer 7b — "<filter> have base power and toughness N/N",
      *  or each equal to the AFFECTED permanent's mana value (`count`, CR
@@ -663,6 +680,34 @@ function generic(amount: number): ManaCost {
     return { X: amount };
 }
 
+/** CR 404.1 — the cards of `types` in the graveyard of `source`'s controller. */
+function countControllerGraveyardCards(
+    types: readonly CardType[],
+    source: PermanentView,
+    state: StaticEffectStateView
+): number {
+    const controller = state.players.find((p) => p.id === source.controllerId);
+    return (
+        controller?.graveyard.filter((card) =>
+            types.some((t) => card.types.includes(t))
+        ).length ?? 0
+    );
+}
+
+/** A compiled `pt-buff`'s amount: its literal pair, or that pair per count. */
+function ptBuffAmount(
+    descriptor: Extract<CompiledStaticEffect, { kind: "pt-buff" }>
+): PTAmount {
+    const { power, toughness, count } = descriptor;
+    if (count === undefined) return { power, toughness };
+    return {
+        computeFor: (source, state) => {
+            const n = countControllerGraveyardCards(count.types, source, state);
+            return { power: power * n, toughness: toughness * n };
+        },
+    };
+}
+
 /** A descriptor's scope as the `applies` predicate its effect declares. */
 function scopePredicate(
     scope: CompiledStaticScope
@@ -701,8 +746,7 @@ export function resolveCompiledStatic(
             return {
                 kind: "pt-buff",
                 applies: scopePredicate(descriptor),
-                power: descriptor.power,
-                toughness: descriptor.toughness,
+                ...ptBuffAmount(descriptor),
                 ...(condition !== undefined
                     ? {
                           condition: (source, state, ctx) =>

@@ -475,6 +475,17 @@ export type StaticClauseIR =
           readonly condition: StaticConditionIR;
       }
     /**
+     * CR 613.4c — "This creature gets +N/+N for each creature card in your
+     * graveyard": the permanent's own layer-7c buff, per card of `cardTypes`
+     * in its controller's graveyard (CR 404.1, CR 109.5).
+     */
+    | {
+          readonly kind: "self-pt-buff-per-graveyard-card";
+          readonly power: number;
+          readonly toughness: number;
+          readonly cardTypes: readonly CardType[];
+      }
+    /**
      * CR 303.4b — one or more effects on the Aura's host ("Enchanted creature
      * gets +2/+2 and has flying", "You control enchanted creature"). `host`
      * is the printed noun, kept so lowering can check it against the Aura's
@@ -710,6 +721,35 @@ export const selfConditionalPumpRule: Rule<StaticClauseIR> = rule(
             power: signedModifier(match[3]!),
             toughness: signedModifier(match[4]!),
             condition: condition.value,
+        });
+    }
+);
+
+// ── Frame: self P/T per graveyard card (CR 613.4c) ─────────────────────────
+
+const SELF_PUMP_PER_GRAVEYARD_CREATURE =
+    /^This creature gets (\+\d+)\/(\+\d+) for each creature card in your graveyard$/;
+
+/**
+ * "This creature gets +1/+1 for each creature card in your graveyard." The
+ * whole sentence is the form: another card type, another graveyard, or a count
+ * joined to a second one ("for each creature you control and each creature
+ * card in your graveyard") is its own form and fails the frame.
+ */
+export const selfPumpPerGraveyardCardRule: Rule<StaticClauseIR> = rule(
+    "self pump per graveyard card",
+    (span): RuleResult<StaticClauseIR> => {
+        const match = span.match(SELF_PUMP_PER_GRAVEYARD_CREATURE);
+        if (match === null)
+            return fail(
+                'not "This creature gets +N/+N for each creature card in your graveyard"',
+                span
+            );
+        return ok({
+            kind: "self-pt-buff-per-graveyard-card" as const,
+            power: signedModifier(match[1]!),
+            toughness: signedModifier(match[2]!),
+            cardTypes: ["Creature"],
         });
     }
 );
@@ -2858,6 +2898,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         controllerDamagePreventionRule,
         damageLifeFloorRule,
         selfConditionalPumpRule,
+        selfPumpPerGraveyardCardRule,
         abilityLossPtSetRule,
         chosenTypePumpRule,
         animateManaValueRule,
