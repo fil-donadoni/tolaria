@@ -2113,13 +2113,17 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.135",
         status: "planned",
     },
-    // 702.136 Riot
+    // 702.136 Riot (issue #4011) — expanded from the bare
+    // `staticAbilities: ["riot"]` string at the `getDefinition` seam
+    // (`expandRiot`, `convex/cards/abilities/riot.ts`, ADR 0054).
     {
         id: "riot",
         name: "Riot",
         kind: "keyword-ability",
         cr: "702.136",
-        status: "planned",
+        status: "implemented",
+        binding: "riot",
+        note: "CR 702.136a is one replacement (CR 614.1c): `expandRiot` declares a `mayEnterWithCounters` as-enters choice whose `declinedKeyword` is haste, so a copy owes it through the copied definition (CR 707.2) and every entry path shares `applyEntersWithCounters`. A declined answer becomes an indefinite layer-6 grant as the permanent enters, so the haste outlives riot, is not copiable, and yields to a later ability loss; an ability loss already in force removes the offer, the counter and the haste (CR 613.1f). CR 702.136b is one clause per declared instance. Definition-level, so `isDefinitionLevelKeyword` quarantines a compiled grant of riot (Rhythm of the Wild stays behind its own Grammar Gap).",
     },
     // 702.137 Spectacle
     {

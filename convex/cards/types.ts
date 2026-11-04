@@ -3998,8 +3998,15 @@ export type AsEntersChoice =
      *  <type> counters on it" (Unleash, CR 702.98a). An accepted answer stamps
      *  `CardInstanceState.acceptedEntryCounters`, which the entry's
      *  `applyEntersWithCounters` folds into the permanent's entry counters; a
-     *  declined one writes nothing. */
-    | { kind: "mayEnterWithCounters"; counterType: string; count: number }
+     *  declined one writes nothing, unless `declinedKeyword` names what the
+     *  permanent gains instead (Riot, CR 702.136a: "If you don't, it gains
+     *  haste"), stamped on `CardInstanceState.declinedEntryKeywords`. */
+    | {
+          kind: "mayEnterWithCounters";
+          counterType: string;
+          count: number;
+          declinedKeyword?: string;
+      }
     /** CR 614.12 — "as this enters, you may pay <cost>" (shock lands, ADR 0051).
      *  Declared here so the family is whole; the shipped `land-entry-tapped`
      *  provisional park keeps its own shape until #1980 reconciles the two. */

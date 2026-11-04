@@ -429,6 +429,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "damagedPermanentsThisGame",
             "dashed",
             "dealtDeathtouchDamage",
+            "declinedEntryKeywords",
             "enteredOnTurn",
             "escaped",
             "evoked",

@@ -1796,6 +1796,11 @@ export type CardInstanceState = {
      *  answer owes this object as it enters. Lives only between the answer and
      *  the entry's `applyEntersWithCounters`, which consumes it. */
     acceptedEntryCounters?: Record<string, number>;
+    /** CR 702.136a — the keywords a declined `mayEnterWithCounters` answer owes
+     *  this object as it enters, one per declined instance (CR 702.136b). Lives
+     *  only between the answer and the entry's `applyEntersWithCounters`, which
+     *  consumes it into indefinite layer-6 grants. */
+    declinedEntryKeywords?: string[];
     /** CR 702.103b — true iff this object is currently BESTOWED: it was cast
      *  for its Bestow cost and has not yet ceased to be bestowed
      *  (CR 702.103e–g). Set on the stack item at cast commit
@@ -5983,6 +5988,7 @@ export interface MonarchReturnWatch {
  *  persisted `PendingChoice` (`landEntryAnswers`). */
 export type StagedEntryAnswers = {
     acceptedEntryCounters?: Record<string, number>;
+    declinedEntryKeywords?: string[];
     attachedTo?: string;
     chosenName?: string;
     chosenSubtypes?: string[];

@@ -192,6 +192,9 @@
           "acceptedEntryCounters": {
             "+1/+1": 1
           },
+          "declinedEntryKeywords": [
+            "haste"
+          ],
           "entersAsTypeLine": {
             "types": [
               "Enchantment"
@@ -638,6 +641,9 @@
       "acceptedEntryCounters": {
         "+1/+1": 1
       },
+      "declinedEntryKeywords": [
+        "haste"
+      ],
       "entersAsTypeLine": {
         "types": [
           "Enchantment"

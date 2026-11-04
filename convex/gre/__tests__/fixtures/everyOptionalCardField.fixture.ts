@@ -242,6 +242,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         warpExiledOnTurn: 26,
         enterAttackingTarget: "p2",
         acceptedEntryCounters: { "+1/+1": 1 },
+        declinedEntryKeywords: ["haste"],
         bestowed: true,
         castOffSorceryTiming: true,
         notedManaSpentOnCast: { G: 2 },

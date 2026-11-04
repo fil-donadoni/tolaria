@@ -46,6 +46,7 @@ import { expandMentor } from "../cards/abilities/mentor";
 import { expandMyriad } from "../cards/abilities/myriad";
 import { expandMobilize } from "../cards/abilities/mobilize";
 import { expandUnleash } from "../cards/abilities/unleash";
+import { expandRiot } from "../cards/abilities/riot";
 import {
     expandExtort,
     staticGrantOfKeywordIsExpanded,
@@ -261,7 +262,11 @@ export function isDefinitionLevelKeyword(keyword: string): boolean {
                     expandHideaway(
                         expandFadingVanishing(
                             expandKeywordTriggers(
-                                expandExtort(expandMentor(expandUnleash(bare)))
+                                expandExtort(
+                                    expandMentor(
+                                        expandRiot(expandUnleash(bare))
+                                    )
+                                )
                             )
                         )
                     )
