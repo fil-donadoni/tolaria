@@ -208,7 +208,27 @@ describe("retryDecision — review hardening", () => {
 
     it("unhandled errors beside a tagged FAIL are RED at once", () => {
         expect(
-            retryDecision("test", `${FAIL_ENGINE}\n⎯ Unhandled Errors ⎯\n`)
+            retryDecision("test", `${FAIL_ENGINE}\n⎯⎯⎯ Unhandled Errors ⎯⎯⎯\n`)
+        ).toEqual({
+            refused:
+                "vitest reported an unhandled error the FAIL lines do not explain",
+        });
+    });
+
+    it("a test NAME saying 'unhandled rejection' does not refuse the re-run (issue #8073)", () => {
+        const named =
+            "stdout | src/lib/diagnostics/__tests__/console-ring.test.ts > console ring > captures an uncaught error and an unhandled rejection\n";
+        expect(retryDecision("test", `${FAIL_ENGINE}${named}`)).toHaveProperty(
+            "plan"
+        );
+    });
+
+    it("vitest's 'Vitest caught N unhandled errors' line still refuses (issue #8073)", () => {
+        expect(
+            retryDecision(
+                "test",
+                `${FAIL_ENGINE}\n Vitest caught 2 unhandled errors during the test run.\n`
+            )
         ).toEqual({
             refused:
                 "vitest reported an unhandled error the FAIL lines do not explain",
@@ -254,7 +274,7 @@ describe("a refused retry names its reason (issue #5939)", () => {
             ],
             [
                 TEST_STEP,
-                result(false, `${FAIL_ENGINE}\n⎯ Unhandled Errors ⎯\n`),
+                result(false, `${FAIL_ENGINE}\n⎯⎯⎯ Unhandled Errors ⎯⎯⎯\n`),
                 "vitest reported an unhandled error the FAIL lines do not explain",
             ],
             [
@@ -385,6 +405,23 @@ describe("planLaneRetry — the queue lane's one re-run (issue #5640)", () => {
         expect(plan?.command).toBe(
             "bunx vitest run --project bot-node --project node-engine 'convex/gre/__tests__/stack.test.ts' 'convex/gre/ai/x.bot.test.ts'"
         );
+    });
+
+    it("a test NAME saying 'unhandled rejection' does not refuse the lane re-run (issue #8073)", () => {
+        expect(
+            planLaneRetry(
+                CMD,
+                "stdout | src/lib/diagnostics/__tests__/console-ring.test.ts > console ring > captures an uncaught error and an unhandled rejection\n" +
+                    FAIL
+            )
+        ).not.toBeNull();
+        expect(
+            planLaneRetry(
+                CMD,
+                FAIL +
+                    "\n Vitest caught 1 unhandled error during the test run.\n"
+            )
+        ).toBeNull();
     });
 
     it("names the cause of the first failure", () => {
