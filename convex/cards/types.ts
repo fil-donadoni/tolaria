@@ -7013,7 +7013,7 @@ export interface SpellContext {
         modifications?: { colorOverride?: Color[] }
     ) => string | null;
     /** Copies the CURRENTLY-RESOLVING spell itself — "copy this spell"
-     *  (CR 707.12, Chain Lightning). Clones the resolving stack item, inserts
+     *  (CR 707.10, Chain Lightning). Clones the resolving stack item, inserts
      *  the copy directly above it (so the copy resolves next), and returns the
      *  copy's new stack id — or `null` if the resolving item isn't an
      *  instant/sorcery spell. The copy starts a fresh resolution from step 0
@@ -7032,7 +7032,7 @@ export interface SpellContext {
         controllerId?: string;
     }) => string | null;
     /** Offers this spell's controller the chance to choose new targets for a
-     *  copy created by `copyStackItem` (CR 707.10b — Fork's "you may choose
+     *  copy created by `copyStackItem` (CR 707.10c — Fork's "you may choose
      *  new targets for the copy"). Enters a `copy-retarget` target-selection
      *  phase when the copied spell has a `targetRequirement` that needs at
      *  least one target; otherwise a no-op. Declining the selection
@@ -11681,6 +11681,7 @@ export type GameEventType =
     | "PERMANENT_LEFT"
     | "SPELL_CAST"
     | "SPELL_KICKED"
+    | "SPELL_COPIED"
     | "PERMANENT_TAPPED"
     | "PERMANENT_UNTAPPED"
     | "PERMANENT_EXERTED"
@@ -12042,6 +12043,35 @@ export interface SpellCastEvent {
      *  spellCastTrigger.ts`) reads it. Optional like the field above: a
      *  hand-built fixture without it reads as "no spell of any type yet". */
     casterSpellTypeCountsThisTurn?: Partial<Record<CardType, number>>;
+}
+
+/** "A player copies a spell" (CR 707.10) — one event per copy, emitted by the
+ *  single clone choke point (`cloneSpellOntoStack`, `gre/state.ts`), so every
+ *  producer of a spell copy reports it with no per-producer call. Backs the
+ *  "or copy" half of "whenever you cast or copy an instant or sorcery spell"
+ *  (`spellCastTrigger`'s `alsoOnCopy`). A copy isn't cast (CR 707.10): this is
+ *  never a `SPELL_CAST`, and it advances no spells-cast tally. */
+export interface SpellCopiedEvent {
+    type: "SPELL_COPIED";
+    /** The player who copied the spell — the copy's controller (CR 707.10: "the
+     *  player under whose control it was put on the stack"), who need not be the
+     *  original spell's caster nor the controller of the copying effect. */
+    copierId: string;
+    /** Stack item id of the COPY. */
+    spellInstanceId: string;
+    /** Stack item id of the spell that was copied. */
+    originalSpellInstanceId: string;
+    /** Card definition id the copy shares with the original. */
+    spellCardId: string;
+    /** The copy's card types. */
+    spellTypes: ReadonlyArray<CardType>;
+    /** The copy's card subtypes. */
+    spellSubtypes: ReadonlyArray<string>;
+    /** The copy's own colours — a copying effect may change them (Fork). */
+    spellColors: ReadonlyArray<Color>;
+    /** True when the copy came from a cast-copy trigger (Storm, CR 702.40a;
+     *  Replicate, CR 702.56a) rather than from a spell's effect. */
+    fromCastCopyTrigger: boolean;
 }
 
 /** "A player kicks a spell" (CR 702.33d, issue #1097) — emitted as part of
@@ -12890,6 +12920,7 @@ export type GameEvent =
     | PermanentLeftEvent
     | SpellCastEvent
     | SpellKickedEvent
+    | SpellCopiedEvent
     | PermanentTappedEvent
     | PermanentUntappedEvent
     | PermanentExertedEvent

@@ -42,6 +42,7 @@ import {
     type ManaPersistence,
     type PermanentView,
     type SpellCastEvent,
+    type SpellCopiedEvent,
     type BecameTargetEvent,
     type BecameTargetSourceKind,
     type RecipientDamagePreventionShield,
@@ -12105,17 +12106,20 @@ function normalizeDestroyAllFilter(
     return filter;
 }
 
-/** Shared clone-onto-stack helper for spell-copy primitives (CR 707.10/707.12).
+/** Shared clone-onto-stack helper for spell-copy primitives (CR 707.10).
  *  `original` is the spell being copied; `creator` is the resolving stack item
  *  whose effect creates the copy (Fork's spell, or the resolving spell itself
  *  for "copy this spell"). Returns the copy's new stack id, or `null` when
  *  `original` is an ability or a non-instant/sorcery spell (copies of permanent
  *  spells / abilities are out of scope, CR 707.10).
  *
- *  The copy is controlled by `creator`'s controller (CR 707.10b) and inserted
+ *  The copy is controlled by `creator`'s controller (CR 707.10) and inserted
  *  directly below `creator` on the stack so it becomes the new top once
  *  `creator` is popped — works identically whether `creator` and `original` are
- *  the same object (self-copy) or different. */
+ *  the same object (self-copy) or different.
+ *
+ *  The ONE emit site of `SPELL_COPIED`: every producer funnels through here, so
+ *  each one is observable by triggers without a call of its own. */
 function cloneSpellOntoStack(
     state: GameState,
     original: StackItem,
@@ -12144,7 +12148,7 @@ function cloneSpellOntoStack(
     // A self-copy must start its OWN resolution from step 0 — clear the
     // creator's mid-resolution checkpoint so the copy re-runs every step
     // (including its own may-pay gate) rather than inheriting a half-resolved
-    // state (CR 608.2 / 707.12).
+    // state (CR 608.2 / 707.10).
     delete copy.resolutionStep;
     delete copy.collectedChoices;
     // CR 608.2b (issue #2985) — the copy runs its OWN legality gate against
@@ -12196,7 +12200,7 @@ function cloneSpellOntoStack(
     // nothing paid — and the same hole reaches `castCopySnapshot`, which strips
     // it through the same helper.
     spliceStripped(copy);
-    // CR 707.10b / 707.12 — the copy is controlled by the controller of the
+    // CR 707.10 — the copy is controlled by the controller of the
     // effect that created it (e.g. Fork's controller, or the resolving spell's
     // own controller for "copy this spell"), unless the effect names a specific
     // player as the copier (Chain Lightning: the player who paid {R}{R}). A
@@ -12216,7 +12220,33 @@ function cloneSpellOntoStack(
     const selfIdx = state.stack.findIndex((s) => s.id === creator.id);
     const insertAt = selfIdx === -1 ? state.stack.length : selfIdx;
     state.stack.splice(insertAt, 0, copy);
+    emitSpellCopiedEvent(state, copy, original, creator);
     return copy.id;
+}
+
+/** CR 707.10 / 603.2 — reports one copy to the trigger scan. Colours are read
+ *  through the ONE colour authority (`getEffectiveColors`) after the copy's
+ *  stack layers are derived, exactly as the cast choke point does, so a copy a
+ *  Fork turned red reads red. No tally moves here: a copy of a spell isn't cast. */
+function emitSpellCopiedEvent(
+    state: GameState,
+    copy: StackItem,
+    original: StackItem,
+    creator: StackItem
+): void {
+    syncStackObjectLayers2to5(state, copy);
+    const event: SpellCopiedEvent = {
+        type: "SPELL_COPIED",
+        copierId: copy.controllerId,
+        spellInstanceId: copy.id,
+        originalSpellInstanceId: original.id,
+        spellCardId: (copy.card as { id: string }).id,
+        spellTypes: copy.types,
+        spellSubtypes: copy.subtypes,
+        spellColors: getEffectiveColors(copy as unknown as PermanentView),
+        fromCastCopyTrigger: creator.castCopySnapshot !== undefined,
+    };
+    state.pendingEvents = [...(state.pendingEvents ?? []), event];
 }
 
 /** CR 707.10c — offers `copy`'s controller a chance to choose new
@@ -17923,7 +17953,7 @@ export function buildSpellContext(
             return cloneSpellOntoStack(state, original, item, modifications);
         },
         copyResolvingSpell(modifications): string | null {
-            // CR 707.12 — "copy this spell". A resolving spell that copies
+            // CR 707.10 — "copy this spell". A resolving spell that copies
             // ITSELF (Chain Lightning, Backdraft-likes) clones `item`, the
             // currently-resolving stack object, rather than a different spell
             // still on the stack (that's `copyStackItem`). During a stepped

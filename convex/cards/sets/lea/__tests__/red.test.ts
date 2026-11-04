@@ -2568,7 +2568,7 @@ describe("Fork (copy target instant or sorcery spell, CR 707.10)", () => {
         expect(copy.isCopy).toBe(true);
         expect((copy.card as { id: string }).id).toBe(lightningBolt.id);
         expect(copy.id).not.toBe(bolt.id);
-        // The copy inherits the original's targets (CR 707.10b default).
+        // The copy inherits the original's targets (CR 707.10).
         expect(copy.targets).toEqual([{ type: "player", id: "p1" }]);
     });
 
@@ -2597,7 +2597,7 @@ describe("Fork (copy target instant or sorcery spell, CR 707.10)", () => {
         expect(STATIC_EFFECT_CTX.getColors(state.stack[0])).toContain("U");
     });
 
-    it("caster may choose new targets for the copy (CR 707.10b)", () => {
+    it("caster may choose new targets for the copy (CR 707.10c)", () => {
         const state = makeState();
         const bolt = pushSpell(state, lightningBolt.id, "p2", [
             { type: "player", id: "p1" }, // original targets p1
@@ -2630,7 +2630,7 @@ describe("Fork (copy target instant or sorcery spell, CR 707.10)", () => {
         ).toEqual([fork.id]);
     });
 
-    it("copy resolves with the original targets if no re-selection (CR 707.10b)", () => {
+    it("copy resolves with the original targets if no re-selection (CR 707.10c)", () => {
         const state = makeState();
         pushSpell(state, lightningBolt.id, "p2", [
             { type: "player", id: "p1" },

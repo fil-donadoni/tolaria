@@ -987,11 +987,11 @@ describe("Caverns of Despair (CR 508.1a / 509.1a — global combat caps)", () =>
 // ---------------------------------------------------------------------------
 // Chain Lightning — 3 damage to any target, then the damaged player / that
 // permanent's controller may pay {R}{R} to copy this spell and retarget the
-// copy (CR 119 damage, CR 608.2 stepped resolution, CR 707.12 "copy this
+// copy (CR 119 damage, CR 608.2 stepped resolution, CR 707.10 "copy this
 // spell"). Exercises the `dealDamage` bind + `mayPay` + `copyResolvingSpell`
 // script end to end.
 // ---------------------------------------------------------------------------
-describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
+describe("Chain Lightning (CR 119 / 608.2 / 707.10)", () => {
     type Targets = NonNullable<StackItem["targets"]>;
 
     // Mirrors finalizeTargetSelection's "copy-retarget" branch in
@@ -1069,7 +1069,7 @@ describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
         expect(head?.playerId).toBe("p2");
     });
 
-    it("declining the may-pay does nothing further (CR 707.12)", () => {
+    it("declining the may-pay does nothing further (CR 707.10)", () => {
         const state = makeState();
         pushSpell(state, chainLightning.id, "p1", [
             { type: "player", id: "p2" },
@@ -1138,7 +1138,7 @@ describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
         expect(allGy.some((c) => c.id === copy.id)).toBe(false);
     });
 
-    it("the copy can chain again when its damaged player pays (CR 707.12)", () => {
+    it("the copy can chain again when its damaged player pays (CR 707.10)", () => {
         const state = makeState({
             players: [
                 makePlayer("p1", {

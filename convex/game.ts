@@ -4835,7 +4835,7 @@ export function finalizeTargetSelection(
     pt: PendingTarget,
     playerId: string
 ): void {
-    // CR 707.10b / 115.7 / 603.3d (issue #2283) — the three ENGINE-RAISED
+    // CR 707.10c / 115.7 / 603.3d (issue #2283) — the three ENGINE-RAISED
     // origins (`"copy-retarget"` / `"retarget"` / `"trigger"`) write their
     // targets onto an object already on the stack and pay nothing. They live in
     // `gre/pendingTargetOrigin.ts` as the SINGLE AUTHORITY, because the bot's
@@ -10930,7 +10930,7 @@ export const cancelTarget = mutation({
             return;
         }
 
-        // CR 707.10b / 115.7 — declining a copy-retarget OR an original-spell
+        // CR 707.10c / 115.7 — declining a copy-retarget OR an original-spell
         // retarget (Reflecting Mirror) is not aborting a cast: the targeted
         // spell stays on the stack with its current targets and a fresh
         // priority round begins (the copying / retargeting effect has already
@@ -12928,7 +12928,7 @@ export const passPriority = mutation({
                 // than submitResolutionChoice.
                 state.priorityPlayerId = state.pendingChoices![0].playerId;
             } else if (state.pendingTarget) {
-                // Resolution requested a copy-retarget (CR 707.10b, Fork).
+                // Resolution requested a copy-retarget (CR 707.10c, Fork).
                 // Hand priority to the chooser; only target-selection
                 // mutations are legal until they choose or decline.
                 state.priorityPlayerId = state.pendingTarget.playerId;

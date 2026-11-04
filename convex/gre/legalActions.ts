@@ -163,7 +163,7 @@ export type TargetAction =
     | { kind: "confirm-targets" }
     /** Abort target selection (`cancelTarget`) — legal at any point of the
      *  selection (CR 601.2g; for retarget kinds it declines the retarget,
-     *  CR 707.10b / 115.7). */
+     *  CR 707.10c / 115.7). */
     | { kind: "cancel-target" };
 
 /** Actions legal while the game waits for `blockers` input (CR 509.1): one
@@ -384,7 +384,7 @@ function targetActions(
     }
 
     // Aborting the selection is always legal for the chooser (CR 601.2g;
-    // declining a retarget, CR 707.10b / 115.7).
+    // declining a retarget, CR 707.10c / 115.7).
     actions.push(wrap({ kind: "cancel-target" }));
     return actions;
 }

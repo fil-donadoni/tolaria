@@ -3083,7 +3083,7 @@ function comboSharesController(
     return true;
 }
 
-/** CR 603.3d / 115.7 / 707.10b (issue #2283) — every legal answer to the
+/** CR 603.3d / 115.7 / 707.10c (issue #2283) — every legal answer to the
  *  ENGINE-RAISED pending target selection `playerId` owes right now.
  *
  *  Returns `[]` when there is no such selection: no pending target, one owed to
@@ -6049,7 +6049,7 @@ export function enumerateMoves(
         );
     }
 
-    // CR 603.3d / 115.7 / 707.10b (issue #2283) — an ENGINE-RAISED target
+    // CR 603.3d / 115.7 / 707.10c (issue #2283) — an ENGINE-RAISED target
     // selection is a first-class decision node, exactly like the pending choice
     // above: the engine opened it AT its owner during resolution, it freezes
     // priority, and nothing else the owner could do is legal until it is

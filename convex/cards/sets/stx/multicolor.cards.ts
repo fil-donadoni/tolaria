@@ -2,6 +2,7 @@
 // registry's `import * as stx from "./sets/stx/index.cards"` re-exports this module.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 import { defineCard, type SpellContext } from "../../types";
+import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 
 // Expressive Iteration — {U}{R} Sorcery. "Look at the top three cards of your
 // library. Put one of them into your hand, put one of them on the bottom of
@@ -81,26 +82,33 @@ export const expressiveIteration = defineCard(() => ({
     },
 }));
 
-// Witherbloom Apprentice — {B}{G} Creature — Human Druid, 2/2 (Vintage Cube
-// edict/discard/hand disruption, issue #682). "Magecraft — Whenever you cast
-// or copy an instant or sorcery spell, each opponent loses 1 life and you
-// gain 1 life." Blocked: the "or copy" half of Magecraft has no trigger
-// source. `SPELL_CAST` (a `GameEventType`) fires on an original cast, but the
-// primitives that create a spell copy (`copyStackItem` / `copyResolvingSpell`,
-// backed by `cloneSpellOntoStack`, `convex/gre/state.ts`) emit NO event at
-// all for the copy — a "cast or copy" trigger can only ever see the cast
-// half, silently dropping the copy half (never ship partial). Needs a
-// `SPELL_COPIED` event (or `SPELL_CAST` emitted for copies too) before any
-// Magecraft-class card can ship. #931 (the card-list residue this was
-// split from) is CLOSED and decomposed; the capability lives at #2087.
-// tracked-by: #2087
-// export const witherbloomApprentice: CardDefinition = {
-//     id: "7f80a11b-188b-464c-b00d-c9d1cfb8ddee",
-//     name: "Witherbloom Apprentice",
-//     rarity: "common",
-//     manaCost: { B: 1, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Druid"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Witherbloom Apprentice — {B}{G} Creature — Human Druid, 2/2. Magecraft is one
+// triggered ability on both `SPELL_CAST` and `SPELL_COPIED` (CR 707.10, CR
+// 603.2). Two-player engine, so `"opponent"` IS "each opponent".
+// hand-tail: Magecraft — Whenever you cast or copy an instant or sorcery spell, each opponent loses 1 life and you gain 1 life. (#2087)
+export const witherbloomApprentice = defineCard(() => ({
+    id: "7f80a11b-188b-464c-b00d-c9d1cfb8ddee",
+    name: "Witherbloom Apprentice",
+    rarity: "uncommon",
+    oracleText:
+        "Magecraft — Whenever you cast or copy an instant or sorcery spell, each opponent loses 1 life and you gain 1 life.",
+    manaCost: { B: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Druid"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "witherbloom-apprentice-magecraft",
+            oracleText:
+                "Magecraft — Whenever you cast or copy an instant or sorcery spell, each opponent loses 1 life and you gain 1 life.",
+            scope: "you",
+            alsoOnCopy: true,
+            filter: { types: ["Instant", "Sorcery"] },
+            effects: [
+                { op: "loseLife", player: "opponent", amount: 1 },
+                { op: "gainLife", player: "controller", amount: 1 },
+            ],
+        }),
+    ],
+}));
