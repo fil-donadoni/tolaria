@@ -14,6 +14,7 @@ import type {
     GameState,
     PlayerState,
 } from "./state";
+import { phasingTurnBasedAction } from "./phasing";
 import type { ContinuousEffect } from "./continuousEffects";
 import { MAX_HAND_SIZE, isPlaneswalker } from "./constants";
 import { syncLayer6 } from "./layer6";
@@ -46,12 +47,12 @@ import {
     processPendingActionTriggers,
     getOpponentId,
     getPlayer,
-    phaseInUntapCycleBundles,
     isCombatDamageImmune,
     anyDamageLockOnBoard,
     isDamageLockedTarget,
     isDamageUnpreventableThisTurn,
     matchesPermanentFilter,
+    phasedOutPermanents,
     discardToGraveyard,
     manaPersistenceSurvives,
     resolveTopOfStack,
@@ -470,20 +471,15 @@ export function untapStep(state: GameState): void {
         (r) => r.restriction.skipsStep === true
     );
 
-    // CR 502.1 / 702.26c,f — the phasing turn-based action happens at the very
-    // start of the untap step, BEFORE the active player untaps. Phase in this
-    // player's `untap-cycle` bundles now, so a phased-in permanent is on the
-    // battlefield in time for the untap (and any untap restrictions) below: if
-    // it phased out tapped it untaps here like everything else; if untapped it
-    // simply stays. Runs once per untap step (first entry only — a
-    // restriction-prompt re-entry must not repeat it). The skip-first-untap
-    // guard inside honours CR 702.26f: a permanent phased out THIS turn waits
-    // for the controller's NEXT untap step, not the same turn's.
-    if (
-        (state.pendingUntapStep?.restrictionCursor ?? 0) === 0 &&
-        !stepSkipped
-    ) {
-        phaseInUntapCycleBundles(state, state.activePlayerId);
+    // CR 502.1 / 702.26a — the phasing turn-based action happens at the very
+    // start of the untap step, BEFORE the active player untaps, so a permanent
+    // that phases in is there for the untap (and any restrictions) below.
+    // CR 702.26m — a skipped step has no phasing event. First entry only: the
+    // toggle is not idempotent, and `pendingUntapStep` is set by every prompt
+    // that re-enters here (an optional-untap prompt with no restriction before
+    // it re-enters with `restrictionCursor` still 0).
+    if (!state.pendingUntapStep && !stepSkipped) {
+        phasingTurnBasedAction(state, state.activePlayerId);
         // CR 502.3 / 502.4 (issue #5509) — "during your next untap step, as
         // you untap your permanents, return it to its owner's hand": part of
         // the untap turn-based action itself (no stack, no priority; the
@@ -2945,6 +2941,12 @@ export function finalizeCleanup(state: GameState): void {
             clearCardFieldsAt(card, "turn");
         }
     }
+    // CR 514.2 — "all damage marked on permanents (including phased-out
+    // permanents) is removed". The rest of the row's `turn` scope ends with it:
+    // nothing it holds outlives the turn, phased out or not.
+    for (const card of phasedOutPermanents(state)) {
+        clearCardFieldsAt(card, "turn");
+    }
 
     // CR 514 / 608.2h (ADR 0086) — prune the last-known copiable-values store
     // on a TWO-TURN window. It covers every referent that exists TODAY: a
@@ -3254,6 +3256,16 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
  *  scoped to a different boundary are left untouched. The turn-scoped GLOBAL
  *  flags carry no such parameter and are gated as a class — see
  *  {@link TURN_SCOPED_GLOBAL_FLAGS}. */
+/** CR 702.26f — a duration keeps counting on a phased-out permanent, so an
+ *  effect may expire while it is out and no longer affect it once it is back.
+ *  Re-read per loop: a layer recompute inside a purge can move permanents. */
+function permanentsForDurationTick(state: GameState): CardInstanceState[][] {
+    return [
+        ...state.players.map((p) => p.battlefield),
+        phasedOutPermanents(state),
+    ];
+}
+
 /** CR 611.2a / 514.2 / 511.3 — one phase-boundary tick over the Continuous
  *  Effects Registry (ADR 0082, PRD #2064 S6).
  *
@@ -3327,8 +3339,8 @@ function tickAllDurations(state: GameState): void {
     // (CR 707.4 — a copy-to-copy change triggers nothing and leaves every
     // noncopy effect in place). First, because every later purge in this
     // function replays over layer 1.
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
+    for (const cards of permanentsForDurationTick(state)) {
+        for (const card of cards) {
             const ledger = card.timedCopyEffects;
             if (!ledger) continue;
             const survivors: typeof ledger.effects = [];
@@ -3359,8 +3371,8 @@ function tickAllDurations(state: GameState): void {
         auraId: string;
         tapOnLoss: boolean;
     }> = [];
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
+    for (const cards of permanentsForDurationTick(state)) {
+        for (const card of cards) {
             if (!card.controlChanges?.length) continue;
             for (const entry of card.controlChanges) {
                 if (!entry.duration) continue;
@@ -3414,8 +3426,8 @@ function tickAllDurations(state: GameState): void {
     // #1972 — "gains 'This creature attacks each combat if able' until end of
     // turn"). An indefinite grant carries no `duration` and passes through
     // unchanged; it ends only when the permanent leaves the battlefield.
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
+    for (const cards of permanentsForDurationTick(state)) {
+        for (const card of cards) {
             if (!card.grantedAttackRequirements?.length) continue;
             const kept: typeof card.grantedAttackRequirements = [];
             for (const grant of card.grantedAttackRequirements) {
@@ -3434,8 +3446,8 @@ function tickAllDurations(state: GameState): void {
     // "gains rampage 2 until end of turn"). Aura-sourced grants carry an
     // `auraId` and no `duration`; they're managed by the aura's lifetime
     // (stopApplyingStaticEffects) and pass through this purge unchanged.
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
+    for (const cards of permanentsForDurationTick(state)) {
+        for (const card of cards) {
             if (!card.grantedTriggeredAbilities?.length) continue;
             const kept: typeof card.grantedTriggeredAbilities = [];
             for (const grant of card.grantedTriggeredAbilities) {
@@ -3456,8 +3468,8 @@ function tickAllDurations(state: GameState): void {
     // managed by the aura's lifetime (stopApplyingStaticEffects) and pass
     // through this purge unchanged. Nothing to splice out of `staticAbilities`
     // — a granted activated ability lives only in `grantedActivatedAbilities`.
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
+    for (const cards of permanentsForDurationTick(state)) {
+        for (const card of cards) {
             if (!card.grantedActivatedAbilities?.length) continue;
             const kept: typeof card.grantedActivatedAbilities = [];
             for (const grant of card.grantedActivatedAbilities) {
@@ -3579,8 +3591,8 @@ function tickAllDurations(state: GameState): void {
     // "Becomes a creature" animations (e.g. Jade Statue). On expiry, splice
     // back out anything the animation added and restore the pre-animation
     // P/T so the permanent returns to its original shape.
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
+    for (const cards of permanentsForDurationTick(state)) {
+        for (const card of cards) {
             if (!card.animation) continue;
             // CR 611.2b — an animation with no stored `duration` is INDEFINITE
             // (Earthbend N's "becomes a 0/0 creature ... that's still a land",
@@ -3600,8 +3612,8 @@ function tickAllDurations(state: GameState): void {
     // Timed subtype changes (CR 305.7 / 611.2 — Orcish Farmer "becomes a Swamp
     // until its controller's next untap step"). On expiry, restore the captured
     // printed subtypes so subtype-driven reads (intrinsic mana, landwalk) revert.
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
+    for (const cards of permanentsForDurationTick(state)) {
+        for (const card of cards) {
             const change = card.temporarySubtypeChange;
             if (!change) continue;
             const next = tickDuration(change.duration, view);
@@ -3624,8 +3636,8 @@ function tickAllDurations(state: GameState): void {
     // "becomes the color of your choice until end of turn"). Each ledger row
     // ends at its own boundary (issue #2936, CR 613.7); what remains shows
     // through — mirrors the temporarySubtypeChange purge above.
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
+    for (const cards of permanentsForDurationTick(state)) {
+        for (const card of cards) {
             tickColorOverrideLedger(card, (d) => tickDuration(d, view));
         }
     }

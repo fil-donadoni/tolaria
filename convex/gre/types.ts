@@ -217,12 +217,11 @@ export type LookDistributeDestination = LibraryDestination | "exile";
  *  `"library-top"` (Thassa's Oracle) or `"battlefield"` (issue #3249, Aang, at
  *  the Crossroads — put, never cast: CR 400.7 zone change). */
 export type LookDistributeKeepTo = "hand" | "library-top" | "battlefield";
-/** CR 702.26 — condition under which a phased-out bundle phases back in. A
- *  discriminated union so future phasing variants stay expressible:
+/** CR 702.26 — condition under which a phased-out bundle phases back in:
  *   - `source-leaves` (Oubliette): phase in when the named source leaves the
  *     battlefield (driven by `removePermanentTo`'s source-leaves hook).
- *   - `untap-cycle` (keyword phasing — Teferi's Veil): the untap-step
- *     phase-in/out loop. Expressible but unused — deferred (PRD #171). */
+ *   - `untap-cycle`: the controller's next untap step (CR 702.26a), both for the
+ *     keyword's toggle (`gre/phasing.ts`) and for the `phaseOut` Op. */
 export type PhaseReturnCondition =
     | { kind: "source-leaves"; sourceId: string }
     | { kind: "untap-cycle" };

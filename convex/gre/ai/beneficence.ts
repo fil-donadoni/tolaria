@@ -188,6 +188,11 @@ function collectScriptSigns(
     }
 }
 
+/** Keywords whose grant is an attack on the permanent that receives them.
+ *  CR 702.26a — phasing takes the host out of the game every other turn of its
+ *  controller. */
+const DRAWBACK_KEYWORDS: ReadonlySet<string> = new Set(["phasing"]);
+
 /** The sign an AURA carries for the controller of the permanent it enchants
  *  (CR 303.4). An aura's payoff is continuous / triggered, never a resolution
  *  script, so the script walk above sees nothing — read the attachment
@@ -215,6 +220,13 @@ function auraAttachmentSign(def: CardDefinition): Beneficence {
                 break;
             }
             case "keyword-grant":
+                sign = mergeSign(
+                    sign,
+                    DRAWBACK_KEYWORDS.has(effect.keyword)
+                        ? "harmful"
+                        : "beneficial"
+                );
+                break;
             case "activated-grant":
             case "triggered-grant":
                 sign = mergeSign(sign, "beneficial");

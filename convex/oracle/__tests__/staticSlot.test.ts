@@ -15,6 +15,7 @@ import {
     resolveCompiledStatic,
     type CompiledStaticEffect,
 } from "../../cards/compiledStatics";
+import { MECHANICS_REGISTRY } from "../../cards/mechanicsRegistry";
 import { withTemporaryDefinition } from "../../cards/registry";
 import type {
     CardDefinition,
@@ -722,12 +723,28 @@ describe("lowering", () => {
         expect(outcome.state).toBe("ready");
     });
 
+    it("ships a grant of phasing, which the untap step reads live (CR 702.26a)", () => {
+        const outcome = compileCard(
+            oracle({ oracleText: "Creatures you control have phasing." })
+        );
+        expect(outcome.state).toBe("ready");
+    });
+
     it("QUARANTINES a grant of a keyword the engine has not implemented", () => {
         // CR 702.1 — a granted keyword is censused exactly like a printed one.
         // Without this the card would ship `ready` with a grant that does
         // nothing, which is the Guard A shape (#962) one level removed.
+        // The keyword is read off the registry, never named here: a literal
+        // would go red the day that keyword ships, with this rule unbroken.
+        const planned = MECHANICS_REGISTRY.find(
+            (row) => row.kind === "keyword-ability" && row.status === "planned"
+        );
+        if (!planned)
+            throw new Error("no planned keyword left in the registry");
         const outcome = compileCard(
-            oracle({ oracleText: "Creatures you control have phasing." })
+            oracle({
+                oracleText: `Creatures you control have ${planned.name.toLowerCase()}.`,
+            })
         );
         expect(outcome.state).toBe("quarantine");
         if (outcome.state !== "quarantine") return;

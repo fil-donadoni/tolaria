@@ -9660,6 +9660,16 @@
         "firstPrintSet": "dis"
     },
     {
+        "name": "Breezekeeper",
+        "scryfallId": "beaefa77-6e4a-4724-a443-fa6b45803db5",
+        "oracleId": "138439ad-76c6-4d75-8025-e68b94f68fa3",
+        "firstSet": "vis",
+        "firstPrintId": "beaefa77-6e4a-4724-a443-fa6b45803db5",
+        "firstPrintSet": "vis",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Briarpack Alpha",
         "scryfallId": "a052e945-7535-4b0a-b580-cf76377633f3",
         "oracleId": "5604c475-6e01-4e9d-b4e6-8e8d72874581",
@@ -46787,6 +46797,16 @@
         "source": "compiled"
     },
     {
+        "name": "Merfolk Raiders",
+        "scryfallId": "d0f34166-8946-4bcc-84af-3540c42ac7f7",
+        "oracleId": "19edc98c-edc2-47bf-b2da-00f536d7c158",
+        "firstSet": "mir",
+        "firstPrintId": "d0f34166-8946-4bcc-84af-3540c42ac7f7",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Merfolk Seastalkers",
         "scryfallId": "4fe5d069-45a0-46ea-b3ec-4e75f0531382",
         "oracleId": "86d592e1-4b2d-4411-9370-48326cf55cf1",
@@ -63272,6 +63292,16 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Sandbar Crocodile",
+        "scryfallId": "450b79d9-5ab8-4699-8052-a278c316a5c3",
+        "oracleId": "e11926bf-ca14-4e1e-aca5-9ffedb91868c",
+        "firstSet": "mir",
+        "firstPrintId": "450b79d9-5ab8-4699-8052-a278c316a5c3",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Sandbar Merfolk",
         "scryfallId": "65ce3960-abf1-4f28-8434-ab3b27d3b7cb",
         "oracleId": "7d6e5a88-a7fd-466c-a9f8-5015e3400176",
@@ -76328,6 +76358,36 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Teferi's Curse",
+        "scryfallId": "fb813ef5-8441-4024-a585-1ea24145e1bd",
+        "oracleId": "6e422d5e-d9f5-492d-b82a-31f7274d4153",
+        "firstSet": "mir",
+        "firstPrintId": "fb813ef5-8441-4024-a585-1ea24145e1bd",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Teferi's Drake",
+        "scryfallId": "c24823df-5651-4578-a0c8-f9f52f66abe4",
+        "oracleId": "3605c5ac-3b35-41a5-9266-286fb1d11716",
+        "firstSet": "mir",
+        "firstPrintId": "c24823df-5651-4578-a0c8-f9f52f66abe4",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Teferi's Isle",
+        "scryfallId": "b6ed7ca8-fd91-46e3-9149-a3de23c7078e",
+        "oracleId": "ce55657d-d82f-4528-a83e-5cad7de111fd",
+        "firstSet": "mir",
+        "firstPrintId": "b6ed7ca8-fd91-46e3-9149-a3de23c7078e",
+        "firstPrintSet": "mir",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Teferi's Moat",
         "scryfallId": "9ed5845c-ef6d-4a7b-b725-b09d3e9bbc17",
         "oracleId": "dafd319e-1d4a-4e08-9167-a82ad8670f6f",
@@ -79110,6 +79170,16 @@
         "firstSet": "usg",
         "firstPrintId": "ad7ac9a5-340f-4509-826c-7b9416d47887",
         "firstPrintSet": "usg"
+    },
+    {
+        "name": "Tolarian Drake",
+        "scryfallId": "e04bba8a-48ee-4981-adc2-4f82c0f2c1bd",
+        "oracleId": "d999f2a3-5cb4-4f12-a79a-c5db0a300620",
+        "firstSet": "wth",
+        "firstPrintId": "e04bba8a-48ee-4981-adc2-4f82c0f2c1bd",
+        "firstPrintSet": "wth",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Tolarian Geyser",
