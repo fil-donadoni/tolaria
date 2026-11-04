@@ -52592,6 +52592,7 @@
         {"id":"702.94a","line":"// - `gre/miracle.ts` (1) — the Miracle reveal window (CR 702.94a) pins the","sites":1,"status":"confirmed","ruleHash":"a60572195b3a47a2"},
         {"id":"702.94a","line":"// CR 118.9 — an alternative cost (the miracle cost, CR 702.94a) is paid","sites":1,"status":"confirmed","ruleHash":"a60572195b3a47a2"},
         {"id":"702.94a","line":"// CR 400.3 + CR 702.94a — \"Return all nonland permanents to their owners' hands\", a bounce sweep under a type exclusion, beside a Miracle line. Exhibits the sweep `moveZone` of `$each` over `excludeType: \"Land\"` the canned smoke scenario cannot model (issue #1267); the miracle cost lands on `CardDefinition.miracle`.","sites":1,"status":"confirmed","ruleHash":"a60572195b3a47a2"},
+        {"id":"702.94a","line":"// CR 702.94a (issue #1267) — the miracle reveal window, stackless as the","sites":1,"status":"confirmed","ruleHash":"a60572195b3a47a2"},
         {"id":"702.94a","line":"// CR 702.94a / 603.11 — the triggered ability LINKED to a card's miracle","sites":1,"status":"confirmed","ruleHash":"a60572195b3a47a2"},
         {"id":"702.94a","line":"// CR 702.94a / 603.3 — an open STACKLESS miracle reveal window belongs to","sites":1,"status":"confirmed","ruleHash":"a60572195b3a47a2"},
         {"id":"702.94a","line":"// CR 702.94a — Miracle is the `miracle` cost; the reveal window and the","sites":1,"status":"confirmed","ruleHash":"a60572195b3a47a2"},
