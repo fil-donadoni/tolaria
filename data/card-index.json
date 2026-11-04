@@ -23518,6 +23518,16 @@
         "source": "compiled"
     },
     {
+        "name": "Enraged Revolutionary",
+        "scryfallId": "dffcd035-e7e7-4763-813c-5e4193cdb893",
+        "oracleId": "f4b8e856-17a9-44db-bce6-312a6bd2af32",
+        "firstSet": "cns",
+        "firstPrintId": "dffcd035-e7e7-4763-813c-5e4193cdb893",
+        "firstPrintSet": "cns",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Enslaved Scout",
         "scryfallId": "ea21414e-65f7-4d65-b0dc-7fec7b9b416d",
         "oracleId": "f39a3798-1ff0-4d1b-933f-bfcc0f265168",
@@ -33007,6 +33017,16 @@
         "firstPrintId": "5fa7a8dc-67b3-4f96-af6e-98bb0a052d92",
         "firstPrintSet": "spe",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Grenzo's Cutthroat",
+        "scryfallId": "9bb46638-eeb2-4bb3-bef2-bedd343722ef",
+        "oracleId": "9a133991-8a7a-4bfd-b0ae-d76433450c03",
+        "firstSet": "cns",
+        "firstPrintId": "9bb46638-eeb2-4bb3-bef2-bedd343722ef",
+        "firstPrintSet": "cns",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -45508,6 +45528,26 @@
         "firstPrintId": "983f7521-16e3-4057-a482-7d86392daa57",
         "firstPrintSet": "ths",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Marchesa's Emissary",
+        "scryfallId": "567a2444-30c4-49aa-a1f4-b5f4fb98d6fa",
+        "oracleId": "7a67cb39-6b53-4f2b-a52c-3861119eba12",
+        "firstSet": "cns",
+        "firstPrintId": "567a2444-30c4-49aa-a1f4-b5f4fb98d6fa",
+        "firstPrintSet": "cns",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Marchesa's Infiltrator",
+        "scryfallId": "e9ac1e2c-1b9c-43b8-819e-9b391967e16c",
+        "oracleId": "9f05fab1-398a-4bd1-824d-6b1373dc9a94",
+        "firstSet": "cns",
+        "firstPrintId": "e9ac1e2c-1b9c-43b8-819e-9b391967e16c",
+        "firstPrintSet": "cns",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

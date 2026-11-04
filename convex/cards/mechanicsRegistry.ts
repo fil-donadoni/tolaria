@@ -1822,7 +1822,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Dethrone",
         kind: "keyword-ability",
         cr: "702.105",
-        status: "planned",
+        status: "implemented",
+        binding: "dethrone",
+        note: "Issue #4008. convex/cards/abilities/dethrone.ts: a triggered keyword derived from the live layer-6 `staticAbilities` multiset (`liveKeywordTriggers.ts`), because a grant can carry it; each occurrence is one CR 702.105b instance. Reads `combat.attackTargets` and both life totals at ATTACKERS_DECLARED; the body is the shipped `counters` Op on `$source`.",
     },
     // 702.106 Hidden Agenda
     {

@@ -773,6 +773,31 @@
         "turn": 3,
         "libraryCount": 20
     },
+    "dethrone: swings for the lethal only the counter provides, tied for most life": {
+        "cards": [
+            {
+                "name": "Enraged Revolutionary",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true,
+                "summoningSick": false
+            }
+        ],
+        "phase": "DECLARE_ATTACKERS",
+        "turn": 5,
+        "landCount": 3,
+        "libraryCount": 20,
+        "life": {
+            "me": 3,
+            "opp": 3
+        }
+    },
     "discriminating pair: activates Triangle of War with a 6/6 beside the 1/1 against a 4/4": {
         "cards": [
             {

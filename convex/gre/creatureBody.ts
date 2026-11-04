@@ -63,6 +63,9 @@ const KEYWORD_BONUS: Record<string, (power: number) => number> = {
     // Flanking (CR 702.25): its trigger lives on no definition, so no script
     // prices it; a discount on every block, same order as a rampage.
     flanking: () => 6,
+    // Dethrone (CR 702.105): same reason; a counter on most swings, worth about
+    // what a permanent +1/+1 is once, discounted for the life condition.
+    dethrone: () => 8,
     shadow: (p) => 10 * p,
     // Combat amplifiers — value grows with power.
     trample: (p) => 5 * p,
@@ -207,6 +210,7 @@ const ATTACK_SHARE_KEYWORDS: ReadonlySet<string> = new Set([
     "double-strike",
     "infect",
     "flanking",
+    "dethrone",
 ]);
 const BLOCK_SHARE_KEYWORDS: ReadonlySet<string> = new Set(["reach"]);
 
