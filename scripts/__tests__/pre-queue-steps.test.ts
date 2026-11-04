@@ -453,8 +453,16 @@ describe("isTimeoutOnlyRed / runPreQueue — timeouts under load (issue #8063)",
         ` FAIL  node-engine b.test.ts > ${name}\nAssertionError: expected 1 to be 2\n`;
 
     it("all failures timeouts → true; one assertion beside them → false", () => {
-        expect(isTimeoutOnlyRed(timeout("a") + timeout("b"))).toBe(true);
-        expect(isTimeoutOnlyRed(timeout("a") + assertion("c"))).toBe(false);
+        expect(
+            isTimeoutOnlyRed(
+                timeout("a") + timeout("b") + "      Tests  2 failed (2)\n"
+            )
+        ).toBe(true);
+        expect(
+            isTimeoutOnlyRed(
+                timeout("a") + assertion("c") + "      Tests  2 failed (2)\n"
+            )
+        ).toBe(false);
         expect(isTimeoutOnlyRed("")).toBe(false);
         expect(isTimeoutOnlyRed("error: tsc failed")).toBe(false);
     });
@@ -476,13 +484,16 @@ describe("isTimeoutOnlyRed / runPreQueue — timeouts under load (issue #8063)",
         });
 
     it("a vitest step red only by timeouts reports timeoutOnly", () => {
-        const r = run(timeout("a"));
+        const r = run(timeout("a") + "      Tests  1 failed (1)\n");
         expect(r.failed).not.toBeNull();
         expect(r.timeoutOnly).toBe(true);
     });
 
     it("an assertion failure beside timeouts is not timeoutOnly", () => {
-        expect(run(timeout("a") + assertion("c")).timeoutOnly).toBe(false);
+        expect(
+            run(timeout("a") + assertion("c") + "      Tests  2 failed (2)\n")
+                .timeoutOnly
+        ).toBe(false);
     });
 
     it("a red step with no output (a script) is not timeoutOnly", () => {

@@ -23,6 +23,8 @@ import {
     type LanePlan,
     type PlannedCheck,
 } from "../check-lane";
+import { CRASH_LINE, stripAnsi } from "./health-evidence";
+import { timeoutOnlyFailure } from "./health-retry";
 
 /** Steps the lane plans that are NOT seconds-cost, by id, with the reason. */
 export const EXCLUDED_FROM_PRE_QUEUE: Readonly<Record<string, string>> = {
@@ -161,24 +163,19 @@ export function notSecondsCost(
     return null;
 }
 
-const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
-
 /**
  * True when a failed vitest run's output holds failures and EVERY one is a
  * timeout (issue #8063): a `Test timed out` under load says nothing the
  * queue's own lane will not re-judge. One assertion beside them, an
- * unhandled error, or no readable failure at all → false (still a refusal).
+ * unhandled error, a crash, or no readable failure at all → false (still a
+ * refusal). The reading is health's own (`timeoutOnlyFailure`) — one
+ * authority for "timeouts only".
  */
 export function isTimeoutOnlyRed(output: string): boolean {
-    const text = output.replace(ANSI, "");
+    const text = stripAnsi(output);
     if (/Unhandled (Errors?|Rejections?)/i.test(text)) return false;
-    const blocks = text.split(/^\s*FAIL\s+/m).slice(1);
-    if (blocks.length === 0) return false;
-    return blocks.every((b) =>
-        /^\s*(?:\w*Error: )?(?:Test|Hook) timed out in \d+ms/m.test(
-            b.split("\n").slice(1).join("\n")
-        )
-    );
+    if (CRASH_LINE.test(text)) return false;
+    return timeoutOnlyFailure(text);
 }
 
 /**
