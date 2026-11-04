@@ -15,7 +15,14 @@ describe("health:status over a RED", () => {
     beforeEach(() => {
         dir = mkdtempSync(join(tmpdir(), "health-status-"));
     });
-    afterEach(() => rmSync(dir, { recursive: true, force: true }));
+    afterEach(() =>
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
 
     const status = (description: string): string => {
         const gh = fakeGh(dir);
