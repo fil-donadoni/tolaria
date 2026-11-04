@@ -7084,6 +7084,7 @@ const OP_SCHEMAS: OpSchemaTable = {
         optional: {
             target: isObjectSelector,
             attacker: isObjectSelector,
+            scope: (v) => v === "turn" || v === "combat",
         },
         check: (entry) => {
             const problems: string[] = [];
@@ -7106,6 +7107,10 @@ const OP_SCHEMAS: OpSchemaTable = {
                     '"attacker" is only allowed when "restriction" is "must-block"'
                 );
             }
+            if (entry.restriction !== "must-block" && entry.scope !== undefined)
+                problems.push(
+                    '"scope" is only allowed when "restriction" is "must-block"'
+                );
             return problems;
         },
     },

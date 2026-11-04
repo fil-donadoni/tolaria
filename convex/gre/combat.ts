@@ -1117,7 +1117,7 @@ function rerouteFullBlockersToRequirement(state: GameState): void {
         // attackers, one block), so membership in it is too narrow a test.
         const obeys = declared.some((id) => {
             if (blocker.mustBlockAllThisTurn) return true;
-            if (blocker.mustBlockAttackersThisTurn?.includes(id)) return true;
+            if (namedBlockRequirements(blocker).includes(id)) return true;
             const atk = attacker?.battlefield.find((c) => c.id === id);
             return (
                 atk !== undefined &&
@@ -1671,9 +1671,18 @@ export function getMaxBlockTargets(card: CardInstanceState): number {
     return 1 + Math.max(defVal, instanceVal);
 }
 
+/** The attackers this creature is individually required to block, of either
+ *  duration (CR 509.1c "this turn", CR 702.39a "this combat"). */
+function namedBlockRequirements(blocker: CardInstanceState): string[] {
+    return [
+        ...(blocker.mustBlockAttackersThisTurn ?? []),
+        ...(blocker.mustBlockAttackersThisCombat ?? []),
+    ];
+}
+
 /** Computes mandatory blocker assignments for must-block requirements
- *  (CR 509.1c — Lure, Blaze of Glory mustBlockAll, Rampant Elephant's
- *  per-attacker `mustBlockAttackersThisTurn`). Returns a map of
+ *  (CR 509.1c — Lure, Blaze of Glory mustBlockAll, the attacker-named
+ *  requirements of `namedBlockRequirements`). Returns a map of
  *  blockerId → attackerIds[] that must be added to the current
  *  blockerAssignments. Only assigns blockers that are:
  *  - untapped creatures
@@ -1719,7 +1728,7 @@ export function getRequiredBlockerAssignments(
         // `resetBattlefieldTransientState`, CR 400.7), and only
         // when the block is legal — evasion, protection or a "can't block"
         // flag excuse it through `validateBlockerEligibility`.
-        for (const attackerId of blocker.mustBlockAttackersThisTurn ?? []) {
+        for (const attackerId of namedBlockRequirements(blocker)) {
             if (currentBlocks.length >= maxTargets) break;
             if (currentBlocks.includes(attackerId)) continue;
             const attacker = attackers.find((a) => a.id === attackerId);

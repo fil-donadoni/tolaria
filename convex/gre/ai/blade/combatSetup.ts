@@ -164,6 +164,11 @@ export function applyDeclareAttackers(
         if (step.haltForDefenderResponse && owed === defenderId) {
             return;
         }
+        // CR 603.3d — an attack trigger's raised target selection is a decision
+        // of its own, which a pass cannot answer: the position to search is here.
+        if (step.haltForDefenderResponse && state.pendingTarget) {
+            return;
+        }
         applyMoveInSearch(state, owed, { kind: "pass" });
     }
 

@@ -1959,6 +1959,155 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #4008. Discriminating pair for the dethrone entry: only one life point changed.",
     },
     {
+        // CR 702.39a — the only opposing creature is a tapped 1/1, so accepting
+        // kills it for free: the 5/3 tramples over it. Pair: the same attack
+        // against a tapped Craw Wurm (next entry).
+        label: "provoke: drags a tapped small creature into a block that kills it",
+        spec: {
+            cards: [
+                {
+                    name: "Brontotherium",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Llanowar Elves",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Brontotherium"],
+                haltForDefenderResponse: true,
+            },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "may-pay", accept: true }],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the target dies to the attacker in the forced block",
+            },
+        },
+        note: "Issue #4010. Reaches the live provoke may-pay through the real attack trigger and its target announcement.",
+    },
+    {
+        // The pair of the entry above: accepting untaps a 6/4 that kills the
+        // attacker and survives, against an empty board's free 5 damage.
+        label: "provoke pair: leaves a tapped large creature tapped",
+        spec: {
+            cards: [
+                {
+                    name: "Brontotherium",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Brontotherium"],
+                haltForDefenderResponse: true,
+            },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "may-pay", accept: false }],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the target kills the attacker in the forced block and survives",
+            },
+        },
+        note: "Issue #4010. Discriminating pair for the provoke entry: only the target changed.",
+    },
+    {
+        // CR 603.3d — two legal targets raise a real choice as the trigger goes
+        // on the stack: the one that dies in the block, not the one that kills
+        // the attacker.
+        label: "provoke target: announces the creature that dies in the block",
+        spec: {
+            cards: [
+                {
+                    name: "Brontotherium",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Llanowar Elves",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Brontotherium"],
+                haltForDefenderResponse: true,
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "submit-target", target: "Llanowar Elves" }],
+        },
+        classification: { kind: "absolute" },
+        note: "Issue #4010. The raised trigger target of a keyword no definition lists is a search decision.",
+    },
+    {
         // CR 701.67a — floating mana covers the waterbend cost with bodies to
         // spare, so the live commit parks on `genericSubstitutionOffer`. The
         // move stays reachable and the owed-payment seam spends that mana.

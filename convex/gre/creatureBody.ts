@@ -66,6 +66,9 @@ const KEYWORD_BONUS: Record<string, (power: number) => number> = {
     // Dethrone (CR 702.105): same reason; a counter on most swings, worth about
     // what a permanent +1/+1 is once, discounted for the life condition.
     dethrone: () => 8,
+    // Provoke (CR 702.39): same reason; a removal-shaped lever on each swing,
+    // worth little on a small body, which a block kills first.
+    provoke: (p) => 3 * p,
     shadow: (p) => 10 * p,
     // Combat amplifiers — value grows with power.
     trample: (p) => 5 * p,
@@ -211,6 +214,7 @@ const ATTACK_SHARE_KEYWORDS: ReadonlySet<string> = new Set([
     "infect",
     "flanking",
     "dethrone",
+    "provoke",
 ]);
 const BLOCK_SHARE_KEYWORDS: ReadonlySet<string> = new Set(["reach"]);
 
