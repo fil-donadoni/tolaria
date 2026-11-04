@@ -660,6 +660,12 @@ export const SELF_HEADS: readonly {
         tail: " attacks",
         ir: { kind: "attacks", scope: "self" },
     },
+    // CR 603.1 — the "when" opener reads the same event as "whenever".
+    {
+        opener: "when ",
+        tail: " attacks",
+        ir: { kind: "attacks", scope: "self" },
+    },
     // CR 702.171b — the Mount's "attacks while saddled": the source's own
     // attack, triggering only while it carries the saddled designation.
     {

@@ -15501,6 +15501,171 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 712.14a + CR 603.7a — "exile it at end of combat, then return it to the
+    // battlefield transformed under your control": a delayed trigger whose body
+    // is `exileAndReturnTransformed` on the captured source. The canned smoke
+    // scenario stages neither a runtime binding nor a back face to enter with.
+    {
+        rule: "exile-return-transformed",
+        card: {
+            oracleId: "88b18901-50cd-461c-b1bc-be900210be8e",
+            name: "Conqueror's Galleon // Conqueror's Foothold",
+            manaCost: "",
+            typeLine: "Artifact — Vehicle // Land",
+            oracleText: "",
+            layout: "transform",
+            faces: [
+                {
+                    name: "Conqueror's Galleon",
+                    manaCost: "{4}",
+                    typeLine: "Artifact — Vehicle",
+                    oracleText:
+                        "When this Vehicle attacks, exile it at end of combat, then return it to the battlefield transformed under your control.\nCrew 4 (Tap any number of creatures you control with total power 4 or more: This Vehicle becomes an artifact creature until end of turn.)",
+                    power: "2",
+                    toughness: "10",
+                    colors: [],
+                },
+                {
+                    name: "Conqueror's Foothold",
+                    manaCost: "",
+                    typeLine: "Land",
+                    oracleText:
+                        "(Transforms from Conqueror's Galleon.)\n{T}: Add {C}.\n{2}, {T}: Draw a card, then discard a card.\n{4}, {T}: Draw a card.\n{6}, {T}: Return target card from your graveyard to your hand.",
+                    colors: [],
+                },
+            ],
+        },
+        expected: {
+            name: "Conqueror's Galleon",
+            types: ["Artifact"],
+            subtypes: ["Vehicle"],
+            manaCost: { X: 4 },
+            oracleText:
+                "When this Vehicle attacks, exile it at end of combat, then return it to the battlefield transformed under your control.\nCrew 4 (Tap any number of creatures you control with total power 4 or more: This Vehicle becomes an artifact creature until end of turn.)",
+            staticAbilities: ["crew 4"],
+            activatedAbilities: [
+                {
+                    id: "conquerors-galleon-crew",
+                    oracleText:
+                        "Crew 4 (Tap any number of creatures you control with total power 4 or more: This Vehicle becomes an artifact creature until end of turn.)",
+                    cost: {
+                        tapOtherFilter: {
+                            filter: {
+                                types: "Creature",
+                                controllerRelation: "you",
+                            },
+                            totalPower: 4,
+                        },
+                    },
+                    useStack: true,
+                    animatesSelf: true,
+                    effects: [
+                        {
+                            op: "animate",
+                            target: { ref: "$source" },
+                            power: 2,
+                            toughness: 10,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "conqueror-s-galleon-trigger",
+                    oracleText:
+                        "When this Vehicle attacks, exile it at end of combat, then return it to the battlefield transformed under your control.",
+                    head: { kind: "attacks" },
+                    effects: [
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-end-of-combat",
+                            oracleText:
+                                "Exile it at end of combat, then return it to the battlefield transformed under your control.",
+                            capture: { $self: { ref: "$source" } },
+                            effects: [
+                                {
+                                    op: "exileAndReturnTransformed",
+                                    target: { ref: "$self" },
+                                    controller: "controller",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            power: 2,
+            toughness: 10,
+            backFace: {
+                name: "Conqueror's Foothold",
+                types: ["Land"],
+                activatedAbilities: [
+                    {
+                        id: "conqueror-s-foothold-mana",
+                        oracleText: "{T}: Add {C}.",
+                        cost: { tap: true },
+                        useStack: false,
+                        manaProduced: { C: 1 },
+                    },
+                    {
+                        id: "conqueror-s-foothold-ability-2",
+                        oracleText:
+                            "{2}, {T}: Draw a card, then discard a card.",
+                        cost: { mana: { X: 2 }, tap: true },
+                        useStack: true,
+                        effects: [
+                            { op: "draw", player: "controller", count: 1 },
+                            {
+                                op: "choice",
+                                kind: "choose-hand-card",
+                                player: "controller",
+                                zone: "hand",
+                                count: 1,
+                                prompt: "Discard a card.",
+                                bind: "$discard1",
+                            },
+                            {
+                                op: "discard",
+                                player: "controller",
+                                cards: { ref: "$discard1" },
+                            },
+                        ],
+                    },
+                    {
+                        id: "conqueror-s-foothold-ability-3",
+                        oracleText: "{4}, {T}: Draw a card.",
+                        cost: { mana: { X: 4 }, tap: true },
+                        useStack: true,
+                        effects: [
+                            { op: "draw", player: "controller", count: 1 },
+                        ],
+                    },
+                    {
+                        id: "conqueror-s-foothold-ability-4",
+                        oracleText:
+                            "{6}, {T}: Return target card from your graveyard to your hand.",
+                        cost: { mana: { X: 6 }, tap: true },
+                        useStack: true,
+                        effects: [
+                            {
+                                op: "moveZone",
+                                target: { target: 0 },
+                                to: "hand",
+                            },
+                        ],
+                        targetRequirement: {
+                            type: "card",
+                            count: 1,
+                            zone: "graveyard",
+                            controller: "you",
+                        },
+                    },
+                ],
+                oracleText:
+                    "(Transforms from Conqueror's Galleon.)\n{T}: Add {C}.\n{2}, {T}: Draw a card, then discard a card.\n{4}, {T}: Draw a card.\n{6}, {T}: Return target card from your graveyard to your hand.",
+            },
+        },
+    },
     // CR 406.3 + CR 608.2g + CR 118.9 — "exile cards … until you exile a nonland
     // card. You may cast that card without paying its mana cost": the walk's
     // `bind` names the offered card. Exhibits `revealUntilMatch` on the

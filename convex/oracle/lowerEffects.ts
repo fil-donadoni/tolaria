@@ -5309,6 +5309,53 @@ function lowerPerActedOnController(
  * restored to what it was before the gated sentence.
  */
 /**
+ * CR 712.14a — the source returns transformed. Omitted `controller` is its
+ * owner, so only "under your control" prints one. CR 608.2c — a pronoun must be
+ * the site's source: "it" naming a head's other object, or following an
+ * announced target, is refused. CR 603.7a — the delayed form is created now, its
+ * body carrying the source across by `capture`.
+ */
+function lowerExileReturnTransformed(
+    frame: Extract<FrameIR, { frame: "exileReturnTransformed" }>,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp> {
+    if (site.resolvingSpell === true)
+        return unlowerable(
+            "only a permanent's ability has a permanent to return transformed"
+        );
+    if (
+        frame.subject === "pronoun" &&
+        (!pronounIsSource(site) || walk.targets.requirements().length > 0)
+    )
+        return unlowerable(
+            '"it" does not name the ability\'s own source here (CR 608.2c)'
+        );
+    const controller =
+        frame.control === "you" ? { controller: "controller" as const } : {};
+    if (frame.delayed === undefined)
+        return lowered({
+            op: "exileAndReturnTransformed",
+            target: { ref: "$source" },
+            ...controller,
+        });
+    const under = frame.control === "you" ? "your" : "its owner's";
+    return lowered({
+        op: "delayedTrigger",
+        timing: frame.delayed,
+        oracleText: `Exile it at end of combat, then return it to the battlefield transformed under ${under} control.`,
+        capture: { $self: { ref: "$source" } },
+        effects: [
+            {
+                op: "exileAndReturnTransformed",
+                target: { ref: "$self" },
+                ...controller,
+            },
+        ],
+    });
+}
+
+/**
  * The Verb Frame chain (`verbFrames.ts`, issue #6557), one Op per frame in
  * printed order (CR 608.2c). The chain's referent — the find of the last
  * `search` — is the binding the `moveZone` frames and the search's own reveal
@@ -5682,6 +5729,12 @@ function lowerFrameChain(
                     );
                 ops.push({ op: "transform", target: { ref: "$source" } });
                 break;
+            case "exileReturnTransformed": {
+                const flip = lowerExileReturnTransformed(frame, walk, site);
+                if (!flip.ok) return flip;
+                ops.push(flip.value);
+                break;
+            }
             // CR 122.1 — a counter kind a player holds, added to that player.
             case "playerCounters": {
                 const player = playerRef(frame.player, walk.targets, site);
