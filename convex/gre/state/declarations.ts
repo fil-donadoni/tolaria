@@ -3254,7 +3254,8 @@ export type PendingActivation = {
      *  the remaining-power hint without re-deriving effective power itself.
      *
      *  `substitutesGeneric` mirrors the CR 701.67a shape instead: it owes
-     *  nothing and never blocks commit. Each pick pays one generic pip by
+     *  nothing of its own, so the picker alone never blocks commit (see
+     *  `genericSubstitutionOffer`). Each pick pays one generic pip by
      *  decrementing this activation's `manaCost` when it is recorded, while the
      *  tap itself still waits for commit, so a cancel taps nothing. */
     tapOtherChoice?: {
@@ -3368,6 +3369,13 @@ export type PendingActivation = {
      *  supplied, cleared and resumed by `resolveManaSpendChoice`. Rides inside
      *  `pendingActivation`, so it is persisted with the parent. */
     manaSpendChoice?: GenericSpendAmbiguity;
+    /** CR 701.67a — mana already in the pool covers this cost while a tap may
+     *  still stand in for a generic pip, so commit waits for the payer to say
+     *  which they want: another `selectActivationCost` pick keeps that mana,
+     *  `declineGenericSubstitution` spends it. Set when the announcement or a
+     *  pick finds the cost covered (`offerGenericSubstitution`), never by a
+     *  mana ability: tapping a source for mana is already that answer. */
+    genericSubstitutionOffer?: true;
 };
 
 /** Tracks the {3} payment for the `summon-companion` special action (CR

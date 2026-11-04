@@ -105,6 +105,9 @@ export function useControllerActions(): ControllerState {
     const confirmDamage = useMutation(api.game.confirmDamage);
     const passPriority = useMutation(api.game.passPriority);
     const autoTap = useMutation(api.game.autoTapForPayment);
+    const declineSubstitution = useMutation(
+        api.game.declineGenericSubstitution
+    );
     const autoTapForAttackTax = useMutation(api.game.autoTapForAttackTax);
     const cancelAttackTax = useMutation(api.game.cancelAttackTax);
     const endTurn = useMutation(api.game.endTurn);
@@ -148,6 +151,8 @@ export function useControllerActions(): ControllerState {
     const isPayingCast = !!pendingCast && pendingCast.playerId === playerId;
     const isPayingActivation =
         !!pendingActivation && pendingActivation.playerId === playerId;
+    const isSubstitutionOffered =
+        isPayingActivation && !!pendingActivation.genericSubstitutionOffer;
     // CR 508.1c/1g — while a declared attack is parked on a mana attack tax
     // (Propaganda / Ghostly Prison), the engine waits for attack-mana-tax input,
     // NOT priority. `isSelectingAttackers` is still true here, so this flag MUST
@@ -413,7 +418,13 @@ export function useControllerActions(): ControllerState {
             }
             if (e.code === "Space" && !e.repeat) {
                 e.preventDefault();
-                if (isPayingCast || isPayingActivation) {
+                if (isSubstitutionOffered) {
+                    // CR 701.67a — the banner's button is "Pay with mana" here,
+                    // and there is nothing left to auto-tap.
+                    declineSubstitution({ gameId, playerId }).catch(
+                        reportError
+                    );
+                } else if (isPayingCast || isPayingActivation) {
                     // While the PaymentBanner is up, Space mirrors its
                     // "Auto-tap" button instead of passing priority.
                     autoTap({ gameId, playerId }).catch(reportError);
@@ -530,10 +541,12 @@ export function useControllerActions(): ControllerState {
         isPayingCast,
         isPayingActivation,
         isPayingAttackTax,
+        isSubstitutionOffered,
         autoTapForAttackTax,
         cancelAttackTax,
         pendingChoiceAction,
         autoTap,
+        declineSubstitution,
         isSelectingAttackers,
         attackSequence,
         attackAllConfirmOpen,

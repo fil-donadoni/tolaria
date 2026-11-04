@@ -7,7 +7,13 @@
 // meaningless mana dialog on top of the battlefield's own sacrifice
 // highlighting (useBattlefieldVisualState).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import {
+    render,
+    screen,
+    fireEvent,
+    cleanup,
+    waitFor,
+} from "@testing-library/react";
 import type { PendingActivation, PendingCast, Player } from "~/types/game";
 
 type MutArgs = Record<string, unknown>;
@@ -17,6 +23,7 @@ const noop = vi.fn<MutFn>(() => Promise.resolve());
 
 const MUTATIONS: Record<string, ReturnType<typeof vi.fn>> = {
     autoTapForPayment,
+    declineGenericSubstitution: vi.fn<MutFn>(() => Promise.resolve()),
 };
 
 vi.mock("convex/react", () => ({
@@ -27,6 +34,7 @@ vi.mock("convex/react", () => ({
 vi.mock("@convex/_generated/api", () => {
     const game: Record<string, { _name: string }> = {
         autoTapForPayment: { _name: "autoTapForPayment" },
+        declineGenericSubstitution: { _name: "declineGenericSubstitution" },
     };
     return { api: { game } };
 });
@@ -236,6 +244,87 @@ describe("PaymentBanner activation routing (#939)", () => {
                 "pay the activation costs, or tap up to 2 artifacts or creatures instead of paying generic mana"
             )
         ).toBeTruthy();
+    });
+
+    it("substitution offer (CR 701.67a) → no Auto-tap, the prompt names the choice and the button answers it", async () => {
+        const pa = activation({
+            manaCost: { X: 3 },
+            genericSubstitutionOffer: true,
+            tapOtherChoice: {
+                filter: { types: ["Artifact", "Creature"] },
+                substitutesGeneric: 3,
+                pickedIds: [],
+            },
+        });
+        const me = player({ manaPool: { W: 0, U: 0, B: 0, R: 3, G: 0, C: 0 } });
+        render(
+            <PaymentBanner
+                kind="activation"
+                pendingActivation={pa}
+                me={me}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+        expect(screen.queryByText("Auto-tap")).toBeNull();
+        expect(
+            screen.getByText(
+                "tap up to 3 artifacts or creatures to keep your mana, or pay with it"
+            )
+        ).toBeTruthy();
+        fireEvent.click(screen.getByText("Pay with mana"));
+        await waitFor(() =>
+            expect(MUTATIONS.declineGenericSubstitution).toHaveBeenCalledWith({
+                gameId: "g1",
+                playerId: "me",
+            })
+        );
+    });
+
+    it("substitution offer the client's coverage read calls short → still no Auto-tap", () => {
+        // The server's coverage also counts mana substitutions, which this
+        // banner's `isManaCostCovered` call does not: the offer is the verdict.
+        const pa = activation({
+            manaCost: { X: 3 },
+            genericSubstitutionOffer: true,
+            tapOtherChoice: {
+                filter: { types: ["Artifact", "Creature"] },
+                substitutesGeneric: 3,
+                pickedIds: [],
+            },
+        });
+        render(
+            <PaymentBanner
+                kind="activation"
+                pendingActivation={pa}
+                me={player()}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+        expect(screen.queryByText("Auto-tap")).toBeNull();
+        expect(screen.getByText("Pay with mana")).toBeTruthy();
+    });
+
+    it("no offer: covered substitution leg shows no pay-with-mana button", () => {
+        const pa = activation({
+            manaCost: { X: 3 },
+            tapOtherChoice: {
+                filter: { types: ["Artifact", "Creature"] },
+                substitutesGeneric: 3,
+                pickedIds: [],
+            },
+        });
+        render(
+            <PaymentBanner
+                kind="activation"
+                pendingActivation={pa}
+                me={player()}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+        expect(screen.queryByText("Pay with mana")).toBeNull();
     });
 
     it("tap-other cost with count > 1 (Hand of Justice shape) → subtitle pluralizes without a stray article", () => {

@@ -1631,6 +1631,7 @@ export const PARK_ANSWER_ROUTE: Record<ParkKind, "dedicated" | "generic"> = {
     "activation:exileFromGraveyardChoice": "generic",
     "activation:tapOtherChoice": "generic",
     "activation:discardFilterChoice": "generic",
+    "activation:genericSubstitutionOffer": "generic",
     "activation:manaSpendChoice": "dedicated",
 };
 

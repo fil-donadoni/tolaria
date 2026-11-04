@@ -182,6 +182,7 @@ vi.mock("@convex/_generated/api", () => ({
             selectActivationCost: "selectActivationCost",
             selectActivationExileCost: "selectActivationExileCost",
             selectActivationDiscardCost: "selectActivationDiscardCost",
+            declineGenericSubstitution: "declineGenericSubstitution",
             passPriority: "passPriority",
         },
         gameReads: {

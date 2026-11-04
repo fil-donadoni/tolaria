@@ -5,6 +5,8 @@ import { describe, it, expect } from "vitest";
 import type { GameState } from "../state";
 import {
     activateAbilityOnState,
+    applyOneTargetSelection,
+    declineGenericSubstitutionOnState,
     selectActivationCostOnState,
 } from "../../game";
 import {
@@ -13,6 +15,7 @@ import {
     manaCostAfterSubstitution,
 } from "../tapOtherCost";
 import { tryAutoCommitPendingActivation } from "../activation";
+import { nextOwedPayment } from "../owedPayment";
 import { projectPublicState } from "../../gameProjections";
 import { getCardByName, registerTokenDefinition } from "../../cards";
 import { waterbendCost } from "../../cards/abilities/waterbend";
@@ -56,6 +59,8 @@ const announce = (state: GameState, abilityId = ABILITY) =>
     });
 const pick = (state: GameState, cardInstanceId: string) =>
     selectActivationCostOnState(state, { playerId: "p1", cardInstanceId });
+const decline = (state: GameState) =>
+    declineGenericSubstitutionOnState(state, { playerId: "p1" });
 const tappedIds = (state: GameState) =>
     state.players[0].battlefield
         .filter((c) => c.isTapped)
@@ -136,7 +141,9 @@ describe("Waterbend {3} on Aang's Iceberg (CR 701.67a)", () => {
         const state = board(on("Grizzly Bears", "b1"));
         state.players[0].manaPool.R = 3;
         announce(state);
+        decline(state);
         expect(state.stack).toHaveLength(1);
+        expect(state.players[0].manaPool.R).toBe(0);
         expect(tappedIds(state)).toEqual([]);
     });
 
@@ -191,6 +198,180 @@ describe("Waterbend {3} on Aang's Iceberg (CR 701.67a)", () => {
         });
         expect(genericSubstitutionsLeft(pa.tapOtherChoice!, pa.manaCost)).toBe(
             2
+        );
+    });
+});
+
+describe("CR 701.67a — tapping instead of spending floating mana", () => {
+    const bodies = () => [
+        on("Grizzly Bears", "b1"),
+        on("Grizzly Bears", "b2"),
+        on("Grizzly Bears", "b3"),
+    ];
+
+    it("floating mana covering the cost does not commit: it can be kept by tapping", () => {
+        const state = board(...bodies());
+        const me = state.players[0];
+        me.manaPool.R = 3;
+        announce(state);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingActivation?.genericSubstitutionOffer).toBe(true);
+
+        pick(state, "b1");
+        pick(state, "b2");
+        expect(state.stack).toHaveLength(0);
+        pick(state, "b3");
+        expect(state.stack).toHaveLength(1);
+        expect(me.manaPool.R).toBe(3);
+        expect(tappedIds(state)).toEqual(["b1", "b2", "b3"]);
+    });
+
+    it("two picks leaving {1} that the pool covers: the third pick is still offered", () => {
+        const state = board(...bodies());
+        const me = state.players[0];
+        me.manaPool.R = 1;
+        announce(state);
+        expect(
+            state.pendingActivation?.genericSubstitutionOffer
+        ).toBeUndefined();
+        pick(state, "b1");
+        pick(state, "b2");
+        expect(state.stack).toHaveLength(0);
+        pick(state, "b3");
+        expect(state.stack).toHaveLength(1);
+        expect(me.manaPool.R).toBe(1);
+    });
+
+    it("declining after a partial mix spends the mana for what is left", () => {
+        const state = board(...bodies());
+        const me = state.players[0];
+        me.manaPool.R = 3;
+        announce(state);
+        pick(state, "b1");
+        decline(state);
+        expect(state.stack).toHaveLength(1);
+        expect(me.manaPool.R).toBe(1);
+        expect(tappedIds(state)).toEqual(["b1"]);
+    });
+
+    it("no eligible permanent: commits with no question", () => {
+        const state = board(
+            on("Grizzly Bears", "b1", true),
+            on("Mountain", "m1")
+        );
+        state.players[0].manaPool.R = 3;
+        announce(state);
+        expect(state.pendingActivation).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+    });
+
+    it("the last candidate picked: commits with no question", () => {
+        const state = board(on("Grizzly Bears", "b1"));
+        const me = state.players[0];
+        me.manaPool.R = 3;
+        announce(state);
+        pick(state, "b1");
+        expect(state.stack).toHaveLength(1);
+        expect(me.manaPool.R).toBe(1);
+    });
+
+    it("mana arriving by itself reaches coverage with no question, a candidate or not", () => {
+        const state = board(...bodies());
+        const me = state.players[0];
+        announce(state);
+        me.manaPool.R = 3;
+        tryAutoCommitPendingActivation(state, "p1");
+        expect(state.stack).toHaveLength(1);
+        expect(me.manaPool.R).toBe(0);
+        expect(tappedIds(state)).toEqual([]);
+    });
+
+    it("the offer lapses when the last candidate is tapped some other way", () => {
+        const state = board(on("Grizzly Bears", "b1"));
+        const me = state.players[0];
+        me.manaPool.R = 3;
+        announce(state);
+        expect(state.stack).toHaveLength(0);
+        me.battlefield.find((c) => c.id === "b1")!.isTapped = true;
+        tryAutoCommitPendingActivation(state, "p1");
+        expect(state.stack).toHaveLength(1);
+    });
+
+    it("the offer is a park the owed-payment seam reports, once and only while it stands", () => {
+        const state = board(...bodies());
+        expect(nextOwedPayment(state, "p1")).toBeNull();
+        state.players[0].manaPool.R = 3;
+        announce(state);
+        expect(nextOwedPayment(state, "p1")?.kind).toBe(
+            "activation:genericSubstitutionOffer"
+        );
+        decline(state);
+        expect(nextOwedPayment(state, "p1")).toBeNull();
+    });
+
+    it("declining with nothing on offer is refused", () => {
+        const state = board(...bodies());
+        announce(state);
+        expect(() => decline(state)).toThrow(/No tap substitution on offer/);
+    });
+
+    it("a targeted ability makes the offer once its target is chosen", () => {
+        const ID = "test-waterbend-targeted";
+        registerTokenDefinition({
+            ...getCardByName("Aang's Iceberg"),
+            id: ID,
+            name: "Test Waterbend Targeted",
+            activatedAbilities: [
+                {
+                    id: ID,
+                    oracleText:
+                        "Waterbend {1}: Draw a card. Target a creature.",
+                    cost: waterbendCost(1),
+                    useStack: true,
+                    targetRequirement: { type: "Creature", count: 1 },
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(ID, {
+                            id: "iceberg",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "battlefield",
+                        }),
+                        on("Grizzly Bears", "b1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const me = state.players[0];
+        me.manaPool.R = 1;
+        announce(state, ID);
+        applyOneTargetSelection(state, "p1", {
+            targetType: "permanent",
+            targetId: "b1",
+        });
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingActivation?.genericSubstitutionOffer).toBe(true);
+        pick(state, "b1");
+        expect(state.stack).toHaveLength(1);
+        expect(me.manaPool.R).toBe(1);
+    });
+
+    it("wire format: the projection carries the offer", () => {
+        const state = board(...bodies());
+        state.players[0].manaPool.R = 3;
+        announce(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingActivation?.genericSubstitutionOffer).toBe(
+            true
         );
     });
 });

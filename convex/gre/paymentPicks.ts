@@ -373,6 +373,8 @@ export type OwedPaymentSubmission =
       }
     /** CR 118.3 — the activation-side filtered discard cost. */
     | { mutation: "selectActivationDiscardCost"; cardInstanceIds: string[] }
+    /** CR 701.67a — no more taps: the mana in the pool pays what is left. */
+    | { mutation: "declineGenericSubstitution" }
     /** CR 601.2g — the ambiguous generic-mana spend. */
     | { mutation: "resolveManaSpendChoice"; spendOrder: string[] };
 
@@ -673,6 +675,13 @@ export function pickForOwedPayment(
             }
             return null;
         }
+        case "activation:genericSubstitutionOffer":
+            // CR 701.67a — `planGenericSubstitution` priced this payment with
+            // the fewest taps that fund it, so spending the mana is the payment
+            // the search simulated.
+            return pa?.genericSubstitutionOffer
+                ? { mutation: "declineGenericSubstitution" }
+                : null;
         case "activation:tapOtherChoice": {
             const toc = pa?.tapOtherChoice;
             if (!toc) return null;

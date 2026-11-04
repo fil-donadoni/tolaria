@@ -37,6 +37,7 @@ vi.mock("@convex/_generated/api", () => {
         "confirmDamage",
         "passPriority",
         "autoTapForPayment",
+        "declineGenericSubstitution",
         "autoTapForAttackTax",
         "cancelAttackTax",
         "endTurn",
@@ -102,7 +103,7 @@ const SEQUENCE: AttackSequence = {
     reset: vi.fn(),
 };
 
-function renderCtrl() {
+function renderCtrl(overrides: Record<string, unknown> = {}) {
     const ctx = {
         gameId: "game-id",
         playerId: "me",
@@ -116,6 +117,7 @@ function renderCtrl() {
         allPlayers: [player("me"), player("opp")],
         showAllCards: false,
         debugAllActions: false,
+        ...overrides,
     } as unknown as NonNullable<React.ContextType<typeof GameContext>>;
     const wrapper = ({ children }: { children: ReactNode }) => (
         <GameContext value={ctx}>
@@ -145,6 +147,34 @@ describe("useControllerActions — Space vs. in-flight game intent", () => {
             pressSpace();
         });
         expect(calls.map((c) => c.ref)).toContain("passPriority");
+    });
+
+    it("answers a waterbend tap offer, where there is nothing to auto-tap (CR 701.67a)", async () => {
+        renderCtrl({
+            pendingActivation: {
+                playerId: "me",
+                manaCost: { X: 3 },
+                genericSubstitutionOffer: true,
+            },
+        });
+        await act(async () => {
+            pressSpace();
+        });
+        const refs = calls.map((c) => c.ref);
+        expect(refs).toContain("declineGenericSubstitution");
+        expect(refs).not.toContain("autoTapForPayment");
+    });
+
+    it("still auto-taps a paying activation with no offer standing", async () => {
+        renderCtrl({
+            pendingActivation: { playerId: "me", manaCost: { X: 3 } },
+        });
+        await act(async () => {
+            pressSpace();
+        });
+        const refs = calls.map((c) => c.ref);
+        expect(refs).toContain("autoTapForPayment");
+        expect(refs).not.toContain("declineGenericSubstitution");
     });
 
     it("drops the keystroke while a dispatched cast is still round-tripping", async () => {

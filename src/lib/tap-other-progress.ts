@@ -41,12 +41,26 @@ export function describeGenericSubstitution(
     filter: TapOtherCostSpec["filter"],
     upTo: number
 ): string {
+    return `pay the activation costs, or tap ${substitutableLabel(filter, upTo)} instead of paying generic mana`;
+}
+
+/** The prompt once the mana in the pool already covers the cost (CR 701.67a):
+ *  the question is whether to keep that mana by tapping instead. */
+export function describeGenericSubstitutionOffer(
+    filter: TapOtherCostSpec["filter"],
+    upTo: number
+): string {
+    return `tap ${substitutableLabel(filter, upTo)} to keep your mana, or pay with it`;
+}
+
+function substitutableLabel(
+    filter: TapOtherCostSpec["filter"],
+    upTo: number
+): string {
     const noun = formatFilterLabel(filter);
-    const payable =
-        upTo > 1
-            ? `up to ${upTo} ${noun.replace(/^an? /, "").split(" or ").map(pluralizeBare).join(" or ")}`
-            : noun;
-    return `pay the activation costs, or tap ${payable} instead of paying generic mana`;
+    return upTo > 1
+        ? `up to ${upTo} ${noun.replace(/^an? /, "").split(" or ").map(pluralizeBare).join(" or ")}`
+        : noun;
 }
 
 /** Strips the leading article ("a"/"an") before pluralizing —

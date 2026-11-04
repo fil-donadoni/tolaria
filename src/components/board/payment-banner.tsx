@@ -14,6 +14,7 @@ import {
 } from "@convex/gre/tapOtherCost";
 import {
     describeGenericSubstitution,
+    describeGenericSubstitutionOffer,
     describeTapOtherProgress,
 } from "~/lib/tap-other-progress";
 import {
@@ -68,6 +69,9 @@ export default function PaymentBanner(props: Props) {
     const { outerClassName, outerStyle, innerClassName, dragHandlers } =
         usePromptBannerPosition({ pinned: true });
     const autoTap = useMutation(api.game.autoTapForPayment);
+    const declineSubstitution = useMutation(
+        api.game.declineGenericSubstitution
+    );
     const [busy, setBusy] = useState(false);
 
     let cardName: string;
@@ -82,6 +86,10 @@ export default function PaymentBanner(props: Props) {
     // permanents themselves are highlighted/clickable on the battlefield via
     // `useBattlefieldVisualState` regardless of this banner.
     let manaOwed = true;
+    // CR 701.67a — the server is holding the commit so the player can keep the
+    // mana in their pool by tapping instead; nothing to auto-tap, one answer to
+    // give.
+    let substitutionOffered = false;
 
     if (props.kind === "cast") {
         const cardInHand = props.me?.hand.find(
@@ -167,16 +175,24 @@ export default function PaymentBanner(props: Props) {
         const substitutions = pa.tapOtherChoice
             ? genericSubstitutionsLeft(pa.tapOtherChoice, pa.manaCost)
             : 0;
-        subtitle = substitutions
-            ? describeGenericSubstitution(
+        substitutionOffered =
+            !!pa.genericSubstitutionOffer && substitutions > 0;
+        if (substitutionOffered) manaOwed = false;
+        subtitle = substitutionOffered
+            ? describeGenericSubstitutionOffer(
                   pa.tapOtherChoice!.filter,
                   substitutions
               )
-            : manaOwed
-              ? "pay the activation costs"
-              : actSac && !isSacrificeComplete(actSac)
-                ? describeSacrificeChoice(actSac)
-                : describeActivationCostChoice(props.pendingActivation);
+            : substitutions
+              ? describeGenericSubstitution(
+                    pa.tapOtherChoice!.filter,
+                    substitutions
+                )
+              : manaOwed
+                ? "pay the activation costs"
+                : actSac && !isSacrificeComplete(actSac)
+                  ? describeSacrificeChoice(actSac)
+                  : describeActivationCostChoice(props.pendingActivation);
     }
 
     async function handleAutoTap() {
@@ -188,6 +204,22 @@ export default function PaymentBanner(props: Props) {
             // No valid combination (server-side guard) — leave the banner up so
             // the player can tap manually. The validation toast surfaces nothing
             // here by design; manual tapping remains available.
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function handleDeclineSubstitution() {
+        if (busy) return;
+        setBusy(true);
+        try {
+            await declineSubstitution({
+                gameId: props.gameId,
+                playerId: props.playerId,
+            });
+        } catch {
+            // The offer already lapsed (a double click): the banner follows the
+            // server's next state.
         } finally {
             setBusy(false);
         }
@@ -221,6 +253,19 @@ export default function PaymentBanner(props: Props) {
                             className="mt-2 w-full"
                         >
                             Auto-tap
+                        </Button>
+                    )}
+                    {substitutionOffered && (
+                        <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={handleDeclineSubstitution}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            disabled={busy}
+                            className="mt-2 w-full"
+                        >
+                            Pay with mana
                         </Button>
                     )}
                 </Panel>
