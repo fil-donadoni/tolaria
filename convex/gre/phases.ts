@@ -67,6 +67,7 @@ import {
 } from "./state";
 import { drawnThisTurnCount, offerStacklessMiracleReveal } from "./miracle";
 import { tryGetDefinition } from "../cards";
+import { payDeclaredEnlistCosts } from "./enlist";
 import { payDeclaredExertCosts } from "./exert";
 import { returnMarkedPermanentsToHand } from "./untapReturn";
 import { tryGetEmblemDefinition } from "../cards/emblems";
@@ -2292,26 +2293,32 @@ export function emitAttackersDeclaredEvents(state: GameState): void {
     if (!state.combat || state.combat.attackerIds.length === 0) return;
     // CR 508.1g/1j — the optional attack costs the active player chose are paid
     // as part of the declaration, BEFORE any attack trigger is put on the
-    // stack. Exert is the only such cost the engine models (CR 701.43d); its
-    // `PERMANENT_EXERTED` events join the SAME batch as `ATTACKERS_DECLARED`
-    // below, so a linked "when you do" trigger (CR 607.2h) and an ordinary
+    // stack. Exert (CR 701.43d) and enlist (CR 702.154b) are the two such costs
+    // the engine models; their `PERMANENT_EXERTED` and `CREATURE_ENLISTED` events
+    // join the SAME batch as `ATTACKERS_DECLARED` below, so a linked "when you
+    // do" trigger (CR 607.2h) and an ordinary
     // attack trigger are APNAP-ordered together (CR 603.3b) instead of one
     // arbitrarily preceding the other. Paying here rather than at each caller
     // is deliberate: this function is the one choke point the server mutation,
     // the auto-pass auto-confirm, `applyMove` and the ISMCTS sandbox all reach.
     const exertEvents = payDeclaredExertCosts(state);
+    const enlistEvents = payDeclaredEnlistCosts(state);
     // CR 508.1f — attackers tap as they are declared, so the "becomes tapped"
     // events `tapPermanent` queued join the SAME batch as `ATTACKERS_DECLARED`
     // (CR 508.2b / 603.3b): Magda's Treasure triggers and the attack triggers
     // are ordered together and placed before the active player gets priority.
     // Mana-ability taps (attack tax, CR 605) are excluded: they never use the
-    // stack and are drained by `processPendingActionTriggers`.
-    const attackerIds = new Set(state.combat.attackerIds);
+    // stack and are drained by `processPendingActionTriggers`. A creature tapped
+    // to pay enlist taps in this same declaration, so it joins them.
+    const tappedByDeclaring = new Set([
+        ...state.combat.attackerIds,
+        ...(state.combat.enlists ?? []).map((pair) => pair.enlistedId),
+    ]);
     const tapEvents = (state.pendingEvents ?? []).filter(
         (e) =>
             e.type === "PERMANENT_TAPPED" &&
             !e.forMana &&
-            attackerIds.has(e.permanentId)
+            tappedByDeclaring.has(e.permanentId)
     );
     if (tapEvents.length > 0) {
         const rest = (state.pendingEvents ?? []).filter(
@@ -2327,6 +2334,7 @@ export function emitAttackersDeclaredEvents(state: GameState): void {
     const triggers = collectTriggers(state, [
         ...tapEvents,
         ...exertEvents,
+        ...enlistEvents,
         event,
     ]);
     // CR 603.3b (ADR 0058) — order same-controller simultaneous attack triggers.

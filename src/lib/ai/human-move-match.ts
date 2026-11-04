@@ -35,6 +35,7 @@
 // is DROPPED, never guessed: a proposal about a move the player did not make is
 // a question about nothing.
 
+import type { EnlistPair } from "@convex/cards/abilities/enlist";
 import { enumerateMoves, type Move } from "@convex/gre";
 import { moveKey } from "@convex/gre/search";
 import type { GameState } from "@convex/gre/state";
@@ -127,9 +128,14 @@ export function foldDecisionCalls(
 ): string {
     const steps: FoldedStep[] = [];
     let targets: Target[] | null = null;
-    let attack: { targets: Map<string, string | null>; exert: Set<string> } = {
+    let attack: {
+        targets: Map<string, string | null>;
+        exert: Set<string>;
+        enlist: Map<string, string>;
+    } = {
         targets: new Map(),
         exert: new Set(),
+        enlist: new Map(),
     };
     let blocks = new Map<string, string>();
     let blocker: string | null = null;
@@ -176,6 +182,18 @@ export function foldDecisionCalls(
                 else attack.exert.add(id);
                 continue;
             }
+            case "toggleEnlist": {
+                // The server's own rule: the same pair again withdraws it, the
+                // same partner under another attacker moves it.
+                const enlisted = a.enlistedId as string;
+                const attacker = a.attackerId as string;
+                if (attack.enlist.get(enlisted) === attacker) {
+                    attack.enlist.delete(enlisted);
+                } else {
+                    attack.enlist.set(enlisted, attacker);
+                }
+                continue;
+            }
             case "declareAttackers": {
                 const to = (a.attackTargets ?? {}) as Record<string, string>;
                 for (const id of (a.attackerIds as string[]) ?? []) {
@@ -183,6 +201,9 @@ export function foldDecisionCalls(
                 }
                 for (const id of (a.exertIds as string[]) ?? []) {
                     attack.exert.add(id);
+                }
+                for (const pair of (a.enlists as EnlistPair[]) ?? []) {
+                    attack.enlist.set(pair.enlistedId, pair.attackerId);
                 }
                 continue;
             }
@@ -194,9 +215,22 @@ export function foldDecisionCalls(
                             .sort(([x], [y]) => x.localeCompare(y))
                             .map(([id, to]) => (to ? [id, to] : [id])),
                         exert: [...attack.exert].sort(),
+                        // Only when paid, so every other attack's detail is
+                        // unchanged.
+                        ...(attack.enlist.size > 0
+                            ? {
+                                  enlist: [...attack.enlist.entries()].sort(
+                                      ([x], [y]) => x.localeCompare(y)
+                                  ),
+                              }
+                            : {}),
                     }),
                 });
-                attack = { targets: new Map(), exert: new Set() };
+                attack = {
+                    targets: new Map(),
+                    exert: new Set(),
+                    enlist: new Map(),
+                };
                 continue;
             }
             case "selectBlocker":

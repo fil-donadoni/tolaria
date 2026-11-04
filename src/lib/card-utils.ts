@@ -3230,7 +3230,7 @@ export function getTriggeredAbilityOracleText(
 ): string | null {
     const castCopyText = CAST_COPY_TRIGGER_ORACLE_TEXT.get(triggeredAbilityId);
     if (castCopyText) return castCopyText;
-    // Flanking, dethrone and provoke live on no definition: they are derived from the
+    // Flanking, dethrone, provoke and enlist live on no definition: they are derived from the
     // permanent's live keyword list, printed or granted.
     const liveKeywordText = liveKeywordTriggerOracleText(triggeredAbilityId);
     if (liveKeywordText) return liveKeywordText;

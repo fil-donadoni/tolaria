@@ -302,6 +302,50 @@ describe("issue #3984 — the player's move, recovered from what they submitted"
         );
         expect(clicks).toBe(batch);
     });
+
+    // CR 508.1g / 702.154a — the Brain's candidate carries the cost on the batch;
+    // the player's clicks reach it through `toggleEnlist`.
+    it("folds an enlist click and a batched enlist alike, and apart from no enlist", () => {
+        const seats = new Set(["p1", "p2"]);
+        const pair = { attackerId: "a", enlistedId: "w" };
+        const attack = call("toggleAttacker", "p1", { cardInstanceId: "a" });
+        const confirm = call("confirmAttackers", "p1");
+        const clicks = foldDecisionCalls(
+            [attack, call("toggleEnlist", "p1", pair), confirm],
+            seats
+        );
+        const batch = foldDecisionCalls(
+            [
+                call("declareAttackers", "p1", {
+                    attackerIds: ["a"],
+                    enlists: [pair],
+                }),
+                confirm,
+            ],
+            seats
+        );
+        const plain = foldDecisionCalls([attack, confirm], seats);
+        expect(clicks).toBe(batch);
+        expect(clicks).not.toBe(plain);
+    });
+
+    it("the same enlist click twice withdraws the choice", () => {
+        const seats = new Set(["p1", "p2"]);
+        const pair = { attackerId: "a", enlistedId: "w" };
+        const attack = call("toggleAttacker", "p1", { cardInstanceId: "a" });
+        const confirm = call("confirmAttackers", "p1");
+        expect(
+            foldDecisionCalls(
+                [
+                    attack,
+                    call("toggleEnlist", "p1", pair),
+                    call("toggleEnlist", "p1", pair),
+                    confirm,
+                ],
+                seats
+            )
+        ).toBe(foldDecisionCalls([attack, confirm], seats));
+    });
 });
 
 /** The human attacking: two Bears able to attack, the declaration owed. */

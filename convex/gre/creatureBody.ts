@@ -69,6 +69,9 @@ const KEYWORD_BONUS: Record<string, (power: number) => number> = {
     // Provoke (CR 702.39): same reason; a removal-shaped lever on each swing,
     // worth little on a small body, which a block kills first.
     provoke: (p) => 3 * p,
+    // Enlist (CR 702.154): same reason, its trigger lives on no definition; the
+    // price of a tap that adds a partner's power, and only when attacking.
+    enlist: () => 4,
     shadow: (p) => 10 * p,
     // Combat amplifiers — value grows with power.
     trample: (p) => 5 * p,
@@ -215,6 +218,7 @@ const ATTACK_SHARE_KEYWORDS: ReadonlySet<string> = new Set([
     "flanking",
     "dethrone",
     "provoke",
+    "enlist",
 ]);
 const BLOCK_SHARE_KEYWORDS: ReadonlySet<string> = new Set(["reach"]);
 

@@ -52,6 +52,12 @@ import {
 } from "./state";
 import { deriveXFromTargetSpellMv, resolveAbilityManaCost } from "./activation";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
+import {
+    enlistAssignments,
+    enlistCandidates,
+    enlistInstanceCount,
+    type EnlistPair,
+} from "../cards/abilities/enlist";
 import { EVOKE_SACRIFICE_TRIGGER_ID } from "../cards/abilities/evoke";
 import { activationPreconditionViolation } from "./activationPrecondition";
 import {
@@ -730,6 +736,10 @@ export type Move =
            *  independent: with two Glorybringers the bot may exert one and not
            *  the other. */
           exertIds?: string[];
+          /** CR 508.1g / 702.154 — the OPTIONAL enlist costs the bot chooses to
+           *  pay: each attacker with the creature it taps. Absent = decline,
+           *  always a legal answer. */
+          enlists?: EnlistPair[];
           /** CR 508.1a (issue #1220) — optional per-attacker planeswalker attack
            *  target (attackerId → planeswalkerId). Absent attackers attack the
            *  defending player. Lets the bot direct an attack at a planeswalker. */
@@ -5755,7 +5765,63 @@ export function enumerateAttackerMoves(
         }
     }
 
-    return [...baseMoves, ...pwMoves];
+    const declarations = [...baseMoves, ...pwMoves];
+    return [...declarations, ...enlistVariants(state, player, declarations)];
+}
+
+/** How many partners an enlist offer considers, and how many paid declarations
+ *  one attack window adds at most. Paid variants come AFTER every plain
+ *  declaration and on top of `MAX_COMBINATIONS`, so enlist can never crowd a
+ *  plain attack out of the capped window. The budget covers every subset of a
+ *  four-creature board. */
+const ENLIST_PARTNERS_PER_OFFER = 2;
+const ENLIST_VARIANT_BUDGET = 16;
+
+/** CR 508.1g / 702.154 — the declarations that also pay enlist, one or more
+ *  costs on top of each plain declaration, largest attacks first since they are
+ *  the ones a budget cut would otherwise lose on a wide board.
+ *
+ *  An offer considers its strongest partners only: X is the partner's power, so a
+ *  weaker partner buys less for the same tap. A partner with no power buys
+ *  nothing (CR 107.1b) and is never offered, though the cost stays legal for a
+ *  human. */
+function enlistVariants(
+    state: GameState,
+    player: PlayerState,
+    declarations: readonly Move[]
+): Move[] {
+    if (
+        !player.battlefield.some((c) => enlistInstanceCount(c.staticAbilities))
+    ) {
+        return [];
+    }
+    const byId = new Map(player.battlefield.map((c) => [c.id, c]));
+    const variants: Move[] = [];
+    const largestFirst = declarations
+        .filter((m) => m.kind === "declare-attackers")
+        .sort((a, b) => b.attackerIds.length - a.attackerIds.length);
+    for (const move of largestFirst) {
+        const slots = move.attackerIds.flatMap((id) =>
+            Array.from(
+                {
+                    length: enlistInstanceCount(byId.get(id)?.staticAbilities),
+                },
+                () => id
+            )
+        );
+        if (slots.length === 0) continue;
+        const partners = enlistCandidates(player.battlefield, move.attackerIds)
+            .map((c) => ({ id: c.id, power: getEffectivePower(state, c) }))
+            .filter((c) => c.power > 0)
+            .sort((a, b) => b.power - a.power)
+            .slice(0, ENLIST_PARTNERS_PER_OFFER)
+            .map((c) => c.id);
+        for (const enlists of enlistAssignments(slots, partners)) {
+            if (variants.length >= ENLIST_VARIANT_BUDGET) return variants;
+            variants.push({ ...move, enlists });
+        }
+    }
+    return variants;
 }
 
 /** Every legal blocker assignment for the declaring player (CR 509.1),

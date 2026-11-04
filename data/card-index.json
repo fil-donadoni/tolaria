@@ -3460,6 +3460,16 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Argivian Cavalier",
+        "scryfallId": "57746e72-ba9f-4717-a4a2-6c6a039080c3",
+        "oracleId": "c45090bd-a589-45a0-8388-025b8e0b3487",
+        "firstSet": "dmu",
+        "firstPrintId": "57746e72-ba9f-4717-a4a2-6c6a039080c3",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Argivian Find",
         "scryfallId": "89f23295-ad0a-4e2d-ae04-1a9c065e575d",
         "oracleId": "0b6c74a7-d7d3-4c05-84b1-bcb580bb476f",
@@ -5574,6 +5584,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Barkweave Crusher",
+        "scryfallId": "41c62c55-7b04-4987-9047-1322c842bb59",
+        "oracleId": "cbac75c6-6006-4025-b893-8828965b5f97",
+        "firstSet": "dmu",
+        "firstPrintId": "41c62c55-7b04-4987-9047-1322c842bb59",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Barl's Cage",
         "scryfallId": "6768a307-da2e-435e-8efd-72d82b4d4a2b",
         "oracleId": "eb260cd3-9060-4a5e-bc60-a8ca13d542cc",
@@ -6538,6 +6558,16 @@
         "firstSet": "inv",
         "firstPrintId": "6b82d56e-80d7-4be9-ac22-de3257efc458",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Benalish Faithbonder",
+        "scryfallId": "084d77df-a899-406f-9d79-e3fa3abeaebc",
+        "oracleId": "278db664-4235-40f0-a926-3074a0e038c1",
+        "firstSet": "dmu",
+        "firstPrintId": "084d77df-a899-406f-9d79-e3fa3abeaebc",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Benalish Heralds",
@@ -13714,12 +13744,32 @@
         "firstPrintSet": "fut"
     },
     {
+        "name": "Coalition Skyknight",
+        "scryfallId": "8b12da45-aff4-406d-83a3-39ecaff6ff56",
+        "oracleId": "dc763f20-73e7-4db7-9e98-6f419b8fba84",
+        "firstSet": "dmu",
+        "firstPrintId": "8b12da45-aff4-406d-83a3-39ecaff6ff56",
+        "firstPrintSet": "dmu",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Coalition Victory",
         "scryfallId": "dd8ad3aa-3225-45ae-8343-5991f5b52269",
         "oracleId": "e9e25800-9ee7-40c9-b22d-611c7281c125",
         "firstSet": "inv",
         "firstPrintId": "dd8ad3aa-3225-45ae-8343-5991f5b52269",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Coalition Warbrute",
+        "scryfallId": "554c422f-2a1b-47c0-9358-42b85cdbb84e",
+        "oracleId": "84d67d87-2696-4c2f-9f10-29d5832bfbb6",
+        "firstSet": "dmu",
+        "firstPrintId": "554c422f-2a1b-47c0-9358-42b85cdbb84e",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Coast Watcher",
@@ -35408,6 +35458,16 @@
         "firstSet": "fem",
         "firstPrintId": "08ee87a0-a7eb-4472-9045-85d11e8a1501",
         "firstPrintSet": "fem"
+    },
+    {
+        "name": "Hexbane Tortoise",
+        "scryfallId": "acd5a635-bcf5-4a05-b00b-bf40322823fe",
+        "oracleId": "f3b4097f-b84f-4645-81f1-018366e40eeb",
+        "firstSet": "dmu",
+        "firstPrintId": "acd5a635-bcf5-4a05-b00b-bf40322823fe",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Hexdrinker",
@@ -88795,6 +88855,16 @@
         "firstSet": "ulg",
         "firstPrintId": "a2f80036-1058-4513-8549-0557df9b5d61",
         "firstPrintSet": "ulg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Yavimaya Steelcrusher",
+        "scryfallId": "25175622-7b68-4916-adf2-3bf2d82e8356",
+        "oracleId": "ad181ee7-756f-4002-9009-023ea6172991",
+        "firstSet": "dmu",
+        "firstPrintId": "25175622-7b68-4916-adf2-3bf2d82e8356",
+        "firstPrintSet": "dmu",
         "rarity": "common",
         "source": "compiled"
     },

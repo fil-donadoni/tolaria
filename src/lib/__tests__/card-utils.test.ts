@@ -2560,6 +2560,14 @@ describe("getAbilityOracleText", () => {
 // getTriggeredAbilityOracleText — emblem source (CR 114)
 // ---------------------------------------------------------------------------
 
+describe("getTriggeredAbilityOracleText — enlist (CR 702.154a)", () => {
+    it("names the linked trigger of a keyword no definition lists as an ability", () => {
+        expect(getTriggeredAbilityOracleText("any-card", "enlist")).toContain(
+            "+X/+0 until end of turn"
+        );
+    });
+});
+
 describe("getTriggeredAbilityOracleText — flanking (CR 702.25a)", () => {
     it("names the trigger of a keyword no definition lists as an ability", () => {
         expect(getTriggeredAbilityOracleText("any-card", "flanking")).toContain(
