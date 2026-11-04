@@ -25,7 +25,7 @@ export const EVOLVE_KEYWORD = "evolve";
 export const EVOLVE_TRIGGER_ID = "evolve";
 
 const PLUS_ONE_COUNTER = "+1/+1";
-const CREATURE_FILTER: PermanentFilter = { type: "Creature" };
+const CREATURE_FILTER: PermanentFilter = { types: "Creature" };
 
 interface Stats {
     readonly power: number;
@@ -38,8 +38,8 @@ function liveStats(self: PermanentView, state?: TriggerStateView): Stats {
         : { power: self.power ?? 0, toughness: self.toughness ?? 0 };
 }
 
-/** The entering creature's power and toughness now, or `undefined` when it is
- *  no creature to compare (CR 702.100c).
+/** The entering creature's power and toughness now, or `undefined` once it is
+ *  no creature: a noncreature permanent has neither (CR 208.3).
  *
  *  An object that has left since the trigger went on the stack answers with
  *  its last known information (CR 608.2h), stamped by `removePermanentTo` as
@@ -58,7 +58,7 @@ function enteredStats(
         const live = player.battlefield.find((c) => c.id === event.instanceId);
         if (live) {
             return live.types.includes("Creature")
-                ? liveStats(live as PermanentView, state)
+                ? liveStats(live as unknown as PermanentView, state)
                 : undefined;
         }
     }
@@ -70,9 +70,8 @@ function enteredStats(
 
 /** The intervening-if of CR 702.100a, checked as the ability triggers and again
  *  as it resolves (CR 603.4). Power is compared to power and toughness to
- *  toughness, never across. CR 702.100c rules out both directions: a creature
- *  can't have a greater power or toughness than a noncreature permanent, so
- *  a source that has stopped being a creature fails as well. */
+ *  toughness, never across. A noncreature source fails it: a creature can't
+ *  have a greater power or toughness than a noncreature permanent (CR 702.100c). */
 function enteredCreatureOutgrowsSource(
     event: PermanentEnteredEvent,
     self: PermanentView,

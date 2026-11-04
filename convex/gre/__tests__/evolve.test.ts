@@ -233,6 +233,29 @@ describe("Evolve — the check as it triggers (CR 702.100a / 603.4)", () => {
         });
     });
 
+    it("a permanent that entered as a noncreature does not trigger it, whatever it is by the check", () => {
+        const def: CardDefinition = {
+            ...entrant(5, 5),
+            types: ["Artifact"],
+        };
+        withDefs([evolver(1, 1), def], () => {
+            const state = boardWith();
+            putReanimatedSetOnBattlefield(state, [
+                {
+                    card: makeInstance(def.id, {
+                        id: "entering",
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    }),
+                    controllerId: "p1",
+                },
+            ]);
+            onBattlefield(state, "entering").types = ["Artifact", "Creature"];
+            processPendingActionTriggers(state);
+            expect(evolveItems(state)).toHaveLength(0);
+        });
+    });
+
     it("a noncreature source does not trigger: nothing is greater than it (CR 702.100c)", () => {
         const def = entrant(5, 5);
         const artifact: CardDefinition = {
@@ -499,7 +522,7 @@ describe("Evolve — last known information (CR 608.2h / 400.7)", () => {
     });
 });
 
-describe("Evolve — a noncreature on either side (CR 702.100c)", () => {
+describe("Evolve — a noncreature on either side (CR 702.100c / 208.3)", () => {
     it("the entering creature stopped being a creature: the re-check fails", () => {
         const def = entrant(5, 5);
         withDefs([evolver(1, 1), def], () => {
