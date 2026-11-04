@@ -4271,6 +4271,11 @@
         },
         {
             "kind": "migration",
+            "key": "class-level-bar + triggered",
+            "issue": 8145
+        },
+        {
+            "kind": "migration",
             "key": "keyword-line",
             "issue": 4037
         },
