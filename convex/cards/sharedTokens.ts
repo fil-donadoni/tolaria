@@ -447,8 +447,7 @@ export const GOLEM_TOKEN: EffectTokenSpec = {
 /** Pest token (CR 111 / 707.2, issue #2364 / #2369). "1/1 black and green
  *  Pest creature token with 'When this token dies, you gain 1 life.'" —
  *  shared between Pest Infestation (`sets/c21/green.cards.ts`) and Sedgemoor Witch
- *  (`sets/stx/black.cards.ts`, still stubbed on the unrelated Magecraft-"or copy"
- *  gap, #2087). The FIRST card-shipped consumer of
+ *  (`sets/stx/black.cards.ts`). The FIRST card-shipped consumer of
  *  `EffectTokenSpec.triggeredAbilities` (issue #2364's shipped primitive,
  *  landed with zero card consumers until now): the dies-trigger is a
  *  `TokenTriggeredAbility` descriptor (`event: "CREATURE_DIED"`, always

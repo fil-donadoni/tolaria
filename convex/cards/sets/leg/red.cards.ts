@@ -52,7 +52,7 @@ export const gravitySphere = defineCard(() => ({
 // compile state and Grammar Gaps (gaps:sync) decide the work.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// --- Burn / copy spells (CR 119 damage, CR 707.12 "copy this spell") -------
+// --- Burn / copy spells (CR 119 damage, CR 707.10 "copy this spell") -------
 
 // Chain Lightning — "Chain Lightning deals 3 damage to any target. Then that
 // player or that permanent's controller may pay {R}{R}. If the player does,

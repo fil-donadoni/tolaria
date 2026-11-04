@@ -5,17 +5,13 @@
 
 import { defineCard } from "../../types";
 
-// TODO(issue #684 stub — Sage of the Skies' defining ability, "When you cast
-// this spell, if you've cast another spell this turn, copy this spell,"
-// requires spell-copying. Storm (CR 702.40, the closest existing keyword
-// census for "copy this spell N times") is `status: "planned"` in
-// mechanicsRegistry.ts with zero engine hits — there is no copy-a-spell
-// primitive/Op anywhere in the codebase to build on. Flying + lifelink
-// (lifelink itself also `planned`/decorative, precedent: avr/black.cards.ts) are
-// individually free, but shipping just the vanilla stat line while dropping
-// the storm-style copy — the card's entire reason for being in a Cube —
-// would misrepresent it (gre-development.md "never ship partial"). Stop-
-// and-issue; tracked stub.
+// Sage of the Skies' defining ability, "When you cast this spell, if you've cast
+// another spell this turn, copy this spell," copies a PERMANENT spell (CR
+// 707.10f: the copy becomes a token as it resolves), and the spell-clone helper
+// (`cloneSpellOntoStack`) refuses anything but an instant or sorcery. Flying and
+// lifelink are free, but shipping just the stat line would misrepresent the
+// card, so it stays a stub until permanent-spell copies exist.
+// tracked-by: #3658
 // export const sageOfTheSkies: CardDefinition = {
 //     id: "6ade6918-6d1d-448d-ab56-93996051e9a9",
 //     name: "Sage of the Skies",

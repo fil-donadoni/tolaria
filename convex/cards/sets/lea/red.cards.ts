@@ -427,7 +427,7 @@ export const flashfires = defineCard(() => ({
 
 // Fork — "Copy target instant or sorcery spell, except that the copy is red.
 // You may choose new targets for the copy." (CR 707.10 copying a spell,
-// 707.10b new targets, 707.10c color-change to red). The copy is put on the
+// CR 707.10c new targets). The copy is put on the
 // stack above the original and resolves first; it ceases to exist afterward.
 export const fork = defineCard(() => ({
     id: "e6b43916-fe2d-417a-a550-d7c795023297",

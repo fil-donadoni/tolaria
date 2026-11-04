@@ -4417,7 +4417,7 @@ export function drainAutoPasses(state: GameState): void {
                 return;
             }
             if (state.pendingTarget) {
-                // Resolution requested a copy-retarget (CR 707.10b, Fork) —
+                // Resolution requested a copy-retarget (CR 707.10c, Fork) —
                 // priority moves to the chooser and auto-drain stops until
                 // they select or decline new targets.
                 state.priorityPlayerId = state.pendingTarget.playerId;

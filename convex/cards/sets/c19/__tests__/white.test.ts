@@ -3,7 +3,7 @@
 // Sevinne's Reclamation returns a permanent card of mana value ≤ 3 from the
 // controller's graveyard to the battlefield (CR 400.7); when the spell itself
 // was flashed back (cast from a graveyard, CR 702.34a), its controller may copy
-// it (CR 707.12) and retarget the copy. The flashback exile is covered
+// it (CR 707.10) and retarget the copy. The flashback exile is covered
 // class-wide by convex/gre/__tests__/flashback.test.ts.
 import { describe, it, expect } from "vitest";
 import {
