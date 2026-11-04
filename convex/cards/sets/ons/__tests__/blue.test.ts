@@ -28,9 +28,9 @@ const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 // Chain of Vapor — {U} instant: return target nonland permanent to hand, then
 // that permanent's controller may sacrifice a land to copy this spell and
 // retarget the copy (CR 400.7 bounce, CR 608.2 stepped resolution, CR 701.21
-// sacrifice cost, CR 707.12 "copy this spell").
+// sacrifice cost, CR 707.10 "copy this spell").
 // ---------------------------------------------------------------------------
-describe("Chain of Vapor (CR 400.7 / 608.2 / 701.21 / 707.12)", () => {
+describe("Chain of Vapor (CR 400.7 / 608.2 / 701.21 / 707.10)", () => {
     type Targets = NonNullable<StackItem["targets"]>;
 
     // Mirrors finalizeTargetSelection's "copy-retarget" branch in game.ts:
@@ -98,7 +98,7 @@ describe("Chain of Vapor (CR 400.7 / 608.2 / 701.21 / 707.12)", () => {
         ).toBeUndefined();
     });
 
-    it("declining the may-sacrifice ends the chain — no copy (CR 707.12)", () => {
+    it("declining the may-sacrifice ends the chain — no copy (CR 707.10)", () => {
         const bears = makeInstance(grizzlyBears.id, {
             id: "p2-bears",
             controllerId: "p2",
@@ -179,7 +179,7 @@ describe("Chain of Vapor (CR 400.7 / 608.2 / 701.21 / 707.12)", () => {
         ).toEqual([chainOfVapor.id]);
     });
 
-    it("sacrificing a land copies the spell; the copy retargets and bounces another permanent (CR 701.21 / 707.12)", () => {
+    it("sacrificing a land copies the spell; the copy retargets and bounces another permanent (CR 701.21 / 707.10)", () => {
         const bears = makeInstance(grizzlyBears.id, {
             id: "p2-bears",
             controllerId: "p2",
@@ -210,7 +210,7 @@ describe("Chain of Vapor (CR 400.7 / 608.2 / 701.21 / 707.12)", () => {
         ]);
         resolveTopOfStack(state);
 
-        // p2 sacrifices their island to copy the spell (CR 701.21 / 707.12).
+        // p2 sacrifices their island to copy the spell (CR 701.21 / 707.10).
         applyMayPaySubmit(state, {
             playerId: "p2",
             accept: true,

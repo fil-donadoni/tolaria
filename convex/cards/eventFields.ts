@@ -442,6 +442,20 @@ export const EVENT_FIELD_REGISTRY: Record<
                 e.type === "SPELL_KICKED" ? e.casterId : undefined,
         },
     },
+    // CR 707.10 — the player who copied a spell, and the copy itself as an
+    // object a `counter` can name. Same two families as `SPELL_CAST`'s rows.
+    SPELL_COPIED: {
+        spell: {
+            family: "stack-object",
+            resolve: (e) =>
+                e.type === "SPELL_COPIED" ? e.spellInstanceId : undefined,
+        },
+        copier: {
+            family: "player",
+            resolve: (e) =>
+                e.type === "SPELL_COPIED" ? e.copierId : undefined,
+        },
+    },
     // CR 700.4 / 400.7e / issue #4127 — "When enchanted creature dies, return
     // THAT CARD to its owner's hand" (Squee's Embrace). The dying creature is
     // a new object in its owner's graveyard by the time the trigger resolves

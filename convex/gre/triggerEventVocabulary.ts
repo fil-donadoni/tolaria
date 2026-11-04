@@ -156,6 +156,18 @@ export const EVENT_FIELD_KINDS: {
         spellSubtypes: "scalar",
         spellColors: "scalar",
     },
+    // CR 707.10 — a spell was copied. Both the copy and its original may be on
+    // the stack while the trigger is; the original may also be gone.
+    SPELL_COPIED: {
+        copierId: "player",
+        spellInstanceId: "object",
+        originalSpellInstanceId: "object",
+        spellCardId: "scalar",
+        spellTypes: "scalar",
+        spellSubtypes: "scalar",
+        spellColors: "scalar",
+        fromCastCopyTrigger: "scalar",
+    },
     // CR 701.26a — a permanent became tapped (Tap). `manaProduced` is a `ManaCost`,
     // plain data with no identity in it.
     PERMANENT_TAPPED: {
