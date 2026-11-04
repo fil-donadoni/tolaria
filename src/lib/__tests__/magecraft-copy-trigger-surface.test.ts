@@ -8,6 +8,7 @@ import {
     getStackAbilityOracleText,
     stackAbilityKindOf,
 } from "~/lib/card-utils";
+import { preloadDefinitions } from "@convex/cards";
 import { projectPublicState } from "@convex/gameProjections";
 import { finalizeTargetSelection } from "@convex/game";
 import { resolveTopOfStack } from "@convex/gre/state";
@@ -19,6 +20,9 @@ import {
 } from "@convex/cards/__tests__/setup.helper";
 import { fork, lightningBolt } from "@convex/cards/sets/lea/index.cards";
 import { witherbloomApprentice } from "@convex/cards/sets/stx/multicolor.cards";
+
+// Base-owned `data/catalogue` (ADR 0157) lacks a card this PR ships.
+preloadDefinitions([witherbloomApprentice()]);
 
 describe("Witherbloom Apprentice's copy trigger on the stack (CR 707.10)", () => {
     it("crosses GRE → game.ts → wire with its ability id, Oracle text and copy event", () => {

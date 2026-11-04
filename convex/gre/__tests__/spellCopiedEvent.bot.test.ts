@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { applyMoveForSearch } from "../applyMove";
 import { applyMoveInSearch } from "../search";
 import { resolveTopOfStack, getPlayer, type GameState } from "../state";
+import { preloadDefinitions } from "../../cards";
 import type { Move } from "../moves";
 import {
     makeInstance,
@@ -16,6 +17,9 @@ import {
 import { lightningBolt } from "../../cards/sets/lea/index.cards";
 import { emptyTheWarrens } from "../../cards/sets/tsp/red.cards";
 import { witherbloomApprentice } from "../../cards/sets/stx/multicolor.cards";
+
+// Base-owned `data/catalogue` (ADR 0157) lacks a card this PR ships.
+preloadDefinitions([witherbloomApprentice()]);
 
 function position(hand: { id: string; cardId: string }[]): GameState {
     return makeState({

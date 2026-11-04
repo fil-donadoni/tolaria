@@ -43,7 +43,7 @@ import {
     makeState,
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
-import { registerTokenDefinition } from "../../cards";
+import { preloadDefinitions, registerTokenDefinition } from "../../cards";
 import { spellCastTrigger } from "../../cards/abilities/triggers/spellCastTrigger";
 import type { CardDefinition, SpellCopiedEvent } from "../../cards/types";
 import {
@@ -58,6 +58,9 @@ import { saprolingInfestation } from "../../cards/sets/inv/green.cards";
 import { witherbloomApprentice } from "../../cards/sets/stx/multicolor.cards";
 import { sedgemoorWitch } from "../../cards/sets/stx/black.cards";
 import { applyMayPaySubmit } from "../pendingChoiceSubmit";
+
+// Base-owned `data/catalogue` (ADR 0157) lacks a card this PR ships.
+preloadDefinitions([witherbloomApprentice(), sedgemoorWitch()]);
 
 /** Watches every copy and nothing else, so a row's count cannot be confused
  *  with a cast trigger. */
