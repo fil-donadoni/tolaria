@@ -70,6 +70,7 @@ import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { matchesPermanentFilter, matchesSpellFilter } from "../cards/filters";
 import { getEffectiveColors } from "../cards/effectiveColors";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import { extraLandDropsOf } from "../cards/abilities/classLevels";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import type { CastFromZone } from "./castCost";
 import {
@@ -203,7 +204,8 @@ export {
 
 /** Reads the extra land drops `player` has this turn (CR 305.2): the
  *  continuous ones granted by permanents on their battlefield (Fastbond,
- *  Exploration — `extraLandDrops` on the definition) plus the turn-scoped
+ *  Exploration — `extraLandDrops` on the definition or, from its level, on a
+ *  Class section: `extraLandDropsOf`) plus the turn-scoped
  *  ones a resolved effect granted (Explore — `state.extraLandDropsThisTurn`,
  *  the `grantExtraLandDrops` Op). */
 export function getExtraLandDrops(
@@ -218,7 +220,7 @@ export function getExtraLandDrops(
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) continue;
         const def = tryGetDefinition(cardId);
-        if (def?.extraLandDrops) extra += def.extraLandDrops;
+        if (def) extra += extraLandDropsOf(def, card);
     }
     return extra;
 }

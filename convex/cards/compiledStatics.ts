@@ -1065,9 +1065,8 @@ export function resolveCompiledStatic(
 
 /** CR 716.2a — a Class section's descriptors, rebuilt in place on their bar so
  *  `expandClassLevelBars`, which runs after this seam, gates them. The compiler
- *  admits only a kind with an `applies` predicate into a section
- *  (`isGateableStaticEffect`, `oracle/compile.ts`), which is what this cast
- *  states. */
+ *  admits only a gateable kind into a section (`isGateableStaticEffect`,
+ *  `oracle/compile.ts`), which is what this cast states. */
 function expandBarStatics(base: CardDefinition): CardDefinition {
     const bars = base.classLevelBars;
     if (bars?.some((b) => b.compiledStaticEffects) !== true) return base;
