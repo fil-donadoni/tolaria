@@ -29,7 +29,7 @@
  */
 
 import type { SpellFilter } from "../../../cards/filters";
-import type { Color } from "../../../cards/types";
+import type { CardType, Color } from "../../../cards/types";
 import type { Phase } from "../../../gre/types";
 import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
 import { isSelfPhrase } from "./cost";
@@ -39,6 +39,10 @@ export const TRIGGER_HEAD = "trigger head";
 
 // CR 603.8 — "when <self>'s power is N or greater" (state trigger).
 const POWER_REACHED = /^when (.+)'s power is (\d+) or greater$/i;
+
+// CR 716.2a — the level a bar sets is printed on it, so the head names a number
+// and `compile.ts` holds it to the section it is printed in.
+const CLASS_LEVEL_GAINED = /^when this class becomes level (\d+)$/i;
 
 /** CR 603.6a — the enters head behind a plural card name (see `matchSelfHead`). */
 const PLURAL_NAME_ENTERS = "when {self} enter";
@@ -246,6 +250,8 @@ export type TriggerHeadIR =
      * `atLeast` at a checkpoint, once per time the state becomes true.
      */
     | { readonly kind: "power-reached"; readonly atLeast: number }
+    /** CR 716.2a — "when this Class becomes level N". */
+    | { readonly kind: "class-level-gained"; readonly level: number }
     /** CR 603.6a — "at the beginning of [your/each] <step>". */
     | {
           readonly kind: "phase";
@@ -334,18 +340,25 @@ function typeSpellCastHeads(): [string, TriggerHeadIR][] {
         ["an opponent casts", "opponent"],
         ["a player casts", "any"],
     ] as const;
-    const types = [
-        ["a creature spell", "Creature"],
-        ["an enchantment spell", "Enchantment"],
-        ["an instant spell", "Instant"],
-    ] as const;
+    const types: readonly (readonly [string, readonly CardType[]])[] = [
+        ["a creature spell", ["Creature"]],
+        ["an enchantment spell", ["Enchantment"]],
+        ["an instant spell", ["Instant"]],
+        // `SpellFilter.types` is any-of (`matchesSpellFilter`), so "or" is the
+        // filter's own semantics, as the colour list below it.
+        ["an instant or sorcery spell", ["Instant", "Sorcery"]],
+    ];
     const rows: [string, TriggerHeadIR][] = [];
     for (const opener of ["when", "whenever"])
         for (const [phrase, scope] of casters)
-            for (const [noun, type] of types)
+            for (const [noun, wanted] of types)
                 rows.push([
                     `${opener} ${phrase} ${noun}`,
-                    { kind: "spell-cast", scope, filter: { types: [type] } },
+                    {
+                        kind: "spell-cast",
+                        scope,
+                        filter: { types: [...wanted] },
+                    },
                 ]);
     return rows;
 }
@@ -739,6 +752,9 @@ export function matchSelfHead(span: string): TriggerHeadIR | null {
     const power = POWER_REACHED.exec(span);
     if (power !== null && isSelfPhrase(power[1]!))
         return { kind: "power-reached", atLeast: Number(power[2]) };
+    const gained = CLASS_LEVEL_GAINED.exec(span);
+    if (gained !== null)
+        return { kind: "class-level-gained", level: Number(gained[1]) };
     // CR 201.5 — a card whose NAME is plural ("Gert and Old Lace") takes the
     // plural verb: "when {self} enter" is the "enters" head, spelled for the
     // name alone — "this creature enter" is no English, and stays unread.
@@ -830,6 +846,9 @@ export function headPronounReferent(
             return "source";
         // CR 603.8 — the state belongs to the source itself.
         case "power-reached":
+            return "source";
+        // CR 716.2a — so does the level.
+        case "class-level-gained":
             return "source";
         case "phase":
         case "spell-cast":

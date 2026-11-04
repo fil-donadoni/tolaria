@@ -47,6 +47,7 @@ import type {
     GateableStaticEffect,
     ManaCost,
     PermanentView,
+    StaticEffect,
     TargetRequirement,
     TriggeredAbility,
     TriggerStateView,
@@ -108,28 +109,28 @@ export function classLevelActivationViolation(
 export const classLevelBarId = (level: number): string =>
     `class-level-${level}`;
 
-/** CR 716.1/716.2 — rejects a bar set that cannot describe a printed Class:
+/** CR 716.1/716.2 — why a bar set cannot describe a printed Class, or `null`:
  *  no bars at all, a bar at level 1 or below (a Class on the battlefield is
  *  already level 1, so nothing activates to reach it), duplicated levels, or
  *  levels out of order / with a gap (CR 716.2a's "activate only if this Class
  *  is level N-1" makes every level after the first reachable ONLY from its
- *  immediate predecessor — a gap would strand every bar above it). Throws on the
- *  card's FIRST definition read (`expandDefinition` memoizes, so it is once per
- *  card, not once per call), which every catalogue sweep in the gate performs —
- *  so a malformed Class is a red catalogue and never a permanent with an
- *  unreachable level. */
-function assertWellFormedBars(bars: readonly ClassLevelBarDefinition[]): void {
+ *  immediate predecessor — a gap would strand every bar above it). The ONE
+ *  authority on a bar's shape: the engine throws on it, the Oracle compiler
+ *  refuses the card on it (`oracle/compile.ts`), so a compiled Class can never
+ *  reach the throw. */
+export function classLevelBarsViolation(
+    bars: readonly Pick<
+        ClassLevelBarDefinition,
+        "level" | "cost" | "costLabel"
+    >[]
+): string | null {
     if (bars.length === 0) {
-        throw new Error(
-            "expandClassLevelBars: a Class card has at least one class level bar (CR 716.1)"
-        );
+        return "a Class card has at least one class level bar (CR 716.1)";
     }
     for (let i = 0; i < bars.length; i++) {
         const expected = i + 2;
         if (bars[i].level !== expected) {
-            throw new Error(
-                `expandClassLevelBars: class level bars are consecutive from level 2 (CR 716.2a) — expected level ${expected}, got ${bars[i].level}`
-            );
+            return `class level bars are consecutive from level 2 (CR 716.2a) — expected level ${expected}, got ${bars[i].level}`;
         }
         // CR 716.2 — the bar's PRINTED price and the price the engine charges
         // are the same number. `costLabel` exists only because the Oracle line
@@ -139,10 +140,20 @@ function assertWellFormedBars(bars: readonly ClassLevelBarDefinition[]): void {
         // and paid costs differ with nothing red.
         const printed = manaCostLabel(bars[i].cost);
         if (printed !== bars[i].costLabel) {
-            throw new Error(
-                `expandClassLevelBars: class level bar ${bars[i].level}'s costLabel "${bars[i].costLabel}" does not spell its cost (${printed})`
-            );
+            return `class level bar ${bars[i].level}'s costLabel "${bars[i].costLabel}" does not spell its cost (${printed})`;
         }
+    }
+    return null;
+}
+
+/** Throws on the card's FIRST definition read (`expandDefinition` memoizes, so
+ *  it is once per card, not once per call), which every catalogue sweep in the
+ *  gate performs — so a malformed Class is a red catalogue and never a
+ *  permanent with an unreachable level. */
+function assertWellFormedBars(bars: readonly ClassLevelBarDefinition[]): void {
+    const violation = classLevelBarsViolation(bars);
+    if (violation !== null) {
+        throw new Error(`expandClassLevelBars: ${violation}`);
     }
 }
 
@@ -175,7 +186,9 @@ function manaCostLabel(cost: ManaCost): string {
  *  level N-1" restriction — see this module's header for why it is not a
  *  `canActivate` closure. `sorcerySpeedOnly` is the CR 307.5 timing template
  *  every activation surface already honours. */
-function buildLevelBarAbility(bar: ClassLevelBarDefinition): ActivatedAbility {
+export function buildLevelBarAbility(
+    bar: Pick<ClassLevelBarDefinition, "level" | "cost" | "costLabel">
+): ActivatedAbility {
     const effects: EffectOp[] = [
         {
             op: "setLevel",
@@ -192,6 +205,15 @@ function buildLevelBarAbility(bar: ClassLevelBarDefinition): ActivatedAbility {
         classLevelBar: bar.level,
         effects,
     };
+}
+
+/** CR 716.2a — can this static effect be level-gated? `GateableStaticEffect`'s
+ *  own test, at runtime, for a descriptor the compiler rebuilds: a kind with no
+ *  `applies` predicate has no seam for "as long as this Class is level N or
+ *  greater", so the compiler refuses it in a section rather than ship it live
+ *  at every level. */
+export function isGateableStaticEffect(effect: StaticEffect): boolean {
+    return typeof (effect as { applies?: unknown }).applies === "function";
 }
 
 /** CR 716.2a — "as long as this Class is level N or greater, it has
@@ -305,12 +327,15 @@ export function expandClassLevelBars(def: CardDefinition): CardDefinition {
  *  ability genuinely does not exist below level N. */
 export function classLevelGainedTrigger(args: {
     level: number;
+    /** A compiled trigger keeps its descriptor's id; a hand-written one takes
+     *  the id derived from its level. */
+    id?: string;
     oracleText: string;
     targetRequirement?: TargetRequirement;
     effects: EffectOp[];
 }): TriggeredAbility {
     return {
-        id: `class-becomes-level-${args.level}`,
+        id: args.id ?? `class-becomes-level-${args.level}`,
         oracleText: args.oracleText,
         event: "LEVEL_GAINED",
         ...(args.targetRequirement
