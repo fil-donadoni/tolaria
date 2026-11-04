@@ -953,3 +953,34 @@ by then, so nobody waits on it.
 
 **`gate:run` stays.** It is the gate rule's answer for any hand-run gate
 (`/next-ticket`, `deny-guard.sh` § 3), not only `land`'s.
+
+## Amendment IX (2026-11-04, issue #5658) — the template is a kernel, not a copy of these files
+
+§6 says a new project copies five workflows, `.mergify.yml` and the
+`/next-ticket` skill family, and brings four scripts of its own. Walking the
+files showed that cannot work: those workflows call `afk:pass`, `check:lane`,
+`pr:checks`, `pr:fixup`, `health:fix`, `health:bisect`, `post-merge` and
+`derive:sync`, none of which a config block names. The real choice was to copy
+that orchestration, which is two copies to keep in step, the condition this ADR
+exists to end, or to write a smaller one.
+
+**The owner chose the smaller one.** The template (`afk-pipeline-template`, its
+own repository) is a kernel: bash, `git`, `jq` and `gh`, with the decisions in
+pure `jq` files. It is a separate implementation of the same shape, and Tolaria
+does not consume it. A fix in one reaches the other only by hand.
+
+**What it keeps.** One pass per dispatch, the label as the claim, fork PRs on
+hosted runners only, `trusted-author` and `base-health`, the Mergify queue with its
+sticky-dequeue handling, health as a commit status, the fast-forward release.
+
+**What it drops.** Scoped lanes (it runs the project's `check` and `test` whole),
+the RED ladder (a RED emails the owner, who merges a PR labelled `repair`), the
+verdict store, the two-machine topology, the token budget and the usage-limit
+reading (a limit counts as a failed pass, so the failure streak stops it).
+
+**§6 still holds in one respect:** nothing Tolaria-shaped leaks, and the template's
+own test run fails if a Tolaria word appears in it.
+
+Issue #5658 stays open until a second project has run a pass, a queue merge and a
+health from the template, and the owner has approved its README. Until then
+Mergify's behaviour under the kernel is unproven.
