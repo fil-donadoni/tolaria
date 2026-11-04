@@ -107,7 +107,11 @@ function enter(
     putReanimatedSetOnBattlefield(
         state,
         defs.map(({ def, id, controllerId = "p1" }) => ({
-            card: makeInstance(def.id, { id, controllerId, ownerId: controllerId }),
+            card: makeInstance(def.id, {
+                id,
+                controllerId,
+                ownerId: controllerId,
+            }),
             controllerId,
         }))
     );
@@ -342,9 +346,11 @@ describe("Evolve — resolution (CR 702.100a / 603.4)", () => {
             const state = boardWith();
             enter(state, { def, id: "entering" });
             drainStack(state);
-            const wire = projectPublicState(state, 1, "p1").players[0].battlefield.find(
-                (c) => c.id === "source"
-            );
+            const wire = projectPublicState(
+                state,
+                1,
+                "p1"
+            ).players[0].battlefield.find((c) => c.id === "source");
             expect(wire?.counters).toEqual({ "+1/+1": 1 });
         });
     });
@@ -402,7 +408,9 @@ describe("Evolve — last known information (CR 608.2h / 400.7)", () => {
                     attachedTo: "entering",
                 })
             );
-            expect(getEffectivePower(state, onBattlefield(state, "entering"))).toBe(4);
+            expect(
+                getEffectivePower(state, onBattlefield(state, "entering"))
+            ).toBe(4);
             removePermanentTo(state, "entering", "graveyard", "destroy");
             while (state.stack.length > 0) resolveTopOfStack(state);
             expect(plusOneCounters(state)).toBe(3);
@@ -439,7 +447,9 @@ describe("Evolve — last known information (CR 608.2h / 400.7)", () => {
             );
             // Departed as a 1/1, back as a 2/2: only the departed one counts.
             blinkUncollected(state, "entering");
-            expect(getEffectivePower(state, onBattlefield(state, "entering"))).toBe(2);
+            expect(
+                getEffectivePower(state, onBattlefield(state, "entering"))
+            ).toBe(2);
             resolveTopOfStack(state);
             expect(plusOneCounters(state)).toBe(0);
         });
