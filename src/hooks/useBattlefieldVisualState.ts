@@ -10,6 +10,7 @@ import { useAttackSequence } from "~/hooks/useAttackSequence";
 import {
     isCreature,
     isPlaneswalker,
+    isHorsemanshipBarred,
     isLandwalkUnblockable,
     hasManaAbility,
     matchesPermanentFilter,
@@ -425,6 +426,7 @@ export function useBattlefieldVisualState(
             );
             if (!attacker) continue;
             if (isLandwalkUnblockable(attacker, player.battlefield)) continue;
+            if (isHorsemanshipBarred(attacker, blocker)) continue;
             const attackerFlies =
                 attacker.staticAbilities?.includes("flying") ?? false;
             if (!attackerFlies || hasFlying || hasReach) return true;
