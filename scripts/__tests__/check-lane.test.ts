@@ -3423,6 +3423,31 @@ describe("scoped lanes admit the repo-wide scan guards by diff (issue #7012)", (
         );
         expect(p.guards?.map((g) => g.file)).toContain(VH);
     });
+
+    // Issue #8075: raw-card-display read `src/**` through fs and caused 8 base
+    // REDs while no lane ran it (a plain `.test.ts` is invisible to discovery).
+    it("a src/ diff plans raw-card-display.guard.test.ts; a diff without src/ does not", () => {
+        const RCD = "scripts/__tests__/raw-card-display.guard.test.ts";
+        const live = () => discoverScanGuards(resolve(__dirname, "../.."));
+        const withSrc = classifyLane(
+            ["src/components/board/discard-cost-dialog.tsx"],
+            undefined,
+            none,
+            undefined,
+            undefined,
+            live
+        );
+        expect(withSrc.guards?.map((g) => g.file)).toContain(RCD);
+        const noSrc = classifyLane(
+            ["scripts/gate.ts"],
+            undefined,
+            none,
+            undefined,
+            undefined,
+            live
+        );
+        expect(noSrc.guards?.map((g) => g.file) ?? []).not.toContain(RCD);
+    });
 });
 
 describe("every code lane runs the derived sentinel set (issue #7651)", () => {
