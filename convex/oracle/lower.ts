@@ -176,6 +176,8 @@ interface Accumulator {
     plot?: ManaCost;
     /** CR 702.143a — the cost a foretold card is cast for from exile. */
     foretell?: ManaCost;
+    /** CR 702.94a — the cost a card revealed for miracle is cast for. */
+    miracle?: ManaCost;
     /** CR 702.96a — the card's overload alternative cost. */
     overload?: AlternativeCost;
     /** CR 702.37e — the cost to turn the permanent face up. */
@@ -848,6 +850,12 @@ function lowerLine(
             if (acc.foretell !== undefined)
                 return "a card declares foretell twice (CR 702.143a)";
             acc.foretell = ir.cost;
+            return null;
+        }
+        case "miracle": {
+            if (acc.miracle !== undefined)
+                return "a card declares miracle twice (CR 702.94a)";
+            acc.miracle = ir.cost;
             return null;
         }
         case "overload": {
@@ -1554,6 +1562,7 @@ export function lowerCard(
     if (acc.madness !== undefined) definition.madness = acc.madness;
     if (acc.plot !== undefined) definition.plot = acc.plot;
     if (acc.foretell !== undefined) definition.foretell = acc.foretell;
+    if (acc.miracle !== undefined) definition.miracle = acc.miracle;
     if (acc.morph !== undefined) definition.morph = acc.morph;
     if (acc.impending !== undefined) definition.impending = acc.impending;
     if (acc.echo !== undefined) definition.echo = acc.echo;

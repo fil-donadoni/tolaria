@@ -46,6 +46,7 @@ function fakeMutations() {
         submitReboundDecline: vi.fn().mockResolvedValue(null),
         submitLandEntryChoice: vi.fn().mockResolvedValue(null),
         submitDrawReplacementPay: vi.fn().mockResolvedValue(null),
+        submitMiracleReveal: vi.fn().mockResolvedValue(null),
         submitNameCard: vi.fn().mockResolvedValue(null),
         submitNumberChoice: vi.fn().mockResolvedValue(null),
         submitRandomRevealAck: vi.fn().mockResolvedValue(null),

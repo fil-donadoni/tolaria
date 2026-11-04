@@ -33,6 +33,7 @@ import type {
     StackItem,
 } from "./state/declarations";
 import { getPlayer, allocInstanceId } from "./lookup";
+import { buildMiracleTrigger } from "./miracle";
 import { stackTransformStamp } from "./transform";
 import {
     effectiveTriggeredAbilities,
@@ -982,6 +983,21 @@ export function collectTriggers(
         out.push(buildMadnessReflexiveTrigger(state, card, event.playerId));
     }
 
+    // CR 702.94a / 603.11 — the triggered ability LINKED to a card's miracle
+    // ability: "When you reveal this card this way, you may cast it …". The
+    // card is in its owner's hand, so every scan above misses it. It triggers
+    // ONLY off the dedicated MIRACLE_REVEALED event the miracle window emits
+    // (`revealForMiracle`) — never a generic reveal — and only while the card
+    // is still in that hand.
+    for (const event of events) {
+        if (event.type !== "MIRACLE_REVEALED") continue;
+        const owner = getPlayer(state, event.playerId);
+        const card = owner.hand.find((c) => c.id === event.cardInstanceId);
+        if (!card) continue;
+        const item = buildMiracleTrigger(state, card, event.playerId);
+        if (item) out.push(item);
+    }
+
     // CR 702.29c — "When you cycle this card" and any other trigger on the
     // DISCARDED CARD ITSELF (`functionsFromOwnDiscard`). Same shape as the
     // Madness block above: the source is not on any battlefield, so every scan
@@ -1216,9 +1232,19 @@ export function placeTriggersOnStack(
     }
 
     if (choices.length === 0) {
-        // No ordering owed: push in collection order (auto-ordered slices ride
-        // along unchanged), exactly as the pre-ADR-0058 engine did.
-        state.stack.push(...triggers);
+        // No ordering owed: push each controller's slice in collection order
+        // (auto-ordered slices ride along unchanged), the slices themselves in
+        // APNAP order (CR 603.3b — the active player's go on the stack first,
+        // so the non-active player's resolve first). The battlefield scan is
+        // already APNAP-ordered; the blocks collected after it (delayed,
+        // emblem, Madness, cycling and Miracle triggers) are not, which is why
+        // the slices are re-grouped here rather than trusted.
+        state.stack.push(
+            ...apnap.flatMap((id) =>
+                triggers.filter((t) => t.controllerId === id)
+            ),
+            ...triggers.filter((t) => !apnap.includes(t.controllerId))
+        );
         // CR 603.3d (issue #1193) — a triggered ability chooses its targets as
         // it is put on the stack. Lock them now; if any controller must make a
         // real choice, we suspend on a `kind:"trigger"` PendingTarget (parked on

@@ -426,6 +426,7 @@ export type BotAction =
       }
     | { kind: "land-entry"; accept: boolean }
     | { kind: "draw-replacement"; accept: boolean }
+    | { kind: "miracle-reveal"; reveal: boolean }
     | { kind: "name-card"; cardName: string }
     | { kind: "number-choice"; amount: number }
     | { kind: "random-reveal-ack" }
@@ -658,6 +659,7 @@ export function botActionRealisation(
         case "may-pay":
         case "land-entry":
         case "draw-replacement":
+        case "miracle-reveal":
         case "name-card":
         case "number-choice":
         case "random-reveal-ack":
@@ -1312,6 +1314,7 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "may-pay":
         case "land-entry-tapped":
         case "draw-replacement":
+        case "miracle-reveal":
         case "mulligan-bottom":
         case "random-reveal":
         case "name-card":
@@ -1589,6 +1592,12 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
         // unknown card is a value decision deferred to a later slice.
         // Declining is always legal and never stalls.
         return { kind: "draw-replacement", accept: false };
+    }
+    if (choice.kind === "miracle-reveal") {
+        // CR 702.94a — the Miracle reveal fallback, reached only when no
+        // candidate came back: keep the card hidden. Always legal, never
+        // stalls, and discloses nothing.
+        return { kind: "miracle-reveal", reveal: false };
     }
     return {
         kind: "resolution-choice",
