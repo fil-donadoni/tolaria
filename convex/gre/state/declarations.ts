@@ -2593,7 +2593,10 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  spell being copied, captured at cast time — NOT a live stack reference
      *  — so `resolveCastCopyTrigger` still creates copies from it even if the
      *  original spell has since left the stack (countered). See
-     *  `collectCastTriggers`. */
+     *  `collectCastTriggers`. A card's own "when you cast this spell" trigger
+     *  carries one too, with no `castCopiesRemaining`: the last known
+     *  information `copyResolvingSpell` reads once the spell has left the stack
+     *  (CR 113.7a, 608.2h). */
     castCopySnapshot?: StackItem;
     /** Cast-Copy Count — copies still to create as this trigger resolves.
      *  Fixed at cast time by the keyword that supplies it (CR 702.40a Storm:
@@ -2692,7 +2695,9 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
     /** True iff this stack item is a COPY of a spell (CR 707.10, Fork). A
      *  copy is not a real card: when it finishes resolving it ceases to exist
      *  rather than moving to a graveyard (CR 707.10a), and it can never
-     *  return to a hand/library. Set by `SpellContext.copyStackItem`. */
+     *  return to a hand/library. A copy of a permanent spell instead becomes a
+     *  token as it resolves (CR 707.10f, 608.3f), dropping this flag. Set by
+     *  `cloneSpellOntoStack`. */
     isCopy?: boolean;
     /** True iff the resolving spell instructs itself to be exiled as the last
      *  thing it does (CR 608.2 — "Exile <this spell>", e.g. Recall). When set,

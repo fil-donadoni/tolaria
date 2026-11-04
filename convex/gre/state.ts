@@ -2866,9 +2866,16 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     // `triggeredAbilityId`, and a cast-copy trigger's card (the SPELL itself,
     // e.g. Grapeshot or Lose Focus) has no such entry — the generic branch
     // would silently find nothing and pop the trigger with zero copies. Marked
-    // by `castCopySnapshot`, unique to the stack items `collectCastTriggers`
-    // synthesizes, whichever keyword supplied the count.
-    if (top.triggeredAbilityId && top.castCopySnapshot) {
+    // by `castCopiesRemaining`, unique to the stack items `pushCastCopyTrigger`
+    // synthesizes, whichever keyword supplied the count: a card's own cast
+    // trigger carries a snapshot too, and resolves through its ability. The
+    // snapshot is required as well because the projection strips it and ships
+    // the count, and the client Brain resolves projected state.
+    if (
+        top.triggeredAbilityId &&
+        top.castCopySnapshot &&
+        top.castCopiesRemaining !== undefined
+    ) {
         return resolveCastCopyTrigger(state, top);
     }
 
@@ -3728,6 +3735,9 @@ function shuffleAfterGraveyardBoundLibraryRedirect(
  *  paths, the plain spell-resolves path, and `SpellContext.counter`'s
  *  default destination. */
 function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
+    // CR 707.10a — a copy of a spell is not a card: off the stack it ceases to
+    // exist, whichever zone the card would have gone to.
+    if (item.isCopy) return;
     const owner = getPlayer(state, item.ownerId);
     // CR 708.9 (issue #2705) — "If a face-down spell moves from the stack to
     // any zone other than the battlefield, its owner must reveal it to all
@@ -3760,17 +3770,13 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
         "stack",
         item
     );
-    // Read before `resetStackTransientState` strips it: a copy of a spell is
-    // not a card, and ceases to exist off the stack (CR 707.10a).
-    const isCopy = item.isCopy === true;
     item.zone = destination;
     resetStackTransientState(item);
     // Issue #4931 — a CAST instant/sorcery in the graveyard keeps its mana
-    // value on the curve (evaluate.ts `manaDevelopmentTerm`); a copy is no
-    // card and a permanent card is read off the battlefield instead.
+    // value on the curve (evaluate.ts `manaDevelopmentTerm`); a permanent card
+    // is read off the battlefield instead.
     if (
         destination === "graveyard" &&
-        !isCopy &&
         !item.types.some((t) =>
             CASTABLE_PERMANENT_TYPES.includes(
                 t as (typeof CASTABLE_PERMANENT_TYPES)[number]
@@ -3782,12 +3788,11 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     (owner[destination] as CardInstanceState[]).push(item);
     if (destination === "library") {
         // issue #3242 — a CR 614 redirect put the spell card into a library.
-        if (!isCopy)
-            emitCardsPutIntoLibrary(state, [libraryEntry(item, "stack")]);
+        emitCardsPutIntoLibrary(state, [libraryEntry(item, "stack")]);
         shuffleAfterGraveyardBoundLibraryRedirect(state, owner);
     } else if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(item, tagCounters);
-    } else if (!isCopy) {
+    } else {
         // CR 603.6c — a "put into a graveyard from anywhere" trigger sees a
         // spell card reaching the graveyard off the stack too (resolved,
         // countered, or countered on resolution). Every stack departure into a
@@ -3833,6 +3838,12 @@ function finalizeSpellResolution(
     const controller = getPlayer(state, item.castById);
 
     if (isPermanent) {
+        // CR 608.3f / 707.10f — a copy of a permanent spell "will become a token
+        // permanent as it is put onto the battlefield" and "is not 'created'":
+        // it takes this entry tail, never `createTokenPermanents`, so nothing
+        // that watches a token being created sees it, while everything that
+        // watches a permanent entering does. It was not cast (CR 707.10).
+        const isCopyOfSpell = item.isCopy === true;
         // CR 110.2 / 110.2b (issue #3000) — "a permanent's controller is, by
         // default, the player under whose control it entered the battlefield",
         // and for a permanent SPELL that is the player who put it on the stack
@@ -3883,12 +3894,14 @@ function finalizeSpellResolution(
                 card: item.card,
             },
             item.castById,
-            false,
-            true,
+            isCopyOfSpell,
+            !isCopyOfSpell,
             { asEntersResolved: entryOpts?.asEntersResolved }
         );
         if (enterDestination === "exile") {
             withdrawFullText(state, item);
+            // CR 707.10a — off the stack a copy ceases to exist.
+            if (isCopyOfSpell) return;
             item.zone = "exile";
             resetStackTransientState(item);
             getPlayer(state, item.ownerId).exile.push(item);
@@ -4000,6 +4013,10 @@ function finalizeSpellResolution(
             }
         }
         item.zone = "battlefield";
+        if (isCopyOfSpell) {
+            item.isToken = true;
+            delete item.isCopy;
+        }
         // Read off the definition the permanent PRESENTS, after any full text
         // above. Unknown ids (synthetic test fixtures) collapse to the vanilla
         // path — same tolerance `resolveTopOfStackInner` applies to its own
@@ -4244,7 +4261,7 @@ function finalizeSpellResolution(
         // enters.
         applyGraveyardPermissionRider(state, item);
         emitPermanentEntered(state, item, {
-            wasCast: true,
+            wasCast: !isCopyOfSpell,
             enteredFromGraveyard: item.castFromZone === "graveyard",
         });
         // CR 400.7 — the provenance belongs to the SPELL; the permanent it
@@ -8357,6 +8374,10 @@ function collectSelfCastTriggers(
             overloaded: undefined,
             // CR 601.2a — nor its provenance: a trigger is not cast.
             castFromZone: undefined,
+            // CR 113.7a / 608.2h — the ability exists independently of the
+            // spell: "copy this spell" still copies, from this last known
+            // information, a spell countered in response.
+            castCopySnapshot: structuredClone(castSpell),
         });
         pushed = true;
     }
@@ -12180,10 +12201,11 @@ function normalizeDestroyAllFilter(
 
 /** Shared clone-onto-stack helper for spell-copy primitives (CR 707.10).
  *  `original` is the spell being copied; `creator` is the resolving stack item
- *  whose effect creates the copy (Fork's spell, or the resolving spell itself
- *  for "copy this spell"). Returns the copy's new stack id, or `null` when
- *  `original` is an ability or a non-instant/sorcery spell (copies of permanent
- *  spells / abilities are out of scope, CR 707.10).
+ *  whose effect creates the copy (Fork's spell, the resolving spell itself for
+ *  "copy this spell", or that spell's own cast trigger). Returns the copy's new
+ *  stack id, or `null` when `original` is an ability (out of scope, CR 707.10).
+ *  A copy of a permanent spell becomes a token as it resolves (CR 707.10f,
+ *  `finalizeSpellResolution`).
  *
  *  The copy is controlled by `creator`'s controller (CR 707.10) and inserted
  *  directly below `creator` on the stack so it becomes the new top once
@@ -12198,19 +12220,11 @@ function cloneSpellOntoStack(
     creator: StackItem,
     modifications?: { colorOverride?: Color[]; controllerId?: string }
 ): string | null {
-    // CR 707.10 — abilities aren't spells; this primitive copies only
-    // instant/sorcery SPELLS. Copies of permanent spells (which would create
-    // token permanents) are out of scope.
+    // CR 707.10 — abilities aren't spells; this primitive copies only SPELLS.
     if (
         original.abilityId ||
         original.triggeredAbilityId ||
         original.delayedTriggerId
-    ) {
-        return null;
-    }
-    if (
-        !original.types.includes("Instant") &&
-        !original.types.includes("Sorcery")
     ) {
         return null;
     }
@@ -12247,11 +12261,13 @@ function cloneSpellOntoStack(
     // CR 707.10 (issue #2473) — "a copy of a spell isn't cast": the copy is PUT
     // onto the stack, so a snapshot of the timing at which the ORIGINAL was
     // cast is cast provenance the copy must not inherit, exactly like `escaped`
-    // immediately above. Contained today only because this primitive refuses
-    // anything that is not an Instant/Sorcery (so no copy ever becomes a
-    // permanent whose check-time condition could read it) — but the identical
-    // containment argument applies to `escaped`, which is cleared anyway.
+    // immediately above: a copy that becomes a permanent must not read it.
     delete copy.castOffSorceryTiming;
+    // CR 707.10 — likewise what the ORIGINAL's cast earned its permanent: the
+    // haste its mana bought (Arena of Glory) and the rider of the graveyard
+    // permission it was cast with (Serra Paragon).
+    delete copy.dynamicHasteFromMana;
+    delete copy.graveyardPermissionRider;
     // CR 707.10 (issue #7211) — a copy copies the DECISIONS made for the
     // original, never the mana that paid for it: "Because mana isn't an object,
     // a copy of Dawnglow Infusion won't cause you to gain any life, no matter
@@ -12316,7 +12332,7 @@ function emitSpellCopiedEvent(
         spellTypes: copy.types,
         spellSubtypes: copy.subtypes,
         spellColors: getEffectiveColors(copy as unknown as PermanentView),
-        fromCastCopyTrigger: creator.castCopySnapshot !== undefined,
+        fromCastCopyTrigger: creator.castCopiesRemaining !== undefined,
     };
     state.pendingEvents = [...(state.pendingEvents ?? []), event];
 }
@@ -18032,7 +18048,16 @@ export function buildSpellContext(
             // resolve the resolving spell is still on the stack (peek-and-pop),
             // so the same insert-below-self discipline leaves the copy as the
             // new top once this spell finishes and is popped.
-            return cloneSpellOntoStack(state, item, item, modifications);
+            //
+            // CR 113.6k — from a spell's own cast trigger, "this spell" is the
+            // trigger's source: the object itself while it is on the stack, its
+            // last known information once it has left (CR 113.7a, 608.2h).
+            const spell = item.triggeredAbilityId
+                ? (state.stack.find((s) => s.id === item.triggerSourceId) ??
+                  item.castCopySnapshot)
+                : item;
+            if (!spell) return null;
+            return cloneSpellOntoStack(state, spell, item, modifications);
         },
         requestCopyRetarget(copyStackItemId): void {
             const copy = state.stack.find((s) => s.id === copyStackItemId);

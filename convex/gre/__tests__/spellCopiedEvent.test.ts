@@ -17,7 +17,7 @@
 //  | 6  | `cloneSpellOntoStack` ← cast-copy trigger (Storm)          | YES   |
 //  | 7  | `cloneSpellOntoStack` ← `copyStackItem` (Fork)             | YES   |
 //  | 8  | `cloneSpellOntoStack` ← `copyResolvingSpell` (Chain …)     | YES   |
-//  | 9  | `cloneSpellOntoStack` refusing an ability / permanent spell | no   |
+//  | 9  | `cloneSpellOntoStack` refusing an ability                  | no    |
 //
 // Rows 1, 2, 4 and 5 reach only `emitSpellCastEvent`; rows 6–8 are the three
 // producers of the clone helper, which is the ONE emit site. Observed through
@@ -126,7 +126,7 @@ registerTokenDefinition({
             targets: [{ type: "player", id: "p2" }],
         }),
 });
-/** Copies its target, whatever that is — reaches the clone helper's refusals,
+/** Copies its target, whatever that is — reaches the clone helper's refusal,
  *  which the real copy cards' target requirements never let through. */
 const BLIND_COPIER_ID = "test:spell-copied-blind-copier";
 registerTokenDefinition({
@@ -269,7 +269,29 @@ describe("SPELL_COPIED — must-NOT rows: casting is not copying (CR 601.2i)", (
         expect(source).not.toContain("cloneSpellOntoStack");
     });
 
-    it("row 9: the clone helper refuses a permanent spell and an ability, and emits nothing", () => {
+    it("row 9: the clone helper refuses an ability, and emits nothing", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [on("p1", COPY_WATCHER_ID, "watcher")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const ability: StackItem = {
+            ...pushSpell(state, lightningBolt().id, "p2"),
+            abilityId: "some-ability",
+        };
+        state.stack[state.stack.length - 1] = ability;
+        pushSpell(state, BLIND_COPIER_ID, "p1", [
+            { type: "spell", id: ability.id },
+        ]);
+        resolveTopOfStack(state);
+        expect(copiesOnStack(state)).toEqual([]);
+        expect(copyEvents(state)).toEqual([]);
+    });
+
+    it("a copy of a permanent spell emits like every other copy", () => {
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -279,19 +301,18 @@ describe("SPELL_COPIED — must-NOT rows: casting is not copying (CR 601.2i)", (
             ],
         });
         const bears = pushSpell(state, grizzlyBears().id, "p2");
-        const ability: StackItem = {
-            ...pushSpell(state, lightningBolt().id, "p2"),
-            abilityId: "some-ability",
-        };
-        state.stack[state.stack.length - 1] = ability;
-        for (const target of [bears.id, ability.id]) {
-            pushSpell(state, BLIND_COPIER_ID, "p1", [
-                { type: "spell", id: target },
-            ]);
-            resolveTopOfStack(state);
-        }
-        expect(copiesOnStack(state)).toEqual([]);
-        expect(copyEvents(state)).toEqual([]);
+        pushSpell(state, BLIND_COPIER_ID, "p1", [
+            { type: "spell", id: bears.id },
+        ]);
+        resolveTopOfStack(state);
+        expect(copiesOnStack(state)).toHaveLength(1);
+        expect(copyEvents(state)).toEqual([
+            expect.objectContaining({
+                copierId: "p1",
+                originalSpellInstanceId: bears.id,
+                fromCastCopyTrigger: false,
+            }),
+        ]);
     });
 });
 

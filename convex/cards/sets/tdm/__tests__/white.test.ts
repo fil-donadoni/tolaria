@@ -17,10 +17,12 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../../__tests__/setup.helper";
-import type { GameState } from "../../../../gre/state";
+import type { GameState, StackItem } from "../../../../gre/state";
 import {
     createTokenPermanents,
+    emitSpellCastEvent,
     resolveTopOfStack,
 } from "../../../../gre/state";
 import {
@@ -29,8 +31,12 @@ import {
 } from "../../../../gre/layers";
 import { getLegalTargets, pendingTargetingSource } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
-import { getDefinition } from "../../../index";
+import { getDefinition, preloadDefinitions } from "../../../index";
 import type { TokenSpec } from "../../../types";
+import { sageOfTheSkies as sageOfTheSkiesDefinition } from "../white.cards";
+
+// Base-owned `data/catalogue` (ADR 0157) lacks a card this PR ships.
+preloadDefinitions([sageOfTheSkiesDefinition()]);
 
 const elspeth = getDefinition("73a065e3-b530-4e62-ab3c-4f6f908184ec");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
@@ -205,5 +211,137 @@ describe("Elspeth, Storm Slayer — loyalty abilities (issue #3230)", () => {
         resolveTopOfStack(state);
         expect(state.players[1].battlefield).toHaveLength(0);
         expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["big"]);
+    });
+});
+
+describe("Sage of the Skies (CR 603.4, CR 707.10f, issue #3658)", () => {
+    const sage = sageOfTheSkiesDefinition();
+    const TRIGGER = "sage-of-the-skies-copy";
+    /** Counterspell — the spell that counters a Sage in response. */
+    const COUNTERSPELL = "0df55e3f-14de-46ef-b6b1-616618724d9e";
+
+    function table(): GameState {
+        return makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+    }
+
+    /** `casterId` casts Grizzly Bears through the cast choke point. */
+    function castFiller(state: GameState, casterId: string): void {
+        const item = pushSpell(state, grizzlyBears.id, casterId);
+        emitSpellCastEvent(state, item);
+        state.stack.pop();
+    }
+
+    function castSage(state: GameState): StackItem {
+        const item = pushSpell(state, sage.id, "p1");
+        emitSpellCastEvent(state, item);
+        return item;
+    }
+
+    const triggers = (state: GameState) =>
+        state.stack.filter((s) => s.triggeredAbilityId === TRIGGER);
+
+    const sagesOnBattlefield = (state: GameState) =>
+        state.players[0].battlefield.filter(
+            (c) => (c.card as { id: string }).id === sage.id
+        );
+
+    it("as the turn's first spell: no trigger, one nontoken Sage", () => {
+        const state = table();
+        castSage(state);
+
+        expect(triggers(state)).toEqual([]);
+        resolveTopOfStack(state);
+        expect(sagesOnBattlefield(state).map((c) => c.isToken)).toEqual([
+            undefined,
+        ]);
+    });
+
+    it("an opponent's spell is not one 'you've cast'", () => {
+        const state = table();
+        castFiller(state, "p2");
+        castSage(state);
+
+        expect(triggers(state)).toEqual([]);
+    });
+
+    it("as the second spell: the trigger resolves into a token Sage plus the original", () => {
+        const state = table();
+        castFiller(state, "p1");
+        const original = castSage(state);
+        expect(triggers(state)).toHaveLength(1);
+
+        // The trigger, then the copy, then the original.
+        resolveTopOfStack(state);
+        expect(state.stack.map((s) => s.isCopy === true)).toEqual([
+            false,
+            true,
+        ]);
+        resolveTopOfStack(state);
+        resolveTopOfStack(state);
+
+        expect(state.stack).toEqual([]);
+        const sages = sagesOnBattlefield(state);
+        expect(sages).toHaveLength(2);
+        const token = sages.find((c) => c.isToken)!;
+        const nontoken = sages.find((c) => !c.isToken)!;
+        expect(nontoken.id).toBe(original.id);
+        expect(getEffectivePower(state, token)).toBe(2);
+        expect(getEffectiveToughness(state, token)).toBe(3);
+        expect(token.staticAbilities).toEqual(["flying", "lifelink"]);
+        expect(token.subtypes).toEqual(["Human", "Monk"]);
+    });
+
+    it("the token Sage crosses the wire as a token presenting Sage's own card", () => {
+        const state = table();
+        castFiller(state, "p1");
+        castSage(state);
+        resolveTopOfStack(state);
+        resolveTopOfStack(state);
+        resolveTopOfStack(state);
+
+        const view = projectPublicState(state, 1, "p1");
+        const token = view.players[0].battlefield.find((c) => c.isToken)!;
+        expect((token.card as { id: string }).id).toBe(sage.id);
+        expect(getEffectivePower(view, token)).toBe(2);
+        expect(getEffectiveToughness(view, token)).toBe(3);
+        expect(token.staticAbilities).toEqual(["flying", "lifelink"]);
+    });
+
+    it("the condition false on resolution: the trigger does nothing (CR 603.4)", () => {
+        const state = table();
+        castFiller(state, "p1");
+        castSage(state);
+        state.players[0].spellsCastThisTurn = 1;
+
+        resolveTopOfStack(state);
+
+        expect(state.stack.filter((s) => s.isCopy)).toEqual([]);
+    });
+
+    it("countered in response: still copied, from its last known information (CR 113.7a, 608.2h)", () => {
+        const state = table();
+        castFiller(state, "p1");
+        const original = castSage(state);
+        pushSpell(state, COUNTERSPELL, "p2", [
+            { type: "spell", id: original.id },
+        ]);
+
+        resolveTopOfStack(state);
+        expect(state.stack.some((s) => s.id === original.id)).toBe(false);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
+            original.id,
+        ]);
+
+        resolveTopOfStack(state);
+        resolveTopOfStack(state);
+
+        expect(state.stack).toEqual([]);
+        const sages = sagesOnBattlefield(state);
+        expect(sages.map((c) => c.isToken)).toEqual([true]);
+        expect(getEffectivePower(state, sages[0])).toBe(2);
     });
 });

@@ -451,8 +451,8 @@ export const fork = defineCard(() => ({
         if (!target || target.type !== "spell") return;
         // CR 707.10c — the copy is red regardless of the original's color.
         const copyId = ctx.copyStackItem(target.id, { colorOverride: ["R"] });
-        // copyStackItem returns null for illegal targets (e.g. a permanent
-        // spell or an item that left the stack); nothing to retarget then.
+        // copyStackItem returns null for an item that left the stack; nothing
+        // to retarget then.
         if (copyId) ctx.requestCopyRetarget(copyId);
     },
 }));
