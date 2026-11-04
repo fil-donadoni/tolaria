@@ -13,6 +13,8 @@ import {
 } from "~/lib/pending-intent-store";
 import {
     affordableAltCostsForCard,
+    libraryTopCastChoices,
+    type LibraryTopCastChoice,
     affordableKickersForCard,
     escalateModeCapForCard,
     buildTriggerStateView,
@@ -86,6 +88,10 @@ type AltCostPickerState = {
     /** CR 601.2b / 118.9 (issue #7525) — the server-projected
      *  `castManaCostReplacementDeclinable`: offer "pay life" AND "pay mana". */
     replacementDeclinable: boolean;
+    /** CR 119.4 (issue #7570) — the printed row pays life, not mana. */
+    printedPaysLife: boolean;
+    /** CR 601.2b / 119.4 (issue #7570) — each option's payment rows. */
+    altCostChoices: Record<string, LibraryTopCastChoice[]>;
 };
 
 /** CR 601.2b / 118.8 — open state for the caster-chosen ADDITIONAL-cost picker
@@ -518,7 +524,8 @@ export function useHandCardCommit(
         // while Petty Theft rides an instant-and-sorcery grant that keeps the
         // mana cost. `affordableAltCostsForCard` already drops every row the
         // replacing grant forbids (CR 601.2b), so a surviving row is a legal
-        // announcement the replaced-cost flag must not hide.
+        // announcement the replaced-cost flag must not hide. The Adventure
+        // under the Citadel itself is one (`ridesManaCostReplacement`).
         const affordableAlts = affordableAltCostsForCard(
             cardInstance,
             playerId,
@@ -579,18 +586,36 @@ export function useHandCardCommit(
                   )
                 : affordableAlts;
             const declineRow = replacementDeclinable && printedCostAvailable;
+            // CR 601.2b / 119.4 (issue #7570) — off the library top one option
+            // may be paid two ways, or only the way the caster's life allows.
+            const altCostChoices = Object.fromEntries(
+                options.map((alt) => [
+                    alt.id,
+                    libraryTopCastChoices(
+                        cardInstance,
+                        playerId,
+                        allPlayers,
+                        activePlayerId,
+                        alt.id
+                    ),
+                ])
+            );
+            const altRows = options.flatMap((alt) =>
+                altCostChoices[alt.id].map((choice) => ({ alt, choice }))
+            );
             const optionCount =
-                options.length +
+                altRows.length +
                 (printedCostAvailable ? 1 : 0) +
                 (declineRow ? 1 : 0);
-            if (!printedCostAvailable && options.length === 1) {
+            if (!printedCostAvailable && altRows.length === 1) {
                 // The permission's free cast is the only legal announcement —
                 // no picker, no click on a row the mutation would refuse.
                 commitAnnounceCast({
                     chosenX,
                     keepPriority,
                     chosenModeIds: undefined,
-                    alternativeCostId: options[0].id,
+                    alternativeCostId: altRows[0].alt.id,
+                    declineManaCostReplacement: altRows[0].choice.decline,
                     kickerPayments,
                     buyback,
                     payFlashSurcharge,
@@ -609,6 +634,8 @@ export function useHandCardCommit(
                     altCosts: options,
                     printedCostAvailable,
                     replacementDeclinable: declineRow,
+                    printedPaysLife: cardInstance.castManaCostReplaced === true,
+                    altCostChoices,
                     chosenXColors,
                 });
                 return;
@@ -889,6 +916,8 @@ export function useHandCardCommit(
                 altCosts={altCostPickerState.altCosts}
                 printedCostAvailable={altCostPickerState.printedCostAvailable}
                 replacementDeclinable={altCostPickerState.replacementDeclinable}
+                printedPaysLife={altCostPickerState.printedPaysLife}
+                altCostChoices={altCostPickerState.altCostChoices}
                 cardName={def.name}
                 position={altCostPickerState.position}
                 onSelect={(altCostId, declineManaCostReplacement) => {

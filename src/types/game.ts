@@ -322,7 +322,7 @@ export interface CardInstance {
     /** CR 601.2b / 118.9 (issue #7525) — mirrors
      *  `SlimLibraryCard.castManaCostReplacementDeclinable`: the cast may also
      *  pay its mana cost under another covering permission, so the picker
-     *  offers "pay life" and "pay mana" rows. */
+     *  offers "pay life" and "pay mana" rows for the printed cast. */
     castManaCostReplacementDeclinable?: true;
     /** CR 702.34 / 702.138 / 702.81 / 305.1-analog / 118.9 / 702.139 —
      *  which graveyard-cast mechanism surfaced this card's cast affordance, so
