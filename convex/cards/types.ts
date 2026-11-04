@@ -13251,6 +13251,9 @@ export interface TriggerStateView {
         readonly blockerAssignments: Readonly<Record<string, string[]>>;
         /** Ids of attackers that became blocked this combat (CR 509.1h). */
         readonly blockedAttackerIds?: ReadonlyArray<string>;
+        /** attackerId → the planeswalker or battle it attacks. No entry means
+         *  the defending player. */
+        readonly attackTargets?: Readonly<Record<string, string>>;
     };
     /** Controllers with an active Gaze of Pain rider this turn (ICE). Exposed
      *  so Gaze of Pain's graveyard-zone trigger can gate on "until end of turn"

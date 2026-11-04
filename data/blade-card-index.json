@@ -244,6 +244,13 @@
             "needsSetup": false
         }
     ],
+    "Enraged Revolutionary": [
+        {
+            "label": "dethrone: swings for the lethal only the counter provides, tied for most life",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Etched Oracle": [
         {
             "label": "counter count: draws with an Etched Oracle that keeps a counter after paying",

@@ -2568,6 +2568,14 @@ describe("getTriggeredAbilityOracleText — flanking (CR 702.25a)", () => {
     });
 });
 
+describe("getTriggeredAbilityOracleText — dethrone (CR 702.105a)", () => {
+    it("names the trigger of a keyword no definition lists as an ability", () => {
+        expect(getTriggeredAbilityOracleText("any-card", "dethrone")).toContain(
+            "the player with the most life"
+        );
+    });
+});
+
 describe("getTriggeredAbilityOracleText — emblem source (CR 114)", () => {
     // Regression: an emblem-sourced trigger's `card.id` is an emblem KEY, not a
     // card registry id, so a hard `getDefinition` threw "Card not found" and
