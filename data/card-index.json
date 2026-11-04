@@ -3162,6 +3162,16 @@
         "source": "compiled"
     },
     {
+        "name": "Archive Dragon",
+        "scryfallId": "2979104f-7570-487c-8024-131d7ee3ab91",
+        "oracleId": "cddbd819-4895-4712-b44b-d6b51f3d8646",
+        "firstSet": "woe",
+        "firstPrintId": "2979104f-7570-487c-8024-131d7ee3ab91",
+        "firstPrintSet": "woe",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Archivist",
         "scryfallId": "9936cb4d-f4e3-4fc7-869e-8f17056e57d5",
         "oracleId": "d137586f-83b0-40af-8100-443460b07ac0",
@@ -10384,6 +10394,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Campus Composer // Aqueous Aria",
+        "scryfallId": "fac8ac39-ecb4-4142-bf37-131c65660a9b",
+        "oracleId": "9b3155c1-c662-4ff1-80e2-4064e6233dc5",
+        "firstSet": "sos",
+        "firstPrintId": "fac8ac39-ecb4-4142-bf37-131c65660a9b",
+        "firstPrintSet": "sos",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Campus Crier",
         "scryfallId": "6047b14c-91d5-4f8e-af3f-057a541e2546",
         "oracleId": "c1a9d60f-a469-48f9-8f1c-3ca5ae86bd64",
@@ -11701,6 +11721,16 @@
         "firstPrintId": "32cec6f3-295a-45e3-8466-e35fb043a596",
         "firstPrintSet": "apc",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Cetacean Ops",
+        "scryfallId": "a8dc7ecd-e6f0-4050-9d5b-8436f60a1395",
+        "oracleId": "64e39ec9-358a-4aa0-a7e9-164e8aa0b236",
+        "firstSet": "trk",
+        "firstPrintId": "a8dc7ecd-e6f0-4050-9d5b-8436f60a1395",
+        "firstPrintSet": "trk",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -18902,6 +18932,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dirgur Island Dragon // Skimming Strike",
+        "scryfallId": "b1d21a9a-6b0c-4fbc-a427-81be885d326b",
+        "oracleId": "23cda76b-6e47-4922-a38d-93f7aae1eb00",
+        "firstSet": "tdm",
+        "firstPrintId": "b1d21a9a-6b0c-4fbc-a427-81be885d326b",
+        "firstPrintSet": "tdm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Dirtwater Wraith",
         "scryfallId": "fcc3fa22-a4c4-423d-969b-98c65b23e782",
         "oracleId": "0126f620-1dbf-405c-b5cf-f48b7ef02d32",
@@ -21091,6 +21131,16 @@
         "firstPrintId": "03482c9c-1f25-4d73-9243-17462ea37ac4",
         "firstPrintSet": "lea",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Dwarven Forge-Chanter",
+        "scryfallId": "bbd6a95a-11b9-43aa-b293-20a3102bae71",
+        "oracleId": "e69a8970-3ead-479d-860a-26ed65f9c846",
+        "firstSet": "bro",
+        "firstPrintId": "bbd6a95a-11b9-43aa-b293-20a3102bae71",
+        "firstPrintSet": "bro",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -35242,6 +35292,16 @@
         "source": "compiled"
     },
     {
+        "name": "Hoverstone Pilgrim",
+        "scryfallId": "af7e12ee-3db6-4df7-9859-7a8dee9171c7",
+        "oracleId": "64399663-2c1e-447e-a3ed-c49ebd9f2231",
+        "firstSet": "lci",
+        "firstPrintId": "af7e12ee-3db6-4df7-9859-7a8dee9171c7",
+        "firstPrintSet": "lci",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "How to Start a Riot",
         "scryfallId": "23b3bf1e-ea85-47f5-8473-4d16615f68d7",
         "oracleId": "268d0056-0d3e-438a-ab17-625a6f5ec68a",
@@ -35375,6 +35435,16 @@
         "firstPrintId": "0676d39e-229f-480b-874e-ff0cb8e335d8",
         "firstPrintSet": "uds",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Hulking Raptor",
+        "scryfallId": "45f763af-5a6a-404c-8e8c-4dbed71277bc",
+        "oracleId": "9f2e7533-cfc1-4dd8-a9b8-09cdc712ef2f",
+        "firstSet": "lci",
+        "firstPrintId": "45f763af-5a6a-404c-8e8c-4dbed71277bc",
+        "firstPrintSet": "lci",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -37173,6 +37243,16 @@
         "firstPrintId": "236dd4d0-f6c8-4a04-919a-2c9b6842b361",
         "firstPrintSet": "pip",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Interdisciplinary Mascot",
+        "scryfallId": "0eecdd9a-6c3f-43ee-8d9c-e3466bd7bf5e",
+        "oracleId": "74d9331b-832b-420b-9249-f2a58253a361",
+        "firstSet": "mom",
+        "firstPrintId": "0eecdd9a-6c3f-43ee-8d9c-e3466bd7bf5e",
+        "firstPrintSet": "mom",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -42675,6 +42755,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Lord of Change",
+        "scryfallId": "f9099d82-c13a-480d-b4bc-ecf8b810427c",
+        "oracleId": "b575fb16-c3c3-4cad-857f-122257a4b32f",
+        "firstSet": "40k",
+        "firstPrintId": "f9099d82-c13a-480d-b4bc-ecf8b810427c",
+        "firstPrintSet": "40k",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Lord of the Pit",
         "scryfallId": "2926777a-4f6e-4965-ba83-22cf7df02602",
         "oracleId": "ea152809-85a2-4fde-8251-3b1f267e4443",
@@ -43837,6 +43927,16 @@
         "firstSet": "mh3",
         "firstPrintId": "a178cfe8-f9fa-4255-88d0-54a0bed079f5",
         "firstPrintSet": "mh3"
+    },
+    {
+        "name": "Malfunctioning Holodeck",
+        "scryfallId": "1f564242-e841-4f70-9d48-36ff410a25c4",
+        "oracleId": "3f04c38b-d6bd-405f-b69c-009df87801dd",
+        "firstSet": "trk",
+        "firstPrintId": "1f564242-e841-4f70-9d48-36ff410a25c4",
+        "firstPrintSet": "trk",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Malicious Advice",
@@ -52011,6 +52111,16 @@
         "source": "compiled"
     },
     {
+        "name": "Owlin Shieldmage",
+        "scryfallId": "d3350367-42bd-44af-be13-ad31c002f8ac",
+        "oracleId": "50c477c1-8457-40f6-bba9-1a4ba0862178",
+        "firstSet": "stx",
+        "firstPrintId": "d3350367-42bd-44af-be13-ad31c002f8ac",
+        "firstPrintSet": "stx",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Oxidda Daredevil",
         "scryfallId": "4b0bde7b-dc2d-45d2-b124-69b4b51ef3d9",
         "oracleId": "4be254e7-d082-4c10-8495-1ef8b80721e1",
@@ -55617,6 +55727,16 @@
         "firstSet": "hou",
         "firstPrintId": "d7d88da5-d9a3-49b3-a091-458b058c9114",
         "firstPrintSet": "hou",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Punk Frogs",
+        "scryfallId": "375c91a3-53c4-4f2d-bf7b-2c79a219d3ae",
+        "oracleId": "dfb13eca-55fd-4ac6-aee3-2bdbfe9e1c4e",
+        "firstSet": "tmt",
+        "firstPrintId": "375c91a3-53c4-4f2d-bf7b-2c79a219d3ae",
+        "firstPrintSet": "tmt",
         "rarity": "common",
         "source": "compiled"
     },
@@ -59267,6 +59387,16 @@
         "firstPrintId": "ba6b5368-3262-4002-bf1e-fce62f7f7901",
         "firstPrintSet": "ecl",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Rimeshield Frost Giant",
+        "scryfallId": "767b499e-3bdb-4809-b430-6e965bd100d4",
+        "oracleId": "ec47cf67-2580-464f-8118-7eabea5be11c",
+        "firstSet": "afr",
+        "firstPrintId": "767b499e-3bdb-4809-b430-6e965bd100d4",
+        "firstPrintSet": "afr",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -63114,6 +63244,16 @@
         "source": "compiled"
     },
     {
+        "name": "Seal from Existence",
+        "scryfallId": "2ccc29cc-025d-402e-9fe3-75998eb290c9",
+        "oracleId": "72c4c682-df97-4408-997b-e849f54aba39",
+        "firstSet": "mom",
+        "firstPrintId": "2ccc29cc-025d-402e-9fe3-75998eb290c9",
+        "firstPrintSet": "mom",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Seal of Cleansing",
         "scryfallId": "af6c921e-1b82-412c-9979-adfdf83440f7",
         "oracleId": "a75dbe70-7e3e-446f-9a76-9fbb414f2e7c",
@@ -66284,6 +66424,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Sire of Seven Deaths",
+        "scryfallId": "8d8432a7-1c8a-4cfb-947c-ecf9791063eb",
+        "oracleId": "a15547d0-bbcb-41ee-a9ae-8325a9e7fe1f",
+        "firstSet": "fdn",
+        "firstPrintId": "8d8432a7-1c8a-4cfb-947c-ecf9791063eb",
+        "firstPrintSet": "fdn",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Siren Lookout",
         "scryfallId": "0000cd57-91fe-411f-b798-646e965eec37",
         "oracleId": "9f0d82ae-38bf-45d8-8cda-982b6ead1d72",
@@ -67377,6 +67527,16 @@
         "firstPrintId": "767e2bfb-bcf5-442c-b092-bdb1f4f13561",
         "firstPrintSet": "xln",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Sleep-Cursed Faerie",
+        "scryfallId": "31051436-68f2-457e-8293-2b10ccf7684e",
+        "oracleId": "a17633aa-b1a7-4ae5-b051-6747975d8a2f",
+        "firstSet": "woe",
+        "firstPrintId": "31051436-68f2-457e-8293-2b10ccf7684e",
+        "firstPrintSet": "woe",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -69321,6 +69481,16 @@
         "firstPrintId": "acf20da5-e460-4191-ad68-eae398bb7c5d",
         "firstPrintSet": "msc",
         "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Spider-Rex, Daring Dino",
+        "scryfallId": "5b6e0bea-f126-4adb-8808-901950a77c7b",
+        "oracleId": "58b771d4-dfaf-4189-a5f6-4bc0fb4c0fa3",
+        "firstSet": "spm",
+        "firstPrintId": "5b6e0bea-f126-4adb-8808-901950a77c7b",
+        "firstPrintSet": "spm",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -71836,6 +72006,16 @@
         "firstSet": "som",
         "firstPrintId": "9d7b9e54-b3ef-44fb-9240-0d67c1c4b7f6",
         "firstPrintSet": "som",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Strife Scholar // Awaken the Ages",
+        "scryfallId": "8de79312-2046-425e-9919-49afe19be81b",
+        "oracleId": "e85c6bd2-db15-4052-88c0-3ae25414f0ca",
+        "firstSet": "sos",
+        "firstPrintId": "8de79312-2046-425e-9919-49afe19be81b",
+        "firstPrintSet": "sos",
         "rarity": "common",
         "source": "compiled"
     },
@@ -76894,6 +77074,16 @@
         "source": "compiled"
     },
     {
+        "name": "Toadstool Admirer",
+        "scryfallId": "f0a6349a-beff-4abd-b005-86d27c1e2957",
+        "oracleId": "77b48b3c-c780-4c5b-90e6-33c5fd940c16",
+        "firstSet": "woe",
+        "firstPrintId": "f0a6349a-beff-4abd-b005-86d27c1e2957",
+        "firstPrintSet": "woe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Tobias Andrion",
         "scryfallId": "cac56eda-5ed3-4abd-beec-f5063fbf930a",
         "oracleId": "55dfe722-7487-4d25-b90c-e6ad2c82a671",
@@ -76965,6 +77155,16 @@
         "firstPrintId": "9236a857-c4ca-4de2-a4a2-e0914d16b54b",
         "firstPrintSet": "wth",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Tomakul Honor Guard",
+        "scryfallId": "c7745439-f40b-4647-8bff-53751d511bbd",
+        "oracleId": "b68cf4e6-205e-40b6-b28b-f4b7d8af7017",
+        "firstSet": "bro",
+        "firstPrintId": "c7745439-f40b-4647-8bff-53751d511bbd",
+        "firstPrintSet": "bro",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -77643,6 +77843,16 @@
         "firstPrintId": "b2c280c8-3471-4ae1-be96-0f392b095ce2",
         "firstPrintSet": "rix",
         "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Trapped in the Screen",
+        "scryfallId": "1fe95bfb-8ca7-434f-a2e7-a6b2e699584e",
+        "oracleId": "20f2fc0e-b1d4-4f80-9c7a-a9fb25fef7b8",
+        "firstSet": "dsk",
+        "firstPrintId": "1fe95bfb-8ca7-434f-a2e7-a6b2e699584e",
+        "firstPrintSet": "dsk",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -78627,6 +78837,16 @@
         "firstPrintId": "0092d7a0-bd00-45e5-a052-c0a9d970bc2e",
         "firstPrintSet": "eve",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Twining Twins // Swift Spiral",
+        "scryfallId": "043718ea-59f6-4d1a-94c5-271704c1a38a",
+        "oracleId": "105aea98-8eb9-4fb2-a0cb-7c7513317c5b",
+        "firstSet": "woe",
+        "firstPrintId": "043718ea-59f6-4d1a-94c5-271704c1a38a",
+        "firstPrintSet": "woe",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -83741,6 +83961,16 @@
         "source": "compiled"
     },
     {
+        "name": "Waterfall Aerialist",
+        "scryfallId": "7bc6966c-18d9-4675-9594-6f0b2d11c405",
+        "oracleId": "736026b2-84d4-4452-ae0d-5d1b0af0a400",
+        "firstSet": "stx",
+        "firstPrintId": "7bc6966c-18d9-4675-9594-6f0b2d11c405",
+        "firstPrintSet": "stx",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Waterfront Bouncer",
         "scryfallId": "8dbdce9e-94fa-4ed5-9b97-d2026cffe7cb",
         "oracleId": "b53a8cde-494c-43d0-8d08-7bdfe2e84064",
@@ -86874,6 +87104,16 @@
         "firstPrintId": "3959cf4e-57a5-4355-9837-56f70b321874",
         "firstPrintSet": "tle",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Zul Ashur, Lich Lord",
+        "scryfallId": "34ad4fdb-9805-45b3-ba20-e47a15d6ff38",
+        "oracleId": "a7c6c9b3-91f2-4ecf-b2b0-b0edd96974d9",
+        "firstSet": "fdn",
+        "firstPrintId": "34ad4fdb-9805-45b3-ba20-e47a15d6ff38",
+        "firstPrintSet": "fdn",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

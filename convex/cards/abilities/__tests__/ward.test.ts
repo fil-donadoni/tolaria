@@ -11,8 +11,12 @@
 // that IS new.
 
 import { describe, it, expect } from "vitest";
-import { wardAbility } from "../ward";
-import { registerTokenDefinition } from "../..";
+import { expandWard, parseWard, wardAbility } from "../ward";
+import { getAllCards, getDefinition, registerTokenDefinition } from "../..";
+import { MECHANICS_REGISTRY } from "../../mechanicsRegistry";
+import { backFaceAsTokenSpec } from "../../backFaceSpec";
+import { expandDefinition, tokenDefinitionId } from "../../registry";
+import type { CardDefinition } from "../../types";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../gre/rules";
 import {
     resolveTopOfStack,
@@ -31,7 +35,9 @@ import {
 import type { GameEvent, PermanentView, TargetRequirement } from "../../types";
 
 // A synthetic 1/1 with Ward {2} (a plain generic cost — the common printed
-// shape). Registered once via the test-injection seam so `pushSpell` /
+// shape), declaring ONLY the keyword string: its trigger comes from the
+// `getDefinition` seam (ADR 0054), the path a printed or compiled ward takes.
+// Registered once via the test-injection seam so `pushSpell` /
 // `resolveTopOfStack` hydrate it exactly like a real card.
 const WARDED_ID = "test-ward-creature";
 registerTokenDefinition({
@@ -44,7 +50,20 @@ registerTokenDefinition({
     power: 1,
     toughness: 1,
     staticAbilities: ["ward {2}"],
-    triggeredAbilities: [wardAbility({ cost: { X: 2 }, costLabel: "{2}" })],
+});
+
+// The dashed form (CR 702.21a's "[cost]" need not be mana).
+const LIFE_WARDED_ID = "test-life-ward-creature";
+registerTokenDefinition({
+    id: LIFE_WARDED_ID,
+    name: LIFE_WARDED_ID,
+    rarity: "common",
+    manaCost: { X: 1, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Illusion"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["ward—pay 3 life"],
 });
 
 // A synthetic targeted-removal instant — the "opponent's spell" side of the
@@ -379,5 +398,177 @@ describe("wire format (S5) — the ward may-pay choice survives projectPublicSta
         expect(
             projected.stack.some((s: { id: string }) => s.id === spell.id)
         ).toBe(true);
+    });
+});
+
+describe("parseWard — the printed cost forms (CR 702.21a)", () => {
+    it.each([
+        ["ward {1}", { mana: { X: 1 } }, "{1}"],
+        ["ward {4}", { mana: { X: 4 } }, "{4}"],
+        ["ward—pay 2 life", { life: 2 }, "2 life"],
+    ])("reads %s", (keyword, cost, costLabel) => {
+        expect(parseWard(keyword)).toMatchObject({ cost, costLabel });
+    });
+
+    it.each([
+        "ward",
+        "ward {0}",
+        "ward {x}",
+        "ward {w}",
+        "ward {2}{b}",
+        "ward 2",
+        "ward—pay 0 life",
+        "ward—pay x life",
+        "ward—discard a card",
+        "ward—{2}, pay 2 life",
+    ])("reads no cost from %s", (keyword) => {
+        expect(parseWard(keyword)).toBeNull();
+    });
+
+    it("the registry row's bindingPattern admits exactly what parseWard reads, so a string the expander cannot enforce reds Guard A", () => {
+        const row = MECHANICS_REGISTRY.find((r) => r.id === "ward")!;
+        for (const keyword of ["ward {1}", "ward {12}", "ward—pay 7 life"]) {
+            expect(row.bindingPattern!.test(keyword), keyword).toBe(true);
+            expect(parseWard(keyword), keyword).not.toBeNull();
+        }
+        for (const keyword of ["ward {w}", "ward—discard a card", "ward 2"]) {
+            expect(row.bindingPattern!.test(keyword), keyword).toBe(false);
+            expect(parseWard(keyword), keyword).toBeNull();
+        }
+    });
+});
+
+describe("expandWard — the keyword string is the declaration (ADR 0054)", () => {
+    const creature: CardDefinition = {
+        id: "ward-expansion-probe",
+        name: "ward-expansion-probe",
+        rarity: "common",
+        manaCost: { X: 1 },
+        types: ["Creature"],
+        power: 1,
+        toughness: 1,
+    };
+
+    it("injects the factory's trigger at the getDefinition seam", () => {
+        const def = getDefinition(WARDED_ID);
+        expect(def.triggeredAbilities).toEqual([
+            expect.objectContaining({ id: "ward", event: "BECAME_TARGET" }),
+        ]);
+    });
+
+    it("a back face's ward reaches the trigger through its token decode (CR 712.8e)", () => {
+        const spec = backFaceAsTokenSpec({
+            name: "Warded Back Face",
+            types: ["Creature"],
+            power: 2,
+            toughness: 2,
+            staticAbilities: ["ward {2}"],
+        });
+        const def = getDefinition(tokenDefinitionId(spec));
+        expect(def.triggeredAbilities?.map((t) => t.id)).toEqual(["ward"]);
+    });
+
+    it("is a no-op on a definition without the string — the granted path stays by hand", () => {
+        expect(expandWard(creature)).toBe(creature);
+        const granted = { ...creature, staticAbilities: ["flying"] };
+        expect(expandWard(granted)).toBe(granted);
+    });
+
+    it("does not ward twice when a definition is spread from an expanded one", () => {
+        const once = expandWard({
+            ...creature,
+            staticAbilities: ["ward {2}"],
+        });
+        expect(once.triggeredAbilities).toHaveLength(1);
+        expect(expandWard({ ...once }).triggeredAbilities).toHaveLength(1);
+    });
+
+    it("each declared ward triggers on its own", () => {
+        const def = expandWard({
+            ...creature,
+            staticAbilities: ["ward {2}", "ward—pay 2 life"],
+        });
+        expect(def.triggeredAbilities?.map((t) => t.id)).toEqual([
+            "ward",
+            "ward-2",
+        ]);
+    });
+
+    it("the dashed form's reminder prints its own cost, never a mana-shaped one", () => {
+        const def = expandWard({
+            ...creature,
+            staticAbilities: ["ward—pay 2 life"],
+        });
+        expect(def.triggeredAbilities?.[0]?.oracleText).toBe(
+            "Ward—Pay 2 life (Whenever this permanent becomes the target of a spell or ability an opponent controls, counter it unless that player pays 2 life.)"
+        );
+    });
+
+    it("no catalogue card wards twice: one trigger per ward string", () => {
+        const offenders: string[] = [];
+        for (const card of getAllCards()) {
+            const declared = (card.staticAbilities ?? []).filter((s) =>
+                /^ward[ —]/.test(s)
+            ).length;
+            const triggers = (
+                expandDefinition(card).triggeredAbilities ?? []
+            ).filter((t) => t.targetRequirement?.spellTargetsSelfSource).length;
+            if (declared !== triggers) offenders.push(card.name);
+        }
+        expect(offenders).toEqual([]);
+    });
+});
+
+describe("Ward—Pay N life e2e (CR 702.21a, CR 119.4)", () => {
+    function lifeWardedBoard(p1Life: number) {
+        const warded = makeInstance(LIFE_WARDED_ID, {
+            id: "warded1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: p1Life }),
+                makePlayer("p2", { battlefield: [warded] }),
+            ],
+        });
+        const spell = pushSpell(state, REMOVAL_ID, "p1", [
+            { type: "permanent", id: "warded1" },
+        ]);
+        emitBecameTargetEvents(state, spell.targets, "p1", spell.id, "spell");
+        processPendingActionTriggers(state);
+        return { state, spell };
+    }
+
+    it("paying loses the life and lets the spell resolve", () => {
+        const { state, spell } = lifeWardedBoard(20);
+        expect(resolveTopOfStack(state)).toBeNull();
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].life).toBe(17);
+        expect(state.stack.map((s) => s.id)).toEqual([spell.id]);
+    });
+
+    it("declining counters the spell and costs no life", () => {
+        const { state, spell } = lifeWardedBoard(20);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[0].life).toBe(20);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].graveyard.some((c) => c.id === spell.id)).toBe(
+            true
+        );
+    });
+
+    it("a player with less life than the cost cannot pay: the spell is countered (CR 119.4)", () => {
+        const { state, spell } = lifeWardedBoard(2);
+        resolveTopOfStack(state);
+        if ((state.pendingChoices ?? []).length > 0)
+            applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].life).toBe(2);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].graveyard.some((c) => c.id === spell.id)).toBe(
+            true
+        );
     });
 });
