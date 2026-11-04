@@ -17,10 +17,13 @@ import {
     submitChoice,
 } from "../../../__tests__/setup.helper";
 import {
+    putReanimatedSetOnBattlefield,
+    removePermanentTo,
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
 } from "../../../../gre/state";
+import { compactState, expandState } from "../../../../gre/serialize";
 import { validateBlockerEligibility } from "../../../../gre/combat";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
@@ -196,5 +199,205 @@ describe("Wan Shi Tong, All-Knowing (issue #3242)", () => {
                 state
             ).eligible
         ).toBe(true);
+    });
+});
+
+// Wan Shi Tong, Librarian (issue #1993) — the ETB reads the cast-time X through
+// `$source.chosenXOnCast`, surviving the save/load between the trigger going on
+// the stack and it resolving, and the source leaving in response (CR 608.2h).
+const WAN_SHI_TONG_LIBRARIAN_ID = "e20da6b5-1057-4a28-9e85-07de714e262f";
+const LIBRARIAN_ETB_ID = "wan-shi-tong-librarian-etb";
+const LIBRARIAN_SEARCH_ID = "wan-shi-tong-librarian-opponent-search";
+const PATH_TO_EXILE_ID = "29b7a8b1-b98e-483a-87a4-73bd831c03d4";
+const EXPRESSIVE_ITERATION_ID = "31b770cc-09e7-4c0b-b2a4-462ab4f7200d";
+const FOREST_ID = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
+
+function libraryOf(ownerId: string, count: number): CardInstanceState[] {
+    return Array.from({ length: count }, (_, i) =>
+        makeInstance(GRIZZLY_BEARS_ID, {
+            id: `${ownerId}-lib-${i}`,
+            ownerId,
+            zone: "library",
+        })
+    );
+}
+
+/** Casts the Librarian for `x` and resolves it, leaving the ETB on the stack. */
+function castLibrarian(x: number): {
+    state: GameState;
+    librarian: CardInstanceState;
+} {
+    const state = makeState({
+        players: [
+            makePlayer("p1", { library: libraryOf("p1", 6) }),
+            makePlayer("p2", { library: libraryOf("p2", 6) }),
+        ],
+    });
+    const item = pushSpell(state, WAN_SHI_TONG_LIBRARIAN_ID, "p1");
+    item.chosenX = x;
+    resolveTopOfStack(state);
+    expect(state.stack.at(-1)?.triggeredAbilityId).toBe(LIBRARIAN_ETB_ID);
+    const librarian = state.players[0].battlefield.find(
+        (c) => c.id === item.id
+    )!;
+    return { state, librarian };
+}
+
+/** Ephemerate's shape: the same instance id leaves and comes back a NEW object
+ *  (CR 400.7), through the two production funnels. */
+function blink(state: GameState, instanceId: string): void {
+    const left = removePermanentTo(state, instanceId, "exile");
+    expect(left).not.toBeNull();
+    const owner = state.players.find((p) => p.id === left!.ownerId)!;
+    const idx = owner.exile.findIndex((c) => c.id === instanceId);
+    const [card] = owner.exile.splice(idx, 1);
+    putReanimatedSetOnBattlefield(state, [
+        { card, controllerId: card.ownerId },
+    ]);
+}
+
+describe("Wan Shi Tong, Librarian — ETB (CR 400.7d / 107.1a)", () => {
+    it("X=5 — five +1/+1 counters and two cards, half of 5 rounded down", () => {
+        const { state, librarian } = castLibrarian(5);
+        resolveTopOfStack(state);
+        expect(librarian.counters?.["+1/+1"]).toBe(5);
+        expect(state.players[0].hand).toHaveLength(2);
+    });
+
+    it("X=1 — one counter and no card", () => {
+        const { state, librarian } = castLibrarian(1);
+        resolveTopOfStack(state);
+        expect(librarian.counters?.["+1/+1"]).toBe(1);
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("X=0 — the trigger resolves to nothing", () => {
+        const { state, librarian } = castLibrarian(0);
+        resolveTopOfStack(state);
+        expect(librarian.counters?.["+1/+1"] ?? 0).toBe(0);
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("X=5 survives the save/load between the trigger and its resolution", () => {
+        // Only the serialized `chosenXOnCast` crosses this round trip: `{ X: true }`
+        // reads the trigger's own stack item, whose stray `chosenX` is dropped.
+        const { state } = castLibrarian(5);
+        const reloaded = expandState(compactState(state));
+        resolveTopOfStack(reloaded);
+        expect(reloaded.players[0].battlefield[0].counters?.["+1/+1"]).toBe(5);
+        expect(reloaded.players[0].hand).toHaveLength(2);
+    });
+
+    it("destroyed in response — no counters, but the draw still reads the last-known X (CR 608.2h)", () => {
+        const { state, librarian } = castLibrarian(5);
+        removePermanentTo(state, librarian.id, "graveyard");
+        const reloaded = expandState(compactState(state));
+        resolveTopOfStack(reloaded);
+        expect(reloaded.players[0].battlefield).toHaveLength(0);
+        expect(reloaded.players[0].graveyard[0].counters).toBeUndefined();
+        expect(reloaded.players[0].hand).toHaveLength(2);
+    });
+
+    it("blinked in response — the new object gets no counters and the draw reads the old X (CR 400.7)", () => {
+        const { state, librarian } = castLibrarian(5);
+        const etb = state.stack.at(-1)!;
+        blink(state, librarian.id);
+        // The returned object is a new one, whose own (uncast) X reads 0. The
+        // re-entry queues a second ETB, resolved on top only by a real scan.
+        state.stack = [etb];
+        resolveTopOfStack(state);
+        const returned = state.players[0].battlefield.find(
+            (c) => c.id === librarian.id
+        )!;
+        expect(returned.chosenXOnCast).toBeUndefined();
+        expect(returned.counters?.["+1/+1"] ?? 0).toBe(0);
+        expect(state.players[0].hand).toHaveLength(2);
+    });
+
+    it("an uncast copy of the card reads X = 0 — nothing is announced", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libraryOf("p1", 2) }),
+                makePlayer("p2"),
+            ],
+        });
+        const card = makeInstance(WAN_SHI_TONG_LIBRARIAN_ID, {
+            id: "reanimated",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        putReanimatedSetOnBattlefield(state, [{ card, controllerId: "p1" }]);
+        expect(state.stack.at(-1)?.triggeredAbilityId).toBe(LIBRARIAN_ETB_ID);
+        resolveTopOfStack(state);
+        const permanent = state.players[0].battlefield[0];
+        expect(permanent.counters?.["+1/+1"] ?? 0).toBe(0);
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+});
+
+describe("Wan Shi Tong, Librarian — opponent searches (CR 701.23a)", () => {
+    function withLibrarianOut(): {
+        state: GameState;
+        librarian: CardInstanceState;
+    } {
+        const librarian = makeInstance(WAN_SHI_TONG_LIBRARIAN_ID, {
+            id: "librarian",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = makeInstance(GRIZZLY_BEARS_ID, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const basic = makeInstance(FOREST_ID, {
+            id: "p2-forest",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [librarian],
+                    library: libraryOf("p1", 3),
+                }),
+                makePlayer("p2", {
+                    battlefield: [victim],
+                    library: [basic, ...libraryOf("p2", 3)],
+                }),
+            ],
+        });
+        return { state, librarian };
+    }
+
+    it("your Path to Exile makes the opponent search — a counter and a card", () => {
+        const { state, librarian } = withLibrarianOut();
+        pushSpell(state, PATH_TO_EXILE_ID, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        expect(resolveTopOfStack(state)).toBeNull();
+        expect(state.pendingChoices![0].playerId).toBe("p2");
+        submitChoice(state, ["p2-forest"]);
+        const trigger = state.stack.find(
+            (s) => s.triggeredAbilityId === LIBRARIAN_SEARCH_ID
+        );
+        expect(trigger).toBeDefined();
+        resolveTopOfStack(state);
+        expect(librarian.counters?.["+1/+1"]).toBe(1);
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("an opponent's look-pick prompt (Expressive Iteration) is no search", () => {
+        const { state } = withLibrarianOut();
+        pushSpell(state, EXPRESSIVE_ITERATION_ID, "p2");
+        expect(resolveTopOfStack(state)).toBeNull();
+        expect(state.pendingChoices![0].kind).toBe("search-library");
+        submitChoice(state, ["p2-forest"]);
+        submitChoice(state, ["p2-lib-0"]);
+        expect(
+            state.stack.some(
+                (s) => s.triggeredAbilityId === LIBRARIAN_SEARCH_ID
+            )
+        ).toBe(false);
     });
 });

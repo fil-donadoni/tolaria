@@ -47,6 +47,7 @@ import {
     parseSnapshotNameRef,
     parseTargetNameRef,
     SOURCE_CHOSEN_SUBTYPE_REF,
+    SOURCE_CHOSEN_X_ON_CAST_REF,
 } from "./targetRef";
 import { SCRIPT_HOST_FIELDS } from "../ai/effectOpChildren";
 import type { BindingFieldName } from "./bindingFields";
@@ -2032,12 +2033,25 @@ function isScaledValue(value: unknown): boolean {
     return isScaledOperand(s.value);
 }
 
+/** One operand of a `divide` — `isDifferenceOperand` PLUS the reserved
+ *  `$source.chosenXOnCast` ref (CR 400.7d), matching `EffectDivideOperand`. A
+ *  SEPARATE checker so `difference` stays X-free; no other ref is admitted, and
+ *  the ordered ref pass still refuses this one at a spell site, which has no
+ *  `$source`. Non-recursive: the grammar stays depth-1. */
+function isDivideOperand(value: unknown): boolean {
+    return (
+        isDifferenceOperand(value) ||
+        (isRefValue(value) &&
+            (value as { ref: string }).ref === SOURCE_CHOSEN_X_ON_CAST_REF)
+    );
+}
+
 /** `{ divide: { value, by, rounding } }` — SHAPE of the division value
  *  construct (issue #2385, Tamiyo Seasoned Scholar's "half the number of
  *  cards in your library, rounded up"). Exactly three keys, all required:
- *  `value` a terminal operand (`isDifferenceOperand` — literal or count, the
- *  same non-X terminal set `difference` uses, since no shipped divide card
- *  needs an X dividend), `by` a positive-int literal divisor (mirrors
+ *  `value` a terminal operand (`isDivideOperand` — a literal, a count or the
+ *  source's cast-time X; a spell's `{ X: true }` stays out, since no shipped
+ *  divide card needs one), `by` a positive-int literal divisor (mirrors
  *  `scaled.times`'s literal-only rule), `rounding` the CR 107.1a fractional-
  *  result direction — mandatory, no default (MTG never rounds to nearest or
  *  truncates toward zero; the Oracle text always states the direction).
@@ -2058,7 +2072,7 @@ function isDivideValue(value: unknown): boolean {
     }
     if (!isPositiveInt(s.by)) return false;
     if (s.rounding !== "up" && s.rounding !== "down") return false;
-    return isDifferenceOperand(s.value);
+    return isDivideOperand(s.value);
 }
 
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
@@ -8258,6 +8272,12 @@ function checkRefUse(
         errors.push(
             `${at}: ref "${use.ref}" names a ${family} binding in a ${use.kind} position — power/toughness/manaValue/controller refs read snapshot bindings`
         );
+        return;
+    }
+    // CR 400.7d — the reserved cast-time X read, numeric and off `$source`
+    // alone: no other snapshot carries it. The family check above has already
+    // refused it at a spell site, where `$source` is undeclared.
+    if (use.kind === "number" && use.ref === SOURCE_CHOSEN_X_ON_CAST_REF) {
         return;
     }
     const legal =

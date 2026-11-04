@@ -2263,7 +2263,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         status: "implemented",
         binding:
             'entersWith: { counters: [{ type: "+1/+1", count: "X" }] } (CR 614.1c replacement, applied at resolution off StackItem.chosenX) + enteredTrigger({ scope: "self", interveningIf: X >= 5, effects: [{ op: "draw" }] }) (CR 603.4)',
-        note: 'Ravenous is TWO abilities on one keyword, and they resolve at different times — that split is the whole implementation. (1) "This creature enters with X +1/+1 counters on it" is a CR 614.1c ETB REPLACEMENT: declare `entersWith: { counters: [{ type: "+1/+1", count: "X" }] }`, which `applyEntersWithCounters` resolves off the RESOLVING stack item\'s `chosenX` (`cards/entersWith.ts`) — no Effect Script involved. (2) "If X is 5 or more, draw a card when it enters" is a genuine TRIGGERED ability with a CR 603.4 intervening-if: declare an `enteredTrigger({ scope: "self" })` whose `interveningIf` reads `self.chosenXOnCast` and whose `effects` are a plain DSL `draw`. The next Ravenous card copies exactly that pair. CRITICAL — read X from `CardInstanceState.chosenXOnCast` (the typed, SERIALIZED snapshot `finalizeSpellResolution` writes, twin of `wasKicked`), never from `{ X: true }` / `ctx.getX()` at the trigger site and never from the +1/+1 counter COUNT. `getX()` reads the currently-resolving stack item, and the trigger\'s item only carries a stale `chosenX` by an untyped `{...self}` spread that the card serializer drops — so it reads 0 after the save/load that happens between the trigger going on the stack and resolving. The counter count is the proxy anti-pattern issue #1753 retired: any later pump or -1/-1 annihilation changes it, X never changes. Expressed inline on the first card per the closure-on-1st/extract-on-2nd convention; a SECOND Ravenous card is the point to extract a `ravenous()` factory returning the entersWith declaration + the trigger.',
+        note: 'Ravenous is TWO abilities on one keyword, and they resolve at different times — that split is the whole implementation. (1) "This creature enters with X +1/+1 counters on it" is a CR 614.1c ETB REPLACEMENT: declare `entersWith: { counters: [{ type: "+1/+1", count: "X" }] }`, which `applyEntersWithCounters` resolves off the RESOLVING stack item\'s `chosenX` (`cards/entersWith.ts`) — no Effect Script involved. (2) "If X is 5 or more, draw a card when it enters" is a genuine TRIGGERED ability with a CR 603.4 intervening-if: declare an `enteredTrigger({ scope: "self" })` whose `interveningIf` reads `self.chosenXOnCast` and whose `effects` are a plain DSL `draw`. The next Ravenous card copies exactly that pair. CRITICAL — read X from `CardInstanceState.chosenXOnCast` (the typed, SERIALIZED snapshot `finalizeSpellResolution` writes, twin of `wasKicked`), never from `{ X: true }` / `ctx.getX()` at the trigger site and never from the +1/+1 counter COUNT. `getX()` reads the currently-resolving stack item, and the trigger\'s item only carries a stale `chosenX` by an untyped `{...self}` spread that the card serializer drops — so it reads 0 after the save/load that happens between the trigger going on the stack and resolving. The counter count is the proxy anti-pattern issue #1753 retired: any later pump or -1/-1 annihilation changes it, X never changes. An Effect Script reads that same snapshot through the reserved `{ ref: "$source.chosenXOnCast" }` (CR 400.7d), last-known included. Expressed inline on the first card per the closure-on-1st/extract-on-2nd convention; a SECOND Ravenous card is the point to extract a `ravenous()` factory returning the entersWith declaration + the trigger.',
     },
     // 702.157 Squad (issue #3220) — two linked abilities, both assembled from
     // parts that already shipped: the cost half is a `kickers[]` entry with
@@ -4109,11 +4109,11 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  division operator, `scaled`'s inverse (`difference` subtracts, `scaled`
  *  multiplies, `divide` divides). Same non-Op, non-ADR-0045-reopening
  *  status as every member since `X`. Its operand type is
- *  `EffectDifferenceOperand` (a literal or a `count`) — narrower than
- *  `EffectScaledOperand`, deliberately: no shipped divide card needs `X` as
- *  the dividend, so it stays as narrow as `difference`'s own operand rather
- *  than widening "just in case" (the same discipline that kept `difference`
- *  X-free when `scaled` needed X). Reason to exist: Tamiyo, Seasoned
+ *  `EffectDivideOperand` (a literal, a `count` or the reserved
+ *  `$source.chosenXOnCast` ref, CR 400.7d) — narrower than
+ *  `EffectScaledOperand`, deliberately: no shipped divide card needs a spell's
+ *  `{ X: true }` as the dividend, and a sibling type keeps `difference`
+ *  X-free. Reason to exist: Tamiyo, Seasoned
  *  Scholar (MH3, #2385) is "draw cards equal to half the number of cards in
  *  your library, rounded up" — a `count` divided by a constant, which no
  *  existing member reaches (`scaled` only MULTIPLIES). `by` is a plain
