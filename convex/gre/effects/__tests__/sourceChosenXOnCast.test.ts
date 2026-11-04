@@ -1,7 +1,8 @@
 // `$source.chosenXOnCast` — the X a permanent was cast with, read by its own
 // ability's Effect Script (CR 400.7d), including through `divide`. The read has
-// to survive what `{ X: true }` cannot: the save/load between a trigger going on
-// the stack and resolving, and the source leaving in response (CR 608.2h).
+// to survive what `{ X: true }` cannot: a trigger fired after a save/load, whose
+// item spreads a reloaded permanent that no longer holds the raw `chosenX`, and
+// the source leaving in response (CR 608.2h).
 
 import { describe, it, expect } from "vitest";
 import {
@@ -12,6 +13,7 @@ import {
 } from "../../../cards/__tests__/setup.helper";
 import { registerTokenDefinition } from "../../../cards/registry";
 import { enteredTrigger } from "../../../cards/abilities/triggers/enteredTrigger";
+import { attacksTrigger } from "../../../cards/abilities/triggers/attacksTrigger";
 import type { CardDefinition } from "../../../cards/types";
 import {
     putReanimatedSetOnBattlefield,
@@ -21,10 +23,12 @@ import {
     type GameState,
 } from "../../state";
 import { compactState, expandState } from "../../serialize";
+import { emitAttackersDeclaredEvents } from "../../phases";
 
 const SOURCE_ID = "test-cast-time-x-source";
 const LIBRARY_CARD_ID = "test-cast-time-x-library-card";
 const ETB_ID = "test-cast-time-x-etb";
+const ATTACK_ID = "test-cast-time-x-attack";
 
 registerTokenDefinition({
     id: LIBRARY_CARD_ID,
@@ -69,6 +73,18 @@ registerTokenDefinition({
                 },
             ],
         }),
+        attacksTrigger({
+            id: ATTACK_ID,
+            oracleText: "Whenever this creature attacks, draw X cards.",
+            scope: "self",
+            effects: [
+                {
+                    op: "draw",
+                    player: "controller",
+                    count: { ref: "$source.chosenXOnCast" },
+                },
+            ],
+        }),
     ],
 } satisfies CardDefinition);
 
@@ -108,6 +124,26 @@ describe("$source.chosenXOnCast in a trigger's script (CR 400.7d)", () => {
         resolveTopOfStack(reloaded);
         expect(reloaded.players[0].battlefield[0].counters?.["+1/+1"]).toBe(5);
         expect(reloaded.players[0].hand).toHaveLength(2);
+    });
+
+    it("a trigger fired after a save/load still reads it, where the reloaded permanent has lost the raw `chosenX`", () => {
+        const { state, source } = etbOnTheStack(1);
+        resolveTopOfStack(state);
+        const reloaded = expandState(compactState(state));
+        reloaded.phase = "DECLARE_ATTACKERS";
+        reloaded.combat = {
+            attackerIds: [source.id],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+        emitAttackersDeclaredEvents(reloaded);
+        expect(
+            reloaded.stack[reloaded.stack.length - 1].triggeredAbilityId
+        ).toBe(ATTACK_ID);
+        const before = reloaded.players[0].hand.length;
+        resolveTopOfStack(reloaded);
+        expect(reloaded.players[0].hand.length - before).toBe(1);
     });
 
     it("rounds the way `rounding` says at an odd and at a zero dividend (CR 107.1a)", () => {

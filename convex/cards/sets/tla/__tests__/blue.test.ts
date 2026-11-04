@@ -205,8 +205,8 @@ describe("Wan Shi Tong, All-Knowing (issue #3242)", () => {
 });
 
 // Wan Shi Tong, Librarian (issue #1993) — the ETB reads the cast-time X through
-// `$source.chosenXOnCast`, surviving the save/load between the trigger going on
-// the stack and it resolving, and the source leaving in response (CR 608.2h).
+// `$source.chosenXOnCast`, across a save/load and the source leaving in response
+// (CR 608.2h). The read itself is proven in `sourceChosenXOnCast.test.ts`.
 const WAN_SHI_TONG_LIBRARIAN_ID = wanShiTongLibrarian().id;
 const LIBRARIAN_ETB_ID = "wan-shi-tong-librarian-etb";
 const LIBRARIAN_SEARCH_ID = "wan-shi-tong-librarian-opponent-search";
@@ -286,8 +286,6 @@ describe("Wan Shi Tong, Librarian — ETB (CR 400.7d / 107.1a)", () => {
     });
 
     it("X=5 survives the save/load between the trigger and its resolution", () => {
-        // Only the serialized `chosenXOnCast` crosses this round trip: `{ X: true }`
-        // reads the trigger's own stack item, whose stray `chosenX` is dropped.
         const { state } = castLibrarian(5);
         const reloaded = expandState(compactState(state));
         resolveTopOfStack(reloaded);

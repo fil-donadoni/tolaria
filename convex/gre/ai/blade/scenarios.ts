@@ -211,7 +211,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "casts Wan Shi Tong, Librarian with X = 5, spending every mana",
         },
-        note: "CR 400.7d cast-time X read from a trigger (issue #1993). A read that lost X between the trigger and its resolution would price every X alike, and the extra five mana would buy nothing.",
+        note: "CR 400.7d cast-time X read from a trigger (issue #1993). A read that lost X would price every X alike, and the extra five mana would buy nothing.",
     },
     {
         // KICKER {X} WITH A MINIMUM X reachability (CR 107.3 / 601.2b, issue

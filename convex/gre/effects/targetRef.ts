@@ -45,7 +45,7 @@ export const SOURCE_CHOSEN_SUBTYPE_REF = "$source.chosenSubtype";
  *  `SpellContext.getSourceChosenXOnCast`, never the binding store, so a source
  *  that has already left still answers (CR 608.2h) where the `$source`
  *  snapshot was never seeded. `{ X: true }` is NOT this read: it reads the
- *  resolving stack item, which for a trigger holds no serialized X. */
+ *  resolving stack item, and a trigger fired after a save/load holds no X. */
 export const SOURCE_CHOSEN_X_ON_CAST_REF = "$source.chosenXOnCast";
 
 /** The only property path the reserved target ref supports today (CR 201.2 —
