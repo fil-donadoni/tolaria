@@ -161,6 +161,7 @@ export const CARD_FIELD_LIFECYCLE = {
     // Consumed by the entry's `applyEntersWithCounters`; carried across the
     // entry reset by `stagedEntryAnswers`, like every other as-enters answer.
     acceptedEntryCounters:      { codec: "record",  reset: ZONE },
+    declinedEntryKeywords:      { codec: "list",    reset: ZONE },
     entersAsTypeLine:           { codec: "scalar",  reset: NONE },
     temporaryColorOverrides:    { codec: "list",    reset: ZONE },
     sourceTappedPTMods:         { codec: "list",    reset: ZONE },

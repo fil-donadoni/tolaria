@@ -42,6 +42,7 @@ import { expandHideaway } from "./abilities/hideaway";
 import { expandKeywordTriggers } from "./abilities/keywordTriggers";
 import { expandMentor } from "./abilities/mentor";
 import { expandUnleash } from "./abilities/unleash";
+import { expandRiot } from "./abilities/riot";
 import { expandExtort } from "./abilities/extort";
 import { expandChapterAbilities } from "./abilities/sagas";
 import { expandClassLevelBars } from "./abilities/classLevels";
@@ -697,7 +698,9 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     );
     // Extort (CR 702.101a) reads the expanded `staticEffects`, so it sits outside
     // `expandCompiledStatics`: a compiled static grant gets its trigger too.
-    const withKeywords = expandExtort(expandMentor(expandUnleash(expanded)));
+    const withKeywords = expandExtort(
+        expandMentor(expandRiot(expandUnleash(expanded)))
+    );
     expansionCache.set(base, withKeywords);
     return withKeywords;
 };
