@@ -596,7 +596,8 @@ describe("Kicker — LIFE leg (CR 702.33a / 118.4)", () => {
                 getPlayer(state, "p1"),
                 legProbe,
                 { "kicker-life": 1 },
-                "legs-x"
+                "legs-x",
+                undefined
             )
         ).toBe(false);
     });
@@ -656,7 +657,8 @@ describe("Kicker — PERMANENT leg is ALWAYS an explicit pick (CR 702.33a kicker
                 getPlayer(state, "p1"),
                 legProbe,
                 { "kicker-sac": 1 },
-                "legs-x"
+                "legs-x",
+                undefined
             )
         ).toBe(false);
     });
@@ -756,7 +758,8 @@ describe("Kicker — HAND leg (CR 702.33a kicker / 701.9 discard)", () => {
                 getPlayer(state, "p1"),
                 handLegProbe,
                 { kicker: 1 },
-                "hand2"
+                "hand2",
+                undefined
             )
         ).toBe(false);
     });

@@ -350,7 +350,8 @@ export type AdditionalCostKeyword =
     | "squad"
     | "replicate"
     | "splice"
-    | "escalate";
+    | "escalate"
+    | "conspire";
 
 /** CR 702.175a / 702.157a — the LINK between the two halves of an additional-cost
  *  keyword that "represents two abilities": the `kickers[]` cost entry and the
@@ -381,6 +382,28 @@ export interface AdditionalCostTwin {
     costId: string;
 }
 
+/** CR 702.78a — a permanent leg that TAPS its permanents where they stand, which
+ *  only a cast's cost entry can declare: {@link CostLegs} keeps it out of every
+ *  may-pay, alternative and activation cost, none of which can pay it. It pays
+ *  through the cast's permanent-cost selection, whose requirement carries the
+ *  action, so it merges beside a sacrifice the same cast owes. */
+export interface TapCostLeg {
+    action: "tap";
+    filter: PermanentFilter;
+    count: number;
+    /** CR 702.78a — "that each share a color with it": `filter` also needs one
+     *  of the cast spell's colours. Bound when the cost is priced
+     *  (`gre/kicker.ts`), since the spell's colours are live state; a colourless
+     *  spell shares none, so the leg is then unpayable. */
+    sharesColorWithCastSpell?: true;
+}
+
+/** {@link CostLegs} as a `kickers[]` entry declares them: every leg, plus a
+ *  permanent leg that may be a {@link TapCostLeg}. */
+export type CastCostLegs = Omit<CostLegs, "permanent"> & {
+    permanent?: CostLegs["permanent"] | TapCostLeg;
+};
+
 /** CR 702.33 — ONE Kicker: an OPTIONAL additional cost the caster may choose to
  *  pay as they cast the spell ("You may pay an additional [cost] as you cast
  *  this spell"). Paid ON TOP of the mana cost at cast time (CR 601.2f — unlike
@@ -410,7 +433,7 @@ export interface AdditionalCostTwin {
  *    caster pay THIS Kicker's cost any number of times; the recorded count is
  *    how many times it was paid. Multikicker is a property of one Kicker, not of
  *    the card. */
-export type KickerCost = CostLegs & {
+export type KickerCost = CastCostLegs & {
     /** Stable id for this Kicker, unique within the card. Keys the per-Kicker
      *  payment record (`StackItem.kickerPayments`) and the `{ additionalCostPaid }`
      *  Effect Script value. A single-Kicker card conventionally uses `"kicker"`;

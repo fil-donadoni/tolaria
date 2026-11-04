@@ -55,7 +55,7 @@ import {
     markGraveyardPlayPermissionUsed,
     stampGraveyardPermissionRider,
 } from "./rules";
-import type { SacrificeSelection } from "./sacrificeChoice";
+import { tapPaymentPickIds, type SacrificeSelection } from "./sacrificeChoice";
 import { costVictimTypeFields } from "./sacrificeChoice";
 import { castAsSplitHalf } from "./splitCast";
 import { castAsModalBack } from "./modalBackCast";
@@ -343,6 +343,16 @@ export function commitCast(
         legs.sacrificeSelection &&
         !legs.sacrificeSelection.picked.every((id) =>
             state.players.some((p) => p.battlefield.some((c) => c.id === id))
+        )
+    ) {
+        return null;
+    }
+    // CR 702.78a — likewise a permanent picked to pay by tapping that is no
+    // longer untapped: the cost can no longer be paid.
+    if (
+        legs.sacrificeSelection &&
+        tapPaymentPickIds(legs.sacrificeSelection).some(
+            (id) => !caster.battlefield.some((c) => c.id === id && !c.isTapped)
         )
     ) {
         return null;
