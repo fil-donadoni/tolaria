@@ -1,5 +1,6 @@
 import type { Color } from "./cards";
 import type { Zone, CardAction } from "@convex/gre/types";
+import type { ExileCastRouteChoice } from "@convex/gre/castCost";
 import type {
     RestrictedMana,
     AttackManaTaxPayment,
@@ -556,6 +557,17 @@ export interface CardInstance {
      *  public, its identity is not. Drives the exile Cast button's "Foretell"
      *  label. Mirrors `CardInstanceState.foretold`. */
     foretold?: boolean;
+    /** CR 702.143a/d — the turn it became foretold, from which its owner's
+     *  permission is derived (`exileCastPermission`). Reaches only a viewer who
+     *  may look at the card. Mirrors `CardInstanceState.foretoldOnTurn`. */
+    foretoldOnTurn?: number;
+    /** CR 702.185a/b — the turn a warp ability exiled it, from which its
+     *  owner's permission is derived. Mirrors
+     *  `CardInstanceState.warpExiledOnTurn`. */
+    warpExiledOnTurn?: number;
+    /** CR 601.2b — the viewer's permission route for this exile cast, where it
+     *  asks anything of the picker. Mirrors `SlimExileCard`'s. */
+    exileCastRouteChoice?: ExileCastRouteChoice;
     /** CR 601.2f (issue #2383) — an OBJECT-SCOPED cost increase riding
      *  `castableFromExileBy`: "A spell cast this way costs {2} more to cast"
      *  (Elite Spellbinder). Crosses the wire via `slimCard` (which strips only

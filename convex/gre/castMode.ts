@@ -79,7 +79,7 @@ import {
     modalBackCastAltCostId,
     modalBackCastOptionsFor,
 } from "./modalBackCast";
-import type { CardInstanceState } from "./state/declarations";
+import type { CardInstanceState, GameState } from "./state/declarations";
 import type { LayerStateView } from "./layers";
 
 /** A cast mode: an alternative cost that changes what the spell IS or what
@@ -285,9 +285,12 @@ export function independentCastOptionsFor(
     /** CR 712.11c — whether the licence this cast rides reaches a modal
      *  card's back face (`modalBackCastLicensed`, `castCost.ts`). Omitted =
      *  read off the card alone (`modalBackCastLicensedInZone`). */
-    modalBackLicensed?: boolean
+    modalBackLicensed?: boolean,
+    /** CR 715.3d — the state and caster, so the restriction binds only a cast
+     *  under the grant it rides (`adventureCastOptionFor`). */
+    exileCaster?: { state: GameState; casterId: string }
 ): AlternativeCost[] {
-    const adventure = adventureCastOptionFor(card);
+    const adventure = adventureCastOptionFor(card, exileCaster);
     return [
         ...(adventure ? [adventure] : []),
         ...splitCastOptionsFor(card),

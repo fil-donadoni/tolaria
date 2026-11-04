@@ -65,6 +65,8 @@ import {
     castRawManaCost,
     flashbackLifeCost,
     exileCastPermitted,
+    exileCastRoutes,
+    stateWithDeclinedExileRoute,
     graveyardCastMechanism,
     modalBackCastLicensed,
     type CastFromZone,
@@ -4745,7 +4747,10 @@ function enumerateCastMovesFromZone(
                   card,
                   castFromZone,
                   player.id
-              )
+              ),
+              castFromZone === "exile"
+                  ? { state, casterId: player.id }
+                  : undefined
           )
         : // CR 601.2b — "a player can't apply two alternative methods of
           // casting or two alternative costs to a single spell": an Adventure
@@ -6280,6 +6285,45 @@ export function enumerateMoves(
                     onTruncated,
                 })
             );
+            // CR 601.3 / 601.2b — the OTHER permission choice: a plotted {X}
+            // spell also holding a grant may pay X under the grant. A separate
+            // pass priced under that route, stamped so the executor announces
+            // it. The printed cast only: another option costs what it costs
+            // under either route, so the default pass already offers it.
+            if (exileCastRoutes(state, card, player.id).length === 2) {
+                const declined = stateWithDeclinedExileRoute(state, card.id);
+                const declinedCaster = declined.players.find(
+                    (p) => p.id === player.id
+                );
+                const declinedCard = declined.players
+                    .find((p) => p.id === zoneOwner.id)
+                    ?.exile.find((c) => c.id === card.id);
+                if (declinedCaster && declinedCard) {
+                    moves.push(
+                        ...enumerateCastMoves(
+                            declined,
+                            declinedCaster,
+                            declinedCard,
+                            {
+                                castFromZone: "exile",
+                                onTruncated,
+                                declineManaCostReplacement: true,
+                            }
+                        ).flatMap((m) =>
+                            m.kind === "cast-spell" &&
+                            m.alternativeCostId === undefined
+                                ? [
+                                      {
+                                          ...m,
+                                          declineManaCostReplacement:
+                                              true as const,
+                                      },
+                                  ]
+                                : []
+                        )
+                    );
+                }
+            }
         }
     }
     // Library: index 0 ONLY — the permission is positional and the rest of the

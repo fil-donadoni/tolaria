@@ -101,6 +101,10 @@ import { handCardMatchesFilter } from "@convex/gre/alternativeCost";
 // costs plus every board-granted free cast (`cast-permission`, Aluren). Shared
 // verbatim with the GRE's legality gate and `announceCast` (ADR 0074).
 import { castOptionAlternativeCosts } from "@convex/gre/castPermissions";
+import type {
+    ExileCastRouteChoice,
+    ExileCastRouteView,
+} from "@convex/gre/castCost";
 // CR 601.3e (issue #7526) — the per-announcement library-top licence.
 import {
     libraryTopAnnouncementChoices,
@@ -2057,6 +2061,42 @@ export function affordableAltCostsForCard(
                 alt.id
             ).length > 0
     );
+}
+
+/** CR 601.2b — the picker row for one permission route of a cast from exile. */
+export function exileRouteRowLabel(
+    route: ExileCastRouteView,
+    card: Pick<CardInstance, "foretold">
+): string {
+    if (route.price === "free") return "Cast without paying its mana cost";
+    if (route.price === "printed") return "Pay mana cost";
+    return card.foretold ? "Pay its foretell cost" : "Pay its alternative cost";
+}
+
+/** CR 107.3b — true when no permission route of this cast from exile includes
+ *  an {X}: the only legal choice is 0, so there is no value to collect. */
+export function exileRouteLocksX(
+    choice: ExileCastRouteChoice | undefined
+): boolean {
+    return (
+        choice !== undefined &&
+        choice.xLocked &&
+        (choice.declined === undefined || choice.declined.xLocked)
+    );
+}
+
+/** CR 107.3b — the X a picked exile route announces. The stepper runs before
+ *  the picker, so a value collected for the route that pays X is dropped when
+ *  the caster then picks the route that does not. Any other pick is untouched. */
+export function exileRouteChosenX(
+    choice: ExileCastRouteChoice | undefined,
+    altCostId: string | undefined,
+    declined: true | undefined,
+    chosenX: number | undefined
+): number | undefined {
+    if (choice === undefined || altCostId !== undefined) return chosenX;
+    const route = declined ? choice.declined : choice;
+    return route?.xLocked ? undefined : chosenX;
 }
 
 /** One way to pay an announcement off the top of the library: `decline` is the

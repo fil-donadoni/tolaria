@@ -88,11 +88,11 @@ import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
 import {
     exileCastLatent,
-    exileCastPermitted,
+    exileCastRoutes,
     graveyardCastMechanismForMember,
 } from "./castCost";
 import { getPrintedEscape } from "./escape";
-import { getForetellCost, isForetellCast } from "./foretell";
+import { getForetellCost } from "./foretell";
 import {
     canPayCost,
     castProbeFor,
@@ -1152,8 +1152,10 @@ function flexibilityTerm(
     // speed for its foretell cost, in either player's turn.
     for (const card of player.exile) {
         if (castable >= weights.flexCardCap) break;
-        if (!isForetellCast(card) || !hasInstantSpeed(card)) continue;
-        if (!exileCastPermitted(state, card, player.id)) continue;
+        if (!hasInstantSpeed(card)) continue;
+        if (!exileCastRoutes(state, card, player.id).includes("foretell")) {
+            continue;
+        }
         if (
             !canPayCost(units, getForetellCost(card) ?? {}, {
                 life: player.life,

@@ -218,6 +218,22 @@ export function libraryTopCastPayment(
     };
 }
 
+/** Whether a cast of `card` from exile by the priority holder is made under a
+ *  route that pays no mana at all (CR 118.9). */
+function exileCastPricedFree(
+    state: GameState,
+    card: CardInstanceState,
+    declineManaCostReplacement?: boolean
+): boolean {
+    const route = exileCastRoute(
+        state,
+        card,
+        state.priorityPlayerId,
+        declineManaCostReplacement
+    );
+    return route !== undefined && exileRoutePrice(card, route) === "free";
+}
+
 /** CR 709.3 (issue #3344) — the alternative cost a cast ACTUALLY pays once the
  *  zone it comes from is known.
  *
@@ -264,7 +280,14 @@ export function castAlternativeCostForZone(
                 zone,
                 alternativeCostId,
                 declineManaCostReplacement
-            ) !== undefined);
+            ) !== undefined) ||
+        // CR 702.170d / 118.9 — the Adventure rides a free cast from exile the
+        // way it rides a library-top replacement: "Effects that allow you to
+        // cast a spell … without paying its mana cost may allow you to apply
+        // those to the Adventure" (Gatherer ruling, 2019-10-04).
+        (isAdventureCastId(def ?? undefined, alternativeCostId) &&
+            zone === "exile" &&
+            exileCastPricedFree(state, card, declineManaCostReplacement));
     if (!zonePriced) return resolved;
     const mana = castRawManaCost(
         state,
@@ -330,37 +353,41 @@ export function castRawManaCost(
      *  replacing grant when one covers the cast. */
     declineManaCostReplacement?: boolean
 ): ManaCost | undefined {
-    // CR 601.3 / 118.9 (issue #1156) — Dauthi Voidwalker's "play it without
-    // paying its mana cost" free-cast waiver: this specific exile-sourced
-    // card was granted a cost-free cast (`SpellContext.grantCastFromExile`'s
-    // `withoutPayingManaCost` option). Checked BEFORE the Madness branch — a
-    // card can't carry both markers in practice (they come from unrelated
-    // exile sources), but the free-cast waiver wins if it ever did, since
-    // "no cost is required" is stronger than any specific alternative cost.
-    if (zone === "exile" && card.castFromExileWithoutPayingManaCost) {
-        return {};
-    }
-    // CR 702.170d / 118.9 — a cast under the plotted permission, "without
-    // paying its mana cost", an alternative cost: additional costs and cost
-    // increases still apply. The caster is the priority holder: a cast begins
-    // with priority (CR 117.1a), and this signature names no caster.
-    if (
-        zone === "exile" &&
-        castsUnderPlotPermission(state, card, state.priorityPlayerId)
-    ) {
-        return {};
-    }
-    // CR 702.35a — a card discarded via Madness is cast from exile for its
-    // madness cost, not its printed mana cost. `Madness {0}` is the empty cost.
-    if (zone === "exile" && card.madnessExiled) {
-        return getMadnessCost(card) ?? {};
-    }
-    // CR 702.143a — a foretold card is cast from exile "by paying any
-    // foretell cost it has rather than paying that spell's mana cost" (an
-    // alternative cost, CR 601.2b / 601.2f–h). After the free-cast waiver,
-    // which `isForetellCast` defers to.
-    if (zone === "exile" && isForetellCast(card)) {
-        return getForetellCost(card);
+    if (zone === "exile") {
+        // CR 601.3 / 601.2b — the permission this cast is made under decides
+        // what it pays. The caster is the priority holder: a cast begins with
+        // priority (CR 117.1a), and this signature names no caster.
+        const route = exileCastRoute(
+            state,
+            card,
+            state.priorityPlayerId,
+            declineManaCostReplacement
+        );
+        // CR 702.170d / 118.9 — "without paying its mana cost", an alternative
+        // cost: additional costs and cost increases still apply.
+        if (route === "plot") return {};
+        // CR 702.143a — "by paying any foretell cost it has rather than paying
+        // that spell's mana cost" (an alternative cost, CR 601.2b / 601.2f–h).
+        if (route === "foretell") return getForetellCost(card);
+        // CR 702.185a — a warped card's recast is an ordinary cast for its
+        // printed mana cost: no waiver or madness cost on a grant applies.
+        if (route !== "warp") {
+            // CR 601.3 / 118.9 (issue #1156) — Dauthi Voidwalker's "play it
+            // without paying its mana cost" free-cast waiver: this specific
+            // exile-sourced card was granted a cost-free cast
+            // (`SpellContext.grantCastFromExile`'s `withoutPayingManaCost`
+            // option).
+            if (card.castFromExileWithoutPayingManaCost) return {};
+            // CR 702.35a — a card discarded via Madness is cast from exile for
+            // its madness cost, not its printed mana cost. `Madness {0}` is
+            // the empty cost.
+            if (card.madnessExiled) return getMadnessCost(card) ?? {};
+            // No open permission: what the designation would charge, for a
+            // price asked outside any window.
+            if (route === undefined && isForetellCast(card)) {
+                return getForetellCost(card);
+            }
+        }
     }
     // CR 118.9-analog / 119.4 (issue #2398, Bolas's Citadel) — a cast made
     // under a cast-from-top-of-library permission whose `manaCostReplacement`
@@ -415,6 +442,14 @@ export function castRawManaCost(
     // (CR 709.3a).
     return getInstanceManaCost(castSubjectView(card, alternativeCostId));
 }
+
+/** The permission a card's own exile designation derives. */
+export type DesignationExileCastRoute = "plot" | "foretell" | "warp";
+/** The permission a cast from exile is made under: a designation, or the
+ *  `castableFromExile*` grant record. */
+export type ExileCastRoute = DesignationExileCastRoute | "grant";
+/** What a route pays: nothing, a cost it states, or the printed mana cost. */
+export type ExileCastRoutePrice = "free" | "alternative" | "printed";
 
 // ---------------------------------------------------------------------------
 // Which mechanism licenses a cast from a NON-hand zone, and whether the Bot's
@@ -579,6 +614,8 @@ type ExileCastWindowFields = Pick<
     | "castableFromExileFromTurn"
     | "ownerId"
     | "plottedOnTurn"
+    | "foretoldOnTurn"
+    | "warpExiledOnTurn"
 >;
 
 /** The fields {@link exileCastPermitted} reads: the window, plus the grant's
@@ -586,18 +623,31 @@ type ExileCastWindowFields = Pick<
 type ExileCastFields = ExileCastWindowFields &
     Pick<CardInstanceState, "castableFromExileCondition">;
 
-/** CR 702.170d — the turn from which `casterId` holds a plotted card's
- *  permission: "a plotted card's OWNER may cast it … during any turn AFTER the
- *  turn in which it became plotted". `undefined` when the card is not plotted
- *  or `casterId` is not its owner. */
-function plotPermissionOpensOnTurn(
-    card: Pick<CardInstanceState, "ownerId" | "plottedOnTurn">,
+/** The permissions a card's own designation derives, each on the turn after the
+ *  designation: CR 702.170d (plotted, "any turn after the turn in which it
+ *  became plotted"), CR 702.143a (foretold, "after the current turn has ended")
+ *  and CR 702.185a (warped, likewise). Each names the card's OWNER and none is
+ *  written into the `castableFromExile*` record, so a grant on that record
+ *  stands beside them untouched. */
+function designationPermissions(
+    card: Pick<
+        CardInstanceState,
+        "ownerId" | "plottedOnTurn" | "foretoldOnTurn" | "warpExiledOnTurn"
+    >,
     casterId: string
-): number | undefined {
-    if (card.plottedOnTurn === undefined || card.ownerId !== casterId) {
-        return undefined;
+): { route: DesignationExileCastRoute; opensOn: number }[] {
+    if (card.ownerId !== casterId) return [];
+    const out: { route: DesignationExileCastRoute; opensOn: number }[] = [];
+    if (card.plottedOnTurn !== undefined) {
+        out.push({ route: "plot", opensOn: card.plottedOnTurn + 1 });
     }
-    return card.plottedOnTurn + 1;
+    if (card.foretoldOnTurn !== undefined) {
+        out.push({ route: "foretell", opensOn: card.foretoldOnTurn + 1 });
+    }
+    if (card.warpExiledOnTurn !== undefined) {
+        out.push({ route: "warp", opensOn: card.warpExiledOnTurn + 1 });
+    }
+    return out;
 }
 
 /** The grant half of {@link exileCastPermission}: the `castableFromExile*`
@@ -618,18 +668,25 @@ function exileGrantOpen(
 }
 
 /** Whether `casterId` holds ANY cast-from-exile permission on `card`, open or
- *  not: the grant, or a plotted card's owner. What decides that the viewer gets
- *  a Cast button at all, enabled or not. */
+ *  not: the grant, or a designated card's owner. What decides that the viewer
+ *  gets a Cast button at all, enabled or not. */
 export function holdsExileCastPermission(
     card: Pick<
         Partial<CardInstanceState>,
-        "castableFromExileBy" | "ownerId" | "plottedOnTurn"
+        | "castableFromExileBy"
+        | "ownerId"
+        | "plottedOnTurn"
+        | "foretoldOnTurn"
+        | "warpExiledOnTurn"
     >,
     casterId: string
 ): boolean {
     return (
         card.castableFromExileBy === casterId ||
-        (card.plottedOnTurn !== undefined && card.ownerId === casterId)
+        (card.ownerId === casterId &&
+            (card.plottedOnTurn !== undefined ||
+                card.foretoldOnTurn !== undefined ||
+                card.warpExiledOnTurn !== undefined))
     );
 }
 
@@ -640,8 +697,7 @@ export function holdsExileCastPermission(
  *  Elite Spellbinder's taxed grant) and a madness cast (CR 702.35a), which is
  *  the same field plus the `madnessExiled` marker.
  *
- *  A grant can also be stamped but not yet OPEN (CR 702.185a — a warped card is
- *  castable only "after the current turn has ended"): that is the LOWER bound
+ *  A grant can also be stamped but not yet OPEN: that is the LOWER bound
  *  `castableFromExileFromTurn`, and this is the ONE authority that reads it.
  *  Route every consumer through here — `getLegalActions`' land leg
  *  (`gre/rules.ts`), the real payment path (`findCastableExileCard`,
@@ -660,9 +716,10 @@ export function holdsExileCastPermission(
  *  caller filters on type — the land half has its own enumeration
  *  (`resolvePlayLandSourceZone`).
  *
- *  CR 702.170d — a plotted card's permission is a THIRD shape, derived from
- *  `plottedOnTurn` rather than stamped on the grant record, so it and a grant
- *  coexist: either one licenses the cast. */
+ *  CR 702.170d / 702.143a / 702.185a — a plotted, foretold or warped card's
+ *  permission is a THIRD shape, derived from its designation
+ *  ({@link designationPermissions}) rather than stamped on the grant record, so
+ *  it and a grant coexist: either one licenses the cast. */
 export function exileCastPermission(
     /** Narrowed to the fields this authority reads so the CLIENT can ask it
      *  directly about a projected `SlimExileCard` (ADR 0074 — the frontend
@@ -681,17 +738,17 @@ export function exileCastPermission(
      *  one of them would silently keep the old, fail-OPEN answer. */
     turn: number
 ): boolean {
-    const plotOpensOn = plotPermissionOpensOnTurn(card, casterId);
     return (
-        (plotOpensOn !== undefined && turn >= plotOpensOn) ||
-        exileGrantOpen(card, casterId, turn)
+        designationPermissions(card, casterId).some(
+            (permission) => turn >= permission.opensOn
+        ) || exileGrantOpen(card, casterId, turn)
     );
 }
 
-/** The grant half of {@link exileCastPermitted}, plotted permission excluded:
- *  the record's window and its board condition. Asked directly by the land play
+/** The grant half of {@link exileCastPermitted}, designations excluded: the
+ *  record's window and its board condition. Asked directly by the land play
  *  (CR 116.2a — a plotted card's permission is to CAST, and a land is played,
- *  so only a grant can license it) and by the plotted-cast route below. */
+ *  so only a grant can license it) and by the route decision below. */
 export function exileGrantPermitted(
     state: GameState,
     card: Pick<
@@ -710,50 +767,232 @@ export function exileGrantPermitted(
     );
 }
 
-/** CR 702.170d — whether `casterId` holds a plotted card's OPEN permission. */
-function plotPermissionOpen(
+/** The designations whose permission `casterId` holds open on `card` now. */
+function openDesignationRoutes(
     state: GameState,
-    card: Pick<CardInstanceState, "ownerId" | "plottedOnTurn">,
+    card: ExileCastWindowFields,
     casterId: string
-): boolean {
-    const opensOn = plotPermissionOpensOnTurn(card, casterId);
-    return opensOn !== undefined && state.turn >= opensOn;
+): DesignationExileCastRoute[] {
+    return designationPermissions(card, casterId)
+        .filter((permission) => state.turn >= permission.opensOn)
+        .map((permission) => permission.route);
 }
 
 /** CR 702.170d — true iff the plotted permission is the ONLY one licensing
  *  `casterId`'s cast of `card`, whose timing then binds: "during their main
  *  phase while the stack is empty", before any instant speed or flash the card
- *  itself has. Beside an open grant the cast may use the grant's own timing. */
+ *  itself has. Beside another open permission the cast may use that one's
+ *  timing. */
 export function exileCastOnlyUnderPlotPermission(
     state: GameState,
     card: ExileCastFields,
     casterId: string
 ): boolean {
+    const open = openDesignationRoutes(state, card, casterId);
     return (
-        plotPermissionOpen(state, card, casterId) &&
+        open.length === 1 &&
+        open[0] === "plot" &&
         !exileGrantPermitted(state, card, casterId)
     );
 }
 
-/** CR 601.3 / 702.170d — whether `casterId`'s cast of `card` right now is made
- *  under the plotted permission, and so pays its cost (none, CR 118.9) rather
- *  than the grant's. The one route decision the price, the legality gate and
- *  the grant's own riders read.
+/** What a cast under `route` pays, rather than its mana cost. Ranks the routes
+ *  and labels the picker row: `free` is CR 118.9's "without paying its mana
+ *  cost", and the madness cost is the grant's only when `madnessExiled` says
+ *  so. */
+export function exileRoutePrice(
+    card: Pick<
+        CardInstanceState,
+        "castFromExileWithoutPayingManaCost" | "madnessExiled"
+    >,
+    route: ExileCastRoute
+): ExileCastRoutePrice {
+    if (route === "plot") return "free";
+    if (route === "foretell") return "alternative";
+    if (route === "warp") return "printed";
+    if (card.castFromExileWithoutPayingManaCost === true) return "free";
+    return card.madnessExiled === true ? "alternative" : "printed";
+}
+
+const EXILE_ROUTE_PRICE_RANK: Record<ExileCastRoutePrice, number> = {
+    free: 0,
+    alternative: 1,
+    printed: 2,
+};
+
+/** CR 601.3 / 601.2b — the permissions `casterId` may announce a cast of `card`
+ *  under right now, as the routes a caster can tell apart: any one effect that
+ *  allows the cast suffices (CR 601.3), and which alternative cost the spell
+ *  pays is announced (CR 601.2b).
  *
- *  Alone, the plotted permission carries the cast. Beside an open grant it
- *  carries it inside its own window, where it is the cheaper of the two, and
- *  the grant carries it everywhere else. The caster is not asked: an {X} spell
- *  cast in that window cannot choose the grant to pay X. tracked-by: #8022 */
-export function castsUnderPlotPermission(
+ *  `[]` = none open. Otherwise the first entry is what an announcement with no
+ *  `declineManaCostReplacement` takes: the cheaper route, the designation on a
+ *  tie. A second entry exists only where the two prices differ, and
+ *  `declineManaCostReplacement` names it: an {X} spell under a free permission
+ *  must announce X = 0 (CR 107.3b), so the dearer route is a real choice. Two
+ *  routes at one price are no choice; a grant carrying fixing and no tax wins
+ *  that tie, since the designation offers nothing it does not.
+ *
+ *  A plotted card's route exists beside another permission only inside its own
+ *  window ("during their main phase while the stack is empty"). A cast already
+ *  announced under the second route (`castDeclinedExileRoute`) keeps it, so the
+ *  tax, the fixing and the price read one answer from announcement to commit.
+ *
+ *  The route decision the price, the legality gate, the Bot's enumerator, the
+ *  wire and the grant's riders all read. */
+export function exileCastRoutes(
     state: GameState,
-    card: ExileCastFields,
+    card: ExileCastFields &
+        Pick<
+            CardInstanceState,
+            | "castFromExileWithoutPayingManaCost"
+            | "madnessExiled"
+            | "castFromExileManaSubstitution"
+            | "castFromExileCostIncrease"
+            | "castDeclinedExileRoute"
+        >,
+    casterId: string
+): ExileCastRoute[] {
+    const open = openDesignationRoutes(state, card, casterId);
+    const grantOpen = exileGrantPermitted(state, card, casterId);
+    const others = open.filter((route) => route !== "plot");
+    const plotBinds =
+        open.includes("plot") &&
+        ((others.length === 0 && !grantOpen) ||
+            isSorceryTimingFor(state, casterId));
+    const designation = plotBinds ? "plot" : others[0];
+    const routes = ((): ExileCastRoute[] => {
+        if (designation === undefined) return grantOpen ? ["grant"] : [];
+        if (!grantOpen) return [designation];
+        const designationRank =
+            EXILE_ROUTE_PRICE_RANK[exileRoutePrice(card, designation)];
+        const grantRank =
+            EXILE_ROUTE_PRICE_RANK[exileRoutePrice(card, "grant")];
+        if (designationRank === grantRank) {
+            return card.castFromExileManaSubstitution !== undefined &&
+                card.castFromExileCostIncrease === undefined
+                ? ["grant"]
+                : [designation];
+        }
+        return designationRank < grantRank
+            ? [designation, "grant"]
+            : ["grant", designation];
+    })();
+    if (card.castDeclinedExileRoute === true && routes.length === 2) {
+        return [routes[1]];
+    }
+    return routes;
+}
+
+/** The route `casterId`'s cast of `card` takes: the default, or the second one
+ *  when the caster declined it ({@link exileCastRoutes}). `undefined` when no
+ *  permission is open or the declined route does not exist. */
+export function exileCastRoute(
+    state: GameState,
+    card: Parameters<typeof exileCastRoutes>[1],
+    casterId: string,
+    declineManaCostReplacement?: boolean
+): ExileCastRoute | undefined {
+    // A cast already announced under the second route has only that route left.
+    const declined =
+        declineManaCostReplacement === true &&
+        card.castDeclinedExileRoute !== true;
+    return exileCastRoutes(state, card, casterId)[declined ? 1 : 0];
+}
+
+/** CR 601.2f / 609.4b — whether the riders on the grant record (its tax, its
+ *  mana fixing) apply to `casterId`'s cast of `card`: they ride the grant, so
+ *  a cast under the card's own designation owes and gets neither. */
+export function exileCastRidesGrant(
+    state: GameState,
+    card: Parameters<typeof exileCastRoutes>[1],
     casterId: string
 ): boolean {
-    if (!plotPermissionOpen(state, card, casterId)) return false;
-    return (
-        !exileGrantPermitted(state, card, casterId) ||
-        isSorceryTimingFor(state, casterId)
-    );
+    const route = exileCastRoute(state, card, casterId);
+    return route === undefined || route === "grant";
+}
+
+/** One route as the wire shows it: its price, and whether it locks an announced
+ *  {X} to 0 (CR 107.3b), nothing a cast pays under it including X. */
+export type ExileCastRouteView = {
+    price: ExileCastRoutePrice;
+    xLocked: boolean;
+};
+
+/** What the client's picker reads: the default announcement's route, and the
+ *  declined one where the caster has that choice. */
+export type ExileCastRouteChoice = ExileCastRouteView & {
+    declined?: ExileCastRouteView;
+};
+
+function exileRouteView(
+    card: CardInstanceState,
+    route: ExileCastRoute
+): ExileCastRouteView {
+    const price = exileRoutePrice(card, route);
+    const cost: ManaCost | undefined =
+        price === "free"
+            ? {}
+            : route === "foretell"
+              ? getForetellCost(card)
+              : price === "alternative"
+                ? getMadnessCost(card)
+                : getInstanceManaCost(card);
+    return { price, xLocked: typeof cost?.X !== "string" };
+}
+
+/** The wire's view of {@link exileCastRoutes} for `casterId`: what the default
+ *  announcement pays, and what the declined one would. `undefined` when the
+ *  picker owes nothing: no route, or one plain printed cast. */
+export function exileCastRouteChoice(
+    state: GameState,
+    card: CardInstanceState,
+    casterId: string
+): ExileCastRouteChoice | undefined {
+    const [route, declined] = exileCastRoutes(state, card, casterId);
+    if (route === undefined) return undefined;
+    const view = exileRouteView(card, route);
+    if (declined !== undefined) {
+        return { ...view, declined: exileRouteView(card, declined) };
+    }
+    return view.price === "printed" ? undefined : view;
+}
+
+/** A view of `state` in which `card`'s cast is announced under its second route
+ *  (`castDeclinedExileRoute`), so every reader of the route prices that cast.
+ *  What `announceCast` writes onto the real card, for the Bot's enumerator to
+ *  probe without writing to the state it is enumerating. */
+export function stateWithDeclinedExileRoute(
+    state: GameState,
+    cardInstanceId: string
+): GameState {
+    return {
+        ...state,
+        players: state.players.map((p) =>
+            p.exile.some((c) => c.id === cardInstanceId)
+                ? {
+                      ...p,
+                      exile: p.exile.map((c) =>
+                          c.id === cardInstanceId
+                              ? { ...c, castDeclinedExileRoute: true }
+                              : c
+                      ),
+                  }
+                : p
+        ),
+    };
+}
+
+/** Undoes `announceCast`'s `castDeclinedExileRoute` when the announced cast is
+ *  abandoned: the choice was the cast's, and the card stays in exile. */
+export function clearDeclinedExileRoute(
+    state: GameState,
+    cardInstanceId: string | undefined
+): void {
+    for (const player of state.players) {
+        const card = player.exile.find((c) => c.id === cardInstanceId);
+        if (card) delete card.castDeclinedExileRoute;
+    }
 }
 
 /** CR 611.2b (issue #7295) — {@link exileCastPermission} PLUS the grant's board
@@ -776,14 +1015,14 @@ export function exileCastPermitted(
     casterId: string
 ): boolean {
     return (
-        plotPermissionOpen(state, card, casterId) ||
+        openDesignationRoutes(state, card, casterId).length > 0 ||
         exileGrantPermitted(state, card, casterId)
     );
 }
 
 /** The turn on which `casterId`'s next cast-from-exile window on `card` opens,
- *  when they hold one that is closed on `turn`: the earlier of the plotted
- *  permission and the grant. `undefined` when one is open, or they hold none.
+ *  when they hold one that is closed on `turn`: the earliest of the card's
+ *  designations and the grant. `undefined` when one is open, or they hold none.
  *  Shared with the Cast button's disabled reason. */
 export function exileCastOpensOnTurn(
     card: ExileCastWindowFields,
@@ -792,7 +1031,9 @@ export function exileCastOpensOnTurn(
 ): number | undefined {
     if (exileCastPermission(card, casterId, turn)) return undefined;
     const opening = [
-        plotPermissionOpensOnTurn(card, casterId),
+        ...designationPermissions(card, casterId).map(
+            (permission) => permission.opensOn
+        ),
         card.castableFromExileBy === casterId
             ? card.castableFromExileFromTurn
             : undefined,

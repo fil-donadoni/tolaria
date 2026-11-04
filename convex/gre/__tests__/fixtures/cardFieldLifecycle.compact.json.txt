@@ -354,11 +354,13 @@
           "castableFromExileFromTurn": 22,
           "plottedOnTurn": 24,
           "foretold": true,
+          "foretoldOnTurn": 25,
+          "castDeclinedExileRoute": true,
           "grantedForetellCost": {
             "X": 1,
             "U": 1
           },
-          "warpExiled": true,
+          "warpExiledOnTurn": 26,
           "warped": true,
           "impended": true,
           "transformedAtDelayedSeq": 19,
@@ -795,11 +797,13 @@
       "castableFromExileFromTurn": 22,
       "plottedOnTurn": 24,
       "foretold": true,
+      "foretoldOnTurn": 25,
+      "castDeclinedExileRoute": true,
       "grantedForetellCost": {
         "X": 1,
         "U": 1
       },
-      "warpExiled": true,
+      "warpExiledOnTurn": 26,
       "warped": true,
       "impended": true,
       "transformedAtDelayedSeq": 19,

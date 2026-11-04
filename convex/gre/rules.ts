@@ -73,9 +73,10 @@ import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import type { CastFromZone } from "./castCost";
 import {
-    castsUnderPlotPermission,
+    exileCastRoutes,
+    exileRoutePrice,
+    type ExileCastRoutePrice,
     exileCastOnlyUnderPlotPermission,
-    exileCastPermitted,
     exileGrantPermitted,
     modalBackCastLicensed,
 } from "./castCost";
@@ -103,7 +104,7 @@ import {
     type FlashbackAdditionalCost,
 } from "./flashback";
 import { getMadnessCost, isMadnessCastable } from "./madness";
-import { getForetellCost, isForetellCast } from "./foretell";
+import { getForetellCost } from "./foretell";
 import {
     countDistinctCardTypes,
     getEscapeExileSpec,
@@ -1749,11 +1750,21 @@ export function getLegalActions(
     // branch, so this call site reads unchanged and is right anyway.
     // This branch fully owns the "cast" decision for the exiled card, exactly
     // like the Madness branch above.
+    //
+    // CR 601.3 / 601.2b — a card may be cast under EITHER open permission
+    // (`exileCastRoutes`), so a route that cannot be used leaves the decision
+    // to the other one.
+    const exileRoutes = types.includes("Land")
+        ? []
+        : exileCastRoutes(state, card, caster.id);
+    const exileRouteOfPrice = (price: ExileCastRoutePrice) =>
+        exileRoutes.some((route) => exileRoutePrice(card, route) === price);
     const isFreeExileCast =
         !types.includes("Land") &&
-        (card.castFromExileWithoutPayingManaCost === true ||
-            // CR 702.170d — a plotted card's cast is free in the same sense.
-            castsUnderPlotPermission(state, card, caster.id));
+        (exileRoutes.length === 0
+            ? card.castFromExileWithoutPayingManaCost === true
+            : // CR 702.170d — a plotted card's cast is free in the same sense.
+              exileRouteOfPrice("free"));
     if (isFreeExileCast) {
         if (
             passesCastPhaseRestriction(state, card) &&
@@ -1766,26 +1777,22 @@ export function getLegalActions(
             })
         ) {
             actions.push("cast");
+            return actions;
         }
-        return actions;
+        if (exileRoutes.every((r) => exileRoutePrice(card, r) === "free")) {
+            return actions;
+        }
     }
 
     // CR 702.143a — a FORETOLD card in this player's own exile, cast "after
-    // the current turn has ended" (the lower turn bound `makeForetold` set on
-    // the general exile-cast record, read through `exileCastPermitted`) for
-    // its foretell cost "rather than paying that spell's mana cost". The
-    // timing is the card's own: only the special action is restricted to its
-    // player's turn, so a foretold instant is castable in the opponent's turn
-    // (`timingZone: "exile"` runs the ordinary per-type gate). This branch
-    // fully owns the "cast" decision for the foretold card.
+    // the current turn has ended" (`exileCastRoutes`) for its foretell cost
+    // "rather than paying that spell's mana cost". The timing is the card's
+    // own: only the special action is restricted to its player's turn, so a
+    // foretold instant is castable in the opponent's turn (`timingZone:
+    // "exile"` runs the ordinary per-type gate). This branch owns the "cast"
+    // decision unless a grant also licenses a cast for the printed cost.
     const foretoldCost = getForetellCost(card);
-    if (
-        !types.includes("Land") &&
-        foretoldCost !== undefined &&
-        isForetellCast(card) &&
-        player.exile.some((c) => c.id === card.id) &&
-        exileCastPermitted(state, card, caster.id)
-    ) {
+    if (foretoldCost !== undefined && exileRoutes.includes("foretell")) {
         if (
             passesCastPhaseRestriction(state, card) &&
             hasPayableAdditionalCost(caster, card) &&
@@ -1798,8 +1805,9 @@ export function getLegalActions(
             })
         ) {
             actions.push("cast");
+            return actions;
         }
-        return actions;
+        if (!exileRouteOfPrice("printed")) return actions;
     }
 
     // CR 601.3 / 118.9-analog / 119.4 (issue #2398, Bolas's Citadel) —

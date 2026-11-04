@@ -2,7 +2,7 @@
 // `plottedOnTurn`, so the card carries no `castableFromExileBy`. The Cast button
 // and its reason must follow the derived permission through the real projection.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import type { Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import {
@@ -13,6 +13,7 @@ import { projectPublicState } from "@convex/gameProjections";
 import { getCardByName } from "@convex/cards";
 import { becomePlotted } from "@convex/gre/plot";
 import { holdsExileCastPermission } from "@convex/gre/castCost";
+import { exileRouteChosenX, exileRouteLocksX } from "~/lib/card-utils";
 import {
     makeInstance,
     makePlayer,
@@ -131,5 +132,72 @@ describe("ExileCastButton on a plotted card (CR 702.170d)", () => {
         expect(castButton().getAttribute("title")).toBe(
             "Can't cast now — only in your main phase while the stack is empty."
         );
+    });
+});
+
+describe("ExileCastButton on a card holding two permissions (CR 601.2b, 107.3b)", () => {
+    beforeEach(() => {
+        announceCast.mockClear();
+        cleanup();
+    });
+
+    /** `name` plotted on turn 3 and holding `grant`, projected at turn 5. */
+    function projected(name: string, grant: boolean) {
+        const card = makeInstance(getCardByName(name).id, {
+            id: "subject",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { exile: [card] }), makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            turn: 3,
+        });
+        becomePlotted(state, card);
+        state.turn = 5;
+        state.phase = "PRECOMBAT_MAIN";
+        if (grant) card.castableFromExileBy = "p1";
+        state.players[0].manaPool.R = 3;
+        return projectPublicState(state, 1, "p1").players[0].exile[0];
+    }
+
+    it("the picker offers both routes; the second announces the decline", () => {
+        renderButton(projected("Lightning Bolt", true), 5);
+        fireEvent.click(castButton());
+        expect(announceCast).not.toHaveBeenCalled();
+        screen.getByText("Cast without paying its mana cost");
+        fireEvent.click(screen.getByText("Pay mana cost"));
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(announceCast.mock.calls[0][0]).toMatchObject({
+            cardInstanceId: "subject",
+            declineManaCostReplacement: true,
+        });
+    });
+
+    it("the free row announces no decline", () => {
+        renderButton(projected("Lightning Bolt", true), 5);
+        fireEvent.click(castButton());
+        fireEvent.click(screen.getByText("Cast without paying its mana cost"));
+        expect(announceCast.mock.calls[0][0]).not.toHaveProperty(
+            "declineManaCostReplacement"
+        );
+    });
+
+    it("a plotted {X} spell alone asks no X and no route", () => {
+        renderButton(projected("Rock Hydra", false), 5);
+        fireEvent.click(castButton());
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(announceCast.mock.calls[0][0].chosenX).toBeUndefined();
+    });
+
+    it("an X collected for the paying route is dropped on the free row", () => {
+        const choice = projected("Rock Hydra", true).exileCastRouteChoice;
+        expect(exileRouteLocksX(choice)).toBe(false);
+        expect(exileRouteChosenX(choice, undefined, undefined, 3)).toBe(
+            undefined
+        );
+        expect(exileRouteChosenX(choice, undefined, true, 3)).toBe(3);
     });
 });

@@ -2951,7 +2951,7 @@ export const CARD_STATE_ALLOWLIST = new Set<string>([
     // three exile-grant keys around them, not continuous-effect residue.
     "castableFromExileFromTurn",
     "warped",
-    "warpExiled",
+    "warpExiledOnTurn",
     "castableFromExileIncludesLand",
     // Rebuild behaviour, not spec-keyed data: `beginApplyingStaticEffects`
     // (CR 611.2) re-derives every CONTINUOUS grant/strip from a

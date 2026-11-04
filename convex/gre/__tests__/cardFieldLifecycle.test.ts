@@ -516,6 +516,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
         ).sort();
         expect(none).toEqual([
             "capturedBindings",
+            "castDeclinedExileRoute",
             "castFromGraveyardExilesOnResolve",
             "copiedFrom",
             "copyExcept",
@@ -528,6 +529,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "faceDown",
             "faceDownBy",
             "faceDownOf",
+            "foretoldOnTurn",
             "fullTextAnchor",
             "grantedForetellCost",
             "imagePrintId",
@@ -548,6 +550,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "timedCopyEffects",
             "transformed",
             "transformedFrom",
+            "warpExiledOnTurn",
             "worldSeq",
         ]);
     });
