@@ -91,6 +91,7 @@ import {
 import {
     claimId,
     CLUSTER_KINDS,
+    gapIndex,
     parseClaimRows,
     parseClusterRows,
     readTargetRegistry,
@@ -680,6 +681,78 @@ export function renderClusterCensus(result: ClusterCensusResult): string {
     return lines.join("\n");
 }
 
+// ── Refused-layout census (issue #8060) ──────────────────────────────────
+//
+// Informational, NEVER red — `gapsVerdict.ok` never sees it and nothing files
+// from it. A layout the compiler refuses whole holds a card only if a Target
+// asks for that card: `gaps:sync` files fragment gaps for `enforced` Targets
+// alone, and a priority Target's hand-shipped card is never claimed. So a
+// refused layout otherwise carries no signal outside `oracle:report --gaps`.
+
+/** The `(card)` key of a whole-layout refusal; `compileCard` writes the reason. */
+const REFUSED_LAYOUT_KEY = /^\(card\) › layout "([^"]+)" is not in grammar v0/;
+
+/** The layout a Grammar Gap key refuses whole, or undefined for any other key. */
+export function refusedLayoutOf(key: string): string | undefined {
+    return REFUSED_LAYOUT_KEY.exec(key)?.[1];
+}
+
+export interface RefusedLayout {
+    readonly layout: string;
+    /** Corpus cards `unparsed` on this refusal. */
+    readonly cards: number;
+    /** How many of them a ranked Target (priority ∪ enforced) holds. */
+    readonly ranked: number;
+    /** The `grammar` claim row's issue naming this key, or null. */
+    readonly issue: number | null;
+}
+
+/** Pure over the lockfile: most cards first, then by layout name. */
+export function censusRefusedLayouts(
+    lock: Pick<Lockfile, "cards" | "fragments">,
+    ranked: ReadonlySet<string>,
+    claims: readonly ClaimRow[]
+): RefusedLayout[] {
+    const { gapKeys } = gapIndex(lock);
+    const issues = new Map(
+        claims
+            .filter((row) => row.kind === "grammar")
+            .map((row) => [row.key, row.issue] as const)
+    );
+    const rows = new Map<string, RefusedLayout>();
+    for (const card of lock.cards) {
+        if (card.state !== "unparsed") continue;
+        for (const key of gapKeys(card)) {
+            const layout = refusedLayoutOf(key);
+            if (layout === undefined) continue;
+            const row = rows.get(layout);
+            rows.set(layout, {
+                layout,
+                cards: (row?.cards ?? 0) + 1,
+                ranked:
+                    (row?.ranked ?? 0) + (ranked.has(card.oracleId) ? 1 : 0),
+                issue: issues.get(key) ?? null,
+            });
+        }
+    }
+    return [...rows.values()].sort(
+        (a, b) => b.cards - a.cards || a.layout.localeCompare(b.layout)
+    );
+}
+
+export function renderRefusedLayouts(rows: readonly RefusedLayout[]): string {
+    if (rows.length === 0)
+        return "✓ gaps: refused-layout census clean — the compiler admits every layout (informational)";
+    return [
+        "· gaps: Oracle layouts the compiler refuses (issue #8060, informational — never red):",
+        "",
+        ...rows.map(
+            (row) =>
+                `  ${row.layout}: ${row.cards} card(s), ${row.ranked} ranked — ${row.issue === null ? "no claim" : `issue #${row.issue}`}`
+        ),
+    ].join("\n");
+}
+
 const EXITS: Record<Violation["kind"], string> = {
     missing:
         "implemented, emitted by no Compiled Definition, and NOT allowlisted.\n" +
@@ -756,9 +829,10 @@ async function main(): Promise<void> {
     const botMerge = mergeAllBotVerdicts(findings, lock.cards, botHash(root));
     const registry = readTargetRegistry(root);
     const mustCovered = await loadBladeMustCovered();
+    const ranked = rankedCardIds(registry, resolveContext(root, lock));
     const inScope = inScopeBotGapKeys(
         lock.cards,
-        rankedCardIds(registry, resolveContext(root, lock)),
+        ranked,
         botMerge.merged,
         rankedTargetIds(registry),
         mustCovered
@@ -789,6 +863,9 @@ async function main(): Promise<void> {
             parseClusterRows(allowlist, ALLOWLIST_PATH)
         )
     );
+    const layoutCensus = renderRefusedLayouts(
+        censusRefusedLayouts(lock, ranked, claims)
+    );
     const botCensus = readBotGapCensus(root);
     // The shrink-only census of effect-sentence kinds (issue #6557, issue
     // #6714, `lib/sentence-kinds.ts`): the table of whole-sentence kinds may
@@ -802,11 +879,12 @@ async function main(): Promise<void> {
         baseline: baselineSentenceKinds(root),
     });
     const kindsOut = renderSentenceKinds(kinds);
+    const report = `${out}\n${kindsOut}\n\n${clusterCensus}\n\n${layoutCensus}\n${botCensus}`;
     if (ok && kinds.violations.length === 0) {
-        console.log(`${out}\n${kindsOut}\n\n${clusterCensus}\n${botCensus}`);
+        console.log(report);
         return;
     }
-    console.error(`${out}\n${kindsOut}\n\n${clusterCensus}\n${botCensus}`);
+    console.error(report);
     process.exit(1);
 }
 

@@ -726,6 +726,16 @@
         },
         {
             "kind": "grammar",
+            "key": "(card) › layout \"class\" is not in grammar v0 (multi-faced cards)",
+            "issue": 8046
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › layout \"saga\" is not in grammar v0 (multi-faced cards)",
+            "issue": 8056
+        },
+        {
+            "kind": "grammar",
             "key": "(card) › layout \"transform\" is not in grammar v0 (multi-faced cards)",
             "issue": 7217
         },
