@@ -19,7 +19,9 @@ import {
 
 const WOODLAND = getCardByName("Shifting Woodland").id;
 const COPY_ABILITY = "shifting-woodland-delirium-copy";
-const GRAVEYARD = ["Serra Angel", "Black Lotus", "Forest", "Wrath of God"];
+/** Three cards, four card types: Memnite is an Artifact Creature. */
+const FOUR_TYPES = ["Memnite", "Forest", "Wrath of God"];
+const ONE_TYPE = Array.from({ length: 4 }, () => "Grizzly Bears");
 
 function board(graveyardNames: string[]): GameState {
     const own = (cardId: string, id: string) =>
@@ -53,13 +55,11 @@ function offeredIds(state: GameState): string[] {
 }
 
 describe("delirium activation gate on the client (CR 602.1b)", () => {
-    it("offers the ability at four card types", () => {
-        expect(offeredIds(board(GRAVEYARD))).toContain(COPY_ABILITY);
+    it("offers the ability at four card types among three cards", () => {
+        expect(offeredIds(board(FOUR_TYPES))).toContain(COPY_ABILITY);
     });
 
-    it("hides it at three", () => {
-        expect(offeredIds(board(GRAVEYARD.slice(0, 3)))).not.toContain(
-            COPY_ABILITY
-        );
+    it("hides it with four cards of a single card type", () => {
+        expect(offeredIds(board(ONE_TYPE))).not.toContain(COPY_ABILITY);
     });
 });

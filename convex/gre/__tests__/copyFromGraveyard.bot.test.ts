@@ -14,7 +14,9 @@ import type { GameState } from "../state";
 
 const COPY_ABILITY = "shifting-woodland-delirium-copy";
 const WOODLAND = getCardByName("Shifting Woodland").id;
-const GRAVEYARD = ["Serra Angel", "Black Lotus", "Forest", "Wrath of God"];
+/** Three cards, four card types: Memnite is an Artifact Creature. */
+const FOUR_TYPES = ["Memnite", "Forest", "Wrath of God"];
+const ONE_TYPE = Array.from({ length: 4 }, () => "Grizzly Bears");
 
 function board(names: string[]): GameState {
     const own = (cardId: string, id: string) =>
@@ -48,10 +50,10 @@ const copyMoves = (state: GameState) =>
 
 describe("the Bot enumerates a graveyard-source copy activation (CR 602.1b)", () => {
     it("offers it when delirium holds", () => {
-        expect(copyMoves(board(GRAVEYARD)).length).toBeGreaterThan(0);
+        expect(copyMoves(board(FOUR_TYPES)).length).toBeGreaterThan(0);
     });
 
-    it("does not at three card types", () => {
-        expect(copyMoves(board(GRAVEYARD.slice(0, 3)))).toEqual([]);
+    it("does not with four cards of a single card type", () => {
+        expect(copyMoves(board(ONE_TYPE))).toEqual([]);
     });
 });
