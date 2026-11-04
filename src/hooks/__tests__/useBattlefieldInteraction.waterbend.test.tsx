@@ -183,6 +183,23 @@ describe("waterbend picker on the board (CR 701.67a)", () => {
         expect(handle.canInteract(card("ring"))).toBe(false);
     });
 
+    it("offered with no eligible permanent at all: mana can pay it (the tap is a 'may')", () => {
+        const state = makeState({
+            players: [
+                makePlayer("me", {
+                    battlefield: [on("Aang's Iceberg", "iceberg")],
+                }),
+                makePlayer("opp"),
+            ],
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+        });
+        const { handle, card } = mount(state);
+        expect(
+            handle.getActivatable(card("iceberg")).map((a) => a.id)
+        ).toContain("aangs-iceberg-waterbend");
+    });
+
     it("with no generic left to substitute the board is a plain mana payment", () => {
         const state = announced();
         state.pendingActivation!.manaCost = { R: 1 };

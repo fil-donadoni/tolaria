@@ -1783,6 +1783,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an Iceberg holding nothing, so sacrificing it costs nothing",
+            },
+        },
         note: "An Iceberg holding nothing does nothing on the battlefield, and the three artifacts untap in the bot's own untap step before they could matter, so the scry is free. Pins that the move exists on a board with no mana, and that its tap plan is empty because the costPicks pay the whole {3}.",
     },
     {

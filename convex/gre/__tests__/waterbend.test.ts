@@ -64,9 +64,8 @@ const tappedIds = (state: GameState) =>
 
 describe("waterbend predicates (CR 701.67a/b)", () => {
     it("the substitution leg owes nothing: it reads paid at zero picks (the 'may')", () => {
-        expect(
-            isTapOtherChoicePaid({ substitutesGeneric: 3, pickedIds: [] })
-        ).toBe(true);
+        const toc = { substitutesGeneric: 3, pickedIds: [] };
+        expect(isTapOtherChoicePaid(toc)).toBe(true);
     });
 
     it("what is left is bounded by the cap and by the generic still owed", () => {
@@ -208,7 +207,7 @@ describe("CR 701.67b — only the waterbend cost's own generic is substitutable"
                 oracleText: "{1}{U}, Waterbend {2}: Draw a card.",
                 cost: waterbendCost(2, { X: 1, U: 1 }),
                 useStack: true,
-                effects: [{ op: "draw", count: 1 }],
+                effects: [{ op: "draw", player: "controller", count: 1 }],
             },
         ],
     });
