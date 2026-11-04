@@ -26,6 +26,7 @@ import {
     parseArgs,
     shellStdio,
     treeMoved,
+    snapshotTree,
     hasLintStagedStash,
     stashListOf,
     CHEAP_GUARDS,
@@ -2171,6 +2172,61 @@ describe("check-lane — the tree may not move under the run (issue #4379, findi
         const moved = treeMoved(quiet, { ...quiet, head: "deadbee" });
         expect(moved).toContain("the tree moved under the lane");
         expect(moved).toContain("4f2a91c → deadbee");
+    });
+
+    /**
+     * Issue #8011: `--short` sizes itself from the object count of the store
+     * every worktree shares, so PR #7995's queue draft read one commit as
+     * `0926cb1aae` then `0926cb1aa` and went red after 41 minutes. A real
+     * repo, because the bug lived in what `snapshotTree` records;
+     * `core.abbrev` forces the two lengths git otherwise picks on its own.
+     */
+    describe("snapshotTree across a change of git's abbreviation length (issue #8011)", () => {
+        let repo: string;
+        const git = (...args: string[]): string => {
+            const r = spawnSync("git", args, {
+                cwd: repo,
+                encoding: "utf8",
+                timeout: 30_000,
+            });
+            if (r.status !== 0)
+                throw new Error(`git ${args.join(" ")}: ${r.stderr.trim()}`);
+            return r.stdout.trim();
+        };
+        const commit = (subject: string): string => {
+            git("commit", "-q", "--allow-empty", "-m", subject);
+            return git("rev-parse", "HEAD");
+        };
+
+        beforeEach(() => {
+            repo = mkdtempSync(join(tmpdir(), "lane-snapshot-"));
+            git("init", "-q", "-b", "main");
+            git("config", "user.email", "t@example.com");
+            git("config", "user.name", "t");
+            git("config", "commit.gpgsign", "false");
+            commit("first");
+        });
+        afterEach(() => {
+            rmSync(repo, { recursive: true, force: true });
+        });
+
+        it("passes an unchanged HEAD whatever length git abbreviates to", () => {
+            git("config", "core.abbrev", "9");
+            const start = snapshotTree(repo);
+            git("config", "core.abbrev", "10");
+            expect(treeMoved(start, snapshotTree(repo))).toBeNull();
+        });
+
+        it("still refuses a real HEAD move, naming both shas", () => {
+            const before = git("rev-parse", "HEAD");
+            const start = snapshotTree(repo);
+            const after = commit("second");
+            const moved = treeMoved(start, snapshotTree(repo));
+            expect(moved).toContain("the tree moved under the lane");
+            expect(moved).toContain(
+                `${before.slice(0, 10)} → ${after.slice(0, 10)}`
+            );
+        });
     });
 
     it("refuses a working tree that went dirty under the run, naming the first change", () => {
