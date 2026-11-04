@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — owner's decision of 2026-10-11, recorded by issue #5455 under
+accepted (retired names, §8 and §9 mapped in the 2026-11-04 amendment) — owner's decision of 2026-10-11, recorded by issue #5455 under
 PRD #5454. **Overturns ADR 0104** (lane content is never diff-derived).
 **Amends ADR 0136** §5 (partitions), §6 (cadence), §7 (cap) and the
 `HEALTH_ONLY_GUARDS` rule of issue #4963. **Amends ADR 0131** (when a PR owes
@@ -518,3 +518,14 @@ it rides) — not for restoring whole projects. A Huawei `test` step over 40 min
 on the bench leaves health on the MacBook and sends only the crons away (§ 5
 of the bench brief). An API rate limit hit at the target cadence changes the
 session, not the gates: asynchronous landing, context diet, a second account.
+
+## Amendment (2026-11-04, issue #5657) — the names above are retired; §8 is gone, §9 is superseded
+
+**Stands**: the throughput target and "a PR owes at landing only what it can break
+and what costs seconds", with the lane scoped by the import graph. **§8 is retired**:
+`sessions.cap` and `--no-cap` were deleted (PR #7503, PR #7519); see ADR 0136's
+amendment. **§9's topology is superseded** by ADR 0156 and ADR 0160: both machines
+run `pass` and `maint` runners, the one `lane` runner (`queue-lane`, health's
+`gate`, `release`) is the MacBook's, and health no longer runs on the Huawei's
+timer. **§10**: `docs:ship` hands its PR to the queue; no mutex remains to pay.
+`land`, in this text the merger, is now `queue-lane` and Mergify.

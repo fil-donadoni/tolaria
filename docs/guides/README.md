@@ -12,8 +12,8 @@ an agent's context automatically — these are read on demand.
 
 | Guide                                                 | Answers                                                                                                                                                                                                       |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [next-ticket flow](next-ticket-flow.md)               | The pipeline after ADR 0136 drawn: one session's stages, the mutex, three sessions with the batch health (normal / peak / RED), before-and-after per landing, the AFK loop's lanes                            |
-| [Land and release](land-and-release.md)               | Ship a change: `wt:new`, `check:lane`, the PR, `land` onto the base branch; then `release` to production — every phase, every refusal                                                                         |
+| [next-ticket flow](next-ticket-flow.md)               | The pipeline drawn: one session's stages, the queue, batch health and a RED, the AFK dispatcher                                                                                                               |
+| [Land and release](land-and-release.md)               | Ship a change: `wt:new`, the PR, `land:ready` to the merge queue; then `release` to production — every phase, every refusal                                                                                   |
 | [Browser verification](browser-verification.md)       | Prove a UI change renders: CDP tooling, the viewport matrix, the occlusion probe, the receipt                                                                                                                 |
 | [UI runbooks](ui-runbooks.md)                         | Click sequences: solo game from cold, the active-game blocker, deck builder, debug scenarios                                                                                                                  |
 | [Bot glossary](bot-glossary.md)                       | The play-Bot's jargon explained for newcomers: search terms (prior, FPU, leaf, rollout), scoring, blade, ladder, rungs                                                                                        |
@@ -28,17 +28,17 @@ an agent's context automatically — these are read on demand.
 
 Not every document is a guide. Where to look for the other kinds:
 
-| You want                                         | Look in                                                                                                                                        |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| The norms an agent must follow                   | `CLAUDE.md`, `.claude/rules/**` (both loaded into every session automatically)                                                                 |
-| Why a decision was made                          | `docs/adr/` — index at `docs/adr/README.md`                                                                                                    |
-| Domain vocabulary                                | `GLOSSARY.md`                                                                                                                                  |
-| What the quality gates are and why               | `docs/agents/quality-gates.md`                                                                                                                 |
-| How the issue queue and its labels work          | `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`                                                                                 |
-| What the loop costs, measured                    | `docs/agents/workflow-token-economics.md`                                                                                                      |
-| How to start, watch or stop the AFK driver       | `bun run loop:afk --help` — `--start`/`--detach`/`--watch` (read-only rendered view of a `--detach` or other-terminal run)/`--status`/`--stop` |
-| What a subagent noticed but was not asked to fix | `docs/findings/` — read with `bun run findings`                                                                                                |
-| The workflow skills themselves                   | `.claude/skills/<name>/SKILL.md` (invoked as `/<name>`)                                                                                        |
+| You want                                         | Look in                                                                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| The norms an agent must follow                   | `CLAUDE.md`, `.claude/rules/**` (both loaded into every session automatically)                                            |
+| Why a decision was made                          | `docs/adr/` — index at `docs/adr/README.md`                                                                               |
+| Domain vocabulary                                | `GLOSSARY.md`                                                                                                             |
+| What the quality gates are and why               | `docs/agents/quality-gates.md`                                                                                            |
+| How the issue queue and its labels work          | `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`                                                            |
+| What the loop costs, measured                    | `docs/agents/workflow-token-economics.md`                                                                                 |
+| How to watch or stop the AFK passes              | the Actions tab, `bun run cockpit`; `bun run runner pause` / `resume` per machine ([GitHub pipeline](github-pipeline.md)) |
+| What a subagent noticed but was not asked to fix | `docs/findings/` — read with `bun run findings`                                                                           |
+| The workflow skills themselves                   | `.claude/skills/<name>/SKILL.md` (invoked as `/<name>`)                                                                   |
 
 ## Every guide carries a glossary
 
@@ -49,13 +49,13 @@ body links to its entry** — not just the first one. Markdown has no footnotes;
 in-page anchors are the mechanism:
 
 ```markdown
-The [driver](#g-driver) keeps running after the terminal is gone.
+The [dispatcher](#g-dispatcher) starts one job per free slot.
 
 ## Glossary
 
-### <a id="g-driver"></a>Driver
+### <a id="g-dispatcher"></a>Dispatcher
 
-`scripts/loop-drain.sh` — the `while` loop that launches one process per pass…
+`scripts/afk-dispatch.ts` — the job that starts one pass per free runner…
 ```
 
 Three rules that make it work rather than decorate:

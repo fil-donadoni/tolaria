@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (reshapes ADR 0110's post-merge health gate; issue #3124)
+accepted (reshapes ADR 0110's post-merge health gate; issue #3124; retired names mapped in the 2026-11-04 amendment)
 
 ## Context
 
@@ -116,3 +116,11 @@ What this gives up, both deliberately:
 - **Health by hand every N hours, per-landing detach kept.** The special case
   of this decision without the branch split; still ships every PR to
   production and keeps `main` as a literal everywhere.
+
+## Amendment (2026-11-04, issue #5657) — the names above are retired, the decision stands
+
+Green-at-release and branch names as configuration stand unchanged. What carries
+them changed under ADR 0156: the release branch moves by the `release.yml` dispatch
+(the same `bun run release`, also typed by hand), on the `lane` runner; the
+heavy mutex is deleted (PR #7519); the gate is `bun run health`, not `health:main`.
+Read the text above with that map.

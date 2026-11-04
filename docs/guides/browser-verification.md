@@ -52,11 +52,8 @@ bun run check:ui -- --serve=dev               # walk the Vite dev server instead
 **One browser run per machine** (issue #4687). Two `check:ui` runs on one
 machine share one local Convex backend, and contention there reads as UI
 failures (`deployment` cells, walks that fail on screens that render
-fine). The lane takes a machine-wide lane lock before it boots a browser —
-`--scope-only` and an empty scope never queue — prints who it is waiting on
-and for how long, reclaims a dead or silent holder, and releases on every exit
-path including a signal. It is a separate mutex from the heavy gate's, so a
-browser run never delays a `land`; `bun run gate:who` names both holders.
+fine). Nothing enforces this any more: the lane lock was retired with the gate
+mutex (PR #7519). Don't start a second run beside one in flight.
 
 **Scope** (issues #3627, #3628; ADR 0131). A run with no `--surface=`/`--all`
 walks only the surfaces whose route import closure contains a file this
@@ -395,7 +392,7 @@ surface's progress line of every run; `axe-exemption-scope.test.ts` fails when
 the attribute appears outside `src/routes/design-system/`.
 
 **What it is not.** It is not part of `check:all`: the full gate is offline by
-contract and mutex-held, and booting a browser inside it would tax every
+contract, and booting a browser inside it would tax every
 session that never touches the DOM. It is a standalone command a UI diff runs,
 and its output is the receipt.
 

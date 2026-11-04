@@ -9,13 +9,14 @@ The split follows the residency finding in `context-residency-audit.md`:
 CLAUDE.md is resident in every session and every subagent, so a token there is
 paid a few thousand times; a token here is paid when someone asks why.
 
-**Freeze (ADR 0156, PRD #5620).** The home-built orchestration this file
-describes — `land` and the land-runner, `loop:afk`, the gate mutex, machine
-and session admission, batch health, `release` — is being
-replaced by the GitHub-native pipeline (`docs/guides/github-pipeline.md`). It
-stays the authority on what runs until the phase that retires each piece
-lands, and it gets **no new feature outside PRD #5620**: a repair that keeps
-it running is fine, a new capability belongs in the new stack.
+**The stack today (ADR 0156, PRD #5620).** The GitHub-native pipeline runs
+everything after the PR: `docs/guides/github-pipeline.md` is its manual, and what
+runs is what that guide says. The home-built orchestration it replaced — the
+land-runner, the AFK loop driver (`loop:afk`, `loop:drain`, `loop:doctor`), the
+gate mutex, machine and session admission, the health cadence — is gone. Where a
+section below names those pieces it is recording the measurement that shaped a
+rule, in the past tense or under a `Retired` note: history, not an instruction.
+`land`'s last caller is `/health-fix`'s RED repair; issue #7990 retires it.
 
 ## Why `check:pr` may never be hand-picked
 
@@ -903,7 +904,7 @@ Before `land` registers as a waiter on the mutex it runs
 `check:lane --preflight` on the PR's **un-rebased** head, at the light tier,
 after machine admission (issue #4966 — the light tier does not ask on its
 own; beside a running heavy gate that gate's load is not waited on, issue
-#4988, § Session admission, "The machine"). The plan is `preflightPlan`: the
+#4988). The plan is `preflightPlan`: the
 lane's own plan filtered to its static half — `format(diff)`, `lint(diff)`, the lane's type-check, `check:index`,
 `check:stubs`, `check:oracle`, `cr:lint`, the cheap census guards — plus the
 `node-tooling` vitest project when the diff touches `scripts/**` or
@@ -988,14 +989,14 @@ queued behind it.
 So the full gate moved. `tolaria.config.json` names a **base** branch
 (`staging`) and a **release** branch (`main`):
 
-| Step                 | Runs                                                                      | Where (ADR 0154)                        | Mutex                      |
-| -------------------- | ------------------------------------------------------------------------- | --------------------------------------- | -------------------------- |
-| `bun run land <PR#>` | rebase onto `origin/<base>` → scoped `check:lane` → push → merge to base  | MacBook, by `/health-fix` (issue #5654) | ≤ 3 min budget (6.8 meas.) |
-| batch health         | `health` on the CURRENT `origin/<base>` tip, on a schedule (`health.yml`) | either machine's `lane` runner          | its own machine's          |
-| `bun run release`    | `health` + `check:game-download` on the `origin/<base>` tip → fast-fwd    | MacBook                                 | ~13 min + 34 s, once       |
-| `bun run health`     | the same full gate, by hand, on the base tip                              | either                                  | ~13 min                    |
+| Step              | Runs                                                                   | Where (ADR 0160)  | Cost                 |
+| ----------------- | ---------------------------------------------------------------------- | ----------------- | -------------------- |
+| merge queue       | rebase onto `origin/<base>` in a draft → scoped `check:lane` → merge   | the `lane` runner | ≤ 3 min budget       |
+| batch health      | `health` on the CURRENT `origin/<base>` tip, per batch (`health.yml`)  | the `lane` runner | ~13 min              |
+| `bun run release` | `health` + `check:game-download` on the `origin/<base>` tip → fast-fwd | the `lane` runner | ~13 min + 34 s, once |
+| `bun run health`  | the same full gate, by hand, on the base tip                           | either machine    | ~13 min              |
 
-`land` refuses a PR whose base is not the base branch (the API merge lands
+A PR whose base is not the base branch is refused (the API merge lands
 wherever the PR points). `release` moves the release branch only on a GREEN
 record about exactly the tip it gated, by plain-refspec push. A RED blocks the
 release, not development.
@@ -1049,6 +1050,12 @@ robustness / pick-agreement audits run weekly, on the same machine. A failed
 vitest project is re-run once before RED (issue #5461): 11 % of health reds
 were flaky.
 
+**Moved to Actions (ADR 0156, ADR 0159; issues #5645, #5655, #6990).** The
+Huawei's timer and its age threshold are gone: `health-early` dispatches
+`health.yml`'s `gate` at the 20th landing since the newest verdict
+(`health:batch-due`), with a 2-hourly cron and the heartbeat as the fallback, on
+the MacBook's one `lane` runner (ADR 0160).
+
 **What a health run is, after the diet (issue #5458).** Only the steps that
 prove the tree. Step costs are the MacBook's `detach.log` over the same 14
 days (green runs, range):
@@ -1092,14 +1099,13 @@ red. The verdict (GREEN / RED / infra, sha, step, machine, log pointer) now
 goes through a store — a GitHub commit
 status on the gated sha (`context=health`; the advisory Linux walk's
 `context=ui-walk`, its `ui-walk.gating` flag and `bun run ui:calibrate` went
-with the automated walk, issue #6143). `queue:plan`, `land`'s RED gate,
-`loop-drain`'s stop and `health:fix` read through the store on both machines.
+with the automated walk, issue #6143). `queue:plan`, `base-health`
+and `health:fix` read through the store on both machines.
 Last writer per sha wins; `infra` never
 overwrites `RED`; `release` on the MacBook re-proves the exact tip and is the
 final authority (ADR 0116 unchanged). RED on tip T blocks NEW picks on both
-machines and refuses non-repair landings (`--red-ok`, issue #4964) while
-in-flight PRs land; a second RED on the same lineage stops the loop and
-notifies the owner. (The stale-verdict fallback, a local health run when the
+machines and holds every non-repair PR in the queue (issue #4964); a second RED
+on the same lineage goes to the RED ladder's revert. (The stale-verdict fallback, a local health run when the
 Huawei's runner went silent, was deleted with the runner, issue #5655.)
 
 **Health judges the tree, not the replay (ADR 0159, issue #6990).** Before
@@ -1130,36 +1136,14 @@ run record): success / failure / error / pending for
 GREEN / RED / infra / AMBER; description `STATUS · step · machine` plus the
 failing test files while they fit 140 characters; target URL the log when it
 is one). `scripts/lib/health-verdict-store.ts` is the only reader. `bun run
-health:status --json` prints the lineage as one line — what `loop-drain`
-reads. **AMBER**: a repair landing (`--repair`, or a PR closing the
+health:status --json` prints the lineage as one line. **AMBER**: a repair landing (`--repair`, or a PR closing the
 `/health-fix` issue) runs, after its lane, the failing test files the RED
 verdict names (`land`'s repair proof — red refuses the landing); green there
 turns the lineage AMBER at the merged tip, and picks and non-repair landings
 resume without waiting for the confirming health run. The next GREEN clears
-it; a RED on an AMBER lineage is the SECOND RED (`loop-drain` stops as
-`health-second-red` and notifies — `TOLARIA_NOTIFY_CMD`, else the desktop
-notifier). A RED verdict that names no test file earns no AMBER: the RED
+it; a RED on an AMBER lineage is the SECOND RED, which the
+[RED ladder](../guides/github-pipeline.md#g-red-ladder) reverts. A RED verdict that names no test file earns no AMBER: the RED
 stands until health, as before.
-
-**The mutex queues health LAST.** Health holds the lock ~10 min and a landing
-~4, and the tip health is about does not get staler while a land runs — the
-land only adds a commit the next run covers anyway. So the batch gate queues
-in the lowest admission class (`gate.ts yield`, `TOLARIA_GATE_ROLE=health`)
-and every queued `land` (`land`'s `lockedEnv` sets `TOLARIA_GATE_ROLE=land`)
-is admitted before it; `health-main --under-lock` passes its three steps
-through that ONE acquisition instead of queuing three times, so the block a
-landing waits out is one block rather than three. It cannot starve: a waiter
-rises one class per 30 min queued, so after 90 min health is a land's equal
-and, being older than every land still queued, goes next. Worst case for a
-landing BEHIND A HEALTH RUN: 10 min plus the lands ahead of it, ≤ 18 min at
-the admission cap of 3, at most once per 10 landings. The order is `admissionOrder` in
-`scripts/lib/gate-liveness.ts`, tested pure beside the stall and reclaim
-verdicts (issue #3792's shape: a starvable subprocess makes the verdict a
-property of the machine's load); the rule and what it replaced are in
-§ The queue has an order below. Admission is not preemptive: a land that
-queues behind a running `job` (a sweep averages 28 min, issue #4941) or a
-hand-run gate waits that hold out, and a waiter aged into the land class goes
-before the lands younger than it.
 
 **Branch names are not literals.** `scripts/lib/branches.ts` is the one
 reader; `deny-guard.sh` reads the same JSON with `jq`;
@@ -1291,15 +1275,20 @@ and `test:app` wall time rises only ~25% — a cheap price for a result that is
 not a coin flip. `TOLARIA_HEAVY_WORKERS_CAP=7` raises it on a machine with the
 RAM to spend.
 
-## Why there is no CI
+## Why there was no CI
+
+**Superseded by ADR 0156**: with a public repository and a required status, jobs
+now run on the owner's self-hosted runners (`docs/guides/github-pipeline.md`), and
+a ruleset guards the base. What follows is the 2026-08 reasoning, which still
+holds the one lesson: a workflow without branch protection gates nothing.
 
 The three GitHub Actions workflows (`lint`, `test`, `blade`) were deleted
 2026-08-08 (#2407). The plan's Actions minutes ran out, and with no branch
 protection on this repo (`/branches/main/protection` → 403, needs Pro) they
 gated nothing — every job duplicated a command the local gate already runs.
 
-Consequences that are still live: nothing may be left to CI, and the
-merge-train always takes Lane B (local full gate on the rebased tree).
+Consequences then: nothing could be left to CI, and the merge-train always took
+Lane B (local full gate on the rebased tree).
 **Re-adding a workflow only makes sense together with branch protection** —
 otherwise it is a report nobody blocks on.
 
@@ -1350,7 +1339,7 @@ order of weight:
 1. `check:all` is offline by contract; this lane needs a live Convex
    deployment and a browser binary. A gate that can go red because a backend
    is not running is a gate people learn to route around.
-2. `check:all` is the heavy, mutex-held tier. A browser boot taxes every
+2. `check:all` is the heavy tier. A browser boot taxes every
    session that never touches the DOM, and it holds a browser rather than
    `ncpu - 1` vitest workers, so neither tier fits it.
 3. It is slower than the whole static gate — measured ~4 min for eight
@@ -1391,16 +1380,15 @@ preflighted (`preflight:deployment-skew`, cause `deployment-skew`, issue
 #6143); and `deny-guard` § 4b refuses a `git checkout` / `git switch` of the
 primary to anything but base (escape: `TOLARIA_PRIMARY_OFF_BASE=1`).
 
-**`release`'s one browser step runs off the heavy mutex, and the environment
-never makes it RED** (issues #4962, #6143). Of the walk's first ten verdicts
+**`release`'s one browser step runs apart from the offline gates, and the
+environment never makes it RED** (issues #4962, #6143). Of the walk's first ten verdicts
 inside batch health, nine were RED and none was a product defect — a down
 backend, a sign-in the auth backend refused, rows that said `INFRA` at load
 7–12.5 — and every one raised the marker that stops the queue. The rules
 survive for `check:game-download`, which speaks `check:ui`'s exit contract:
 
-1. **After the offline gates, off the mutex.** `health-main --release` runs
-   the offline gates, then the browser step in its own worktree with any hold
-   scrubbed — `gate:who` during it shows the heavy mutex free. A tip whose
+1. **After the offline gates.** `health-main --release` runs the offline gates,
+   then the browser step in its own worktree with any hold scrubbed. A tip whose
    offline half already stands GREEN (batch health's record, or the store's)
    runs only the browser step (`browserStepsOwed`); `--release` is refused
    under `--under-lock`, and the retired `--ui-all` / `--phase=` are refused
@@ -1480,7 +1468,7 @@ causes and the levers, in the order the phase timings ranked them:
 
 | Cause                                                               | Lever                                                                                                                                                                    |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Runs overlapped on one backend; contention read as UI failures      | machine-wide `check:ui` lane lock (`scripts/lib/ui-admission.ts`), separate from the heavy mutex; `gate:who` names the holder; released on every exit path               |
+| Runs overlapped on one backend; contention read as UI failures      | a machine-wide `check:ui` lane lock until PR #7519; now one `lane` runner, and by hand: one run at a time                                                                |
 | A `surfaces.ts` edit forced the full lane                           | hunks inside `SURFACES` elements select those surfaces (`scripts/lib/ui-surface-edits.ts`); a hunk in shared machinery is still `full`; `land` re-derives it             |
 | Every slice rewrote the census guard's pinned count                 | `DEBT_CEILING` is a set of files, never edited when debt is paid                                                                                                         |
 | Parallelism sized from the load average ran 1 of 5 in 24 runs of 25 | sized from cores and total memory, floor 2 (`scripts/ui-gate/parallel.ts`); the lock makes the load the neighbours' problem, not this run's                              |
@@ -1541,643 +1529,71 @@ Both are tracked in git and guarded by
 `scripts/__tests__/worktree-bootstrap.test.ts`, because a missing husky hook is
 silent — it vanished for six weeks once before anyone noticed.
 
-## CPU admission control
+## Worker caps — what is left of CPU admission
 
-`scripts/gate.ts`, because several sessions share this machine. A queued heavy
-gate is not a hang; stale locks are auto-pruned. The mutex lives outside the
-repo — `~/.cache/tolaria/gate.lock`, whose `owner.json` is what `bun run
-gate:who` reads — because worktrees are separate directories and an in-repo
-lock would not be shared between them.
+`scripts/gate.ts` is what every quality gate is wrapped in. It no longer rations
+the machine; it gives a gate's command the contract it needs around it:
+
+| Tier                    | Scripts                                                  | What the wrapper does                                                                                                             |
+| ----------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `heavy`, `job`, `yield` | `test`, `test:app`, `test:bot`, `check:all`, a Bot sweep | raises `TOLARIA_VITEST_WORKERS` to `min(ncpu - 1, TOLARIA_HEAVY_WORKERS_CAP)` (default cap 4, RAM-bound) unless the caller set it |
+| `light`                 | `check:pr`, `check:docs`, `test:blade`                   | leaves the `vitest.config.ts` default of 2 workers                                                                                |
+
+On every tier: `TOLARIA_VITEST_FS_CACHE=0` (issue #4614), the command runs
+detached and a signal takes its whole tree down, seen to be gone
+(`lib/process-tree.ts`), and the command's real exit code is the wrapper's. The
+`package.json` wrappers stay for exactly this contract (PR #7519).
 
 The full gate is blocked inside an issue worktree (`feat/issue-N` /
-`fix/issue-N` → exit 1): it is owed on the base tip, by the scheduled health and by
-`release` (§ The batch cadence), not on a branch tree.
-`TOLARIA_ALLOW_FULL_SUITE=1` is the escape hatch `land` alone uses.
-
-### The heartbeat attests to progress, not to being alive (issue #2999)
-
-The owner stamp is a heartbeat rather than an acquisition time because a
-legitimately long hold exists: the bot ladder runs for hours (issue #1924), and
-a fixed 45-minute staleness window would prune it. So the holder refreshes the
-stamp every 5 minutes and only a holder that went silent for 45 minutes is
-reclaimed.
-
-Refreshed _by the gate process_, that heartbeat attested to nothing. Measured
-2026-09-01:
-
-|                                               |                                                                                      |
-| --------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Holder                                        | `health:main` detached by a land, worktree `tolaria-health-27242`                    |
-| Held for                                      | 2h13m, still heartbeating                                                            |
-| Its `vitest run --project node --project dom` | **16.86 s of CPU in 2h13m**, RSS 45 MB, **zero worker children**                     |
-| Blocked                                       | `docs:ship` (2h07m), a `land` (1h31m), and a third session's land that never started |
-| Self-recovery                                 | none — freed by a manual `kill`                                                      |
-
-`alive(pid)` was true, `Date.now() - owner.ts` never approached `STALE_MS`, and
-so the reclaim branch could not fire. The reclaim machinery was correct; it was
-being fed a tautology.
-
-The fix keeps that machinery untouched and makes its input honest. Each beat
-measures the **cumulative CPU time of the holder's descendants** (`ps -Ao
-pid=,ppid=,time=`, summed over the subtree, the gate process itself excluded so
-it cannot vouch for its own existence). The stamp is refreshed only while that
-total is still advancing; after `STALL_BEATS` consecutive frozen beats (3 ≈
-15 min at the default period) the holder logs loudly, stops refreshing for
-good and stamps `stalledAt` on its owner file; 5 minutes later
-(`STALLED_RECLAIM_MS`) the head of the queue kills the hung subtree and takes
-the lock. The 45-minute `STALE_MS` path is what is left for a holder that
-cannot even declare — a gate process that is itself frozen.
-
-Three properties are load-bearing:
-
-- **Descendant CPU needs no cooperation from the wrapped command.** Anything
-  the gate wraps — vitest, `tsc`, eslint, a `land` shell pipeline — burns CPU
-  continuously; the only pauses are seconds-long API calls inside `land`, three
-  orders of magnitude under the 15-minute window.
-- **An unmeasurable subtree counts as progress.** If `ps` is missing or its
-  output does not parse, the holder keeps beating: reclaiming a healthy holder
-  is the worse failure, and the fallback is the pre-existing behaviour.
-- **The holder never kills the wrapped command; the reclaimer does.** The
-  holder only stops vouching for it, and keeps sampling: a subtree that burns
-  CPU again within the five minutes WITHDRAWS the declaration (`recovered`)
-  and keeps the mutex. The stall used to latch for good — harmless while it
-  only cost the lock, a kill of a resumed run once the reclaimer kills.
-  Past them the head of the queue walks the tree from the `childPid` the
-  holder recorded — trusted only while `ps` still shows it as a child of the
-  holder's pid, so a reused pid never gets an unrelated tree walked — signals
-  every process group in it, and takes the lock once the tree is seen gone
-  (issue #4965: until then a reclaimed lock left the hung run's workers on the
-  machine, beside the next holder). `release()` only ever deletes a lock whose
-  owner pid is its own, so the stalled holder, ending when its child dies,
-  cannot take the reclaimer's lock with it.
-
-`TOLARIA_GATE_STALE_MS`, `TOLARIA_GATE_STALL_BEATS` and
-`TOLARIA_GATE_STALLED_RECLAIM_MS` join `TOLARIA_GATE_HEARTBEAT_MS` as
-test-only overrides, which is what makes the whole stall → silence → reclaim
-path observable in milliseconds
-(`scripts/__tests__/gate.test.ts` § liveness) instead of in three quarters of
-an hour.
-
-### A waiter says who is blocking it
-
-The second half of the same incident: three sessions sat blocked with no
-indication of who held the lock, since when, or from which worktree, and the
-diagnosis had to be rebuilt by hand from `owner.json` plus `ps`. Every field
-was already being written and simply never shown.
-
-A waiter now prints one line naming the holder's pid, how long it has held,
-when it last attested to progress, its cwd and its command — immediately, again
-whenever the holder changes, and on every 60-second retry rather than a bare
-"still waiting". `bun run gate:who` prints the same line plus the holder's
-measured descendant CPU and its time-to-reclaim, so the two-hour reconstruction
-above is one command.
-
-Since ADR 0136 §6 every heavy-tier waiter also writes itself into
-`~/.cache/tolaria/gate.waiters/<pid>.json` — pid, role, tier, cwd, command,
-`since`, and `seen`, restamped on every poll — removed on acquisition and
-pruned by whoever reads it next once its pid is dead or it has stopped
-polling for a minute. That registry IS the queue: `gate:who` prints it in
-acquisition order (`queued #1` is the only waiter that may take the mutex
-next), and a waiter's own line says its position and, when the mutex is free
-but not its turn, who is next.
-
-Reclaims are loud and typed, in stderr and in `.claude/telemetry/gate-lock.jsonl`:
-a **dead** holder is an orphan, a **stalled** one is a live pid whose command is
-still running and hung. A normal release logs nothing at all, so either reclaim
-line in a log is a signal by itself.
-
-### The queue has an order, and teardown reaches every process group
-
-Issue #4965. The mutex is a `mkdir`-style lock every waiter polls, and three
-things measured on 2026-10-02 were consequences of that shape alone:
-
-| Measured                                                                                             | Cause                                                                           |
-| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| PR #4956 (one test file) waited 24m22s; 93 lands queued 10.6 h over 14 days, p90 13 min              | no order: whoever polled first after a release won                              |
-| three health waiters past their 30 min yield bound each took a full gate; two lands waited 25–35 min | `yield` stepped aside only until its bound, then competed as an equal           |
-| `vitest run --project node-engine` (own pgid, four workers) alive under the NEXT holder              | teardown signalled one process group; a nested `gate.ts` detaches its own child |
-| a stalled holder cost its queue 45 min after it had been detected                                    | the stall verdict only stopped the heartbeat; `STALE_MS` did the rest           |
-
-**Ordered admission.** Only the HEAD of the queue may take — or reclaim — the
-lock; everyone else waits for the head whatever the lock's state, so a free
-mutex is not an invitation. The head is the live waiter with the best (class,
-`since`, pid). Classes, best first: `land` > `job` > heavy (hand-run) >
-`health`; a waiter rises one class per 30 min queued (`AGE_STEP_MS`), never
-past the best, which replaces the yield bound. There is no coordinator: every
-waiter computes the same total order from the same registry
-(`admissionOrder`, pure). A head that will never acquire — stopped, hung, or
-a dead entry whose pid was reused — stops restamping `seen` and drops out of
-everyone's view after a minute (`waiterLive`); how long it has QUEUED is
-deliberately not read, because ageing makes a 90-minute wait legitimate.
-
-**Tree teardown.** Before `release()`, a holder walks `ps` from its child,
-remembers every process group it meets (`TrackedTree`), signals each one,
-escalates to SIGKILL after a 2 s grace, and releases once `ps` shows nothing
-left — 5 s at the outside, under the 10 s `gate-run.sh` allows between its
-own TERM and KILL. The walk finds what is nested; the groups keep hold of it
-once the signal has killed the parents the walk went through. The teardown is
-synchronous, inside the signal handler: "after an await" is not a place a
-dying process reliably reaches. A teardown that runs out its bound says
-`could NOT confirm the tree of pid N is gone` and names each survivor of its
-last `ps` pass on stderr — pid, ppid, pgid, `stat`, command line — so the
-class of what outlived a SIGKILL can be read from `land`'s run log (issue
-#4976). A dead holder's orphans are still not chased
-— a holder that was SIGKILLed leaves a dead-pid lock and whatever it was
-running; only its own teardown and a stalled reclaim kill a tree.
-
-**A lock is never judged on a stamp that could not have been refreshed.**
-Three windows in which a healthy gate used to look reclaimable, each closed:
-
-- _A stamp mid-rewrite._ Owner and waiter stamps are written whole (temp file
-    - rename). An unreadable owner reads as a DEAD holder, so a stamp caught
-      truncated was one poll away from a healthy gate being reclaimed.
-- _A lock mid-acquire._ `mkdir` is the arbiter (it fails on an existing
-  directory, empty or not — a staged directory renamed into place would
-  REPLACE an empty one, and a lock is briefly empty in every release and in
-  every acquisition by an older `gate.ts`), and the owner stamp follows it. A
-  lock with no owner is therefore an orphan only once it is 5 s old
-  (`OWNERLESS_GRACE_MS`); younger, it is a gate between its two steps.
-- _A machine that slept._ Every stall threshold is wall-clock, and wall-clock
-  time runs while the lid is closed: on wake a healthy holder's stamp is as
-  old as the nap, and its overdue heartbeat races every waiter's overdue
-  poll. That cost a double hold while a stall only took the lock; with the
-  reclaimer killing, it would be a `land` killed by a nap. A waiter that
-  finds a gap of more than 15 poll periods between two of its own polls
-  (`pollGap`) restamps, judges nothing that round, and acts on no `stalled`
-  verdict until it has polled a full heartbeat period without another
-  (`stallJudgeable`). A DEAD holder is not a wall-clock judgment and is never
-  deferred.
-
-`release()` deletes only a lock it can read as its own, and `reclaim` re-reads
-the owner before removing a lock: the kill takes seconds, and the lock on disk
-may by then be a new holder's.
-
-The three wiring tests force the timing they are about rather than waiting
-for it (`gate.test.ts` § the queue): the waiters that should go first are
-SIGSTOPped, so the lowest class is the only one polling a free mutex, and
-"it polled twice and is still queued" is read off its own `seen` stamp.
-
-## Session admission — the cap, the RED refusal, and the number behind them
-
-**The claim is one locked act (issue #4375, PRD #4373).** Until then the cap
-was enforced by a READ — `queue:plan` counted the live `in-progress` claims and
-refused a plan at `sessions.cap` — while the claim itself was typed by the
-session in `/next-ticket` §2, and nothing sat between the two: `claim-ledger.sh`
-observes and never blocks, `deny-guard.sh` had no rule on the label. The window
-was the whole §0→§2, and `✗ session cap reached — 4/3 live claims` (2026-09-22)
-was that design working as written: the refusal could only describe the
-overshoot afterwards. `bun run queue:claim N` takes the claim lock (the gate's
-mechanism — atomic `mkdir`, an owner stamp, a stale reclaim — in its own
-directory beside the gate's, never the heavy mutex: a claim is two `gh` calls
-and must not queue behind a health gate), re-reads the live claims exactly as
-the planner derives `activeClaims` (`isStaleClaim` is the one shared rule),
-refuses on a collision (not escapable) or at the cap (`--no-cap`, announced),
-writes the label and the journal row, releases. `queue:plan` stays read-only,
-so `MAX_PASSES` still counts planner runs and a replan can never double-claim.
-The hand-typed claim is denied (`deny-guard.sh` § 6, hatch
-`TOLARIA_ALLOW_MANUAL_CLAIM=1` for a repair); release is unchanged — `land`'s
-housekeeping and `loop:doctor`'s evidence-based sweep.
-
-CPU admission control above serialises the GATES several sessions run. This is
-the level above it: how many sessions may be draining the queue **at all**.
-`bun run queue:plan` refuses a pick in two cases (ADR 0136 §6-7, issue #3775),
-each naming its exit, because a stop with no way out is how an unattended
-driver turns a two-minute fix into an idle night.
-
-**The cap.** Live claims at `sessions.cap` in `tolaria.config.json` — read
-through `scripts/lib/branches.ts`, the same reader the branch names go through,
-so the number is configuration and never a literal in the planner. The refusal
-names the claimed issues; `--no-cap` is the announced escape.
-
-**The cap counts live SESSIONS, by evidence — not labels (issue #4384).** Both
-verbs put the reconciled claims through `loop-doctor.ts`'s classifier,
-imported (`claimVerdicts` → `capCensus`), never a second opinion: the same
-one-definition discipline `loop-drain.test.ts` already enforces for staleness.
-A claim the classifier reads as **`recoverable`** — the owning process is
-provably gone AND its local branch holds unpushed commits — **holds its label
-without holding a slot**: it burns no CPU, and CPU contention is the entire
-thing the cap measures. The label is not touched by the admission path;
-dropping it stays `loop:doctor --release`'s call alone, because releasing it
-would orphan the dead pass's commits (issue #3698). **Every other reading
-counts, including no reading at all** — `live`, `suspect`, `orphan`, and an
-issue the probe could not answer for: uncertainty never authorises more
-concurrency, the same asymmetry `ClaimFacts.ownerAlive` documents at the other
-end of the pipeline. The refusal breaks the count down —
-`5 claimed, 3 live, 2 recoverable (not counted): #50, #60` — and names
-`bun run loop:doctor` plus the branches to resume, so the exit is the real one
-rather than `--no-cap`.
-
-**The cap is per machine (issue #5302, ADR 0136 amendment).** Two machines
-drain the queue in parallel, each with its own claim journal
-(`.claude/telemetry/claims.jsonl`, gitignored). Both verbs split the counted
-claims with `machineScope`: **local** — the last row in THIS machine's journal
-is a `claim` (`claimsHeldHere`) — count against `sessions.cap`; **foreign** —
-no such row, so the claim was taken on the other machine — hold no slot and
-are named in the refusal (`2 foreign (not counted): #70, #80`). The
-journal's presence is the machine identity: every row carries a `host` stamp,
-but it is diagnostic only and never compared, because macOS's hostname follows
-the network and a claim that stopped matching its own machine would leave the
-count — the cap failing open. Three properties hold the split safe:
-
-- **A foreign claim still collides.** `claimDecision` checks the collision
-  against every live claim, never against the local subset — and against the
-  set NOT reconciled with this machine's `released` rows, because an issue
-  released here and re-claimed on the other machine is that machine's work.
-  The planner keeps every claimed issue out of its batch.
-- **A foreign claim is never resumed.** It has no recorded owner here, so
-  `ownerAlive` is `null` and the classifier never calls it `stranded` or
-  `recoverable`.
-- **An unreadable journal counts repository-wide**, never zero, and the
-  refusal says so (`Counted repository-wide`). An ABSENT one (ENOENT) holds
-  nothing: a fresh machine has claimed nothing, and refusing it on the other
-  machine's claims is the symptom the split cures. A local claim whose row the
-  best-effort hook lost reads as foreign; the machine admission's process
-  census still counts its session.
-
-Before that, the cap was a count of `in-progress` labels minus an open PR minus
-24 hours of silence, with no process-liveness evidence anywhere in the path.
-Measured 2026-09-22: two `loop-drain` passes died mid-issue, three claims stood
-(#4117, #4306, #4307), `ps` showed **zero** owning processes, the driver's own
-sweep printed `2 RECOVERABLE — a dead pass left committed work behind` — and
-the next claim was refused at `3/3 live claims` with **no concurrent session
-running at all**. The classifier had the evidence; the cap had never asked for
-it. The verdict is gathered fail-SAFE: every read behind it (`git ls-remote`,
-`gh pr list`, the claim journal) can fail, and a failure yields no verdicts,
-which counts every claim as live — a broken probe can only make the cap
-stricter.
-
-"Live claims" is the set of open `in-progress` issues the planner did not
-already classify as STALE, reconciled against the claim journal
-(`.claude/telemetry/claims.jsonl`, written by `.claude/hooks/claim-ledger.sh`).
-The reconciliation only ever SUBTRACTS: an issue whose last journal row is
-`released` does not count — the label outliving the release is exactly the
-orphan window `claim-sweep.sh` and `loop:doctor` close — while a label the
-journal never mentions counts on its own.
-
-That direction is load-bearing, and the first cut of #3775 had it backwards.
-Counting the INTERSECTION made the cap fail open to zero the moment the journal
-could not be read, which is every invocation from an issue worktree
-(`claimLedgerPath()` defaults to `CLAUDE_PROJECT_DIR ?? "."`, and that bare `.`
-is wherever the session happens to stand). Measured against the live queue at
-the time: four `in-progress` claims, cap lowered to 1, and the planner admitted
-a pick without a word. A throughput knob that silently never fires is
-indistinguishable from one that was never built — so the labels are the count,
-the journal is a correction to it, and both records are read where their
-WRITERS put them (the journal under the session's project directory, the health
-marker under the primary checkout) rather than relative to the caller's cwd.
-
-**The derivation (ADR 0154 §8, issue #5460).** The cap is not a feeling and is
-not hand-set: it is `min(5, others + floor(reclaimable RAM ÷ sessionBudgetMb))`
-— the existing effective-cap formula (`effectiveCap`) stays the ceiling — with
-`sessionBudgetMb` re-derived from `bun run machine measure` of one
-`/next-ticket` session under the scoped lane, per machine. 2026-10-11, the
-16 GiB MacBook, load 4.4, kernel pressure normal:
-
-| Reading                                                          |       Value |
-| ---------------------------------------------------------------- | ----------: |
-| session process tree (`bun run machine`, this session, 3 min up) |      702 MB |
-| scoped light-tier vitest, 3 files (`machine measure`)            |     1134 MB |
-| **`sessionBudgetMb`** (702 + 1134 = 1836, rounded up)            | **1900 MB** |
-| reclaimable RAM with 2 other sessions live                       |     5757 MB |
-| `min(5, 2 + floor(5757 / 1900))`                                 |       **5** |
-
-The prior budget (2500) was 718 + 1800, the 55-file `convex/cards` run of
-2026-10-02; the lane now runs the tests reachable from the diff with at most
-two workers (ADR 0154 §2), and a wider reach is the ceiling's job — the cap
-falls with reclaimable RAM, it never overcommits it. The wall behind the old
-"knee at 3" was paging, not CPU: the 2026-09 reading (0.59 PR/h at one
-session, 1.44 at three, 1.19 at four) measured the gates, not the machine, with
-`land` holding the mutex 6.8 min per PR. The same row on the MacBook,
-2026-10-05 → 10-11 (`telemetry:latency` § PRs landed per hour):
-
-| Active sessions | Hours | PR/h measured | Reading                                         |
-| --------------: | ----: | ------------: | ----------------------------------------------- |
-|               3 |    18 |          1.28 | the old cap: the mutex, not the CPU, is the cap |
-|               4 |    21 |          1.33 |                                                 |
-|               5 |     8 |      **3.00** | the configured cap — the target is 5/h/machine  |
-|               6 |     5 |          2.40 | contention returns                              |
-
-Once the lane is scoped the mutex budget per PR is 3 min and the machine
-decides. **The four rows that prove or disprove the target after each phase**
-are in `bun run telemetry:latency`, read PER MACHINE: PR/h by the claim
-journal's `host` stamp (the journal is per machine, so run it on each; sessions with no stamp, and the other machine's from here, pool as `(unstamped)`), the
-`land` heavy-mutex wait p50/p90 per day (`gate_lock`, the rebase row `land`
-queues behind), the minutes per day batch health held the mutex, and the
-`land` attempts-per-PR distribution (`gate_attempts`). The binding constraint
-behind the cap is the API budget: ingest prices every `llm` row from the model
-table in `telemetry-db.ts` (input, output, cache read, cache write; the 5.5
-ids included) and re-prices rows left at 0 on the next run, so
-`agent_runs.cost` is a number; a model with no price stays 0 and the ingest
-prints a counted warning naming it. Acceptance: mutex p50 ≤ 3 min and ≥ 4 PR/h
-after Phase 0; ≥ 5 PR/h per machine over 24 h after Phase 1.
-
-**The RED refusal.** A standing RED on the health commit status (left by
-`health-main.ts`) means the full gate
-found the base tip broken. `queue:plan` refuses the next pick and prints the
-sha, the failing step and `bun run health:fix`, so no new worktree branches
-from a tip known red and the idle time has an exit. `--no-cap` does not wave
-it through — the one flag reached for in a hurry must not silently opt out of
-that. `land` is unchanged: it WARNS and proceeds, so a session already
-mid-issue finishes and the fix-forward has a way in.
-
-### The machine — what none of the above looked at (issue #4966)
-
-**Two machines, two roles (ADR 0154 §9, topology B').** The MacBook (M1 Pro,
-8 cores, 16 GB) runs the LLM sessions, `land` and `release` — everything a
-person or a session waits on. The Huawei (Omarchy Linux, i7 4c/8t, 16 GiB,
-~0.35× the MacBook's multi-thread) runs what nobody waits on: batch health,
-the nightly crons, the audits (no automated `check:ui --all` walk on either
-machine since issue #6143). So the
-admission below is read twice: on the MacBook a heavy holder is now almost
-always a `land` and health never competes with it; on the Huawei the probes
-are Linux's (`/proc`, PSI) and the thresholds are calibrated from that
-machine's first `gate-lock.jsonl` samples (issue #5468), with `systemd-inhibit`
-for keep-awake. The bench brief
-`docs/research/huawei-gate-bench-2026-10-11.md` § 5 decides how much of
-health the Huawei carries. `land` stays on the MacBook in every outcome — on
-the Huawei a lane would be 7–9 min.
-
-Everything above rations the gates and the claims **among themselves**. Nothing
-looked at the machine: a gate that took the mutex at load 14 ran anyway, the
-only load reading in the system was taken after a `check:ui` cell had already
-failed, and `sessions.cap` counted CLAIMS — a session opened by hand, an
-interactive audit or a fourth terminal claims nothing and was counted by
-nothing. `scripts/lib/machine-admission.ts` is the one module that reads the
-machine, and it makes two decisions over one set of probes.
-
-**Gate start.** A heavy acquisition (`gate.ts heavy` / `job` / `yield`), the
-`check:ui` lane and `health-main` ask before they start. On a saturated machine
-they wait, printing `machine busy — load L, swap S` with the reason, bounded by
-`machine.waitMaxS`; past the bound nothing runs and the run exits **77**
-(`MACHINE_SATURATED_EXIT`). That exit is `infra` with cause `machine-saturated`
-in `health-verdict.ts` — never a RED — and `land` prints that the PR
-is untouched: not landed, not failed, re-issue. The heavy gate waits UNDER the
-mutex, so the queue's order holds and no second gate starts on the machine the
-first one is waiting for, restamping its owner record on every poll so a long
-wait never reads as a silent holder. A nested call and the light tier do not
-ask, and neither does `land`'s housekeeping pass over an already-merged PR
-(`git` and `gh` only). The gate's escape is `TOLARIA_GATE_SATURATED_OK=1`,
-announced on the gate's own line and logged — deliberately NOT the session's
-variable below: a session admitted past the cap hands its environment to every
-gate it runs, and those must still wait.
-
-**A running holder's load is not waited on by what runs beside it** (issue
-#4988). The heavy tier asks under its hold, where the load it reads is the
-previous holder's and decays. Three callers ask with NO hold, beside whoever
-has the mutex: `land`'s preflight, `check:ui`, and `health-main` run with no
-hold (`release`, by hand — its steps then queue for the mutex one by one). A
-running gate keeps the 1-minute load over `loadMax` for its whole run — the
-rule below that exempts sessions — so for them a wait on the load is a wait
-for the holder to
-finish: the first landing made with a preflight (PR #4986) waited 492 s of the
-900 beside a 12-minute lane, and behind the 35-minute health hold of the same
-afternoon it would have exited 77 having run nothing. So an off-mutex caller
-names the holder (`heavyHolderRunning`, `lib/ui-admission.ts`) and, while one
-is running, load is no reason to wait; it prints
-`machine busy — load L, swap S — beside a running heavy gate (pid N · label):
-its load is not waited on` and starts. What it starts is what the tiers
-already allow beside a holder: the preflight is the light tier (two workers),
-`check:ui` walks one viewport at a time (issue #4941) — sized from the holder
-it was admitted beside, even if that one has released by then.
-
-| Asked by               | Holder running       | Load over `loadMax`  | Memory pressure |
-| ---------------------- | -------------------- | -------------------- | --------------- |
-| heavy tier, under hold | — (it is the holder) | waits, bounded → 77  | waits → 77      |
-| off the mutex          | yes                  | **starts beside it** | waits → 77      |
-| off the mutex          | no                   | waits, bounded → 77  | waits → 77      |
-
-**A busy line names who holds the load** (issue #4989). A load reading alone
-cannot be attributed afterwards: load 63 on 8 cores at 18:20 on 2026-10-02,
-with no gate run recorded and one session editing files, stayed unexplained.
-So every `machine busy` line — waiting, refused, overridden, beside a holder —
-carries, one line each, the top five processes by CPU in that sample: CPU
-share, pid, parent pid, elapsed time, command, and the owner — `session pid S`
-(its nearest `claude` ancestor that is a project session, the census's own
-test), `gate.ts pid G` / `health-main.ts` / `land.ts` (its nearest gate-run
-ancestor; a detached health run has one and no session), both, or `outside
-the project`. The probe is ONE `ps -axo pid=,ppid=,pcpu=,etime=,args=` plus
-`lsof` + `git worktree list` for which `claude` pids are project sessions,
-each spawn bounded at 2 s and run from a directory that exists (`/` for `ps`
-and `lsof`, issue #4974); it runs once per announced line — once a minute —
-never once per poll, measured at 79 ms p50 / 84 ms max over ten reads at load
-37 on this machine. A probe that cannot be read prints `consumers unreadable`
-and the wait goes on unchanged; sessions that cannot be read leave the
-consumers named, `owner unread`. `bun run machine` prints the same lines when
-load or memory pressure reads over, and nothing extra when calm.
-
-"Running" is narrower than "live": the owner stamp carries `childPid` only
-once the holder has spawned its command. A holder still waiting for the
-machine under its hold runs nothing — the load is not its own, and a caller
-that started beside it would hold up the calm that holder is waiting for —
-and one that declared its stall burns no CPU. Beside either, the off-mutex
-caller waits as if the mutex were free. The load is not ATTRIBUTED (naming the
-processes behind a sample is a separate issue): beside a running gate it is
-simply not read, and memory pressure is the signal that still stops a start.
-
-On the batch path the gate that never starts is `gate.ts yield`, and
-`health-main` — the only writer of `last.json` — never runs under it. So
-the scheduled caller writes the `infra` record in its place (`preflight:machine`);
-otherwise `health:status` would go on showing the previous verdict for a tip
-nothing gated.
-
-**Session.** `queue:claim` and `wt:new` take the session decision: the OTHER
-live project sessions against the effective cap, plus memory pressure.
-Pressure refuses only BESIDE others — alone it is the session that would
-relieve it — and only when sustained: the kernel's level flickers (one reading
-at 2, then six at 1 over thirty seconds, 2026-10-02), so a reading past normal
-is taken up to three times half a second apart and the calmest stands. A start
-is refused, not queued, and the refusal names every live session (pid, cwd,
-age) and the one escape — `TOLARIA_OVER_CAP=1`, announced and logged like
-`--no-cap`. A live project session is a `claude` process whose cwd is the
-primary checkout or one of its worktrees; the cwd is what excludes the
-background daemon (`$HOME`), its pty hosts and an unclaimed spare (the daemon's
-scratch directory), and a session on another project.
-
-**A conversation is never refused** (issue #5137). Issue #4966 also gated a
-session's first prompt (`UserPromptSubmit` hook, exit 2); under memory
-pressure it locked the owner out of talking to Claude at all — including to
-the session that would relieve the pressure — while adding no load. What
-saturates the machine is gates, and those already wait on it. `health:fix`
-still starts its fixer with `TOLARIA_OVER_CAP=1`, so its claim and worktree
-pass the cap: a RED tip is repaired first.
-
-**Saturated means two things, and swap is not one of them.**
-
-| Signal          | Saturated when                        | Gates | Claims / worktrees |
-| --------------- | ------------------------------------- | :---: | :----------------: |
-| 1-minute load   | over `machine.loadMax`                |  yes  |         no         |
-| Memory pressure | the kernel's level is past 1 (normal) |  yes  |   beside others    |
-| Reclaimable RAM | holds no further `sessionBudgetMb`    |  no   |        yes         |
-| Swap in use     | never — recorded beside every run     |  no   |         no         |
-
-Load gates what is about to ADD load. An admitted gate itself holds the
-1-minute average past `loadMax` for its whole run, so a `wt:new` read against
-it would be refused during every `land` — for a start that adds
-no load at all. Memory is what a session does consume, and it is sustained:
-that is what gates the session.
-
-Swap in use was the issue's proposed memory threshold, and the measurement
-retired it. On this machine, 2026-10-02: **4498 MB at load 22.4**, then
-**6054 MB twenty minutes later at load 2.5** with 6.4 GB reclaimable and the
-kernel at pressure level 1. It is a high-water mark — what the machine once
-needed — and a threshold on it refuses a calm machine for as long as the mark
-stands. `kern.memorystatus_vm_pressure_level` is the state: 1 normal, 2
-warning (the compressor and swap are working now), 4 critical. Swap is still
-sampled and written beside every run, because a run during which it GREW is
-evidence worth having.
-
-**The effective cap.** `sessions.cap` is the ceiling. Under it,
-`min(cap, others + floor(reclaimable / sessionBudgetMb))`, never below 1:
-reclaimable RAM (free + inactive) is what is left WITH the others already
-running, so it measures room for more, not a total; and a machine too full for
-one session is not something a hook may decide — refusing the only session
-refuses the one that would fix it. An unread probe leaves the ceiling.
-**The AFK driver is its consumer** (issue #5486): `loop:afk` keeps as many
-passes alive as `laneCap` allows — this formula with the driver's running
-lanes as the others, each charged the budget it has yet to take (a pass a few
-seconds old has not grown into the reading), under `--lanes` — and, unlike a
-session start, a load over `loadMax` or an unread RAM reading holds it to one
-lane too: a lane is about to ADD load. It asks
-before every pass start (`bun run machine lanes --running N`), so a tight
-machine shrinks the run to one lane and a clear one grows it back;
-`queue:claim`'s refusal stays the hard floor.
-
-**The derivation.** Three numbers, in `tolaria.config.json` § `machine`.
-
-`loadMax` = **8**, from every full walk the health logs hold a start load for
-(`.claude/telemetry/health/*.log`, the `load N not consulted` line against the
-step's exit) — six, which is all there are:
-
-| Load at start | Verdict |   Wall | Unwalked / INFRA cells |
-| ------------: | ------- | -----: | ---------------------- |
-|           4.4 | pass    |  870 s | —                      |
-|           5.8 | pass    |  635 s | —                      |
-|           9.2 | FAIL    |  573 s | 2 unwalked             |
-|          12.2 | pass    |  631 s | —                      |
-|          14.5 | FAIL    | 2729 s | 48 unwalked, 37 INFRA  |
-|          99.4 | pass    |  708 s | —                      |
-
-No walk that started at or under 5.8 failed; the lowest start that did was
-9.2; above 9 the record is two failures in four. Eight — the core count, where
-runnable processes begin to outnumber cores — sits in that gap and admits only
-the region with no failure on record. **Six rows is a thin table**, and the
-two passes above the line are why the rule is a WAIT and not a refusal: a walk
-that follows the suites starts on THEIR load, which decays in a minute or two
-(from 14.5 to 8 in about 50 s on a 60 s average), and the pass at 99.4 is that
-decay. Until now no verdict was recorded beside a load; from this change every
-gate run writes `load_start` / `load_end`, so the next derivation reads
-`gate-lock.jsonl` instead of six logs:
-
-```bash
-jq -c 'select(.event=="run") | [.load_start, .exit, .duration_ms, .cmd]' \
-    .claude/telemetry/gate-lock.jsonl
-```
-
-`waitMaxS` = **900**: the bound must outlast the longest stretch the load
-stays over `loadMax` with **no heavy gate running** — the only load anyone
-still waits on (issue #4988). It never could outlast a holder: the four holds
-in the `run` rows (2026-10-02, 59 rows, the first day they exist) lasted 536,
-736, 804 and 2118 s, and the 30 steps those holders ran started at load
-4.4–16.3, 14 of them over `loadMax`. No light run started beside a recorded
-hold other than the holder's own steps, so the waits are read from the gate
-logs (`~/.cache/tolaria/gate-runs/*/log`, `machine calm after Ns`), which is
-every wait there is:
-
-|  Wait | Who                                   | A heavy gate running? | Under this rule |
-| ----: | ------------------------------------- | --------------------- | --------------- |
-| 200 s | PR #4979's gate, under its hold       | no                    | waits           |
-| 407 s | PR #4985's gate, under its hold       | no                    | waits           |
-| 406 s | the batch walk, beside that same gate | no — it was waiting   | waits           |
-| 492 s | PR #4986's preflight                  | yes — PR #4985's lane | starts          |
-
-What is left to outlast is the 407 s on record and the one thing that
-legitimately holds the load up with the mutex free: the full browser walk at
-full width — 573–870 s over the five walks above that were not themselves
-saturated. Fifteen minutes covers both; a machine still busy after that is
-busy with something no gate started.
-
-**What a walk admitted beside a holder does to the NEXT holder.** It runs one
-viewport at a time, takes far longer (2192 s on 2026-10-02, 18:26–19:02) and
-is still walking when its holder releases — so the next gate asks under its
-hold with that walk running, where before this rule the two would have waited
-for the same calm. The one walk on record says a single context does not hold
-the load over `loadMax`: PR #4986's gate took the mutex at 18:38, twelve
-minutes into it, and was admitted with no wait; 11 of that lane's 13 steps
-started at load 6.1–7.6, the two over (13.7, 9.5) straight after its own bot
-and `node-engine` projects; and PR #4986's preflight had read 7.8 with the
-walk AND PR #4985's lane both running. One walk is one row. If a gate's
-`machine busy` line under the hold ever coincides with a one-viewport walk,
-that is this term appearing, and the bound is re-derived from it.
-
-`sessionBudgetMb` = **1900** (re-derived by issue #5460, § Session admission; it was 2500 on the 2026-10-02 reading below): a session at work is its process tree plus its
-targeted vitest. Measured 2026-10-02 — four live sessions at 383, 643, 642 and
-718 MB (`bun run machine`, each tree without the sessions it spawned), and a
-targeted run peaking at 1455 MB (two `convex/gre` files) and 1800 MB
-(`convex/cards/__tests__`, 55 files, two workers) by
-`bun run machine measure bunx vitest run <paths>`. The larger of each:
-718 + 1800 = 2518 MB.
-
-**What it costs.** The sample a gate takes — one `sysctl` for swap and
-pressure, one `vm_stat`, `os.loadavg()` — measured 5 ms, at the start and the
-end of a run. The session census (`ps`, `lsof` for the `claude` pids' cwds,
-`git worktree list`) measured 69–121 ms and is paid once per session, claim or
-worktree, never by a gate. No PR-phase step was added.
-
-**What it records.** `gate-lock.jsonl` gains `event: "run"` — `load_start`,
-`load_end`, `swap_start_mb`, `swap_end_mb`, pressure and reclaimable RAM at
-both ends, exit and duration — for every run that ends on its command's own
-exit, in every tier (a run killed by a signal, and one that never started,
-write no `run` row; the latter writes `machine-saturated`), plus
-`machine-override`, plus ONE `machine-wait` row per saturated wait (issue
-#4989) — outcome, `peak_load` and when in the wait it was read, and the
-`consumers` its line named at that peak (`owners_read` false when the
-sessions were unread; `consumers` null when the probe was) — written by the
-heavy gate beside its tier and command, and by every other caller (`land`'s
-preflight, `check:ui`, `health-main`) to the same file. The file is under `CLAUDE_PROJECT_DIR` — the primary
-checkout, for a session — else the primary checkout of the gate's cwd,
-resolved ONCE before the command runs (issue #4984): `land` removes the
-worktree its gate runs in, and a root read from the cwd when the row is
-written recreated `../tolaria-issue-N/.claude/telemetry/` after every landing
-and lost the lane gate's row. The probes are spawned from `/` for the same
-reason — from a deleted cwd they read null.
-`session-admission.jsonl` holds every session decision (`admitted`, `refused`,
-`override`).
-
-**A timeout on a saturated machine is excused once.** A suite step whose EVERY
-failed test timed out — read per failed test, each one's own error line, never
-as two counts over the output — while the step's samples read saturated is
-`infra` / `machine-timeout`, not RED. One assertion beside the timeouts keeps
-it RED. The samples are the step's own: one at each edge and one per liveness
-line (issue #5939), since a 20-minute `test` step's load peaks between its
-edges. And the excuse does not repeat: a step's own workers raise the load its
-samples read (and so does another holder while it queues on the heavy mutex),
-so "saturated" alone cannot tell a busy machine from a regression that hangs
-the suite. What tells them apart is the next run — the
-same step failing the same way twice in a row is the tree's, and is RED
-(`repeatedMachineTimeout`). An unsettled browser step needed no new rule: every
-failing row INFRA was already `infra` (`browser-step`, once `ui-walk`).
-
-**Fails open.** A probe that cannot be read — another platform, a failed
-spawn — reads as null, and null never saturates; the hook admits on a missing
-`bun`, a thrown probe or a payload with no session id. This inverts the
-claim cap's fail-safe on purpose: there a broken probe only makes a queue
-stricter, here it would lock every session out, including the one that fixes
-the probe.
-
-**In the suites.** `vitest.setup.node.ts` sets `TOLARIA_MACHINE_PROBE` to a
-calm machine, so a gate, claim, worktree or hook a test spawns reads that
-instead of the real one: a suite run on a saturated machine neither waits on
-it nor passes because of it. A run under an injected probe writes no `run`
-row.
-
-### Process leases and the active reaper (issue #5470, deleted by issue #5655)
-
-Process leases (owner tags in the environment of every spawned tree) and the
-active reaper (a `launchd` agent and a `systemd` timer) ended
-the trees nobody owned any more: orphaned vitest workers, Chromium, Vite and
-`claude -p` passes left by a removed worktree. They were deleted with the
-health runner (ADR 0156, issue #5655); `gate-run.sh` and `loop-drain.sh`
-register no lease, and a stray tree is now ended by hand.
+`fix/issue-N` → exit 1): it is owed on the base tip, by health and by `release`,
+not on a branch tree. `TOLARIA_ALLOW_FULL_SUITE=1` is the escape hatch. The `job`
+tier is exempt: `bot:reach`, `verdicts:search`, `verdicts:pick-agreement` and the
+Bot sweep are not the full gate.
+
+**Nothing waits for the machine.** One [`lane` runner](../guides/github-pipeline.md#serialising-heavy-work)
+runs one gate at a time (ADR 0156 Amendment I, ADR 0160) and its unit is
+`ProcessType` Interactive, so health and the queue's lane take the cores they
+need first (Amendment VII). A load-induced timeout is classified
+[INFRA](../guides/github-pipeline.md#g-infra), excused once. Exit 77 now means one
+thing: a gate could not run at all (a failed dependency install,
+`lib/infra-exit.ts`) — re-issue it. Two hand-run `check:ui` on one machine still
+share one Convex backend and collide; nothing stops them, so don't.
+
+**History.** Retired by PR #7519 (issue #7488): the machine-wide mutex
+(`~/.cache/tolaria/gate.lock`), its waiters' queue and admission classes,
+`gate:who`, the machine admission (`bun run machine`, `machine.*`,
+`lib/machine-admission.ts`), `check:ui`'s lane lock (`lib/ui-admission.ts`). The
+measurements that shaped them: `git show 92a7e4bbf:docs/agents/quality-gates.md`,
+§ CPU admission control.
+
+## Claims and admission — labels, the RED refusal, the queue's depth
+
+**The claim is the label** (ADR 0156): `in-progress` + assignee, typed as one
+`gh issue edit` by a session (`/next-ticket` § 2) or by the
+[dispatcher](../guides/github-pipeline.md#afk-dispatch). `wt:new` and `land:ready`
+refuse an issue without it (`claimRefusal`, `lib/claim-labels.ts`; the escape is
+`TOLARIA_UNCLAIMED_OK=1`). A release removes label, `pr-open` and assignee in one
+act. A dead claim is judged by `lib/claim-verdict.ts`: an ended `afk-pass` run is
+the only death evidence; a claim with no run (an attended session's) reads
+`suspect` / `live` up to 24 h, then `orphan`.
+
+**RED is the one refusal.** When a RED stands on the latest gated tip,
+`queue:plan` refuses the next pick and prints the sha, the failing step and
+`bun run health:fix`, so no new worktree branches from a tip known red. The queue
+holds every PR that is not a declared repair
+([`base-health`](../guides/github-pipeline.md#g-base-health),
+[a hold](../guides/github-pipeline.md#a-red-dequeue-is-a-hold)), never blaming it.
+
+**The dispatcher admits by the queue's depth** (issue #6988): no new pick while
+open `ready-to-land` PRs reach `afkDispatch.queueMax`; repairs only while open
+`land-failed` PRs reach `afkDispatch.failedMax`. An attended session has no cap:
+the `pass` runners bound the AFK sessions by their number, and the owner the rest.
+
+**History.** Retired by PR #7503 (issue #7487) and PR #7519 (issue #7488):
+`sessions.cap`, `--no-cap`, `TOLARIA_OVER_CAP`, the claims journal
+(`claims.jsonl`), `queue:claim`, `queue:release`, the claim hooks. Issue #5655
+removed process leases and the reaper. The derivations:
+`git show 92a7e4bbf:docs/agents/quality-gates.md`, § Session admission.
 
 ## Worktree isolation, and the documentation lane
 
@@ -2212,8 +1628,8 @@ isolated every time and an ordinary discussion never did. It is now in
   Matching redirections inside a command string is the false-denial shape § 4's
   header is about, and the authoring tools are what a model actually uses.
 - `deny-guard.sh` § 1 denies `gh pr merge` **anywhere** (#2537), not just from
-  an issue worktree: the gate mutex serialises gating, `land` extends it over
-  the merge, and a merge typed by hand takes no lock at all — three did on
+  an issue worktree: the queue gates the tree it merges, and a merge typed by
+  hand skips that gate — three did on
   2026-08-18, two of them from the main checkout as recovery after `land`
   failed. `land`'s own merge is a child process, invisible to the hook by
   design. Per-command hatch, naming the one merge it authorises:
@@ -2251,12 +1667,12 @@ merges there. It pays the queue for the seconds it merges in — **and for the
 whole wait behind whoever holds the mutex**: measured 2026-10-11, a
 `docs:ship` queued 8+ min behind one `land`; on 2026-09-01 one waited 2h07m
 behind a stalled health (§ A waiter says who is blocking it). CLAUDE.md used to
-say "seconds, no lock"; it now says the merge queues on the heavy mutex
+say "seconds, no lock"; it then said the merge queued on the heavy mutex
 (ADR 0154 §10). Issue #5469 made the lock-free reading true: landing is
 asynchronous — a session ends at push + `bun run land:ready <PR#>`
 (`ready-to-land`), the merge queue merges (the land-runner before it,
 deleted in issue #5654) — and `docs:ship` hands its PR to the same queue instead of merging inside `gate.ts heavy`.
-Neither `docs:ship` nor `bun run check:docs` takes the lock any more.
+No lock exists any more (PR #7519).
 
 `docs:ship` refuses a changeset containing anything that is not `*.md` or under
 `docs/`: a mixed change goes through the ordinary branch, where the code

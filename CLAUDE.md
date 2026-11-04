@@ -199,12 +199,12 @@ Resident only if acting without it is a mistake **before** opening any file.
    format) + one full-path GRE → game.ts → UI test; DSL cards on exercised Ops
    owe none. **Frontend wiring not optional**; **every guarding test proven to
    fail** (`gre-development.md` § Frontend wiring analysis, § Proof-of-failure).
-6. **Validate** — targeted runs + review; no pre-PR gate, `land` pays the lane
+6. **Validate** — targeted runs + review; no pre-PR gate, the queue pays the lane
    once (ADR 0136 §1)
 7. **Preset scenario** — any new card/gameplay feature (ADR 0044; DB is source
    of truth, #770/#1455): `json` fence `{ "label", "spec": { "cards" } }` under
-   a `## Preset scenario` heading. **`land` refuses without one** on a
-   `convex/{cards/sets,gre}/**` diff, seeds it post-merge; a refactor owes
+   a `## Preset scenario` heading. **`land:ready` refuses without one** on a
+   `convex/{cards/sets,gre}/**` diff, `post-merge` seeds it; a refactor owes
    nothing (say so there). `owner` only `"me"`/`"opp"` (else silently `"me"`).
    Sweep: `bun run seed:backlog`.
 8. **Bot reachability** — Bot must PLAY it (`gre-development.md` § Bot
@@ -215,7 +215,7 @@ Resident only if acting without it is a mistake **before** opening any file.
 ### Quality gates (mandatory, no exceptions)
 
 Rationale, lanes, measurements: `docs/agents/quality-gates.md`. **A PR owes at
-`land` only what it can break and what costs seconds** (ADR 0154: 10 issues/h
+landing only what it can break and what costs seconds** (ADR 0154: 10 issues/h
 over two machines); the rest is batch health's.
 
 - **Iterating**: targeted only, `bunx vitest run <path>`; formatting automatic.
@@ -223,9 +223,9 @@ over two machines); the rest is batch health's.
 - **Merge**: session → `bun run land:ready <PR#>` (step 0 = `base:drift`
   preflight, issue #6647: behind → rebases, overlap → refuses); the **Mergify
   queue** rebases the PR in a draft, runs **`check:lane`**, merges (ADR 0136);
-  red → `land-failed`. **Release**: **`bun run release`** — full gate on base
+  red → `land-failed`. **Release**: **`bun run release`** (`release.yml`) — full gate on base
   tip, then fast-forward release branch (ADR 0116).
-- **`check:lane` paid ONCE, by `land`, on the rebased tip** (skipped if tip
+- **`check:lane` paid ONCE, by the queue (`queue-lane`), on the rebased tip** (skipped if tip
   and base already gated green). Lanes: `skin` (`src/**`) / `engine`
   (`convex/**`, `scripts/**`, `data/**`, `.claude/**` tooling, repo config,
   scripts-only `package.json`; a `src/**` mix adds reached `dom`, ADR 0154
@@ -244,34 +244,25 @@ over two machines); the rest is batch health's.
 - **`bun run test` = `test:app` → `test:bot` → `test:blade`.** **New bot/AI
   test → `*.bot.test.ts`** (`bot-suite-boundary.test.ts`). Wall-clock
   asserts → `*.perf.test.ts` (`test:perf`, 4th suite, never gated, #3123).
-- **No CI: local gates are the only gates.** Full suite **per batch**: health
-  fires at the 20th landing since GREEN or 8 h after the first un-healthed
-  (ADR 0154); a failed vitest project is re-run once before RED. **Topology
-  B'** (any machine, #5873): MacBook = sessions + `release`;
-  Huawei = health, crons, audits. **The verdict is shared**
-  (commit status on the gated sha, read through the verdict store by
-  `queue:plan`, `land`, the loop, on both machines); `release` re-proves the
-  tip here.
-- **CPU admission** (`scripts/gate.ts`, shared machine): **heavy** =
-  `bun run test`, `test:app`, `test:bot`, `check:all` → machine-wide mutex,
+- **Jobs run on the owner's self-hosted runners** (ADR 0156, ADR 0160;
+  `docs/guides/github-pipeline.md`): one `lane` on the MacBook (`queue-lane`,
+  health's `gate`, `release`), `pass` and `maint` on both machines. Full suite
+  **per batch**: health fires at the 20th landing since the newest verdict
+  (`health-early`; the 2-hourly cron and the heartbeat are the fallback); a
+  failed vitest project is re-run once before RED. **The verdict is shared**
+  (`health` commit status on the gated sha, read through the verdict store by
+  `queue:plan`, `base-health`); `release` re-proves the tip.
+- **Worker caps, no admission** (`scripts/gate.ts`, ADR 0156 Amendments I,
+  VII): **heavy** = `bun run test`, `test:app`, `test:bot`, `check:all` →
   `min(ncpu - 1, 4)` workers (RAM-capped); **light** = `bunx vitest run`,
-  `check:pr`, `check:ts`, `lint`, `format` → no lock, vitest ≤2 workers
-  (`TOLARIA_VITEST_WORKERS`). Queued heavy gate ≠ hang: **`bun run gate:who`**
-  names holder (#2999). **Full gate blocked in issue worktrees** (exit 1).
-- **Session admission** (ADR 0136 §7, ADR 0154 §8): `queue:plan` refuses a
-  pick while THIS machine's live `in-progress` claims hit `sessions.cap` (5 =
-  measured PR/h per machine; config, not literal; `--no-cap` = announced
-  escape) or a `RED` stands on the latest gated tip. Under RED `land` refuses
-  a non-repair PR without `--red-ok` (#4964); a second RED on one lineage
-  stops the loop.
-- **Machine admission** (issue #4966, `lib/machine-admission.ts`): a heavy
-  gate, `check:ui` and `health-main` WAIT while load > `machine.loadMax` or
-  the kernel reports memory pressure (beside a RUNNING heavy holder its load
-  is not waited on, #4988); past `machine.waitMaxS` → **exit 77 = INFRA,
-  nothing ran, never a red lane** (re-issue). `queue:claim`, `wt:new` are
-  refused past the effective cap (`sessions.cap` ∧ RAM); a conversation's
-  prompt never is (issue #5137). **`bun run machine`** shows it; hatches
-  logged: `TOLARIA_OVER_CAP=1`, `TOLARIA_GATE_SATURATED_OK=1`.
+  `check:pr` → vitest ≤2 workers
+  (`TOLARIA_VITEST_WORKERS`). No mutex, no load wait. **Full gate blocked in
+  issue worktrees** (exit 1). **Exit 77 = INFRA, nothing ran, never a red lane**
+  (re-issue).
+- **Claims are labels** (ADR 0156): `in-progress` + assignee. `queue:plan`
+  refuses only when a `RED` stands on the latest gated tip; under RED the queue
+  holds every PR that is not a declared repair (`base-health`, `queue:held`).
+  The AFK dispatcher admits by queue depth (`afkDispatch.*`, issue #6988).
 
 **Worktree isolation — shared checkout is read-only.** Every authored file →
 worktree, **even one markdown line** (unfinished ADR there reds `check:all` for
@@ -281,7 +272,7 @@ all sessions). Docs-only: `bun run wt:docs <slug>` → write →
 `216 files failed, 0 tests failed` = missing bootstrap, not red baseline.
 
 **Branches are configuration** (ADR 0116): `tolaria.config.json` names
-**base** (PRs target it, `land` merges into it) and **release** (production);
+**base** (PRs target it, the queue merges into it) and **release** (production);
 only `lib/branches.ts`, `deny-guard.sh`, `gate-run.sh` read it; an
 `origin/<name>` literal elsewhere reds `branches.test.ts`.
 
@@ -292,7 +283,7 @@ no health per landing. **Rebase first, verify after** (issue #6647):
 targeted tests. Red landing: `/next-ticket`'s `land-failures.md`.
 
 **Green-at-release (ADR 0116): release branch moves only to a health-proven
-base tip.** `land` proves the lane, batch health the rest, `release` re-proves
+base tip.** The queue proves the lane, batch health the rest, `release` re-proves
 the exact tip. Failure leaves durable `RED` marker (`bun run health:status`):
 revert FIRST, fix-forward as the reopened issue's pass (ADR 0158);
 never stack work on a red tip, never silence a test; "not my test" is no
@@ -345,7 +336,7 @@ Once deferred, now **shipped** — not out of scope. Unbuilt? Flag explicitly
   In agent output and artifacts **qualify every ref: `issue #NNN` /
   `PR #NNN`.**
 - **Findings drawer**: `docs/findings/` = what a subagent noticed but was not
-  asked to fix; draft, never an issue (the loop drains the queue, never fills
+  asked to fix; draft, never an issue (the dispatcher drains the queue, never fills
   it). `bun run findings`; format `docs/findings/README.md`.
 - **Triage labels**: five canonical roles + model-routing labels
   (`docs/agents/triage-labels.md`).
