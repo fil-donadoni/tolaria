@@ -304,8 +304,9 @@ describe("Equipment — refused neighbours", () => {
         ).toBe(false);
     });
 
-    // CR 301.5c — an Equipment creature equips only through reconfigure,
-    // which no rule reads: Utility Knife retyped as an artifact creature.
+    // CR 301.5c — an Equipment creature equips only through reconfigure, so
+    // this clause's attach stays refused: Utility Knife retyped as an artifact
+    // creature.
     it("refuses an Equipment creature's attach (Utility Knife, retyped)", () => {
         const card = oracleCard({
             name: "Utility Knife",

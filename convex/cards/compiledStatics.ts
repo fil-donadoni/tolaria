@@ -43,7 +43,10 @@ import {
 import { getCardsExiledWith } from "../gre/exileLinks";
 import { matchesPermanentFilter } from "./filters";
 import type { PermanentFilter } from "./filters";
-import { AURA_AFFECTS_HOST } from "./types";
+import {
+    AURA_AFFECTS_HOST,
+    RECONFIGURE_LOSES_CREATURE_WHILE_ATTACHED,
+} from "./types";
 import type {
     CardDefinition,
     CardSupertype,
@@ -299,6 +302,14 @@ export type CompiledStaticEffect =
           readonly kind: "type-add";
           readonly types: readonly CardType[];
       } & CompiledStaticScope)
+    /** CR 702.151b — the Reconfigure line's "stop being a creature until it
+     *  becomes unattached": the permanent removes its own type while attached,
+     *  re-read at every layer-4 derivation. */
+    | {
+          readonly kind: "type-remove";
+          readonly appliesTo: "self-while-attached";
+          readonly types: readonly CardType[];
+      }
     /** CR 613.1f layer 6 — "<filter> lose all abilities". */
     | ({ readonly kind: "ability-loss" } & CompiledStaticScope)
     /** CR 613.1f layer 6 — "<filter> have <keyword>" / "Enchanted creature
@@ -813,6 +824,12 @@ export function resolveCompiledStatic(
                 },
             };
         }
+        case "type-remove":
+            return {
+                kind: "type-remove",
+                applies: RECONFIGURE_LOSES_CREATURE_WHILE_ATTACHED,
+                types: [...descriptor.types],
+            };
         case "type-add":
             return {
                 kind: "type-add",

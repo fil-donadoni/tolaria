@@ -46,6 +46,7 @@ export function activationPreconditionViolation(
         ActivatedAbility,
         | "canActivate"
         | "activationCondition"
+        | "activatableOnlyWhileAttached"
         | "useStack"
         | "manaProduced"
         | "manaChoices"
@@ -58,6 +59,13 @@ export function activationPreconditionViolation(
         isManaAbilityDefinition(ability)
     );
     if (restricted !== null) return restricted;
+    // CR 702.151a — "Activate only if this permanent is attached to a creature".
+    if (
+        ability.activatableOnlyWhileAttached === true &&
+        source.attachedTo === undefined
+    ) {
+        return "Ability cannot be activated right now";
+    }
     if (
         ability.activationCondition !== undefined &&
         !activationConditionHolds(state, source, ability.activationCondition)

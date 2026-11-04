@@ -2404,6 +2404,14 @@ export interface ActivatedAbility {
      *  siblings in `src/lib/card-utils.ts`). Not accepted on a mana ability
      *  (`useStack: false`): the mana-tap sites read `canActivate` only. */
     activationCondition?: EffectPredicate;
+    /** CR 702.151a — "Activate only if this permanent is attached to a
+     *  creature" (Reconfigure's unattach half), carried as DATA because the
+     *  predicate grammar has no reading of the source's own attachment. Read
+     *  by the one authority, `activationPreconditionViolation`, so the
+     *  mutations, the Bot and the client affordance all honour it. An
+     *  Equipment is attached only to a creature (CR 301.5c), so `attachedTo`
+     *  answers the printed clause whole. */
+    activatableOnlyWhileAttached?: boolean;
     /** Restrict activation to the controller's own turn (CR 602.5b — "activate
      *  only during your turn"). Distinct from `activationPhaseRestriction`
      *  which is phase-keyed and turn-independent. Used by Instill Energy's

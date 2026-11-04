@@ -4719,8 +4719,9 @@ function requirementTypes(requirement: TargetRequirement): readonly string[] {
  *
  * CR 301.5 — an Equipment is attached to a creature and to nothing else
  * (issue #7215, once its "Equip {N}" line parsed). An Equipment that is also
- * a creature can equip only through reconfigure (CR 301.5c), which no rule
- * reads, so its attach is refused.
+ * a creature can equip only through reconfigure (CR 301.5c), whose own two
+ * abilities the keyword line lowers; no fixture pins this clause's attach on
+ * one, so it is refused.
  */
 function attachableTypes(
     ctx: ParseContext

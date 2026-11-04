@@ -50,6 +50,55 @@ export function equipAbility(args: {
     };
 }
 
+/** Builds the two activated abilities `Reconfigure {cost}` represents
+ *  (CR 702.151a): "[Cost]: Attach this permanent to another target creature
+ *  you control. Activate only as a sorcery" and "[Cost]: Unattach this
+ *  permanent. Activate only if this permanent is attached to a creature and
+ *  only as a sorcery."
+ *
+ *  JSON all the way down, so a compiled card and a hand-written one are the
+ *  same object. "Another" is the source itself (CR 301.5c — "An Equipment
+ *  can't equip itself"), not its current host: the host stays a legal target,
+ *  and attaching to it does nothing (CR 701.3b). The "not a creature while
+ *  attached" half (CR 702.151b) is a `type-remove` static the card carries
+ *  beside these. */
+export function reconfigureAbilities(args: {
+    /** Id prefix — conventionally the card's slug. */
+    slug: string;
+    /** The printed Reconfigure cost (CR 702.151a). */
+    cost: ManaCost;
+    /** The printed cost as mana symbols, e.g. `"{2}{B}{B}"`. */
+    costText: string;
+    /** The printed Reconfigure line, as Oracle prints it. */
+    oracleText: string;
+}): [attach: ActivatedAbility, unattach: ActivatedAbility] {
+    return [
+        {
+            id: `${args.slug}-reconfigure-attach`,
+            oracleText: args.oracleText,
+            cost: { mana: args.cost },
+            sorcerySpeedOnly: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+                excludeSource: true,
+            },
+            useStack: true,
+            effects: [{ op: "attach", target: { target: 0 } }],
+        },
+        {
+            id: `${args.slug}-reconfigure-unattach`,
+            oracleText: `${args.costText}: Unattach this permanent. Activate only if this permanent is attached to a creature and only as a sorcery.`,
+            cost: { mana: args.cost },
+            sorcerySpeedOnly: true,
+            activatableOnlyWhileAttached: true,
+            useStack: true,
+            effects: [{ op: "unattach" }],
+        },
+    ];
+}
+
 /** Generic "When this Equipment enters, create <token>, then attach this
  *  Equipment to it" self-ETB trigger — the shell shared VERBATIM by three
  *  keywords, differing ONLY in the token spec they create, never in the

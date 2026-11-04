@@ -91,6 +91,72 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 702.151a — "Reconfigure [cost]": the attach half targets a creature
+    // its controller controls and the unattach half has an outcome only after
+    // a prior attach, neither of which the canned smoke scenario can stage.
+    {
+        rule: "reconfigure",
+        card: {
+            oracleId: "f6314e50-a610-4fff-8f60-803d23460ff0",
+            name: "Lizard Blades",
+            manaCost: "{1}{R}",
+            typeLine: "Artifact Creature — Equipment Lizard",
+            oracleText:
+                "Double strike\nEquipped creature has double strike.\nReconfigure {2} ({2}: Attach to target creature you control; or unattach from a creature. Reconfigure only as a sorcery. While attached, this isn't a creature.)",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Lizard Blades",
+            types: ["Artifact", "Creature"],
+            subtypes: ["Equipment", "Lizard"],
+            manaCost: { X: 1, R: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "Double strike\nEquipped creature has double strike.\nReconfigure {2} ({2}: Attach to target creature you control; or unattach from a creature. Reconfigure only as a sorcery. While attached, this isn't a creature.)",
+            staticAbilities: ["double strike"],
+            activatedAbilities: [
+                {
+                    id: "lizard-blades-reconfigure-attach",
+                    oracleText: "Reconfigure {2}",
+                    cost: { mana: { generic: 2 } },
+                    sorcerySpeedOnly: true,
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        controller: "you",
+                        excludeSource: true,
+                    },
+                    useStack: true,
+                    effects: [{ op: "attach", target: { target: 0 } }],
+                },
+                {
+                    id: "lizard-blades-reconfigure-unattach",
+                    oracleText:
+                        "{2}: Unattach this permanent. Activate only if this permanent is attached to a creature and only as a sorcery.",
+                    cost: { mana: { generic: 2 } },
+                    sorcerySpeedOnly: true,
+                    activatableOnlyWhileAttached: true,
+                    useStack: true,
+                    effects: [{ op: "unattach" }],
+                },
+            ],
+            compiledStaticEffects: [
+                {
+                    kind: "keyword-grant",
+                    appliesTo: "host",
+                    keyword: "double strike",
+                },
+                {
+                    kind: "type-remove",
+                    appliesTo: "self-while-attached",
+                    types: ["Creature"],
+                },
+            ],
+        },
+    },
     // CR 702.122a — "Crew N": the crew ability's `animate` acts on `$source`
     // (the Vehicle itself), which the canned smoke scenario cannot stage.
     {
