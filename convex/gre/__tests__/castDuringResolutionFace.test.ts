@@ -13,6 +13,7 @@ import {
     makeState,
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
+import { splitHalfDefinitionId } from "../../cards/splitCard";
 import { projectPublicState } from "../../gameProjections";
 import { adventureCastAltCostId } from "../adventure";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
@@ -155,8 +156,9 @@ describe("split card cast during resolution (CR 709.3 / 608.2g)", () => {
         submit(state, "bear");
 
         const spell = spellOnStack(state)!;
-        expect(spell.card.id).not.toBe(STAND_DELIVER.id);
-        expect(spell.name ?? "").not.toContain("Deliver");
+        expect(spell.card.id).toBe(
+            splitHalfDefinitionId(STAND_DELIVER.id, "left")
+        );
         expect(spell.targets?.map((t) => t.id)).toEqual(["bear"]);
         // {W}, never the combined CR 709.4b cost.
         expect(tappedCount(state)).toBe(1);
