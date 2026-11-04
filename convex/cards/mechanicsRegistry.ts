@@ -4174,7 +4174,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  It is also the ONE member that widened `difference`: its "minus one" needs
  *  a tally as the minuend, so `EffectDifferenceTallyOperand` was added as a
  *  SIBLING of `EffectDifferenceOperand` (the `EffectScaledOperand` precedent,
- *  #2366) rather than a widening in place — `divide` keeps the narrow type,
+ *  #2366) rather than a widening in place — `divide` keeps its own narrower type,
  *  and `X` stays excluded from both. The grammar is still depth-1: this member
  *  is a leaf read with no nested value slot.
  *  `setSize` (`{ setSize: { of } }`) IS a new value-grammar member

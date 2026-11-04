@@ -1961,8 +1961,8 @@ function isDifferenceOperand(value: unknown): boolean {
 /** One operand of a `difference` as of issue #3240 — `isDifferenceOperand`
  *  PLUS the per-turn `cardsDrawnThisTurn` tally. Deliberately a SEPARATE
  *  checker rather than a widening of `isDifferenceOperand`, mirroring exactly
- *  why `isScaledOperand` is separate: `divide` reads `isDifferenceOperand`
- *  too, and no shipped divide card halves a per-turn tally, so widening the
+ *  why `isScaledOperand` is separate: `isDivideOperand` builds on
+ *  `isDifferenceOperand`, and no shipped divide card halves a per-turn tally, so widening the
  *  shared checker would hand division an operand nothing asked for. `X` stays
  *  out of BOTH — the "rejects a NESTED difference" case still rejects
  *  `{ difference: { from: { X: true }, minus: 1 } }`. Still a TERMINAL, never
