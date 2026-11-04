@@ -1,8 +1,7 @@
 /**
- * The repair proof (issue #5462, #5639): a declared repair of a standing RED
- * re-runs the failing test files the RED verdict names, one file per run — a
- * RED can have several culprits, each repair turning only its own share green
- * (issue #7448).
+ * The repair proof: a declared repair of a standing RED re-runs the failing
+ * test files the RED verdict names, one file per run — a RED can have several
+ * culprits, each repair turning only its own share green.
  *
  * Two readers. `pr-check`'s `repair-proof` job refuses a repair that turns
  * none of them green. `health:fix amber`, on the push that merges the repair

@@ -1,7 +1,6 @@
 #!/usr/bin/env bun
 // `bun run pr:fixup <classify|run>` — regenerate a stale generated artefact
-// instead of spending a session on it (PRD issue #5620, issue #5640; ADR 0156
-// Amendment I § Duties).
+// instead of spending a session on it (ADR 0156 Amendment I § Duties).
 //
 //   classify --lane <lane.json> [--log <lane.log>] [--pr <N> | --draft <branch>] [--ref <base>]
 //       Reads the JSON `check:lane --json --retry-flaky` wrote. Prints the fix
@@ -11,7 +10,7 @@
 //       `--draft <branch>` (the queue's lane, issue #5955) the PR is the one
 //       the Mergify draft on that branch is checking. An empty lane JSON is a
 //       lane that refused: it prints the refusal (`--log`, the lane's stderr)
-//       and exits 1 (issue #6003).
+//       and exits 1.
 //   flakes --lane <lane.json>
 //       The flakes the lane recorded, as job-summary markdown (empty if none).
 //   run --pr <N> --fixes <k,k> [--requeue]

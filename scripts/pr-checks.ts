@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 // `bun run pr:checks <name|all>` — the refusals a PR answers before it merges,
-// as PR checks (PRD issue #5620, issue #5639; ADR 0156 Amendment I).
+// as PR checks (ADR 0156 Amendment I).
 //
 // One reading, two callers: `.github/workflows/pr-check.yml` runs one job per
 // check (`docs/guides/github-pipeline.md`), `land:ready` runs them all before
-// it queues a PR (issue #5956).
+// it queues a PR.
 //
 //   ui-receipt          the `check:ui` receipt, re-derived from the diff's scope
 //   scenario            the `## Preset scenario` block (ADR 0044)
