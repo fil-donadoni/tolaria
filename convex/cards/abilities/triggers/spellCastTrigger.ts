@@ -140,6 +140,17 @@ export function nthSpellThisTurn(
     return (event) => (event.casterSpellCountThisTurn ?? 0) === n - 1;
 }
 
+/** "If you've cast another spell this turn" (CR 603.4) for a `scope: "self"`
+ *  trigger, as both `condition` and `interveningIf`. Reads the caster's LIVE
+ *  tally rather than the event's frozen snapshot, so the check on resolution is
+ *  a real one. The tally already counts this spell (`emitSpellCastEvent`
+ *  advances it before the trigger scan), so "another" means two. */
+export const castAnotherSpellThisTurn: NonNullable<
+    SpellCastTriggerArgs["condition"]
+> = (event, _self, state) =>
+    (state?.players.find((p) => p.id === event.casterId)?.spellsCastThisTurn ??
+        0) >= 2;
+
 /** The one card type an `nthSpellOfTypeThisTurn` count is scoped to:
  *  `types` counts spells WITH the type ("your second creature spell"),
  *  `excludeTypes` spells WITHOUT it ("your fourth noncreature spell"). A

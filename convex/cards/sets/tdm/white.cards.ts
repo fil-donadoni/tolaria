@@ -4,24 +4,45 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import { defineCard } from "../../types";
+import {
+    castAnotherSpellThisTurn,
+    spellCastTrigger,
+} from "../../abilities/triggers/spellCastTrigger";
 
-// Sage of the Skies' defining ability, "When you cast this spell, if you've cast
-// another spell this turn, copy this spell," copies a PERMANENT spell (CR
-// 707.10f: the copy becomes a token as it resolves), and the spell-clone helper
-// (`cloneSpellOntoStack`) refuses anything but an instant or sorcery. Flying and
-// lifelink are free, but shipping just the stat line would misrepresent the
-// card, so it stays a stub until permanent-spell copies exist.
-// tracked-by: #3658
-// export const sageOfTheSkies: CardDefinition = {
-//     id: "6ade6918-6d1d-448d-ab56-93996051e9a9",
-//     name: "Sage of the Skies",
-//     rarity: "rare",
-//     manaCost: { X: 2, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Monk"],
-//     power: 2,
-//     toughness: 3,
-// };
+// Sage of the Skies — {2}{W} Creature — Human Monk 2/3. "When you cast this
+// spell, if you've cast another spell this turn, copy this spell. (The copy
+// becomes a token.) Flying, lifelink"
+//
+// Effect Script (ADR 0045): a CR 113.6k cast trigger whose intervening "if"
+// (CR 603.4) reads the caster's tally on both sides. The Op copies the trigger's
+// source, so a Sage countered in response is still copied, from its last known
+// information (CR 113.7a, 608.2h). The copy isn't cast (CR 707.10), so it cannot
+// trigger this again, and it becomes a token as it resolves (CR 707.10f).
+// hand-tail: When you cast this spell, if you've cast another spell this turn, copy this spell. (#3658)
+export const sageOfTheSkies = defineCard(() => ({
+    id: "6ade6918-6d1d-448d-ab56-93996051e9a9",
+    rarity: "rare",
+    name: "Sage of the Skies",
+    oracleText:
+        "When you cast this spell, if you've cast another spell this turn, copy this spell. (The copy becomes a token.)\nFlying, lifelink",
+    manaCost: { X: 2, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Monk"],
+    power: 2,
+    toughness: 3,
+    staticAbilities: ["flying", "lifelink"],
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "sage-of-the-skies-copy",
+            oracleText:
+                "When you cast this spell, if you've cast another spell this turn, copy this spell.",
+            scope: "self",
+            condition: castAnotherSpellThisTurn,
+            interveningIf: castAnotherSpellThisTurn,
+            effects: [{ op: "copyResolvingSpell", player: "controller" }],
+        }),
+    ],
+}));
 
 // Elspeth, Storm Slayer — {3}{W}{W} Legendary Planeswalker — Elspeth, loyalty 5
 // (TDM, issue #3230).
