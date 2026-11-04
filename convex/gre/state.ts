@@ -128,7 +128,14 @@ setControlRelocation((state, card, previousControllerId, nextControllerId) => {
 import { isFaceDownExile, turnFaceDown, turnFaceUp } from "./faceDown";
 import { revertAdventureIdentity, wasCastAsAdventure } from "./adventure";
 import { commitCast } from "./castCommit";
-import { revertSplitIdentity } from "./splitCast";
+import {
+    castFaceMarkers,
+    castSubjectDefinition,
+    castSubjectView,
+    independentCastOptionsFor,
+    ridesManaCostReplacement,
+} from "./castMode";
+import { offersPrintedCast, revertSplitIdentity } from "./splitCast";
 import { revertModalBackCastIdentity } from "./modalBackCast";
 import {
     isModalDoubleFaced,
@@ -19873,18 +19880,16 @@ export function buildSpellContext(
             // stack item; a copy carries none (CR 707.10).
             return item.castFromZone === "graveyard";
         },
-        getCardTargetRequirement(casterId, cardInstanceId) {
+        getCardTargetRequirement(casterId, cardInstanceId, alternativeCostId) {
             // CR 108.1 — read the chosen card's target requirement from the
             // registry so a controlled cast (Word of Command) or a
             // cast-during-resolution (Malcolm, issue #1477) can branch on
             // whether the caster must choose targets. Zone-broad (issue #1477).
-            const owner = getPlayer(state, casterId);
-            const found = findCastSource(state, owner, cardInstanceId);
-            const cardId = found
-                ? (found.card.card as { id?: string }).id
-                : undefined;
-            const def = cardId ? tryGetDefinition(cardId) : undefined;
-            return def?.targetRequirement;
+            // CR 709.3a / 712.11c / 715.3a — of the announced face alone.
+            return castSubjectDefinition(
+                getHandCardDef(state, casterId, cardInstanceId),
+                alternativeCostId
+            )?.targetRequirement;
         },
         getPublicCardIdentity(playerId, cardInstanceId, zone) {
             // CR 406.3 / ADR 0026 (issue #3413) — the definition id it is safe
@@ -19931,7 +19936,12 @@ export function buildSpellContext(
             // rather than a face, so there is nothing to disclose.
             return (found.card as { id?: string }).id;
         },
-        getChosenCardCastable(playerId, cardInstanceId, sourceZone) {
+        getChosenCardCastable(
+            playerId,
+            cardInstanceId,
+            sourceZone,
+            alternativeCostId
+        ) {
             // CR 608.2f / 305.1 (issue #1477) — the card must still be in the
             // named source zone (CR 608.2b — an empty/absent source silently
             // passes) AND be a castable, nonland card. Lands are PLAYED, not
@@ -19960,7 +19970,16 @@ export function buildSpellContext(
             const cardId = (found.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : undefined;
             if (!def) return false;
-            if ((def.types ?? []).includes("Land")) return false;
+            // CR 709.3 — "a player chooses which half of a split card they are
+            // casting before putting it onto the stack": no cast puts the
+            // combined object there, so a split card has no printed cast.
+            if (alternativeCostId === undefined && !offersPrintedCast(def)) {
+                return false;
+            }
+            // CR 709.3a / 712.11c / 715.3a — only the announced face is
+            // evaluated to see if it can be cast.
+            const subject = castSubjectDefinition(def, alternativeCostId);
+            if ((subject?.types ?? []).includes("Land")) return false;
             // CR 601.3a — and the cast must not be FORBIDDEN. The commit path
             // (`castChosenSpell`) enforces the same shared gate authoritatively;
             // asking it HERE too is what keeps the Op's contract honest instead
@@ -19975,8 +19994,123 @@ export function buildSpellContext(
             // re-checks it authoritatively.
             return (
                 passesCastPhaseRestriction(state, found) &&
-                castProhibitionReason(playerId, found, state) === undefined
+                castProhibitionReason(
+                    playerId,
+                    castSubjectView(found, alternativeCostId),
+                    state
+                ) === undefined
             );
+        },
+        getCastFaceOptions(playerId, cardInstanceId, sourceZone, opts) {
+            // CR 709.3 / 712.11b / 715.3 — the faces a cast during resolution
+            // (CR 608.2g) can announce, each judged against its own subject
+            // exactly as `getLegalActions` judges an independent option; timing
+            // is the one question not asked, the effect being the permission.
+            const payer = getPlayer(state, playerId);
+            const found = castZoneOwner(
+                state,
+                payer,
+                cardInstanceId,
+                sourceZone
+            )[sourceZone].find((c) => c.id === cardInstanceId);
+            if (!found) return [];
+            const def = getHandCardDef(state, playerId, cardInstanceId);
+            // The resolving effect's permission names the card and no
+            // characteristic of it, so it reaches every face: CR 712.11c for a
+            // modal back face, and CR 715.3d's "other effects that allow a
+            // player to cast it may allow a player to cast it as an Adventure"
+            // for a card its own Adventure exiled.
+            const options = independentCastOptionsFor(
+                { ...found, castFromExileNotAsAdventure: undefined },
+                true
+            );
+            return options
+                .filter((alt) => {
+                    if (
+                        !ctx.getChosenCardCastable(
+                            playerId,
+                            cardInstanceId,
+                            sourceZone,
+                            alt.id
+                        )
+                    ) {
+                        return false;
+                    }
+                    const subject = castSubjectDefinition(def, alt.id);
+                    if (
+                        opts?.manaValueBelow !== undefined &&
+                        manaValue(subject?.manaCost ?? {}) >=
+                            opts.manaValueBelow
+                    ) {
+                        return false;
+                    }
+                    // CR 601.2c — a mode's requirement is asked of the mode
+                    // once it is chosen, not here (CR 700.2d).
+                    const req = subject?.targetRequirement;
+                    if (
+                        req &&
+                        ctx.getLegalTargetsForCard(
+                            playerId,
+                            cardInstanceId,
+                            req,
+                            alt.id
+                        ).length === 0
+                    ) {
+                        return false;
+                    }
+                    // CR 601.2g / 107.3 — a face no payment covers, at the
+                    // cheapest value of X, is no cast to offer.
+                    return (
+                        opts?.free === true ||
+                        planResolutionCastPayment(
+                            state,
+                            payer,
+                            castSubjectView(found, alt.id),
+                            subject?.manaCost ?? {},
+                            0
+                        ) !== null
+                    );
+                })
+                .map((alt) => ({ id: alt.id, label: alt.description }));
+        },
+        requestCastFace(req) {
+            // CR 709.3 / 712.11b / 715.3 — "before putting it onto the stack":
+            // the announcement, for a caller whose offer carried no face rows.
+            const { casterId, cardInstanceId, sourceZone } = req;
+            const faces = ctx.getCastFaceOptions(
+                casterId,
+                cardInstanceId,
+                sourceZone,
+                { free: req.free }
+            );
+            const printed = ctx.getChosenCardCastable(
+                casterId,
+                cardInstanceId,
+                sourceZone
+            );
+            if (faces.length === 0) return { cast: printed };
+            // Arena parity — one reachable face is no decision, so no prompt.
+            if (!printed && faces.length === 1) {
+                return { cast: true, alternativeCostId: faces[0].id };
+            }
+            const printedRow = {
+                id: PRINTED_CAST_ROW,
+                label: `Cast ${ctx.getCardName(cardInstanceId) ?? "the card"}`,
+            };
+            const picked = ctx.requestOptionChoice({
+                playerId: req.chooserId,
+                choiceId: req.choiceId,
+                actingPlayerId: req.chooserId,
+                options: printed ? [printedRow, ...faces] : faces,
+                prompt: "Choose which face of the card to cast.",
+            });
+            if (picked === undefined) return undefined;
+            return picked === PRINTED_CAST_ROW
+                ? { cast: printed }
+                : {
+                      cast: faces.some((f) => f.id === picked),
+                      alternativeCostId: picked,
+                  };
         },
         getChosenLandPlayable(playerId, cardInstanceId, sourceZone) {
             // CR 116.2a / 305 (issue #1961) — the LAND twin of
@@ -20039,12 +20173,15 @@ export function buildSpellContext(
             const def = cardId ? tryGetDefinition(cardId) : undefined;
             return !!def && (def.types ?? []).includes("Land");
         },
-        getCardModes(casterId, cardInstanceId) {
+        getCardModes(casterId, cardInstanceId, alternativeCostId) {
             // CR 700.2 / 108.1 — the modes of a chosen card, read from the
             // registry so a controlled cast (Word of Command) can prompt the
             // Acting Player to choose one (CR 700.2c). Empty for a non-modal
             // card. Only id/label are surfaced (the picker's needs).
-            const def = getHandCardDef(state, casterId, cardInstanceId);
+            const def = castSubjectDefinition(
+                getHandCardDef(state, casterId, cardInstanceId),
+                alternativeCostId
+            );
             // CR 614.12a (issue #2019) — also empty when the card's pick is an
             // AS-ENTERS choice (Voice of All, Prismatic Ward, Quirion Elves,
             // Jihad): that choice belongs to the entry moment and the CR 614
@@ -20058,23 +20195,37 @@ export function buildSpellContext(
                 label: m.label,
             }));
         },
-        getCardModeTargetRequirement(casterId, cardInstanceId, modeId) {
+        getCardModeTargetRequirement(
+            casterId,
+            cardInstanceId,
+            modeId,
+            alternativeCostId
+        ) {
             // CR 700.2d — only the chosen mode's target requirement is honored.
-            const def = getHandCardDef(state, casterId, cardInstanceId);
+            const def = castSubjectDefinition(
+                getHandCardDef(state, casterId, cardInstanceId),
+                alternativeCostId
+            );
             return def?.modes?.find((m) => m.id === modeId)?.targetRequirement;
         },
-        cardHasXCost(casterId, cardInstanceId) {
+        cardHasXCost(casterId, cardInstanceId, alternativeCostId) {
             // CR 107.3 — a variable {X} is a string-valued X in the cost.
-            const def = getHandCardDef(state, casterId, cardInstanceId);
+            const def = castSubjectDefinition(
+                getHandCardDef(state, casterId, cardInstanceId),
+                alternativeCostId
+            );
             return typeof (def?.manaCost as { X?: unknown } | undefined)?.X ===
                 "string"
                 ? true
                 : false;
         },
-        getCardSacrificeCost(casterId, cardInstanceId) {
+        getCardSacrificeCost(casterId, cardInstanceId, alternativeCostId) {
             // CR 118.8 — the additional sacrifice cost's filter AND its
             // count, together (issue #3808: "sacrifice five lands").
-            const def = getHandCardDef(state, casterId, cardInstanceId);
+            const def = castSubjectDefinition(
+                getHandCardDef(state, casterId, cardInstanceId),
+                alternativeCostId
+            );
             const filter = def?.additionalCosts?.sacrificeFilter;
             if (!filter) return undefined;
             return {
@@ -20082,7 +20233,12 @@ export function buildSpellContext(
                 count: def?.additionalCosts?.sacrificeFilterCount ?? 1,
             };
         },
-        getMaxAffordableX(controllerId, cardInstanceId) {
+        getMaxAffordableX(
+            controllerId,
+            cardInstanceId,
+            _chosenModeId,
+            alternativeCostId
+        ) {
             // CR 107.3 / ADR 0037 — the largest X payable SOLELY from lands the
             // controlled opponent controls (Word of Command's mana
             // restriction). Mirrors `castChosenSpell`'s payment model: build
@@ -20095,12 +20251,16 @@ export function buildSpellContext(
             // to the generic cost). Returns 0 when even X=0 is unpayable — the
             // caller treats that as "not played" ("if able").
             const owner = getPlayer(state, controllerId);
-            const def = getHandCardDef(state, controllerId, cardInstanceId);
+            const def = castSubjectDefinition(
+                getHandCardDef(state, controllerId, cardInstanceId),
+                alternativeCostId
+            );
             if (!def) return 0;
             // Zone-broad (issue #1477) — a graveyard/exile-sourced cast reads
             // its cost modifiers off the instance wherever it currently sits.
-            const handCard = findCastSource(state, owner, cardInstanceId)?.card;
-            if (!handCard) return 0;
+            const located = findCastSource(state, owner, cardInstanceId)?.card;
+            if (!located) return 0;
+            const handCard = castSubjectView(located, alternativeCostId);
             const subs = getManaSubstitutions(state, controllerId);
             const sources = buildAutoTapSources(
                 owner.battlefield,
@@ -20146,7 +20306,12 @@ export function buildSpellContext(
             }
             return best < 0 ? 0 : best;
         },
-        getLegalTargetsForCard(casterId, cardInstanceId, requirement) {
+        getLegalTargetsForCard(
+            casterId,
+            cardInstanceId,
+            requirement,
+            alternativeCostId
+        ) {
             // ADR 0037 / CR 601.2c — enumerate the legal targets for the chosen
             // card cast under `casterId`'s control (Word of Command's spell
             // branch). Reuses `getLegalTargets` exactly as a normal cast does
@@ -20171,8 +20336,13 @@ export function buildSpellContext(
                 // colour override / grant applies, so this is value-identical
                 // to the old cost-derived read for a plain card and strictly
                 // more correct for a recoloured one.)
+                // CR 709.3a / 712.11c / 715.3a — the announced face is the
+                // source a protection or "can't be the target" clause reads.
                 found
-                    ? targetingSourceFromCard(found.card, true)
+                    ? targetingSourceFromCard(
+                          castSubjectView(found.card, alternativeCostId),
+                          true
+                      )
                     : NO_TARGETING_SOURCE,
                 casterId,
                 undefined
@@ -20220,6 +20390,21 @@ export function buildSpellContext(
             const def = cardId ? tryGetDefinition(cardId) : undefined;
             if (!def) return false;
 
+            // CR 709.3 / 712.11b / 715.3 — WHICH face this cast announced, and
+            // never a price: only a face choice or the Adventure may ride here.
+            // A split card has no printed cast to fall back on.
+            const alternativeCostId = opts?.alternativeCostId;
+            if (
+                alternativeCostId === undefined
+                    ? !offersPrintedCast(def)
+                    : !ridesManaCostReplacement(def, alternativeCostId)
+            ) {
+                return false;
+            }
+            const subjectView = castSubjectView(handCard, alternativeCostId);
+            const subjectDef =
+                castSubjectDefinition(def, alternativeCostId) ?? def;
+
             // CR 601.3a — a controlled cast (Word of Command) and a cast during
             // resolution (CR 608.2g) waive only the timing restrictions based
             // on the card's TYPE (a card-specific phase restriction would
@@ -20234,7 +20419,7 @@ export function buildSpellContext(
             // per-player turn lock are all honoured with no second
             // implementation to drift.
             if (
-                castProhibitionReason(controllerId, handCard, state) !==
+                castProhibitionReason(controllerId, subjectView, state) !==
                 undefined
             ) {
                 return false; // forbidden — not played (CR 601.3a / 117.3)
@@ -20253,14 +20438,14 @@ export function buildSpellContext(
             // be on the CONTROLLED OPPONENT's battlefield and match the card's
             // sacrifice filter; an absent/illegal pick when the card REQUIRES a
             // sacrifice means the cost is unmeetable → not played ("if able").
-            const sacrificeFilter = def.additionalCosts?.sacrificeFilter;
+            const sacrificeFilter = subjectDef.additionalCosts?.sacrificeFilter;
             // Issue #3808 — the cost can demand MORE THAN ONE permanent
             // ("sacrifice five lands"). Every id must be distinct, present on
             // the controlled opponent's battlefield and matching, and there
             // must be exactly as many as the cost demands: a short list is an
             // unmeetable cost, not a discount.
             const sacrificeCount =
-                def.additionalCosts?.sacrificeFilterCount ?? 1;
+                subjectDef.additionalCosts?.sacrificeFilterCount ?? 1;
             const sacrificed: CardInstanceState[] = [];
             if (sacrificeFilter) {
                 const seen = new Set<string>();
@@ -20303,8 +20488,8 @@ export function buildSpellContext(
                 const payment = planResolutionCastPayment(
                     state,
                     owner,
-                    handCard,
-                    opts?.alternativeCost ?? def.manaCost ?? {},
+                    subjectView,
+                    opts?.alternativeCost ?? subjectDef.manaCost ?? {},
                     chosenX
                 );
                 if (payment === null) return false; // unpayable — not played
@@ -20364,7 +20549,7 @@ export function buildSpellContext(
                         ? {
                               sacrificeSelection: {
                                   playerId: controllerId,
-                                  reason: def.name,
+                                  reason: subjectDef.name,
                                   requirements: [
                                       {
                                           filter: sacrificeFilter,
@@ -20390,7 +20575,7 @@ export function buildSpellContext(
                     ),
                     actingPlayerId,
                 },
-                mode: {},
+                mode: castFaceMarkers(def, alternativeCostId),
                 placement: {
                     kind: "during-resolution",
                     resolvingItemId: item.id,
@@ -20401,6 +20586,11 @@ export function buildSpellContext(
     };
     return ctx;
 }
+
+/** The row id `requestCastFace` gives the printed cast, beside the face rows
+ *  whose ids are alternative-cost ids (`MODAL_BACK_CAST_ALT_COST_PREFIX` and its
+ *  siblings are all namespaced, so none can be this). */
+const PRINTED_CAST_ROW = "printed";
 
 /** ADR 0026 — zones in which a card's identity is universally known. Entering
  *  any of these clears the instance's persistent per-viewer `knownTo`. (Exile
