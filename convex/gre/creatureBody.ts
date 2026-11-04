@@ -60,6 +60,9 @@ const KEYWORD_BONUS: Record<string, (power: number) => number> = {
     intimidate: (p) => 8 * p,
     skulk: (p) => 6 * p,
     horsemanship: (p) => 10 * p,
+    // Flanking (CR 702.25): its trigger lives on no definition, so no script
+    // prices it; a discount on every block, same order as a rampage.
+    flanking: () => 6,
     shadow: (p) => 10 * p,
     // Combat amplifiers — value grows with power.
     trample: (p) => 5 * p,
@@ -203,6 +206,7 @@ const ATTACK_SHARE_KEYWORDS: ReadonlySet<string> = new Set([
     "double strike",
     "double-strike",
     "infect",
+    "flanking",
 ]);
 const BLOCK_SHARE_KEYWORDS: ReadonlySet<string> = new Set(["reach"]);
 

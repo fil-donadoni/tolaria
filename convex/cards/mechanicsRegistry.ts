@@ -980,8 +980,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Flanking",
         kind: "keyword-ability",
         cr: "702.25",
-        status: "planned",
-        note: "zero engine hits despite Ice Age (ice) being a supported home set for this keyword",
+        status: "implemented",
+        binding: "flanking",
+        note: "Issue #3994. convex/cards/abilities/flanking.ts: a triggered keyword derived from the live layer-6 `staticAbilities` multiset by `effectiveTriggeredAbilities` (gre/copy.ts), never expanded at `getDefinition`: Agility, Sidewinder Sliver and Jabari's Banner grant it at runtime, and each occurrence is one CR 702.25b instance. Fires per BLOCKERS_CONFIRMED pair; the body is the shipped `pump` Op on `$event.blockerId`.",
     },
     // 702.26 Phasing
     {
