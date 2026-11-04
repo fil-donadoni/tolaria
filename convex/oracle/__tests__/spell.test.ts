@@ -576,7 +576,7 @@ describe("spell slot — a granted keyword is censused, not trusted", () => {
         // until end of turn.") reached `ready` promising an inert effect.
         const outcome = compileCard(
             spellCard({
-                oracleText: "Target creature gains undying until end of turn.",
+                oracleText: "Target creature gains flanking until end of turn.",
             })
         );
         expect(outcome.state).toBe("quarantine");
@@ -585,6 +585,26 @@ describe("spell slot — a granted keyword is censused, not trusted", () => {
                 outcome.reasons.some(
                     (r) =>
                         r.kind === "planned-mechanic" &&
+                        r.detail.includes("flanking")
+                )
+            ).toBe(true);
+    });
+
+    it("quarantines a spell granting a keyword only an expander implements", () => {
+        // CR 702.93a (issue #3997) — undying IS implemented, but by the ADR
+        // 0054 expander, which reads the definition and never the instance a
+        // grant writes: Undying Evil would still promise an inert effect.
+        const outcome = compileCard(
+            spellCard({
+                oracleText: "Target creature gains undying until end of turn.",
+            })
+        );
+        expect(outcome.state).toBe("quarantine");
+        if (outcome.state === "quarantine")
+            expect(
+                outcome.reasons.some(
+                    (r) =>
+                        r.kind === "ungrantable-keyword" &&
                         r.detail.includes("undying")
                 )
             ).toBe(true);

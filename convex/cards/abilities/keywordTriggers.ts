@@ -35,7 +35,9 @@
 //   * Persist (CR 702.79a, issue #1372) — "When this permanent is put into a
 //     graveyard from the battlefield, if it had no -1/-1 counters on it,
 //     return it to the battlefield under its owner's control with a -1/-1
-//     counter on it." Not a pump: see `persistTrigger`'s own doc.
+//     counter on it." Not a pump: see `returnWithCounterTrigger`'s own doc.
+//   * Undying (CR 702.93a, issue #3997) — the same sentence with a +1/+1
+//     counter in both places, so the same trigger with another counter kind.
 
 import type {
     CardDefinition,
@@ -52,14 +54,18 @@ const EXALTED_KEYWORD = "exalted";
 const PROWESS_KEYWORD = "prowess";
 const BATTLE_CRY_KEYWORD = "battle cry";
 const PERSIST_KEYWORD = "persist";
+const UNDYING_KEYWORD = "undying";
 
 const EXALTED_TRIGGER_ID = "exalted";
 const PROWESS_TRIGGER_ID = "prowess";
 const BATTLE_CRY_TRIGGER_ID = "battle-cry";
 const PERSIST_TRIGGER_ID = "persist";
+const UNDYING_TRIGGER_ID = "undying";
 
 /** The counter kind Persist both checks for and returns with (CR 702.79a). */
 const MINUS_ONE_COUNTER = "-1/-1";
+/** The counter kind Undying both checks for and returns with (CR 702.93a). */
+const PLUS_ONE_COUNTER = "+1/+1";
 
 /** +1/+1 until end of turn (CR 613.4c) — the shared pump payload exalted and
  *  prowess apply, differing only in target. */
@@ -155,7 +161,10 @@ function battleCryTrigger(): TriggeredAbility {
     });
 }
 
-/** Persist's CR 702.79a triggered ability.
+/** Persist's CR 702.79a and Undying's CR 702.93a triggered ability: the two
+ *  rules are one sentence differing only in the counter kind, so `counter` is
+ *  the only axis here. The prose below reads for persist; undying is the same
+ *  with "+1/+1" in both places (a Young Wolf comes back a 2/2).
  *
  *  THE EVENT. "This permanent is put into a graveyard from the battlefield" —
  *  a `PERMANENT_LEFT` with `toZone: "graveyard"`, NOT `CREATURE_DIED`: the rule
@@ -193,32 +202,56 @@ function battleCryTrigger(): TriggeredAbility {
  *
  *  CR 702.79a's multiple-instance case (each instance triggers; the second
  *  finds no card) is unreachable by construction, as for battle cry: a
- *  `staticAbilities` list is a set of strings and this ability has ONE id. */
-function hadNoMinusOneCounter(event: PermanentLeftEvent): boolean {
-    return (event.countersBeforeLeave?.[MINUS_ONE_COUNTER] ?? 0) <= 0;
-}
-
-function persistTrigger(): TriggeredAbility {
+ *  `staticAbilities` list is a set of strings and this ability has ONE id.
+ *  CR 702.93a's is the same. A permanent with BOTH keywords carries both ids:
+ *  each is checked against its own counter kind, so one that dies with neither
+ *  counter triggers both and the second to resolve finds no card (CR 400.7). */
+function returnWithCounterTrigger(spec: {
+    id: string;
+    oracleText: string;
+    counter: string;
+}): TriggeredAbility {
+    const hadNoCounter = (event: PermanentLeftEvent): boolean =>
+        (event.countersBeforeLeave?.[spec.counter] ?? 0) <= 0;
     return leftTrigger({
-        id: PERSIST_TRIGGER_ID,
-        oracleText:
-            "Persist (When this creature dies, if it had no -1/-1 counters on it, return it to the battlefield under its owner's control with a -1/-1 counter on it.)",
+        id: spec.id,
+        oracleText: spec.oracleText,
         scope: "self",
         toZone: "graveyard",
         // CR 603.4 — checked as it triggers (`condition`: a persister that
         // died with a -1/-1 counter never goes on the stack) AND again on
         // resolution (`interveningIf`).
-        condition: hadNoMinusOneCounter,
-        interveningIf: hadNoMinusOneCounter,
+        condition: hadNoCounter,
+        interveningIf: hadNoCounter,
         effects: [
             {
                 op: "moveZone",
                 target: { ref: "$source" },
                 from: "graveyard",
                 to: "battlefield",
-                entersWithCounters: { [MINUS_ONE_COUNTER]: 1 },
+                entersWithCounters: { [spec.counter]: 1 },
             },
         ],
+    });
+}
+
+/** Persist's CR 702.79a triggered ability. */
+function persistTrigger(): TriggeredAbility {
+    return returnWithCounterTrigger({
+        id: PERSIST_TRIGGER_ID,
+        oracleText:
+            "Persist (When this creature dies, if it had no -1/-1 counters on it, return it to the battlefield under its owner's control with a -1/-1 counter on it.)",
+        counter: MINUS_ONE_COUNTER,
+    });
+}
+
+/** Undying's CR 702.93a triggered ability. */
+function undyingTrigger(): TriggeredAbility {
+    return returnWithCounterTrigger({
+        id: UNDYING_TRIGGER_ID,
+        oracleText:
+            "Undying (When this creature dies, if it had no +1/+1 counters on it, return it to the battlefield under its owner's control with a +1/+1 counter on it.)",
+        counter: PLUS_ONE_COUNTER,
     });
 }
 
@@ -231,8 +264,8 @@ function hasKeyword(
     return staticAbilities?.some((a) => a.toLowerCase() === keyword) ?? false;
 }
 
-/** Expands a card carrying `exalted` / `prowess` / `battle cry` / `persist` into a
- *  definition that also carries the synthesized triggered ability. Returns the
+/** Expands a card carrying `exalted` / `prowess` / `battle cry` / `persist` /
+ *  `undying` into a definition that also carries the synthesized triggered ability. Returns the
  *  input unchanged when no such keyword is present. Never mutates the input —
  *  clones only `triggeredAbilities`, so the base definition stays shared.
  *  Idempotent by construction (the `getDefinition` seam memo dedups) and
@@ -244,7 +277,15 @@ export function expandKeywordTriggers(def: CardDefinition): CardDefinition {
     const hasProwess = hasKeyword(def.staticAbilities, PROWESS_KEYWORD);
     const hasBattleCry = hasKeyword(def.staticAbilities, BATTLE_CRY_KEYWORD);
     const hasPersist = hasKeyword(def.staticAbilities, PERSIST_KEYWORD);
-    if (!hasExalted && !hasProwess && !hasBattleCry && !hasPersist) return def;
+    const hasUndying = hasKeyword(def.staticAbilities, UNDYING_KEYWORD);
+    if (
+        !hasExalted &&
+        !hasProwess &&
+        !hasBattleCry &&
+        !hasPersist &&
+        !hasUndying
+    )
+        return def;
 
     const existing = def.triggeredAbilities ?? [];
     const injected: TriggeredAbility[] = [];
@@ -259,6 +300,9 @@ export function expandKeywordTriggers(def: CardDefinition): CardDefinition {
     }
     if (hasPersist && !existing.some((t) => t.id === PERSIST_TRIGGER_ID)) {
         injected.push(persistTrigger());
+    }
+    if (hasUndying && !existing.some((t) => t.id === UNDYING_TRIGGER_ID)) {
+        injected.push(undyingTrigger());
     }
     if (injected.length === 0) return def;
 

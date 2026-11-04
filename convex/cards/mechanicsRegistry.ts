@@ -1693,13 +1693,18 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         binding:
             "livingWeapon() self-ETB enteredTrigger — createToken (PHYREXIAN_GERM_TOKEN, bind) + attach Op (ADR 0065)",
     },
-    // 702.93 Undying
+    // 702.93 Undying (issue #3997) — expanded from the bare
+    // `staticAbilities: ["undying"]` string at the `getDefinition` seam
+    // (`expandKeywordTriggers`, `convex/cards/abilities/keywordTriggers.ts`,
+    // ADR 0054), the same trigger as persist with another counter kind.
     {
         id: "undying",
         name: "Undying",
         kind: "keyword-ability",
         cr: "702.93",
-        status: "planned",
+        status: "implemented",
+        binding: "undying",
+        note: "Issue #3997 — CR 702.93a is persist's sentence (CR 702.79a) with a +1/+1 counter in both places, so both keywords share `returnWithCounterTrigger` and differ only in the counter kind: read the persist row for the trigger (a self `leftTrigger` to the graveyard, so a noncreature permanent returns too), the CR 603.4 intervening-if on `countersBeforeLeave` (CR 603.10a) and the `moveZone` with `entersWithCounters` (CR 122.6). CR 704.8's own example is Young Wolf: a +1/+1 counter annihilated in the same SBA check that kills it is still in the snapshot, so it does not return. A permanent with BOTH keywords carries both ids and checks each against its own counter kind. NOT covered, as for persist: granting undying (a grant writes the instance, the expander reads the definition — `isDefinitionLevelKeyword` keeps such grants quarantined, Undying Evil), and an AURA with undying (no such card in the pool).",
     },
     // 702.94 Miracle
     {
