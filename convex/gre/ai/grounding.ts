@@ -34,6 +34,7 @@ import type { GameState } from "../state";
 import type { Feature } from "./featureBasis";
 import type { LatentWeights } from "./evalWeights";
 import { DEFAULT_EVAL_WEIGHTS } from "./evalWeights";
+import { SOURCE_CHOSEN_X_ON_CAST_REF } from "../effects/targetRef";
 
 /** Representative magnitudes used in CONTEXT-FREE grounding (PRD #1423). Not
  *  tuned per card — a coarse "typical" value so a variable-amount card is
@@ -421,6 +422,11 @@ export function contextFreeGrounding(
     const value = (v: EffectValue): GroundedAmount => {
         if (typeof v === "number") return { amount: v, scaling: false };
         if ("X" in v) return { amount: CF_ASSUMED_X, scaling: true };
+        // The source's cast-time X is an X, not a bound object's stat: it grows
+        // with the mana paid, so it is priced and flagged the way `X` is.
+        if ("ref" in v && v.ref === SOURCE_CHOSEN_X_ON_CAST_REF) {
+            return { amount: CF_ASSUMED_X, scaling: true };
+        }
         if ("ref" in v) return { amount: CF_ASSUMED_REF, scaling: false };
         if ("count" in v) return { amount: CF_ASSUMED_COUNT, scaling: true };
         // difference (issue #2006) — `from` minus `minus`, both terminals. With
@@ -452,7 +458,7 @@ export function contextFreeGrounding(
         }
         // divide (issue #2385) — a terminal divided by a fixed divisor,
         // rounded per `rounding`. Mirrors `scaled`'s recursion: the operand
-        // (a literal or a `count`) grounds through the SAME closure, then the
+        // (a literal, a `count` or a cast-time X) grounds through the SAME closure, then the
         // quotient is rounded the way the card's Oracle text specifies (CR
         // 107.1a) rather than falling through to a generic floor.
         if ("divide" in v) {

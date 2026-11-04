@@ -4429,6 +4429,14 @@ export interface SpellContext {
      *  Undefined when no choice was made. Read by the Effect Script's reserved
      *  `$source.chosenSubtype` ref. */
     getChosenSubtypes: () => string[] | undefined;
+    /** CR 400.7d — the X the source permanent was cast with
+     *  (`CardInstanceState.chosenXOnCast`), for an ability's "X" that refers
+     *  back to the spell it became. Reads the source's departure-time
+     *  last-known record when it has left the battlefield (CR 608.2h), and
+     *  never a same-id permanent that has since re-entered (CR 400.7). 0 for a
+     *  permanent that was not cast, or whose cost had no {X}. Read by the
+     *  Effect Script's reserved `$source.chosenXOnCast` ref. */
+    getSourceChosenXOnCast: () => number;
     /** CR 608.2h / 400.7 — whether the resolving ability's SOURCE, as it last
      *  existed on the battlefield, matches `filter` (and, when given, was
      *  controlled by `controllerId`). Answers only when the source has LEFT
@@ -14673,7 +14681,11 @@ export type EffectLibraryPosition =
  *  last-known information), so a ref still reads the right value after the
  *  object has changed zone — e.g. Swords to Plowshares reads the exiled
  *  creature's power. `validateEffectScript` statically rejects an undefined
- *  binding or an unknown property path. */
+ *  binding or an unknown property path.
+ *
+ *  `$source.chosenXOnCast` is the one numeric path that reads no snapshot: the
+ *  X its ability's source permanent was cast with (CR 400.7d), reserved in
+ *  `gre/effects/targetRef.ts`. A permanent that was not cast reads 0. */
 export type EffectRef = { ref: string };
 
 /** CR 607 linked abilities (issue #783) — "the card(s) exiled with this
@@ -15639,6 +15651,13 @@ export interface EffectScaledValue {
     };
 }
 
+/** One operand of a `divide` value — `EffectDifferenceOperand` PLUS the reserved
+ *  `{ ref: "$source.chosenXOnCast" }`: "draw half X cards, rounded down" on a
+ *  permanent's own trigger, where X is the cast-time X (CR 400.7d). A SIBLING
+ *  type, not a widening of `EffectDifferenceOperand`, so `difference` stays
+ *  X-free. The validator admits no other ref here. */
+export type EffectDivideOperand = EffectDifferenceOperand | EffectRef;
+
 /** divide — a terminal DIVIDED by a fixed positive-integer divisor, rounded
  *  toward the stated direction (issue #2385, Tamiyo, Seasoned Scholar's
  *  ultimate: "Draw cards equal to half the number of cards in your library,
@@ -15647,12 +15666,9 @@ export interface EffectScaledValue {
  *  `divide` divides) — same non-Op, non-ADR-0045-reopening status as every
  *  member since `X` (#852): a value member, not a structural construct.
  *
- *  Operand type is `EffectDifferenceOperand` (a literal or a `count`), NOT
- *  `EffectScaledOperand` — no shipped divide card needs `X` as the dividend,
- *  so the operand stays as narrow as `difference`'s (mirrors why `scaled`
- *  needed its OWN wider operand type rather than widening
- *  `EffectDifferenceOperand` in place: adding X here "just in case" would
- *  silently reopen a type nothing asks for). Still a TERMINAL — depth-1,
+ *  Operand type is `EffectDivideOperand`, NOT `EffectScaledOperand` — no
+ *  shipped divide card needs a SPELL's `{ X: true }` as the dividend, so the
+ *  operand stays as narrow as what its cards read. Still a TERMINAL — depth-1,
  *  matching `difference`/`scaled`.
  *
  *  `by` is a plain positive-integer literal divisor (mirrors `scaled.times` —
@@ -15664,14 +15680,14 @@ export interface EffectScaledValue {
  *  author to say which the Oracle text specifies rather than silently picking
  *  one.
  *
- *  CR 107.1b: unlike `difference`, the dividend here is a `count` or a
- *  non-negative literal (never negative by construction — cardinalities and
- *  positive-int literals only), so the quotient is always non-negative and
- *  needs no sign clamp. */
+ *  CR 107.1b: unlike `difference`, the dividend here is a `count`, a
+ *  non-negative literal or a chosen X (never negative by construction —
+ *  cardinalities, positive-int literals and CR 107.3's X only), so the
+ *  quotient is always non-negative and needs no sign clamp. */
 export interface EffectDivideValue {
     divide: {
         /** The terminal value being divided. */
-        value: EffectDifferenceOperand;
+        value: EffectDivideOperand;
         /** Fixed positive-integer divisor. */
         by: number;
         /** CR 107.1a — which way to round a fractional result. */

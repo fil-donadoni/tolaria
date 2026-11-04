@@ -405,3 +405,28 @@ describe("scaled grounds to the multiplied magnitude, not a flat constant (issue
         ).toBe(10);
     });
 });
+
+describe("the source's cast-time X grounds as an X, not a bound object's stat (CR 400.7d)", () => {
+    const castX: EffectValue = { ref: "$source.chosenXOnCast" };
+    const halfX: EffectValue = {
+        divide: { value: castX, by: 2, rounding: "down" },
+    };
+
+    it("context-free: the X magnitude, flagged board-scaling, and a bound stat is neither", () => {
+        expect(cf.value(castX)).toEqual({ amount: 2, scaling: true });
+        expect(cf.value({ ref: "$source.power" }).scaling).toBe(false);
+    });
+
+    it("a divide over it keeps the flag and rounds the way the card says", () => {
+        expect(cf.value(halfX)).toEqual({ amount: 1, scaling: true });
+    });
+
+    it("context-aware: matches the context-free floor, undivided and divided", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const aware = contextAwareGroundingForChoice(state, "p1");
+        expect(aware.value(castX).amount).toBe(cf.value(castX).amount);
+        expect(aware.value(halfX).amount).toBe(cf.value(halfX).amount);
+    });
+});
