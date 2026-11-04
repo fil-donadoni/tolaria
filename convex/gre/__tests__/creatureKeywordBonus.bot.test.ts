@@ -107,6 +107,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     "level-up",
     "job-select",
     "cumulative-upkeep",
+    // CR 702.73a — sets the subtype line; its worth is what reads that line (a
+    // lord's bonus already shows in effective P/T), never the body.
+    "changeling",
     // attach / vehicle / ETB-shaped, not a body quality
     "enchant",
     "equip",

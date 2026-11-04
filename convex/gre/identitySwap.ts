@@ -55,6 +55,7 @@ import type {
     CopyGainedActivatedAbility,
     CopyExcept,
 } from "../cards/types";
+import { withChangelingSubtypes } from "../cards/abilities/changeling";
 import { recomposeLayer6ForInstance } from "./layer6";
 import { recomposeLayers2to5ForInstance } from "./layers2to5";
 import type { CardInstanceState } from "./state/declarations";
@@ -80,18 +81,21 @@ export function copiableValuesOf(
     def: CardDefinition,
     except: CopyExcept | undefined
 ): CopiableValues {
+    const staticAbilities = [
+        ...(def.staticAbilities ?? []),
+        ...(except?.additionalStaticAbilities ?? []),
+    ];
     return {
         types: [...def.types, ...(except?.additionalTypes ?? [])],
-        subtypes: [
-            ...(def.subtypes ?? []),
-            ...(except?.additionalSubtypes ?? []),
-        ],
+        // CR 702.73a — "except it has changeling" (a copiable value, CR 707.9b)
+        // makes the copy every creature type, as a printed one would be.
+        subtypes: withChangelingSubtypes(
+            [...(def.subtypes ?? []), ...(except?.additionalSubtypes ?? [])],
+            staticAbilities
+        ),
         power: except?.basePower ?? def.power,
         toughness: except?.baseToughness ?? def.toughness,
-        staticAbilities: [
-            ...(def.staticAbilities ?? []),
-            ...(except?.additionalStaticAbilities ?? []),
-        ],
+        staticAbilities,
     };
 }
 

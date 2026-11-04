@@ -9,6 +9,7 @@ import type {
 } from "~/types/game";
 import type { CardType, Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
+import { displaySubtypes } from "@convex/cards/abilities/changeling";
 import { classLevelActivationViolation } from "@convex/cards/abilities/classLevels";
 import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import {
@@ -3769,7 +3770,7 @@ export function formatTypeLine(
     supertypes: string[] | undefined
 ): string {
     const left = [...(supertypes ?? []), ...(types ?? [])].join(" ");
-    const right = (subtypes ?? []).join(" ");
+    const right = displaySubtypes(subtypes ?? []).join(" ");
     return right ? `${left} — ${right}` : left;
 }
 
