@@ -7,7 +7,7 @@
  * own `@mergifyio requeue` (`REQUEUE_COMMENT`, shared with `pr-gate`'s
  * GREEN-side requeue, issue #6110). Pure; `land-ready.ts` is the I/O.
  */
-import { FAILED_LABEL, READY_LABEL } from "./land-runner";
+import { FAILED_LABEL, READY_LABEL } from "./land-labels";
 import { MERGIFY_QUEUED_LABEL, REQUEUE_COMMENT } from "./pr-gate";
 
 export interface PrComment {

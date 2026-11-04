@@ -3,8 +3,8 @@
 Reached from `SKILL.md` § 0 when the pick is `repair` (`queue:plan`'s
 `repair[0]`, first of all picks), or from § 5 when `land:ready` refuses (its
 preflight or pre-queue check red: the PR's own error, fixed in the authoring
-session, never handed to the queue). The Mergify queue (the land-runner is
-retired, issue #5643) rebased the PR in a draft, ran `check:lane` there, it
+session, never handed to the queue). The Mergify queue (issue #5643; the land-runner
+it replaced is deleted, issue #5654) rebased the PR in a draft, ran `check:lane` there, it
 went red or the rebase conflicted, and the queue relabelled the PR
 `ready-to-land` → `land-failed` with a comment carrying the reason. The
 issue's claim still stands (the `in-progress` label); the repair pass takes

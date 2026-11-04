@@ -82,8 +82,8 @@ const reaperPlist = unit(
 );
 
 const live = new Set([
-    `${REPO}/scripts/land-runner.ts`,
-    "/r/scripts/land-runner.ts",
+    `${REPO}/scripts/heartbeat.ts`,
+    "/r/scripts/heartbeat.ts",
 ]);
 const exists = (p: string) => live.has(p);
 
@@ -119,12 +119,12 @@ describe("staleUnits", () => {
     it("keeps a unit whose script is present", () => {
         expect(staleUnits([health, healthTimer], () => true)).toEqual([]);
     });
-    it("flags a dead launchd agent, keeps the rendered land-runner", () => {
-        const landRunner = unit(
-            "com.tolaria.land-runner.plist",
+    it("flags a dead launchd agent, keeps the rendered heartbeat agent", () => {
+        const heartbeat = unit(
+            "com.tolaria.heartbeat.plist",
             renderLaunchdUnit(
                 readFileSync(
-                    "scripts/runner-units/com.tolaria.land-runner.plist",
+                    "scripts/runner-units/com.tolaria.heartbeat.plist",
                     "utf8"
                 ),
                 { repo: "/r", bun: "/h/bun", nodeBin: "/h/n", home: "/h" },
@@ -132,9 +132,7 @@ describe("staleUnits", () => {
             )
         );
         expect(
-            staleUnits([landRunner, reaperPlist], exists).map(
-                (s) => s.unit.name
-            )
+            staleUnits([heartbeat, reaperPlist], exists).map((s) => s.unit.name)
         ).toEqual(["com.tolaria.reaper.plist"]);
     });
 });

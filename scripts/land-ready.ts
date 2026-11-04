@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * `bun run land:ready <PR#>` — a session's LAST act: hand the
- * pushed PR to the land-runner. One verb, so the two halves never split:
+ * pushed PR to the merge queue. One verb, so the two halves never split:
  *
  *   1. the PR is labelled `ready-to-land` (and loses `land-failed`, so a
  *      repaired PR re-queues with the same command) and, when the Mergify
@@ -50,8 +50,8 @@
  * beside `land`'s, and the queue never reads it.
  *
  * Refuses a PR that is not open or does not target the base branch — the
- * runner's `land` would refuse it anyway, an hour later, as a `land-failed`.
- * The decisions are `lib/land-runner.ts` and `lib/claim-labels.ts`; this file
+ * queue would refuse it anyway, later, as a `land-failed`.
+ * The decisions are `lib/queue-hand-off.ts` and `lib/claim-labels.ts`; this file
  * is the I/O.
  */
 import { spawnSync } from "node:child_process";
@@ -100,20 +100,18 @@ import {
 } from "./lib/derived-in-pr";
 import { gh } from "./lib/gh";
 import { issueOfBranch } from "./lib/issue-worktree";
-import { MANUAL_LABEL } from "./lib/land-labels";
 import {
     lastDequeueAt,
     needsDequeueRequeue,
     readBackVerdict,
     type PrComment,
 } from "./lib/land-requeue";
+import { FAILED_LABEL, MANUAL_LABEL, READY_LABEL } from "./lib/land-labels";
 import {
     bodyWithClosingRef,
     handsToQueue,
-    FAILED_LABEL,
     labelArgs,
-    READY_LABEL,
-} from "./lib/land-runner";
+} from "./lib/queue-hand-off";
 import {
     gatePrOf,
     parseTrustedAuthors,
