@@ -78,6 +78,7 @@ import {
 } from "./abilities/triggers/spellCastTrigger";
 import { tappedTrigger } from "./abilities/triggers/tappedTrigger";
 import { cycledTrigger } from "./abilities/cycling";
+import { classLevelGainedTrigger } from "./abilities/classLevels";
 import {
     additionalCostPaidCondition,
     withAdditionalCostTwin,
@@ -368,6 +369,8 @@ export type CompiledTriggerHead =
     | { readonly kind: "cycled" }
     /** CR 603.8 — "when this creature's power is N or greater" (state trigger). */
     | { readonly kind: "power-reached"; readonly atLeast: number }
+    /** CR 716.2a — "when this Class becomes level N". */
+    | { readonly kind: "class-level-gained"; readonly level: number }
     /** CR 603.6a — "at the beginning of [your/each] <step>". */
     | {
           readonly kind: "phase";
@@ -856,6 +859,21 @@ function resolveCompiledTriggerHead(
             });
         case "cycled":
             return cycledTrigger(common);
+        case "class-level-gained":
+            // CR 716.2a — the factory a hand-written Class calls. Levels are
+            // gained one at a time and only upward, so the head alone says when
+            // it fires, and a Class line prints no gate beside it.
+            if (descriptor.condition !== undefined)
+                throw new Error(
+                    `compiled trigger ${descriptor.id}: a class level head takes no condition`
+                );
+            return classLevelGainedTrigger({
+                id: common.id,
+                level: head.level,
+                oracleText: common.oracleText,
+                ...targeting,
+                effects: common.effects,
+            });
         case "power-reached": {
             // CR 603.8 — the predicate is the trigger; `stateTrigger` wires the
             // resolve-time re-check. A state trigger takes no intervening-if
@@ -951,6 +969,28 @@ function readEffectivePower(
     return effectivePowerReader?.(self, state) ?? self.power ?? 0;
 }
 
+/** CR 716.2a — a Class section's descriptors, rebuilt in place on their bar so
+ *  `expandClassLevelBars`, which runs after this seam, gates them exactly as it
+ *  gates a hand-written section. */
+function expandBarTriggers(base: CardDefinition): CardDefinition {
+    const bars = base.classLevelBars;
+    if (bars?.some((b) => b.compiledTriggeredAbilities) !== true) return base;
+    return {
+        ...base,
+        classLevelBars: bars.map((bar) => {
+            const { compiledTriggeredAbilities: descriptors, ...rest } = bar;
+            if (descriptors === undefined) return bar;
+            return {
+                ...rest,
+                triggeredAbilities: [
+                    ...(bar.triggeredAbilities ?? []),
+                    ...descriptors.map(resolveCompiledTrigger),
+                ],
+            };
+        }),
+    };
+}
+
 /**
  * ADR 0054 seam — rebuild every compiled descriptor into a real triggered
  * ability, and REMOVE the descriptor field from the expanded definition.
@@ -961,7 +1001,8 @@ function readEffectivePower(
  * differ from its hand-written twin by a field that carries no behaviour, and
  * the harness would report that as a compiler defect on every trigger card.
  */
-export function expandCompiledTriggers(base: CardDefinition): CardDefinition {
+export function expandCompiledTriggers(raw: CardDefinition): CardDefinition {
+    const base = expandBarTriggers(raw);
     const descriptors = base.compiledTriggeredAbilities;
     const grantDescriptors = base.compiledTriggeredGrantTemplates;
     if (

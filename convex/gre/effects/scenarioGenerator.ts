@@ -244,6 +244,8 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     "turned-face-up": () => true,
     // CR 603.8 — the source is on the battlefield with the power that triggers.
     "power-reached": () => true,
+    // CR 716.2a — the level is gained by this permanent's own bar resolving.
+    "class-level-gained": () => true,
     // CR 701.26a — the source just became tapped and is still on the battlefield.
     tapped: () => true,
     // CR 605.1b — the Aura's host is tapped for mana while the source stays put.

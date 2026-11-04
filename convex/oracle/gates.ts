@@ -55,6 +55,7 @@
 
 import { isRegisteredEffectOp } from "../cards/mechanicsRegistry";
 import { expandCascade } from "../cards/abilities/cascade";
+import { buildLevelBarAbility } from "../cards/abilities/classLevels";
 import { registerTokenDefinition } from "../cards/registry";
 import { resolveCompiledTrigger } from "../cards/compiledTriggers";
 import type { CompiledTriggerHead } from "../cards/compiledTriggers";
@@ -386,14 +387,24 @@ export interface GateResult {
  * whose body is a single registered Op are censused here, so no new gate input
  * reaches the smoke generator.
  */
-function expanderOps(definition: CompiledDefinition): string[] {
+export function expanderOps(definition: CompiledDefinition): string[] {
     const bare = definition as unknown as CardDefinition;
+    // CR 716.2a — a class level bar is the activated ability that sets the
+    // level, whose `setLevel` no authored script carries.
+    const barOps = collectOps(
+        (bare.classLevelBars ?? []).map(
+            buildLevelBarAbility
+        ) as unknown as CompiledDefinition
+    );
     const expanded = expandCascade(bare);
-    if (expanded === bare) return [];
+    if (expanded === bare) return barOps;
     const injected = (expanded.triggeredAbilities ?? []).filter(
         (t) => !(bare.triggeredAbilities ?? []).includes(t)
     );
-    return collectOps(injected as unknown as CompiledDefinition);
+    return [
+        ...barOps,
+        ...collectOps(injected as unknown as CompiledDefinition),
+    ];
 }
 
 export function runGates(input: GateInput): GateResult {

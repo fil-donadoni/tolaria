@@ -226,6 +226,7 @@ const SELF_NOUNS: ReadonlySet<string> = new Set([
     "Aura",
     "Equipment",
     "Vehicle",
+    "Class",
 ]);
 
 /** True when the span names the source object (CR 700.7). */

@@ -203,12 +203,23 @@ const LAYER_2_5_STATIC_KINDS = new Set<string>([
  *     by `expandBestow` at that same post-index seam;
  *   - an `"impending N"` keyword (CR 702.176a), whose layer-4 "not a
  *     creature" removal `expandImpending` injects at the same seam. */
+const classSectionStatics = (
+    def: CardDefinition
+): readonly { readonly kind: string }[] =>
+    (def.classLevelBars ?? []).flatMap((bar) => [
+        ...(bar.staticEffects ?? []),
+        ...(bar.compiledStaticEffects ?? []),
+    ]);
+
 const declaresStaticKind = (
     def: CardDefinition,
     kinds: ReadonlySet<string>
 ): boolean =>
     (def.staticEffects ?? []).some((e) => kinds.has(e.kind)) ||
     (def.compiledStaticEffects ?? []).some((d) => kinds.has(d.kind)) ||
+    // CR 716.2a — a Class section's statics reach `staticEffects` only at the
+    // `expandClassLevelBars` seam, after this index reads the raw entry.
+    classSectionStatics(def).some((e) => kinds.has(e.kind)) ||
     (def.modes ?? []).some((m) =>
         (m.staticEffects ?? []).some((e) => kinds.has(e.kind))
     ) ||

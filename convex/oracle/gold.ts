@@ -47,6 +47,7 @@ import {
     MODAL_DFC_LAYOUT,
     oracleLayoutForInsetKind,
     TRANSFORM_LAYOUT,
+    CLASS_LAYOUT,
 } from "./compile";
 import { canonicaliseShorthands, sortKeys } from "./gates";
 import { printManaCost } from "./manaCost";
@@ -209,6 +210,14 @@ export function behaviouralProjection(
         if (PASSTHROUGH_KEYS.has(key) || value === undefined) continue;
         if (CLOSURE_VALUED_KEYS.has(key)) {
             out[key] = sortKeys(() => undefined);
+            continue;
+        }
+        // CR 716.2 — a bar's section holds the same ability arrays a card does,
+        // so its ids and display strings fold the same way.
+        if (key === "classLevelBars" && Array.isArray(value)) {
+            out[key] = value.map((bar) =>
+                behaviouralProjection(bar as CardDefinition)
+            );
             continue;
         }
         if (STATIC_ARRAY_KEYS.has(key) && Array.isArray(value)) {
@@ -543,7 +552,12 @@ export function goldOracleCard(definition: CardDefinition): OracleCard {
                               },
                           ],
                       }
-                    : { layout: "normal" }),
+                    : definition.classLevelBars
+                      ? // CR 716.2 — a Class prints its sections in one text
+                        // box, so the input is the whole `oracleText` and the
+                        // layout alone says to read its bars.
+                        { layout: CLASS_LAYOUT }
+                      : { layout: "normal" }),
     };
 }
 
@@ -865,6 +879,7 @@ const TRIGGER_HEAD_EVENT: Record<CompiledTriggerHead["kind"], GameEventType> = {
     cycled: "CARD_DISCARDED",
     phase: "PHASE_BEGIN",
     "spell-cast": "SPELL_CAST",
+    "class-level-gained": "LEVEL_GAINED",
 };
 
 /** `TriggeredAbility.event` normalised to an array — CR 603.2 lets one Oracle
