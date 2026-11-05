@@ -13912,16 +13912,6 @@
         "source": "compiled"
     },
     {
-        "name": "Coastal Breach",
-        "scryfallId": "bf8b550a-c86f-4684-a4f6-14e75172324f",
-        "oracleId": "e42b6bd7-8fdf-4452-85cc-9aed790ff682",
-        "firstSet": "c16",
-        "firstPrintId": "bf8b550a-c86f-4684-a4f6-14e75172324f",
-        "firstPrintSet": "c16",
-        "rarity": "rare",
-        "source": "compiled"
-    },
-    {
         "name": "Coastal Drake",
         "scryfallId": "f87aaa74-26c6-4057-84b9-a007383684a5",
         "oracleId": "d4220231-e9ac-4390-8c7b-979549b26d33",
@@ -65870,16 +65860,6 @@
         "source": "compiled"
     },
     {
-        "name": "Seeds of Renewal",
-        "scryfallId": "ba13b3ba-c36e-4c79-aaa6-2c2619a2d999",
-        "oracleId": "48d63b86-8ddd-4306-960f-98490d1d80b9",
-        "firstSet": "c16",
-        "firstPrintId": "ba13b3ba-c36e-4c79-aaa6-2c2619a2d999",
-        "firstPrintSet": "c16",
-        "rarity": "rare",
-        "source": "compiled"
-    },
-    {
         "name": "Seeds of Strength",
         "scryfallId": "bfa1ac13-adbd-439a-90b2-9c506aec0836",
         "oracleId": "dd3d4d96-1e88-49e1-8276-7f62c22ad91a",
@@ -74932,16 +74912,6 @@
         "firstSet": "atq",
         "firstPrintId": "a64d4f93-0c04-4078-aec0-7e9de92f260f",
         "firstPrintSet": "atq"
-    },
-    {
-        "name": "Sublime Exhalation",
-        "scryfallId": "ac6d4a9e-a7fd-480e-96cf-5cf6d2390189",
-        "oracleId": "9e0c66e9-7d2b-46bd-890e-886d0c029d1d",
-        "firstSet": "c16",
-        "firstPrintId": "ac6d4a9e-a7fd-480e-96cf-5cf6d2390189",
-        "firstPrintSet": "c16",
-        "rarity": "rare",
-        "source": "compiled"
     },
     {
         "name": "Submerge",
