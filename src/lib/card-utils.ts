@@ -3218,6 +3218,7 @@ export function getAbilityOracleText(
  *  Storm's (CR 702.40),
  *  Replicate's (CR 702.56),
  *  Conspire's (CR 702.78),
+ *  Gravestorm's (CR 702.69),
  *  Epic's upkeep trigger (CR 702.50). No card declares them in
  *  `triggeredAbilities` (they are not per-card DSL/`resolve()` abilities, see
  *  `collectCastTriggers` / `resolveCastCopyTrigger` in `convex/gre/state.ts`),
@@ -3227,6 +3228,10 @@ const CAST_COPY_TRIGGER_ORACLE_TEXT: ReadonlyMap<string, string> = new Map([
     [
         "storm",
         "Storm (When you cast this spell, copy it for each spell cast before it this turn. You may choose new targets for the copies.)",
+    ],
+    [
+        "gravestorm",
+        "Gravestorm (When you cast this spell, copy it for each permanent put into a graveyard this turn. You may choose new targets for the copies.)",
     ],
     [
         "replicate",

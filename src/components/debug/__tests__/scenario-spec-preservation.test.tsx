@@ -124,6 +124,7 @@ const STORED: Required<ScenarioSpec> = {
     artifactDamageToPlayerThisTurn: { me: 2, opp: 0 },
     lifeGainedThisTurn: { me: 3, opp: 0 },
     deathsThisTurn: 2,
+    permanentsToGraveyardThisTurn: 3,
     creatureAttackedThisTurn: true,
     // CR 508.1c / 500.1 / 207.2c (issue #3450) — a curated row whose
     // opponent did nothing last turn (no attack against them with an Arboria

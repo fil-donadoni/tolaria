@@ -2625,8 +2625,15 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  `priorSpellCount`; CR 702.56a Replicate: the times its cost was paid);
      *  decremented by one per copy created. The trigger stays on the stack
      *  (peek-and-pop) while this is > 0 so a suspended per-copy retarget
-     *  prompt resumes the loop for the next copy rather than losing progress. */
+     *  prompt resumes the loop for the next copy rather than losing progress.
+     *  A Gravestorm trigger's value is only a hint until it resolves; see
+     *  `castCopyCountReadOnResolution`. */
     castCopiesRemaining?: number;
+    /** Gravestorm (CR 702.69a): the count is game information no clause fixes
+     *  at the cast, so it is read as the trigger resolves, once (CR 608.2h).
+     *  Present until that read; a retarget suspension resumes without it, so
+     *  a later departure cannot change a count already taken. */
+    castCopyCountReadOnResolution?: true;
     /** If set, this stack item is a delayed triggered ability (CR 603.7a)
      *  queued by an earlier spell's resolution. The resolve function lives on
      *  `cardDef.delayedTriggers[triggerId]` and receives `delayedPayload` —
@@ -5026,6 +5033,12 @@ export type GameState = {
      *  reset at turn start. Read by Scavenging Ghoul and similar
      *  count-based triggers. */
     deathsThisTurn?: number;
+    /** Gravestorm (CR 702.69a) — permanents put into ANY graveyard from the
+     *  battlefield this turn. Wider than `deathsThisTurn`: every permanent
+     *  type counts, tokens included (a token reaches the graveyard before it
+     *  ceases to exist, CR 111.7). A departure a replacement sends elsewhere
+     *  never raises it. Sole writer `removePermanentTo`; reset at turn start. */
+    permanentsToGraveyardThisTurn?: number;
     /** Storm (CR 702.40a) — count of spells cast by ANY player this turn.
      *  Incremented inside `emitSpellCastEvent`; reset at the start of each
      *  turn (`advanceTurn`, ADR 0052). A spell COPY (`cloneSpellOntoStack`)

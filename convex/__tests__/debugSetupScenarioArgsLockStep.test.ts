@@ -137,6 +137,7 @@ describe("debugSetupScenario args validator declares `life` (issue #2147, sixth 
             artifactDamageToPlayerThisTurn: { me: 1 },
             lifeGainedThisTurn: { me: 1 },
             deathsThisTurn: 1,
+            permanentsToGraveyardThisTurn: 1,
             creatureAttackedThisTurn: true,
             qualifyingActionThisTurn: { me: true },
             qualifyingActionLastTurn: { me: true },
