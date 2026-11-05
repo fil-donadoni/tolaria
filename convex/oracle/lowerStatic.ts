@@ -226,9 +226,9 @@ const DOES_NOT_UNTAP_MARKER = "does-not-untap";
  * `haste`, `flying`, `lifelink`. It is NOT enough for one whose implementation
  * is an ADR 0054 expander: `expandKeywordTriggers` reads
  * `def.staticAbilities` off the DEFINITION and injects a triggered ability
- * there (CR 702.108a prowess), and trigger collection reads the definition's
- * `triggeredAbilities`, never the instance's keyword list. Granting `prowess`
- * therefore produces no trigger at all: "Creatures you control have prowess"
+ * there (CR 702.91a battle cry), and trigger collection reads the definition's
+ * `triggeredAbilities`, never the instance's keyword list. Granting `battle cry`
+ * therefore produces no trigger at all: "Creatures you control have battle cry"
  * would ship `ready` and do nothing.
  *
  * The registry's `status: "implemented"` cannot answer this — it is a claim

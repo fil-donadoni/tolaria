@@ -1870,6 +1870,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         // filter excludeTypes "Creature"), this creature gets +1/+1 until end
         // of turn (pump Op on `$source`, CR 613.4c).
         binding: "prowess",
+        note: 'A static grant (Bria, Riptide Rogue) expands to a `triggered-grant` beside the keyword grant, one entry per grant, which is what makes CR 702.108b hold: each instance triggers separately. A one-shot "gains prowess" stays quarantined as `ungrantable-keyword`.',
     },
     // 702.109 Dash
     {
