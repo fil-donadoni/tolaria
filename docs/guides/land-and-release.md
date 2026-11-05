@@ -307,7 +307,7 @@ that is `running` or `green`, and no TTY.
   attempted, then the refusal verbatim; the RED stands and holds the queue until
   it is gone. A `stuck` verdict means the fixer would not
   defend its own repair — read its issue, fix forward on the base branch like
-  any PR (never stack unrelated work on a red tip, never silence a test), then
+  any PR (never stack unrelated work on a blocking RED, never silence a test), then
   `release` again. Attribution over a batch of N landings costs at most
   ⌈log₂ N⌉ health runs.
 - **Non-fast-forward.** The release branch has a commit the base branch lacks
