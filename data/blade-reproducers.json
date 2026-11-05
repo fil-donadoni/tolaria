@@ -1499,6 +1499,40 @@
     },
     "entomb: buries the reanimation target, not one of eight lands": null,
     "entomb: buries the self-reachable card, not the bigger body": null,
+    "epic: casts the tutor whose hit stops the attackers it cannot survive": {
+        "cards": [
+            {
+                "name": "Enduring Ideal",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Moat",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 7,
+        "libraryCount": 20,
+        "life": {
+            "me": 10,
+            "opp": 20
+        }
+    },
     "escape: casts Phlage from the graveyard": {
         "cards": [
             {

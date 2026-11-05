@@ -77,6 +77,7 @@ const NOT_A_BODY_KEYWORD = new Set([
     "flashback",
     "madness",
     "morph",
+    "epic",
     "storm",
     "affinity",
     "undaunted",

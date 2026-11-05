@@ -1256,7 +1256,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Epic",
         kind: "keyword-ability",
         cr: "702.50",
-        status: "planned",
+        status: "implemented",
+        binding: "gre/epic.ts applyEpicAbilities + buildEpicCopyTrigger",
+        note: "Issue #6745. Engine code at the end of `finalizeSpellResolution`, so a spell that does not resolve does neither half. CR 702.50b is a `cantCastSpells` entry of `playerRestrictions` (never cleared), read by the shared cast gate `castProhibitionReason`, so server, client and Bot agree. The upkeep half is a `DelayedTriggerInstance` on the repeating `each-own-upkeep` timing carrying `spellToCopy`, the spell as it resolved less the keyword, persisted and slimmed like a stack item. Each firing is a cast-copy stack item with a count of one, so a copy is cloned and offered new targets (CR 707.10c) on the path Storm uses. A copy made by anything else keeps epic. Used by Enduring Ideal.",
     },
     // 702.51 Convoke
     {

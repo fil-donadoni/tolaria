@@ -15,6 +15,8 @@
 // it carries no per-instance flag and auto-reverts when the source leaves play.
 
 import { getInstanceManaCost, tryGetDefinition } from ".";
+import { playerHasRestriction } from "../gre/playerRestrictions";
+import type { PlayerRestriction } from "../gre/state/declarations";
 import { splitSecondSpellOnStack } from "./abilities/splitSecond";
 import type { SplitSecondStackView } from "./abilities/splitSecond";
 import { objectHasChosenName } from "./cardNames";
@@ -107,6 +109,9 @@ export interface CastRestrictionStateView extends SplitSecondStackView {
         playerId: string;
         cardTypes?: readonly CardType[];
     }>;
+    /** CR 702.50b — game-long player locks. The epic one forbids every spell;
+     *  it survives the projection like the turn lock above. */
+    playerRestrictions?: ReadonlyArray<PlayerRestriction>;
     /** CR 601.3b (Teferi, Time Raveler +1) — per-player "cast spells of these
      *  types as though they had flash" grants. Read by `hasCastTimingFlashGrant`
      *  to widen a sorcery-speed card's timing window. Survives the wire
@@ -395,6 +400,11 @@ export function castProhibitionReason(
         ) {
             return "That player can't cast spells this turn.";
         }
+    }
+    // CR 702.50b — "can't cast spells once a spell with epic they control
+    // resolves". Lands are unaffected, for the same reason as just above.
+    if (playerHasRestriction(state, casterId, "cantCastSpells")) {
+        return "That player can't cast spells for the rest of the game.";
     }
     for (const player of state.players) {
         for (const source of player.battlefield) {

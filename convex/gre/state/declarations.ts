@@ -2030,8 +2030,10 @@ export type PlayerDamagePreventionShield = {
 /** The kinds of player-scoped rule a {@link PlayerRestriction} imposes.
  *  `"cantGainLife"` — CR 119.7: the player can't gain life; a gain that
  *  would happen doesn't, and a replacement effect that would replace it
- *  does nothing. */
-export type PlayerRestrictionKind = "cantGainLife";
+ *  does nothing.
+ *  `"cantCastSpells"` — CR 702.50b: the player can't cast spells; an effect can
+ *  still put a copy of a spell onto the stack. */
+export type PlayerRestrictionKind = "cantGainLife" | "cantCastSpells";
 
 /** One `GameState.playerRestrictions` entry: `playerId` is under `kind` for
  *  the rest of the game (CR 611.2a). */
@@ -2846,6 +2848,11 @@ export type DelayedTriggerInstance = {
      *  `resetBattlefieldTransientState` on the way out) is what answers it.
      *  Undefined for every non-warp instance. */
     warpCardInstanceId?: string;
+    /** CR 702.50a (Epic) — the spell this trigger copies at each firing, as it
+     *  resolved and without its epic ability: the spell itself is long gone by
+     *  then. When set, `fireDelayedTriggers` builds `buildEpicCopyTrigger`
+     *  rather than the generic stack item. */
+    spellToCopy?: StackItem;
 };
 
 /** CR 601.2f — the caster's open decision on a restricted X: each option is how

@@ -3217,7 +3217,8 @@ export function getAbilityOracleText(
 /** The cast-copy triggers (ADR 0052) are engine-synthesized:
  *  Storm's (CR 702.40),
  *  Replicate's (CR 702.56),
- *  Conspire's (CR 702.78). No card declares them in
+ *  Conspire's (CR 702.78),
+ *  Epic's upkeep trigger (CR 702.50). No card declares them in
  *  `triggeredAbilities` (they are not per-card DSL/`resolve()` abilities, see
  *  `collectCastTriggers` / `resolveCastCopyTrigger` in `convex/gre/state.ts`),
  *  so their labels can't come from a card-def lookup. Keyed by the trigger
@@ -3234,6 +3235,10 @@ const CAST_COPY_TRIGGER_ORACLE_TEXT: ReadonlyMap<string, string> = new Map([
     [
         "conspire",
         "Conspire (When you cast this spell, if its conspire cost was paid, copy it. If the spell has any targets, you may choose new targets for the copy.)",
+    ],
+    [
+        "epic",
+        "Epic (At the beginning of each of your upkeeps, copy this spell except for its epic ability. If the spell has any targets, you may choose new targets for the copy.)",
     ],
 ]);
 
