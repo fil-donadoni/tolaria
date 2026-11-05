@@ -16491,6 +16491,13 @@ export type EffectForEachSelector =
            *  composes with either. A no-op when the source is not itself a
            *  member of the selected set. */
           excludeSource?: boolean;
+          /** CR 115.1 + CR 608.2c — "Put two +1/+1 counters on target creature
+           *  you control. Other creatures you control get +1/+1": "other" on a
+           *  spell names what the sentence before it named, the announced
+           *  target, not the source (a resolving spell is on no battlefield).
+           *  When `true`, drops every permanent in `ctx.targets` from the
+           *  frozen member set, after `filter`/`controller` narrow it. */
+          excludeTargets?: boolean;
           /** CR 120.1 / 400.7 — "each planeswalker it has dealt damage to
            *  this game" (The Fallen): when `true`, keeps only the members the
            *  resolving ability's SOURCE has dealt damage to as the object it

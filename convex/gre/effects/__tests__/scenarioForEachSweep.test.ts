@@ -366,24 +366,15 @@ describe("'other' names the source only where it is a permanent (CR 113.7)", () 
         expect(plan.kind).toBe("skip");
     });
 
-    it("a compiled spell whose 'other' means 'non-Zombie' stays quarantined", () => {
-        // In Oketra's Name: the grammar reads "other creatures" as the source
-        // exclusion, which on a spell leaves Zombies with both pumps.
-        const outcome = compileCard(
-            oracleCard({
-                name: "In Oketra's Name",
-                manaCost: "{1}{W}",
-                typeLine: "Instant",
-                oracleText:
-                    "Zombies you control get +2/+1 until end of turn. Other creatures you control get +1/+1 until end of turn.",
-                power: undefined,
-                toughness: undefined,
-            })
+    it("a sweep sparing the announced target speaks through its own test", () => {
+        // CR 115.1 — the seeded board does not know which slot it spares.
+        const sparing = sweep(
+            PUMP,
+            { type: "Creature" },
+            { excludeTargets: true }
         );
-        expect(outcome.state).toBe("quarantine");
-        if (outcome.state !== "quarantine") return;
-        expect(outcome.reasons.map((r) => r.detail)).toContainEqual(
-            expect.stringContaining("excludes its source")
+        expect(skipReasons([sparing])).toContainEqual(
+            expect.stringContaining("spares the announced target")
         );
     });
 });

@@ -1377,13 +1377,16 @@ function isSymmetricSelector(select: unknown): boolean {
         set?: unknown;
         controller?: unknown;
         damagedBySourceThisGame?: unknown;
+        excludeTargets?: unknown;
     };
     return (
         sel.set === "players" ||
         (sel.set === "permanents" &&
             sel.controller === undefined &&
             // CR 120.1 — the source's damage history is one-sided.
-            sel.damagedBySourceThisGame !== true)
+            sel.damagedBySourceThisGame !== true &&
+            // CR 115.1 — the sweep spares what its caster chose.
+            sel.excludeTargets !== true)
     );
 }
 
