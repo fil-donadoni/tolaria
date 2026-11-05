@@ -95,6 +95,7 @@ const NOT_A_BODY_KEYWORD = new Set([
     "dash",
     "improvise",
     "assist",
+    "demonstrate",
     "eternalize",
     "escape",
     "companion",

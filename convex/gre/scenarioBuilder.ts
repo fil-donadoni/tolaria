@@ -1393,6 +1393,7 @@ export function buildStateFromScenario(
     state.pendingActivation = undefined;
     state.pendingCompanionPay = undefined;
     state.pendingTarget = undefined;
+    state.queuedCopyRetargets = undefined;
     state.pendingChoices = undefined;
     state.pendingTriggerBatch = undefined;
     state.pendingReflexiveTriggers = undefined;

@@ -35268,6 +35268,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Healing Technique",
+        "scryfallId": "33897125-a1df-4d7a-a45a-9c049cb662f6",
+        "oracleId": "1b99c32d-1d02-410e-84bf-9db2ca05f576",
+        "firstSet": "c21",
+        "firstPrintId": "33897125-a1df-4d7a-a45a-9c049cb662f6",
+        "firstPrintSet": "c21",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Heap Doll",
         "scryfallId": "86d726e1-a363-4d77-97d4-e8c94f93fd51",
         "oracleId": "aa7f0f15-bcbb-4af5-ad31-ff215dd81e71",
@@ -38106,6 +38116,16 @@
         "firstSet": "chk",
         "firstPrintId": "2dd67e11-3dad-4e59-b15d-02911e53fbbf",
         "firstPrintSet": "chk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Incarnation Technique",
+        "scryfallId": "9655deda-f02b-47a0-89a3-2904b11b84aa",
+        "oracleId": "0ab9539d-3461-4936-95cd-4c229308c4a4",
+        "firstSet": "c21",
+        "firstPrintId": "9655deda-f02b-47a0-89a3-2904b11b84aa",
+        "firstPrintSet": "c21",
         "rarity": "rare",
         "source": "compiled"
     },

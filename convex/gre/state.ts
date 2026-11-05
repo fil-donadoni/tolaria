@@ -196,6 +196,8 @@ import {
     checkPermanentTargetFilters,
     checkPlayerTargetFilters,
     checkSpellTargetFilters,
+    checkCardTargetFilters,
+    lowerCardFilters,
     lowerPermanentFilters,
     lowerPlayerFilters,
     lowerSpellOnlyFilters,
@@ -2256,6 +2258,39 @@ function resolvingAbilitySourcePower(
     return source ? getEffectivePT(state, source.card).power : 0;
 }
 
+/** CR 608.2b — does the graveyard card still satisfy the resolving item's own
+ *  card filters? The filters are the announcement's (`lowerCardFilters` +
+ *  `checkCardTargetFilters`), read against the item's CURRENT controller. */
+function graveyardTargetStillMeetsRestrictions(
+    state: GameState,
+    item: StackItem,
+    candidate: CardInstanceState
+): boolean {
+    const cardId = (item.card as { id?: string }).id;
+    const cardDef = cardId
+        ? (tryGetDefinition(cardId) ?? undefined)
+        : undefined;
+    const resolved = resolvingTargetRequirement(item, cardDef);
+    // CR 601.2c — independent groups share one flat `item.targets`, so one
+    // group's filters cannot be applied here (see the permanent sibling below).
+    if (!resolved || resolved.hasAdditionalGroups) return true;
+    const values = lowerCardFilters(resolved.req, undefined, undefined);
+    delete values.mvFilter;
+    if (Object.keys(values).length === 0) return true;
+    return !checkCardTargetFilters(
+        {
+            state,
+            sourceColors: STATIC_EFFECT_CTX.getColors(item),
+            sourceTypes: item.types,
+            sourceSubtypes: item.subtypes,
+            chooserId: item.controllerId,
+            activePlayerId: state.activePlayerId,
+        },
+        candidate,
+        values
+    );
+}
+
 /** CR 608.2b, permanent-kind half (issue #1853 review) — re-checks a
  *  still-on-the-battlefield PERMANENT target against the resolving item's
  *  own permanent target filters (subtype, tap-state, attachment, …), not
@@ -2529,7 +2564,15 @@ function isTargetStillLegal(
         }
         case "graveyard-card": {
             const owner = state.players.find((p) => p.id === target.playerId);
-            return owner?.graveyard.some((c) => c.id === target.id) ?? false;
+            const card = owner?.graveyard.find((c) => c.id === target.id);
+            if (!card) return false;
+            // CR 608.2b — …and so is one the item's own filters no longer admit:
+            // "target card from your graveyard" names the graveyard of whoever
+            // controls the item NOW, which a copy under another player changes
+            // (CR 707.10c leaves that target illegal if they keep it).
+            return item
+                ? graveyardTargetStillMeetsRestrictions(state, item, card)
+                : true;
         }
         case "permanent": {
             // CR 608.2b — left the battlefield => illegal (the Swords crash),
@@ -12806,6 +12849,22 @@ export function offerRetargetUnlessForced(
     requestCopyRetargetOn(state, copy, as);
 }
 
+/** CR 707.10c — raises the next queued copy's retarget offer, skipping a copy
+ *  that left the stack or has no other legal target. `true` = a selection is
+ *  now pending, so the caller must not open a priority round. */
+export function raiseQueuedCopyRetarget(state: GameState): boolean {
+    while (state.queuedCopyRetargets?.length) {
+        const copyId = state.queuedCopyRetargets.shift()!;
+        const copy = state.stack.find((s) => s.id === copyId);
+        if (copy) offerRetargetUnlessForced(state, copy);
+        if (state.pendingTarget) break;
+    }
+    if (state.queuedCopyRetargets?.length === 0) {
+        delete state.queuedCopyRetargets;
+    }
+    return state.pendingTarget !== undefined;
+}
+
 /** Cast-copy trigger resolution (CR 702.40 Storm / CR 702.56 Replicate,
  *  ADR 0052) — keyword-agnostic: the count was fixed when the trigger was
  *  built, so nothing here asks which keyword supplied it. Loops
@@ -18324,7 +18383,13 @@ export function buildSpellContext(
         requestCopyRetarget(copyStackItemId): void {
             const copy = state.stack.find((s) => s.id === copyStackItemId);
             if (!copy) return;
-            requestCopyRetargetOn(state, copy);
+            // CR 707.10c — another copy of this resolution is still being
+            // answered: this offer waits its turn instead of overwriting it.
+            if (state.pendingTarget) {
+                (state.queuedCopyRetargets ??= []).push(copy.id);
+                return;
+            }
+            offerRetargetUnlessForced(state, copy);
         },
         requestRetarget(spellStackItemId, requirement): void {
             // CR 115.7 — change the target(s) of a spell ALREADY on the stack
