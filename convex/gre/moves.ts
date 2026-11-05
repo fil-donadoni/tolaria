@@ -18,6 +18,7 @@
 // boards are capped to a representative bounded sample (see comments at each
 // site) rather than exploding. Caps are documented, never silent.
 
+import { activationEvidenceUnpayable } from "./collectEvidence";
 import { findPermanent } from "./lookup";
 import type {
     ActivatedAbility,
@@ -76,6 +77,7 @@ import {
     stateWithDeclinedExileRoute,
     graveyardCastMechanism,
     modalBackCastLicensed,
+    requiredGraveyardAlternativeCostId,
     type CastFromZone,
 } from "./castCost";
 import { BESTOW_TARGET_REQUIREMENT, hasLegalBestowHost } from "./bestow";
@@ -186,6 +188,8 @@ import {
 import {
     kickerTapLegPicks,
     planCastCostPicks,
+    planCollectEvidencePicks,
+    withKickerEvidencePicks,
     type CastCostPicks,
 } from "./castCostPicks";
 // Issue #2420 — the ONE model of a `tapOtherFilter` mana ability (Urza, Lord
@@ -4370,16 +4374,22 @@ function enumerateCastMovesFromZone(
                     )
                 );
             }
-            const castCostPicks = exilePlanDependsOnX
-                ? planCastCostPicks(
-                      state,
-                      player,
-                      card,
-                      def,
-                      additionalCostLegId,
-                      { castFromZone, chosenX: x }
-                  )
-                : hoistedCostPicks;
+            const castCostPicks = withKickerEvidencePicks(
+                exilePlanDependsOnX
+                    ? planCastCostPicks(
+                          state,
+                          player,
+                          card,
+                          def,
+                          additionalCostLegId,
+                          { castFromZone, chosenX: x }
+                      )
+                    : hoistedCostPicks,
+                player,
+                def ?? undefined,
+                kickerPayments,
+                card.id
+            );
             // `null` = a leg has no legal payment: a black spell under Drought
             // with no Swamp (which the castability gate does not check at all),
             // or an exile cost the graveyard cannot fund at THIS X (which the
@@ -4493,9 +4503,17 @@ function enumerateCastMovesFromZone(
     // mutation would reject for want of a target (the executor announces
     // first and taps afterwards, which is exactly the shape that strands it in
     // `pendingCast`).
+    // CR 701.59a / 701.59b — collect evidence as a bestow cost's leg (Detective's
+    // Phoenix) is planned up front: an unpayable one drops the variant (the
+    // announcement would throw), a payable one rides the Move as the exile
+    // picks the executor submits and the sandbox charges.
+    const bestowEvidencePicks = def?.bestow
+        ? planCollectEvidencePicks(player, def.bestow, card.id)
+        : undefined;
     if (
         def?.bestow &&
         chosenAltCost === undefined &&
+        bestowEvidencePicks !== null &&
         hasLegalBestowHost(state)
     ) {
         const bestowCost = normalizeManaCost(def.bestow.mana ?? {}, {
@@ -4550,6 +4568,9 @@ function enumerateCastMovesFromZone(
                             undefined
                         ),
                         tapPlan: bestowTapPlan,
+                        ...(bestowEvidencePicks
+                            ? { castCostPicks: bestowEvidencePicks }
+                            : {}),
                     });
                     if (moves.length >= MAX_COMBINATIONS) return moves;
                 }
@@ -5215,6 +5236,15 @@ function enumerateAbilityMoves(
                     ).length >= count
             );
             if (!payable) continue;
+            // CR 701.59b — below the threshold there is no choice to make.
+            if (
+                activationEvidenceUnpayable(
+                    ability.cost.exileFromGraveyard,
+                    player
+                )
+            ) {
+                continue;
+            }
         }
         // CR 602.1 / 118.8 — "tap N untapped permanents matching <filter> you
         // control" cost is unpayable without N matching untapped permanents
@@ -6358,11 +6388,27 @@ export function enumerateMoves(
         );
         if (mechanism === undefined || mechanism === "retrace") continue;
         if (!getLegalActions(state, player, card).includes("cast")) continue;
+        // CR 118.9b — a permission scoped to one alternative cost
+        // (Detective's Phoenix: "using its bestow ability") licenses only
+        // that announcement; every other Move is one `announceCast` refuses
+        // (the #2283/#2284 freeze shape), so it never leaves here.
+        const requiredAltCostId = requiredGraveyardAlternativeCostId(
+            state,
+            player,
+            card
+        );
+        const graveyardMoves = enumerateCastMoves(state, player, card, {
+            castFromZone: "graveyard",
+            onTruncated,
+        });
         moves.push(
-            ...enumerateCastMoves(state, player, card, {
-                castFromZone: "graveyard",
-                onTruncated,
-            })
+            ...(requiredAltCostId === undefined
+                ? graveyardMoves
+                : graveyardMoves.filter(
+                      (m) =>
+                          m.kind !== "cast-spell" ||
+                          m.alternativeCostId === requiredAltCostId
+                  ))
         );
     }
     // CR 601.3 (issue #2971) — a cast from EXILE. Scanned across EVERY player's

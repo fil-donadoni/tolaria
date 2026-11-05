@@ -45,6 +45,11 @@ import {
 } from "./alternativeCost";
 import type { SacrificeSelection } from "./sacrificeChoice";
 import { getInstanceManaCost } from "../cards/registry";
+import type { PendingCast } from "./state/declarations";
+import {
+    canCollectEvidence,
+    withCollectEvidenceExile,
+} from "./collectEvidence";
 
 /** CR 702.33 — how many times each of a spell's Kickers was paid as it was cast,
  *  keyed by `KickerCost.id`. An absent/0 entry means that Kicker was not paid.
@@ -226,6 +231,19 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
         castCopyTrigger: true,
         allowsMulti: false,
         printedLabel: { single: "Conspire" },
+        paidPerExtraMode: false,
+    },
+    // CR 701.59c (issue #7723) — "As an additional cost to cast this spell, you
+    // may collect evidence N". The linked "if evidence was collected" ability
+    // reads the entry's own payment record (`{ additionalCostPaid }`), so it
+    // lands in `unkickedCostPayments`: never kicked (CR 702.33d), no twin
+    // trigger of the keyword's own, and paid at most once.
+    "collect-evidence": {
+        countsAsKicked: false,
+        requiresTrigger: false,
+        castCopyTrigger: false,
+        allowsMulti: false,
+        printedLabel: { single: "Collect evidence" },
         paidPerExtraMode: false,
     },
 };
@@ -1007,6 +1025,41 @@ export function buildCastHandCostChoice(
     );
 }
 
+/** CR 701.59c — the threshold `N` of the collect-evidence entry this cast PAID,
+ *  or undefined. The one reader of {@link KickerCost.collectEvidence} on a paid
+ *  record, shared by the picker's build, affordability and the Bot's plan. */
+export function paidCollectEvidence(
+    cardDef: Pick<CardDefinition, "kickers">,
+    payments: KickerPayments | undefined
+): number | undefined {
+    for (const { kicker } of paidKickers(cardDef, payments)) {
+        if (kicker.collectEvidence !== undefined) return kicker.collectEvidence;
+    }
+    return undefined;
+}
+
+/** CR 701.59c / 601.2h — fold a paid collect-evidence entry into the cast's ONE
+ *  graveyard-exile picker, UNPICKED, exactly as an alternative cost's leg is
+ *  (`withCollectEvidenceExile`). `existing` when nothing was paid. Called by all
+ *  three commit paths in `game.ts`; refuses when another exile cost holds the
+ *  slot (an escape cast, say), which the Bot's plan refuses in the same way. */
+export function withPaidCollectEvidenceExile(
+    player: Pick<PlayerState, "graveyard">,
+    cardDef: Pick<CardDefinition, "kickers">,
+    payments: KickerPayments | undefined,
+    castInstanceId: string,
+    existing: PendingCast["exileFromGraveyardChoice"]
+): PendingCast["exileFromGraveyardChoice"] {
+    const collectEvidence = paidCollectEvidence(cardDef, payments);
+    if (collectEvidence === undefined) return existing;
+    return withCollectEvidenceExile(
+        player.graveyard,
+        { collectEvidence },
+        castInstanceId,
+        existing
+    );
+}
+
 /** CR 702.33a / 601.2f affordability of the paid Kickers' NON-MANA legs, checked
  *  at announcement before the cast is parked: enough matching permanents for
  *  every permanent leg (from DISTINCT permanents), enough life for the life legs
@@ -1026,6 +1079,14 @@ export function canPayKickerLegs(
     if (printedLegs.length === 0) return true;
     const legs = printedLegs.map((leg) => bindCastSpellColors(leg, castCard));
     if (player.life < kickerLifeCost(cardDef, payments)) return false;
+    // CR 701.59b — "can't choose to collect evidence" below the threshold.
+    const evidence = paidCollectEvidence(cardDef, payments);
+    if (
+        evidence !== undefined &&
+        !canCollectEvidence(player.graveyard, evidence, castInstanceId)
+    ) {
+        return false;
+    }
     if (!canAffordCostLegsPermanents(state, player.id, legs)) return false;
     // CR 118.8 / 601.2h — the hand legs: EVERY leg's requirements together must be coverable
     // from DISTINCT hand cards: one card cannot pay two legs, and the combined

@@ -942,6 +942,10 @@ const excludeInstanceIdsDescriptor = defineFilter<ReadonlyArray<string>>({
     checks: {
         permanent: (card, value) =>
             value.includes(card.id) ? "Can't target that permanent" : null,
+        // "Return another target creature card from your graveyard" printed on
+        // the graveyard card itself (Bonebind Orator): the source is a card here.
+        card: (card, value) =>
+            value.includes(card.id) ? "Can't target that card" : null,
     },
 });
 
@@ -2054,6 +2058,7 @@ export const CARD_FILTER_KEYS = [
     "colorFilterAny",
     "sameController",
     "zoneOwnerId",
+    "excludeInstanceIds",
 ] as const;
 
 export type CardFilterKey = (typeof CARD_FILTER_KEYS)[number];
@@ -2070,6 +2075,7 @@ export type CardFilterValues = Partial<{
     colorFilterAny: ReadonlyArray<Color>;
     sameController: boolean;
     zoneOwnerId: string;
+    excludeInstanceIds: ReadonlyArray<string>;
 }>;
 
 /** Builds `CardFilterValues` directly off a `PendingTarget` (or the client's

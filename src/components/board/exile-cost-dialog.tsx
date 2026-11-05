@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
+import {
+    canCollectEvidence,
+    collectEvidenceSatisfied,
+    totalManaValue,
+} from "@convex/gre/collectEvidence";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance, Player } from "~/types/game";
@@ -15,7 +20,10 @@ import { pickerRingClass } from "~/lib/picker-ring";
  *  from ONE graveyard (CR 118.5), so the player first picks a graveyard that
  *  holds enough matching cards, then selects EXACTLY `count` of them, then
  *  submits via `selectActivationExileCost`. Dismissing cancels the activation
- *  (parity with the payment banner's Cancel). */
+ *  (parity with the payment banner's Cancel). "Collect evidence N" (CR 701.59a)
+ *  is this picker's threshold mode: any number of the activator's own cards
+ *  whose total mana value reaches N, priced by the helpers the server validates
+ *  with. */
 export default function ExileCostDialog({
     choice,
     allPlayers,
@@ -27,6 +35,9 @@ export default function ExileCostDialog({
         cardType?: string;
         owner?: "you";
         destination?: "library-bottom";
+        /** CR 701.59a — exile ANY number of cards with total mana value ≥ this.
+         *  When set, `count` is not an exact size. */
+        minTotalManaValue?: number;
     };
     allPlayers: Player[];
     gameId: Id<"games">;
@@ -39,6 +50,8 @@ export default function ExileCostDialog({
     const [selected, setSelected] = useState<string[]>([]);
 
     const toBottom = choice.destination === "library-bottom";
+    const evidenceThreshold = choice.minTotalManaValue;
+    const isEvidence = evidenceThreshold !== undefined;
 
     const matches = (card: CardInstance): boolean =>
         choice.cardType === undefined ||
@@ -56,9 +69,21 @@ export default function ExileCostDialog({
                     name: p.name,
                     cards: p.graveyard.filter(matches),
                 }))
-                .filter((g) => g.cards.length >= choice.count),
+                .filter(
+                    (g) =>
+                        g.cards.length >= choice.count &&
+                        (evidenceThreshold === undefined ||
+                            canCollectEvidence(g.cards, evidenceThreshold))
+                ),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [allPlayers, choice.count, choice.cardType, choice.owner, playerId]
+        [
+            allPlayers,
+            choice.count,
+            choice.cardType,
+            choice.owner,
+            evidenceThreshold,
+            playerId,
+        ]
     );
 
     const needsOwnerChoice = eligible.length > 1 && chosenOwnerId === null;
@@ -66,6 +91,14 @@ export default function ExileCostDialog({
         eligible.length === 1
             ? eligible[0]
             : (eligible.find((g) => g.ownerId === chosenOwnerId) ?? null);
+
+    const selectedCards = (activeGraveyard?.cards ?? []).filter((c) =>
+        selected.includes(c.id)
+    );
+    const selectedManaValue = totalManaValue(selectedCards);
+    const requirementMet = isEvidence
+        ? collectEvidenceSatisfied(selectedCards, evidenceThreshold)
+        : selected.length === choice.count;
 
     async function handleCancel() {
         if (isPending) return;
@@ -81,13 +114,13 @@ export default function ExileCostDialog({
         setSelected((prev) => {
             if (prev.includes(cardId))
                 return prev.filter((id) => id !== cardId);
-            if (prev.length >= choice.count) return prev; // cap at count
+            if (!isEvidence && prev.length >= choice.count) return prev; // cap at count
             return [...prev, cardId];
         });
     }
 
     async function handleConfirm() {
-        if (isPending || !activeGraveyard || selected.length !== choice.count) {
+        if (isPending || !activeGraveyard || !requirementMet) {
             return;
         }
         setIsPending(true);
@@ -110,14 +143,18 @@ export default function ExileCostDialog({
                 if (!open) void handleCancel();
             }}
             title={
-                toBottom
-                    ? "Put cards from your graveyard on the bottom of your library"
-                    : "Exile from a graveyard"
+                isEvidence
+                    ? "Collect evidence"
+                    : toBottom
+                      ? "Put cards from your graveyard on the bottom of your library"
+                      : "Exile from a graveyard"
             }
             subtitle={
-                needsOwnerChoice
-                    ? "Choose a graveyard"
-                    : `Select ${choice.count} ${choice.cardType ?? "card"} card(s) to ${toBottom ? "put on the bottom of your library" : "exile"}`
+                isEvidence
+                    ? `Exile any number of cards with total mana value ${evidenceThreshold} or greater (${selectedManaValue} selected)`
+                    : needsOwnerChoice
+                      ? "Choose a graveyard"
+                      : `Select ${choice.count} ${choice.cardType ?? "card"} card(s) to ${toBottom ? "put on the bottom of your library" : "exile"}`
             }
             size="wide"
             dismissable={!isPending}
@@ -163,13 +200,12 @@ export default function ExileCostDialog({
                             type="button"
                             variant="primary"
                             size="sm"
-                            disabled={
-                                isPending || selected.length !== choice.count
-                            }
+                            disabled={isPending || !requirementMet}
                             onClick={() => void handleConfirm()}
                         >
-                            {toBottom ? "Put" : "Exile"} {selected.length}/
-                            {choice.count}
+                            {isEvidence
+                                ? `Exile ${selected.length} (mana value ${selectedManaValue}/${evidenceThreshold})`
+                                : `${toBottom ? "Put" : "Exile"} ${selected.length}/${choice.count}`}
                         </Button>
                     </div>
                 </>

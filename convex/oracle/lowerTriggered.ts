@@ -335,7 +335,7 @@ function lowerCondition(
             // aggregate tally, which no check-time gate expresses here.
             if (head.kind !== "enters" || head.scope !== "self")
                 return '"if it was kicked" needs a head that fires when this permanent enters';
-            if (condition.kicked.kind !== "named")
+            if (condition.kicked.kind === "any")
                 return 'only "if it was kicked with its {A} kicker" is a check-time gate';
             const value = kickedValue(condition.kicked, kickers);
             if (!value.ok) return value.reason;

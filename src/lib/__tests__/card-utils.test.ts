@@ -1725,6 +1725,7 @@ describe("getStackAbilities", () => {
             types: ["Enchantment"],
         });
         const gv = (id: string) => ({
+            card: {},
             id,
             ownerId: "p2",
             types: ["Creature"] as const,

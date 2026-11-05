@@ -64,6 +64,7 @@ import {
     assembleSentences,
     assemblyTrace,
     capitalise,
+    evidenceGatedSentenceRule,
     kickedInsteadSentenceRule,
     optionalSentenceRule,
     sentenceRule,
@@ -93,8 +94,8 @@ const plainSentence: Rule<SentenceIR> = rule(
  * this site and the sentence behind it is capitalised by the rule it wraps —
  * one table, read through one rule, at both casings.
  */
-const triggerSentence: Rule<SentenceIR> = kickedInsteadSentenceRule(
-    optionalSentenceRule(plainSentence)
+const triggerSentence: Rule<SentenceIR> = evidenceGatedSentenceRule(
+    kickedInsteadSentenceRule(optionalSentenceRule(plainSentence))
 );
 
 interface TailIR {
@@ -237,7 +238,11 @@ const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
     // enters" it would name a different object, and behind "dies" the kicked
     // fact is read off a permanent that has already left.
     if (
-        parsed.value.tail.sentences.some((s) => s.role === "kicked-instead") &&
+        parsed.value.tail.sentences.some(
+            (s) =>
+                s.role === "kicked-instead" ||
+                (s.role === "effect" && s.effect.kind === "kicked")
+        ) &&
         !(
             parsed.value.head.kind === "enters" &&
             parsed.value.head.scope === "self"

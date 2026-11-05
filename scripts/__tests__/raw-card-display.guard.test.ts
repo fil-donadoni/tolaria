@@ -36,9 +36,9 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const ALLOWLIST: Record<string, string> = {
     "src/components/board/graveyard-card-picker.tsx:37":
         "graveyard card tile title — graveyard cards are never face down",
-    "src/components/board/cast-exile-cost-dialog.tsx:188":
-        "exile-cost picker tile title — exiled/graveyard cards are never face down",
-    "src/components/board/exile-cost-dialog.tsx:153":
+    "src/components/board/cast-exile-cost-dialog.tsx:215":
+        "exile-cost picker tile title — the picked cards come from the caster's graveyard or hand, never face down",
+    "src/components/board/exile-cost-dialog.tsx:190":
         "exile-cost picker tile title — exiled/graveyard cards are never face down",
     "src/components/board/target-selection-banner.tsx:122":
         "hand card being cast — hand cards are never face down",

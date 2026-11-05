@@ -33,7 +33,11 @@
 import { resolveAdditionalCosts } from "./additionalCost";
 import { getStaticAdditionalSacrifices } from "./state";
 import { getInstanceManaCost } from "../cards";
-import { buildCastPermanentCostChoice, type KickerPayments } from "./kicker";
+import {
+    buildCastPermanentCostChoice,
+    paidCollectEvidence,
+    type KickerPayments,
+} from "./kicker";
 import { largestEmergeVictim } from "./emerge";
 import {
     applySacrificeSelection,
@@ -52,11 +56,16 @@ import {
 } from "./paymentPicks";
 import { buildCastExileCostChoice, type CastFromZone } from "./castCost";
 import { getFlashbackAdditionalCost } from "./flashback";
+import {
+    canCollectEvidence,
+    withCollectEvidenceExile,
+} from "./collectEvidence";
 import { hasEscape } from "./escape";
 import { matchesPermanentFilter } from "../cards/filters";
 import { effectivePermanentView } from "./permanentView";
 import type {
     AdditionalCostSpec,
+    AlternativeCost,
     CardDefinition,
     CostLegs,
 } from "../cards/types";
@@ -431,7 +440,11 @@ export function planCastCostPicks(
         // above already refused an unpayable board (`unpayable`), and
         // `chooseCastExileCost` falls back to the full list when no subset
         // reaches the threshold.
-        if (view.typeCover === undefined && ids.length < view.required) {
+        if (
+            view.typeCover === undefined &&
+            view.manaValueCover === undefined &&
+            ids.length < view.required
+        ) {
             return null;
         }
         picks.exileCostCardIds = ids;
@@ -446,4 +459,56 @@ export function planCastCostPicks(
         return undefined;
     }
     return picks;
+}
+
+/** CR 701.59c — the plan for one announce variant's paid collect-evidence
+ *  entry, folded onto the rest of the cast's picks. `null` when it cannot be paid
+ *  (CR 701.59b) or when another exile cost already holds the cast's one picker
+ *  slot: the server refuses that pair at announcement
+ *  (`withCollectEvidenceExile`), and a Move whose announcement throws is a Bot
+ *  that never moves. `picks` untouched when no evidence was paid. */
+export function withKickerEvidencePicks(
+    picks: CastCostPicks | undefined | null,
+    player: PlayerState,
+    def: CardDefinition | undefined,
+    payments: KickerPayments | undefined,
+    castInstanceId: string
+): CastCostPicks | undefined | null {
+    if (picks === null || !def) return picks;
+    const collectEvidence = paidCollectEvidence(def, payments);
+    if (collectEvidence === undefined) return picks;
+    if (picks?.exileCostCardIds) return null;
+    const planned = planCollectEvidencePicks(
+        player,
+        { collectEvidence },
+        castInstanceId
+    );
+    return planned ? { ...picks, ...planned } : null;
+}
+
+/** CR 701.59a — the Bot's plan for an ALTERNATIVE cost's collect-evidence leg
+ *  (Detective's Phoenix's bestow): the cards it will exile, built through the
+ *  SAME picker the announcement parks on (`withCollectEvidenceExile`) and
+ *  answered by the SAME {@link chooseCastExileCost} the live fallback submits,
+ *  so the ids the search charges and the ids the executor names are one list.
+ *  `undefined` when the cost has no such leg; `null` when it cannot be paid
+ *  (CR 701.59b) — fail CLOSED rather than offer a Move whose announcement
+ *  throws. */
+export function planCollectEvidencePicks(
+    player: PlayerState,
+    altCost: Pick<AlternativeCost, "collectEvidence">,
+    castInstanceId: string
+): CastCostPicks | undefined | null {
+    const n = altCost.collectEvidence;
+    if (n === undefined) return undefined;
+    if (!canCollectEvidence(player.graveyard, n, castInstanceId)) return null;
+    const choice = withCollectEvidenceExile(
+        player.graveyard,
+        altCost,
+        castInstanceId,
+        undefined
+    );
+    const view = castExileViewFor(player, choice);
+    if (!view) return null;
+    return { exileCostCardIds: chooseCastExileCost(view) };
 }
