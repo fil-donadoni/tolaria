@@ -42768,6 +42768,7 @@
         {"id":"700.2b","line":"// CR 700.2b / 603.3c — each bullet lowers as a triggered body of","sites":1,"status":"confirmed","ruleHash":"8486c2dd7232d32d"},
         {"id":"700.2b","line":"// CR 700.2b — a modal trigger's body lives on its modes; each is","sites":1,"status":"confirmed","ruleHash":"8486c2dd7232d32d"},
         {"id":"700.2b","line":"// CR 700.2b — a modal trigger's mode bodies, each checked as the","sites":1,"status":"confirmed","ruleHash":"8486c2dd7232d32d"},
+        {"id":"700.2b","line":"// CR 700.2b — the chosen mode carries the body, so the","sites":1,"status":"confirmed","ruleHash":"8486c2dd7232d32d"},
         {"id":"700.2b","line":"// CR 700.2b — the mode is chosen as part of putting the ability on the","sites":1,"status":"baseline"},
         {"id":"700.2b","line":"// The attack trigger is MODAL (CR 603.3c / 700.2b): its controller announces","sites":1,"status":"baseline"},
         {"id":"700.2b","line":"// The same trigger as a MODAL one (CR 700.2b): the requirement sits","sites":1,"status":"confirmed","ruleHash":"8486c2dd7232d32d"},
