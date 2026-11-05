@@ -692,9 +692,7 @@ function resolveCompiledTriggerHead(
     const common = {
         id: descriptor.id,
         oracleText: descriptor.oracleText,
-        ...(descriptor.modes !== undefined
-            ? { modes: [...descriptor.modes] }
-            : { effects }),
+        effects,
         ...targeting,
         ...gating,
     };
@@ -702,6 +700,11 @@ function resolveCompiledTriggerHead(
         case "entered":
             return enteredTrigger({
                 ...common,
+                // CR 700.2b — the chosen mode carries the body, so the
+                // ability-level script is dropped beside `modes`.
+                ...(descriptor.modes !== undefined
+                    ? { effects: undefined, modes: [...descriptor.modes] }
+                    : {}),
                 ...(descriptor.resolvesIfTargetsIllegal
                     ? { resolvesIfTargetsIllegal: true }
                     : {}),
