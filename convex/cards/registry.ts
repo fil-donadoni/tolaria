@@ -26,6 +26,7 @@ import "./emblems";
 import { expandAnnihilator } from "./abilities/annihilator";
 import { expandIngest } from "./abilities/ingest";
 import { expandMyriad } from "./abilities/myriad";
+import { expandUndaunted } from "./abilities/undaunted";
 import { expandCascade } from "./abilities/cascade";
 import { expandFirebending } from "./abilities/firebending";
 import { expandChangeling } from "./abilities/changeling";
@@ -700,9 +701,12 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // Extort (CR 702.101a) reads the expanded `staticEffects`, so it sits outside
     // `expandCompiledStatics`: a compiled static grant gets its trigger too.
     // Ingest (CR 702.115) expands from its bare string into the combat-damage
-    // trigger, reading only `staticAbilities`.
-    const withKeywords = expandIngest(
-        expandExtort(expandMentor(expandRiot(expandUnleash(expanded))))
+    // trigger, reading only `staticAbilities`. Undaunted (CR 702.125) likewise,
+    // into its self-host cost reduction.
+    const withKeywords = expandUndaunted(
+        expandIngest(
+            expandExtort(expandMentor(expandRiot(expandUnleash(expanded))))
+        )
     );
     expansionCache.set(base, withKeywords);
     return withKeywords;

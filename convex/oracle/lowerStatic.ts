@@ -45,6 +45,7 @@ import { expandChangeling } from "../cards/abilities/changeling";
 import { expandMentor } from "../cards/abilities/mentor";
 import { expandIngest } from "../cards/abilities/ingest";
 import { expandMyriad } from "../cards/abilities/myriad";
+import { expandUndaunted } from "../cards/abilities/undaunted";
 import { expandMobilize } from "../cards/abilities/mobilize";
 import { expandUnleash } from "../cards/abilities/unleash";
 import { expandRiot } from "../cards/abilities/riot";
@@ -257,16 +258,18 @@ export function isDefinitionLevelKeyword(keyword: string): boolean {
     // it. Each returns its INPUT unchanged when its keyword is absent, which is
     // what makes identity the honest test.
     const expanded = expandChangeling(
-        expandIngest(
-            expandMyriad(
-                expandMobilize(
-                    expandAnnihilator(
-                        expandHideaway(
-                            expandFadingVanishing(
-                                expandKeywordTriggers(
-                                    expandExtort(
-                                        expandMentor(
-                                            expandRiot(expandUnleash(bare))
+        expandUndaunted(
+            expandIngest(
+                expandMyriad(
+                    expandMobilize(
+                        expandAnnihilator(
+                            expandHideaway(
+                                expandFadingVanishing(
+                                    expandKeywordTriggers(
+                                        expandExtort(
+                                            expandMentor(
+                                                expandRiot(expandUnleash(bare))
+                                            )
                                         )
                                     )
                                 )
