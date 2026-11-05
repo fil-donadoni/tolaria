@@ -47,6 +47,7 @@ import {
     cheapestFirst,
     completeSacrificeSelection,
     nextSacrificeCandidates,
+    planEvidenceCardIds,
 } from "./paymentPicks";
 import { getEffectivePower } from "./layers";
 import { effectivePermanentView } from "./permanentView";
@@ -173,6 +174,16 @@ function planExilePick(
 ): ActivationCostPicks["exileFromGraveyard"] {
     const leg = ability.cost.exileFromGraveyard;
     if (!leg) return undefined;
+    // CR 701.59a — collect evidence: a cover of the threshold, not a count.
+    if (leg.minTotalManaValue !== undefined) {
+        const cardInstanceIds = planEvidenceCardIds(
+            player.graveyard,
+            leg.minTotalManaValue
+        );
+        return cardInstanceIds
+            ? { graveyardOwnerId: player.id, cardInstanceIds }
+            : undefined;
+    }
     const sources =
         leg.owner === "you"
             ? [player]

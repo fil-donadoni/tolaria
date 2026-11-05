@@ -128,6 +128,10 @@ import { isGuardedAgainst, playerHasShroud } from "./gre/permanentGuard";
 import { playerHasProtectionFromEverything } from "./gre/protection";
 import { getFlashbackAdditionalCost } from "./gre/flashback";
 import { countDistinctCardTypes, hasEscape } from "./gre/escape";
+import {
+    activationEvidenceUnpayable,
+    collectEvidenceSatisfied,
+} from "./gre/collectEvidence";
 import { RETRACE_COST_LEGS } from "./gre/retrace";
 import { JUMP_START_COST_LEGS } from "./gre/jumpStart";
 import {
@@ -369,6 +373,7 @@ import {
     buildCastHandCostChoice,
     buildCastPermanentCostChoice,
     canPayKickerLegs,
+    withPaidCollectEvidenceExile,
     castAnnouncedTargetGroups,
     firstUnfillableCastGroup,
     foldKickerCosts,
@@ -2540,6 +2545,7 @@ import {
     flashbackLifeCost,
     libraryTopCastPayment,
     modalBackCastLicensed,
+    assertGraveyardCastAnnouncementLicensed,
 } from "./gre/castCost";
 import type { CastFromZone } from "./gre/castCost";
 
@@ -5031,6 +5037,17 @@ export function finalizeTargetSelection(
                     "No single graveyard has enough cards to pay the exile cost"
                 );
             }
+            // CR 701.59b — below the threshold there is no choice to make.
+            if (
+                activationEvidenceUnpayable(
+                    ability.cost.exileFromGraveyard,
+                    player
+                )
+            ) {
+                throw new Error(
+                    "Not enough total mana value in your graveyard to collect evidence"
+                );
+            }
         }
         // CR 602.1 / 118.8 — "tap N untapped permanents matching <filter> you
         // control": illegal unless at least N matching untapped permanents
@@ -5391,6 +5408,15 @@ export function finalizeTargetSelection(
     const castZone = castSource.zone;
     const cardInHand = castSource.card;
     if (!cardInHand) throw new Error("Card not in hand");
+    // CR 118.9b — the announcement's gate, re-asked at the commit:
+    // the scoped graveyard permission licenses only its required cost.
+    assertGraveyardCastAnnouncementLicensed(
+        state,
+        player,
+        cardInHand,
+        castZone,
+        pt.alternativeCostId
+    );
     // CR 702.47a (issue #2394) — THE SPLICE SEAM: the definition every
     // additional-cost call below prices, validates and snapshots is the printed
     // one PLUS one synthesized cost entry per splice-eligible card in the
@@ -5810,6 +5836,14 @@ export function finalizeTargetSelection(
     castExileChoice = withAlternativeCostGraveyardExile(
         player,
         chosenAltCost,
+        cardInstanceId,
+        castExileChoice
+    );
+    // CR 701.59c — a paid optional collect-evidence cost rides the same slot.
+    castExileChoice = withPaidCollectEvidenceExile(
+        player,
+        cardDef,
+        kickerPayments,
         cardInstanceId,
         castExileChoice
     );
@@ -6557,6 +6591,17 @@ export const announceCast = mutation({
                 "No permission lets you cast that spell from your library"
             );
         }
+        // CR 118.9b — a card whose only graveyard licence is its own
+        // SCOPED permission (Detective's Phoenix: "using its bestow ability")
+        // must announce that cost; refused here, before either commit path
+        // can charge the printed one.
+        assertGraveyardCastAnnouncementLicensed(
+            state,
+            player,
+            cardInHand,
+            castFromZone,
+            args.alternativeCostId
+        );
         // CR 601.3c / 118.9b — "An effect that allows you to cast a spell may
         // require a certain alternative cost to be paid." When the ONLY thing
         // licensing this cast right now is a permission that waives the mana
@@ -7720,11 +7765,17 @@ export const announceCast = mutation({
             // CR 118.9 / 601.2h — the alternative cost's GRAVEYARD exile leg,
             // pre-filled with its deterministic top-N pick: never a reason to
             // park, paid by the same commit as every other leg.
-            const altGraveyardExile = withAlternativeCostGraveyardExile(
+            const altGraveyardExile = withPaidCollectEvidenceExile(
                 player,
-                chosenAltCost,
+                cardDef,
+                kickerPayments,
                 args.cardInstanceId,
-                undefined
+                withAlternativeCostGraveyardExile(
+                    player,
+                    chosenAltCost,
+                    args.cardInstanceId,
+                    undefined
+                )
             );
             const parkPerm =
                 castSac !== undefined && !isSacrificeSelectionComplete(castSac);
@@ -7736,7 +7787,13 @@ export const announceCast = mutation({
             // shipped alt-cost card reaches this (they carry no additional
             // cost of their own, and Drought's is a sacrifice, not an exile),
             // so this is symmetry, not a live repair.
-            const parkExile = !!altExilePicker;
+            // CR 701.59a — an alternative cost's collect-evidence leg is an
+            // UNPICKED picker (the payer always chooses), so it parks too; only
+            // the positional graveyard leg arrives pre-filled.
+            const parkExile =
+                !!altExilePicker ||
+                (altGraveyardExile !== undefined &&
+                    !altGraveyardExile.pickedCardIds);
             const altManaCovered =
                 Object.keys(altManaCost).length === 0 ||
                 isManaCostCovered(
@@ -8123,6 +8180,14 @@ export const announceCast = mutation({
             }
             castExileChoice = castExileBuild.choice;
         }
+        // CR 701.59c — a paid optional collect-evidence cost rides the same slot.
+        castExileChoice = withPaidCollectEvidenceExile(
+            player,
+            cardDef,
+            kickerPayments,
+            args.cardInstanceId,
+            castExileChoice
+        );
         // CR 702.66 / 601.2g — Delve (`payWith`, ADR 0063): "Each card you
         // exile from your graveyard while casting this spell pays for {1}."
         // Modeled as a Model-2 PRE-PAYMENT pending choice — the caster exiles
@@ -9835,7 +9900,12 @@ export function selectActivationExileCostOnState(
     if (ec.pickedCardIds) {
         throw new Error("Exile cost already paid");
     }
-    if (args.cardInstanceIds.length !== ec.count) {
+    // CR 701.59a — collect evidence takes any number of cards; its threshold is
+    // checked below, once the cards are known to be in the graveyard.
+    if (
+        ec.minTotalManaValue === undefined &&
+        args.cardInstanceIds.length !== ec.count
+    ) {
         throw new Error(
             `Must exile exactly ${ec.count} cards from a single graveyard`
         );
@@ -9859,6 +9929,16 @@ export function selectActivationExileCostOnState(
         if (!graveyardCardMatchesExileCost(card, ec.cardType)) {
             throw new Error(
                 "Selected card does not match the exile cost filter"
+            );
+        }
+    }
+    if (ec.minTotalManaValue !== undefined) {
+        const picked = owner.graveyard.filter((c) =>
+            args.cardInstanceIds.includes(c.id)
+        );
+        if (!collectEvidenceSatisfied(picked, ec.minTotalManaValue)) {
+            throw new Error(
+                `Exiled cards must have a total mana value of ${ec.minTotalManaValue} or greater`
             );
         }
     }
@@ -10026,7 +10106,10 @@ export function recordCastExileCostPick(
                 `Can't exile more than ${max} card(s) from your graveyard for this spell`
             );
         }
-    } else if (ec.minCardTypes === undefined) {
+    } else if (
+        ec.minCardTypes === undefined &&
+        ec.minTotalManaValue === undefined
+    ) {
         // Fixed-count exile cost (Flashback X; escape fixed count — Uro/Phlage).
         if (cardInstanceIds.length !== ec.count) {
             throw new Error(
@@ -10036,6 +10119,8 @@ export function recordCastExileCostPick(
     } else if (cardInstanceIds.length < 1) {
         // CR 702.138a (Nethergoyf) — "any number … with N+ card types among
         // them": at least one card, validated for card-type coverage below.
+        // CR 701.59a (collect evidence) — likewise "any number", validated for
+        // total mana value below.
         throw new Error("Must exile at least one card from your graveyard");
     }
     if (new Set(cardInstanceIds).size !== cardInstanceIds.length) {
@@ -10074,6 +10159,18 @@ export function recordCastExileCostPick(
         if (countDistinctCardTypes(picked) < ec.minCardTypes) {
             throw new Error(
                 `Exiled cards must have at least ${ec.minCardTypes} card types among them`
+            );
+        }
+    }
+    // CR 701.59a — collect evidence N: the exiled cards' TOTAL mana value must
+    // be N or greater (over-payment is legal).
+    if (ec.minTotalManaValue !== undefined) {
+        const picked = cardInstanceIds
+            .map((id) => sourceCards.find((c) => c.id === id))
+            .filter((c): c is CardInstanceState => c !== undefined);
+        if (!collectEvidenceSatisfied(picked, ec.minTotalManaValue)) {
+            throw new Error(
+                `Exiled cards must have a total mana value of ${ec.minTotalManaValue} or greater`
             );
         }
     }

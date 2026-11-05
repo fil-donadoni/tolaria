@@ -637,7 +637,11 @@ export const KICKED_CONDITION = "kicked condition";
  */
 export type KickedRefIR =
     | { readonly kind: "any" }
-    | { readonly kind: "named"; readonly mana: ManaCost };
+    | { readonly kind: "named"; readonly mana: ManaCost }
+    /** CR 701.59c — "if evidence was collected": the card's collect-evidence
+     *  cost entry, linked by CR 607. It names no object, so every subject guard
+     *  below is moot. */
+    | { readonly kind: "evidence" };
 
 /** Nouns naming the kicked object — the spell itself (CR 702.33e). */
 const KICKED_SUBJECTS: ReadonlySet<string> = new Set([
@@ -646,6 +650,8 @@ const KICKED_SUBJECTS: ReadonlySet<string> = new Set([
 ]);
 
 const KICKED = /^if (.+?) was kicked(?: with its (\{[^ ]+\}) kicker)?$/;
+
+const EVIDENCE_COLLECTED = "if evidence was collected";
 
 /**
  * `"if this spell was kicked"` / `"if this spell was kicked with its {2}{R}
@@ -668,6 +674,8 @@ function kickedConditionRuleFor(
     subjects: ReadonlySet<string>
 ): Rule<KickedRefIR> {
     return rule<KickedRefIR>(label, (span) => {
+        if (span === EVIDENCE_COLLECTED)
+            return ok({ kind: "evidence" as const });
         const match = span.match(KICKED);
         if (match === null)
             return fail("not a kicked condition this grammar knows", span);

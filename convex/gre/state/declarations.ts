@@ -3045,6 +3045,14 @@ export type PendingCast = {
          *  fixed-`count` exile cost (Flashback, and the fixed escape costs of
          *  Uro / Phlage / Underworld Breach). */
         minCardTypes?: number;
+        /** CR 701.59a (Collect evidence) — "exile any number of cards from
+         *  your graveyard with total mana value N or greater", an alternative
+         *  cost's `AlternativeCost.collectEvidence` leg (Detective's Phoenix's
+         *  bestow). When set, the picker accepts ANY number (≥1) of cards
+         *  whose summed mana value is ≥ `minTotalManaValue`, and `count` is
+         *  ignored (a nominal 1) — the `minCardTypes` shape with a different
+         *  threshold. Never pre-filled: the payer always picks. */
+        minTotalManaValue?: number;
         /** CR 702.66 (Delve) — the `payWith` VARIABLE-OFFSET mode (CR 601.2g,
          *  ADR 0063). When set, the picker accepts ANY number of cards in
          *  `min..max` and `count` is ignored (a nominal 0). Each picked card
@@ -3353,6 +3361,10 @@ export type PendingActivation = {
         owner?: "you";
         /** Mirrors `cost.exileFromGraveyard.destination`; absent = exile. */
         destination?: "library-bottom";
+        /** CR 701.59a — mirrors `cost.exileFromGraveyard.minTotalManaValue`:
+         *  the pick is any number of cards whose summed mana value reaches this,
+         *  and `count` is not an exact size. */
+        minTotalManaValue?: number;
         pickedGraveyardOwnerId?: string;
         pickedCardIds?: string[];
     };

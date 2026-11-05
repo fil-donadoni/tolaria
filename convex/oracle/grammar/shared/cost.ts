@@ -110,6 +110,10 @@ export type CostAtomIR =
           readonly cardType?: CardType;
           readonly owner?: "you";
       }
+    /** CR 701.59a — "Collect evidence 3": exile any number of cards from your
+     *  graveyard with total mana value 3 or greater. The X form has no encoding
+     *  on an activated ability, so it reads as no atom at all. */
+    | { readonly kind: "collect-evidence"; readonly minTotalManaValue: number }
     /** CR 401.4 / 118.3 — "Put three cards from your graveyard on the bottom
      *  of your library" (Battlefield Scrounger). The exile-from-graveyard
      *  picker with a different destination, so it lowers onto the same
@@ -182,6 +186,9 @@ const EXILE_GRAVEYARD =
 
 const GRAVEYARD_TO_LIBRARY_BOTTOM =
     /^Put (\S+) cards? from your graveyard on the bottom of your library$/;
+
+/** CR 701.59a — "Collect evidence N", a fixed threshold only. */
+const COLLECT_EVIDENCE_COST = /^Collect evidence (\d+)$/;
 
 const TAP_OTHER = /^Tap (\S+) (untapped .+)$/;
 
@@ -337,6 +344,13 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
                 count: counted.count,
             });
         }
+
+        const evidence = span.match(COLLECT_EVIDENCE_COST);
+        if (evidence !== null)
+            return ok({
+                kind: "collect-evidence" as const,
+                minTotalManaValue: Number(evidence[1]),
+            });
 
         if (span.startsWith("Exile ")) {
             if (isSelfPhrase(span.slice("Exile ".length)))
@@ -686,6 +700,14 @@ export function lowerActivationCost(
                 cost.exileFromGraveyard = value;
                 break;
             }
+            case "collect-evidence":
+                // CR 701.59a — your own graveyard, any number of cards.
+                cost.exileFromGraveyard = {
+                    count: 1,
+                    owner: "you",
+                    minTotalManaValue: atom.minTotalManaValue,
+                };
+                break;
             case "graveyard-to-library-bottom":
                 cost.exileFromGraveyard = {
                     count: atom.count,

@@ -173,6 +173,13 @@ export interface SiteOptions {
      */
     readonly kickers?: readonly KickerCost[];
     /**
+     * CR 701.59c — "it" behind an evidence gate names the ONE target
+     * the sentence before it announced ("Tap target creature. If evidence was
+     * collected, put a stun counter on it."). Set only by that gate, so every
+     * other pronoun after an announced target stays refused.
+     */
+    readonly pronounNamesAnnouncedTarget?: true;
+    /**
      * What this site's anaphora NAME. "that player" and "that
      * card" are read by the grammar as words; their referent is printed
      * outside the sentence (a trigger head: "each PLAYER'S upkeep", "enchanted
@@ -884,6 +891,17 @@ function excludableByPriorPicks(requirement: TargetRequirement): boolean {
  * the SLOT index is what `{ target: N }` carries.
  */
 export class TargetSlots {
+    /**
+     * An ACTIVATED ability's first "another target" can only mean other than the
+     * ability's own source: the site knows it is a permanent talking about
+     * itself, which the walk alone cannot tell (see `allocate`).
+     */
+    private readonly firstAnotherExcludesSource: boolean;
+
+    constructor(firstAnotherExcludesSource: boolean = false) {
+        this.firstAnotherExcludesSource = firstAnotherExcludesSource;
+    }
+
     private readonly groups: TargetRequirement[] = [];
     /** The first positional slot of each group, parallel to `groups`. */
     private readonly firsts: number[] = [];
@@ -971,11 +989,13 @@ export class TargetSlots {
                 "a variable target count has no positional slot (CR 601.2c)"
             );
         if (this.groups.length === 0) {
-            if (another)
+            if (another && !this.firstAnotherExcludesSource)
                 return unlowerable(
                     '"another target" names no earlier target here (CR 115.3)'
                 );
-            this.groups.push(requirement);
+            this.groups.push(
+                another ? { ...requirement, excludeSource: true } : requirement
+            );
         } else {
             // CR 115.3 — the word "another" is the ONLY thing that excludes an
             // earlier pick. A plain second "target" (issue #3875: Agony Warp's
@@ -1419,7 +1439,14 @@ function selectorsFor(
         // creature, not the head's subject) and the site's referent is the
         // wrong one. Refused rather than guessed — the same rule the
         // intervening-if pronoun guard applies one layer up.
-        if (slots.requirements().length > 0)
+        const announced = slots.requirements();
+        if (
+            site.pronounNamesAnnouncedTarget === true &&
+            announced.length === 1 &&
+            announced[0]!.count === 1
+        )
+            return lowered([{ target: 0 }]);
+        if (announced.length > 0)
             return unlowerable(
                 '"it" follows an announced target, which is the nearer antecedent (CR 608.2h)'
             );
@@ -4775,7 +4802,13 @@ function lowerSentenceBody(
             // between them; measured on the walk, so a target allocated by
             // the inner sentence is seen however it was reached.
             const before = walk.targets.requirements().length;
-            const inner = gatedSentence(sentence.effect, walk, site);
+            const inner = gatedSentence(
+                sentence.effect,
+                walk,
+                sentence.kicked.kind === "evidence"
+                    ? { ...site, pronounNamesAnnouncedTarget: true }
+                    : site
+            );
             if (!inner.ok) return inner;
             if (walk.targets.requirements().length !== before) {
                 const folded = walk.targets.foldKickerGatedTargets(before);
@@ -6976,6 +7009,15 @@ export function kickedValue(
         return unlowerable(
             "a kicked condition on a card that prints no kicker (CR 702.33e)"
         );
+    if (kicked.kind === "evidence") {
+        // CR 701.59c / 607 — the linked ability reads this card's own entry.
+        const entry = kickers.find((k) => k.keyword === "collect-evidence");
+        return entry === undefined
+            ? unlowerable(
+                  '"if evidence was collected" on a card with no optional collect evidence cost (CR 701.59c)'
+              )
+            : lowered({ additionalCostPaid: entry.id });
+    }
     if (kicked.kind === "any") return lowered({ kickerCount: true });
     if (kickers.length < 2)
         return unlowerable(

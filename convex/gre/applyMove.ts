@@ -110,6 +110,7 @@ import {
     additionalCostPaymentSnapshot,
     buildCastPermanentCostChoice,
     buildCastHandCostChoice,
+    paidCollectEvidence,
     type KickerPayments,
 } from "./kicker";
 import {
@@ -621,7 +622,16 @@ export function applyCastCostPicksForSearch(
      *  and the escape / flashback EXILE leg, so a hand cast of the same card is
      *  charged exactly what it was before; `chosenX` sizes the one X-dependent
      *  leg (`flashbackExileFromGraveyard`). */
-    opts?: { castFromZone?: CastFromZone; chosenX?: number }
+    opts?: {
+        castFromZone?: CastFromZone;
+        chosenX?: number;
+        /** CR 701.59a — the announced alternative cost, whose collect-evidence
+         *  leg (Detective's Phoenix's bestow) is paid from the graveyard. */
+        alternativeCostId?: string;
+        /** CR 701.59c — the announced payments, whose collect-evidence entry
+         *  is paid from the graveyard. */
+        kickerPayments?: KickerPayments;
+    }
 ): boolean {
     if (!picks) return true;
     const castFromZone = opts?.castFromZone ?? "hand";
@@ -641,17 +651,29 @@ export function applyCastCostPicksForSearch(
     // caller's bail keeps those — the same shape the pre-existing
     // `castSource === null` bail below already has.
     const exileIds = picks.exileCostCardIds ?? [];
+    // CR 701.59a / 701.59c — a collect-evidence leg, on an alternative cost or on
+    // a paid optional additional cost, is the one exile cost
+    // `buildCastExileCostChoice` does not build (it is folded in at the
+    // announcement); its cards always come from the graveyard.
+    const collectsEvidence =
+        (cardDef !== undefined &&
+            paidCollectEvidence(cardDef, opts?.kickerPayments) !== undefined) ||
+        (opts?.alternativeCostId !== undefined &&
+            getAlternativeCost(cardDef, opts.alternativeCostId)
+                ?.collectEvidence !== undefined);
     const exileZone =
-        exileIds.length > 0
-            ? castExileSourceZone(
-                  state,
-                  player,
-                  card,
-                  castFromZone,
-                  spec,
-                  opts?.chosenX
-              )
-            : undefined;
+        exileIds.length > 0 && collectsEvidence
+            ? "graveyard"
+            : exileIds.length > 0
+              ? castExileSourceZone(
+                    state,
+                    player,
+                    card,
+                    castFromZone,
+                    spec,
+                    opts?.chosenX
+                )
+              : undefined;
     if (exileIds.length > 0) {
         if (!exileZone) return false;
         const held = exileZone === "hand" ? player.hand : player.graveyard;
@@ -1569,6 +1591,8 @@ export function commitCastInSearch(
             {
                 castFromZone: move.castFromZone,
                 chosenX: move.chosenX,
+                alternativeCostId: move.alternativeCostId,
+                kickerPayments: move.kickerPayments,
             }
         );
         // CR 702.138a escape (issue #2980) — the exile cost could not be paid

@@ -9173,6 +9173,130 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #7783. The positive half; the negative half (a cast credited at no more than its fraction of a card that is worth little on the battlefield) is the unit pair in `deckingAndSacrificeModel.bot.test.ts` ('credits a cast at the card's own worth').",
     },
     {
+        // Issue #7723 — CR 701.59c. Crimestopper Sprite in hand, three Islands,
+        // a graveyard worth exactly the threshold (Hill Giant 4 + Grizzly Bears
+        // 2) with nothing in it that recurs, and one big opposing creature. Paying
+        // turns "tap it" into "tap it and keep it tapped". Reachability pin: before
+        // the issue the additional cost had no Move at all.
+        label: "optional collect evidence: pays it to stun the only blocker",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Crimestopper Sprite", owner: "me", zone: "hand" },
+                { name: "Hill Giant", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Hill Giant", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move?.kind === "cast-spell" &&
+                move.kickerPayments?.["collect-evidence"] === 1 &&
+                (move.castCostPicks?.exileCostCardIds?.length ?? 0) > 0,
+            describe:
+                "casts Crimestopper Sprite paying collect evidence 6, naming the exile picks",
+        },
+        note: "Issue #7723 — the Bot-reachability pin for the CR 701.59c optional additional cost.",
+    },
+    {
+        // Issue #7723 — CR 701.59a. Forensic Researcher ready to use, a Hill
+        // Giant ready to swing, one opposing blocker that trades up, and exactly
+        // enough evidence: "{T}, Collect evidence 3: Tap target creature you don't
+        // control" clears the way. Reachability pin: before the issue the cost was
+        // unparsed and the ability had no Move.
+        label: "collect evidence activation: taps the only blocker before attacking",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Forensic Researcher",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Hill Giant", owner: "me", zone: "battlefield" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                { name: "Serra Angel", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 4 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move?.kind === "activate-ability" &&
+                (move.costPicks?.exileFromGraveyard?.cardInstanceIds.length ??
+                    0) > 0,
+            describe:
+                "activates Forensic Researcher's collect evidence ability, naming the exile picks",
+        },
+        note: "Issue #7723 — the Bot-reachability pin for collect evidence as an activation cost.",
+    },
+    {
+        // Issue #2074 — Detective's Phoenix ({2}{R}, "Bestow—{R}, Collect
+        // evidence 6", "You may cast this card from your graveyard using its
+        // bestow ability") sits in the bot's GRAVEYARD beside exactly six mana
+        // value of fodder (Hill Giant 4 + Lightning Bolt 1 + Ancestral Recall
+        // 1), one untapped Mountain, and the bot's own Grizzly Bears. The only
+        // productive play is the bestowed graveyard cast onto the Bears
+        // (+2/+2, flying, haste). Reachability, not preference: before the
+        // issue the Phoenix had no graveyard cast at all, and the Bot's
+        // enumerator would have offered the printed-cost cast the scoped
+        // permission refuses.
+        label: "graveyard cast: bestows Detective's Phoenix from the graveyard by collecting evidence",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Detective's Phoenix",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                { name: "Hill Giant", owner: "me", zone: "graveyard" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                { name: "Ancestral Recall", owner: "me", zone: "graveyard" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move?.kind === "cast-spell" &&
+                move.alternativeCostId === "bestow" &&
+                (move.castCostPicks?.exileCostCardIds?.length ?? 0) > 0,
+            describe:
+                "casts Detective's Phoenix bestowed from the graveyard, naming collect-evidence exile picks",
+        },
+        note: "Issue #2074 — the Bot-reachability pin for the bestow-scoped graveyard cast and the collect-evidence leg (CR 701.59a / 118.9b). Red without the enumerator's graveyard-cast licence filter + `planCollectEvidencePicks`: no bestow Move carried exile picks, so the cast parked unpaid. Not paired: a positive expectation stands alone (ADR 0070 §1).",
+    },
+    {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #2796).
         // PAIRED WITH: "cast mode: never bestows the Aura onto the OPPONENT's
         // creature".

@@ -40,6 +40,8 @@ import {
     exileCastPermitted,
     exileCastRidesGrant,
     exileCastRouteChoice,
+    graveyardCastMechanism,
+    requiredGraveyardAlternativeCostId,
     type ExileCastRouteChoice,
 } from "./gre/castCost";
 import {
@@ -182,6 +184,7 @@ export type SlimGraveyardCard = SlimCardInstance & {
         | "escape"
         | "graveyard-permission"
         | "graveyard-grant"
+        | "graveyard-intrinsic"
         | "retrace"
         | "jump-start";
     /** CR 702.34a / 118.5 / 107.3 — the maximum {X} the caster may announce on
@@ -1021,6 +1024,28 @@ function projectGraveyardCard(
             ...slim,
             legalActions: legalActionsFor(),
             castKind: "graveyard-permission",
+        };
+    }
+    // CR 601.3 (issue #1338, Hogaak) — the card's OWN intrinsic
+    // permission ("You may cast this card from your graveyard"), and its
+    // CR 118.9b SCOPED form (Detective's Phoenix: "… using its bestow
+    // ability", issue #2074). Asked through `graveyardCastMechanism`, the
+    // precedence `locateCastSource` and the Bot share, so a broad permission
+    // that also covers the card keeps its own branch above. A scoped
+    // permission licenses no printed-cost cast, so the client's picker must
+    // drop its "Pay mana cost" row (`printedCostCastUnavailable`).
+    if (
+        isOwnGraveyard &&
+        graveyardCastMechanism(state, player, card, player.id) === "intrinsic"
+    ) {
+        return {
+            ...slim,
+            legalActions: legalActionsFor(),
+            castKind: "graveyard-intrinsic",
+            ...(requiredGraveyardAlternativeCostId(state, player, card) !==
+            undefined
+                ? { printedCostCastUnavailable: true as const }
+                : {}),
         };
     }
     // CR 702.81a (issue #2358) — a NONLAND card in the viewer's own graveyard

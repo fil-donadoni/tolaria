@@ -1791,6 +1791,90 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "any", count: 2 },
         },
     },
+    // CR 701.59c + CR 607 — "you may collect evidence N" and the sentence it
+    // links: the gate reads the entry's own payment record. The canned smoke
+    // scenario casts without paying, so this fixture is the form's evidence.
+    {
+        rule: "optional collect evidence",
+        card: {
+            oracleId: "5e238e67-00f2-4656-bf69-0115e47321a5",
+            name: "Crimestopper Sprite",
+            manaCost: "{2}{U}",
+            typeLine: "Creature — Faerie Detective",
+            oracleText:
+                "As an additional cost to cast this spell, you may collect evidence 6. (Exile cards with total mana value 6 or greater from your graveyard.)\nFlying\nWhen this creature enters, tap target creature. If evidence was collected, put a stun counter on it. (If a permanent with a stun counter would become untapped, remove one from it instead.)",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Crimestopper Sprite",
+            types: ["Creature"],
+            subtypes: ["Faerie", "Detective"],
+            manaCost: {
+                X: 2,
+                U: 1,
+            },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "As an additional cost to cast this spell, you may collect evidence 6. (Exile cards with total mana value 6 or greater from your graveyard.)\nFlying\nWhen this creature enters, tap target creature. If evidence was collected, put a stun counter on it. (If a permanent with a stun counter would become untapped, remove one from it instead.)",
+            staticAbilities: ["flying"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "crimestopper-sprite-trigger",
+                    oracleText:
+                        "When this creature enters, tap target creature. If evidence was collected, put a stun counter on it.",
+                    head: {
+                        kind: "entered",
+                        scope: "self",
+                    },
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                    },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: {
+                                target: 0,
+                            },
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                left: {
+                                    additionalCostPaid: "collect-evidence",
+                                },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "counters",
+                                    action: "add",
+                                    counter: "stun",
+                                    target: {
+                                        target: 0,
+                                    },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            kickers: [
+                {
+                    id: "collect-evidence",
+                    description: "Collect evidence 6",
+                    keyword: "collect-evidence",
+                    collectEvidence: 6,
+                },
+            ],
+        },
+    },
     // CR 702.33d — "If this spell was kicked, <effect>" gates the effect on
     // the spell's kicker tally. Exhibits the "reads the spell's kicker count"
     // form: the canned smoke scenario casts unkicked, so this fixture is the

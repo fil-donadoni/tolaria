@@ -432,6 +432,16 @@ export function lowerKickers(
 ): LowerSpellResult<KickerCost[]> {
     const out: KickerCost[] = [];
     for (const kicker of kickers) {
+        // CR 701.59c — one entry per card, under the keyword's own name.
+        if (kicker.collectEvidence !== undefined) {
+            out.push({
+                id: "collect-evidence",
+                description: kicker.description,
+                keyword: "collect-evidence",
+                collectEvidence: kicker.collectEvidence,
+            });
+            continue;
+        }
         let id = "kicker";
         if (kickers.length > 1) {
             const colors = KICKER_ID_COLORS.filter(
