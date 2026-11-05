@@ -891,6 +891,7 @@ function resolveForEachCountAgainstBoard(
         }
         case "bound":
         case "targets":
+        case "eventAttackers":
             return CF_ASSUMED_COUNT_FALLBACK;
         // CR 607.2a — the pile stamped with the source; a card still in a
         // hidden zone has exiled nothing, so it prices as empty.

@@ -8631,6 +8631,19 @@ export type DelayedTriggerTiming =
      *  exactly what that row already flattens. Rejects `targetPlayer` /
      *  `watch`, like the other repeating combat-event timings. */
     | "until-next-turn-creature-attacks-you"
+    /** CR 508.3b / 603.7b (issue #8166) — the same "until your next turn"
+     *  repeating window, on the other side of the declaration: "Until your
+     *  next turn, whenever one or more creatures attack one of your opponents,
+     *  those creatures …" (Garruk, Curse Breaker's −4). Fires ONCE per
+     *  declaration, however many creatures attack, and only when at least one
+     *  attacks a PLAYER: a creature attacking a planeswalker or a battle does
+     *  not make that player attacked, and is not one of "those creatures".
+     *  The fired `ATTACKERS_DECLARED` names exactly those creatures, and the
+     *  body reads them with `forEach { set: "eventAttackers" }`. Both windows
+     *  are rows of `UNTIL_NEXT_TURN_ATTACK_WATCHES` (`gre/attackWatch.ts`).
+     *  Rejects `targetPlayer` / `watch`, like the other repeating combat-event
+     *  timings. */
+    | "until-next-turn-creatures-attack-your-opponents"
     /** CR 603.7b / 510.2 (issue #2142) — an INSTANCE-scoped, REPEATING, this-
      *  turn-bounded combat-damage watch: "Whenever that creature deals combat
      *  damage this turn, …" (Vigorous Charge). Names ONE watched instance
@@ -8649,6 +8662,22 @@ export type DelayedTriggerTiming =
      *  watched creature leaves the battlefield (CR 400.7 — its return is a
      *  new object). Rejects `targetPlayer`. */
     | "this-turn-watched-creature-deals-combat-damage";
+
+/** What one "until your next turn" attack window watches: the two axes its
+ *  Oracle line varies on, as data (`UNTIL_NEXT_TURN_ATTACK_WATCHES`).
+ *
+ *  `attacked` — who must be attacked. `"you-or-your-planeswalkers"` takes every
+ *  attacker in a declaration the instance's controller did not make;
+ *  `"your-opponents"` takes the creatures the controller's own declaration
+ *  sends at a player (CR 508.3b).
+ *
+ *  `firing` — `"per-attacker"` fires once per creature, each firing's event
+ *  naming only that creature ("whenever a creature attacks"); `"batch"` fires
+ *  once with the whole group ("whenever one or more creatures attack"). */
+export interface UntilNextTurnAttackWatch {
+    attacked: "you-or-your-planeswalkers" | "your-opponents";
+    firing: "per-attacker" | "batch";
+}
 
 /** ADR 0048 — the inline body of an Effect-Script-scheduled delayed trigger
  *  (CR 603.7a): a pure-JSON Op list persisted ON the `DelayedTriggerInstance`
@@ -16526,6 +16555,11 @@ export type EffectForEachSelector =
      *  (`moveZone { target: { ref: "$each" }, from: "exile", … }`). Owners in
      *  APNAP order. No filter: no printed line narrows the linked pile yet. */
     | { set: "exiledWithSource" }
+    /** CR 508.3b (issue #8166) — "those creatures": the attackers the firing
+     *  `ATTACKERS_DECLARED` names, frozen at construct entry. Legal only where
+     *  that event is the one in scope (the validator's ref pass). A member that
+     *  has left the battlefield is skipped, like any other frozen member. */
+    | { set: "eventAttackers" }
     /** Iterate the body `count` times (issue #1368) — "add one mana of any
      *  color for each charge counter removed this way" (Coalition Relic),
      *  "add two mana in any combination of colors" (Manamorphose): N
