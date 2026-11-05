@@ -74,7 +74,7 @@ describe("as-enters creature-type choice (CR 614.12a)", () => {
 
     it("REFUSES a different choice (a colour, a basic land type)", () => {
         expect(
-            refusal("As this creature enters, choose a color.")
+            refusal("As this creature enters, choose a color other than black.")
         ).toBeTruthy();
         expect(
             refusal("As this creature enters, choose a basic land type.")
