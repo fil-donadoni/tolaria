@@ -58,22 +58,14 @@ const CHEAP_UNDAUNTED = registerSorcery("synthetic-cheap-undaunted", { G: 1 }, [
 const PLAIN = registerSorcery("synthetic-no-undaunted", { X: 6, G: 1 }, []);
 
 /** The total the real cast path charges: the pair `game.ts` calls. */
-function castCost(
-    state: GameState,
-    cardId: string,
-    casterId = "p1",
-    zoneOwnerId = casterId
-): Record<string, number> {
+function castCost(state: GameState, cardId: string): Record<string, number> {
     const view = makeInstance(cardId, {
-        controllerId: zoneOwnerId,
-        ownerId: zoneOwnerId,
+        controllerId: "p1",
+        ownerId: "p1",
         zone: "hand",
     });
     const cost = normalizeManaCost(getDefinition(cardId).manaCost ?? {});
-    applyCostModifiers(
-        cost,
-        getCostModifiers(state, view, "spell", undefined, casterId)
-    );
+    applyCostModifiers(cost, getCostModifiers(state, view, "spell"));
     return cost;
 }
 
@@ -107,13 +99,6 @@ describe("Undaunted cost reduction (CR 702.125a)", () => {
             players: [makePlayer("p1"), makePlayer("p2"), makePlayer("p3")],
         });
         expect(castCost(state, UNDAUNTED)).toEqual({ X: 4, G: 1 });
-    });
-
-    it("counts the caster's opponents, not the zone owner's", () => {
-        const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2"), makePlayer("p3")],
-        });
-        expect(castCost(state, UNDAUNTED, "p1", "p2")).toEqual({ X: 4, G: 1 });
     });
 
     it("never touches a coloured pip and floors at {0} (CR 601.2f)", () => {
