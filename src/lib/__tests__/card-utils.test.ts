@@ -2584,6 +2584,14 @@ describe("getTriggeredAbilityOracleText — provoke (CR 702.39a)", () => {
     });
 });
 
+describe("getTriggeredAbilityOracleText — training (CR 702.149a)", () => {
+    it("names the trigger of a keyword no definition lists as an ability", () => {
+        expect(getTriggeredAbilityOracleText("any-card", "training")).toContain(
+            "another creature with greater power"
+        );
+    });
+});
+
 describe("getTriggeredAbilityOracleText — emblem source (CR 114)", () => {
     // Regression: an emblem-sourced trigger's `card.id` is an emblem KEY, not a
     // card registry id, so a hard `getDefinition` threw "Card not found" and
