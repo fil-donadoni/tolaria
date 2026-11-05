@@ -6,7 +6,7 @@
 // `ready`, the refusals beside the head, the optional hand pick's pairing, and
 // the id agreement between the Definition Index and the expanded card.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { backFaceAsTokenSpec } from "../../cards/backFaceSpec";
 import { expandCompiledTriggers } from "../../cards/compiledTriggers";
 import { backFaceTriggerTokenId } from "../../cards/definitionIndex";
@@ -97,6 +97,29 @@ describe("compiled transform back face (CR 712.8e)", () => {
         );
         expect(backFaceTriggerTokenId(raw)).toBe(presented);
     });
+
+    // A flip registers the face in the isolate that flips; every later
+    // mutation decodes its id cold, and PERMANENT_TRANSFORMED is no token event
+    // kind, so a raw read here comes back as the never-firing stub.
+    it.each([
+        ["the Definition Index", true],
+        ["the registry scan", false],
+    ])(
+        "a cold decode through %s recovers the expanded declarer's closures",
+        async (_path, indexed) => {
+            const raw = definition(LINE);
+            const tokenId = backFaceTriggerTokenId(raw)!;
+            vi.resetModules();
+            const fresh = await import("../../cards/registry");
+            vi.resetModules();
+            fresh.preloadDefinitions([raw]);
+            if (indexed) fresh.setPrintedBackFaceIndex(() => raw.id);
+            const decoded = fresh.tryGetDefinition(tokenId);
+            expect(decoded?.triggeredAbilities?.[0]).toBe(
+                fresh.expandDefinition(raw).backFace!.triggeredAbilities![0]
+            );
+        }
+    );
 });
 
 describe("optional pick from a revealed hand (CR 608.2c)", () => {
