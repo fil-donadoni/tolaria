@@ -50,6 +50,7 @@ import { knownLibraryIndices } from "./gre/libraryKnownRuns";
 import { flashbackExileEligibleCount, hasFlashback } from "./gre/flashback";
 import { hasEscape } from "./gre/escape";
 import { hasRetrace } from "./gre/retrace";
+import { hasJumpStart } from "./gre/jumpStart";
 import {
     FACE_DOWN_CARD_ID,
     getInstanceManaCost,
@@ -181,7 +182,8 @@ export type SlimGraveyardCard = SlimCardInstance & {
         | "escape"
         | "graveyard-permission"
         | "graveyard-grant"
-        | "retrace";
+        | "retrace"
+        | "jump-start";
     /** CR 702.34a / 118.5 / 107.3 — the maximum {X} the caster may announce on
      *  THIS flashback cast, bounded by its `flashbackExileFromGraveyard`
      *  additional cost ("Exile X blue cards from your graveyard", Flash of
@@ -1036,6 +1038,15 @@ function projectGraveyardCard(
             ...slim,
             legalActions: legalActionsFor(),
             castKind: "retrace",
+        };
+    }
+    // CR 702.133a — a jump-start card: its printed mana cost plus a discard.
+    // After retrace, matching `locateCastSource`.
+    if (isOwnGraveyard && hasJumpStart(card)) {
+        return {
+            ...slim,
+            legalActions: legalActionsFor(),
+            castKind: "jump-start",
         };
     }
     // CR 305.1-analog — a LAND sitting in the viewer's own graveyard while

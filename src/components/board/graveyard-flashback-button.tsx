@@ -61,20 +61,25 @@ export default function GraveyardFlashbackButton({
     // member of the union in `convex/gameProjections.ts` must appear in this
     // dispatch.
     const isRetrace = card.castKind === "retrace";
+    const isJumpStart = card.castKind === "jump-start";
     const label = isEscape
         ? "Escape"
         : isRetrace
           ? "Retrace"
-          : isPermissionCast
-            ? "Cast"
-            : "Flashback";
+          : isJumpStart
+            ? "Jump-start"
+            : isPermissionCast
+              ? "Cast"
+              : "Flashback";
     const disabledTitle = isEscape
         ? "Can't escape yet — not your main phase, or you can't pay the escape cost (mana, or exile enough other cards from your graveyard)."
         : isRetrace
           ? "Can't retrace yet — not your main phase, or you can't pay this card's mana cost plus discarding a land card from your hand."
-          : isPermissionCast
-            ? "Can't cast yet — not your main phase, or you can't pay this card's mana cost."
-            : "Can't flash back yet — not your main phase, or you can't pay the flashback cost (mana, sacrifice, or exile-from-hand).";
+          : isJumpStart
+            ? "Can't jump-start yet — not your main phase, or you can't pay this card's mana cost plus discarding a card from your hand."
+            : isPermissionCast
+              ? "Can't cast yet — not your main phase, or you can't pay this card's mana cost."
+              : "Can't flash back yet — not your main phase, or you can't pay the flashback cost (mana, sacrifice, or exile-from-hand).";
 
     return (
         <>

@@ -336,13 +336,15 @@ export interface CardInstance {
      *  the Dream-Den) — both currently render the same "Cast" label.
      *  `"retrace"` (CR 702.81a, issue #2358) pays the printed mana cost PLUS a
      *  discarded land card, so it labels and explains itself separately.
+     *  `"jump-start"` (CR 702.133a) likewise adds a discard of any card.
      *  MIRROR of the union in `convex/gameProjections.ts` — keep both in step. */
     castKind?:
         | "flashback"
         | "escape"
         | "graveyard-permission"
         | "graveyard-grant"
-        | "retrace";
+        | "retrace"
+        | "jump-start";
     /** CR 702.34a / 118.5 / 107.3 — max {X} announceable on this flashback
      *  cast, bounded by its `flashbackExileFromGraveyard` cost (Flash of
      *  Insight). Present only on a `castKind: "flashback"` card carrying that
