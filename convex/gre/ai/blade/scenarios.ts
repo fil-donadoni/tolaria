@@ -1948,6 +1948,94 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #3994. Discriminating pair for the flanking entry: only the attacker's keyword changed.",
     },
     {
+        // CR 702.121a — the opponent at 3, the pump turns a 2/1 into exactly lethal
+        // past a tapped Craw Wurm. Unseen, the swing leaves the opponent at 1 and
+        // loses the only chump to the crackback. Pair: one more life on the
+        // opponent's side (next entry).
+        label: "melee: swings for the lethal only the pump provides",
+        spec: {
+            cards: [
+                {
+                    name: "Deputized Protester",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+            life: { me: 3, opp: 3 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-attackers", card: "Deputized Protester" }],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "life",
+                detail: "the opponent is at 3, so the 2/1 with melee hits for exactly lethal",
+            },
+        },
+        note: "Issue #4016. The search sees the melee trigger through emitAttackersDeclaredEvents and resolves the pump, so the 2/1 hits for 3.",
+    },
+    {
+        // The pair of the entry above: at 4 the swing is not lethal, and the
+        // crackback kills a bot that kept no blocker.
+        label: "melee pair: keeps the chump home when the pump is not lethal",
+        spec: {
+            cards: [
+                {
+                    name: "Deputized Protester",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+            life: { me: 3, opp: 4 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "declare-attackers", card: "Deputized Protester" },
+            ],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "life",
+                detail: "the opponent is at 4, so the pump is not lethal and the crackback kills an open bot",
+            },
+        },
+        note: "Issue #4016. Discriminating pair for the melee entry: only one life point changed.",
+    },
+    {
         // CR 702.105a — tied at 3, the counter turns a 2/1 into exactly lethal
         // past a tapped Craw Wurm. Unseen, the swing leaves the opponent at 1 and
         // loses the only chump to the crackback. Pair: one more life on the bot's

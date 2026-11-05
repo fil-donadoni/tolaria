@@ -174,7 +174,9 @@ import { MANA_COLORS } from "./manaColors";
 import {
     markAttacking,
     markDeclaredBlockers,
+    playersAttackedByAttackers,
     recordAttackerDeclared,
+    stampAttackedPlayers,
     validateDeclaredBlockers,
 } from "./combat";
 import { recordBlockedAttackers } from "./banding";
@@ -1869,6 +1871,9 @@ function seedDeclaredCombat(
                 `buildStateFromScenario: the declared blocks are illegal — ${legalBlocks.reason}`
             );
         }
+        // CR 508.1b — a seeded declaration is a declaration: it attacked whom its
+        // attackers attack. `lowerCombat` reports the live record that differs.
+        if (state.combat.confirmed) stampAttackedPlayers(state);
         state.combat.blockersConfirmed = combat.blockersConfirmed ?? false;
         if (state.combat.blockersConfirmed) {
             // CR 509.1h — an attacker stays BLOCKED even once every blocker
@@ -3453,8 +3458,9 @@ function sameDuration(
 }
 
 /** `state.combat` sub-fields `lowerCombat` carries into `spec.combat`, PLUS
- *  the one it re-derives at seed time (`blockedAttackerIds`, rebuilt by
- *  `recordBlockedAttackers` from the assignments — CR 509.1h). Anything else
+ *  the two it re-derives at seed time (`blockedAttackerIds`, rebuilt by
+ *  `recordBlockedAttackers` from the assignments — CR 509.1h — and
+ *  `attackedPlayerIds`, rebuilt by `stampAttackedPlayers`). Anything else
  *  present on a live combat is a fact the spec has no field for, named by
  *  `reportCombatResidue` instead of vanishing: the mirror of
  *  `CARD_STATE_ALLOWLIST` / `reportCardResidue` one level up. */
@@ -3464,6 +3470,7 @@ const COMBAT_STATE_ALLOWLIST = new Set<string>([
     "blockerAssignments",
     "blockersConfirmed",
     "blockedAttackerIds",
+    "attackedPlayerIds",
 ]);
 
 /**
@@ -3698,6 +3705,18 @@ function lowerCombat(
             "blocking"
         );
         reportCombatResidue(combat, dropped);
+        // CR 508.1b — the record survives what the attackers do not: when the
+        // only creature that attacked the player was removed from combat, the
+        // rebuild would stamp nothing.
+        const attacked = combat.attackedPlayerIds;
+        if (
+            attacked !== undefined &&
+            attacked.join() !== playersAttackedByAttackers(state)?.join()
+        ) {
+            dropped.push(
+                `${COMBAT_DROPPED_PREFIX} attacked players no longer follow from the attackers (${attacked.join(", ")})`
+            );
+        }
     }
 
     // CR 506.4 / 508.4 — the per-turn record, lowered as the COMPLETE list of

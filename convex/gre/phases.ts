@@ -112,6 +112,7 @@ import {
     getAttackerCapEffect,
     foldAttackRequirements,
     markAttacking,
+    stampAttackedPlayers,
     markDeclaredBlockers,
     recordAttackerDeclared,
 } from "./combat";
@@ -2299,6 +2300,8 @@ export function emitAttackersDeclaredEvents(state: GameState): void {
     // arbitrarily preceding the other. Paying here rather than at each caller
     // is deliberate: this function is the one choke point the server mutation,
     // the auto-pass auto-confirm, `applyMove` and the ISMCTS sandbox all reach.
+    // CR 508.1b — the record "you attacked" reads, stamped at the same choke point.
+    stampAttackedPlayers(state);
     const exertEvents = payDeclaredExertCosts(state);
     // CR 508.1f — attackers tap as they are declared, so the "becomes tapped"
     // events `tapPermanent` queued join the SAME batch as `ATTACKERS_DECLARED`

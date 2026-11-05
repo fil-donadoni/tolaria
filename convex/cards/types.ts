@@ -5990,6 +5990,9 @@ export interface SpellContext {
      *  count). Reads `PlayerState.nontokenCreaturesToGraveyardThisTurn`. Used by the
      *  `{ nontokenCreaturesToGraveyardThisTurn: { of } }` EffectValue member. */
     getNontokenCreaturesToGraveyardThisTurn: (playerId: string) => number;
+    /** CR 702.121a — how many opponents `playerId` attacked with a creature this
+     *  combat. Used by the `{ opponentsAttackedThisCombat: { of } }` EffectValue member. */
+    getOpponentsAttackedThisCombat: (playerId: string) => number;
     /** CR 506.2 / 508.1b (issue #3244) — what the attacking creature
      *  `attackerId` is attacking RIGHT NOW: the planeswalker its
      *  `combat.attackTargets` entry names, else the defending player. A
@@ -15947,6 +15950,7 @@ export type EffectValue =
     | EffectLifeLostThisTurnValue
     | EffectCardsDrawnThisTurnValue
     | EffectNontokenCreaturesToGraveyardThisTurnValue
+    | EffectOpponentsAttackedThisCombatValue
     | EffectPlayerCountersValue
     | EffectDifferenceValue
     | EffectScaledValue
@@ -16091,6 +16095,20 @@ export type EffectCardsDrawnThisTurnValue = {
  *  put into your graveyard from the battlefield this turn" count. */
 export type EffectNontokenCreaturesToGraveyardThisTurnValue = {
     nontokenCreaturesToGraveyardThisTurn: { of: EffectPlayerRef };
+};
+
+/** opponentsAttackedThisCombat — how many opponents a PLAYER attacked with a creature this
+ *  combat (CR 702.121a), a thin JSON-pure skin over
+ *  `SpellContext.getOpponentsAttackedThisCombat`. Like
+ *  `cardsDrawnThisTurn` it is NOT an Op and NOT a structural construct.
+ *
+ *  `of` is a PLAYER selector (`EffectPlayerRef`) naming the attacking player; it
+ *  resolves through `resolvePlayerRef`, an unresolvable player yields undefined
+ *  (CR 608.2b). The count reads `combat.attackedPlayerIds`, the record of the
+ *  declaration, so a creature removed from combat still counts and one put onto
+ *  the battlefield attacking never does (CR 508.4). */
+export type EffectOpponentsAttackedThisCombatValue = {
+    opponentsAttackedThisCombat: { of: EffectPlayerRef };
 };
 
 /** playerCounters — how many counters of one {@link PlayerCounterKind} a

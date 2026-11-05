@@ -1989,7 +1989,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Melee",
         kind: "keyword-ability",
         cr: "702.121",
-        status: "planned",
+        status: "implemented",
+        binding: "melee",
+        note: "Issue #4016. convex/cards/abilities/melee.ts: a triggered keyword derived from the live layer-6 `staticAbilities` multiset (`liveKeywordTriggers.ts`), because a grant can carry it (Adriana, Titania); each occurrence is one CR 702.121b instance. The body is the shipped `pump` Op on `$source`, its amount the `opponentsAttackedThisCombat` value member, read at resolution off `combat.attackedPlayerIds`, the record stamped at the declaration.",
     },
     // 702.122 Crew
     {
@@ -4255,6 +4257,11 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  #2366) rather than a widening in place — `divide` keeps its own narrower type,
  *  and `X` stays excluded from both. The grammar is still depth-1: this member
  *  is a leaf read with no nested value slot.
+ *  `opponentsAttackedThisCombat` (`{ opponentsAttackedThisCombat: { of } }`) IS a new value-grammar member,
+ *  with the same non-Op, non-ADR-0045-reopening status: CR 702.121a, how many
+ *  opponents a PLAYER attacked with a creature this combat, a thin skin over
+ *  SpellContext.getOpponentsAttackedThisCombat. Reason to exist: melee's amount,
+ *  which no `count` can read, since it survives the attacker leaving combat.
  *  `setSize` (`{ setSize: { of } }`) IS a new value-grammar member
  *  — the cardinality sibling of `sum` (#3243) — with the same non-Op,
  *  non-ADR-0045-reopening status: HOW MANY ids a picks binding holds, the X of

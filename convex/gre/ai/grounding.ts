@@ -511,6 +511,9 @@ export function contextFreeGrounding(
         // (issue #3244) is the same case one read smaller: the COUNT of such a
         // set, so it takes the same floor for the same reason — as does
         // `boundCount`, the count of an earlier sweep's captures.
+        // `opponentsAttackedThisCombat` tops out at the one opponent a two-player game has.
+        if ("opponentsAttackedThisCombat" in v)
+            return { amount: 1, scaling: false };
         if ("escaped" in v || "abilityResolutionCount" in v)
             return { amount: 1, scaling: false };
         return { amount: CF_ASSUMED_REF, scaling: true };

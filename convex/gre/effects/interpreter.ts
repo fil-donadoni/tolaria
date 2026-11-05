@@ -1159,6 +1159,17 @@ function resolveValue(
         if (playerId === undefined) return undefined;
         return ctx.getNontokenCreaturesToGraveyardThisTurn(playerId);
     }
+    // opponentsAttackedThisCombat (CR 702.121a) — a thin skin over the declaration's record.
+    // `of` is the attacking player, resolved through the SAME resolvePlayerRef
+    // path; undefined when it cannot be resolved (CR 608.2b).
+    if ("opponentsAttackedThisCombat" in value) {
+        const playerId = resolvePlayerRef(
+            ctx,
+            value.opponentsAttackedThisCombat.of
+        );
+        if (playerId === undefined) return undefined;
+        return ctx.getOpponentsAttackedThisCombat(playerId);
+    }
     // playerCounters (CR 122.1, issue #1969) — how many counters of one kind a
     // PLAYER has, a thin skin over ctx.getPlayerCounters. The PLAYER-scoped
     // sibling of `counters` above: `of` is a PLAYER selector resolved through

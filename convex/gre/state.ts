@@ -375,6 +375,7 @@ import { getEffectiveBlockGraph } from "./banding";
 import {
     validateAttackerEligibility,
     validateBlockerEligibility,
+    opponentsAttackedThisCombat,
     joinCombatAttacking,
     markDeclaredBlockers,
 } from "./combat";
@@ -14443,6 +14444,11 @@ export function buildSpellContext(
                 state.players.find((p) => p.id === playerId)
                     ?.nontokenCreaturesToGraveyardThisTurn ?? 0
             );
+        },
+        // CR 702.121a — the opponents `playerId` attacked with a creature this
+        // combat, off the declaration's record.
+        getOpponentsAttackedThisCombat(playerId: string): number {
+            return opponentsAttackedThisCombat(state, playerId);
         },
         getDeathsThisTurn(): number {
             return state.deathsThisTurn ?? 0;
