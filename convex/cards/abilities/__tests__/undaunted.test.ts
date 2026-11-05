@@ -16,6 +16,7 @@ import {
 import { oracleCard } from "../../../oracle/__tests__/oracle.fixture";
 import { compileCard } from "../../../oracle/compile";
 import { getDefinition, preloadDefinitions } from "../..";
+import { expandDefinition } from "../../registry";
 import {
     makeInstance,
     makePlayer,
@@ -38,7 +39,6 @@ function registerSorcery(
             types: ["Sorcery"],
             subtypes: [],
             staticAbilities,
-            effects: [{ op: "draw", amount: 1, player: "you" }],
         } as CardDefinition,
     ]);
     return id;
@@ -190,6 +190,12 @@ describe("Undaunted in the Oracle compiler", () => {
         expect(outcome.state).toBe("ready");
         if (outcome.state !== "ready") return;
         expect(outcome.definition.staticAbilities).toEqual(["undaunted"]);
+        expect(
+            expandDefinition(outcome.definition as CardDefinition)
+                .selfCostReduction
+        ).toEqual({
+            costReduction: { perCount: { X: 1 }, countMode: "opponents" },
+        });
     });
 
     it("keeps a granted undaunted in quarantine: a grant never reaches the expander", () => {

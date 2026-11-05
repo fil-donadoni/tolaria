@@ -10594,7 +10594,7 @@ export interface CensusDrivenCostReduction {
 export type CostReductionAmount =
     | ManaCost
     | CountDrivenCostReduction
-    | DomainDrivenCostReduction;
+    | CensusDrivenCostReduction;
 
 /** The fixed-literal {@link CostReductionAmount} narrowed to what a CR 601.2f
  *  reduction can actually apply (issue #3340): GENERIC mana only, and no
