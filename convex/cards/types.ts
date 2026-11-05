@@ -875,6 +875,11 @@ export interface TargetRequirement {
      *  `type` (CardType filter, or "card" for any). Used by reanimation /
      *  graveyard-recursion spells (CR 400.7) like Regrowth. */
     zone?: "battlefield" | "graveyard";
+    /** Issue #7209 — "target card in a graveyard that was put there from
+     *  anywhere this turn". Keeps only graveyard cards wearing the
+     *  `CardInstanceState.putIntoGraveyardThisTurn` stamp, whatever zone they
+     *  came from. Meaningful only with `zone: "graveyard"`. */
+    putIntoGraveyardThisTurn?: true;
     /** Restricts legal targets by relationship to the chooser ("you" =
      *  caster controls; "opponent" = opponent controls; "any" = either).
      *  Default "any". Honored for graveyard targets (Regrowth), for

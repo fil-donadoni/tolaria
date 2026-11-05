@@ -1345,6 +1345,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     mvFilter: true,
     sameController: true,
     zoneOwnerId: true,
+    putIntoGraveyardThisTurn: true,
     isToken: true,
     controlledSinceTurnStart: true,
     attachedToFilter: true,
@@ -3918,6 +3919,7 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     );
     item.zone = destination;
     resetStackTransientState(item);
+    if (destination === "graveyard") noteGraveyardArrival(item);
     // Issue #4931 — a CAST instant/sorcery in the graveyard keeps its mana
     // value on the curve (evaluate.ts `manaDevelopmentTerm`); a permanent card
     // is read off the battlefield instead.
@@ -7838,6 +7840,8 @@ export function removePermanentTo(
     // the destination after every replacement above, so a redirected departure
     // is not counted; a melded pair is one permanent, however many cards land.
     if (toZone === "graveyard") {
+        noteGraveyardArrival(creature);
+        if (meldPartner) noteGraveyardArrival(meldPartner);
         state.permanentsToGraveyardThisTurn =
             (state.permanentsToGraveyardThisTurn ?? 0) + 1;
     }
@@ -10626,6 +10630,7 @@ function stageReanimatedOnBattlefield(
         card.zone = "graveyard";
         card.attachedTo = undefined;
         getPlayer(state, card.ownerId).graveyard.push(card);
+        noteGraveyardArrival(card);
         return false;
     }
     // CR 712.14b (ADR 0122 §3) — "if a player is instructed to put a modal
@@ -12274,6 +12279,7 @@ function abortStagedEntryTo(
     discardEntryTypeLine(card);
     card.zone = destination;
     getPlayer(state, card.ownerId)[destination].push(card);
+    if (destination === "graveyard") noteGraveyardArrival(card);
 }
 
 /** CR 707.6 / ADR 0100 D4 — the owed list is DISCOVERED, not fixed. An answer
@@ -22339,10 +22345,26 @@ export function noteGraveyardDeparture(
     // CR 400.7 / 613.7d — the graveyard object's timestamp goes with it; a
     // card that comes back is a new object and is stamped afresh
     // (`stampGraveyardStaticSources`).
-    for (const card of cards) delete (card as CardInstanceState).zoneStaticSeq;
+    for (const card of cards) {
+        delete (card as CardInstanceState).zoneStaticSeq;
+        // Issue #7209 — the stamp named the graveyard object that just left.
+        delete (card as CardInstanceState).putIntoGraveyardThisTurn;
+    }
     if (cards.length === 0) return;
     player.leftGraveyardThisTurn =
         (player.leftGraveyardThisTurn ?? 0) + cards.length;
+}
+
+/** CR 400.7 (issue #7209) — the arrival twin of `noteGraveyardDeparture`: every
+ *  path that puts a card INTO a graveyard calls it, once the replacements have
+ *  settled the destination, so "put there from anywhere this turn" reads one
+ *  stamp whatever the origin. The census: `moveCard` (discard, mill, the
+ *  general movers), `removePermanentTo` and its meld partner,
+ *  `sendStackItemToGraveyard`, and the two abandoned entries (a land barred
+ *  from entering, a staged object). `restoreToCurrentZone` is deliberately not
+ *  on it: that card never left (CR 712.14b). */
+export function noteGraveyardArrival(card: CardInstanceState): void {
+    card.putIntoGraveyardThisTurn = true;
 }
 
 /** CR 406 / 118.3 — moves one card from `player`'s graveyard to their exile
@@ -22604,6 +22626,7 @@ export function moveCard(
     // same reason.
     const targetZone = player[toField] as CardInstanceState[];
     targetZone.push(card);
+    if (to === "graveyard") noteGraveyardArrival(card);
 
     // CR 113.6c — a static ability that functions outside the battlefield is
     // re-derived for the zone the card just landed in (a no-op for every card
