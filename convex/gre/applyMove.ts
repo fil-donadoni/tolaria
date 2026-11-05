@@ -476,7 +476,8 @@ export function applyAlternativeCostPermanentLegForSearch(
         alt,
         def,
         undefined,
-        def.name ?? "Alternative cost"
+        def.name ?? "Alternative cost",
+        spell
     );
     if (!selection) return true;
     const owner = getPlayer(state, playerId);
@@ -524,10 +525,11 @@ export function applyKickerPermanentLegForSearch(
     state: GameState,
     playerId: string,
     cardDef: CardDefinition,
-    payments: KickerPayments | undefined
+    payments: KickerPayments | undefined,
+    spell: CardInstanceState
 ): void {
     if (!payments) return;
-    // CR 701.21 / 400.7 — the permanent leg(s): sacrifice or return, picked
+    // CR 701.21 / 400.7 — the permanent leg(s): sacrifice, return or tap, picked
     // cheapest-first. `enumerateKickerVariants` already confirmed
     // enough DISTINCT matching permanents exist (`canPayKickerLegs` →
     // `canAffordCostLegsPermanents`), so `completeSacrificeSelection` should
@@ -539,18 +541,12 @@ export function applyKickerPermanentLegForSearch(
         undefined,
         cardDef,
         payments,
-        cardDef.name ?? "Kicker"
+        cardDef.name ?? "Kicker",
+        spell
     );
     if (!permSel) return;
-    const picked = completeSacrificeSelection(state, permSel);
-    if (!picked) return;
-    for (const id of picked) {
-        if (permSel.action === "sacrifice") {
-            removePermanentTo(state, id, "graveyard", "sacrifice");
-        } else {
-            removePermanentTo(state, id, "hand");
-        }
-    }
+    if (!completeSacrificeSelection(state, permSel)) return;
+    applySacrificeSelection(state, permSel);
 }
 
 /** CR 702.120a / 601.2h (issue #2267) — pay the HAND legs of a Move's paid
@@ -1533,7 +1529,8 @@ export function commitCastInSearch(
                 state,
                 playerId,
                 kickerCardDef,
-                move.kickerPayments
+                move.kickerPayments,
+                preCastSpell
             );
             // CR 702.120a (issue #2267) — and its HAND legs (escalate's
             // discard per extra mode); a stale Move is dropped.

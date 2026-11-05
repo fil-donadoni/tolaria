@@ -99,6 +99,7 @@ import {
     isSacrificeSelectionComplete,
     isSacrificeCandidateLegal,
     applySacrificeSelection,
+    tapPaymentSpokenForIds,
     sacrificeSourceSnapshot,
     sacrificeCandidates,
     nextUnmetRequirement,
@@ -5699,7 +5700,8 @@ export function finalizeTargetSelection(
         chosenAltCost,
         cardDef,
         kickerPayments,
-        cardDef.name ?? (chosenAltCost ? "Alternative cost" : "Kicker")
+        cardDef.name ?? (chosenAltCost ? "Alternative cost" : "Kicker"),
+        cardInHand
     );
     const castSac = resolveCastPermanentSelection(castPermSel, additionalSac);
     // CR 702.119a / 702.119c — an emerge cast's total is reduced by its
@@ -7142,7 +7144,8 @@ export const announceCast = mutation({
                 player,
                 cardDef,
                 kickerPayments,
-                args.cardInstanceId
+                args.cardInstanceId,
+                cardInHand
             )
         ) {
             throw new Error("Can't pay the kicker cost");
@@ -7610,7 +7613,8 @@ export const announceCast = mutation({
                 chosenAltCost,
                 cardDef,
                 kickerPayments,
-                cardDef.name ?? "Alternative cost"
+                cardDef.name ?? "Alternative cost",
+                cardInHand
             );
             // CR 601.2f / 118.8 / 118.9d (issue #1985) — trust what the builder
             // actually produced; fall back to the board-wide/own sacrifice
@@ -8002,7 +8006,8 @@ export const announceCast = mutation({
             undefined,
             cardDef,
             kickerPayments,
-            cardDef.name ?? "Kicker"
+            cardDef.name ?? "Kicker",
+            cardInHand
         );
         const castSac = resolveCastPermanentSelection(kickerPermSel, ownSac);
         // CR 118.8 / 701.9 / 702.81a — the card's OWN "discard a card"
@@ -8355,6 +8360,17 @@ export const tapForPayment = mutation({
                 (c) => c.id === payment.cardInstanceId
             );
             if (!card) throw new Error("Card not on battlefield");
+            // CR 702.78a — a creature picked, or still needed, to pay by tapping
+            // is spoken for: tapping it for mana too would leave the cost unpaid.
+            if (
+                state.pendingCast.sacrificeSelection &&
+                tapPaymentSpokenForIds(
+                    state,
+                    state.pendingCast.sacrificeSelection
+                ).includes(card.id)
+            ) {
+                throw new Error("That permanent is already paying this cost");
+            }
             // CR 602.5 — name the `activation-restriction` (Cursed Totem)
             // rather than the generic refusal below, which it also trips.
             const restricted = activationRestrictionViolation(
@@ -9310,9 +9326,19 @@ export const autoTapForPayment = mutation({
         // CR 701.67a — a permanent picked to pay a generic pip by tapping is
         // spoken for: auto-tap planning it as a mana source too would make the
         // commit drop the activation with its mana spent.
-        const spokenFor = state.pendingActivation?.tapOtherChoice?.pickedIds;
+        // CR 702.78a — the same for a creature picked to pay a cast's tap leg.
+        const spokenFor =
+            state.pendingActivation?.playerId === args.playerId
+                ? state.pendingActivation.tapOtherChoice?.pickedIds
+                : state.pendingCast?.playerId === args.playerId &&
+                    state.pendingCast.sacrificeSelection
+                  ? tapPaymentSpokenForIds(
+                        state,
+                        state.pendingCast.sacrificeSelection
+                    )
+                  : undefined;
         const sources = buildAutoTapSources(
-            spokenFor && state.pendingActivation?.playerId === args.playerId
+            spokenFor
                 ? player.battlefield.filter((c) => !spokenFor.includes(c.id))
                 : player.battlefield,
             manaGateBattlefields(state),

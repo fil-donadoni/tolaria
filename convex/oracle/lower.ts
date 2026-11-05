@@ -58,6 +58,7 @@ import {
     reconfigureAbilities,
 } from "../cards/abilities/equipment";
 import { ninjutsuAbility } from "../cards/abilities/ninjutsu";
+import { CONSPIRE_KEYWORD, conspireCost } from "../cards/abilities/conspire";
 import { offspringTriggerParts } from "../cards/abilities/offspring";
 import { crewAbility, crewKeyword } from "../cards/abilities/vehicle";
 import { saddleAbility, saddleKeyword } from "../cards/abilities/mount";
@@ -215,6 +216,10 @@ interface Accumulator {
      * rider read while lowering may count it.
      */
     offspring?: KickerCost;
+    /** CR 702.78a — the conspire cost entry, kept apart from `kickers` for the
+     * reason `offspring` is: `lowerCard`'s kicker pre-pass and its rider checks
+     * read that field. */
+    conspire?: KickerCost;
 }
 
 /**
@@ -417,6 +422,10 @@ function lowerLine(
         case "keywords": {
             for (const kw of ir.keywords) {
                 acc.staticAbilities.push(kw.ability);
+                // CR 702.78a — the keyword's cost half is a cost-family entry;
+                // its cast-copy trigger is the engine's, read off that row.
+                if (kw.ability === CONSPIRE_KEYWORD)
+                    acc.conspire = conspireCost();
                 // CR 702.1 — a keyword IS its rule; if the engine does not
                 // implement it, the card would ship silently inert (the Guard A
                 // shape, #962). Recorded, then quarantined by the gates.
@@ -1283,10 +1292,13 @@ export function lowerCard(
     }
     // CR 702.175a — the offspring cost rides the same `kickers[]` the cast
     // path reads; its `keyword` keeps it out of every "kicked" read.
+    const keywordCosts = [acc.offspring, acc.conspire].filter(
+        (cost): cost is KickerCost => cost !== undefined
+    );
     const castKickers =
-        acc.offspring === undefined
+        keywordCosts.length === 0
             ? acc.kickers
-            : [...(acc.kickers ?? []), acc.offspring];
+            : [...(acc.kickers ?? []), ...keywordCosts];
     if (castKickers !== undefined) definition.kickers = castKickers;
     // CR 702.6a — "Equip is an activated ability of Equipment cards".
     if (acc.equipLine !== undefined && !typeLine.subtypes.includes("Equipment"))

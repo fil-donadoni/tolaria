@@ -33,11 +33,12 @@
 import { resolveAdditionalCosts } from "./additionalCost";
 import { getStaticAdditionalSacrifices } from "./state";
 import { getInstanceManaCost } from "../cards";
-import { buildCastPermanentCostChoice } from "./kicker";
+import { buildCastPermanentCostChoice, type KickerPayments } from "./kicker";
 import { largestEmergeVictim } from "./emerge";
 import {
     applySacrificeSelection,
     sacrificeSnapshotFromResults,
+    tapPaymentPickIds,
     autoResolveFungible,
     buildSacrificeRequirements,
     type SacrificeRequirement,
@@ -73,6 +74,32 @@ import type {
 type AdditionalSacrificeSnapshot = NonNullable<
     StackItem["additionalSacrificeSnapshot"]
 >;
+
+/** CR 702.78a — the creatures a Move's paid tap leg will take: the live answer
+ *  (`pickForOwedPayment`) is this same cheapest-first completion over the board
+ *  as it stands at announcement. The enumerator keeps them out of the tap plan,
+ *  since a creature spoken for this way cannot also tap for mana and the executor
+ *  announces before it taps. Null when the leg cannot be completed. */
+export function kickerTapLegPicks(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    def: CardDefinition,
+    payments: KickerPayments | undefined
+): ReadonlySet<string> | null {
+    const selection = buildCastPermanentCostChoice(
+        state,
+        player.id,
+        undefined,
+        def,
+        payments,
+        def.name ?? "Kicker",
+        card
+    );
+    if (!selection) return new Set();
+    if (!completeSacrificeSelection(state, selection)) return null;
+    return new Set(tapPaymentPickIds(selection));
+}
 
 /** The cards named to pay one cast's mandatory additional-cost parks. Every
  *  field is absent when the cast has no such park, so a Move for an ordinary
@@ -321,7 +348,8 @@ export function planCastCostPicks(
             opts.altCost,
             def,
             undefined,
-            def.name ?? "Alternative cost"
+            def.name ?? "Alternative cost",
+            card
         );
         if (altSelection) {
             // CR 702.119a — the emerge victim is the LARGEST-mana-value match,
