@@ -106,6 +106,7 @@ const STORED: Required<ScenarioSpec> = {
     markLastDrawn: true,
     rngSeed: 4242,
     poison: { me: 3, opp: 1 },
+    speed: { me: 4, opp: 1 },
     life: { me: 5, opp: 2 },
     experience: { me: 2, opp: 0 },
     // CR 305.2 (issue #3446) — a curated row whose "me" has already used its

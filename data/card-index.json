@@ -57207,6 +57207,16 @@
         "source": "compiled"
     },
     {
+        "name": "Pride of the Road",
+        "scryfallId": "4172222f-d871-4354-9a02-7af0001d8956",
+        "oracleId": "2af236b0-6b30-4ddc-8735-864d2ffad68e",
+        "firstSet": "dft",
+        "firstPrintId": "4172222f-d871-4354-9a02-7af0001d8956",
+        "firstPrintSet": "dft",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Prideful Feastling",
         "scryfallId": "7578cb61-f606-4559-a10a-343a583228ab",
         "oracleId": "faf2f368-a7e7-4427-bc03-929f294b1e03",
@@ -62088,6 +62098,16 @@
         "firstSet": "mid",
         "firstPrintId": "3143fadd-0162-4e0c-89fc-89dc3501d13c",
         "firstPrintSet": "mid",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Risen Necroregent",
+        "scryfallId": "5a68482a-401d-48e7-854e-46e3db07ff35",
+        "oracleId": "527cc22f-b471-4a84-93a8-be56193a9723",
+        "firstSet": "dft",
+        "firstPrintId": "5a68482a-401d-48e7-854e-46e3db07ff35",
+        "firstPrintSet": "dft",
         "rarity": "uncommon",
         "source": "compiled"
     },

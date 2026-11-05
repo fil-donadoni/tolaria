@@ -119,6 +119,14 @@ export const SCENARIO_JSON_SCHEMA = {
                 opp: { type: "integer" },
             },
         },
+        speed: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "integer" },
+                opp: { type: "integer" },
+            },
+        },
         life: {
             type: "object",
             additionalProperties: false,

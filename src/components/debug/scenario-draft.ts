@@ -221,6 +221,7 @@ export type SpecDraft = {
     markLastDrawn: boolean;
     rngSeed: string;
     poison: SeatPairDraft;
+    speed: SeatPairDraft;
     life: SeatPairDraft;
     experience: SeatPairDraft;
     /** CR 305.2 (issue #3446) — lands already played this turn, per seat. */
@@ -278,6 +279,7 @@ export function emptySpecDraft(): SpecDraft {
         markLastDrawn: false,
         rngSeed: "",
         poison: { ...EMPTY_SEAT_PAIR },
+        speed: { ...EMPTY_SEAT_PAIR },
         life: { ...EMPTY_SEAT_PAIR },
         experience: { ...EMPTY_SEAT_PAIR },
         landsPlayed: { ...EMPTY_SEAT_PAIR },
@@ -333,6 +335,7 @@ export function specToDraft(spec: ScenarioSpec | null): SpecDraft {
     draft.markLastDrawn = spec.markLastDrawn ?? false;
     if (spec.rngSeed !== undefined) draft.rngSeed = String(spec.rngSeed);
     draft.poison = seatPairToDraft(spec.poison);
+    draft.speed = seatPairToDraft(spec.speed);
     draft.life = seatPairToDraft(spec.life);
     draft.experience = seatPairToDraft(spec.experience);
     draft.landsPlayed = seatPairToDraft(spec.landsPlayed);
@@ -421,6 +424,8 @@ export function draftToSpec(draft: SpecDraft): Omit<ScenarioSpec, "cards"> {
     if (hiddenHand) spec.hiddenHand = hiddenHand;
     const poison = seatPairFromDraft(draft.poison);
     if (poison) spec.poison = poison;
+    const speed = seatPairFromDraft(draft.speed);
+    if (speed) spec.speed = speed;
     const life = seatPairFromDraft(draft.life);
     if (life) spec.life = life;
     const experience = seatPairFromDraft(draft.experience);

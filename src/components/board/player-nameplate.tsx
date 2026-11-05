@@ -15,6 +15,7 @@ import {
 import AnimatedLifeTotal from "./animated-life-total";
 import PlayerSeatPlate from "./player-seat-plate";
 import PlayerPoisonCounters from "./player-poison-counters";
+import PlayerSpeed from "./player-speed";
 import PlayerEnergyCounters from "./player-energy-counters";
 import PlayerExperienceCounters from "./player-experience-counters";
 import PlayerCastLock from "./player-cast-lock";
@@ -389,6 +390,7 @@ export default function PlayerNameplate({
                         count={player.poisonCounters}
                         compact
                     />
+                    <PlayerSpeed speed={player.speed} compact />
                     <PlayerEnergyCounters
                         count={player.energyCounters}
                         compact
@@ -428,6 +430,7 @@ export default function PlayerNameplate({
                             <PlayerPoisonCounters
                                 count={player.poisonCounters}
                             />
+                            <PlayerSpeed speed={player.speed} />
                             <PlayerEnergyCounters
                                 count={player.energyCounters}
                             />

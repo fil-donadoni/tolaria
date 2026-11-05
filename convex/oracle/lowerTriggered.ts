@@ -372,6 +372,8 @@ function lowerCondition(
             return { kind: "self-on-battlefield" };
         case "you-are-monarch":
             return { kind: "you-are-monarch" };
+        case "you-have-max-speed":
+            return { kind: "you-have-max-speed" };
         case "controls-more": {
             // CR 603.4 — "that player" must be a player the head introduced,
             // or the comparison is about nobody.

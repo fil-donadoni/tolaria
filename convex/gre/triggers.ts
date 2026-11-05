@@ -22,7 +22,7 @@ import type {
     TriggeredAbility,
 } from "../cards/types";
 import { tryGetDefinition } from "../cards";
-import { MONARCH_DESIGNATION } from "../cards/designations";
+import { MONARCH_DESIGNATION, SPEED_DESIGNATION } from "../cards/designations";
 import { INLINE_DELAYED_TRIGGER_ID } from "./effects/interpreter";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import type {
@@ -150,6 +150,37 @@ export function buildMonarchDrawStackItem(
         ...(state.monarchSourceCardId
             ? { sourcePrintId: state.monarchSourceCardId }
             : {}),
+    };
+}
+
+/** CR 702.179d — the inherent speed trigger on the stack: "This ability has no
+ *  source and is controlled by that player", so like the monarch's draw it is
+ *  card-less, and its designation gives the stack tile its marker art. It waits
+ *  in the reflexive queue and so is flagged `reflexiveTrigger`: an ability its
+ *  controller may order against the rest of the batch (CR 603.3b), never one the
+ *  engine places by itself. The increase lives on the resolver
+ *  (`resolveSpeedIncrease`), which re-reads the intervening if (CR 603.4). */
+export function buildSpeedIncreaseStackItem(
+    state: GameState,
+    controllerId: string
+): StackItem {
+    return {
+        id: allocInstanceId(state),
+        card: { id: "" },
+        controllerId,
+        ownerId: controllerId,
+        zone: "stack",
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        isTapped: false,
+        castById: controllerId,
+        delayedTriggerId: INLINE_DELAYED_TRIGGER_ID,
+        delayedEffects: [],
+        delayedOracleText:
+            "Whenever one or more opponents lose life during your turn, if your speed is less than 4, your speed increases by 1. This ability triggers only once each turn.",
+        reflexiveTrigger: true,
+        designationId: SPEED_DESIGNATION.id,
     };
 }
 

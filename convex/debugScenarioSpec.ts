@@ -679,6 +679,13 @@ export const scenarioSpecValidator = v.object({
             opp: v.optional(v.number()),
         })
     ),
+    // CR 702.179b — seed a seat's speed; absent leaves that player with none.
+    speed: v.optional(
+        v.object({
+            me: v.optional(v.number()),
+            opp: v.optional(v.number()),
+        })
+    ),
     // CR 119.1 (issue #2147) — seed starting life totals, so a saved scenario
     // can pin a life-dependent decision (chump-block vs. race, burn the
     // creature vs. the face, a lethal check) instead of opening at the
@@ -1237,6 +1244,8 @@ export type ScenarioSpec = {
     markLastDrawn?: boolean;
     rngSeed?: number;
     poison?: { me?: number; opp?: number };
+    /** CR 702.179b — seed a seat's speed; absent leaves that player with none. */
+    speed?: { me?: number; opp?: number };
     /** CR 119.1 (issue #2147) — seed starting life totals, so a scenario can
      *  pin a life-dependent decision (chump-block vs. race, a lethal check)
      *  instead of opening at the default 20. */
@@ -2340,6 +2349,12 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         set(poison, "me", pickNumber(raw.poison.me));
         set(poison, "opp", pickNumber(raw.poison.opp));
         spec.poison = poison;
+    }
+    if (isRecord(raw.speed)) {
+        const speed: { me?: number; opp?: number } = {};
+        set(speed, "me", pickNumber(raw.speed.me));
+        set(speed, "opp", pickNumber(raw.speed.opp));
+        spec.speed = speed;
     }
     if (isRecord(raw.life)) {
         const life: { me?: number; opp?: number } = {};

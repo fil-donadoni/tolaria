@@ -1435,6 +1435,12 @@ export function buildStateFromScenario(
         if (spec.poison.opp) p2.poisonCounters = spec.poison.opp;
     }
 
+    // CR 702.179b — seed speed, so a scenario can open at max speed.
+    if (spec.speed) {
+        if (spec.speed.me) p1.speed = spec.speed.me;
+        if (spec.speed.opp) p2.speed = spec.speed.opp;
+    }
+
     // Seed starting life totals (CR 119.1, issue #2147). Otherwise both
     // players keep the base state's default (20) regardless of what the
     // scenario is trying to pin — the class of bug this field exists to
@@ -4610,6 +4616,7 @@ export const PLAYER_STATE_ALLOWLIST = new Set<string>([
     "manaPool",
     "restrictedMana",
     "poisonCounters",
+    "speed",
     "experienceCounters",
     // CR 305.2 (issue #3446) — lowered by `specFromState` into `landsPlayed`
     // and rebuilt from it, so it is no longer live-only residue.
@@ -5411,6 +5418,11 @@ export function specFromState(
         spec.poison = {};
         if (me.poisonCounters) spec.poison.me = me.poisonCounters;
         if (opp.poisonCounters) spec.poison.opp = opp.poisonCounters;
+    }
+    if (me.speed || opp.speed) {
+        spec.speed = {};
+        if (me.speed) spec.speed.me = me.speed;
+        if (opp.speed) spec.speed.opp = opp.speed;
     }
     if (me.experienceCounters || opp.experienceCounters) {
         spec.experience = {};

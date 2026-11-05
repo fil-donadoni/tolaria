@@ -136,6 +136,12 @@ export type TriggerConditionIR =
      * holds the monarch designation, re-read as the trigger resolves.
      */
     | { readonly kind: "you-are-monarch" }
+    /**
+     * CR 702.178a — the "Max speed —" head of a triggered ability, a keyword
+     * rather than an ability word. Printed in front of the ability, never as an
+     * "if" clause, so `labelledTriggeredBody` is the only rule that makes one.
+     */
+    | { readonly kind: "you-have-max-speed" }
     /** CR 603.4 — "if an opponent controls more lands than you". */
     | ComparativeControlsIR
     /**

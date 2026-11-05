@@ -16127,6 +16127,14 @@ export const debugSetupScenario = mutation({
                 opp: v.optional(v.number()),
             })
         ),
+        /** Seed a seat's speed (CR 702.179b); absent leaves that player with
+         *  none. */
+        speed: v.optional(
+            v.object({
+                me: v.optional(v.number()),
+                opp: v.optional(v.number()),
+            })
+        ),
         /** Seed starting life totals (CR 119.1, issue #2147) — pins a
          *  life-dependent decision (chump-block vs. race, a lethal check)
          *  instead of opening at the default 20. Mirrors `poison`'s per-seat,
