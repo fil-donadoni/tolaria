@@ -1237,7 +1237,11 @@ export function getProducibleColorsOnBoard(
                       battlefields,
                       depth + 1
                   )
-            : undefined,
+            : // Past the bound a board read contributes nothing, but the
+              // stored colour is no board read: without a resolver the five-
+              // colour no-board list would make this a phantom WUBRG source.
+              (source) =>
+                  source.colors === "chosen-color" ? chosenColorOf(card) : [],
         // Read every TYPE, {C} included: a Wastes under Infernal Darkness
         // could produce {B}. Filtered back to colours below.
         true,

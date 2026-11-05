@@ -73,7 +73,8 @@ export function colorChoiceModes(
 export function asEntersColorModes(): ModeOption[] {
     return COLOR_LABELS.map(([color, label]) => ({
         id: color,
-        label,
+        // Lower case: the card preview prints it inside a sentence ("(red)").
+        label: label.toLowerCase(),
         oracleText: `${label}.`,
     }));
 }

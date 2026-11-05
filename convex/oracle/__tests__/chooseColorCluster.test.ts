@@ -46,11 +46,11 @@ function protectionPick(name: string, target: Record<string, unknown>) {
 const AS_ENTERS_COLOR = {
     entersWith: { asEnters: [{ kind: "mode" }] },
     modes: [
-        { id: "W", label: "White", oracleText: "White." },
-        { id: "U", label: "Blue", oracleText: "Blue." },
-        { id: "B", label: "Black", oracleText: "Black." },
-        { id: "R", label: "Red", oracleText: "Red." },
-        { id: "G", label: "Green", oracleText: "Green." },
+        { id: "W", label: "white", oracleText: "White." },
+        { id: "U", label: "blue", oracleText: "Blue." },
+        { id: "B", label: "black", oracleText: "Black." },
+        { id: "R", label: "red", oracleText: "Red." },
+        { id: "G", label: "green", oracleText: "Green." },
     ],
 };
 

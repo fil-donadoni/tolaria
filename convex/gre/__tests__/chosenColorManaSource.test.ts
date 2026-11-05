@@ -60,6 +60,16 @@ describe('manaColorSource "chosen-color" (CR 614.12a, CR 106.5)', () => {
         ).toEqual(["G", "U"]);
     });
 
+    // A descriptor reading this permanent (Fellwar Stone reading a chosen-colour
+    // land) evaluates it at the depth bound, where no board read runs: the
+    // stored colour must still be the answer, never the no-board list.
+    it("could produce the stored colour at the descriptor depth bound", () => {
+        const { elf, battlefields } = board("U");
+        expect(
+            [...getProducibleColorsOnBoard(elf, battlefields, 1)].sort()
+        ).toEqual(["G", "U"]);
+    });
+
     // CR 106.7 — off the battlefield it may yet choose any of the five, so
     // deck analysis keeps reading it as a five-colour source.
     it("could produce all five off the battlefield", () => {
