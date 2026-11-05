@@ -38,6 +38,42 @@ import {
  *  effect the whole engine reads through `combatDeclarationCap` — #1127.) */
 export const ARBORIA_ID = "095078b0-0f26-442f-9d3b-45e30cdb33c4";
 
+/** CR 508.1b — the players the current attackers attack. An attacker with no
+ *  `attackTargets` entry attacks the defending player, the active player's one
+ *  opponent here; one with an entry attacks that planeswalker or battle. */
+export function playersAttackedByAttackers(
+    state: GameState
+): string[] | undefined {
+    const combat = state.combat;
+    if (!combat) return undefined;
+    const attackedPlayer = combat.attackerIds.some(
+        (id) => combat.attackTargets?.[id] === undefined
+    );
+    const defender = state.players.find((p) => p.id !== state.activePlayerId);
+    return attackedPlayer && defender ? [defender.id] : undefined;
+}
+
+/** CR 508.1b — record which players the declaration attacked. Runs once, at the
+ *  declaration, because nothing later can rebuild it: `attackerIds` loses a
+ *  creature removed from combat and gains one put onto the battlefield attacking,
+ *  which never "attacked" (CR 508.4). */
+export function stampAttackedPlayers(state: GameState): void {
+    if (!state.combat) return;
+    state.combat.attackedPlayerIds = playersAttackedByAttackers(state);
+}
+
+/** CR 702.121a — how many opponents `playerId` attacked with a creature this
+ *  combat. The record holds only the attacking player's opponents, so the player
+ *  it names attacked nobody. */
+export function opponentsAttackedThisCombat(
+    state: Pick<GameState, "combat">,
+    playerId: string
+): number {
+    return (state.combat?.attackedPlayerIds ?? []).filter(
+        (id) => id !== playerId
+    ).length;
+}
+
 /** CR 508.1 / 508.4 — marks a permanent as attacking, keeping the engine's TWO
  *  representations of "is this creature attacking" in sync: the combat-scoped
  *  id list (`combat.attackerIds`, membership) and the per-permanent flag

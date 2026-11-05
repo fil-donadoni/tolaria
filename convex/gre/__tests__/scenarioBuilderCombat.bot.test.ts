@@ -53,6 +53,37 @@ function blockWindow(): GameState {
     });
 }
 
+describe("the attacked-players record through the scenario spec (CR 508.1b)", () => {
+    it("a declared attack on a player lowers with no combat loss and rebuilds its record", () => {
+        const live = blockWindow();
+        expect(live.combat?.attackedPlayerIds).toHaveLength(1);
+        const { spec, dropped } = specFromState(live, {
+            mySeatId: live.activePlayerId,
+        });
+        expect(dropped.filter((d) => d.startsWith("combat:"))).toEqual([]);
+        const rebuilt = buildStateFromScenario(buildBladeBaseState(), spec);
+        expect(rebuilt.combat?.attackedPlayerIds).toEqual(
+            rebuilt.players
+                .filter((p) => p.id !== rebuilt.activePlayerId)
+                .map((p) => p.id)
+        );
+    });
+
+    it("a record the attackers no longer imply is reported, not rebuilt wrong", () => {
+        const live = blockWindow();
+        const [attackerId] = live.combat!.attackerIds;
+        live.players
+            .flatMap((p) => p.battlefield)
+            .filter((c) => c.id === attackerId)
+            .forEach((c) => (c.isAttacking = false));
+        live.combat!.attackerIds = [];
+        const { dropped } = specFromState(live, {
+            mySeatId: live.activePlayerId,
+        });
+        expect(dropped.some((d) => d.includes("attacked players"))).toBe(true);
+    });
+});
+
 function movesFor(state: GameState, playerId: string): string[] {
     return enumerateMoves(state, playerId)
         .map((move) => describeMove(move, state))

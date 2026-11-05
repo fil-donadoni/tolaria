@@ -1846,6 +1846,24 @@ function isNontokenCreaturesToGraveyardThisTurnValue(value: unknown): boolean {
     return isPlayerRef(s.of);
 }
 
+/** `{ opponentsAttackedThisCombat: { of } }` — SHAPE of the "opponents you attacked with a
+ *  creature this combat" count (CR 702.121a). `of` is a PLAYER selector,
+ *  family-checked as a PLAYER position by the ordered ref pass (the
+ *  `keyHint === "opponentsAttackedThisCombat"` case in `collectRefUses`, for the
+ *  `of`-key collision reason `domain` documents). No other keys are permitted. */
+function isOpponentsAttackedThisCombatValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "opponentsAttackedThisCombat")
+        return false;
+    const spec = (value as { opponentsAttackedThisCombat: unknown })
+        .opponentsAttackedThisCombat;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of")) return false;
+    return isPlayerRef(s.of);
+}
+
 /** `{ playerCounters: { of, type } }` — SHAPE of the player-counter read
  *  (CR 122.1, issue #1969, fourteenth EffectValue member). `of` is a PLAYER
  *  selector (`EffectPlayerRef`) — like `domain`'s / `lifeGainedThisTurn`'s and
@@ -2106,6 +2124,7 @@ function isEffectValue(value: unknown): boolean {
         isLifeLostThisTurnValue(value) ||
         isCardsDrawnThisTurnValue(value) ||
         isNontokenCreaturesToGraveyardThisTurnValue(value) ||
+        isOpponentsAttackedThisCombatValue(value) ||
         isPlayerCountersValue(value) ||
         isDifferenceValue(value) ||
         isScaledValue(value) ||
@@ -2788,7 +2807,8 @@ function isNegatedValue(value: unknown): boolean {
  *  `negate`-wrapped value member for the negative of one of those
  *  non-negative-by-nature reads (Toxic Deluge's "-X/-X"), or the
  *  `setSize` of a bound set (Myr Battlesphere's "+X/+0" where X
- *  is how many Myr were tapped). */
+ *  is how many Myr were tapped), or the opponents attacked this combat
+ *  (melee's "+1/+1 for each", CR 702.121a). */
 function isSignedEffectValue(value: unknown): boolean {
     if (typeof value === "number") return Number.isInteger(value);
     return (
@@ -2798,6 +2818,7 @@ function isSignedEffectValue(value: unknown): boolean {
         isCountersValue(value) ||
         isDomainValue(value) ||
         isSetSizeValue(value) ||
+        isOpponentsAttackedThisCombatValue(value) ||
         isNegatedValue(value)
     );
 }
@@ -7678,6 +7699,16 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
     // position, routed before the generic recursion like `cardsDrawnThisTurn`.
     if (
         keyHint === "nontokenCreaturesToGraveyardThisTurn" &&
+        keys.length === 1 &&
+        keys[0] === "of"
+    ) {
+        collectRefUses(obj.of, "player", out);
+        return;
+    }
+    // opponentsAttackedThisCombat — { opponentsAttackedThisCombat: { of } } (CR 702.121a): `of` is a PLAYER
+    // position, routed before the generic recursion like `cardsDrawnThisTurn`.
+    if (
+        keyHint === "opponentsAttackedThisCombat" &&
         keys.length === 1 &&
         keys[0] === "of"
     ) {
