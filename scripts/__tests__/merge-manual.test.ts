@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    advisoryRedRefusal,
     latestAdvisoryLane,
     manualMergeVerdict,
     type CheckRunView,
@@ -96,5 +97,43 @@ describe("merge-manual — latestAdvisoryLane", () => {
         expect(manualMergeVerdict(input({ checkRuns: redRerun })).kind).toBe(
             "refuse"
         );
+    });
+});
+
+// Issue #8181: PR #8151 and PR #8157 were labelled `ready-to-land` with the
+// advisory lane already red on the handed-off head; Mergify bounced both.
+describe("advisoryRedRefusal", () => {
+    it("refuses a head whose advisory lane concluded failure, naming the run", () => {
+        const r = advisoryRedRefusal(
+            [lane({ id: 77, conclusion: "failure" })],
+            HEAD
+        );
+        expect(r).toContain("77");
+        expect(r).toContain("concluded failure");
+    });
+    it("does not refuse a lane still running, green, or absent on the head", () => {
+        expect(
+            advisoryRedRefusal(
+                [lane({ status: "in_progress", conclusion: null })],
+                HEAD
+            )
+        ).toBeNull();
+        expect(advisoryRedRefusal([lane()], HEAD)).toBeNull();
+        expect(advisoryRedRefusal([], HEAD)).toBeNull();
+    });
+    it("does not refuse a head moved past the red run (restoreDerivedState)", () => {
+        const red = lane({ conclusion: "failure" });
+        expect(advisoryRedRefusal([red], "f".repeat(40))).toBeNull();
+    });
+    it("a re-run that went green supersedes the red one", () => {
+        expect(
+            advisoryRedRefusal(
+                [
+                    lane({ id: 1, conclusion: "failure" }),
+                    lane({ id: 2, conclusion: "success" }),
+                ],
+                HEAD
+            )
+        ).toBeNull();
     });
 });
