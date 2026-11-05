@@ -3082,35 +3082,34 @@ export function finalizeCleanup(state: GameState): void {
         }
     }
 
-    // CR 603.7a / 514.2 (issue #731) — an instance leave-watch delayed trigger
+    // CR 603.7b / 514.2 — an instance leave-watch delayed trigger
     // ("when that creature leaves the battlefield THIS TURN, …") that never
     // fired expires here. Every `leaves-battlefield` instance is this-turn
     // scoped, so the whole class is purged at CLEANUP; the phase-boundary
     // timings are left untouched (they fire on a future step, not this turn).
     //
     // The purge encodes the "this turn" CLAUSE, not a general rule about
-    // leave-watches (issue #1470): the INDEFINITE twin
+    // leave-watches: the INDEFINITE twin
     // `leaves-battlefield-indefinite` (earthbend N — "when it dies or is
     // exiled, return it to the battlefield tapped", no turn bound at all) is
     // deliberately NOT listed below, so it survives every CLEANUP and still
     // fires on a later turn. Keep the two timings distinct here — collapsing
     // them into one `startsWith("leaves-battlefield")` test would silently
     // re-bound the indefinite watch to this turn.
-    // Same bound applies to `this-turn-creature-blocks` (CR 603.7d, issue
-    // #884, Battle Cry) and `this-turn-creature-deals-combat-damage-to-player`
-    // (CR 720.2, issue #1199, Forth Eorlingas!): unlike `leaves-battlefield`
+    // Same bound applies to `this-turn-creature-blocks` (CR 603.7b, Battle
+    // Cry) and `this-turn-creature-deals-combat-damage-to-player` (CR 603.7b,
+    // Forth Eorlingas!): unlike `leaves-battlefield`
     // both are REPEATING (never dequeued by firing, `triggers.ts`), so they
     // are purged here unconditionally regardless of how many times —
     // including zero — they fired this turn.
     // `attacks-unblocked` (CR 509.1h, Delif's Cone / Cube) is a THIS-TURN
     // instance watch like `leaves-battlefield` — single-shot, so what expires
     // here is a watch whose creature never attacked unblocked this turn.
-    // `becomes-blocked-by` (CR 509.3d, issue #3809, Zombie Boa) is a
+    // `becomes-blocked-by` (CR 509.3d, Zombie Boa) is a
     // REPEATING this-turn instance watch — purged unconditionally, like
     // `this-turn-creature-blocks`; so is
-    // `this-turn-watched-creature-deals-combat-damage` (CR 603.7b, issue
-    // #2142, Vigorous Charge), and `this-turn-watched-creature-attacks-monarch`
-    // (CR 603.7b, issue #7202, Okoye, Mighty and Adored).
+    // `this-turn-watched-creature-deals-combat-damage` (CR 603.7b, Vigorous
+    // Charge) and `this-turn-watched-creature-attacks-monarch` (CR 603.7b).
     if (state.delayedTriggers?.length) {
         const kept = state.delayedTriggers.filter(
             (t) =>
