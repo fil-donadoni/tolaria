@@ -15,6 +15,8 @@
 // it carries no per-instance flag and auto-reverts when the source leaves play.
 
 import { getInstanceManaCost, tryGetDefinition } from ".";
+import { splitSecondSpellOnStack } from "./abilities/splitSecond";
+import type { SplitSecondStackView } from "./abilities/splitSecond";
 import { objectHasChosenName } from "./cardNames";
 import { getEffectiveColors } from "./effectiveColors";
 import { matchesPermanentFilter } from "./filters";
@@ -92,7 +94,7 @@ export const CAST_RESTRICTION_CTX: StaticEffectContext = {
 /** Minimal board view the scan needs — each player's battlefield as
  *  `PermanentView`-compatible instances. Both `GameState` (server) and the
  *  client's `Player[]` satisfy this structurally. */
-export interface CastRestrictionStateView {
+export interface CastRestrictionStateView extends SplitSecondStackView {
     players: ReadonlyArray<{ battlefield: ReadonlyArray<PermanentView> }>;
     /** CR 601.3a / 514.2 — players under a turn-scoped "can't cast spells this
      *  turn" lock (Xantid Swarm, issue #1057; Abeyance narrows it via
@@ -368,6 +370,13 @@ export function castProhibitionReason(
     // implementation to drift.
     const conditionUnmet = castConditionUnmetReason(casterId, spell, state);
     if (conditionUnmet !== undefined) return conditionUnmet;
+    // CR 702.61a — no other spell while a spell with split second is on the
+    // stack. Here rather than at a priority gate because a cast during
+    // resolution (CR 608.2g) is refused too: the prohibition names the cast,
+    // not the window.
+    if (splitSecondSpellOnStack(state)) {
+        return "Players can't cast spells while a spell with split second is on the stack.";
+    }
     // CR 601.3a (issue #1057) — a turn-scoped per-player cast lock (Xantid
     // Swarm: "defending player can't cast spells this turn"; Abeyance, issue
     // #1124, narrows it to instant/sorcery via `cardTypes`). Unlike the

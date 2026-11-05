@@ -2152,6 +2152,99 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #4010. The raised trigger target of a keyword no definition lists is a search decision.",
     },
     {
+        // CR 702.61a — Giant Growth would save the Bears, and it is no longer legal.
+        // Pair: the same board and target under Shock (next entry).
+        label: "split second: no pump in response to Sudden Shock on the bot's creature",
+        spec: {
+            cards: [
+                { name: "Sudden Shock", owner: "opp", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Giant Growth", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "opp",
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Sudden Shock",
+                by: "opp",
+                target: "Grizzly Bears",
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Giant Growth" }],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the spell on the stack has split second, so no response is legal",
+            },
+        },
+        note: "Issue #4007. `castProhibitionReason` takes the cast away, so the enumerator offers only the pass and the Bot never reaches for a move the server would refuse.",
+    },
+    {
+        // The pair of the entry above: nothing stops the response.
+        label: "split second pair: pumps in response to Shock on the bot's creature",
+        spec: {
+            cards: [
+                { name: "Shock", owner: "opp", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Giant Growth", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "opp",
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Shock",
+                by: "opp",
+                target: "Grizzly Bears",
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Giant Growth" }],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the spell on the stack has no split second, so the response is legal",
+            },
+        },
+        note: "Issue #4007. Pins that the board above offers a real response, so the entry above fails if the legality gate opens rather than because the Bot had no wish to respond.",
+    },
+    {
         // CR 701.67a — floating mana covers the waterbend cost with bodies to
         // spare, so the live commit parks on `genericSubstitutionOffer`. The
         // move stays reachable and the owed-payment seam spends that mana.

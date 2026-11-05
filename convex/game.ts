@@ -258,6 +258,7 @@ import {
     announcementModeFacts,
     modeHasLegalTargets,
 } from "./gre/modeAnnouncement";
+import { splitSecondSpellOnStack } from "./cards/abilities/splitSecond";
 import { castProhibitionReason } from "./cards/castRestrictions";
 // issue #2283 — the raised-origin (`trigger`/`retarget`/`copy-retarget`)
 // finalization and its divide split live in one module shared with the bot's
@@ -15312,6 +15313,13 @@ export const activatePlayerAbility = mutation({
             if (state.pendingActivation) {
                 throw new ConvexError(
                     "Another ability is already being activated"
+                );
+            }
+            // CR 702.61a — this path has no source permanent for
+            // `activationPreconditionViolation` to read.
+            if (splitSecondSpellOnStack(state)) {
+                throw new Error(
+                    "Players can't activate abilities that aren't mana abilities while a spell with split second is on the stack."
                 );
             }
         }

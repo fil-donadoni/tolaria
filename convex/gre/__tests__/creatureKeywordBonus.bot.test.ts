@@ -151,6 +151,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     // CR 702.78a — a keyword of a spell on the stack: its worth is the copy the
     // search reaches, never a creature's body.
     "conspire",
+    // CR 702.61a — split second functions only while the spell is on the stack,
+    // so it never adds to a permanent's body.
+    "split-second",
 ]);
 
 /** Table keys with no registry row of their own (engine-internal spellings). */

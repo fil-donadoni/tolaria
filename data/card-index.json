@@ -42128,6 +42128,16 @@
         "source": "compiled"
     },
     {
+        "name": "Krosan Grip",
+        "scryfallId": "59b524bb-5a18-4dda-9c45-26ce9ff0f0c1",
+        "oracleId": "3e39224c-72ce-4ecc-aa17-12c071ea1f3e",
+        "firstSet": "tsp",
+        "firstPrintId": "59b524bb-5a18-4dda-9c45-26ce9ff0f0c1",
+        "firstPrintSet": "tsp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Krosan Groundshaker",
         "scryfallId": "82105090-5f71-4690-9ade-187354311ae3",
         "oracleId": "1300dc30-a089-41f5-b1a7-e4779ebb73ef",
@@ -74842,6 +74852,36 @@
         "source": "compiled"
     },
     {
+        "name": "Sudden Death",
+        "scryfallId": "16e889c4-105b-4f4e-8a3d-ace753a24a4e",
+        "oracleId": "a3475ca6-d88e-4855-a554-1338624d1635",
+        "firstSet": "tsp",
+        "firstPrintId": "16e889c4-105b-4f4e-8a3d-ace753a24a4e",
+        "firstPrintSet": "tsp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Sudden Edict",
+        "scryfallId": "57cc8aeb-221d-46a1-b03f-df8499bba26d",
+        "oracleId": "b95f704d-96b9-437e-8c49-aba874139e12",
+        "firstSet": "mh2",
+        "firstPrintId": "57cc8aeb-221d-46a1-b03f-df8499bba26d",
+        "firstPrintSet": "mh2",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Sudden Shock",
+        "scryfallId": "7d2691ee-8eec-437d-9bc1-113264525fb8",
+        "oracleId": "7b139231-dcd2-4b03-bcf2-fcb040617b69",
+        "firstSet": "tsp",
+        "firstPrintId": "7d2691ee-8eec-437d-9bc1-113264525fb8",
+        "firstPrintSet": "tsp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Sudden Strength",
         "scryfallId": "e3ca1108-ccf2-48ea-8ca7-986aa45d5fe8",
         "oracleId": "8df51012-b334-475f-b70d-af4f2b3840a0",
@@ -74876,6 +74916,16 @@
         "firstSet": "inv",
         "firstPrintId": "7aeab16f-e104-47e7-81c7-b6e0123120d7",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Sulfur Elemental",
+        "scryfallId": "49cba6fd-2474-400d-8568-33fe447abc7c",
+        "oracleId": "60e6a140-c7fb-4fbe-bd74-6bbb925080e7",
+        "firstSet": "plc",
+        "firstPrintId": "49cba6fd-2474-400d-8568-33fe447abc7c",
+        "firstPrintSet": "plc",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Sulfur Vent",
@@ -76345,6 +76395,16 @@
         "firstPrintId": "e1894cf9-7d53-4b7e-aaae-8db42bdd8e49",
         "firstPrintSet": "znr",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Take Possession",
+        "scryfallId": "78366049-4613-4cd1-aab0-308996926563",
+        "oracleId": "112df1e4-01aa-4e01-b56f-b5ae519c87fd",
+        "firstSet": "fut",
+        "firstPrintId": "78366049-4613-4cd1-aab0-308996926563",
+        "firstPrintSet": "fut",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -88426,6 +88486,16 @@
         "firstPrintId": "b33d38fa-bbcf-4bcc-93a8-adbfd9c93faa",
         "firstPrintSet": "dsk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wipe Away",
+        "scryfallId": "37eb43af-367c-4778-a7cc-7ee3b3103379",
+        "oracleId": "ad9b6737-22c4-45cc-976b-32743ed48462",
+        "firstSet": "tsp",
+        "firstPrintId": "37eb43af-367c-4778-a7cc-7ee3b3103379",
+        "firstPrintSet": "tsp",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

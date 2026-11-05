@@ -105,10 +105,10 @@ describe("a compiled card outside the game's shards", () => {
         ]);
         expect(needed).toEqual([compiledShardKey(OTHER_KEY!)]);
         expect(tryGetDefinition(OTHER_CARD.id)).toBeNull();
-        // Every compiled NAME is known now — what a name list reads.
-        expect(getAllCardNames()).toEqual(
-            expect.arrayContaining([...PACKED.names])
-        );
+        // Every compiled NAME is known now — what a name list reads. Through a
+        // Set: `arrayContaining` is names × names, 15-25 s on the corpus.
+        const known = new Set(getAllCardNames());
+        expect(PACKED.names.filter((name) => !known.has(name))).toEqual([]);
 
         await installShards(needed);
         expect(getDefinition(OTHER_CARD.id).name).toBe(OTHER_CARD.name);

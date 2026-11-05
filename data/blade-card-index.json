@@ -312,6 +312,13 @@
             "needsSetup": false
         }
     ],
+    "Giant Growth": [
+        {
+            "label": "split second pair: pumps in response to Shock on the bot's creature",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Gilded Drake": [
         {
             "label": "exchange of control: casts Gilded Drake for the opposing Craw Wurm",
