@@ -359,6 +359,18 @@ and a red on a draft would dequeue the PR with no `land-failed` (issue
 the owner approves (see the checklist below); it gets no secret and a
 read-only token either way. A newer push cancels the older run.
 
+**A Contained RED's names, with no token on the lane (issue #8120, the owner's
+option 1).** The lane step runs the PR's tests, so it gets no `GH_TOKEN` (ADR
+0156 §8). The `Contained RED snapshot` step runs before `job-setup`, the first
+PR code: inline `gh api` and `jq` with the job token, writing the base's status
+history and the pivot's commit comments to `$RUNNER_TEMP/contained`. The lane
+finds it through `TOLARIA_CONTAINED_SNAPSHOT` and decodes it as the verdict store
+decodes `gh`. Any failure in that step leaves no `history.json`: nothing is
+tolerated, and the lane says so. A PR could forge the file only for its own
+advisory check; `queue-lane` reads the pivot itself and decides the merge. The
+structure guard's `advisory-lane-token` row pins the order, the commands and the
+token's absence.
+
 **The one recorded exclusion (issue #5675, the owner's option 4).** The bot
 tests that read the LOCKED verdict corpus (`weightFit.bot.test.ts` "the
 committed weights ARE the fit…", `verdicts.bot.test.ts` "the incumbent is

@@ -6,7 +6,15 @@
  *
  * `check:lane` and `land:ready` both read this one function, because they run
  * the same plan.
+ *
+ * The hosted advisory lane runs the PR's own code, so it has no `gh` token
+ * (ADR 0156 §8). `pr-check.yml` reads the pivot in a step before any PR code
+ * and leaves the raw answers in a directory; the lane reads those instead
+ * (issue #8120). The same decoding runs, so an absent or torn file is an
+ * unreadable lineage: nothing tolerated.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
     evidenceTestNames,
     failingTestNames,
@@ -16,6 +24,7 @@ import {
     evidenceStore,
     readVerdictLineage,
     verdictStore,
+    type GhRunner,
     type Lineage,
 } from "./health-verdict-store";
 
@@ -107,14 +116,55 @@ export function containedTolerance(deps: ContainedDeps): ContainedTolerance {
     };
 }
 
-/** `containedTolerance` over the pivot of the repository `root` checks out. */
+/** Names the directory of the pivot `pr-check.yml` read for its hosted lane. */
+export const CONTAINED_SNAPSHOT_ENV = "TOLARIA_CONTAINED_SNAPSHOT";
+
+/** The answers the store's two reads would get from `gh`, off that directory. */
+export function snapshotGh(dir: string): GhRunner {
+    return (args) => {
+        const sha = /\/commits\/([0-9a-f]{40})\/comments/.exec(
+            args[1] ?? ""
+        )?.[1];
+        const file =
+            args[1] === "graphql"
+                ? "history.json"
+                : sha
+                  ? `comments-${sha}.json`
+                  : null;
+        if (file === null)
+            return {
+                status: 1,
+                stdout: "",
+                stderr: `snapshot: no answer for ${args.join(" ")}`,
+            };
+        try {
+            return {
+                status: 0,
+                stdout: readFileSync(join(dir, file), "utf8"),
+                stderr: "",
+            };
+        } catch (e) {
+            return {
+                status: 1,
+                stdout: "",
+                stderr: `snapshot: ${(e as Error).message}`,
+            };
+        }
+    };
+}
+
+/** `containedTolerance` over the pivot of the repository `root` checks out, or
+ *  over the snapshot `CONTAINED_SNAPSHOT_ENV` names. */
 export function liveContainedTolerance(
     root: string,
-    log: (line: string) => void
+    log: (line: string) => void,
+    env: NodeJS.ProcessEnv = process.env
 ): ContainedTolerance {
+    const dir = env[CONTAINED_SNAPSHOT_ENV];
+    const run = dir ? snapshotGh(dir) : undefined;
     return containedTolerance({
-        lineage: () => readVerdictLineage(() => verdictStore(root)),
-        evidence: (sha) => evidenceStore(root).read(sha),
+        lineage: () => readVerdictLineage(() => verdictStore(root, { run })),
+        evidence: (sha) => evidenceStore(root, { run }).read(sha),
         log,
     });
 }

@@ -118,9 +118,16 @@
  *   - `draft-body-read` — a job reading `github.event.pull_request.body`
  *     that runs on the queue's drafts: there the body is Mergify's batch
  *     description, not the queued PR's, so a check judging it reds falsely.
+ *   - `advisory-lane-token` — the hosted lane reads a Contained RED's names
+ *     off a snapshot. The step holding the token must be inline
+ *     `gh`, fail open to "nothing tolerated", and precede every line of PR
+ *     code; the lane step must hold no token; the query must be the store's;
+ *     and no self-hosted workflow may name the snapshot, because a lane that
+ *     gates reads the pivot itself.
  */
 import { parse } from "yaml";
 import { passRunIssue } from "../lib/afk-dispatch";
+import { CONTAINED_SNAPSHOT_ENV } from "../lib/contained-tolerance";
 import { CORPUS_EXCLUSION_ENV } from "../lib/corpus-exclusion";
 import { RUNNER_ROLES, type RunnerRole } from "../lib/github-runner";
 import {
@@ -129,6 +136,11 @@ import {
     READY_LABEL,
     MANUAL_LABEL,
 } from "../lib/land-labels";
+import {
+    HEALTH_CONTEXT,
+    HISTORY_DEPTH,
+    historyQuery,
+} from "../lib/health-verdict-store";
 
 export interface SourceFile {
     path: string;
@@ -172,6 +184,7 @@ export type RuleId =
     | "pass-setup-record"
     | "owner-merge-trigger"
     | "health-verdict-contained"
+    | "advisory-lane-token"
     | "local-action-unscanned"
     | "unparseable";
 
@@ -544,8 +557,14 @@ function checkJob(
     // run before the toolchain exists.
     const worktreeStep = (i: number) =>
         selfHosted && (i === 0 || i === steps.length - 1);
+    // So may the advisory lane's snapshot: it must precede the first PR code,
+    // and `advisory-lane-token` pins what it may do.
+    const snapshotStep = (s: unknown) =>
+        job.name === ADVISORY_LANE_CHECK &&
+        isObj(s) &&
+        s.name === CONTAINED_SNAPSHOT_STEP;
     const runIdx = steps.findIndex(
-        (s, i) => stepRun(s) !== null && !worktreeStep(i)
+        (s, i) => stepRun(s) !== null && !worktreeStep(i) && !snapshotStep(s)
     );
     const setupIdx = steps.findIndex((s) => stepUses(s) === JOB_SETUP);
     if (runIdx !== -1 && (setupIdx === -1 || setupIdx > runIdx))
@@ -753,6 +772,8 @@ function checkAction(f: SourceFile, out: Violation[]): void {
 
 /** The check run `pr-check`'s lane job posts on a PR's head. */
 export const ADVISORY_LANE_CHECK = "check:lane (advisory)";
+/** The step that reads a Contained RED's pivot for that job's lane. */
+export const CONTAINED_SNAPSHOT_STEP = "Contained RED snapshot";
 /** The branch prefix of the Mergify queue's drafts. */
 const QUEUE_DRAFT_PREFIX = "mergify/merge-queue/";
 /** An `if:` that skips the queue's drafts — negated, so a positive
@@ -1167,12 +1188,110 @@ export function checkStructure(input: StructureInput): Violation[] {
     checkOwnerMergeTrigger(input.workflows, out);
     checkHealthVerdictContained(input.workflows, out);
     checkDraftLanesRegenerateDerived(input.workflows, out);
+    checkAdvisoryLaneToken(input.workflows, out);
     if (input.mergify) {
         checkMergify(input.mergify, out);
         checkAdvisoryLaneSkipsDrafts(input.workflows, out);
         checkBodyReadersSkipDrafts(input.workflows, out);
     }
     return out;
+}
+
+/** Anything in a token-holding step that could run code from the checkout. */
+const RUNS_CHECKOUT_CODE =
+    /\b(bun|bunx|node|npm|npx|pnpm|yarn|python3?|sh|bash|zsh|source|eval)\b|(^|[\s"'=(])\.{0,2}\/[\w.]|\bscripts\//m;
+/** How a step's env or run can hold a token. */
+const HOLDS_TOKEN = /\bGH_TOKEN\b|\bGITHUB_TOKEN\b|github\.token|secrets\./;
+
+/** The violations of one advisory lane job; see `advisory-lane-token`. */
+function advisoryLaneTokenFaults(job: Record<string, unknown>): string[] {
+    const steps = asArray(job.steps);
+    const snapshotIdx = steps.findIndex(
+        (s) => isObj(s) && s.name === CONTAINED_SNAPSHOT_STEP
+    );
+    const snapshot = steps[snapshotIdx];
+    if (snapshotIdx === -1 || !isObj(snapshot))
+        return [
+            `no \`${CONTAINED_SNAPSHOT_STEP}\` step: the lane cannot read a Contained RED's names`,
+        ];
+    const faults: string[] = [];
+    const firstPrCode = steps.findIndex(
+        (s) => stepRun(s) !== null || !isCheckout(stepUses(s))
+    );
+    if (firstPrCode !== snapshotIdx)
+        faults.push(
+            "the snapshot must be the first step after the checkout: it holds a token, and anything earlier can run PR code"
+        );
+    if (stepUses(snapshot) !== null)
+        faults.push("the snapshot must be an inline `run:`, never an action");
+    const run = stepRun(snapshot) ?? "";
+    if (RUNS_CHECKOUT_CODE.test(run))
+        faults.push(
+            "the snapshot holds a token, so it may run only `gh` and `jq`: it names an interpreter or a path"
+        );
+    if (snapshot["continue-on-error"] !== true)
+        faults.push(
+            "the snapshot needs `continue-on-error: true`: an outage means nothing tolerated, not a failed lane"
+        );
+    const env = isObj(snapshot.env) ? snapshot.env : {};
+    if (env.HISTORY_QUERY !== historyQuery(HEALTH_CONTEXT))
+        faults.push(
+            "the snapshot's `HISTORY_QUERY` is not the verdict store's `historyQuery`"
+        );
+    if (!run.includes(`-F n=${HISTORY_DEPTH} `))
+        faults.push(`the snapshot must read \`-F n=${HISTORY_DEPTH}\` commits`);
+    const permissions = isObj(job.permissions) ? job.permissions : {};
+    if (permissions.statuses !== "read")
+        faults.push("the job needs `statuses: read` to read the pivot");
+    const laneIdx = steps.findIndex((s) =>
+        (stepRun(s) ?? "").includes("check:lane")
+    );
+    const lane = steps[laneIdx];
+    if (!isObj(lane) || laneIdx < snapshotIdx)
+        return [...faults, "no `check:lane` step after the snapshot"];
+    const laneEnv = isObj(lane.env) ? lane.env : {};
+    if (!String(laneEnv[CONTAINED_SNAPSHOT_ENV] ?? "").length)
+        faults.push(`the lane step must set ${CONTAINED_SNAPSHOT_ENV}`);
+    if (HOLDS_TOKEN.test(JSON.stringify(lane)))
+        faults.push(
+            "the lane step runs the PR's tests, so it must hold no token (ADR 0156 §8)"
+        );
+    return faults;
+}
+
+function checkAdvisoryLaneToken(
+    workflows: SourceFile[],
+    out: Violation[]
+): void {
+    const rule = "advisory-lane-token";
+    for (const f of workflows) {
+        let doc: unknown;
+        try {
+            doc = parse(f.text);
+        } catch {
+            continue; // reported by checkWorkflow
+        }
+        const jobs = isObj(doc) && isObj(doc.jobs) ? doc.jobs : {};
+        // A job-level `uses:` has its own rule (`reusable-call`).
+        const selfHosted = Object.values(jobs).some(
+            (j) =>
+                isObj(j) &&
+                typeof j.uses !== "string" &&
+                isSelfHosted(j["runs-on"])
+        );
+        if (selfHosted && f.text.includes(CONTAINED_SNAPSHOT_ENV))
+            out.push({
+                file: f.path,
+                job: null,
+                rule,
+                message: `${CONTAINED_SNAPSHOT_ENV} in a workflow with a self-hosted job: a lane that gates reads the pivot itself`,
+            });
+        for (const [id, job] of Object.entries(jobs)) {
+            if (!isObj(job) || job.name !== ADVISORY_LANE_CHECK) continue;
+            for (const message of advisoryLaneTokenFaults(job))
+                out.push({ file: f.path, job: id, rule, message });
+        }
+    }
 }
 
 /** The expression a job reads the PR body through. */

@@ -405,7 +405,7 @@ export function repoFromRemote(url: string): string | null {
 /** Commits of base history the lineage reads — far more than one batch. */
 export const HISTORY_DEPTH = 60;
 
-const historyQuery = (context: string) =>
+export const historyQuery = (context: string) =>
     `query($owner:String!,$name:String!,$ref:String!,$n:Int!){repository(owner:$owner,name:$name){ref(qualifiedName:$ref){target{... on Commit{history(first:$n){nodes{oid status{context(name:"${context}"){state description targetUrl createdAt}}}}}}}}}`;
 
 export interface GithubStoreOptions {
