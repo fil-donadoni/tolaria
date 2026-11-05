@@ -59,6 +59,8 @@ const PAYMENT_CALLS: ReadonlySet<string> = new Set([
     "resolveManaSpendChoice",
     "selectConvokeCreatures",
     "selectRestrictedXSplit",
+    "selectAssistPlayer",
+    "finishAssistCasterMana",
     "confirmTargets",
 ]);
 

@@ -7924,6 +7924,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bloodborn Scoundrels",
+        "scryfallId": "8750abff-ae70-4abe-a51a-b93f71b48ef1",
+        "oracleId": "37c1de8d-30d6-4b08-9368-279cf66d3e85",
+        "firstSet": "bbd",
+        "firstPrintId": "8750abff-ae70-4abe-a51a-b93f71b48ef1",
+        "firstPrintSet": "bbd",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Bloodbraid Challenger",
         "scryfallId": "fbca967e-578f-4b05-b697-2e2ee1a40dfb",
         "oracleId": "6e111622-c7cc-49cf-83e8-3555e06518c1",
@@ -9923,6 +9933,16 @@
         "firstPrintId": "89960a74-9e17-4e30-874a-4286dd4c917d",
         "firstPrintSet": "khm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Bring Down",
+        "scryfallId": "e18146f9-369c-41c8-8a1d-7737edd2c18e",
+        "oracleId": "05d2b89b-acc4-4289-95a3-a09ebb23a5d6",
+        "firstSet": "bbd",
+        "firstPrintId": "e18146f9-369c-41c8-8a1d-7737edd2c18e",
+        "firstPrintSet": "bbd",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -12563,6 +12583,16 @@
         "firstPrintId": "1721ee11-c7ee-4878-b2ab-4f090e0c5def",
         "firstPrintSet": "por",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Charging Binox",
+        "scryfallId": "68222ab7-7b9c-43e5-b80e-db643d80a6d9",
+        "oracleId": "0f10f9d1-f9f9-4356-9208-0f21f44bfb97",
+        "firstSet": "bbd",
+        "firstPrintId": "68222ab7-7b9c-43e5-b80e-db643d80a6d9",
+        "firstPrintSet": "bbd",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -25556,6 +25586,16 @@
         "firstSet": "akh",
         "firstPrintId": "f6cec477-f86f-4ccf-aa57-b6b7ade46eed",
         "firstPrintSet": "akh",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Fan Favorite",
+        "scryfallId": "062fe308-f892-446d-8f85-f6e77bb00977",
+        "oracleId": "9991c9f2-cb6e-4cfe-a3b7-650212454195",
+        "firstSet": "bbd",
+        "firstPrintId": "062fe308-f892-446d-8f85-f6e77bb00977",
+        "firstPrintSet": "bbd",
         "rarity": "common",
         "source": "compiled"
     },
@@ -42807,6 +42847,16 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Lava-Field Overlord",
+        "scryfallId": "8465c5dd-c246-49e4-89bf-18e022816162",
+        "oracleId": "f19a8c7e-1552-4786-a403-dd51c5cb2a7d",
+        "firstSet": "bbd",
+        "firstPrintId": "8465c5dd-c246-49e4-89bf-18e022816162",
+        "firstPrintSet": "bbd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Lavafume Invoker",
         "scryfallId": "8e773b3f-37ef-4e37-8b1e-99b7b6314877",
         "oracleId": "41b49a8e-09c5-4fd1-95f9-e5a51ce24f69",
@@ -45190,6 +45240,16 @@
         "firstPrintId": "92bec2e0-a016-42bd-85d9-fbb262998110",
         "firstPrintSet": "p02",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Magma Hellion",
+        "scryfallId": "ef9d02dc-4cb2-4ae1-84c3-e70aeb3c29ff",
+        "oracleId": "88f6575d-a6cb-4b2c-90dd-c6239f3c6e4d",
+        "firstSet": "bbd",
+        "firstPrintId": "ef9d02dc-4cb2-4ae1-84c3-e70aeb3c29ff",
+        "firstPrintSet": "bbd",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -53763,6 +53823,16 @@
         "firstSet": "roe",
         "firstPrintId": "07313dd3-d0dc-40ca-98a3-fa4d39e5bcae",
         "firstPrintSet": "roe"
+    },
+    {
+        "name": "Out of Bounds",
+        "scryfallId": "8b457672-902b-42c0-9d53-a3c21be2f500",
+        "oracleId": "431b2e52-1290-47b1-920d-2c1817553d96",
+        "firstSet": "bbd",
+        "firstPrintId": "8b457672-902b-42c0-9d53-a3c21be2f500",
+        "firstPrintSet": "bbd",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Outlaw Medic",
@@ -69756,6 +69826,16 @@
         "source": "compiled"
     },
     {
+        "name": "Skystreamer",
+        "scryfallId": "89d87407-7f92-47d6-bd89-69f39e0e0820",
+        "oracleId": "aaf6d66b-67b1-43f1-a8bf-db83644f7d04",
+        "firstSet": "bbd",
+        "firstPrintId": "89d87407-7f92-47d6-bd89-69f39e0e0820",
+        "firstPrintSet": "bbd",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Skyswirl Harrier",
         "scryfallId": "b951bc89-be0b-4330-8a13-e196e084d53c",
         "oracleId": "0feeeb19-7c90-4009-9a71-226a443b5c3f",
@@ -71848,6 +71928,16 @@
         "firstSet": "bbd",
         "firstPrintId": "74b4c336-5d4c-4bc5-b82a-35084a6ad808",
         "firstPrintSet": "bbd"
+    },
+    {
+        "name": "Spellweaver Duo",
+        "scryfallId": "87ba22f6-5299-46c3-bd01-9140634e60ea",
+        "oracleId": "1fd4204f-f627-4919-9d48-79b172f4560e",
+        "firstSet": "bbd",
+        "firstPrintId": "87ba22f6-5299-46c3-bd01-9140634e60ea",
+        "firstPrintSet": "bbd",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Sphere of Resistance",

@@ -333,12 +333,14 @@ describe("cast-commit sites all route through payCastManaCost (issue #2378)", ()
                 }
             }
         }
-        // ONE payment call, inside the Cast Commit kernel (issue #4445): the
-        // four cast-commit paths of the table at the top of this file, plus
+        // TWO payment calls, both inside the Cast Commit kernel (issue #4445):
+        // the four cast-commit paths of the table at the top of this file, plus
         // the resolution-time cast, all route through `commitCast`, which is
-        // the only site left that calls the seam. A second call is not
-        // forbidden — it just has to make the same decision explicitly.
-        expect(total).toBe(1);
+        // the only site left that calls the seam — once for the caster, once
+        // for the player who pays the generic under CR 702.132a (issue #4005).
+        // A further call is not forbidden — it just has to make the same
+        // decision explicitly.
+        expect(total).toBe(2);
         expect(missing).toEqual([]);
     });
 });

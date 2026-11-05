@@ -24,6 +24,7 @@ import {
     type GameState,
     type PendingChoice,
 } from "./state";
+import { recordAssistAnswer } from "./assist";
 import { revealForMiracle } from "./miracle";
 import {
     definitionMatchesFilter,
@@ -673,6 +674,14 @@ export function applyNumberChoiceSubmit(
         throw new Error(
             `Choose a number between ${range.min} and ${range.max}`
         );
+    }
+    // CR 702.132a — Assist's steps answer into the cast being announced: nothing
+    // is on the stack to resume, and the amount is spent at the cast's commit.
+    if (head.assistPayment) {
+        const { stage } = head.assistPayment;
+        dequeueHead(state, queue);
+        recordAssistAnswer(state, stage, args.amount);
+        return;
     }
     if (head.paysMana && args.amount > 0) {
         // CR 107.3f / 118.4 — the nomination is paid as GENERIC mana through

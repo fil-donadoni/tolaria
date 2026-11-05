@@ -393,6 +393,10 @@ describe("check:ui surface table — Named Assertions", () => {
                 "visible role=dialog name=Apply the cost reduction",
                 "contrast role=dialog name=Apply the cost reduction",
             ],
+            "dlg-assist-player": [
+                "visible role=dialog name=Assist Magma Hellion",
+                "reachable role=button name=Pay it yourself",
+            ],
             "dlg-manual-game-over": [
                 "visible role=dialog name=Game Over",
                 "reachable role=button name=Back to Lobby",

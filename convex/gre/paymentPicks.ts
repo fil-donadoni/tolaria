@@ -359,6 +359,10 @@ export type OwedPaymentSubmission =
     /** CR 702.51 — convoke. */
     | { mutation: "selectConvokeCreatures"; creatureInstanceIds: string[] }
     | { mutation: "selectRestrictedXSplit"; pointsOnX: number }
+    /** CR 702.132a — Assist: the caster names no one. */
+    | { mutation: "selectAssistPlayer" }
+    /** CR 702.132a — Assist: the caster is done activating mana abilities. */
+    | { mutation: "finishAssistCasterMana" }
     /** CR 702.34a / 702.66 — the cast-side graveyard/hand exile cost. */
     | { mutation: "selectCastExileCost"; cardInstanceIds: string[] }
     /** CR 118.9 — the alternative-cost / kicker hand leg. */
@@ -602,6 +606,20 @@ export function pickForOwedPayment(
                 mutation: "selectConvokeCreatures",
                 creatureInstanceIds: chooseConvokeCreatures(view),
             };
+        }
+        case "cast:assistChoice": {
+            // CR 702.132a — Assist: the other seat is the Bot's opponent and its
+            // payment plan is priced from its own mana, so it names no one. The
+            // caster-mana arm answers a cast a human named someone on, should
+            // the Bot ever be driving that seat.
+            const stage = pc?.assistChoice?.stage;
+            if (stage === "choose-player") {
+                return { mutation: "selectAssistPlayer" };
+            }
+            if (stage === "caster-mana") {
+                return { mutation: "finishAssistCasterMana" };
+            }
+            return null;
         }
         case "cast:exileFromGraveyardChoice": {
             const view = castExileViewFor(player, pc?.exileFromGraveyardChoice);

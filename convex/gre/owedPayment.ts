@@ -162,6 +162,10 @@ export const CAST_KEY_CENSUS: Record<keyof PendingCast, ParkClass> = {
     /** CR 702.51 — Convoke's creature picker. Submitted via
      *  `selectConvokeCreatures`. Gated BEFORE delve — see `nextOwedPayment`. */
     convokeCreatureChoice: "park",
+    /** CR 702.132a — Assist's exchange with the player the caster names.
+     *  Submitted via `selectAssistPlayer` / `finishAssistCasterMana`; the named
+     *  player's steps are `number-pick` choices on the same field. */
+    assistChoice: "park",
     /** CR 702.34a / 702.66 / 702.138a — the flashback / escape / delve exile
      *  cost. Submitted via `selectCastExileCost`. */
     exileFromGraveyardChoice: "park",
@@ -314,6 +318,7 @@ export type ParkKind =
     | "cast:exileFromGraveyardChoice"
     | "cast:alternativeCostHandChoice"
     | "cast:restrictedXSplitChoice"
+    | "cast:assistChoice"
     | "cast:manaSpendChoice"
     | "activation:sacrificeSelection"
     | "activation:exileFromGraveyardChoice"
@@ -332,6 +337,7 @@ export const PARK_KINDS: readonly ParkKind[] = [
     "cast:exileFromGraveyardChoice",
     "cast:alternativeCostHandChoice",
     "cast:restrictedXSplitChoice",
+    "cast:assistChoice",
     "cast:manaSpendChoice",
     "activation:sacrificeSelection",
     "activation:exileFromGraveyardChoice",
@@ -434,8 +440,14 @@ export function canSubstituteGeneric(
  *
  *   - CAST: `sacrificeSelection` → `additionalCost` → `convokeCreatureChoice`
  *     → `exileFromGraveyardChoice` → `alternativeCostHandChoice`
- *     → `restrictedXSplitChoice` → `manaSpendChoice`. The split follows delve:
- *     it divides the points delve just covered. Convoke MUST precede the exile park: the convoke
+ *     → `restrictedXSplitChoice` → `assistChoice` → `manaSpendChoice`. The split
+ *     follows delve: it divides the points delve just covered. Assist follows
+ *     every pick, so its assistant is offered the generic those picks left: a
+ *     declared deviation from CR 702.132a, which offers the generic of the
+ *     total cost, visible only on a spell with Assist and a `payWith` keyword.
+ *     No printed card has both, and the picks' forced minimums are priced
+ *     without an assistant, so asking first would misprice them instead.
+ *     Convoke MUST precede the exile park: the convoke
  *     pick pays the coloured/hybrid pips and reduces the generic, so the DELVE
  *     picker is only built after convoke resolves (`recordConvokeCreaturePick`)
  *     — reporting delve first offers a pick that does not exist yet.
@@ -527,6 +539,11 @@ export function nextOwedPayment(
             pc.restrictedXSplitChoice.picked === undefined
         ) {
             return at("cast:restrictedXSplitChoice", "restrictedXSplitChoice");
+        }
+        // CR 702.132a — Assist, before the mana is spent. Blocks commit through
+        // every unsettled stage, including the two the named player answers.
+        if (pc.assistChoice && pc.assistChoice.stage !== "settled") {
+            return at("cast:assistChoice", "assistChoice");
         }
         // CR 601.2g — last, and only when the gate is not re-deriving it.
         if (!opts?.gateOwnsManaSpend && pc.manaSpendChoice) {

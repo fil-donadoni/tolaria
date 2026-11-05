@@ -765,6 +765,7 @@ export interface StackItem extends CardInstance {
 }
 
 export type {
+    AssistChoice,
     GenericSpendAmbiguity,
     RestrictedXSplitChoice,
     MulliganState,

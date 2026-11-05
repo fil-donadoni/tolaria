@@ -130,6 +130,7 @@ import {
     spellHasConvoke,
     spellHasDelve,
 } from "./payWith";
+import { spellHasAssist } from "./assist";
 import type { CombatRole, ManaCost } from "../cards/types";
 import type { RestrictedXSplitChoice } from "./state/declarations";
 import {
@@ -2815,6 +2816,22 @@ export function buildManaSourceUnits(
     if (includePayWith && spellHasConvoke(card)) {
         for (const creature of convokeEligibleCreatures(player)) {
             sources.push(creatureConvokeColors(creature));
+        }
+    }
+
+    // CR 702.132a — Assist: another player may pay any amount of the generic
+    // cost, so each mana they could make is a generic-ONLY pseudo-source. PROBE
+    // only, and an upper bound by nature: whether they pay is their decision at
+    // the cast's assist step. Without it a spell payable only with help is hidden.
+    if (includePayWith && opts.state && spellHasAssist(card)) {
+        for (const other of opts.state.players) {
+            if (other.id === player.id) continue;
+            const units = buildManaSourceUnits(other, card, {
+                payWith: false,
+                state: opts.state,
+            });
+            for (let i = 0; i < units.length; i++)
+                sources.push(new Set<Color>());
         }
     }
 

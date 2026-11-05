@@ -128,6 +128,13 @@ import { getFlashbackAdditionalCost } from "./gre/flashback";
 import { countDistinctCardTypes, hasEscape } from "./gre/escape";
 import { RETRACE_COST_LEGS } from "./gre/retrace";
 import {
+    buildAssistChoice,
+    closeAssistChoiceOnCasterMana,
+    finishAssistCasterManaStep,
+    noteAssistantManaTap,
+    recordAssistPlayerChoice,
+} from "./gre/assist";
+import {
     applyGenericOffset,
     buildConvokeCreatureChoice,
     buildDelveExileChoice,
@@ -2824,7 +2831,41 @@ export function beginNonStackFilterCostActivation(
 function rollbackPendingCast(state: GameState): void {
     if (!state.pendingCast) return;
     const player = getPlayer(state, state.pendingCast.playerId);
-    for (const cardId of state.pendingCast.tappedLandIds) {
+    reversePaymentTaps(state, player, state.pendingCast.tappedLandIds);
+    // CR 702.132a — the assistant's mana window was opened by this cast, so
+    // cancelling it reverses their taps too. Their payment needs no refund: it is
+    // spent only when the cast commits.
+    const assist = state.pendingCast.assistChoice;
+    if (assist?.assistantId) {
+        reversePaymentTaps(
+            state,
+            getPlayer(state, assist.assistantId),
+            assist.assistantTappedIds ?? []
+        );
+    }
+    // CR 702.126 — Improvise: undo every artifact tapped toward this cast's
+    // generic cost. Unlike land taps, these never touched the mana pool, so
+    // there's nothing to refund — just untap and drop the queued tap event.
+    // `manaCost` itself is discarded below with the whole pendingCast, so the
+    // generic reduction it carried needs no separate restoration.
+    for (const cardId of state.pendingCast.improviseTappedArtifactIds ?? []) {
+        discardPermanentTappedEvent(state, cardId);
+        const card = player.battlefield.find((c) => c.id === cardId);
+        if (!card) continue;
+        card.isTapped = false;
+    }
+    clearDeclinedExileRoute(state, state.pendingCast.cardInstanceId);
+    state.pendingCast = undefined;
+}
+
+/** Reverses the mana-ability taps a cast's payment made on `player`'s sources:
+ *  untap, undo the tap's side effects, take the produced mana back. */
+function reversePaymentTaps(
+    state: GameState,
+    player: PlayerState,
+    cardIds: readonly string[]
+): void {
+    for (const cardId of cardIds) {
         discardPermanentTappedEvent(state, cardId);
         const card = player.battlefield.find((c) => c.id === cardId);
         if (!card) continue;
@@ -2858,19 +2899,6 @@ function rollbackPendingCast(state: GameState): void {
             if (manaColor) refundFixedManaOutput(player, card, manaColor);
         }
     }
-    // CR 702.126 — Improvise: undo every artifact tapped toward this cast's
-    // generic cost. Unlike land taps, these never touched the mana pool, so
-    // there's nothing to refund — just untap and drop the queued tap event.
-    // `manaCost` itself is discarded below with the whole pendingCast, so the
-    // generic reduction it carried needs no separate restoration.
-    for (const cardId of state.pendingCast.improviseTappedArtifactIds ?? []) {
-        discardPermanentTappedEvent(state, cardId);
-        const card = player.battlefield.find((c) => c.id === cardId);
-        if (!card) continue;
-        card.isTapped = false;
-    }
-    clearDeclinedExileRoute(state, state.pendingCast.cardInstanceId);
-    state.pendingCast = undefined;
 }
 
 /** Roll back the in-progress activated-ability payment and clear
@@ -5823,11 +5851,20 @@ export function finalizeTargetSelection(
                   state
               )
             : undefined;
+    // CR 702.132a — Assist comes before any mana is spent, so it always parks,
+    // even on a cost the floating pool already covers.
+    const castAssistChoice = buildAssistChoice(
+        state,
+        playerId,
+        cardInHand,
+        manaCost
+    );
     const parkForSacrifice =
         !!exilePicker ||
         !!castExileChoice ||
         !!castConvokeChoice ||
         !!xSplitChoice ||
+        !!castAssistChoice ||
         (castSac !== undefined && !isSacrificeSelectionComplete(castSac)) ||
         (altHandChoice !== undefined && !altHandChoice.pickedCardIds);
     if (parkForSacrifice) {
@@ -5856,6 +5893,7 @@ export function finalizeTargetSelection(
                 ? { exileFromGraveyardChoice: castExileChoice }
                 : {}),
             ...(xSplitChoice ? { restrictedXSplitChoice: xSplitChoice } : {}),
+            ...(castAssistChoice ? { assistChoice: castAssistChoice } : {}),
             ...(altHandChoice
                 ? { alternativeCostHandChoice: altHandChoice }
                 : {}),
@@ -7709,7 +7747,21 @@ export const announceCast = mutation({
                         altManaCost
                     )
                 );
-            if (parkPerm || parkHand || parkExile || !altManaCovered) {
+            // CR 702.132a — the total cost's generic is what matters, whichever
+            // cost it came from.
+            const altAssistChoice = buildAssistChoice(
+                state,
+                args.playerId,
+                cardInHand,
+                altManaCost
+            );
+            if (
+                parkPerm ||
+                parkHand ||
+                parkExile ||
+                altAssistChoice ||
+                !altManaCovered
+            ) {
                 // Park with the alt cost's mana leg (zeroed for every existing
                 // zero-mana alt cost, Dash's own amount otherwise): the commit
                 // gate in tryAutoCommitPendingCast fires once mana is covered
@@ -7735,6 +7787,9 @@ export const announceCast = mutation({
                         : {}),
                     ...(altHandChoice
                         ? { alternativeCostHandChoice: altHandChoice }
+                        : {}),
+                    ...(altAssistChoice
+                        ? { assistChoice: altAssistChoice }
                         : {}),
                     // CR 118.9 / 701.20a — an alternative cost that reveals the hand.
                     ...(chosenAltCost?.revealHand ? { revealHand: true } : {}),
@@ -8107,11 +8162,19 @@ export const announceCast = mutation({
                   )
                 : undefined;
 
+        // CR 702.132a — as in `finalizeTargetSelection`.
+        const castAssistChoice = buildAssistChoice(
+            state,
+            args.playerId,
+            cardInHand,
+            manaCost
+        );
         const parkForSacrifice =
             !!exilePicker ||
             !!castExileChoice ||
             !!castConvokeChoice ||
             !!xSplitChoice ||
+            !!castAssistChoice ||
             // CR 702.33a — a Kicker HAND leg always parks: the discard/exile is
             // applied by the deferred commit's existing hand-cost path, so the
             // immediate branch below never has to duplicate it. A forced pick is
@@ -8152,6 +8215,7 @@ export const announceCast = mutation({
                 ...(xSplitChoice
                     ? { restrictedXSplitChoice: xSplitChoice }
                     : {}),
+                ...(castAssistChoice ? { assistChoice: castAssistChoice } : {}),
                 ...(kickerHandChoice
                     ? { alternativeCostHandChoice: kickerHandChoice }
                     : {}),
@@ -8351,6 +8415,7 @@ export const tapForPayment = mutation({
             expect: "priority",
         });
 
+        closeAssistChoiceOnCasterMana(state, args.playerId);
         for (const payment of args.payments) {
             if (!state.pendingCast) throw new Error("No spell being cast");
             if (state.pendingCast.playerId !== args.playerId) {
@@ -8647,6 +8712,7 @@ export const tapArtifactForImprovise = mutation({
         );
         if (!card) throw new Error("Card not on battlefield");
 
+        closeAssistChoiceOnCasterMana(state, args.playerId);
         tapArtifactIntoImprovisePayment(state, player, card, pc);
 
         // Check if cost is now covered → auto-commit
@@ -9236,6 +9302,7 @@ export const autoTapForPayment = mutation({
                   ? state.pendingActivation
                   : undefined;
         if (!pending) throw new Error("No pending payment");
+        closeAssistChoiceOnCasterMana(state, args.playerId);
 
         const player = getPlayer(state, args.playerId);
         // CR 601.2f (issue #1338) — a can't-spend-mana cast (Hogaak) may tap NO
@@ -10310,6 +10377,76 @@ export const selectConvokeCreatures = mutation({
             args.playerId,
             args.creatureInstanceIds
         );
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** CR 702.132a — Assist: the caster names another player, or (`assistPlayerId`
+ *  absent) no one. Naming hands the game to that player's mana window; naming no
+ *  one leaves an ordinary cast, which may already be fully paid. */
+export const selectAssistPlayer = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        assistPlayerId: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+
+        recordAssistPlayerChoice(state, args.playerId, args.assistPlayerId);
+        tryAutoCommitPendingCast(state, args.playerId);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** CR 702.132a — Assist: the caster has chosen not to activate any more mana
+ *  abilities, so the player they named may now pay. */
+export const finishAssistCasterMana = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+
+        finishAssistCasterManaStep(state, args.playerId);
+        tryAutoCommitPendingCast(state, args.playerId);
 
         await saveGameState(
             ctx,
@@ -13502,10 +13639,16 @@ export const submitNumberChoice = mutation({
             expect: "choice",
         });
 
+        // CR 702.132a — an Assist step answers into the cast being announced,
+        // whose caster may now be fully paid.
+        const answersAssist = state.pendingChoices?.[0]?.assistPayment;
         applyNumberChoiceSubmit(state, {
             playerId: args.playerId,
             amount: args.amount,
         });
+        if (answersAssist && state.pendingCast) {
+            tryAutoCommitPendingCast(state, state.pendingCast.playerId);
+        }
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
@@ -14005,8 +14148,13 @@ export const tapUntap = mutation({
 
         // Cannot manually tap/untap during a payment phase — must go through
         // the specific payment mutation so pendingCast/pendingActivation
-        // bookkeeping stays consistent.
-        if (state.pendingCast) {
+        // bookkeeping stays consistent. The exception is the player Assist named
+        // (CR 702.132a / 605.3a): the cast is not theirs, its payment mutations
+        // refuse them, and their taps go on their own ledger below.
+        const isAssistWindow =
+            isMayPayPaymentWindow &&
+            state.pendingChoices?.[0]?.assistPayment !== undefined;
+        if (state.pendingCast && !isAssistWindow) {
             throw new Error("Use tapForPayment/untapForPayment during casting");
         }
         if (state.pendingActivation) {
@@ -14805,6 +14953,7 @@ export const tapUntap = mutation({
             card.tapBonusMana =
                 Object.keys(bonus).length > 0 ? (bonus as ManaCost) : undefined;
         }
+        if (isAssistWindow) noteAssistantManaTap(state, card.id, card.isTapped);
 
         await saveGameState(
             ctx,
@@ -14930,6 +15079,7 @@ export const activateManaAbility = mutation({
         if (!hasPriority && !isInPayment && !isMayPayPaymentWindow) {
             throw new Error("Cannot activate mana ability without priority");
         }
+        closeAssistChoiceOnCasterMana(state, args.playerId);
 
         // CR 113.6m — a mana ability whose cost moves its card out of the HAND
         // ("Exile this card from your hand: Add {G}.", Elvish Spirit Guide)
@@ -15280,6 +15430,7 @@ export const activatePlayerAbility = mutation({
                 ? { allowManaForMayPay: { playerId: args.playerId } }
                 : {}
         );
+        if (isManaAbility) closeAssistChoiceOnCasterMana(state, args.playerId);
 
         // CR 602.5 — phase-restricted templates are equally illegal when
         // activated via a player-scoped grant.

@@ -49,6 +49,7 @@ import HandCardActionMenu from "~/components/board/hand-card-action-menu";
 import ManaChoicePicker from "~/components/board/mana-choice-picker";
 import ManaSpendChoiceDialog from "~/components/board/mana-spend-choice-dialog";
 import RestrictedXSplitDialog from "~/components/board/restricted-x-split-dialog";
+import AssistPlayerDialog from "~/components/board/assist-player-dialog";
 import ManualGameOverDialog from "~/components/board/manual-game-over-dialog";
 import ManualVerbPopover from "~/components/board/manual-verb-popover";
 import PauseMenuDialog from "~/components/board/pause-menu-dialog";
@@ -354,6 +355,28 @@ const SPECIMENS: OverlaySpecimen[] = [
         render: () => (
             <RestrictedXSplitDialog
                 choice={{ options: [0, 1, 2] }}
+                gameId={GAME_ID}
+                playerId={ME}
+            />
+        ),
+    },
+    {
+        slug: "assist-player",
+        label: "Assist Player Chooser",
+        file: "board/assist-player-dialog.tsx",
+        render: () => (
+            <AssistPlayerDialog
+                choice={{
+                    stage: "choose-player",
+                    candidateIds: [OPP],
+                    spell: {
+                        spellCardId: "assist-spell",
+                        spellName: "Magma Hellion",
+                        spellTypes: ["Creature"],
+                        spellSupertypes: [],
+                    },
+                }}
+                allPlayers={PLAYERS}
                 gameId={GAME_ID}
                 playerId={ME}
             />

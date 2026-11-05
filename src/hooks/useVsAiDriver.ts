@@ -502,6 +502,8 @@ export function useVsAiDriver(
     // `pendingCast`, not `pendingChoices[]`, so it is driven directly.
     const selectConvokeCreatures = useMutation(api.game.selectConvokeCreatures);
     const selectRestrictedXSplit = useMutation(api.game.selectRestrictedXSplit);
+    const selectAssistPlayer = useMutation(api.game.selectAssistPlayer);
+    const finishAssistCasterMana = useMutation(api.game.finishAssistCasterMana);
     const declineGenericSubstitution = useMutation(
         api.game.declineGenericSubstitution
     );
@@ -530,6 +532,8 @@ export function useVsAiDriver(
         selectAdditionalCost: mutations.selectAdditionalCost,
         selectConvokeCreatures,
         selectRestrictedXSplit,
+        selectAssistPlayer,
+        finishAssistCasterMana,
         selectCastExileCost,
         selectCastAlternativeHandCost,
         selectActivationCost: mutations.selectActivationCost,
