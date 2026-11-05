@@ -3013,6 +3013,15 @@ const exileOnDeath: Valuer<"exileOnDeath"> = (op) => ({
         : ["boardRemoval"],
 });
 
+// CR 614.1a (issue #8165) — a rider on the permanent's own return (Unearth):
+// the permanent is already gone at the next end step, and what the rider adds,
+// denying a later recursion, is a stake this model does not price. Zero, not
+// `EXILE_ON_DEATH_VALUE`: no removal is aimed at an opposing creature here.
+const exileOnLeave: Valuer<"exileOnLeave"> = () => ({
+    points: 0,
+    tags: [],
+});
+
 // CR 615.12 / 614.9 (issue #2231) — "damage dealt to that creature this turn
 // can't be prevented or dealt instead to another permanent or player". Like
 // `exileOnDeath`, a rider that makes removal STICK rather than removal in its
@@ -3488,6 +3497,7 @@ export const OP_VALUERS: {
     preventRegeneration,
     fight,
     exileOnDeath,
+    exileOnLeave,
     lockDamage,
     suppressDamagePrevention,
     restrictActivation,
@@ -3864,6 +3874,9 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     gainControl: "harmful",
     preventRegeneration: "harmful",
     exileOnDeath: "harmful",
+    // CR 614.1a — the permanent it names can no longer leave to any other zone,
+    // the same denial as `exileOnDeath` on every departure path.
+    exileOnLeave: "harmful",
     // CR 615.12 / 614.9 — the lock is armed on a creature the caster intends to
     // KILL through a shield/redirect the defender would otherwise get to use
     // (Whippoorwill). Harmful to the permanent it names, exactly like its

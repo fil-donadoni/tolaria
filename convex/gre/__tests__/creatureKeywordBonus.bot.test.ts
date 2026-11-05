@@ -164,6 +164,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     // CR 702.61a — split second functions only while the spell is on the stack,
     // so it never adds to a permanent's body.
     "split-second",
+    // CR 702.84a — unearth functions in the graveyard: its worth is the return
+    // the search reaches, never a quality of the body on the battlefield.
+    "unearth",
 ]);
 
 /** Table keys with no registry row of their own (engine-internal spellings). */

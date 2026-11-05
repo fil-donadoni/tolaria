@@ -917,8 +917,9 @@ export type CardInstanceState = {
      *  `removePermanentTo` for EVERY departure path (dies, sacrifice, bounce,
      *  destroy), redirecting the destination to exile. PERSISTENT — unlike
      *  `exileOnDeath` it is not cleared at CLEANUP and survives across turns;
-     *  it vanishes only when the permanent actually leaves play (the instance
-     *  is gone). Set by `setExileOnLeave`. */
+     *  it ends with the object: the zone-change reset clears it, so a card put
+     *  back on the battlefield later is a new object without it (CR 400.7).
+     *  Set by `setExileOnLeave`. */
     exileOnLeave?: boolean;
     /** When set, this permanent can't be regenerated for the rest of the turn
      *  (CR 701.19c). Suppresses BOTH regeneration shields and the continuous

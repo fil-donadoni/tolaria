@@ -717,6 +717,7 @@ export const impendingRule: Rule<SlotIR> = rule("impending", (span) => {
 const EQUIP_HEAD = "Equip ";
 const RECONFIGURE_HEAD = "Reconfigure ";
 const NINJUTSU_HEAD = "Ninjutsu ";
+const UNEARTH_HEAD = "Unearth ";
 const OFFSPRING_HEAD = "Offspring ";
 const CREW = /^Crew (\d+)$/;
 const SADDLE = /^Saddle (\d+)$/;
@@ -808,6 +809,20 @@ export const ninjutsuRule: Rule<SlotIR> = rule("ninjutsu", (span) => {
 });
 
 /**
+ * CR 702.84a — "Unearth [cost]": an activated ability that functions while the
+ * card is in a graveyard. Lowered through the catalogue's `unearthAbility`
+ * factory.
+ *
+ * Refused: a non-mana cost ("Unearth—Pay eight {E}") and every other cost
+ * {@link costParameter} refuses.
+ */
+export const unearthRule: Rule<SlotIR> = rule("unearth", (span) => {
+    const cost = costParameter(UNEARTH_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({ kind: "unearth" as const, cost: cost.value });
+});
+
+/**
  * CR 702.175a — "Offspring [cost]" means "You may pay an additional [cost] as
  * you cast this spell" and "When this permanent enters, if its offspring cost
  * was paid, create a token that's a copy of it, except it's 1/1." Both halves
@@ -858,6 +873,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     crewRule,
     saddleRule,
     ninjutsuRule,
+    unearthRule,
     offspringRule,
 ]);
 

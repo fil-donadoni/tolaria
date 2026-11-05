@@ -211,6 +211,72 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             toughness: 6,
         },
     },
+    // CR 702.84a — "Unearth [cost]": returning `$source` from the graveyard is a
+    // zone move the canned smoke scenario does not model, so the `exileOnLeave`
+    // it binds is never reached there.
+    {
+        rule: "unearth",
+        card: {
+            oracleId: "be9d1346-4416-4ade-ae84-7a4121e0bd12",
+            name: "Dregscape Zombie",
+            manaCost: "{1}{B}",
+            typeLine: "Creature — Zombie",
+            oracleText:
+                "Unearth {B} ({B}: Return this card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step or if it would leave the battlefield. Unearth only as a sorcery.)",
+            power: "2",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Dregscape Zombie",
+            types: ["Creature"],
+            subtypes: ["Zombie"],
+            manaCost: { X: 1, B: 1 },
+            power: 2,
+            toughness: 1,
+            oracleText:
+                "Unearth {B} ({B}: Return this card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step or if it would leave the battlefield. Unearth only as a sorcery.)",
+            activatedAbilities: [
+                {
+                    id: "unearth",
+                    oracleText:
+                        "Unearth {B} ({B}: Return this card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step or if it would leave the battlefield. Unearth only as a sorcery.)",
+                    cost: { mana: { B: 1 } },
+                    activateFromGraveyard: true,
+                    sorcerySpeedOnly: true,
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            from: "graveyard",
+                            to: "battlefield",
+                            bind: "$returned",
+                        },
+                        {
+                            op: "grantAbility",
+                            target: { ref: "$returned" },
+                            ability: "haste",
+                        },
+                        {
+                            op: "exileOnLeave",
+                            target: { ref: "$returned" },
+                        },
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-end-step",
+                            oracleText:
+                                "Exile it at the beginning of the next end step.",
+                            capture: { $self: { ref: "$returned" } },
+                            effects: [
+                                { op: "exile", target: { ref: "$self" } },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 702.49a — "Ninjutsu [cost]": the ability's `moveZone` puts `$source`
     // from the hand onto the battlefield attacking, a zone move the canned
     // smoke scenario does not model.
