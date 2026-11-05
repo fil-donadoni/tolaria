@@ -606,6 +606,16 @@
         "source": "compiled"
     },
     {
+        "name": "Adriana, Captain of the Guard",
+        "scryfallId": "e7e1443c-2790-40a0-b5fc-c3b1b710f650",
+        "oracleId": "de23275e-e9c1-4151-aed8-f79ead03d5d4",
+        "firstSet": "cn2",
+        "firstPrintId": "e7e1443c-2790-40a0-b5fc-c3b1b710f650",
+        "firstPrintSet": "cn2",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Adult Gold Dragon",
         "scryfallId": "67a76010-d932-4727-8b5e-b8e2d14e1362",
         "oracleId": "a361fdd1-7f97-4aed-8e24-ab2a03387f73",
@@ -18930,6 +18940,16 @@
         "source": "compiled"
     },
     {
+        "name": "Deputized Protester",
+        "scryfallId": "8afe85a2-1947-4dd5-98f8-d7ff8df088a1",
+        "oracleId": "09947592-1730-4c1c-bfa5-be53a68d6919",
+        "firstSet": "cn2",
+        "firstPrintId": "8afe85a2-1947-4dd5-98f8-d7ff8df088a1",
+        "firstPrintSet": "cn2",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Deranged Hermit",
         "scryfallId": "bf0e94c9-61c4-4cc0-b5ce-db62bc2660ee",
         "oracleId": "b9cd714b-2ad8-4fdb-a8aa-82b17730e071",
@@ -26297,6 +26317,16 @@
         "firstPrintId": "3749181f-7b4e-4b9d-aaf3-94f707c306aa",
         "firstPrintSet": "5dn",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ferocious Colonist",
+        "scryfallId": "3cb42c08-b167-40ac-a9be-00630ba31b83",
+        "oracleId": "fd549938-8919-45ac-bf52-92492d9d1d49",
+        "firstSet": "trc",
+        "firstPrintId": "3cb42c08-b167-40ac-a9be-00630ba31b83",
+        "firstPrintSet": "trc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -47092,6 +47122,16 @@
         "firstPrintId": "265aaa73-1a1e-4282-a860-f7c422f21db3",
         "firstPrintSet": "isd",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Menagerie Liberator",
+        "scryfallId": "e7b2b659-2689-4de0-aa07-2568b45f86a8",
+        "oracleId": "d91dd07a-93e1-4f88-b5f1-faa56df70ed0",
+        "firstSet": "cn2",
+        "firstPrintId": "e7b2b659-2689-4de0-aa07-2568b45f86a8",
+        "firstPrintSet": "cn2",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -79962,6 +80002,16 @@
         "firstPrintSet": "c14"
     },
     {
+        "name": "Titania, Proud Pummeler",
+        "scryfallId": "31255422-9afa-416c-90b2-62baf1d02cca",
+        "oracleId": "6d51f00e-46a5-4064-a0c8-e840c66dbf2b",
+        "firstSet": "msc",
+        "firstPrintId": "31255422-9afa-416c-90b2-62baf1d02cca",
+        "firstPrintSet": "msc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Titania's Chosen",
         "scryfallId": "d9450340-2c29-4573-8da2-0d3cae9759c1",
         "oracleId": "a9e72fe7-c4b3-421a-8b2f-bb9448b04a44",
@@ -88615,6 +88665,16 @@
         "firstSet": "inv",
         "firstPrintId": "be0d2402-f1ef-4a71-ac01-c7099c4ce54c",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Wings of the Guard",
+        "scryfallId": "4084a009-f366-416b-b82d-a762189abf43",
+        "oracleId": "73c0a809-fb0e-4773-a385-a6e32feb03cd",
+        "firstSet": "cn2",
+        "firstPrintId": "4084a009-f366-416b-b82d-a762189abf43",
+        "firstPrintSet": "cn2",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Wingshield Agent",
