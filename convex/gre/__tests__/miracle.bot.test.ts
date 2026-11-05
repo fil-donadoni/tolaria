@@ -4,7 +4,7 @@
 // followed by a cast only hands the opponent information.
 
 import { describe, it, expect } from "vitest";
-import type { CardDefinition, EffectOp } from "../../cards/types";
+import type { EffectOp } from "../../cards/types";
 import { registerTokenDefinition, getCardByName } from "../../cards";
 import {
     makeInstance,
@@ -14,7 +14,7 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "../state";
 import { choiceCandidates } from "../ai/choiceCandidates";
-import { GOLDEN_FIXTURES } from "../../oracle/grammar/fixtures";
+import { compiledDevastationTide } from "../../oracle/__tests__/devastationTide.fixture";
 import { metamorphosisFanatic } from "../../cards/sets/dsc/black.cards";
 
 const ISLAND = getCardByName("Island").id;
@@ -23,8 +23,7 @@ const BEARS = getCardByName("Balduvian Bears").id;
 
 const TIDE_ID = "test-miracle-bot-devastation-tide";
 registerTokenDefinition({
-    ...(GOLDEN_FIXTURES.find((f) => f.card.name === "Devastation Tide")!
-        .expected as unknown as CardDefinition),
+    ...compiledDevastationTide(),
     id: TIDE_ID,
     rarity: "rare",
 });

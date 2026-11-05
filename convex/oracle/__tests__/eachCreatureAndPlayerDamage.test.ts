@@ -16,10 +16,10 @@
 //     (plain "This creature", Thrashing Wumpus; the "It" pronoun dealer
 //     behind a sacrifice cost, Bloodfire Colossus — read at COMPILE time
 //     only) and `preventDamage`
-//     (Kitsune Palliator). Both dealDamage and preventDamage forms are
-//     registered `GOLDEN_FIXTURES` rows (the smoke generator cannot build a
-//     `forEach`/`$each` script), so a golden here also asserts the fixture
-//     takes its card all the way to `ready`.
+//     (Kitsune Palliator). The smoke generator clears the dealDamage sweep, so
+//     Thrashing Wumpus reaches `ready` on its own; the preventDamage form it
+//     cannot stage is a registered `GOLDEN_FIXTURES` row. A golden here asserts
+//     its card goes all the way to `ready`.
 //  2. REFUSALS — the neighbours the rule must NOT read: "each creature"
 //     alone, a differently grouped pair, and "every" in place of "each".
 
@@ -224,15 +224,8 @@ describe("each creature and each player (CR 120.3) — goldens", () => {
         );
     });
 
-    it("the dealDamage golden fixture takes Thrashing Wumpus all the way to ready", () => {
-        // The smoke scenario has no runtime battlefield/player set to iterate,
-        // so the `forEach`/`$each` pair is a card-dependent skip; the
-        // registered fixture is what clears it (ADR 0105 § 7.1).
-        const fixture = GOLDEN_FIXTURES.find(
-            (f) => f.card.name === "Thrashing Wumpus"
-        );
-        expect(fixture?.rule).toBe("effect clause");
-        expect(compileCard(fixture!.card).state).toBe("ready");
+    it("the smoke generator takes Thrashing Wumpus all the way to ready", () => {
+        expect(compileCard(THRASHING_WUMPUS).state).toBe("ready");
     });
 
     it("the preventDamage golden fixture takes Kitsune Palliator all the way to ready", () => {

@@ -5061,6 +5061,29 @@ describe("Effect Script Op: destroy (CR 701.8)", () => {
         );
     });
 
+    it.each([
+        ["a shield saves it", {}, "battlefield"],
+        ["the rider bars the shield", { cantBeRegenerated: true }, "graveyard"],
+    ] as const)("regeneration (CR 701.19c): %s", (_label, rider, zone) => {
+        const id = registerScript(`test-op-destroy-regen-${zone}`, [
+            { op: "destroy", target: { target: 0 }, ...rider },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "bearR",
+            regenerationShields: 1,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearR" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1][zone].map((c) => c.id)).toContain("bearR");
+    });
+
     it("is a no-op when the announced target is missing (CR 608.2b)", () => {
         const id = registerScript("test-op-destroy-missing", [
             { op: "destroy", target: { target: 0 } },

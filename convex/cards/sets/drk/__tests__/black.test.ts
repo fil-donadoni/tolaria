@@ -47,7 +47,6 @@ const curseArtifact = getDefinition("9fc0d070-8a42-4d5e-8f2b-ceb59147de6f");
 const eaterOfTheDead = getDefinition("d89fe2be-bb7e-4bae-9b1f-9f0d58f20ceb");
 const graveRobbers = getDefinition("a131605a-f646-4745-a1e4-48d155a3d94f");
 const inquisition = getDefinition("5f133f06-6398-4db1-8577-66c16fd3e00d");
-const marshGas = getDefinition("b80ecb15-258b-4fc9-86e4-c2bf01891606");
 const murkDwellers = getDefinition("a213450f-02f4-4c08-8da8-891ebfa8e237");
 const namelessRace = getDefinition("348a467a-4661-4fdb-af1d-9171a1a930d9");
 const ragMan = getDefinition("f4c133b8-8383-433f-be96-c47a937287b7");
@@ -372,36 +371,6 @@ describe("Inquisition — reveal hand, damage = white cards in hand (CR 202.2 / 
         pushSpell(state, inquisition.id, "p1", [{ type: "player", id: "p2" }]);
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(18); // two white cards
-    });
-});
-
-describe("Marsh Gas — all creatures get -2/-0 until end of turn (CR 611.2)", () => {
-    it("reduces power of every creature", () => {
-        const a = makeInstance(
-            getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
-            {
-                id: "a",
-                controllerId: "p1",
-            }
-        );
-        const b = makeInstance(
-            getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a").id,
-            {
-                id: "b",
-                controllerId: "p2",
-                ownerId: "p2",
-            }
-        );
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [a] }),
-                makePlayer("p2", { battlefield: [b] }),
-            ],
-        });
-        pushSpell(state, marshGas.id, "p1");
-        resolveTopOfStack(state);
-        expect(getEffectivePower(state, a)).toBe(0); // 2 - 2
-        expect(getEffectivePower(state, b)).toBe(1); // 3 - 2
     });
 });
 

@@ -3060,208 +3060,6 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 110.1 + CR 701.8a — "Destroy all <type>" sweeps every player's
-    // battlefield: no target is announced, so the effect is a `forEach` over
-    // the battlefield reading `$each`, the shape Tranquility (LEA) writes by
-    // hand. Exhibits the two forms the canned smoke scenario cannot build —
-    // a `forEach` over a runtime-selected set and a `$each` object ref — so
-    // this fixture is the evidence both are emitted as the hand-written
-    // sweep writes them (issue #4128).
-    {
-        rule: "mass subject",
-        card: {
-            oracleId: "b8d8ece6-397e-4bc9-b86c-7caa1d675d0f",
-            name: "Back to Nature",
-            manaCost: "{1}{G}",
-            typeLine: "Instant",
-            oracleText: "Destroy all enchantments.",
-            layout: "normal",
-        },
-        expected: {
-            name: "Back to Nature",
-            types: ["Instant"],
-            manaCost: { X: 1, G: 1 },
-            oracleText: "Destroy all enchantments.",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Enchantment" },
-                    },
-                    effects: [{ op: "destroy", target: { ref: "$each" } }],
-                },
-            ],
-        },
-    },
-    // CR 110.1 + CR 701.26a — "tap all lands you control" is the same sweep
-    // with a controller scope and a `tapUntap` body. Exhibits the
-    // `tapUntap`-on-`$each` form the smoke generator cannot scenario-ize
-    // (issue #4128).
-    {
-        rule: "mass subject",
-        card: {
-            oracleId: "5ba1595a-6578-459d-96fe-fdfb84ac34d5",
-            name: "Silt Crawler",
-            manaCost: "{2}{G}",
-            typeLine: "Creature — Beast",
-            oracleText: "When this creature enters, tap all lands you control.",
-            power: "3",
-            toughness: "3",
-            layout: "normal",
-        },
-        expected: {
-            name: "Silt Crawler",
-            types: ["Creature"],
-            subtypes: ["Beast"],
-            manaCost: { X: 2, G: 1 },
-            power: 3,
-            toughness: 3,
-            oracleText: "When this creature enters, tap all lands you control.",
-            compiledTriggeredAbilities: [
-                {
-                    id: "silt-crawler-trigger",
-                    oracleText:
-                        "When this creature enters, tap all lands you control.",
-                    head: { kind: "entered", scope: "self" },
-                    effects: [
-                        {
-                            op: "forEach",
-                            select: {
-                                set: "permanents",
-                                zone: "battlefield",
-                                controller: "controller",
-                                filter: { type: "Land" },
-                            },
-                            effects: [
-                                {
-                                    op: "tapUntap",
-                                    action: "tap",
-                                    target: { ref: "$each" },
-                                },
-                            ],
-                        },
-                    ],
-                },
-            ],
-        },
-    },
-    // CR 202.3 + CR 107.3 — "each artifact, creature, and enchantment with
-    // mana value X or less": the union of three types, bounded by the
-    // announced {X}. `PermanentFilter` has no mana-value field, so the bound
-    // is an `if` over `manaValue of $each` INSIDE the sweep. Exhibits the
-    // chosen-cost-X amount form (issue #4128).
-    {
-        rule: "mass subject",
-        card: {
-            oracleId: "62e44e0d-eda0-4275-8367-49dab9a087c3",
-            name: "Pernicious Deed",
-            manaCost: "{1}{B}{G}",
-            typeLine: "Enchantment",
-            oracleText:
-                "{X}, Sacrifice this enchantment: Destroy each artifact, creature, and enchantment with mana value X or less.",
-            layout: "normal",
-        },
-        expected: {
-            name: "Pernicious Deed",
-            types: ["Enchantment"],
-            manaCost: { X: 1, B: 1, G: 1 },
-            oracleText:
-                "{X}, Sacrifice this enchantment: Destroy each artifact, creature, and enchantment with mana value X or less.",
-            activatedAbilities: [
-                {
-                    id: "pernicious-deed-ability",
-                    oracleText:
-                        "{X}, Sacrifice this enchantment: Destroy each artifact, creature, and enchantment with mana value X or less.",
-                    cost: { mana: { X: "X" }, sacrifice: true },
-                    useStack: true,
-                    effects: [
-                        {
-                            op: "forEach",
-                            select: {
-                                set: "permanents",
-                                zone: "battlefield",
-                                filter: {
-                                    type: [
-                                        "Artifact",
-                                        "Creature",
-                                        "Enchantment",
-                                    ],
-                                },
-                            },
-                            effects: [
-                                {
-                                    op: "if",
-                                    predicate: {
-                                        left: {
-                                            manaValue: { of: { ref: "$each" } },
-                                        },
-                                        op: "le",
-                                        right: { X: true },
-                                    },
-                                    then: [
-                                        {
-                                            op: "destroy",
-                                            target: { ref: "$each" },
-                                        },
-                                    ],
-                                },
-                            ],
-                        },
-                    ],
-                },
-            ],
-        },
-    },
-    // CR 110.1 + CR 701.26b — "untap all lands you control", the untap twin
-    // of the tap sweep above. `tapUntap` carries its `action` in the form,
-    // so the untap sweep is evidence of its own (issue #4128).
-    {
-        rule: "mass subject",
-        card: {
-            oracleId: "6f856f99-4cb4-479d-958d-964220965ed6",
-            name: "Wilderness Reclamation",
-            manaCost: "{3}{G}",
-            typeLine: "Enchantment",
-            oracleText:
-                "At the beginning of your end step, untap all lands you control.",
-            layout: "normal",
-        },
-        expected: {
-            name: "Wilderness Reclamation",
-            types: ["Enchantment"],
-            manaCost: { X: 3, G: 1 },
-            oracleText:
-                "At the beginning of your end step, untap all lands you control.",
-            compiledTriggeredAbilities: [
-                {
-                    id: "wilderness-reclamation-trigger",
-                    oracleText:
-                        "At the beginning of your end step, untap all lands you control.",
-                    head: { kind: "phase", phase: "END_STEP", scope: "your" },
-                    effects: [
-                        {
-                            op: "forEach",
-                            select: {
-                                set: "permanents",
-                                zone: "battlefield",
-                                controller: "controller",
-                                filter: { type: "Land" },
-                            },
-                            effects: [
-                                {
-                                    op: "tapUntap",
-                                    action: "untap",
-                                    target: { ref: "$each" },
-                                },
-                            ],
-                        },
-                    ],
-                },
-            ],
-        },
-    },
     // Kicker, CR 702.33e + CR 608.2c — "destroy all lands you control. If it was
     // kicked, destroy all lands instead.": the kicked sweep replaces the
     // base one, so both branches of one `if` carry a sweep and the base
@@ -3971,6 +3769,113 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // Overload's "each" iterates the announced set, and its `pump` reads `$each`:
+    // the body form the canned scenario cannot seed on an announced set.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "45a60f56-35e4-46e5-838f-8b4407a67cd6",
+            name: "Stirring Address",
+            manaCost: "{1}{W}",
+            typeLine: "Instant",
+            oracleText:
+                'Target creature you control gets +2/+2 until end of turn.\nOverload {5}{W} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+            layout: "normal",
+        },
+        expected: {
+            name: "Stirring Address",
+            types: ["Instant"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                'Target creature you control gets +2/+2 until end of turn.\nOverload {5}{W} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+            overload: {
+                id: "overload",
+                description: "Overload {5}{W}",
+                mana: { X: 5, W: 1 },
+            },
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$each" },
+                            power: 2,
+                            toughness: 2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+        },
+    },
+    // "Untap up to three lands": a sweep over the set a `choice` just bound. The
+    // canned scenario answers no choice, so the bound set stays unseeded and
+    // this row is the evidence the clause is emitted as written.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "16e015b2-f8a3-4b1a-80be-58a8f5fb5e8c",
+            name: "Frantic Search",
+            manaCost: "{2}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Draw two cards, then discard two cards. Untap up to three lands.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Frantic Search",
+            types: ["Instant"],
+            manaCost: { X: 2, U: 1 },
+            oracleText:
+                "Draw two cards, then discard two cards. Untap up to three lands.",
+            effects: [
+                { op: "draw", player: "controller", count: 2 },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    count: 2,
+                    prompt: "Discard two cards.",
+                    bind: "$discard1",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discard1" },
+                },
+                {
+                    op: "choice",
+                    kind: "choose-permanents",
+                    player: "controller",
+                    zone: "battlefield",
+                    allControllers: true,
+                    filter: { type: "Land" },
+                    count: { min: 0, max: 3 },
+                    prompt: "Untap up to three lands.",
+                    bind: "$untapped2",
+                },
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$untapped2" },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "untap",
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 601.2c — "Return up to two target creature cards from your graveyard
     // to your hand": ONE announced group two slots wide, with the verb fanned
     // out over both ({ target: 0 } / { target: 1 }, the hand-written Force of
@@ -4165,47 +4070,6 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                     ],
                 },
             ],
-        },
-    },
-    // CR 613.4c + CR 115.1 — "Creatures target player controls get -2/-2 until end of turn": the swept battlefield is an announced player's, so the sweep's controller is the target slot. Exhibits a sweep whose controller is a runtime target; Night // Day's Day half prints the same clause (issue #4132).
-    {
-        rule: "mass subject",
-        card: {
-            name: "Arms of Hadar",
-            manaCost: "{3}{B}",
-            typeLine: "Sorcery",
-            oracleText:
-                "Creatures target player controls get -2/-2 until end of turn.",
-            oracleId: "c15e5cb8-b94c-4157-9327-410e66606b82",
-            layout: "normal",
-        },
-        expected: {
-            name: "Arms of Hadar",
-            types: ["Sorcery"],
-            manaCost: { X: 3, B: 1 },
-            oracleText:
-                "Creatures target player controls get -2/-2 until end of turn.",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Creature" },
-                        controller: { target: 0 },
-                    },
-                    effects: [
-                        {
-                            op: "pump",
-                            target: { ref: "$each" },
-                            power: -2,
-                            toughness: -2,
-                            duration: { phase: "end-of-turn" },
-                        },
-                    ],
-                },
-            ],
-            targetRequirement: { type: "player", count: 1 },
         },
     },
     // CR 613.4c + CR 207.2c — "Domain — All creatures get -1/-1 until end of turn for each basic land type among lands you control": each stat is the printed step times the controller's Domain, negated for a shrink, over a sweep. Exhibits a pump amount the canned smoke scenario cannot know (issue #4132).
@@ -5842,134 +5706,6 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                             op: "libraryLook",
                             action: "shuffle",
                             player: "controller",
-                        },
-                    ],
-                },
-            ],
-        },
-    },
-    // CR 120.3 — "<self> deals N damage to each creature and each player":
-    // the fixed two-set damage recipient union lowers to a PAIR of `forEach`
-    // sweeps (one over battlefield creatures, one over players), because
-    // `dealDamage.to` names one recipient and the sentence names two disjoint
-    // sets. Exhibits the "$each object ref" and "$each player ref" forms the
-    // canned smoke scenario cannot build, so this fixture is the evidence the
-    // pair is emitted the way the hand-written Pestilence writes it
-    // (`sets/lea/black.cards.ts`).
-    {
-        rule: "effect clause",
-        card: {
-            oracleId: "ef220824-fab4-4d8e-9ba4-65ff5ba1db66",
-            name: "Thrashing Wumpus",
-            manaCost: "{3}{B}{B}",
-            typeLine: "Creature — Beast",
-            oracleText:
-                "{B}: This creature deals 1 damage to each creature and each player.",
-            power: "3",
-            toughness: "3",
-            layout: "normal",
-        },
-        expected: {
-            name: "Thrashing Wumpus",
-            types: ["Creature"],
-            subtypes: ["Beast"],
-            manaCost: { X: 3, B: 2 },
-            power: 3,
-            toughness: 3,
-            oracleText:
-                "{B}: This creature deals 1 damage to each creature and each player.",
-            activatedAbilities: [
-                {
-                    id: "thrashing-wumpus-ability",
-                    oracleText:
-                        "{B}: This creature deals 1 damage to each creature and each player.",
-                    cost: { mana: { B: 1 } },
-                    useStack: true,
-                    effects: [
-                        {
-                            op: "forEach",
-                            select: {
-                                set: "permanents",
-                                zone: "battlefield",
-                                filter: { type: "Creature" },
-                            },
-                            effects: [
-                                {
-                                    op: "dealDamage",
-                                    amount: 1,
-                                    to: { ref: "$each" },
-                                },
-                            ],
-                        },
-                        {
-                            op: "forEach",
-                            select: { set: "players" },
-                            effects: [
-                                {
-                                    op: "dealDamage",
-                                    amount: 1,
-                                    to: { player: { ref: "$each" } },
-                                },
-                            ],
-                        },
-                    ],
-                },
-            ],
-        },
-    },
-    // CR 120.3 + CR 702.9a (issue #4310) — "<self> deals N damage to each creature
-    // without <keyword>": one `forEach` over battlefield creatures whose
-    // selector carries `filter.excludeAbility`. Exhibits the "$each object ref"
-    // form the canned smoke scenario cannot build, and is the evidence the
-    // keyword exclusion rides the selector filter (Earthquake's shape, which
-    // the hand-written catalogue writes with `dealDamageToEach`).
-    {
-        rule: "effect clause",
-        card: {
-            oracleId: "7246e3a0-f8b7-4c1b-ae75-a1eb8990a728",
-            name: "Ashen Firebeast",
-            manaCost: "{6}{R}{R}",
-            typeLine: "Creature — Elemental Beast",
-            oracleText:
-                "{1}{R}: This creature deals 1 damage to each creature without flying.",
-            power: "6",
-            toughness: "6",
-            layout: "normal",
-        },
-        expected: {
-            name: "Ashen Firebeast",
-            types: ["Creature"],
-            subtypes: ["Elemental", "Beast"],
-            manaCost: { X: 6, R: 2 },
-            power: 6,
-            toughness: 6,
-            oracleText:
-                "{1}{R}: This creature deals 1 damage to each creature without flying.",
-            activatedAbilities: [
-                {
-                    id: "ashen-firebeast-ability",
-                    oracleText:
-                        "{1}{R}: This creature deals 1 damage to each creature without flying.",
-                    cost: { mana: { X: 1, R: 1 } },
-                    useStack: true,
-                    effects: [
-                        {
-                            op: "forEach",
-                            select: {
-                                set: "permanents",
-                                zone: "battlefield",
-                                filter: {
-                                    type: "Creature",
-                                    excludeAbility: "flying",
-                                },
-                            },
-                            effects: [
-                                {
-                                    op: "dealDamage",
-                                    amount: 1,
-                                    to: { ref: "$each" },
-                                },
-                            ],
                         },
                     ],
                 },
@@ -7913,274 +7649,6 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 120.3 + CR 702.9a — "deals X damage to each creature without flying and each player": the creature half is a keyword-excluded sweep, the player half a sweep over players, each carrying the chosen-cost X. Exhibits the X amount, the `$each` object recipient and the `$each` player recipient the canned smoke scenario cannot build (issue #4557).
-    {
-        rule: "effect clause",
-        card: {
-            oracleId: "9a40614b-50a3-422c-849e-53c8b7d3d204",
-            name: "Earthquake",
-            manaCost: "{X}{R}",
-            typeLine: "Sorcery",
-            oracleText:
-                "Earthquake deals X damage to each creature without flying and each player.",
-            layout: "normal",
-        },
-        expected: {
-            name: "Earthquake",
-            types: ["Sorcery"],
-            manaCost: { X: "X", R: 1 },
-            oracleText:
-                "Earthquake deals X damage to each creature without flying and each player.",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Creature", excludeAbility: "flying" },
-                    },
-                    effects: [
-                        {
-                            op: "dealDamage",
-                            amount: { X: true },
-                            to: { ref: "$each" },
-                        },
-                    ],
-                },
-                {
-                    op: "forEach",
-                    select: { set: "players" },
-                    effects: [
-                        {
-                            op: "dealDamage",
-                            amount: { X: true },
-                            to: { player: { ref: "$each" } },
-                        },
-                    ],
-                },
-            ],
-        },
-    },
-    // CR 105.1 + CR 701.19c — "Destroy all green creatures. They can't be regenerated.": a colour-scoped sweep whose destroy carries `cantBeRegenerated` on every swept creature. Exhibits the `$each` destroy target with the no-regeneration flag (issue #4557).
-    {
-        rule: "mass subject",
-        card: {
-            oracleId: "dd84d291-cb7a-4f44-81cd-9f1181bb5ae5",
-            name: "Perish",
-            manaCost: "{2}{B}",
-            typeLine: "Sorcery",
-            oracleText:
-                "Destroy all green creatures. They can't be regenerated.",
-            layout: "normal",
-        },
-        expected: {
-            name: "Perish",
-            types: ["Sorcery"],
-            manaCost: { X: 2, B: 1 },
-            oracleText:
-                "Destroy all green creatures. They can't be regenerated.",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Creature", color: "G" },
-                    },
-                    effects: [
-                        {
-                            op: "destroy",
-                            target: { ref: "$each" },
-                            cantBeRegenerated: true,
-                        },
-                    ],
-                },
-            ],
-        },
-    },
-    // CR 105.1 + CR 701.26a — "Tap all blue creatures": the colour-scoped tap sweep (issue #4557).
-    {
-        rule: "mass subject",
-        card: {
-            oracleId: "b4541f38-23c1-4f51-a35b-0b222cdaed2c",
-            name: "Riptide",
-            manaCost: "{U}",
-            typeLine: "Instant",
-            oracleText: "Tap all blue creatures.",
-            layout: "normal",
-        },
-        expected: {
-            name: "Riptide",
-            types: ["Instant"],
-            manaCost: { U: 1 },
-            oracleText: "Tap all blue creatures.",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Creature", color: "U" },
-                    },
-                    effects: [
-                        {
-                            op: "tapUntap",
-                            action: "tap",
-                            target: { ref: "$each" },
-                        },
-                    ],
-                },
-            ],
-        },
-    },
-    // CR 105.1 + CR 613.4c — "White creatures you control get +2/+2 until end of turn": a colour-scoped group pump over the controller's creatures (issue #4557).
-    {
-        rule: "mass subject",
-        card: {
-            oracleId: "32d78ffd-5bed-45e8-be6a-420149a263bb",
-            name: "Guardians' Pledge",
-            manaCost: "{1}{W}{W}",
-            typeLine: "Instant",
-            oracleText:
-                "White creatures you control get +2/+2 until end of turn.",
-            layout: "normal",
-        },
-        expected: {
-            name: "Guardians' Pledge",
-            types: ["Instant"],
-            manaCost: { X: 1, W: 2 },
-            oracleText:
-                "White creatures you control get +2/+2 until end of turn.",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        controller: "controller",
-                        filter: { type: "Creature", color: "W" },
-                    },
-                    effects: [
-                        {
-                            op: "pump",
-                            target: { ref: "$each" },
-                            power: 2,
-                            toughness: 2,
-                            duration: { phase: "end-of-turn" },
-                        },
-                    ],
-                },
-            ],
-        },
-    },
-    // CR 400.3 + CR 110.1 — "Return all permanents to their owners' hands": a bounce sweep, one `moveZone` to the hand per permanent. Exhibits the sweep `moveZone` of `$each` the canned smoke scenario cannot model (issue #4557).
-    {
-        rule: "mass subject",
-        card: {
-            oracleId: "7cafc972-a6f5-4cac-a3d3-8a3ae36ffb1e",
-            name: "Upheaval",
-            manaCost: "{4}{U}{U}",
-            typeLine: "Sorcery",
-            oracleText: "Return all permanents to their owners' hands.",
-            layout: "normal",
-        },
-        expected: {
-            name: "Upheaval",
-            types: ["Sorcery"],
-            manaCost: { X: 4, U: 2 },
-            oracleText: "Return all permanents to their owners' hands.",
-            effects: [
-                {
-                    op: "forEach",
-                    select: { set: "permanents", zone: "battlefield" },
-                    effects: [
-                        {
-                            op: "moveZone",
-                            target: { ref: "$each" },
-                            to: "hand",
-                        },
-                    ],
-                },
-            ],
-        },
-    },
-    // CR 400.3 + CR 702.94a — "Return all nonland permanents to their owners' hands", a bounce sweep under a type exclusion, beside a Miracle line. Exhibits the sweep `moveZone` of `$each` over `excludeType: "Land"` the canned smoke scenario cannot model (issue #1267); the miracle cost lands on `CardDefinition.miracle`.
-    {
-        rule: "mass subject",
-        card: {
-            oracleId: "4245ee98-2d4c-49d1-8d07-80760cae2bf9",
-            name: "Devastation Tide",
-            manaCost: "{3}{U}{U}",
-            typeLine: "Sorcery",
-            oracleText:
-                "Return all nonland permanents to their owners' hands.\nMiracle {1}{U} (You may cast this card for its miracle cost when you draw it if it's the first card you drew this turn.)",
-            layout: "normal",
-        },
-        expected: {
-            name: "Devastation Tide",
-            types: ["Sorcery"],
-            manaCost: { X: 3, U: 2 },
-            oracleText:
-                "Return all nonland permanents to their owners' hands.\nMiracle {1}{U} (You may cast this card for its miracle cost when you draw it if it's the first card you drew this turn.)",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { excludeType: "Land" },
-                    },
-                    effects: [
-                        {
-                            op: "moveZone",
-                            target: { ref: "$each" },
-                            to: "hand",
-                        },
-                    ],
-                },
-            ],
-            miracle: { X: 1, U: 1 },
-        },
-    },
-    // CR 400.3 — "Return all artifacts target player owns to their hand": a bounce sweep scoped to an announced player's battlefield, one `moveZone` to the hand per artifact. Exhibits the sweep `moveZone` of `$each` under a target-player controller the canned smoke scenario cannot model (issue #5701).
-    {
-        rule: "effect clause",
-        card: {
-            oracleId: "ed1e5d24-c8a8-48fe-a88f-1003ad432477",
-            name: "Hurkyl's Recall",
-            manaCost: "{1}{U}",
-            typeLine: "Instant",
-            oracleText:
-                "Return all artifacts target player owns to their hand.",
-            layout: "normal",
-        },
-        expected: {
-            name: "Hurkyl's Recall",
-            types: ["Instant"],
-            manaCost: { X: 1, U: 1 },
-            oracleText:
-                "Return all artifacts target player owns to their hand.",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Artifact" },
-                        controller: { target: 0 },
-                    },
-                    effects: [
-                        {
-                            op: "moveZone",
-                            target: { ref: "$each" },
-                            to: "hand",
-                        },
-                    ],
-                },
-            ],
-            targetRequirement: { type: "player", count: 1 },
-        },
-    },
     // CR 202.3 + CR 122.1 — "Destroy each artifact and creature with mana value equal to the number of fuse counters on this artifact": an `if` over the iterated permanent's mana value against the source's live counter tally. Exhibits the mana-value-versus-counters comparison (issue #4557).
     {
         rule: "mass subject",
@@ -8265,106 +7733,6 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                                     target: { ref: "$source" },
                                     count: 1,
                                 },
-                            ],
-                        },
-                    ],
-                },
-            ],
-        },
-    },
-    // CR 205.3 — "Destroy all non-Aura enchantments": the negative subtype on a sweep filter, `excludeSubtype` (issue #4557).
-    {
-        rule: "mass subject",
-        card: {
-            oracleId: "87547bf0-02cf-4d83-9a1f-c82d2f1a22f1",
-            name: "Tranquil Domain",
-            manaCost: "{1}{G}",
-            typeLine: "Instant",
-            oracleText: "Destroy all non-Aura enchantments.",
-            layout: "normal",
-        },
-        expected: {
-            name: "Tranquil Domain",
-            types: ["Instant"],
-            manaCost: { X: 1, G: 1 },
-            oracleText: "Destroy all non-Aura enchantments.",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Enchantment", excludeSubtype: "Aura" },
-                    },
-                    effects: [{ op: "destroy", target: { ref: "$each" } }],
-                },
-            ],
-        },
-    },
-    // CR 205.3 + CR 613.4c — "Goblin creatures get +3/+0 until end of turn": a bare subtype group with no controller names every Goblin creature, whoever controls it (issue #4557).
-    {
-        rule: "mass subject",
-        card: {
-            oracleId: "696ee797-0c32-4bff-8c3d-02d05835b138",
-            name: "Goblin Pyromancer",
-            manaCost: "{3}{R}",
-            typeLine: "Creature — Goblin Wizard",
-            oracleText:
-                "When this creature enters, Goblin creatures get +3/+0 until end of turn.\nAt the beginning of the end step, destroy all Goblins.",
-            power: "2",
-            toughness: "2",
-            layout: "normal",
-        },
-        expected: {
-            name: "Goblin Pyromancer",
-            types: ["Creature"],
-            subtypes: ["Goblin", "Wizard"],
-            manaCost: { X: 3, R: 1 },
-            power: 2,
-            toughness: 2,
-            oracleText:
-                "When this creature enters, Goblin creatures get +3/+0 until end of turn.\nAt the beginning of the end step, destroy all Goblins.",
-            compiledTriggeredAbilities: [
-                {
-                    id: "goblin-pyromancer-trigger",
-                    oracleText:
-                        "When this creature enters, Goblin creatures get +3/+0 until end of turn.",
-                    head: { kind: "entered", scope: "self" },
-                    effects: [
-                        {
-                            op: "forEach",
-                            select: {
-                                set: "permanents",
-                                zone: "battlefield",
-                                filter: { type: "Creature", subtype: "Goblin" },
-                            },
-                            effects: [
-                                {
-                                    op: "pump",
-                                    target: { ref: "$each" },
-                                    power: 3,
-                                    toughness: 0,
-                                    duration: { phase: "end-of-turn" },
-                                },
-                            ],
-                        },
-                    ],
-                },
-                {
-                    id: "goblin-pyromancer-trigger-2",
-                    oracleText:
-                        "At the beginning of the end step, destroy all Goblins.",
-                    head: { kind: "phase", phase: "END_STEP", scope: "each" },
-                    effects: [
-                        {
-                            op: "forEach",
-                            select: {
-                                set: "permanents",
-                                zone: "battlefield",
-                                filter: { subtype: "Goblin" },
-                            },
-                            effects: [
-                                { op: "destroy", target: { ref: "$each" } },
                             ],
                         },
                     ],

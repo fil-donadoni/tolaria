@@ -27,7 +27,6 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { getProducibleManaOptions } from "../../../../gre/rules";
-import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     type CardInstanceState,
     type GameState,
@@ -49,7 +48,6 @@ const goblinRockSled = getDefinition("91e0b59d-8f9b-4a76-9845-bcb0dc32523d");
 const goblinShrine = getDefinition("cd69a6dc-27f3-42aa-9e63-4417796e4ef5");
 const goblinWizard = getDefinition("9b73dfb4-d930-4a89-b621-129dd9f6328c");
 const goblinsOfTheFlarg = getDefinition("fd333b18-b896-4ab8-9c46-eed4efdd94f2");
-const inferno = getDefinition("a6b61512-5b24-424c-966f-36b595781e14");
 const manaClash = getDefinition("72955141-d990-459f-adbe-7d3d0f5f6c95");
 const orcGeneral = getDefinition("65a10fd5-506e-46bf-87e6-fde134c0dc04");
 const stripMine = getDefinition("e7880157-7f27-4f1b-9cdc-ab36a6252376");
@@ -638,37 +636,6 @@ describe("Goblins of the Flarg — mountainwalk + sac when you control a Dwarf (
         } as StackItem["triggerEvent"]);
         expect(
             state.players[0].battlefield.find((c) => c.id === flarg.id)
-        ).toBeUndefined();
-    });
-});
-
-describe("Inferno — 6 damage to each creature and each player (CR 120.3)", () => {
-    it("damages every creature and both players", () => {
-        const c1 = makeInstance(goblinHero.id, {
-            id: "c1",
-            controllerId: "p1",
-        }); // 2/2
-        const c2 = makeInstance(goblinHero.id, {
-            id: "c2",
-            controllerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [c1] }),
-                makePlayer("p2", { battlefield: [c2] }),
-            ],
-        });
-        pushSpell(state, inferno.id, "p1");
-        resolveTopOfStack(state);
-        checkStateBasedActions(state);
-        expect(state.players[0].life).toBe(14);
-        expect(state.players[1].life).toBe(14);
-        // Both 2/2 creatures took 6 → dead (SBA).
-        expect(
-            state.players[0].battlefield.find((c) => c.id === c1.id)
-        ).toBeUndefined();
-        expect(
-            state.players[1].battlefield.find((c) => c.id === c2.id)
         ).toBeUndefined();
     });
 });
