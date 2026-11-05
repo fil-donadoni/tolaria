@@ -3447,6 +3447,9 @@ function copyOptionsFromExcept(
         ...(except.additionalSubtypes
             ? { additionalSubtypes: [...except.additionalSubtypes] }
             : {}),
+        ...(except.additionalSupertypes
+            ? { additionalSupertypes: [...except.additionalSupertypes] }
+            : {}),
         ...(except.additionalStaticAbilities
             ? {
                   additionalStaticAbilities: [

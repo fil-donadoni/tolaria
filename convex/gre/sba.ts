@@ -1,5 +1,6 @@
 import { applyMeldArrangement, raiseMeldArrangement } from "./meld";
 import { copyExceptName } from "../cards/cardNames";
+import { copiableSupertypesOf } from "../cards/snowReads";
 import { findPermanent } from "./lookup";
 import type { CardInstanceState, GameState } from "./state";
 import {
@@ -701,10 +702,11 @@ function permanentDefinition(card: CardInstanceState) {
 
 /** CR 205.4a — true when the permanent currently has the Legendary supertype.
  *  The supertype lives on the (possibly copied) card definition, not on the
- *  instance; a Clone copying a Legendary creature reads Legendary here. */
+ *  instance; a Clone copying a Legendary creature reads Legendary here, and so
+ *  does a copy whose "except" clause made it legendary (CR 707.9b). */
 function isLegendaryPermanent(card: CardInstanceState): boolean {
-    return (
-        permanentDefinition(card)?.supertypes?.includes("Legendary") ?? false
+    return copiableSupertypesOf(permanentDefinition(card), card).includes(
+        "Legendary"
     );
 }
 
@@ -831,7 +833,9 @@ export function finalizeMeldArrangement(
  *  Read from the (possibly copied) card definition, mirroring the Legendary
  *  check, so a Clone copying a World permanent reads World here. */
 function isWorldPermanent(card: CardInstanceState): boolean {
-    return permanentDefinition(card)?.supertypes?.includes("World") ?? false;
+    return copiableSupertypesOf(permanentDefinition(card), card).includes(
+        "World"
+    );
 }
 
 /** Every World permanent across both players' battlefields (CR 704.5m — the

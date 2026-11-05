@@ -367,6 +367,20 @@ const LAYER_7_SUBLAYER_ORDER: Record<ContinuousEffectSublayer, number> = {
     "7d": 3,
 };
 
+/** CR 707.9d — true when a copy effect's "except" clause (`CopyExcept`) names
+ *  this object's base power and toughness, so the copied definition's P/T CDA
+ *  is not part of it. A face-down object shows no clause (CR 708.2). */
+function copyOverridesPTCDA(source: {
+    faceDown?: boolean;
+    copyExcept?: { basePower?: number; baseToughness?: number };
+}): boolean {
+    return (
+        !source.faceDown &&
+        source.copyExcept?.basePower !== undefined &&
+        source.copyExcept.baseToughness !== undefined
+    );
+}
+
 const LAYER_7_SUBLAYERS: readonly ContinuousEffectSublayer[] = (
     Object.keys(LAYER_7_SUBLAYER_ORDER) as ContinuousEffectSublayer[]
 ).sort((a, b) => LAYER_7_SUBLAYER_ORDER[a] - LAYER_7_SUBLAYER_ORDER[b]);
@@ -617,6 +631,10 @@ function layer7EffectsFor(
         // without saying where in 613.4 it lands.
         const sublayer = LAYER_7_STATIC_EFFECT_KINDS[effect.kind];
         if (!effect.applies(target, source, STATIC_EFFECT_CTX)) continue;
+        // CR 707.9d — a copy effect that provides a specific set of values for
+        // P/T does not copy the CDA defining it ("except it's 7/7" over a
+        // Tarmogoyf is 7/7): the stamp names the base 7a would otherwise add to.
+        if (effect.kind === "pt-cda" && copyOverridesPTCDA(source)) continue;
         // CR 611.2c source-level gate ("as long as ..."): evaluated once
         // per source against the whole board (Jihad). `pt-buff` and
         // `pt-set` carry one ("During your turn, ... he's a 3/4 ...

@@ -4222,6 +4222,10 @@ export interface EffectCopyExcept {
      *  copy"; Saheeli, Sublime Artificer, issue #3236). See
      *  `CopyEffectOptions.additionalTypes`. */
     additionalTypes?: CardType[];
+    /** "…except he's legendary in addition to his other types" — supertypes
+     *  appended to the copied object's (CR 707.9b). See
+     *  `CopyEffectOptions.additionalSupertypes`. */
+    additionalSupertypes?: CardSupertype[];
     /** CR 707.9a "…except it has this ability" (Thespian's Stage, issue
      *  #7207) — ids of activated abilities printed on the card that PRINTS
      *  the resolving ability (`SpellContext.abilityCardId`), which the copy
@@ -4266,6 +4270,12 @@ export interface CopyEffectOptions {
      *  recomputed from `opts` on every application (so a re-copy without the
      *  option — Vesuvan-style — doesn't leave a stale addition behind). */
     additionalSubtypes?: string[];
+    /** CR 707.9b "except he's legendary in addition to his other types" — the
+     *  copy's SUPERTYPES are a copiable value, stamped on `CopyExcept` and so
+     *  inherited by a copy of the copy (CR 707.3). The copy still presents the
+     *  copied definition, which holds only the printed ones: read through
+     *  `liveSupertypesOf` / `copiableSupertypesOf` (`cards/snowReads.ts`). */
+    additionalSupertypes?: CardSupertype[];
     /** Ids on the RECIPIENT's own `triggeredGrantTemplates[]` for triggered
      *  abilities the copy effect itself adds (CR 707.2's "except" clause —
      *  Phantasmal Image: "...and it has 'When this creature becomes the
@@ -4374,6 +4384,7 @@ export type CopyExcept = Pick<
     | "colorOverride"
     | "additionalTypes"
     | "additionalSubtypes"
+    | "additionalSupertypes"
     | "additionalStaticAbilities"
     | "additionalActivatedAbilities"
     | "noManaCost"
