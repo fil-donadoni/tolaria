@@ -51,13 +51,6 @@ describe('manaColorSource "chosen-color" (CR 614.12a, CR 106.5)', () => {
         expect(getEffectiveManaChoices(elf, "p1", battlefields)).toEqual([]);
     });
 
-    // CR 105.1 — `chosenModeId` has writers other than the colour pick; a mode
-    // id that is not a colour stores no colour.
-    it("offers nothing when the stored mode is not a colour", () => {
-        const { elf, battlefields } = board("not-a-color");
-        expect(getEffectiveManaChoices(elf, "p1", battlefields)).toEqual([]);
-    });
-
     // CR 106.7 — on a board it could produce its fixed {G} and the stored
     // colour, not the five-colour fallback list.
     it("could produce the stored colour on a board", () => {

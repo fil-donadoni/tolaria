@@ -582,6 +582,20 @@ describe("the neighbours of protection of your choice (fail-closed)", () => {
         ]);
     });
 
+    // The marker-fed form keeps its marker: `ofYourChoice` is what spares a
+    // sentence one, and this one does not carry it.
+    it('still refuses the plural "the chosen color" with no marker', () => {
+        expect(
+            refusedAt(
+                instant(
+                    "Creatures you control gain protection from the chosen color until end of turn."
+                )
+            )
+        ).toEqual([
+            "sentence assembly: Creatures you control gain protection from the chosen color until end of turn",
+        ]);
+    });
+
     it('still refuses "the chosen color" with no marker', () => {
         expect(
             refusedAt(
