@@ -2,6 +2,7 @@ import type { CardInstanceState, GameState } from "./state";
 import { getPlayer, getOpponentId, untapPermanent } from "./state";
 import { tryGetDefinition } from "../cards";
 import { copyExceptName } from "../cards/cardNames";
+import { copiableSupertypesOf } from "../cards/snowReads";
 
 /**
  * Banding combat helpers (CR 702.22).
@@ -98,7 +99,7 @@ export function matchesBandQuality(
 ): boolean {
     const def = bandDefinition(card);
     if (quality.kind === "legendary") {
-        return def?.supertypes?.includes("Legendary") ?? false;
+        return copiableSupertypesOf(def, card).includes("Legendary");
     }
     // CR 707.9b — a copy's "except its name is X" is its name.
     return (copyExceptName(card) ?? def?.name) === quality.name;

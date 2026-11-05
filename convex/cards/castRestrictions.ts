@@ -23,7 +23,7 @@ import { objectHasChosenName } from "./cardNames";
 import { getEffectiveColors } from "./effectiveColors";
 import { matchesPermanentFilter } from "./filters";
 import type { MatchablePermanent } from "./filters";
-import { liveSupertypesOf } from "./snowReads";
+import { copyExceptSupertypes, liveSupertypesOf } from "./snowReads";
 import type { SupertypeView } from "./snowReads";
 import type {
     CardType,
@@ -50,6 +50,10 @@ export const CAST_RESTRICTION_CTX: StaticEffectContext = {
         return card.subtypes.includes(subtype);
     },
     hasSupertype(card: PermanentView, supertype: string): boolean {
+        // CR 707.9b — a copy effect's "except he's legendary" clause.
+        if (copyExceptSupertypes(card as SupertypeView).includes(supertype)) {
+            return true;
+        }
         const embedded = (card.card as { supertypes?: string[] }).supertypes;
         if (embedded) return embedded.includes(supertype);
         const cardId = (card.card as { id?: string }).id;

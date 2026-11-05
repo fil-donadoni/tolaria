@@ -2686,7 +2686,7 @@ export function buildManaSourceUnits(
     // via `grantedSupertypes`/`removedSupertypes`, contrary to an earlier,
     // inaccurate version of this comment). That's a deliberate match to how
     // `sba.ts`'s legend rule (CR 704.5j, `isLegendary`) reads supertypes
-    // today — also printed-only, via `permanentDefinition(card)?.supertypes`
+    // today — also layer 1 only, via `copiableSupertypesOf`
     // — not a gap: no card in the catalogue currently grants/removes
     // "Legendary" on a card sitting in hand (only on a permanent), so the
     // live overlay and the printed value coincide for every real spell this

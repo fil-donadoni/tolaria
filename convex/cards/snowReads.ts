@@ -22,22 +22,50 @@ export interface SupertypeView {
     types?: readonly string[];
     subtypes?: readonly string[];
     card?: ({ id?: string } & Record<string, unknown>) | undefined;
+    faceDown?: boolean;
+    copyExcept?: { additionalSupertypes?: readonly string[] };
     grantedSupertypes?: readonly { supertype: string; sourceId: string }[];
     removedSupertypes?: readonly { supertype: string; sourceId: string }[];
 }
 
-/** Printed supertypes of a permanent (CR 205.4a). An embedded `supertypes` on
- *  the (copied / tokenized) card reference wins; else resolve via the injected
- *  registry lookup. */
-function printedSupertypes(card: SupertypeView): readonly string[] {
-    if (!card.card) return [];
-    const embedded = (card.card as { supertypes?: string[] }).supertypes;
-    if (embedded) return embedded;
-    const id = card.card.id;
-    return id ? (supertypesForCardId(id) ?? []) : [];
+/** CR 707.9b — the supertypes an "except he's legendary in addition to his
+ *  other types" copy effect left on this object: a copiable value the presented
+ *  definition does not hold (CR 707.3 — a copy of the copy inherits them).
+ *  Empty for a face-down object, whose stamp stays on the instance to apply
+ *  again when it is turned face up (CR 708.2). */
+export function copyExceptSupertypes(
+    card: Pick<SupertypeView, "faceDown" | "copyExcept">
+): readonly string[] {
+    return card.faceDown ? [] : (card.copyExcept?.additionalSupertypes ?? []);
 }
 
-/** Live supertype status of a permanent (CR 205.4a): printed supertypes minus
+/** CR 205.4a / 707.9b — the layer-1 supertypes of a permanent whose presented
+ *  definition the caller already holds: the printed ones plus the copy effect's
+ *  clause. For the readers that look at the definition rather than the live
+ *  overlay; {@link liveSupertypesOf} is this plus the layer-4 overlay. */
+export function copiableSupertypesOf(
+    def: { supertypes?: readonly string[] } | null | undefined,
+    card: Pick<SupertypeView, "faceDown" | "copyExcept">
+): string[] {
+    return [
+        ...new Set([...(def?.supertypes ?? []), ...copyExceptSupertypes(card)]),
+    ];
+}
+
+/** Layer-1 supertypes of a permanent (CR 205.4a): an embedded `supertypes` on
+ *  the (copied / tokenized) card reference wins over the injected registry
+ *  lookup; a copy effect's clause joins either (CR 707.9b). */
+function copiableSupertypes(card: SupertypeView): readonly string[] {
+    if (!card.card) return [];
+    const embedded = (card.card as { supertypes?: string[] }).supertypes;
+    const id = card.card.id;
+    return copiableSupertypesOf(
+        { supertypes: embedded ?? (id ? supertypesForCardId(id) : undefined) },
+        card
+    );
+}
+
+/** Live supertype status of a permanent (CR 205.4a): copiable supertypes minus
  *  any removed by a `supertype-set` static / indefinite mutation, plus any
  *  added the same way. */
 export function hasSupertypeLive(
@@ -50,7 +78,7 @@ export function hasSupertypeLive(
     if ((card.removedSupertypes ?? []).some((r) => r.supertype === supertype)) {
         return false;
     }
-    return printedSupertypes(card).includes(supertype);
+    return copiableSupertypes(card).includes(supertype);
 }
 
 /** True if the permanent is currently a snow permanent (CR 205.4a). */
@@ -88,7 +116,7 @@ export function controlsSnowSubtype(
 /** Live supertypes of a permanent (CR 205.4a) for the `supertypes` field of a
  *  `PermanentFilter` — injected as `FilterMatchContext.supertypesOf`. */
 export function liveSupertypesOf(card: SupertypeView): readonly string[] {
-    const result = new Set<string>(printedSupertypes(card));
+    const result = new Set<string>(copiableSupertypes(card));
     for (const r of card.removedSupertypes ?? []) result.delete(r.supertype);
     for (const g of card.grantedSupertypes ?? []) result.add(g.supertype);
     return [...result];

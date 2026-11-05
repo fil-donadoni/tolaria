@@ -1069,12 +1069,10 @@ export interface ClientPermanentFilter {
     excludeSubtypes?: string | string[];
     /** Exclude permanents that have ANY of these supertypes (CR 205.4a) — the
      *  negative of `supertypes` (this mirror has no POSITIVE `supertypes`
-     *  field — no shipped choice picker needs it yet). Read against the
-     *  card's PRINTED supertypes (`tryGetDefinition(...).supertypes`), since
-     *  `CardInstance` carries no live supertype field client-side — the same
-     *  best-effort static fallback the `colors` field below already uses (a
-     *  snow-status mutation like Cold Snap isn't reflected here). Mirrors
-     *  `PermanentFilter.excludeSupertypes`. */
+     *  field — no shipped choice picker needs it yet). Read LIVE
+     *  (`liveSupertypesOf`), the server's own authority, so a copy effect's
+     *  "except he's legendary" clause and a snow mutation are both seen.
+     *  Mirrors `PermanentFilter.excludeSupertypes`. */
     excludeSupertypes?: string | string[];
     requireAbility?: string;
     excludeAbility?: string;
@@ -1191,8 +1189,7 @@ export function matchesPermanentFilter(
         const excluded = Array.isArray(filter.excludeSupertypes)
             ? filter.excludeSupertypes
             : [filter.excludeSupertypes];
-        const cardSupertypes: string[] =
-            tryGetDefinition(card.card.id)?.supertypes ?? [];
+        const cardSupertypes = liveSupertypesOf(card);
         if (excluded.some((s) => cardSupertypes.includes(s))) return false;
     }
     const abilities = card.staticAbilities ?? [];
@@ -4281,11 +4278,11 @@ export function toMatchablePermanent(
         // CR 202.2 / 613.1d — the single colour authority (layer-5 override
         // SETS, `grantedColors` UNION), same one `buildTriggerStateView` uses.
         colors: getEffectiveColors(card as unknown as PermanentView),
-        // CR 205.4a — printed supertypes, for a permanent leg's `supertypes` /
+        // CR 205.4a — live supertypes, for a permanent leg's `supertypes` /
         // `excludeSupertypes` clause ("sacrifice a nonbasic land"). No shipped
         // may-pay permanent leg uses it yet (latent-only); populated so one
         // that does doesn't silently fail open the way `excludeSubtypes` did.
-        supertypes: tryGetDefinition(card.card.id)?.supertypes,
+        supertypes: liveSupertypesOf(card),
         power: card.power,
         toughness: card.toughness,
         isAttacking: card.isAttacking,
@@ -4354,15 +4351,8 @@ export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
     excludeTypes: "mirrored",
     subtypes: "mirrored",
     excludeSubtypes: "mirrored",
-    // Mirrored on BOTH paths, but the two reads diverge on liveness: the
-    // `ClientPermanentFilter` mirror reads PRINTED supertypes only
-    // (`tryGetDefinition(...).supertypes`, no snow-mutation awareness), the
-    // same static fallback `toMatchablePermanent` uses above — stricter than
-    // the server's own `matchesPermanentFilter`, which can resolve LIVE
-    // supertypes via an injected `ctx.supertypesOf` (Melting / Arcum's
-    // Weathervane). Neither client path threads that live resolver — a
-    // latent gap (no shipped client-reachable filter needs the live value
-    // yet), tracked here instead of as a prose note (issue #1938 fixup 2).
+    // Mirrored on BOTH paths, both LIVE (`liveSupertypesOf`), the authority the
+    // server's `matchesPermanentFilter` injects as `ctx.supertypesOf`.
     excludeSupertypes: "mirrored",
     requireAbility: "mirrored",
     excludeAbility: "mirrored",

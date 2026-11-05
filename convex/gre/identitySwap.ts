@@ -86,11 +86,18 @@ export function copiableValuesOf(
         ...(except?.additionalStaticAbilities ?? []),
     ];
     return {
-        types: [...def.types, ...(except?.additionalTypes ?? [])],
+        // De-duplicated: "a creature in addition to its other types" over a
+        // copied artifact creature leaves it one Creature, not two.
+        types: [...new Set([...def.types, ...(except?.additionalTypes ?? [])])],
         // CR 702.73a — "except it has changeling" (a copiable value, CR 707.9b)
         // makes the copy every creature type, as a printed one would be.
         subtypes: withChangelingSubtypes(
-            [...(def.subtypes ?? []), ...(except?.additionalSubtypes ?? [])],
+            [
+                ...new Set([
+                    ...(def.subtypes ?? []),
+                    ...(except?.additionalSubtypes ?? []),
+                ]),
+            ],
             staticAbilities
         ),
         power: except?.basePower ?? def.power,
@@ -138,6 +145,10 @@ export function copyExceptOf(
         additionalSubtypes: added(
             inherited?.additionalSubtypes,
             opts.additionalSubtypes
+        ),
+        additionalSupertypes: added(
+            inherited?.additionalSupertypes,
+            opts.additionalSupertypes
         ),
         additionalStaticAbilities: added(
             inherited?.additionalStaticAbilities,

@@ -1,5 +1,6 @@
 import { getDefinition } from "@convex/cards";
 import { copyExceptName } from "@convex/cards/cardNames";
+import { copiableSupertypesOf } from "@convex/cards/snowReads";
 import type { CardInstance } from "~/types/game";
 
 /**
@@ -55,7 +56,7 @@ export function hasBandingLike(c: CardInstance): boolean {
 function matchesBandQuality(c: CardInstance, quality: BandQuality): boolean {
     const def = getDefinition(c.card.id);
     if (quality.kind === "legendary") {
-        return def.supertypes?.includes("Legendary") ?? false;
+        return copiableSupertypesOf(def, c).includes("Legendary");
     }
     // CR 707.9b — a copy's "except its name is X" is its name.
     return (copyExceptName(c) ?? def.name) === quality.name;
