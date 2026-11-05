@@ -10537,10 +10537,14 @@ export interface CountDrivenCostReduction {
     countFilter: PermanentFilter;
 }
 
-/** Domain-driven CR 601.2f cost-reduction amount (issue #1958): `perCount`'s
- *  generic portion is subtracted once per BASIC LAND TYPE among the lands the
- *  reduction's own player controls — 0–5, CR 305.6 — evaluated at cast
- *  announcement (Draco: "This spell costs {2} less to cast for each basic land
+/** Census-driven CR 601.2f cost-reduction amount: `perCount`'s generic portion
+ *  is subtracted once per unit of a census of the reduction's own player,
+ *  evaluated at cast announcement. `countMode` picks the census.
+ *
+ *  `"opponents"` counts that player's opponents (undaunted, CR 702.125a).
+ *
+ *  `"domain"` (issue #1958) counts the BASIC LAND TYPES among the lands that
+ *  player controls — 0–5, CR 305.6 (Draco: "This spell costs {2} less to cast for each basic land
  *  type among lands you control"; Stratadon: {1} less).
  *
  *  A SEPARATE shape from {@link CountDrivenCostReduction} rather than a
