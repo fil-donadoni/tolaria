@@ -4,8 +4,10 @@
 // creature's controller, never a cost.
 import { describe, expect, it } from "vitest";
 import { preloadDefinitions } from "../../cards";
+import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
 import type { CardDefinition, EffectOp } from "../../cards/types";
 import { dslRealizedAbilityValueById } from "../cardValue";
+import { contextAwareGroundingForChoice } from "../ai/candidateValue";
 import { contextFreeGrounding } from "../ai/grounding";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 
@@ -41,6 +43,15 @@ describe("the damaged player's seat in the Bot's value model (CR 120.3)", () => 
 
     it("reads $event.damagedPlayer as the opponent, and other event refs as before", () => {
         const ctx = contextFreeGrounding(DEFAULT_EVAL_WEIGHTS.latent);
+        expect(ctx.isSelf(damagedPlayer, "self")).toBe(false);
+        expect(ctx.isSelf({ ref: "$source" }, "opponent")).toBe(true);
+    });
+
+    it("reads it as the opponent on a live board too", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const ctx = contextAwareGroundingForChoice(state, "p1");
         expect(ctx.isSelf(damagedPlayer, "self")).toBe(false);
         expect(ctx.isSelf({ ref: "$source" }, "opponent")).toBe(true);
     });
