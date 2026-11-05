@@ -279,6 +279,8 @@ export type StaticClauseIR =
      * `chosenPlayerId` for the abilities that read "the chosen player".
      */
     | { readonly kind: "as-enters-choose-opponent" }
+    /** CR 614.12a / 105.1 — "As this enters, choose a color". */
+    | { readonly kind: "as-enters-choose-color" }
     /** CR 601.3a — "Spells with the chosen name can't be cast." Reads the
      *  `chosenName` an `as-enters-choose-card-name` line of the SAME card
      *  made (checked in `lower.ts`). */
@@ -1581,6 +1583,25 @@ const asEntersChooseOpponent: Rule<StaticClauseIR> = pattern(
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
+// ── Frame: as-enters colour choice (CR 614.12a / 105.1) ────────────────────
+
+const AS_ENTERS_CHOOSE_COLOR = /^As (.+) enters, choose a color$/;
+
+/**
+ * "As <self> enters, choose a color" — anchored on the WHOLE sentence: "a color
+ * other than black", "a color and an opponent" and "a color word" are other
+ * choices and refuse here. `lower.ts` refuses a card that chooses and never
+ * reads the choice.
+ */
+const asEntersChooseColor: Rule<StaticClauseIR> = pattern(
+    "as enters choose a color",
+    AS_ENTERS_CHOOSE_COLOR,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(uncapitalise(match[1]!))
+            ? ok({ kind: "as-enters-choose-color" as const })
+            : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
+);
+
 // ── Frame: the chosen-name cast lock (CR 601.3a) ───────────────────────────
 
 const chosenNameSpellsCantBeCast: Rule<StaticClauseIR> = pattern(
@@ -2865,6 +2886,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         asEntersChooseCreatureType,
         asEntersChooseNonlandCardName,
         asEntersChooseOpponent,
+        asEntersChooseColor,
         chosenNameSpellsCantBeCast,
         kickedEntersWithRule,
         entersWithEachKickRule,

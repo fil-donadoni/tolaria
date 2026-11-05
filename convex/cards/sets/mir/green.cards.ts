@@ -1,7 +1,8 @@
 // mir — green cards (ADR 0043 colour split). Modern Scryfall oracle text is
 // authoritative (ADR 0004).
 
-import { defineCard, type Color, type ManaCost } from "../../types";
+import { asEntersColorModes } from "../../abilities/chooseColor";
+import { defineCard } from "../../types";
 
 // Quirion Elves — {1}{G} Creature — Elf Druid, 1/1. "As this creature
 // enters, choose a color.\n{T}: Add {G}.\n{T}: Add one mana of the chosen
@@ -26,45 +27,14 @@ import { defineCard, type Color, type ManaCost } from "../../types";
 // drive the picker and persist the choice; the actual gameplay effect lives
 // on the second activated ability below.
 //
-// The blocker issue #1097 named was that a MANA ability's `effect` context
-// (`ActivatedAbilityContext`) exposes only `addMana`, and `PermanentView`
-// (the type the board-conditional `manaAmount`/`getManaChoices` hooks
-// receive) had no `chosenModeId` field. That gap has since closed as a side
-// effect of other work (`chosenModeId` already sits on `PermanentView`,
-// `convex/cards/types.ts` — added for Illusionary Terrain / Jihad-style
-// static-effect predicates, not for this issue) — no engine change is needed
-// here at all: `getManaChoices` already receives a `source` that carries the
-// ETB-stored colour. The fixed {G} ability and the chosen-colour ability are
-// two SEPARATE `activatedAbilities` entries (both `cost.tap`, matching the
-// printed template exactly) rather than one two-option `manaChoices`
-// ability — `getManaTapOptionsDetailed` (`gre/constants.ts`) already unions
-// every non-stack ability's tap options into ONE picker (the dual-land /
-// storage-land precedent), so tapping Quirion Elves offers both as a single
-// 2-option choice, resolved through the exact same `getEffectiveManaChoices`
-// seam the client's picker (`src/lib/card-utils.ts`) and the server's tap
-// mutations already share.
-const QUIRION_ELVES_COLORS: { id: Color; label: string }[] = [
-    { id: "W", label: "white" },
-    { id: "U", label: "blue" },
-    { id: "B", label: "black" },
-    { id: "R", label: "red" },
-    { id: "G", label: "green" },
-];
-
-// Lookup for the SECOND mana ability's actual output (CR 700.2c stored
-// colour). A `Record<Color, ...>` must cover the closed `Color` union
-// (colourless included) even though Quirion Elves' own modes never offer
-// "C" — the "G" entry there is unreachable defensive fallback only, never a
-// real game outcome.
-const QUIRION_ELVES_COLOR_MANA: Record<Color, ManaCost> = {
-    W: { W: 1 },
-    U: { U: 1 },
-    B: { B: 1 },
-    R: { R: 1 },
-    G: { G: 1 },
-    C: { G: 1 },
-};
-
+// The fixed {G} ability and the chosen-colour ability are two SEPARATE
+// `activatedAbilities` entries (both `cost.tap`, matching the printed template
+// exactly) rather than one two-option `manaChoices` ability —
+// `getManaTapOptionsDetailed` (`gre/constants.ts`) already unions every
+// non-stack ability's tap options into ONE picker (the dual-land / storage-land
+// precedent), so tapping Quirion Elves offers both as a single 2-option choice,
+// resolved through the exact same `getEffectiveManaChoices` seam the client's
+// picker (`src/lib/card-utils.ts`) and the server's tap mutations already share.
 export const quirionElves = defineCard(() => ({
     id: "be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b",
     name: "Quirion Elves",
@@ -80,13 +50,9 @@ export const quirionElves = defineCard(() => ({
     // color" is a replacement effect, so the pick is declared on
     // `entersWith.asEnters` (ADR 0100 D3) and raised at the single CR 614
     // chokepoint on EVERY entry path, not only a cast. The answer lands on
-    // `chosenModeId`, which `getManaChoices` below reads.
+    // `chosenModeId`, which `manaColorSource` below reads.
     entersWith: { asEnters: [{ kind: "mode" }] },
-    modes: QUIRION_ELVES_COLORS.map(({ id, label }) => ({
-        id,
-        label,
-        oracleText: `Add one mana of ${label}.`,
-    })),
+    modes: asEntersColorModes(),
     activatedAbilities: [
         {
             id: "quirion-elves-green",
@@ -101,24 +67,12 @@ export const quirionElves = defineCard(() => ({
             oracleText: "{T}: Add one mana of the chosen color.",
             cost: { tap: true },
             useStack: false,
-            // Representative fallback for a best-effort caller with no live
-            // instance (CR 106.4 "could produce" deck-analysis queries read
-            // this off the bare `CardDefinition`) — every colour Quirion
-            // Elves COULD have chosen at ETB, not a default. Real activation
-            // always overrides via `getManaChoices` below.
-            effect: (ctx) => ctx.addMana({ G: 1 }),
+            // The no-board list (CR 106.4): every colour Quirion Elves could
+            // choose, for a caller reading the bare `CardDefinition`.
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
-            // CR 614.12a / 605.1a — the actual output is the ETB-stored colour
-            // (`source.chosenModeId`), read directly off the `PermanentView`
-            // every mana-ability hook already receives (issue #1097 added
-            // the field). A single-entry list — there is no REAL choice at
-            // activation, the choice was already locked as the creature
-            // entered the battlefield (CR 614.12a).
-            getManaChoices: (source) => [
-                QUIRION_ELVES_COLOR_MANA[
-                    (source.chosenModeId as Color | undefined) ?? "G"
-                ],
-            ],
+            // CR 614.12a / 605.1a — the actual output is the stored colour: a
+            // one-entry list, the choice was locked as the creature entered.
+            manaColorSource: { colors: "chosen-color" },
         },
     ],
 }));

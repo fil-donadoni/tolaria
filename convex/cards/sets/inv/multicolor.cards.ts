@@ -3433,7 +3433,6 @@ export const stormscapeMaster = defineCard(() => ({
             effects: [
                 {
                     op: "optionChoice",
-                    player: "controller",
                     prompt: "Grant protection from which color?",
                     modes: STORMSCAPE_MASTER_PROTECTION_MODES,
                 },

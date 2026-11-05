@@ -743,7 +743,6 @@ export const thornscapeMaster = defineCard(() => ({
             effects: [
                 {
                     op: "optionChoice",
-                    player: "controller",
                     prompt: "Grant protection from which color?",
                     modes: THORNSCAPE_MASTER_PROTECTION_MODES,
                 },

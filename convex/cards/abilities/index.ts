@@ -8,7 +8,9 @@ import type {
     CardBackFace,
     CardDefinition,
     Color,
+    DurationSpec,
     EffectCardFilter,
+    EffectObjectSelector,
     EffectOp,
     ManaCost,
     Rarity,
@@ -169,9 +171,13 @@ export const PROTECTION_QUALITY_NAMES: Record<Color, string> = {
  *  each granting "protection from <quality>" to the announced target (CR
  *  702.16, 613.1f, CR 700.2 modal choice). Shared by Mother of Runes (5
  *  colors, ulg/white.cards.ts) and Giver of Runes (5 colors + colorless,
- *  mh1/white.cards.ts) — issue #684/#928 dedup. */
+ *  mh1/white.cards.ts) — issue #684/#928 dedup; the compiler's "gains
+ *  protection from the color of your choice" reads through it with its own
+ *  object and printed duration. */
 export function protectionColorModes(
-    codes: ReadonlyArray<Color>
+    codes: ReadonlyArray<Color>,
+    target: EffectObjectSelector = { target: 0 },
+    duration: DurationSpec = { phase: "end-of-turn" }
 ): { id: string; label: string; color: Color; effects: EffectOp[] }[] {
     return codes.map((code) => {
         const quality = PROTECTION_QUALITY_NAMES[code];
@@ -183,8 +189,8 @@ export function protectionColorModes(
                 {
                     op: "grantAbility",
                     ability: `protection from ${quality}`,
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
+                    target,
+                    duration,
                 } satisfies EffectOp,
             ],
         };

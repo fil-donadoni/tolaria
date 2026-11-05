@@ -293,6 +293,22 @@ const boardChoiceProduction: Rule<ManaProductionIR> = rule(
     }
 );
 
+/**
+ * CR 614.12a — "one mana of the chosen color" (Quirion Elves, Sol Grail): the
+ * colour the permanent stored as it entered. Exact span: "two mana of the chosen
+ * color", "one mana of a chosen color" and "{W} or one mana of the chosen color"
+ * are other productions and stay refused.
+ */
+const CHOSEN_COLOR_SPAN = "one mana of the chosen color";
+
+const chosenColorProduction: Rule<ManaProductionIR> = rule(
+    "mana of the chosen color",
+    (span) =>
+        span === CHOSEN_COLOR_SPAN
+            ? ok({ kind: "chosen-color" as const })
+            : fail(`production is not "${CHOSEN_COLOR_SPAN}"`, span)
+);
+
 const production: Rule<ManaProductionIR> = subGrammar(
     MANA_PRODUCTION,
     oneOf(MANA_PRODUCTION, [
@@ -302,6 +318,7 @@ const production: Rule<ManaProductionIR> = subGrammar(
         anyOneColorTripleProduction,
         forEachProduction,
         boardChoiceProduction,
+        chosenColorProduction,
     ])
 );
 
