@@ -88,6 +88,7 @@ import {
 } from "./emerge";
 import {
     additionalCostDiscardXCeiling,
+    additionalCostPayXLifeCeiling,
     payableAdditionalCostLegs,
     resolveAdditionalCosts,
 } from "./additionalCost";
@@ -4010,11 +4011,19 @@ function enumerateCastMovesFromZone(
         def?.additionalCosts,
         card.id
     );
+    // CR 601.2b / 119.4 (issue #8271) — the same shape paid in LIFE ("pay X
+    // life", Toxic Deluge). Before this the Move carried no X at all, so the
+    // only cast the Bot could weigh was X = 0: a sweep that sweeps nothing.
+    const payXLifeCeiling = additionalCostPayXLifeCeiling(
+        player,
+        def?.additionalCosts
+    );
     const xLockedToZero =
         !hasX &&
         typeof getInstanceManaCost(card)?.X === "string" &&
         flashbackExileX === undefined &&
-        discardXCeiling === undefined;
+        discardXCeiling === undefined &&
+        payXLifeCeiling === undefined;
     // CR 118.8 (issue #2980) — when the variable is paid in GRAVEYARD CARDS
     // rather than mana, the eligible fodder is the ceiling: `maxAffordableX`
     // prices X against untapped mana and would answer 0 for a flashback cast
@@ -4023,20 +4032,22 @@ function enumerateCastMovesFromZone(
     // `planCastCostPicks` below re-checks payability and drops any X this
     // ceiling over-counts, so the two can only ever under-offer.
     const xCeiling =
-        discardXCeiling !== undefined
-            ? discardXCeiling
-            : flashbackExileX !== undefined
-              ? flashbackExileEligibleCount(
-                    player,
-                    flashbackExileX.color,
-                    card.id
-                )
-              : def?.castXUpperBound === "snow-lands"
-                ? Math.min(
-                      maxAffordableX(player, card, state),
-                      countSnowLands(player.battlefield)
+        payXLifeCeiling !== undefined
+            ? payXLifeCeiling
+            : discardXCeiling !== undefined
+              ? discardXCeiling
+              : flashbackExileX !== undefined
+                ? flashbackExileEligibleCount(
+                      player,
+                      flashbackExileX.color,
+                      card.id
                   )
-                : maxAffordableX(player, card, state);
+                : def?.castXUpperBound === "snow-lands"
+                  ? Math.min(
+                        maxAffordableX(player, card, state),
+                        countSnowLands(player.battlefield)
+                    )
+                  : maxAffordableX(player, card, state);
     // CR 601.2b — a cast announces an X whenever a variable cost is paid as it
     // is cast: an `{X}` in the cost the ZONE charges (`hasX`), or — issue #2980
     // — a flashback cost whose non-mana leg carries the variable instead
@@ -4048,7 +4059,10 @@ function enumerateCastMovesFromZone(
     // through `applyAdditionalCostLegForSearch`.
     const xValues: (number | undefined)[] = xLockedToZero
         ? [0]
-        : hasX || flashbackExileX !== undefined || discardXCeiling !== undefined
+        : hasX ||
+            flashbackExileX !== undefined ||
+            discardXCeiling !== undefined ||
+            payXLifeCeiling !== undefined
           ? Array.from({ length: xCeiling + 1 }, (_, i) => i)
           : [undefined];
 
@@ -4301,7 +4315,11 @@ function enumerateCastMovesFromZone(
                 // CR 118.9 / 119.4 (issue #4900) — the chosen alternative
                 // cost's life leg (Force of Will's "pay 1 life").
                 (chosenAltCost?.life ?? 0) +
-                (def ? kickerLifeCost(def, kickerPayments) : 0);
+                (def ? kickerLifeCost(def, kickerPayments) : 0) +
+                // CR 119.4 (issue #8271) — the announced X, paid in life. The
+                // real commit charges it itself (`additionalCostLifePayment`);
+                // the Move carries it so the search's sandbox does too.
+                (payXLifeCeiling !== undefined ? (x ?? 0) : 0);
             if (phyPips > 0) {
                 const split = solvePhyrexianSplit(
                     player,

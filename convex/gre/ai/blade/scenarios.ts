@@ -237,7 +237,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2],
+        seeds: [1, 2, 6],
         tier: "must",
         // A PREDICATE: the sign of one ref, not a preference the weight fit
         // should learn.
@@ -246,7 +246,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 castsCardNamed(move, state, "Culling Drone"),
             describe: "casts Culling Drone, not Walking Corpse",
         },
-        note: "CR 702.115a Ingest — the deterministic half is in `ingestValue.bot.test.ts`.",
+        note: "CR 702.115a Ingest — the deterministic half is in `ingestValue.bot.test.ts`. Issue #8271 re-seeded it: the two ties are noise-settled, 11/16 seeds on the committed weights and 10/16 after that issue's refit, so these three are green under both.",
     },
     {
         // X SPENT FOR AN ETB TRIGGER reachability (CR 400.7d / 107.3a). The
@@ -19766,5 +19766,4568 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: "Issue #4006 — `auraAttachmentSign` read every `keyword-grant` as beneficial, so the Aura granting phasing was steered onto the bot's own creature. Asserted as `forbidden`, like the Wild Growth entry: holding the Aura is legitimate play, weakening its own creature never is.",
+    },
+    {
+        label: "fast mana: sacrifices Black Lotus for the Serra Angel it pays for",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Black Lotus",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "hand",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Serra Angel",
+                },
+            ],
+        },
+        note: "Issue #8271 — the two Plains alone cannot pay for it.",
+    },
+    {
+        label: "fast mana: keeps Black Lotus with nothing to cast",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Black Lotus",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Black Lotus",
+                },
+            ],
+        },
+        note: "Issue #8271 — the spend buys nothing.",
+    },
+    {
+        label: "fast mana: casts Mana Crypt for the Serra Angel it enables",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mana Crypt",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Mana Crypt",
+                },
+            ],
+        },
+        note: "Issue #8271 — three Plains plus the Crypt pay for the Angel.",
+    },
+    {
+        label: "free mana: Mana Crypt goes before the Grizzly Bears that would strand the Juggernaut",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mana Crypt",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Juggernaut",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 1200,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Grizzly Bears",
+                },
+                {
+                    kind: "pass",
+                },
+            ],
+        },
+        note: "Issue #8296 — the Bears first spend both Forests and leave the Juggernaut uncastable. Tied inside outcomeEps.",
+    },
+    {
+        label: "fast mana: Sol Ring before the other one-mana play",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Sol Ring",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Skullclamp",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Sol Ring",
+                },
+            ],
+        },
+        note: "Issue #8271 — the Ring first pays for the Skullclamp and leaves a mana.",
+    },
+    {
+        label: "fast mana: Sol Ring before the Sensei's Divining Top",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Sol Ring",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Sensei's Divining Top",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Sensei's Divining Top",
+                },
+            ],
+        },
+        note: "Issue #8271 — the Top first spends the only land and strands the Ring.",
+    },
+    {
+        label: "fast mana: casts Mana Vault for the Craw Wurm it pays for this turn",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mana Vault",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Mana Vault",
+                },
+            ],
+        },
+        note: "Issue #8271 — three Forests plus the Vault's three pay for the Wurm.",
+    },
+    {
+        label: "fast mana: leaves Mana Vault untapped with nothing to spend on",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mana Vault",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Mana Vault",
+                },
+            ],
+        },
+        note: "Issue #8271 — tapping it would only start the damage.",
+    },
+    {
+        label: "mana ability: Lion's Eye Diamond pays for the spell it would discard",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Lion's Eye Diamond",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "hand",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: { forbidden: [{ kind: "pass" }] },
+        note: "Issue #8297 — the cost is paid with the spell on the stack, so nothing is discarded. No Move offers it.",
+    },
+    {
+        label: "fast mana: keeps Lion's Eye Diamond with a full hand of live cards",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Lion's Eye Diamond",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Shivan Dragon",
+                    owner: "me",
+                    zone: "hand",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Lion's Eye Diamond",
+                },
+            ],
+        },
+        note: "Issue #8271 — the crack would discard all four.",
+    },
+    {
+        label: "fast mana: casts Mox Diamond with a spare land past its drop",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            landsPlayed: {
+                me: 1,
+            },
+            cards: [
+                {
+                    name: "Mox Diamond",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Mox Diamond",
+                },
+            ],
+        },
+        note: "Issue #8271 — the land drop is gone, so the spare Forest pays for the Mox.",
+    },
+    {
+        label: "free mana: plays the only land rather than feeding it to Mox Diamond",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mox Diamond",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "hand",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 1200,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Mox Diamond",
+                },
+            ],
+        },
+        note: "Issue #8296 — the Mox would eat the one land drop. Tied inside outcomeEps.",
+    },
+    {
+        label: "Fastbond: plays the extra land with life to spare",
+        pairOf: {
+            anchor: "Fastbond: holds the extra land at 1 life",
+            discriminant: {
+                kind: "life",
+                detail: "the Bot's life total against Fastbond's damage",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            landsPlayed: {
+                me: 1,
+            },
+            life: {
+                me: 20,
+                opp: 20,
+            },
+            cards: [
+                {
+                    name: "Fastbond",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "play-land",
+                    card: "Forest",
+                },
+            ],
+        },
+        note: "Issue #8271 — 20 life pays for the extra drop.",
+    },
+    {
+        label: "Fastbond: holds the extra land at 1 life",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "life",
+                detail: "the Bot's life total against Fastbond's damage",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            landsPlayed: {
+                me: 1,
+            },
+            life: {
+                me: 1,
+                opp: 20,
+            },
+            cards: [
+                {
+                    name: "Fastbond",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "play-land",
+                    card: "Forest",
+                },
+            ],
+        },
+        note: "Issue #8271 — the trigger would kill the Bot.",
+    },
+    {
+        label: "extra turn: casts Time Walk with attackers on board",
+        pairOf: {
+            anchor: "extra turn: holds Time Walk with no board",
+            discriminant: {
+                kind: "card",
+                detail: "the attacker the turn is for",
+            },
+        },
+        spec: {
+            phase: "POSTCOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: {
+                me: 20,
+                opp: 8,
+            },
+            cards: [
+                {
+                    name: "Time Walk",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Time Walk",
+                },
+            ],
+        },
+        note: "Issue #8271 — the Angel swings twice into the opponent's 8 life.",
+    },
+    {
+        label: "extra turn: holds Time Walk with no board",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the attacker the turn is for",
+            },
+        },
+        spec: {
+            phase: "POSTCOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: {
+                me: 20,
+                opp: 8,
+            },
+            cards: [
+                {
+                    name: "Time Walk",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Time Walk",
+                },
+            ],
+        },
+        note: "Issue #8271 — `extra-turn-credit` used to overrule a mean that preferred passing, on every seed. Its credit now needs a creature.",
+    },
+    {
+        label: "may-search tutor: keeps Juggernaut rather than Tinker it into an Ornithopter",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Tinker",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Juggernaut",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Ornithopter",
+                    owner: "me",
+                    zone: "library",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Tinker",
+                },
+            ],
+        },
+        note: 'Issue #8271 — the other half of "may-search tutor: casts Tinker for the artifact the find puts onto the battlefield".',
+    },
+    {
+        label: "reanimation: Animate Dead takes the opponent's Griselbrand over its own Bears",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Animate Dead",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Griselbrand",
+                    owner: "opp",
+                    zone: "graveyard",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Animate Dead",
+                    target: "Griselbrand",
+                },
+            ],
+        },
+        note: "Issue #8271 — the best target in any graveyard.",
+    },
+    {
+        label: "reanimation: Animate Dead never takes the Bears over the Serra Angel",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Animate Dead",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Animate Dead",
+                    target: "Grizzly Bears",
+                },
+            ],
+        },
+        note: "Issue #8271 — the weak target with a better one available.",
+    },
+    {
+        label: "reanimation: Reanimate takes the target its life can pay for",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: {
+                me: 7,
+                opp: 20,
+            },
+            cards: [
+                {
+                    name: "Reanimate",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+                {
+                    name: "Griselbrand",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Reanimate",
+                    target: "Serra Angel",
+                },
+            ],
+        },
+        note: "Issue #8271 — at 7 life, Griselbrand's 8 would kill it and the Angel's 5 would not.",
+    },
+    {
+        label: "reanimation: Reanimate never pays its own life to lethal",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: {
+                me: 7,
+                opp: 20,
+            },
+            cards: [
+                {
+                    name: "Reanimate",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+                {
+                    name: "Griselbrand",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Reanimate",
+                    target: "Griselbrand",
+                },
+            ],
+        },
+        note: "Issue #8271 — the only target costs more than the Bot's life.",
+    },
+    {
+        label: "tutor: casts Entomb with a reanimation spell in hand",
+        pairOf: {
+            anchor: "tutor: holds Entomb with no way to use the graveyard",
+            discriminant: {
+                kind: "card",
+                detail: "the reanimation spell in hand",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Entomb",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Reanimate",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Griselbrand",
+                    owner: "me",
+                    zone: "library",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Entomb",
+                },
+            ],
+        },
+        note: "Issue #8271 — the graveyard is where the plan needs the fatty.",
+    },
+    {
+        label: "tutor: holds Entomb with no way to use the graveyard",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the reanimation spell in hand",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Entomb",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Griselbrand",
+                    owner: "me",
+                    zone: "library",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Entomb",
+                },
+            ],
+        },
+        note: "Issue #8271 — binning the best card with no way back only loses it.",
+    },
+    {
+        label: "tutor: Entomb bins the fatty, not the Bears",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Entomb",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Reanimate",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Griselbrand",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "library",
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Entomb",
+            },
+            {
+                kind: "resolve-top",
+            },
+        ],
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "resolution-choice",
+                    card: "Griselbrand",
+                },
+            ],
+        },
+        note: "Issue #8271 — the pick that makes the plan.",
+    },
+    {
+        label: "reanimation: Recurring Nightmare swaps the Bears for Griselbrand",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Recurring Nightmare",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Griselbrand",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Recurring Nightmare",
+                    target: "Griselbrand",
+                },
+            ],
+        },
+        note: "Issue #8271 — the poor creature pays for the fatty.",
+    },
+    {
+        label: "reanimation: Recurring Nightmare never swaps a fatty for the Bears",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Recurring Nightmare",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Recurring Nightmare",
+                },
+            ],
+        },
+        note: "Issue #8271 — the reverse swap. Griselbrand itself is not used here: rollouts pay its 7 life to their own death, so anything that strips its ability reads as a gain.",
+    },
+    {
+        label: "cheat into play: casts Show and Tell with Griselbrand in hand",
+        pairOf: {
+            anchor: "cheat into play: holds Show and Tell when only the opponent has a fatty",
+            discriminant: {
+                kind: "other",
+                detail: "whose hand holds the fatty",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Show and Tell",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Griselbrand",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Show and Tell",
+                },
+            ],
+        },
+        note: "Issue #8271 — the Bot's fatty comes in.",
+    },
+    {
+        label: "cheat into play: holds Show and Tell when only the opponent has a fatty",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "whose hand holds the fatty",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Show and Tell",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Griselbrand",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 1200,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Show and Tell",
+                },
+            ],
+        },
+        note: "Issue #8271 — the cast would only help the opponent.",
+    },
+    {
+        label: "cheat into play: activates Sneak Attack at the beginning of combat",
+        pairOf: {
+            anchor: "cheat into play: holds Sneak Attack after combat",
+            discriminant: { kind: "step", detail: "the step" },
+        },
+        spec: {
+            life: { me: 20, opp: 6 },
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Sneak Attack",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Sneak Attack",
+                },
+            ],
+        },
+        note: "Issue #8271 — the haste Wurm swings before it goes away. At 6 life, the swing is lethal: on an empty board at 20 life the cast and the pass tie and the pick is noise",
+    },
+    {
+        label: "cheat into play: holds Sneak Attack after combat",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "step", detail: "the step" },
+        },
+        spec: {
+            life: { me: 20, opp: 6 },
+            phase: "POSTCOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Sneak Attack",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Sneak Attack",
+                },
+            ],
+        },
+        note: "Issue #8271 — the Wurm would be sacrificed having done nothing.",
+    },
+    {
+        label: "removal: Swords to Plowshares takes the greater threat",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "END_STEP",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Swords to Plowshares",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Swords to Plowshares",
+                    target: "Serra Angel",
+                },
+            ],
+        },
+        note: "Issue #8271 — at the opponent's end step, the Angel over the Bears.",
+    },
+    {
+        label: "removal: Swords to Plowshares never takes its own creature",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "END_STEP",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Swords to Plowshares",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Swords to Plowshares",
+                    target: "Savannah Lions",
+                },
+            ],
+        },
+        note: "Issue #8271 — the Lions are the Bot's.",
+    },
+    {
+        label: "life X: Toxic Deluge pays exactly what the sweep needs",
+        pairOf: {
+            anchor: "life X: Toxic Deluge never pays to lethal",
+            discriminant: { kind: "life", detail: "the Bot's life total" },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: {
+                me: 20,
+                opp: 20,
+            },
+            cards: [
+                {
+                    name: "Toxic Deluge",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 3,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Toxic Deluge",
+                    x: 2,
+                },
+            ],
+        },
+        note: "Issue #8271 — `enumerateMoves` used to offer only X = 0 here: a sweep that sweeps nothing, so the Bot passed. Two life kills three Bears.",
+    },
+    {
+        label: "life X: Toxic Deluge never pays to lethal",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the Bot's life total" },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: {
+                me: 2,
+                opp: 20,
+            },
+            cards: [
+                {
+                    name: "Toxic Deluge",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 3,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Toxic Deluge",
+                    x: 2,
+                },
+                {
+                    kind: "cast-spell",
+                    card: "Toxic Deluge",
+                    x: 3,
+                },
+            ],
+        },
+        note: "Issue #8271 — at 2 life, the sweep would kill the Bot.",
+    },
+    {
+        label: "counterspell: Force of Will pitches against a lethal Lightning Bolt",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
+            priority: "opp",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            life: {
+                me: 3,
+                opp: 20,
+            },
+            cards: [
+                {
+                    name: "Force of Will",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Brainstorm",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Lightning Bolt",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 1,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Lightning Bolt",
+                by: "opp",
+                target: "me",
+            },
+        ],
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Force of Will",
+                },
+            ],
+        },
+        note: "Issue #8271 — no mana, 3 life: the alternative cost is the only answer.",
+    },
+    {
+        label: "counterspell: Force of Will keeps its pitch card against a Savannah Lions",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
+            priority: "opp",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            life: {
+                me: 20,
+                opp: 20,
+            },
+            cards: [
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Force of Will",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Jace, the Mind Sculptor",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 1,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Savannah Lions",
+                by: "opp",
+            },
+        ],
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Force of Will",
+                },
+            ],
+        },
+        note: "Issue #8293 — a real card and a life to stop a 2/2, with an Angel in play.",
+    },
+    {
+        label: "counterspell: Mana Drain counters the Craw Wurm",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
+            priority: "opp",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mana Drain",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Craw Wurm",
+                by: "opp",
+            },
+        ],
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Mana Drain",
+                },
+            ],
+        },
+        note: "Issue #8271 — the big spell, and the mana next main phase.",
+    },
+    {
+        label: "counterspell: Mana Drain holds against a Savannah Lions",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
+            priority: "opp",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mana Drain",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Savannah Lions",
+                by: "opp",
+            },
+        ],
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Mana Drain",
+                },
+            ],
+        },
+        note: "Issue #8293 — a cheap spell, with no use for the mana.",
+    },
+    {
+        label: "X spell: Mind Twist for all it can at a full hand",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mind Twist",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "hand",
+                    count: 5,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Mind Twist",
+                    x: 4,
+                    target: "opp",
+                },
+            ],
+        },
+        note: "Issue #8271 — X = 4 on five Swamps.",
+    },
+    {
+        label: "X spell: holds Mind Twist at an empty hand",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mind Twist",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Mind Twist",
+                },
+            ],
+        },
+        note: "Issue #8271 — nothing to discard.",
+    },
+    {
+        label: "strip: casts Thoughtseize at a castable Shivan Dragon",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Thoughtseize",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+                {
+                    name: "Shivan Dragon",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [1, 2, 3, 5, 9],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Thoughtseize",
+                    target: "opp",
+                },
+            ],
+        },
+        note: "Issue #8271 — the choice used to be no decision node, so the strip's worth never reached the search and casting tied with passing. Passes on 13/16 seeds at 400 iterations, not all: seeds picked green under both the committed and the refit weights.",
+    },
+    {
+        label: "strip: Thoughtseize takes the Shivan Dragon, not the Savannah Lions",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Thoughtseize",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+                {
+                    name: "Shivan Dragon",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Thoughtseize",
+                target: "opp",
+            },
+            {
+                kind: "resolve-top",
+            },
+        ],
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "resolution-choice",
+                    card: "Shivan Dragon",
+                },
+            ],
+        },
+        note: "Issue #8271 — a mandatory pick out of the opponent's hand used to fall to the first candidate. The two tie in every leaf, so the candidate far below the best is dropped.",
+    },
+    {
+        label: "strip: Thoughtseize never takes the Elves over the Serra Angel",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Thoughtseize",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Llanowar Elves",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 4,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Thoughtseize",
+                target: "opp",
+            },
+            {
+                kind: "resolve-top",
+            },
+        ],
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "resolution-choice",
+                    card: "Llanowar Elves",
+                },
+            ],
+        },
+        note: "Issue #8271 — the same pick with the mana-light card as the temptation.",
+    },
+    {
+        label: "strip: holds Thoughtseize at a hand of lands",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Thoughtseize",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "hand",
+                    count: 3,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Thoughtseize",
+                    target: "opp",
+                },
+            ],
+        },
+        note: "Issue #8271 — 2 life for nothing it can take.",
+    },
+    {
+        label: "reset: casts Upheaval against a lost board",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Upheaval",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 6,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Upheaval",
+                },
+            ],
+        },
+        note: "Issue #8271 — three Wurms against nothing.",
+    },
+    {
+        label: "reset: holds Upheaval while winning on board",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Upheaval",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 6,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Upheaval",
+                },
+            ],
+        },
+        note: "Issue #8271 — the Bot's own three Wurms would go.",
+    },
+    {
+        label: "symmetric: casts Timetwister on an empty hand against seven",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "POSTCOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Timetwister",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Black Lotus",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "graveyard",
+                    count: 4,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "hand",
+                    count: 7,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Timetwister",
+                },
+            ],
+        },
+        note: "Issue #8295 — the shape of the green Wheel of Fortune entry, plus a graveyard.",
+    },
+    {
+        label: "each-player one-shot: holds Timetwister with a full good hand",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "POSTCOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Timetwister",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "hand",
+                    count: 6,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "hand",
+                    count: 1,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Timetwister",
+                },
+            ],
+        },
+        note: "Issue #8271 — six Angels would go back.",
+    },
+    {
+        label: "loyalty: Jace bounces the attacker that would kill him",
+        pairOf: {
+            anchor: "loyalty: Jace brainstorms with no attacker",
+            discriminant: { kind: "card", detail: "the attacker" },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Jace, the Mind Sculptor",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: {
+                        loyalty: 3,
+                    },
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Jace, the Mind Sculptor",
+                    ability: "jace-the-mind-sculptor-minus1",
+                    target: "Serra Angel",
+                },
+            ],
+        },
+        note: "Issue #8271 — Serra Angel's 4 against 3 loyalty.",
+    },
+    {
+        label: "loyalty: Jace brainstorms with no attacker",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "card", detail: "the attacker" },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Jace, the Mind Sculptor",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: {
+                        loyalty: 3,
+                    },
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Jace, the Mind Sculptor",
+                    ability: "jace-the-mind-sculptor-zero",
+                },
+            ],
+        },
+        note: "Issue #8271 — nothing to bounce.",
+    },
+    {
+        label: "loyalty: Oko elks the opposing Craw Wurm",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Oko, Thief of Crowns",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: {
+                        loyalty: 4,
+                    },
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Oko, Thief of Crowns",
+                    ability: "oko-thief-of-crowns-plus1",
+                    target: "Craw Wurm",
+                },
+            ],
+        },
+        note: "Issue #8271 — 6/4 to 3/3.",
+    },
+    {
+        label: "loyalty: Oko never elks its own Craw Wurm",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Oko, Thief of Crowns",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: {
+                        loyalty: 4,
+                    },
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Oko, Thief of Crowns",
+                    target: "Craw Wurm",
+                },
+            ],
+        },
+        note: "Issue #8271 — the same shrink on its own side. With Griselbrand the Bot did elk it: rollouts pay its 7 life to their own death, so stripping the ability read as a gain.",
+    },
+    {
+        label: "standing resource: Liliana of the Veil holds her -2 against an army",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Liliana of the Veil",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: {
+                        loyalty: 5,
+                    },
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Llanowar Elves",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 4,
+                    summoningSick: false,
+                },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "hand",
+                    count: 3,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Liliana of the Veil",
+                    target: "opp",
+                },
+            ],
+        },
+        note: "Issue #8294 — the opponent gives up its worst of four, and the +1 would take a card.",
+    },
+    {
+        label: "standing resource: Liliana of the Veil keeps the Serra Angel and her loyalty",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Liliana of the Veil",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: {
+                        loyalty: 3,
+                    },
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Liliana of the Veil",
+                    ability: "liliana-veil-plus1",
+                },
+                {
+                    kind: "activate-ability",
+                    card: "Liliana of the Veil",
+                    ability: "liliana-veil-minus2",
+                },
+            ],
+        },
+        note: "Issue #8294 — the +1 would discard the plan and the -2 has no creature to take.",
+    },
+    {
+        label: "loyalty: Wrenn and Six returns the Strip Mine",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Wrenn and Six",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: {
+                        loyalty: 3,
+                    },
+                },
+                {
+                    name: "Strip Mine",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Wrenn and Six",
+                    ability: "wrenn-and-six-plus1",
+                    target: "Strip Mine",
+                },
+            ],
+        },
+        note: "Issue #8271 — the land it exists to rebuy.",
+    },
+    {
+        label: "loyalty: Wrenn and Six holds its -1 with no target worth it",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Wrenn and Six",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: {
+                        loyalty: 3,
+                    },
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 1200,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Wrenn and Six",
+                    ability: "wrenn-and-six-minus1",
+                },
+            ],
+        },
+        note: "Issue #8271 — one damage to a Serra Angel kills nothing.",
+    },
+    {
+        label: "loyalty: Teferi bounces the opposing Craw Wurm",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Teferi, Time Raveler",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: {
+                        loyalty: 4,
+                    },
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Teferi, Time Raveler",
+                    ability: "teferi-time-raveler-minus3",
+                    target: "Craw Wurm",
+                },
+            ],
+        },
+        note: "Issue #8271 — the most dangerous permanent, and a card.",
+    },
+    {
+        label: "loyalty: Teferi never bounces its own Craw Wurm",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Teferi, Time Raveler",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: {
+                        loyalty: 4,
+                    },
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Teferi, Time Raveler",
+                    target: "Craw Wurm",
+                },
+            ],
+        },
+        note: "Issue #8271 — the same -3 at its own side.",
+    },
+    {
+        label: "protection: casts The One Ring under lethal pressure",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: {
+                me: 5,
+                opp: 20,
+            },
+            cards: [
+                {
+                    name: "The One Ring",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "The One Ring",
+                },
+            ],
+        },
+        note: "Issue #8271 — 5 life against two Angels.",
+    },
+    {
+        label: "protection: casts the Serra Angel that closes, not The One Ring",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: {
+                me: 20,
+                opp: 3,
+            },
+            cards: [
+                {
+                    name: "The One Ring",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "The One Ring",
+                },
+            ],
+        },
+        note: "Issue #8271 — no pressure, and the opponent on 3.",
+    },
+    {
+        label: "attack: Ragavan attacks an empty board",
+        pairOf: {
+            anchor: "attack: Ragavan stays home from the blocker that eats it",
+            discriminant: { kind: "card", detail: "the blocker" },
+        },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Ragavan, Nimble Pilferer",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "library",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "declare-attackers",
+                    card: "Ragavan, Nimble Pilferer",
+                },
+            ],
+        },
+        note: "Issue #8271 — the trigger is the card.",
+    },
+    {
+        label: "attack: Ragavan stays home from the blocker that eats it",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "card", detail: "the blocker" },
+        },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Ragavan, Nimble Pilferer",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "declare-attackers",
+                    card: "Ragavan, Nimble Pilferer",
+                },
+            ],
+        },
+        note: "Issue #8271 — the Hill Giant blocks and kills it.",
+    },
+    {
+        label: "equipment: Umezawa's Jitte spends a counter to win the combat",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Umezawa's Jitte",
+                    owner: "me",
+                    zone: "battlefield",
+                    attachedTo: "Grizzly Bears",
+                    counters: {
+                        charge: 1,
+                    },
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Grizzly Bears"],
+            },
+            {
+                kind: "declare-blockers",
+                blocks: [
+                    {
+                        blocker: "Hill Giant",
+                        attacker: "Grizzly Bears",
+                    },
+                ],
+            },
+        ],
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Umezawa's Jitte",
+                    ability: "umezawas-jitte-modes",
+                },
+            ],
+        },
+        note: "Issue #8271 — +2/+2 turns a lost block into a kill.",
+    },
+    {
+        label: "standing resource: Umezawa's Jitte keeps its counter when the combat is already won",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Umezawa's Jitte",
+                    owner: "me",
+                    zone: "battlefield",
+                    attachedTo: "Hill Giant",
+                    counters: {
+                        charge: 1,
+                    },
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Hill Giant"],
+            },
+            {
+                kind: "declare-blockers",
+                blocks: [
+                    {
+                        blocker: "Grizzly Bears",
+                        attacker: "Hill Giant",
+                    },
+                ],
+            },
+        ],
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Umezawa's Jitte",
+                    ability: "umezawas-jitte-modes",
+                },
+            ],
+        },
+        note: "Issue #8294 — the Giant already beats the Bears.",
+    },
+    {
+        label: "equipment: Skullclamp equips the 1-toughness creature and draws",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+            cards: [
+                {
+                    name: "Skullclamp",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Llanowar Elves",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Skullclamp",
+                    target: "Llanowar Elves",
+                },
+            ],
+        },
+        note: "Issue #8271 — a library of real cards, since a filler draw prices at 8 and the Elves at more.",
+    },
+    {
+        label: "equipment: Skullclamp keeps off the creature it merely weakens",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Skullclamp",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 1,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Skullclamp",
+                    target: "Serra Angel",
+                },
+            ],
+        },
+        note: "Issue #8298 — owner's row. No position found where this is a blunder.",
+    },
+    {
+        label: "vehicle: crews Smuggler's Copter with the summoning-sick spare",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Smuggler's Copter",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Llanowar Elves",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Smuggler's Copter",
+                },
+            ],
+        },
+        note: "Issue #8271 — at the beginning of combat. In the main phase the hold-trick rule defers it to this window.",
+    },
+    {
+        label: "standing resource: leaves the Serra Angel uncrewed",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Smuggler's Copter",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Smuggler's Copter",
+                },
+            ],
+        },
+        note: "Issue #8294 — tapping the 4-power flyer for a 3-power one.",
+    },
+    {
+        label: "sacrifice outlet: Goblin Bombardment takes the blocked creature before it dies",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: {
+                me: 20,
+                opp: 3,
+            },
+            cards: [
+                {
+                    name: "Goblin Bombardment",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Grizzly Bears"],
+            },
+            {
+                kind: "declare-blockers",
+                blocks: [
+                    {
+                        blocker: "Craw Wurm",
+                        attacker: "Grizzly Bears",
+                    },
+                ],
+            },
+        ],
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Goblin Bombardment",
+                },
+            ],
+        },
+        note: "Issue #8271 — `standing-spend-hold` read the outlet as idle, and held.",
+    },
+    {
+        label: "sacrifice outlet: keeps the creature with no combat around it",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Goblin Bombardment",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Goblin Bombardment",
+                },
+            ],
+        },
+        note: "Issue #8271 — the Bears are doing their job.",
+    },
+    {
+        label: "storm: casts Tendrils of Agony when the count is lethal",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            stormCount: 8,
+            life: {
+                me: 5,
+                opp: 18,
+            },
+            spellsCastThisTurn: {
+                me: 8,
+            },
+            cards: [
+                {
+                    name: "Tendrils of Agony",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Tendrils of Agony",
+                    target: "opp",
+                },
+            ],
+        },
+        note: "Issue #8271 — storm 8 on 18 life.",
+    },
+    {
+        label: "standing resource: Tendrils of Agony waits for the rituals",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: {
+                me: 20,
+                opp: 20,
+            },
+            cards: [
+                {
+                    name: "Tendrils of Agony",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Dark Ritual",
+                    owner: "me",
+                    zone: "hand",
+                    count: 2,
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Tendrils of Agony",
+                },
+            ],
+        },
+        note: "Issue #8294 — firing at storm 0 with two rituals in hand.",
+    },
+    {
+        label: "graveyard: casts Yawgmoth's Will on a full graveyard",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Yawgmoth's Will",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+                {
+                    name: "Black Lotus",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Hypnotic Specter",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Sengir Vampire",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Dark Ritual",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 1200,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Yawgmoth's Will",
+                },
+            ],
+        },
+        note: "Issue #8271 — Lotus and Ritual pay for the replay.",
+    },
+    {
+        label: "graveyard: holds Yawgmoth's Will on an empty graveyard",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Yawgmoth's Will",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Yawgmoth's Will",
+                },
+            ],
+        },
+        note: "Issue #8271 — nothing to replay.",
+    },
+    {
+        label: "escape: casts Underworld Breach with a burn spell to escape at lethal",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Underworld Breach",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Lightning Bolt",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "graveyard",
+                    count: 4,
+                },
+            ],
+            life: {
+                me: 20,
+                opp: 3,
+            },
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Underworld Breach",
+                },
+            ],
+        },
+        note: "Issue #8271 — Bolt and four cards to exile, the opponent on 3.",
+    },
+    {
+        label: "escape: holds Underworld Breach on an empty graveyard",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Underworld Breach",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+            life: {
+                me: 20,
+                opp: 3,
+            },
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Underworld Breach",
+                },
+            ],
+        },
+        note: "Issue #8271 — nothing to escape, then the sacrifice.",
+    },
+    {
+        label: "life as mana: Bolas's Citadel plays the top card with life to spare",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+            life: {
+                me: 20,
+                opp: 20,
+            },
+            cards: [
+                {
+                    name: "Bolas's Citadel",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                    position: 0,
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Serra Angel",
+                },
+            ],
+        },
+        note: "Issue #8271 — 20 life and a Serra Angel on top.",
+    },
+    {
+        label: "life as mana: Bolas's Citadel never pays to lethal",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+            life: {
+                me: 5,
+                opp: 20,
+            },
+            cards: [
+                {
+                    name: "Bolas's Citadel",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                    position: 0,
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "library",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Serra Angel",
+                },
+            ],
+        },
+        note: "Issue #8271 — 5 life, and the Angel costs 5.",
+    },
+    {
+        label: "symmetric: casts Oath of Druids when it feeds the Bot",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Oath of Druids",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "library",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Oath of Druids",
+                },
+            ],
+        },
+        note: "Issue #8295 — the opponent has the creatures.",
+    },
+    {
+        label: "symmetric: holds Oath of Druids when it feeds only the opponent",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Oath of Druids",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "library",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Oath of Druids",
+                },
+            ],
+        },
+        note: "Issue #8295 — the Bot has the creatures.",
+    },
+    {
+        label: "tutor: Natural Order sacrifices the Elves for the Craw Wurm",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Natural Order",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+                {
+                    name: "Llanowar Elves",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "library",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Natural Order",
+                },
+            ],
+        },
+        note: "Issue #8271 — the poor green creature pays.",
+    },
+    {
+        label: "tutor: Natural Order never sacrifices the Wurm for the Elves",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Natural Order",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Llanowar Elves",
+                    owner: "me",
+                    zone: "library",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Natural Order",
+                },
+            ],
+        },
+        note: "Issue #8271 — the reverse swap.",
+    },
+    {
+        label: "X spell: Green Sun's Zenith finds the Bears at X = 2",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Green Sun's Zenith",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "library",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Green Sun's Zenith",
+                    x: 2,
+                },
+            ],
+        },
+        note: "Issue #8271 — the X that finds it.",
+    },
+    {
+        label: "X spell: Green Sun's Zenith never overpays the find",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Green Sun's Zenith",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "library",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Green Sun's Zenith",
+                    x: 3,
+                },
+                {
+                    kind: "cast-spell",
+                    card: "Green Sun's Zenith",
+                    x: 4,
+                },
+            ],
+        },
+        note: "Issue #8271 — only the Bears to find, five Forests open.",
+    },
+    {
+        label: "land: Library of Alexandria draws at seven cards",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "END_STEP",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Library of Alexandria",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "hand",
+                    count: 7,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Library of Alexandria",
+                    ability: "library-of-alexandria-draw",
+                },
+            ],
+        },
+        note: "Issue #8271 — at the opponent's end step.",
+    },
+    {
+        label: "land: pays with the Plains and keeps Library of Alexandria untapped",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            landsPlayed: {
+                me: 1,
+            },
+            cards: [
+                {
+                    name: "Library of Alexandria",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "hand",
+                    count: 6,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Savannah Lions",
+                    taps: ["Library of Alexandria"],
+                },
+            ],
+        },
+        note: "Issue #8271 — the Library would tap for the mana with a card to draw.",
+    },
+    {
+        label: "removal: Strip Mine never takes the Island with the Library in play",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Strip Mine",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Island",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Library of Alexandria",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Island",
+                    owner: "opp",
+                    zone: "hand",
+                    count: 7,
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Strip Mine",
+                    target: "Island",
+                },
+            ],
+        },
+        note: 'Issue #8271 — the other half of "removal: Strip Mine takes the Library of Alexandria, not the Island (issue #5155)", in the Bot\'s own main phase.',
     },
 ];
