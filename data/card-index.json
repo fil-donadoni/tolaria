@@ -6482,6 +6482,16 @@
         "source": "compiled"
     },
     {
+        "name": "Behind the Scenes",
+        "scryfallId": "7fac171d-a8b6-4bb7-a559-473574aa02a8",
+        "oracleId": "e84837bd-4f94-43e1-876e-d82cae6ee247",
+        "firstSet": "soi",
+        "firstPrintId": "7fac171d-a8b6-4bb7-a559-473574aa02a8",
+        "firstPrintSet": "soi",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Behold the Multiverse",
         "scryfallId": "27855a38-a682-4f97-ad22-ac625e86faec",
         "oracleId": "d7d2f701-77df-4169-bf98-0d51d6886e9b",
@@ -25576,6 +25586,16 @@
         "source": "compiled"
     },
     {
+        "name": "Farbog Revenant",
+        "scryfallId": "0f6de332-debb-49f3-8b29-1719060ab00c",
+        "oracleId": "6d32139f-839f-441b-930f-151816143142",
+        "firstSet": "soi",
+        "firstPrintId": "0f6de332-debb-49f3-8b29-1719060ab00c",
+        "firstPrintSet": "soi",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Farfinder",
         "scryfallId": "53f63f40-46f1-4b9e-b447-ff9274f2b926",
         "oracleId": "7d306de8-a93b-429b-9436-0501be97dc8d",
@@ -29222,6 +29242,16 @@
         "firstSet": "mom",
         "firstPrintId": "98c55aff-baed-4fb5-a490-abd59b8df5e7",
         "firstPrintSet": "mom",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Furtive Homunculus",
+        "scryfallId": "f376ec9b-48ac-4ed7-bfa2-60e9dca32dd7",
+        "oracleId": "6b59ffa2-5c8b-4549-aa09-2f2a5cabc5af",
+        "firstSet": "soi",
+        "firstPrintId": "f376ec9b-48ac-4ed7-bfa2-60e9dca32dd7",
+        "firstPrintSet": "soi",
         "rarity": "common",
         "source": "compiled"
     },
@@ -54003,6 +54033,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Pale Rider of Trostad",
+        "scryfallId": "8dad70b8-0dec-4634-a31a-b78438a313a2",
+        "oracleId": "6cc47c8e-9154-4517-940d-d1a7f35e5677",
+        "firstSet": "soi",
+        "firstPrintId": "8dad70b8-0dec-4634-a31a-b78438a313a2",
+        "firstPrintSet": "soi",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Palinchron",
         "scryfallId": "5621db3f-a9e7-4350-9c6a-0ba04a628947",
         "oracleId": "0023888e-7bec-43e0-8dee-d1a4eb94b372",
@@ -58987,6 +59027,16 @@
         "firstPrintId": "af11d41a-0d29-45e9-9d27-a41282b9e292",
         "firstPrintSet": "hou",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Rancid Rats",
+        "scryfallId": "336e0a75-8104-4e88-aad0-af7ac3efc115",
+        "oracleId": "e3552730-fe09-443f-b432-9640b69c7bbb",
+        "firstSet": "soi",
+        "firstPrintId": "336e0a75-8104-4e88-aad0-af7ac3efc115",
+        "firstPrintSet": "soi",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -83002,6 +83052,16 @@
         "firstPrintId": "d47f91ff-c916-4938-8e01-2c684004dd9a",
         "firstPrintSet": "rix",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Vampire Cutthroat",
+        "scryfallId": "954d53f3-ebbe-48e0-9e1a-7019d2b0740c",
+        "oracleId": "2e163679-7303-4e05-9d20-86b76dfa1407",
+        "firstSet": "emn",
+        "firstPrintId": "954d53f3-ebbe-48e0-9e1a-7019d2b0740c",
+        "firstPrintSet": "emn",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

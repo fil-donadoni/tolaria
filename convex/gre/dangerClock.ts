@@ -110,7 +110,8 @@ export function predictUnblockedThreat(
         const blocker = blockers.find(
             (b) =>
                 !usedBlocker.has(b.id) &&
-                evaluateBlockerKeywords(atk, b, defender.battlefield).eligible
+                evaluateBlockerKeywords(atk, b, defender.battlefield, powerOf)
+                    .eligible
         );
         if (blocker) usedBlocker.add(blocker.id);
         else if (hasInfect(atk)) threat.poison += powerOf(atk);
@@ -213,7 +214,12 @@ export function predictCombatOutcome(
         const legal = blockers.filter(
             (b) =>
                 !used.has(b.id) &&
-                evaluateBlockerKeywords(atk, b, defender.battlefield).eligible
+                evaluateBlockerKeywords(
+                    atk,
+                    b,
+                    defender.battlefield,
+                    (c) => ptOf(c).power
+                ).eligible
         );
 
         // 1. Kills the attacker and survives — always worth it for the defender.

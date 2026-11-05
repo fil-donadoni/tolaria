@@ -898,11 +898,13 @@ export function validateBlockerEligibility(
 
     // Pass 1 — keyword-level evasion (registry-driven).
     // Covers: unblockable (509.1b), landwalk (702.14c), intimidate (702.13b),
-    // fear (702.36b), flying (702.9b), shadow (702.28b), horsemanship (702.31b).
+    // fear (702.36b), flying (702.9b), shadow (702.28b), horsemanship (702.31b),
+    // skulk (702.118b).
     const keywordResult = evaluateBlockerKeywords(
         attacker,
         blocker,
-        defenderBattlefield
+        defenderBattlefield,
+        state ? (card) => getEffectivePower(state, card) : undefined
     );
     if (!keywordResult.eligible) return keywordResult;
 
