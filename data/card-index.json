@@ -9820,6 +9820,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bria, Riptide Rogue",
+        "scryfallId": "390c96b3-68da-4a42-89ab-d9ccc79ce0dd",
+        "oracleId": "d627996b-cbcd-4162-bd13-9ab286de64d1",
+        "firstSet": "blb",
+        "firstPrintId": "390c96b3-68da-4a42-89ab-d9ccc79ce0dd",
+        "firstPrintSet": "blb",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Briarpack Alpha",
         "scryfallId": "a052e945-7535-4b0a-b580-cf76377633f3",
         "oracleId": "5604c475-6e01-4e9d-b4e6-8e8d72874581",

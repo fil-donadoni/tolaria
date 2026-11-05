@@ -23,7 +23,9 @@
 //     instance triggers separately (CR 603.2): the same pump, once per trigger.
 //   * Prowess (CR 702.108a) — "Whenever you cast a noncreature spell, this
 //     creature gets +1/+1 until end of turn." A SPELL_CAST trigger (scope
-//     "you", filter excludeTypes "Creature") pumping the source itself.
+//     "you", filter excludeTypes "Creature") pumping the source itself. A static
+//     grant expands too (`staticKeywordGrant.ts`), and each grant is its own
+//     instance on the recipient (CR 702.108b).
 //   * Battle cry (CR 702.91a) — "Whenever this creature attacks, each other
 //     attacking creature gets +1/+0 until end of turn." An `attacksTrigger`
 //     (CR 508.1m) with `scope: "self"`, whose body is a `forEach` over the
@@ -54,6 +56,7 @@ const BATTLE_CRY_KEYWORD = "battle cry";
 const EXALTED_TRIGGER_ID = "exalted";
 const EXALTED_GRANT_ID = "exalted-granted";
 const PROWESS_TRIGGER_ID = "prowess";
+const PROWESS_GRANT_ID = "prowess-granted";
 const BATTLE_CRY_TRIGGER_ID = "battle-cry";
 
 /** +1/+1 until end of turn (CR 613.4c) — the shared pump payload exalted and
@@ -85,9 +88,9 @@ function exaltedTrigger(id: string): TriggeredAbility {
 
 /** Prowess's CR 702.108a triggered ability: pump the source +1/+1 EOT whenever
  *  its controller casts a noncreature spell. */
-function prowessTrigger(): TriggeredAbility {
+function prowessTrigger(id: string): TriggeredAbility {
     return spellCastTrigger({
-        id: PROWESS_TRIGGER_ID,
+        id,
         oracleText:
             "Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.",
         scope: "you",
@@ -176,12 +179,16 @@ function keywordInstances(
  *  Idempotent by construction (the `getDefinition` seam memo dedups) and
  *  additionally guarded against double-injection by the trigger-id presence
  *  check. A card may carry several of the keywords; every matching trigger is
- *  injected. A static grant of exalted expands as well. */
+ *  injected. A static grant of exalted or prowess expands as well. */
 export function expandKeywordTriggers(def: CardDefinition): CardDefinition {
     return expandStaticKeywordGrants(
-        expandPrintedKeywordTriggers(def),
-        EXALTED_KEYWORD,
-        () => exaltedTrigger(EXALTED_GRANT_ID)
+        expandStaticKeywordGrants(
+            expandPrintedKeywordTriggers(def),
+            EXALTED_KEYWORD,
+            () => exaltedTrigger(EXALTED_GRANT_ID)
+        ),
+        PROWESS_KEYWORD,
+        () => prowessTrigger(PROWESS_GRANT_ID)
     );
 }
 
@@ -199,7 +206,7 @@ function expandPrintedKeywordTriggers(def: CardDefinition): CardDefinition {
         injected.push(exaltedTrigger(EXALTED_TRIGGER_ID));
     }
     if (hasProwess && !existing.some((t) => t.id === PROWESS_TRIGGER_ID)) {
-        injected.push(prowessTrigger());
+        injected.push(prowessTrigger(PROWESS_TRIGGER_ID));
     }
     if (hasBattleCry && !existing.some((t) => t.id === BATTLE_CRY_TRIGGER_ID)) {
         injected.push(battleCryTrigger());
