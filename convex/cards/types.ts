@@ -10569,8 +10569,8 @@ export interface CensusDrivenCostReduction {
      *  `{ X: 2 }`; Stratadon and undaunted: `{ X: 1 }`. */
     perCount: ManaCost;
     /** Discriminant, and what the reduction's own player counts:
-     *   - `"domain"`: basic land TYPES among their lands (CR 702 preamble
-     *     "Domain"), never permanents;
+     *   - `"domain"`: basic land TYPES among their lands (CR 305.6), never
+     *     permanents;
      *   - `"opponents"`: their opponents still in the game (undaunted,
      *     CR 702.125a/b). */
     countMode: "domain" | "opponents";
