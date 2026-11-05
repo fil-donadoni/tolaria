@@ -688,15 +688,17 @@ describe("lowering", () => {
     });
 
     it("QUARANTINES a grant of a keyword only PRINTED implementations honour", () => {
-        // `expandKeywordTriggers` injects the CR 702.108a trigger by reading the
+        // `expandKeywordTriggers` injects the CR 702.91a trigger by reading the
         // DEFINITION's `staticAbilities`; a grant writes the target INSTANCE's,
-        // which trigger collection never consults. The registry says prowess is
+        // which trigger collection never consults. The registry says battle cry is
         // `implemented` — true of the PRINTED keyword, and reading that as a
         // claim about the granted one is the defect. Quarantined rather than
         // refused: the sentence was read correctly, so it must not enter the
         // gap histogram that ranks the next grammar rule.
         const outcome = compileCard(
-            oracle({ oracleText: "Sliver creatures you control have prowess." })
+            oracle({
+                oracleText: "Sliver creatures you control have battle cry.",
+            })
         );
         expect(outcome.state).toBe("quarantine");
         if (outcome.state !== "quarantine") return;
