@@ -53,6 +53,7 @@ import {
 import { deriveXFromTargetSpellMv, resolveAbilityManaCost } from "./activation";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
 import { EVOKE_SACRIFICE_TRIGGER_ID } from "../cards/abilities/evoke";
+import { splitSecondSpellOnStack } from "../cards/abilities/splitSecond";
 import { activationPreconditionViolation } from "./activationPrecondition";
 import {
     affordableAlternativeCosts,
@@ -5909,12 +5910,16 @@ function enumerateGrantedAbilityMoves(
 ): Move[] {
     const grants = player.grantedAbilities;
     if (!grants || grants.length === 0) return [];
+    const splitSecondLock = splitSecondSpellOnStack(state);
     const moves: Move[] = [];
     for (const grant of grants) {
         const template = tryGetDefinition(
             grant.sourceCardId
         )?.activatedAbilities?.find((a) => a.id === grant.abilityId);
         if (!template) continue;
+        // CR 702.61a / 702.61b — a mana grant stays legal, mirroring the
+        // `activatePlayerAbility` mutation.
+        if (splitSecondLock && template.useStack) continue;
         // A `canActivate` closure or an `activationCondition` (issue #3685)
         // reads a source permanent, which a player-scoped grant does not have;
         // targeted abilities would need a target selection the move shape

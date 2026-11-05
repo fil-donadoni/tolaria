@@ -2716,6 +2716,7 @@ import type {
 } from "./filters";
 import type { ContinuousEffect } from "../gre/continuousEffects";
 import type { FaceDownProducer } from "../gre/faceDown";
+import type { SplitSecondStackView } from "./abilities/splitSecond";
 export type { PermanentFilter, SpellFilter } from "./filters";
 
 // --- Compiled triggered-ability descriptors (issue #2698) ---
@@ -13084,6 +13085,11 @@ export type GameEvent =
  *  engine passes its full `GameState` here at the call site — this view only
  *  describes the fields cards may rely on. */
 export interface TriggerStateView {
+    /** CR 702.61a — the stack, read by the split second lock in
+     *  `activationPreconditionViolation`. Absent on a client view
+     *  (`buildTriggerStateView`), whose hint is
+     *  `nonManaActivationLockedPlayers`. */
+    stack?: SplitSecondStackView["stack"];
     players: ReadonlyArray<{
         id: string;
         life: number;
