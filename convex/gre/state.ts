@@ -9932,8 +9932,10 @@ export function animatePermanentAsCreature(
         // well would be a second channel for one effect, and the two
         // would disagree the moment anything recomputed.
         syncLayers2to5(state);
-        card.power = spec.power;
-        card.toughness = spec.toughness;
+        // CR 301.7b (issue #7212) — no set declared: the permanent keeps the
+        // P/T it has.
+        if (spec.power !== undefined) card.power = spec.power;
+        if (spec.toughness !== undefined) card.toughness = spec.toughness;
         // CR 613.1e layer 5 / CR 105.3 (issue #1872) — "becomes a 3/2
         // BLUE AND BLACK Elemental creature" (Creeping Tar Pit). The
         // colour clause is not a second channel: it goes through the
@@ -9955,6 +9957,22 @@ export function animatePermanentAsCreature(
                 card.animation.duration
             );
         }
+    } else if (!card.types.includes("Creature")) {
+        // CR 613.7 (issue #7212) — animated, but a LATER type-changing effect
+        // took the creature type away (Crewed, then "it loses all other card
+        // types"). The one-animation guard is about stacking two animations
+        // on a creature; this one is no creature, and an effect created NOW
+        // must apply after that removal. The record stays — its anchors and
+        // revert are still the right ones — and is re-stamped at this
+        // timestamp, with this effect's own duration: the creature type is now
+        // this effect's, and lasts as long as it states (CR 611.2a), whatever
+        // the old animation said.
+        card.animation.seq = allocStaticTimestamp(state);
+        card.animation.addedCreatureType = true;
+        card.animation.duration = spec.duration
+            ? resolveDuration(spec.duration, controllerId, state)
+            : undefined;
+        syncLayers2to5(state);
     }
     // Keyword abilities an animate effect grants as part of "becomes a
     // creature with [keyword]" share the ANIMATION'S OWN duration
