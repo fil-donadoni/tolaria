@@ -494,6 +494,10 @@
     "charter: picks the modal mode that survives a lethal red spell": null,
     "charter: Stifles its own Phyrexian Dreadnought trigger": null,
     "cheat into play: activates Sneak Attack at the beginning of combat": {
+        "life": {
+            "me": 20,
+            "opp": 6
+        },
         "phase": "BEGINNING_OF_COMBAT",
         "turn": 5,
         "landCount": 0,
