@@ -2025,7 +2025,10 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Undaunted",
         kind: "keyword-ability",
         cr: "702.125",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "convex/cards/abilities/undaunted.ts expandUndaunted + CardDefinition.selfCostReduction",
+        note: 'Issue #4155 — cost-system capability, NOT an Effect Script Op: a static ability functioning while the spell is on the stack (CR 702.125a), so a self-host reduction read off the announced card, the affinity mechanism. `expandUndaunted` derives `selfCostReduction` from the bare `staticAbilities` string at the `getDefinition` seam (ADR 0054), so the compiled keyword line enforces itself. The amount is `{ perCount: { X: N }, countMode: "opponents" }`: N declared instances (CR 702.125c) times the opponents of the CASTER (CR 601.2a). Generic-only, floored at {0} by `applyCostModifiers` (CR 601.2f). CR 702.125b holds by construction: `state.players` never holds a player who has left, since a player leaving ends the two-player game (CR 104.2a). Castability, payment and Bot enumeration all route through `getCostModifiers`, so there is no client work and no BotAction kind. NOT covered: a GRANTED undaunted — a definition-level expander never reads an instance, so a granting card stays quarantined as `ungrantable-keyword` (`isDefinitionLevelKeyword`).',
     },
     // 702.126 Improvise
     {

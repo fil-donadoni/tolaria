@@ -10559,16 +10559,17 @@ export interface CountDrivenCostReduction {
  *  instance, which layer-4 `subtype-set` / `subtype-add` statics materialize
  *  onto the instance (`beginApplyingStaticEffects`, `gre/state.ts`) — so a land
  *  whose type was added or changed counts correctly, CR 613.1d. */
-export interface DomainDrivenCostReduction {
-    /** Mana subtracted PER distinct basic land type (generic-only, CR 601.2f —
-     *  a Domain-driven reduction can't touch colored pips either). Draco:
-     *  `{ X: 2 }`; Stratadon: `{ X: 1 }`. */
+export interface CensusDrivenCostReduction {
+    /** Mana subtracted PER unit of the census (generic-only, CR 601.2f — a
+     *  census-driven reduction can't touch colored pips either). Draco:
+     *  `{ X: 2 }`; Stratadon and undaunted: `{ X: 1 }`. */
     perCount: ManaCost;
-    /** Discriminant: count basic land TYPES among the reduction's own player's
-     *  lands (CR 702 preamble "Domain"), never permanents. The only mode today;
-     *  a future census-style count mode adds a member here rather than a
-     *  parallel interface. */
-    countMode: "domain";
+    /** Discriminant, and what the reduction's own player counts:
+     *   - `"domain"`: basic land TYPES among their lands (CR 702 preamble
+     *     "Domain"), never permanents;
+     *   - `"opponents"`: their opponents still in the game (undaunted,
+     *     CR 702.125a/b). */
+    countMode: "domain" | "opponents";
 }
 
 /** The amount a CR 601.2f cost reduction takes off the GENERIC portion of a
@@ -10579,11 +10580,12 @@ export interface DomainDrivenCostReduction {
  *     Matrix, Planar Gate;
  *   - {@link CountDrivenCostReduction} — `perCount` × matching PERMANENTS
  *     (Emry, affinity, ADR 0063);
- *   - {@link DomainDrivenCostReduction} — `perCount` × distinct basic land
- *     TYPES (Draco, Stratadon, issue #1958).
+ *   - {@link CensusDrivenCostReduction} — `perCount` × a census of the
+ *     reduction's own player: distinct basic land TYPES (Draco, Stratadon,
+ *     issue #1958) or opponents (undaunted, CR 702.125a).
  *
  *  Discriminated structurally: `countFilter` for the count-driven shape,
- *  `countMode` for the Domain-driven one; no `ManaCost` mana-symbol key
+ *  `countMode` for the census-driven one; no `ManaCost` mana-symbol key
  *  collides with either. */
 export type CostReductionAmount =
     | ManaCost
