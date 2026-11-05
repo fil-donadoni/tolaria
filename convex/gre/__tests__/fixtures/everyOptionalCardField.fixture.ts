@@ -233,6 +233,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
             abilityId: "rider-1",
         },
         castSpellInGraveyard: true,
+        putIntoGraveyardThisTurn: true,
         exiledBySourceId: "src-12",
         grantedFlashback: { R: 1 },
         escaped: true,

@@ -1649,6 +1649,14 @@ export type CardInstanceState = {
      *  leaves the stack anywhere but the graveyard (a graveyard landing
      *  re-stamps it); NOT cleared on other graveyard exits (hand, library). */
     castSpellInGraveyard?: boolean;
+    /** Issue #7209 — this card is a graveyard object that got there during the
+     *  current turn, from any zone. CR 400.7 — a card leaving the graveyard
+     *  stops being that object, so `noteGraveyardDeparture` ends the stamp and
+     *  a later return earns a new one (`noteGraveyardArrival`). Swept off at
+     *  the turn boundary (`advanceTurn`), never at cleanup: a discard to hand
+     *  size still happened this turn for a trigger of that same cleanup step.
+     *  Read by the `putIntoGraveyardThisTurn` target filter. */
+    putIntoGraveyardThisTurn?: true;
     /** CR 111 / 400.7 provenance link (issue #791) — the battlefield permanent
      *  instance id that exiled this card "with it", set when a card is exiled
      *  by a specific source that later refers back to "the cards exiled with
@@ -4278,6 +4286,10 @@ export type PendingTarget = {
      *  must sit in, lowered from `zoneOwnerOfPriorPlayerTarget` at the group
      *  hand-off. Propagated from TargetRequirement.zoneOwnerId. */
     zoneOwnerId?: string;
+    /** Issue #7209 — propagated from
+     *  TargetRequirement.putIntoGraveyardThisTurn; the graveyard card must
+     *  wear the stamp of the same name. */
+    putIntoGraveyardThisTurn?: true;
     /** Restricts legal permanent targets by token-ness (CR 111.5, issue
      *  #1195). `true` keeps ONLY tokens; `false` keeps ONLY nontoken
      *  permanents. Propagated from TargetRequirement.isToken. */
