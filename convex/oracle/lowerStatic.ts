@@ -509,18 +509,6 @@ export function lowerStaticClause(
                 },
             };
         }
-        case "loyalty-activation-allowance":
-            return {
-                ok: true,
-                lowered: {
-                    effects: [
-                        {
-                            kind: "loyalty-activation-allowance",
-                            extra: clause.extra,
-                        },
-                    ],
-                },
-            };
         case "cost-modifier":
             return {
                 ok: true,

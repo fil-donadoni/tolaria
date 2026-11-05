@@ -520,10 +520,7 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         name: "Meld",
         kind: "keyword-action",
         cr: "701.42",
-        status: "implemented",
-        binding:
-            'EffectOp "meld" / SpellContext.meldPermanents + CardBackFace.kind "meld"',
-        note: "A melded permanent is ONE instance remembering two cards (`meldedFrom`, ADR 0161, issue #7639). One card becomes two at the departure funnel (`splitMeldedPermanent`) and at the action site (`expandMeldGroup`), never at resolution.",
+        status: "planned",
     },
     // 701.43 Exert
     {
@@ -3872,14 +3869,6 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         mechanicId: "transform",
         binding: "SpellContext.exileAndReturnTransformed",
         note: 'Exile a permanent and immediately return it to the battlefield showing its BACK face, under its OWNER\'s control (CR 712.14a / 400.7 / 306.5b, issue #2380) — "exile Jace, then return him to the battlefield transformed under his owner\'s control", the ORI flip-walker template (Jace, Vryn\'s Prodigy; Kytheon, Hero of Akros; Liliana, Heretical Healer; Nissa, Vastwood Seer; Chandra, Fire of Kaladesh; Tamiyo, Inquisitive Student). A thin declarative skin over the single SpellContext primitive `exileAndReturnTransformed`, one execution path (ADR 0045): `target` names the permanent — almost always the resolving source (`$source`; every card in the template flips ITSELF), with an announced target slot or a forEach `$each` accepted for generality. SIBLING of the `transform` Op, never a mode of it: `transform` flips a permanent IN PLACE (CR 712.8a) with no zone change, so the SAME object keeps its counters, its Auras/Equipment and its summoning-sickness clock; this Op performs TWO REAL zone changes, so what returns is a NEW object (CR 400.7) — counters gone, attachments fallen off, "enters the battlefield" triggers firing again, stack targets no longer finding it — and a PLANESWALKER back face enters with its own CR 306.5b starting loyalty (`CardBackFace.loyalty`, folded into the back-face definition id so a client-side decode rebuilds it too). Both legs run through the ORDINARY funnels — `removePermanentTo` (the single battlefield-departure path: leave-the-battlefield triggers, Aura unapplication, CR 400.7 transient-state scrubbing) and `putReanimatedOnBattlefield` (the single non-cast battlefield-ENTRY path: CR 614 entry replacements, entry counters, starting loyalty, keyword grants, the ETB trigger scan) — with only the face stamp (`stampBackFaceForEntry`, `gre/transform.ts`) applied in between, while the card sits in exile, so nothing ever observes the front face on the battlefield after the return. The departure funnel itself reverts a permanent that was ALREADY showing its back face to its front face (`revertTransform`, CR 712.8a — a double-faced card in a zone other than the battlefield or stack has only its front face\'s characteristics), the transform sibling of the CR 707.2 copy revert that sits beside it; the two legs of this Op bracket that revert, which is why the stamp runs on the exiled card AFTER it and wins. NOT decomposable into `exile` + `moveZone`: the clause is atomic (nothing may be interposed) and no ordering of the existing zone Ops can make the returning object enter already showing its back face. No-ops when the target has already left the battlefield (CR 608.2b); the return leg is skipped if a replacement effect diverted the card somewhere other than exile. The optional `controller` (issue #2399) names who the permanent returns UNDER: omitted is its OWNER, the ORI template\'s wording and the behaviour of every caller before that issue, while Fable of the Mirror-Breaker\'s chapter III reads "under YOUR control" and passes "controller" — an answer that differs only for a permanent whose controller is not its owner.',
-    },
-    {
-        op: "meld",
-        status: "implemented",
-        cr: "701.42a",
-        mechanicId: "meld",
-        binding: "SpellContext.meldPermanents",
-        note: 'The CR 701 keyword action "Meld" (issue #3341, ADR 0161). "If you both own and control <this> and <partner>, exile them, then meld them": reads the condition on resolution and hands the source and its counterpart to the atomic engine step `meldPermanents`. A token copy or a non-pair stays in exile (CR 701.42b / 701.42c). One Op, never `exile` + a meld, so the search reads no removal bonus on the player\'s own permanents.',
     },
     {
         op: "createToken",

@@ -9,9 +9,10 @@ bucket; extends [ADR 0120][adr-0120]'s twin-definition mechanism and
 this record "ADR 0123"; that number went to the Room record, so meld takes the
 next free one.
 
-This record covers the ENGINE substrate (issue #7639); § 7 covers the slice
-that exposed it (issue #3341): the `meld` Effect Script Op, its Grammar Rule and
-the Urza pair. The Mechanics Registry's Meld row is `implemented`.
+This record covers the ENGINE substrate. The `meld` Effect Script Op, its
+Grammar Rule, the three Urza cards and the Bot's valuation land in the next
+slice (issue #3341); until then no shipped card can meld and the Mechanics
+Registry's Meld row stays `planned`.
 
 ## Context
 
@@ -159,48 +160,17 @@ a thin skin over it. It is ONE Op, never `exile` + `meld`: the `exile` valuer
 would score exiling your own permanents as removal, inverting the sign (PRD
 #3227 call 4).
 
-### 7. The `meld` Op reads "both own and control" itself (issue #3341)
-
-`{ op: "meld", partner: EffectCardFilter }` runs on the ability's source. PRD
-#3227 asked for the condition as an `if` construct around the Op; it stayed
-inside the Op, read on resolution, because the construct has no way to say it:
-`EffectCardFilter` has no owner, and a field its dozen zone-scoped readers
-ignored would fail open. A `choice` beside an owner check would also offer a
-counterpart the condition then rejects. Inside the Op, only owned counterparts
-are offered, one is taken with no prompt, and two raise one pick.
-
-The valuer is neutral (`ZERO_OP_VALUE`, `OP_BENEFICENCE` `"neutral"`), so the
-search decides. A discriminating `must` pair in the blade suite pins that: it
-melds with no attack on offer and keeps the 2/4 when the attack is lethal.
-
-The Grammar Rule is a Verb Frame, and reads the ACTIVATED form only. A triggered
-meld ability (Graf Rats, Gisela, Vanille) prints an intervening-if the Op reads
-only at resolution, so those forms stay refused under `MELD_CLAUSE_REASON`
-(CR 603.4). A meld back face names a continuous effect by key
-(`staticEffectKeys`), as any back face does.
-
-The Urza halves are hand-written. The Mightstone's modal trigger and mana rider
-are outside the grammar (issue #8285). Urza, Lord Protector compiles `ready`, and
-is hand-written only because the combined face's art, its own Scryfall card, has
-no compile path. Gold lists it as incomparable, because its compiled statics
-rebuild to closures, so `urzaPairClauses.test.ts` pins its abilities and back face
-to the compiler's output directly.
-
-"This mana can't be spent to cast nonartifact spells" is
-`not-nonartifact-spell`, not `artifact-spell`: the two agree on spells, and only
-the first pays for an ability.
-
 ## Consequences
 
 - Noted, not built: CR 712.21's "whenever a card is put into a graveyard from
   anywhere" triggering TWICE. The engine has no per-card event for a
   battlefield-to-graveyard move (those triggers read `CREATURE_DIED`), so a
-  melded CREATURE would trigger them once. Unreachable for the Urza pair (a
-  planeswalker). Every other pair melds into a creature and stays refused by the
-  compiler today; the first to ship owes it (issue #8176 is next).
+  melded CREATURE would trigger them once. Unreachable in this slice and for
+  the Urza pair (a planeswalker); issue #3341 owes it before any pair that
+  melds into a creature ships.
 
-- `meld.test.ts` remains the capability test, run with a test-only pair
-  registered through the real seam; `meldOp.test.ts` runs the shipped pair.
+- No shipped card exposes meld until the next slice. `meld.test.ts` is the
+  capability test, run with a test-only pair registered through the real seam.
 - CR 712.19 (a player may choose the combined back face's name) shipped
   beside this ADR in issue #7640: the name-choice DOMAIN
   (`chooseableDomainNamesOf`) widens while the object-name predicate

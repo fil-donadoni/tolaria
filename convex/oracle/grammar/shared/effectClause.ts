@@ -104,7 +104,6 @@ import {
 import { BASIC_LAND_SUBTYPE_ORDER, CREATURE_SUBTYPES } from "./subtypes";
 import { readPumpThenColor } from "./pumpColorChain";
 import { readThenChain } from "./thenChain";
-import { readSpellFilter } from "./spellClass";
 import { readCounterAndChain } from "./counterAndChain";
 import {
     foldCoinFlipSeries,
@@ -2892,23 +2891,6 @@ export function assembleSentences(
         readonly site: string;
     }
 ): AssembledSentences {
-    // CR 603.4 — the triggered forms of the meld ability ("At the beginning of
-    // your end step, if you both own and control …") print an intervening-if,
-    // checked as the ability triggers as well as on resolution. The sentence
-    // reads the resolution half only, so it is the activated form's alone.
-    if (
-        opts.site !== "ability" &&
-        sentences.some(
-            (s) =>
-                s.role === "effect" &&
-                "frames" in s.effect &&
-                s.effect.frames.some((f) => f.frame === "meld")
-        )
-    )
-        return {
-            ok: false,
-            reason: "a meld ability's intervening-if is not read at this site (CR 603.4)",
-        };
     const effects: EffectSentenceIR[] = [];
     const restrictions: RestrictionIR[] = [];
     // CR 608.2c — a library window waits for the sentence that routes it.
@@ -6444,22 +6426,6 @@ function readRestrictions(
  * (Glory). The GRANT half a "Choose a color." marker's antecedent feeds; the
  * marker itself is read where restrictions are, in `sentenceRule`.
  */
-/**
- * CR 701.42a / 712.4a — the activated form of the meld ability, whose subject is
- * the source. The name is matched greedily up to the one ", exile them": a name
- * may hold a comma. The triggered and "you may pay" forms print other shapes and
- * stay refused under `MELD_CLAUSE_REASON`.
- */
-const MELD_ABILITY =
-    /^If you both own and control (.+?) and an? (artifact|creature|land) named (.+), exile them, then meld them into .+$/;
-
-/** CR 601.2f + CR 611.2a — the floating reduction of a class of spells. */
-const SPELLS_COST_LESS_THIS_TURN =
-    /^(.+ spells) you cast this turn cost \{(\d+)\} less to cast$/;
-
-/** CR 613.1f — "<group> gain <keyword> until end of turn". */
-const MASS_GAIN_KEYWORD = /^(.+) gain ([a-z]+) (until end of turn)$/;
-
 const MASS_GAIN_PROTECTION_CHOSEN_COLOR =
     /^(.+) gain protection from the chosen color (until .+)$/;
 
@@ -6939,43 +6905,6 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         // only when none reads it whole is it split at ", then" into two
         // sentences (CR 608.2c), so an exact shape with its own ", then"
         // (the loot, the library look) is never re-read as a chain.
-        // CR 701.42a — read before the ", then" chain, whose halves are not
-        // sentences here: the exile and the meld are one atomic instruction.
-        const meld = span.match(MELD_ABILITY);
-        if (meld !== null) {
-            if (!isSelfPhrase(uncapitalise(meld[1]!)))
-                return fail(`"${meld[1]}" is not the source`, span);
-            return ok({
-                role: "effect" as const,
-                effect: {
-                    frames: [
-                        {
-                            frame: "meld" as const,
-                            partnerType: capitalise(meld[2]!) as CardType,
-                            partnerName: meld[3]!,
-                        },
-                    ],
-                },
-            });
-        }
-        // CR 601.2f — the class of spells is the shared reader's to read.
-        const costLess = span.match(SPELLS_COST_LESS_THIS_TURN);
-        if (costLess !== null) {
-            const spells = readSpellFilter(costLess[1]!);
-            if (!spells.ok) return spells;
-            return ok({
-                role: "effect" as const,
-                effect: {
-                    frames: [
-                        {
-                            frame: "reduceSpellCostThisTurn" as const,
-                            amount: Number(costLess[2]),
-                            filter: spells.value,
-                        },
-                    ],
-                },
-            });
-        }
         const { result: whole, frameOpened } = wholeSentence(span, ctx);
         if (whole.ok) return whole;
         // CR 608.2c — ", then" opens after ANY head, a frame chain included
@@ -8289,26 +8218,6 @@ function effectSentence(
             keyword,
             duration: duration.value,
         } satisfies EffectSentenceIR);
-    }
-
-    // ── grant a keyword to a group (CR 613.1f) — the plural verb's twin of the
-    // branch above; anything else that opens "<x> gain" is not a keyword grant
-    // ("You gain 2 life") and falls through.
-    const massGain = span.match(MASS_GAIN_KEYWORD);
-    if (massGain !== null) {
-        const keyword = KEYWORDS.get(massGain[2]!);
-        const subject =
-            keyword === undefined ? undefined : groupSubject(massGain[1]!, ctx);
-        if (keyword !== undefined && subject?.ok === true) {
-            const duration = durationRule.run(massGain[3]!, ctx);
-            if (!duration.ok) return duration;
-            return ok({
-                kind: "grant-ability" as const,
-                subject: subject.value,
-                keyword,
-                duration: duration.value,
-            } satisfies EffectSentenceIR);
-        }
     }
 
     // ── protection from a color chosen earlier in the SAME ability ─────────

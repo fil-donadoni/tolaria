@@ -3488,12 +3488,6 @@ const unattach: Valuer<"unattach"> = () => ZERO_OP_VALUE;
  *  favour trading a good permanent for a worse card. */
 const sacrificeAndReturn: Valuer<"sacrificeAndReturn"> = () => ZERO_OP_VALUE;
 
-/** CR 701.42a (issue #3341) — two permanents traded for their combined face.
- *  What that is worth is the difference between the boards, which only the
- *  search can read (PRD #3227 call 4), so the leaf prices it neutral: a flat
- *  bonus would make the Bot meld on boards where the two halves are better. */
-const meld: Valuer<"meld"> = () => ZERO_OP_VALUE;
-
 const winGame: Valuer<"winGame"> = () => ({
     points: WIN_GAME_VALUE,
     tags: [],
@@ -3633,7 +3627,6 @@ export const OP_VALUERS: {
     exileAndReturnTransformed,
     unattach,
     winGame,
-    meld,
     sacrificeAndReturn,
 };
 
@@ -4158,11 +4151,6 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // helps is the comparison of the two cards, which the target-tuple scoring
     // reads, not a direction.
     sacrificeAndReturn: "neutral",
-    // CR 701.42a — both permanents are the resolving controller's own by the
-    // Op's own gate and the melded permanent comes back under that same player,
-    // so no recipient exists a sign could be redirected over; whether it helps
-    // is the comparison of the two boards, which the search reads.
-    meld: "neutral",
 
     // ── Schedulers: the material is in a body announced at another time ────
     // CR 603.7b / 603.3d — both Ops put an Op LIST somewhere else in time, and

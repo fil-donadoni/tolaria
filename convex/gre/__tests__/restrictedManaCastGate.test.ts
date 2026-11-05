@@ -19,8 +19,6 @@ const HILL_GIANT = getCardByName("Hill Giant").id;
 const UNICORN = getCardByName("Adarkar Unicorn").id;
 const HALFLING = getCardByName("Delighted Halfling").id;
 const WORKSHOP = getCardByName("Mishra's Workshop").id;
-const MIGHTSTONE = getCardByName("The Mightstone and Weakstone").id;
-const DIVINATION = getCardByName("Divination").id;
 
 function position(spellId: string, sourceIds: string[]): GameState {
     return makeState({
@@ -68,14 +66,6 @@ describe("restricted mana in the castability gate (CR 106.6)", () => {
 
     it("Delighted Halfling's restricted any-colour mana does not pay for a non-legendary spell", () => {
         expect(offersCast(position(UNSUMMON, [HALFLING]))).toBe(false);
-    });
-
-    it("a nonartifact-spell prohibition counts for an artifact spell only (issue #3341)", () => {
-        expect(offersCast(position(SOL_RING, [MIGHTSTONE]))).toBe(true);
-        // {2}{U}, no target: the Island pays {U}, only the rock could pay {2}.
-        expect(offersCast(position(DIVINATION, [ISLAND, MIGHTSTONE]))).toBe(
-            false
-        );
     });
 
     it("an artifact-spell restriction counts for an artifact spell only", () => {

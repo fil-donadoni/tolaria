@@ -19,7 +19,10 @@ import { headerHashDrift } from "../check-oracle-lockfile";
 import { treeRole } from "../lib/derived-state";
 import type { CorpusCard } from "../oracle-corpus";
 import { emptyRetirementLedger } from "../lib/oracle-retirements";
-import { MELD_RESULT_REASON } from "../../convex/oracle/compile";
+import {
+    MELD_CLAUSE_REASON,
+    MELD_RESULT_REASON,
+} from "../../convex/oracle/compile";
 import {
     compilerHash,
     compilerSourceFiles,
@@ -342,21 +345,13 @@ describe("oracle:compile resolves meld pairs across the corpus (CR 712.4, issue 
             .of(lock.cards.find((c) => c.name === name)!)
             .map((f) => f.reason);
 
-    it("reads the holder's activated meld clause as the meld Op (CR 701.42a)", () => {
-        const row = lock.cards.find((c) => c.name === "Test Keeper")!;
-        expect(reasonsOf("Test Keeper")).toEqual([]);
-        expect(row.state).toBe("ready");
-        expect(row.definition?.activatedAbilities?.[0]?.effects).toEqual([
-            {
-                op: "meld",
-                partner: { type: "Creature", name: "Test Warden" },
-            },
-        ]);
+    it("refuses the holder's meld clause under its own key", () => {
+        expect(reasonsOf("Test Keeper")).toEqual([MELD_CLAUSE_REASON]);
     });
 
-    it("compiles the partner with the combined back face, ready now Meld is implemented", () => {
+    it("compiles the partner with the combined back face, quarantined on Meld", () => {
         const row = lock.cards.find((c) => c.name === "Test Warden")!;
-        expect(row.state).toBe("ready");
+        expect(row.state).toBe("quarantine");
         expect(row.definition?.backFace).toMatchObject({
             kind: "meld",
             name: "Test Colossus",
