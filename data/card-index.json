@@ -7226,6 +7226,16 @@
         "source": "compiled"
     },
     {
+        "name": "Blade of Selves",
+        "scryfallId": "6e8735b5-64ef-4782-8d8d-4477b409e52d",
+        "oracleId": "9c329f3d-4d0a-4012-8aa6-92afdd120a52",
+        "firstSet": "c15",
+        "firstPrintId": "6e8735b5-64ef-4782-8d8d-4477b409e52d",
+        "firstPrintSet": "c15",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Blade of the Sixth Pride",
         "scryfallId": "f6ccfe28-ec08-4751-b65c-c40b2bafa955",
         "oracleId": "b7894010-fdba-498e-97de-22bd70332439",
@@ -43339,6 +43349,16 @@
         "firstSet": "big",
         "firstPrintId": "5a077de0-1893-40d0-a499-ee2e6e2258f1",
         "firstPrintSet": "big"
+    },
+    {
+        "name": "Legion Loyalty",
+        "scryfallId": "9158965b-b705-4922-8ea9-9e3a93838eab",
+        "oracleId": "24e39d26-6a2b-461e-b194-bda575bcf898",
+        "firstSet": "clb",
+        "firstPrintId": "9158965b-b705-4922-8ea9-9e3a93838eab",
+        "firstPrintSet": "clb",
+        "rarity": "mythic",
+        "source": "compiled"
     },
     {
         "name": "Legion Vanguard",

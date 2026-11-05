@@ -26,7 +26,6 @@ import "./emblems";
 import { expandAnnihilator } from "./abilities/annihilator";
 import { expandDemonstrate } from "./abilities/demonstrate";
 import { expandIngest } from "./abilities/ingest";
-import { expandMyriad } from "./abilities/myriad";
 import { expandUndaunted } from "./abilities/undaunted";
 import { expandCascade } from "./abilities/cascade";
 import { expandCipher } from "./abilities/cipher";
@@ -641,47 +640,43 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // shape, outermost because it reads only `staticAbilities`.
     // Ward (CR 702.21) expands from its `"ward <cost>"` string into the
     // counter-unless-pay trigger, for the same reason.
-    // Myriad (CR 702.116) expands from its bare string into the attack
-    // trigger, for the same reason.
     // Changeling (CR 702.73) expands from its keyword string into the base
     // subtype line, and touches nothing another expander reads.
     // Cipher (CR 702.99) appends its encode step to the spell's own script,
     // and touches nothing another expander reads.
     const expanded = expandChangeling(
-        expandMyriad(
-            expandWard(
-                expandMobilize(
-                    expandImpending(
-                        expandEchoCumulativeUpkeep(
-                            expandBestow(
-                                expandCascade(
-                                    expandCipher(
-                                        expandFirebending(
-                                            expandAnnihilator(
-                                                expandHideaway(
-                                                    expandKeywordTriggers(
-                                                        expandFadingVanishing(
-                                                            // CR 716.2 (issue #3234) — the Class level bars sit
-                                                            // beside `expandChapterAbilities`: both desugar a
-                                                            // printed TEXT BOX SECTION declared as data, and
-                                                            // both must run before any expander that reads the
-                                                            // ability arrays they inject into.
-                                                            expandClassLevelBars(
-                                                                expandChapterAbilities(
-                                                                    expandCompiledTriggers(
-                                                                        expandCompiledStatics(
-                                                                            // CR 614.1a — the compiled
-                                                                            // "shuffle it into its owner's
-                                                                            // library instead" flag, rebuilt
-                                                                            // innermost beside the other
-                                                                            // compiled descriptors.
-                                                                            expandShuffleFromAnywhere(
-                                                                                expandDamagePreventionCounterRemoval(
-                                                                                    expandControllerDamagePrevention(
-                                                                                        expandDamageLifeFloor(
-                                                                                            expandDamageAsCounters(
-                                                                                                base
-                                                                                            )
+        expandWard(
+            expandMobilize(
+                expandImpending(
+                    expandEchoCumulativeUpkeep(
+                        expandBestow(
+                            expandCascade(
+                                expandCipher(
+                                    expandFirebending(
+                                        expandAnnihilator(
+                                            expandHideaway(
+                                                expandKeywordTriggers(
+                                                    expandFadingVanishing(
+                                                        // CR 716.2 (issue #3234) — the Class level bars sit
+                                                        // beside `expandChapterAbilities`: both desugar a
+                                                        // printed TEXT BOX SECTION declared as data, and
+                                                        // both must run before any expander that reads the
+                                                        // ability arrays they inject into.
+                                                        expandClassLevelBars(
+                                                            expandChapterAbilities(
+                                                                expandCompiledTriggers(
+                                                                    expandCompiledStatics(
+                                                                        // CR 614.1a — the compiled
+                                                                        // "shuffle it into its owner's
+                                                                        // library instead" flag, rebuilt
+                                                                        // innermost beside the other
+                                                                        // compiled descriptors.
+                                                                        expandShuffleFromAnywhere(
+                                                                            expandDamagePreventionCounterRemoval(
+                                                                                expandControllerDamagePrevention(
+                                                                                    expandDamageLifeFloor(
+                                                                                        expandDamageAsCounters(
+                                                                                            base
                                                                                         )
                                                                                     )
                                                                                 )
