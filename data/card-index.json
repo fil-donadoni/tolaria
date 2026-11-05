@@ -38272,6 +38272,16 @@
         "firstPrintSet": "vis"
     },
     {
+        "name": "In Oketra's Name",
+        "scryfallId": "ccf535ef-79ee-4a31-a614-f6c77fea72b5",
+        "oracleId": "f4a8756d-94df-40bc-a363-2938ada0a808",
+        "firstSet": "akh",
+        "firstPrintId": "ccf535ef-79ee-4a31-a614-f6c77fea72b5",
+        "firstPrintSet": "akh",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "In the Eye of Chaos",
         "scryfallId": "733933dd-c871-4f75-8b08-d7c010dddbe6",
         "oracleId": "6a0da9f3-cb06-42b1-ae73-b142c0eedaff",
