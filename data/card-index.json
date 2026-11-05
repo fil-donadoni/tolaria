@@ -11412,6 +11412,16 @@
         "source": "compiled"
     },
     {
+        "name": "Captive Weird // Compleated Conjurer",
+        "scryfallId": "70668650-0fb1-4486-a4e6-ab9a12be5626",
+        "oracleId": "ac5487ba-6d6e-47ee-ae29-776e186789cc",
+        "firstSet": "mom",
+        "firstPrintId": "70668650-0fb1-4486-a4e6-ab9a12be5626",
+        "firstPrintSet": "mom",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Capture of Jingzhou",
         "scryfallId": "d2df84f2-08e8-43e4-825f-dccfe096d92b",
         "oracleId": "89aa65d9-2502-40b0-90b6-b25a8e9f6155",
@@ -13924,6 +13934,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cloistered Youth // Unholy Fiend",
+        "scryfallId": "f8b8f0b4-71e1-4822-99a1-b1b3c2f10cb2",
+        "oracleId": "7552a9b4-b82f-491f-ad52-e271cf730211",
+        "firstSet": "isd",
+        "firstPrintId": "f8b8f0b4-71e1-4822-99a1-b1b3c2f10cb2",
+        "firstPrintSet": "isd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Clone",
         "scryfallId": "f00d33dd-4eb2-4446-9813-1923d8e2d2f3",
         "oracleId": "42226b87-0746-4ebf-9fd0-108d508462af",
@@ -14774,6 +14794,16 @@
         "firstSet": "kld",
         "firstPrintId": "c8769e97-aee8-4466-a9d7-0f4245ae4a97",
         "firstPrintSet": "kld"
+    },
+    {
+        "name": "Concealing Curtains // Revealing Eye",
+        "scryfallId": "612b2e6e-fe8d-49ad-b845-6fa7fa59ffd1",
+        "oracleId": "a3a56b02-7290-4352-a862-f2de608f2a86",
+        "firstSet": "vow",
+        "firstPrintId": "612b2e6e-fe8d-49ad-b845-6fa7fa59ffd1",
+        "firstPrintSet": "vow",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Concentrate",
@@ -41824,6 +41854,16 @@
         "source": "compiled"
     },
     {
+        "name": "Kindly Stranger // Demon-Possessed Witch",
+        "scryfallId": "e326d5f4-63e1-45fa-8c48-6fdc05709c52",
+        "oracleId": "7579e1a2-2747-4e37-9a7a-c13b62190195",
+        "firstSet": "soi",
+        "firstPrintId": "e326d5f4-63e1-45fa-8c48-6fdc05709c52",
+        "firstPrintSet": "soi",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "King Cheetah",
         "scryfallId": "0c607ba1-e133-47f3-a79a-5f0dc8c4b9ac",
         "oracleId": "f9ca35e1-24c5-46f4-a666-0dfe2c920e8b",
@@ -58819,6 +58859,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Pyretic Prankster // Glistening Goremonger",
+        "scryfallId": "0ee40c4b-2ca3-4cda-bc9e-451455c17adc",
+        "oracleId": "f810e185-4498-483b-ab37-0c583dae0eaf",
+        "firstSet": "mom",
+        "firstPrintId": "0ee40c4b-2ca3-4cda-bc9e-451455c17adc",
+        "firstPrintSet": "mom",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Pyretic Ritual",
         "scryfallId": "1e577638-a7ed-4bcc-90fb-0cffe87d5a28",
         "oracleId": "86ef6474-613f-41fb-931c-d4279b03ed99",
@@ -66170,6 +66220,16 @@
         "source": "compiled"
     },
     {
+        "name": "Screeching Bat // Stalking Vampire",
+        "scryfallId": "88db324f-11f1-43d3-a897-f4e3caf8d642",
+        "oracleId": "209de43d-0cdd-4075-9f41-88e3d2ff90df",
+        "firstSet": "isd",
+        "firstPrintId": "88db324f-11f1-43d3-a897-f4e3caf8d642",
+        "firstPrintSet": "isd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Screeching Drake",
         "scryfallId": "6c16faac-b093-425b-b1e9-f71602d2f6dd",
         "oracleId": "da2ac9fa-52c2-4896-a596-89f287406641",
@@ -67395,6 +67455,16 @@
         "firstPrintId": "5da345bd-8f2b-4966-97f5-c0e4c6cfe3b7",
         "firstPrintSet": "avr",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Seraph of New Capenna // Seraph of New Phyrexia",
+        "scryfallId": "fbd9ed1d-1972-4db8-bc43-b05b94956aa0",
+        "oracleId": "08574d1b-4b76-42dd-884b-29c5a61cfdda",
+        "firstSet": "mom",
+        "firstPrintId": "fbd9ed1d-1972-4db8-bc43-b05b94956aa0",
+        "firstPrintSet": "mom",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -86799,6 +86869,16 @@
         "firstSet": "vow",
         "firstPrintId": "ae154e64-f626-45fb-bd52-840c1c27b2d3",
         "firstPrintSet": "vow"
+    },
+    {
+        "name": "Voldaren Pariah // Abolisher of Bloodlines",
+        "scryfallId": "25baac6c-5bb4-4ecc-b1d5-fced52087bd9",
+        "oracleId": "4399c284-e3fe-46b1-aa1f-15a2846858f5",
+        "firstSet": "emn",
+        "firstPrintId": "25baac6c-5bb4-4ecc-b1d5-fced52087bd9",
+        "firstPrintSet": "emn",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Volley of Boulders",
