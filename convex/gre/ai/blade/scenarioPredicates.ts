@@ -363,6 +363,21 @@ export function sacrificeVictimSparesTheSource(
     );
 }
 
+/** The picked move casts the card of this NAME from any zone a seat holds it in:
+ *  the instance is looked up on the position, its name on the definition. */
+export function castsCardNamed(
+    move: Move | null,
+    state: GameState,
+    name: string
+): boolean {
+    if (move === null || move.kind !== "cast-spell") return false;
+    const card = state.players
+        .flatMap((p) => [...p.hand, ...p.graveyard, ...p.exile])
+        .find((c) => c.id === move.cardInstanceId);
+    const id = (card?.card as { id?: string } | undefined)?.id;
+    return !!id && tryGetDefinition(id)?.name === name;
+}
+
 /** "…and when the source is the only victim the board offers, the activation
  *  is not a move at all" — the same rule with nothing left to name. */
 export function noActivationEnumerated(

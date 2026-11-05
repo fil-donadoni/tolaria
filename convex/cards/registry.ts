@@ -24,6 +24,7 @@ import {
 // (`convex/cards/emblems.ts`) is populated whenever the card catalogue loads.
 import "./emblems";
 import { expandAnnihilator } from "./abilities/annihilator";
+import { expandIngest } from "./abilities/ingest";
 import { expandMyriad } from "./abilities/myriad";
 import { expandCascade } from "./abilities/cascade";
 import { expandFirebending } from "./abilities/firebending";
@@ -698,8 +699,10 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     );
     // Extort (CR 702.101a) reads the expanded `staticEffects`, so it sits outside
     // `expandCompiledStatics`: a compiled static grant gets its trigger too.
-    const withKeywords = expandExtort(
-        expandMentor(expandRiot(expandUnleash(expanded)))
+    // Ingest (CR 702.115) expands from its bare string into the combat-damage
+    // trigger, reading only `staticAbilities`.
+    const withKeywords = expandIngest(
+        expandExtort(expandMentor(expandRiot(expandUnleash(expanded))))
     );
     expansionCache.set(base, withKeywords);
     return withKeywords;
