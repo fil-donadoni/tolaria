@@ -66,6 +66,7 @@ const SCRIPT_PRICED: Record<
 const NOT_A_BODY_KEYWORD = new Set([
     ...Object.keys(SCRIPT_PRICED),
     // cast-time / cost / zone-route keywords
+    "cipher",
     "flash",
     "cycling",
     "typecycling",

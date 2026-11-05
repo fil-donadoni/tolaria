@@ -221,6 +221,8 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         castFromExileNotAsAdventure: true,
         prepared: true,
         preparedCopyOf: "perm-722",
+        encodedOn: { permanentId: "perm-702", seq: 99 },
+        castCopyOfCard: true,
         castableFromGraveyardBy: "p1",
         castableFromGraveyardUntilTurn: 23,
         castFromGraveyardWithoutPayingManaCost: true,

@@ -809,6 +809,10 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
     if ("castFromZone" in pred) {
         return ctx.getCastFromZone() === pred.castFromZone;
     }
+    // CR 702.99a — "If this spell is represented by a card".
+    if ("spellRepresentedByCard" in pred) {
+        return ctx.isSpellRepresentedByCard();
+    }
     // costVictimMatchesFilter (issue #6503, Storm Elemental) — CR 608.2h: the
     // card an activation exiled or sacrificed as a cost is gone by resolution,
     // so match the stack item's last-known snapshot (CR 205.2a types, 205.4a
@@ -4216,8 +4220,15 @@ export const OP_EXECUTORS: {
     // primitive flags the CURRENTLY-RESOLVING stack item, mirroring
     // `shuffleSelfIntoLibrary`'s design (issue #898) exactly, so
     // `finalizeSpellResolution` reads the flag once resolution completes.
-    exileSelf(ctx) {
-        ctx.exileSelf();
+    exileSelf(ctx, op) {
+        if (op.encodedOn === undefined) {
+            ctx.exileSelf();
+            return;
+        }
+        // CR 702.99a — "you may": nothing chosen, nothing encoded, and the
+        // spell goes where it would have gone.
+        const creatureId = resolvePicks(ctx, op.encodedOn)?.[0];
+        if (creatureId !== undefined) ctx.exileSelf(creatureId);
     },
     // CR 603.7a / 701.13 / ADR 0028 — exile the announced target keyed to
     // `$source`, arming the exile-and-return bundle (O-Ring / Banishing Light /
@@ -9700,11 +9711,27 @@ function runCastDuringResolution(
         faceId = face.alternativeCostId;
     }
 
+    // CR 707.12 / 112.2a — the copy is created in the card's zone once the offer
+    // is accepted, and the checkpoint reuses it across this Op's own suspends.
+    let castInstanceId = cardInstanceId;
+    if (op.asCopy === true) {
+        const copyKey = `#cdrCopy:${pos}`;
+        const copyId =
+            ctx.recallChoice(copyKey)?.[0] ??
+            ctx.createCardCopyInExile(playerId, cardInstanceId);
+        if (copyId === undefined) {
+            finish(false, "pass");
+            return;
+        }
+        ctx.noteChoice(copyKey, [copyId]);
+        castInstanceId = copyId;
+    }
+
     switch (
         castPickedCard(
             ctx,
             playerId,
-            cardInstanceId,
+            castInstanceId,
             sourceZone,
             op.free,
             "",

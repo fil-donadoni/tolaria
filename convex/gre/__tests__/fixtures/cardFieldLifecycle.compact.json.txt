@@ -395,6 +395,11 @@
             }
           },
           "exiledBySourceId": "src-12",
+          "encodedOn": {
+            "permanentId": "perm-702",
+            "seq": 99
+          },
+          "castCopyOfCard": true,
           "castableFromGraveyardBy": "p1",
           "castableFromGraveyardUntilTurn": 23,
           "castFromGraveyardExilesOnResolve": true,
@@ -850,6 +855,11 @@
         }
       },
       "exiledBySourceId": "src-12",
+      "encodedOn": {
+        "permanentId": "perm-702",
+        "seq": 99
+      },
+      "castCopyOfCard": true,
       "castableFromGraveyardBy": "p1",
       "castableFromGraveyardUntilTurn": 23,
       "castFromGraveyardExilesOnResolve": true,

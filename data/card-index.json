@@ -10822,6 +10822,16 @@
         "firstPrintSet": "ody"
     },
     {
+        "name": "Call of the Nightwing",
+        "scryfallId": "ef30a570-b988-42e8-8910-41fe39ffa260",
+        "oracleId": "919d21ad-3d1e-4f80-8005-64e3f8bf64d1",
+        "firstSet": "gtc",
+        "firstPrintId": "ef30a570-b988-42e8-8910-41fe39ffa260",
+        "firstPrintSet": "gtc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Call the Bloodline",
         "scryfallId": "3ec85cca-ac2c-4b1b-850b-6a762df72bd0",
         "oracleId": "8e90300b-c0da-4484-b065-e2fafa4e1b15",
@@ -42937,6 +42947,16 @@
         "firstPrintSet": "apc"
     },
     {
+        "name": "Last Thoughts",
+        "scryfallId": "c6033d07-124c-4001-81e1-c6eb99e07fdd",
+        "oracleId": "649d983a-e861-4893-8ae8-fb0a22cfad0a",
+        "firstSet": "gtc",
+        "firstPrintId": "c6033d07-124c-4001-81e1-c6eb99e07fdd",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Lathnu Sailback",
         "scryfallId": "33998799-f31b-4522-93b2-0c34c570ebf7",
         "oracleId": "9c30147a-1131-402e-bdaf-9006b1022b83",
@@ -47325,6 +47345,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mental Vapors",
+        "scryfallId": "076e7c58-a6fe-4882-8f8d-698be9a7f22d",
+        "oracleId": "e0151f37-790b-47f4-9928-cd8f32f68e4c",
+        "firstSet": "gtc",
+        "firstPrintId": "076e7c58-a6fe-4882-8f8d-698be9a7f22d",
+        "firstPrintSet": "gtc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Mercenaries",
         "scryfallId": "7b28762d-1ab7-460e-b433-27f5fa858959",
         "oracleId": "9d96671c-7a98-48ec-b479-bc451e18264d",
@@ -47958,6 +47988,16 @@
         "firstPrintId": "fe1eb098-7128-4ec8-8218-51fdde3e8326",
         "firstPrintSet": "isd",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Midnight Recovery",
+        "scryfallId": "4df40471-1118-4429-83bf-8225ea50b69f",
+        "oracleId": "7904025c-7120-4362-abe9-a9f5fb64447f",
+        "firstSet": "gtc",
+        "firstPrintId": "4df40471-1118-4429-83bf-8225ea50b69f",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -54579,6 +54619,16 @@
         "firstSet": "lea",
         "firstPrintId": "be33a155-de26-43d1-88f1-c926f1b7cb7c",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Paranoid Delusions",
+        "scryfallId": "af406038-91ce-41fe-8b6d-55408a96d0a2",
+        "oracleId": "129cec2c-fc1b-4ce6-98f2-2123e4dbd1ae",
+        "firstSet": "gtc",
+        "firstPrintId": "af406038-91ce-41fe-8b6d-55408a96d0a2",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Parapet",
@@ -67086,6 +67136,16 @@
         "firstSet": "tmp",
         "firstPrintId": "57c11175-9feb-4801-9b46-d577d5ecef40",
         "firstPrintSet": "tmp",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Shadow Slice",
+        "scryfallId": "0497fbf4-cf09-4028-af16-349ed12ca360",
+        "oracleId": "f4d2eca4-4645-4044-b75f-442cd726cedf",
+        "firstSet": "gtc",
+        "firstPrintId": "0497fbf4-cf09-4028-af16-349ed12ca360",
+        "firstPrintSet": "gtc",
         "rarity": "common",
         "source": "compiled"
     },
@@ -85715,6 +85775,16 @@
         "source": "compiled"
     },
     {
+        "name": "Voidwalk",
+        "scryfallId": "611d0e10-e767-4e66-b1f1-02f1624fab2b",
+        "oracleId": "6706ebe4-4f96-4788-a934-f9b9aac5746f",
+        "firstSet": "gtc",
+        "firstPrintId": "611d0e10-e767-4e66-b1f1-02f1624fab2b",
+        "firstPrintSet": "gtc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Voidwielder",
         "scryfallId": "23723bc7-a68e-4810-bc87-60df916cbb8a",
         "oracleId": "6686b897-64a9-4482-9563-57c88bc83d71",
@@ -89800,6 +89870,16 @@
         "firstPrintId": "663df3e8-12e5-46cf-9da7-39961feaa7f9",
         "firstPrintSet": "m12",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Writ of Return",
+        "scryfallId": "d826b38e-a026-472b-afe7-d3a6bd806cf6",
+        "oracleId": "47735ef2-fc4c-4634-83ab-715b1e86da0c",
+        "firstSet": "ncc",
+        "firstPrintId": "d826b38e-a026-472b-afe7-d3a6bd806cf6",
+        "firstPrintSet": "ncc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
