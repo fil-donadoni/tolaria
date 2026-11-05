@@ -7282,7 +7282,7 @@ export function removePermanentTo(
     ) {
         return null;
     }
-    // CR 614.1c — a persistent leave-the-battlefield → exile replacement
+    // CR 614.1a — a persistent leave-the-battlefield → exile replacement
     // (Dreams of the Dead's `exileOnLeave`) redirects EVERY departure path to
     // exile, before any zone-specific handling. A card already heading to exile
     // is unaffected. This is read here, the single funnel for all battlefield
@@ -14853,7 +14853,7 @@ export function buildSpellContext(
         // OWNER's library `positionFromTop` cards from the top (1-based;
         // Teferi, Hero of Dominaria's −3 "third from the top" = 3). Same LTB
         // funnel as a bounce (`removePermanentTo`), so aura cleanup, counter
-        // loss, PERMANENT_LEFT and an exileOnLeave redirect (CR 614.1c — the
+        // loss, PERMANENT_LEFT and an exileOnLeave redirect (CR 614.1a — the
         // redirected card never reaches the library, so the reposition below
         // finds nothing and skips) all apply. A library shorter than the
         // position puts the card on the bottom (splice clamps its start
@@ -17493,7 +17493,7 @@ export function buildSpellContext(
                 },
             ];
         },
-        // CR 614.1c — persistent leave-the-battlefield → exile replacement on a
+        // CR 614.1a — persistent leave-the-battlefield → exile replacement on a
         // single permanent (Dreams of the Dead). Unlike `setExileOnDeath` (death
         // only, cleared at CLEANUP) this flag survives across turns and is read
         // by `removePermanentTo` for EVERY departure path; cleared only when the

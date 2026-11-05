@@ -471,7 +471,7 @@ export const deflection = defineCard(() => ({
 // "Return target white or black creature card from your graveyard to the
 // battlefield. That creature gains 'Cumulative upkeep {2}.' If the creature
 // would leave the battlefield, exile it instead of putting it anywhere else."
-// (CR 400.7 zone change, CR 702.24 granted CU — ADR 0042, CR 614.1c leave →
+// (CR 400.7 zone change, CR 702.24 granted CU — ADR 0042, CR 614.1a leave →
 // exile replacement.) The granted CU rides the reanimated creature permanently
 // (independent of Dreams) via `grantTriggeredAbilityPermanent`; the persistent
 // `setExileOnLeave` flag routes EVERY later departure (dies / sacrifice / bounce
@@ -525,7 +525,7 @@ export const dreamsOfTheDead = defineCard(() => ({
                     DREAMS_OF_THE_DEAD_ID,
                     "dreams-of-the-dead-granted-cu"
                 );
-                // CR 614.1c — if it would leave, exile it instead (all paths).
+                // CR 614.1a — if it would leave, exile it instead (all paths).
                 ctx.setExileOnLeave(host);
             },
         },

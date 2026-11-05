@@ -5164,7 +5164,7 @@ export interface SpellContext {
      *  3). Routed through the single LTB funnel (`removePermanentTo`), so
      *  aura cleanup (CR 611.2), transient-state reset (CR 400.7), counter
      *  loss (CR 122.2), PERMANENT_LEFT and an `exileOnLeave` redirect
-     *  (CR 614.1c — a redirected card never reaches the library) all behave
+     *  (CR 614.1a — a redirected card never reaches the library) all behave
      *  exactly as for a bounce. When the library holds fewer than
      *  `positionFromTop − 1` cards the card is put on the bottom (splice
      *  clamps — the official Teferi ruling). The moved card is stamped
@@ -6593,7 +6593,7 @@ export interface SpellContext {
         defenderId?: string
     ) => void;
     /** Marks a permanent so that if it would leave the battlefield, it is
-     *  exiled instead of going to any other zone (CR 614.1c — a replacement
+     *  exiled instead of going to any other zone (CR 614.1a — a replacement
      *  applied to every battlefield-departure path: dies, sacrifice, bounce,
      *  destroy). Unlike `setExileOnDeath` (one-shot, cleared at CLEANUP, death
      *  only) this is a PERSISTENT per-instance flag covering ALL leave paths and
