@@ -87,6 +87,11 @@ export interface SpellCastTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
+    /** A check-time predicate decided from the source alone (CR 603.4), so
+     *  `withTriggerGate` stamps a DECIDED gate the bot's value model can
+     *  evaluate. For `scope: "self"` the source is the spell itself: its stack
+     *  item carries the cast-time payment records (CR 601.2b). */
+    conditionOnSelf?: (self: PermanentView) => boolean;
     /** Intervening-if predicate (CR 603.4). Re-evaluated by the engine at
      *  resolve time; returning false fizzles the trigger. */
     interveningIf?: (
@@ -220,6 +225,7 @@ export function spellCastTrigger(args: SpellCastTriggerArgs): TriggeredAbility {
         args.alsoOnCopy &&
         (args.resolve ||
             args.condition ||
+            args.conditionOnSelf ||
             args.interveningIf ||
             args.scope === "self")
     ) {
@@ -252,6 +258,9 @@ export function spellCastTrigger(args: SpellCastTriggerArgs): TriggeredAbility {
                 event.type === "SPELL_CAST" &&
                 !args.condition(event, self, state)
             ) {
+                return false;
+            }
+            if (args.conditionOnSelf && !args.conditionOnSelf(self)) {
                 return false;
             }
             return true;

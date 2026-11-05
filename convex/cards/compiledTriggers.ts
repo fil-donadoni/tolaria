@@ -84,6 +84,7 @@ import { cycledTrigger } from "./abilities/cycling";
 import { classLevelGainedTrigger } from "./abilities/classLevels";
 import {
     additionalCostPaidCondition,
+    wasKickedCondition,
     withAdditionalCostTwin,
     type PermanentScope,
     type TriggerScope,
@@ -178,11 +179,18 @@ export type CompiledTriggerCondition =
     /**
      * CR 702.33f + CR 603.4 — "if it was kicked with its {R} kicker": the
      * permanent's own payment record for ONE named kicker
-     * (`additionalCostPaidCondition`), decided from the source alone. Entered
-     * heads only: the record is a fact fixed as the spell was cast
-     * (CR 601.2b), read off the permanent that spell became (CR 702.33f).
+     * (`additionalCostPaidCondition`), decided from the source alone. An
+     * entered-self or a cast-self head only: the record is a fact fixed as the
+     * spell was cast (CR 601.2b), read off the permanent that spell became
+     * (CR 702.33f) or off the spell's own stack item.
      */
     | { readonly kind: "kicker-paid"; readonly kickerId: string }
+    /**
+     * CR 702.33d + CR 603.4 — "when you cast this spell, if it was kicked": at
+     * least one of the spell's kicker costs was paid, read off the stack item
+     * the head fired on (`wasKickedCondition`). A cast-self head only.
+     */
+    | { readonly kind: "spell-kicked" }
     /**
      * CR 400.7d + CR 603.4 — "if you cast it any time a sorcery couldn't have
      * been cast": the cast-time snapshot `castOffSorceryTiming` the spell
@@ -239,9 +247,25 @@ function selfDecidedGate(
 ): ((self: PermanentView) => boolean) | undefined {
     if (condition.kind === "kicker-paid")
         return additionalCostPaidCondition(condition.kickerId);
+    if (condition.kind === "spell-kicked") return wasKickedCondition;
     if (condition.kind === "cast-off-sorcery-timing")
         return (self) => self.castOffSorceryTiming === true;
     return undefined;
+}
+
+/**
+ * Whether a self-decided gate has an object to read behind this head: the
+ * permanent entering, or (for a kicked gate, CR 702.33d) the spell being cast.
+ */
+function selfGateFitsHead(
+    condition: CompiledTriggerCondition,
+    head: CompiledTriggerHead
+): boolean {
+    const entering = head.kind === "entered" && head.scope === "self";
+    const casting = head.kind === "spell-cast" && head.scope === "self";
+    if (condition.kind === "spell-kicked") return casting;
+    if (condition.kind === "kicker-paid") return entering || casting;
+    return entering;
 }
 
 /** CR 205.2 — "to a creature": the damaged permanent's type. */
@@ -469,6 +493,7 @@ function conditionHolds(
     // honest.
     if (
         condition.kind === "kicker-paid" ||
+        condition.kind === "spell-kicked" ||
         condition.kind === "cast-off-sorcery-timing"
     )
         return selfDecidedGate(condition)!(self);
@@ -617,12 +642,9 @@ function resolveCompiledTriggerHead(
         descriptor.condition !== undefined
             ? selfDecidedGate(descriptor.condition)
             : undefined;
-    if (
-        onSelf !== undefined &&
-        !(head.kind === "entered" && head.scope === "self")
-    )
+    if (onSelf !== undefined && !selfGateFitsHead(descriptor.condition!, head))
         throw new Error(
-            `compiled trigger ${descriptor.id}: a ${descriptor.condition!.kind} condition needs a head that fires when this permanent enters`
+            `compiled trigger ${descriptor.id}: a ${descriptor.condition!.kind} condition has no source to read behind a ${head.kind} head`
         );
     const gating =
         descriptor.condition === undefined || onSelf !== undefined
@@ -932,6 +954,7 @@ function resolveCompiledTriggerHead(
         case "spell-cast":
             return spellCastTrigger({
                 ...common,
+                ...(onSelf !== undefined ? { conditionOnSelf: onSelf } : {}),
                 scope: head.scope === "opponent" ? "opponents" : head.scope,
                 ...(head.filter !== undefined ? { filter: head.filter } : {}),
                 ...spellOrdinalGate(
