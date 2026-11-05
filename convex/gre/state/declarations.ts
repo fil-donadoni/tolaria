@@ -8,6 +8,7 @@
  * import cycle through the core. `gre/state.ts` re-exports every declaration,
  * so its importers compile unchanged.
  */
+import type { EnlistPair } from "../../cards/abilities/enlist";
 import type { SpellFilter } from "../../cards/filters";
 import type { PlayLandFace } from "../../cards/modalDfc";
 import type { SplitHalfSide } from "../../cards/splitCard";
@@ -4838,6 +4839,11 @@ export type GameState = {
          *  record stays readable; cleared at END_OF_COMBAT with the rest of
          *  `combat`. Absent when nothing was exerted. */
         exertedIds?: string[];
+        /** CR 508.1g / 702.154 — the OPTIONAL enlist costs the controller
+         *  chose: each attacker with the creature it taps. Revisable while the
+         *  declaration is open, paid in `emitAttackersDeclaredEvents`, then left
+         *  holding only what was paid. Absent when nothing was chosen. */
+        enlists?: EnlistPair[];
         confirmed: boolean;
         /** blockerId → attackerIds mapping. Each blocker maps to the array of
          *  attackers it is blocking. Normally length 1; multi-block creatures

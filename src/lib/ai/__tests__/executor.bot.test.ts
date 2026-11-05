@@ -563,6 +563,22 @@ describe("executeMove (issue #110)", () => {
         });
     });
 
+    // CR 508.1g / 702.154 — a paid enlist the executor dropped would have the
+    // search plan a pumped attack and the server realise a plain one.
+    it("declare-attackers carries the enlist costs", async () => {
+        const enlists = [{ attackerId: "a1", enlistedId: "p1" }];
+        const m = await run({
+            kind: "declare-attackers",
+            attackerIds: ["a1"],
+            enlists,
+        });
+        expect(m.declareAttackers).toHaveBeenCalledWith({
+            ...GP,
+            attackerIds: ["a1"],
+            enlists,
+        });
+    });
+
     it("declare-attackers with empty set → still ONE declaration + confirm", async () => {
         const m = await run({ kind: "declare-attackers", attackerIds: [] });
         expect(m.declareAttackers).toHaveBeenCalledTimes(1);

@@ -2315,7 +2315,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Enlist",
         kind: "keyword-ability",
         cr: "702.154",
-        status: "planned",
+        status: "implemented",
+        binding: "enlist",
+        note: "Issue #4009. An optional attack cost (CR 508.1g), chosen on `combat.enlists` while attackers are open (`toggleEnlist`, `declareAttackers.enlists`, `Move.enlists`) and paid at `emitAttackersDeclaredEvents` by `payDeclaredEnlistCosts` (gre/enlist.ts). Each payment raises one CREATURE_ENLISTED, the event a 'whenever this creature enlists a creature' watcher can listen to. The linked trigger comes from the live layer-6 `staticAbilities` multiset (`liveKeywordTriggers.ts`, a `perPermanent` row, cards/abilities/enlist.ts), and its body is the shipped `pump` Op reading `$event.enlistedPower`: live power, then last known (CR 608.2h).",
     },
     // 702.155 Read Ahead
     {

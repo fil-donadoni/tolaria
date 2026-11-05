@@ -199,6 +199,7 @@ export type MoveMutations = {
             attackerIds: string[];
             attackTargets?: Record<string, string>;
             exertIds?: string[];
+            enlists?: { attackerId: string; enlistedId: string }[];
         }
     ) => Promise<unknown>;
     confirmAttackers: (a: GP) => Promise<unknown>;
@@ -838,6 +839,7 @@ export async function executeMove(
                     ? { attackTargets: move.attackTargets }
                     : {}),
                 ...(move.exertIds ? { exertIds: move.exertIds } : {}),
+                ...(move.enlists ? { enlists: move.enlists } : {}),
             });
             await mutations.confirmAttackers(base);
             return;

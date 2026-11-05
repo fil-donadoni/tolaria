@@ -205,6 +205,13 @@ export const EVENT_FIELD_KINDS: {
         permanentSubtypes: "scalar",
         asAttacks: "scalar",
     },
+    // CR 702.154c — an attacker enlisted a creature, tapping it as the cost.
+    CREATURE_ENLISTED: {
+        attackerId: "object",
+        enlistedId: "object",
+        controllerId: "player",
+        enlistedPower: "scalar",
+    },
     // CR 602.2 — an ability was activated. `abilityId` is a definition-level
     // id, not an instance one.
     ABILITY_ACTIVATED: {

@@ -2128,6 +2128,9 @@ export function applyMoveForSearch(
                 attackerIds: [...move.attackerIds],
                 ...(attackTargets ? { attackTargets } : {}),
                 ...(exertIds.length > 0 ? { exertedIds: exertIds } : {}),
+                // CR 508.1g / 702.154 — paid by the same call, which re-checks
+                // each choice against the declaration.
+                ...(move.enlists?.length ? { enlists: move.enlists } : {}),
                 confirmed: true,
                 blockerAssignments: {},
                 blockersConfirmed: false,

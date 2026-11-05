@@ -77,6 +77,9 @@ const KEYWORD_BONUS: Record<string, (power: number) => number> = {
     // Provoke (CR 702.39): same reason; a removal-shaped lever on each swing,
     // worth little on a small body, which a block kills first.
     provoke: (p) => 3 * p,
+    // Enlist (CR 702.154): same reason, its trigger lives on no definition; the
+    // price of a tap that adds a partner's power, and only when attacking.
+    enlist: () => 4,
     // Melee (CR 702.121): same reason; +1/+1 on every swing at the opponent,
     // gone at end of turn, the order of a flanking discount.
     melee: () => 6,
@@ -225,6 +228,7 @@ const ATTACK_SHARE_KEYWORDS: ReadonlySet<string> = new Set([
     "infect",
     "flanking",
     "dethrone",
+    "enlist",
     "provoke",
     "training",
     "melee",

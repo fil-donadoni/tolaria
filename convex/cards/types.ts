@@ -11810,6 +11810,7 @@ export type GameEventType =
     | "PERMANENT_UNTAPPED"
     | "PERMANENT_EXERTED"
     | "CREATURE_MENTORED"
+    | "CREATURE_ENLISTED"
     | "PERMANENT_TURNED_FACE_UP"
     | "ABILITY_ACTIVATED"
     | "STATE_CHECK"
@@ -12324,6 +12325,24 @@ export interface CreatureMentoredEvent {
     mentoredId: string;
     /** Controller of the mentor ability. */
     controllerId: string;
+}
+
+/** CR 702.154c — emitted once for each enlist cost paid: `attackerId` enlists
+ *  `enlistedId` by tapping it. One event per PAYMENT is what CR 702.154d needs,
+ *  and it is what the linked "when you do" trigger (CR 607.2h) and a "whenever
+ *  this creature enlists a creature" watcher listen to. */
+export interface CreatureEnlistedEvent {
+    type: "CREATURE_ENLISTED";
+    attackerId: string;
+    enlistedId: string;
+    /** The player who paid the cost (CR 702.154a: "you may tap"). */
+    controllerId: string;
+    /** The tapped creature's power at payment, stamped again if it leaves the
+     *  battlefield while the trigger is on the stack (`removePermanentTo`), so
+     *  this always holds its last known power (CR 608.2h). Read through
+     *  `$event.enlistedPower` (`cards/eventFields.ts`), which prefers the live
+     *  value while the creature stays on the battlefield. */
+    enlistedPower: number;
 }
 
 /** CR 701.43a — emitted once each time a permanent is EXERTED ("you choose to
@@ -13071,6 +13090,7 @@ export type GameEvent =
     | PermanentUntappedEvent
     | PermanentExertedEvent
     | CreatureMentoredEvent
+    | CreatureEnlistedEvent
     | PermanentTurnedFaceUpEvent
     | AbilityActivatedEvent
     | StateCheckEvent
