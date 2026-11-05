@@ -80,3 +80,24 @@ export function manualMergeVerdict(
         );
     return { kind: "merge" };
 }
+
+/**
+ * Issue #8181 — `land:ready`'s counterpart of the verdict above: refuse to
+ * hand off a head whose latest `check:lane (advisory)` run already concluded
+ * `failure`. Mergify's repair rule would turn the label into `land-failed`
+ * within a minute and spend a resume pass on a red the check had already
+ * reported. A run still going, no run (a head the `restoreDerivedState` commit
+ * just moved), and any other conclusion do not refuse: the queue's
+ * `-check-failure` condition covers the first, nothing is known of the
+ * second. `base-health` is a separate status, never this check, so a base hold
+ * never reaches here. Returns the refusal text, or null.
+ */
+export function advisoryRedRefusal(
+    runs: readonly CheckRunView[],
+    headSha: string
+): string | null {
+    const lane = latestAdvisoryLane(runs, headSha);
+    if (!lane || lane.status !== "completed" || lane.conclusion !== "failure")
+        return null;
+    return `\`${ADVISORY_LANE_CHECK}\` run ${lane.id} concluded failure on head ${headSha.slice(0, 12)} — read it with \`gh run view\` (check-run ${lane.id}), fix, push, re-run`;
+}
