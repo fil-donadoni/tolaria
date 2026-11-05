@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -2044,6 +2044,25 @@ describe("the bisect grants Contained RED (ADR 0163 §§ 2-3)", () => {
 
     it("an unread lineage refuses", () => {
         expect(grantOf(botPin(), named(), { lineage: null }).grant).toBe(false);
+    });
+
+    // The I/O scripts have no harness of their own: a grant or an inheritance
+    // no script calls would leave every test above green and the switch off.
+    describe("the wiring", () => {
+        const source = (name: string) =>
+            readFileSync(join(import.meta.dirname, "..", name), "utf8");
+
+        it("the ladder grants right after it publishes the culprit lines", () => {
+            expect(source("health-bisect.ts")).toMatch(
+                /publishCulprit\(ctx, lines\);\s+if \(!ctx\.dryRun\) grantContained\(ctx\);\s+return 1;/
+            );
+        });
+
+        it("health-main writes the inherited class on the RED", () => {
+            expect(source("health-main.ts")).toMatch(
+                /\.\.\.\(redClass \? \{ redClass \} : \{\}\),/
+            );
+        });
     });
 
     describe("the tooling list", () => {
