@@ -99,6 +99,9 @@ export interface Player {
      *  with ten or more loses the game (CR 704.5c). Rides the public
      *  projection via the `...player` spread (ADR 0032). */
     poisonCounters?: number;
+    /** This player's speed (CR 702.179b); absent means they have none. Rides the
+     *  public projection via the `...player` spread, like `poisonCounters`. */
+    speed?: number;
     /** Energy counters on this player (CR 122.1 — a player-owned resource).
      *  Absent means zero. Rides the public projection via the `...player`
      *  spread, like `poisonCounters` (issue #697). */

@@ -126,6 +126,7 @@ describe("debugSetupScenario args validator declares `life` (issue #2147, sixth 
             markLastDrawn: true,
             rngSeed: 7,
             poison: { me: 1 },
+            speed: { me: 1 },
             life: { me: 4, opp: 17 },
             experience: { me: 1 },
             landsPlayed: { me: 1 },

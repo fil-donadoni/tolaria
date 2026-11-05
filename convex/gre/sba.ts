@@ -33,6 +33,7 @@ import {
     isSourceTappedLive,
 } from "./layers";
 import { checkAscendCityBlessing } from "./cityBlessing";
+import { checkStartYourEnginesSBA } from "./speed";
 import { checkPreparedCopySBA } from "./prepare";
 import { isProtectedFromSource } from "./protection";
 import { isGuardedAgainst } from "./permanentGuard";
@@ -1001,6 +1002,10 @@ export function checkStateBasedActions(state: GameState): void {
         // after `finalizeLegendKeep` annihilates then, so the legend put
         // into the graveyard by that answer still leaves with its counters.
         acted = checkCounterAnnihilationSBA(state) || acted;
+        // CR 704.5aa — in the sweep, not after it: a permanent with start your
+        // engines! that another SBA of this same check removes still gave its
+        // controller speed (CR 704.3 performs them simultaneously).
+        acted = checkStartYourEnginesSBA(state) || acted;
         acted = checkGameOverSBA(state) || acted;
         if (state.gameOver) return;
         if (!acted) break;

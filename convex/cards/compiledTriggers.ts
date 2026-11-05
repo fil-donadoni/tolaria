@@ -49,6 +49,7 @@ import type { CardDefinition } from "./types";
 import { countDomain } from "./types";
 import { getEventFieldRow } from "./eventFields";
 import type { Phase } from "../gre/types";
+import { hasMaxSpeed } from "../gre/speed";
 import { attackerUnblockedTrigger } from "./abilities/triggers/attackerUnblockedTrigger";
 import { becameTargetTrigger } from "./abilities/triggers/becameTargetTrigger";
 import { turnedFaceUpTrigger } from "./abilities/triggers/turnedFaceUpTrigger";
@@ -210,6 +211,14 @@ export type CompiledTriggerCondition =
      * game (CR 725.1) and an absent view both fail closed.
      */
     | { readonly kind: "you-are-monarch" }
+    /**
+     * CR 702.178a + CR 702.179e — "Max speed — <triggered ability>": "as long
+     * as your speed is 4, this object has" the ability. NOT an intervening-if:
+     * without max speed the object has no such ability to trigger, but one that
+     * triggered is on the stack independently of its source and is not re-read
+     * as it resolves. An absent view fails closed.
+     */
+    | { readonly kind: "you-have-max-speed" }
     /**
      * CR 404.2 + CR 603.4 — "if this card is in your graveyard with a
      * creature card directly above it": the card on top of the source in its
@@ -473,6 +482,12 @@ function conditionHolds(
             state.monarchId !== undefined &&
             state.monarchId === self.controllerId
         );
+    if (condition.kind === "you-have-max-speed") {
+        const controller = state.players.find(
+            (p) => p.id === self.controllerId
+        );
+        return controller !== undefined && hasMaxSpeed(controller);
+    }
     if (condition.kind === "graveyard-creature-above")
         return creatureCardDirectlyAboveInGraveyard(state, self);
     if (condition.kind === "holds-exile-bundle")
@@ -618,8 +633,11 @@ function resolveCompiledTriggerHead(
                       state?: TriggerStateView
                   ): boolean => conditionHolds(condition, event, self, state);
                   // CR 610.3 — a printed-nowhere gate is checked once, at
-                  // the departure: it is no CR 603.4 clause to re-check.
-                  return condition.kind === "holds-exile-bundle"
+                  // the departure: it is no CR 603.4 clause to re-check. CR
+                  // 702.178a — max speed decides whether the object HAS the
+                  // ability, which is no CR 603.4 clause either.
+                  return condition.kind === "holds-exile-bundle" ||
+                      condition.kind === "you-have-max-speed"
                       ? { condition: gate }
                       : { condition: gate, interveningIf: gate };
               })();

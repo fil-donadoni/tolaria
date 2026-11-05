@@ -621,6 +621,7 @@ type CompactPlayer = {
     qualifyingActionThisTurn?: boolean;
     qualifyingActionLastTurn?: boolean;
     poisonCounters?: number;
+    speed?: number;
     energyCounters?: number;
     experienceCounters?: number;
     permanentYouControlledLeftThisTurn?: boolean;
@@ -719,6 +720,10 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     // Poison counters (CR 122) — persisted so the loss SBA (CR 704.5c) survives
     // a save/load round-trip.
     if (player.poisonCounters) out.poisonCounters = player.poisonCounters;
+    // CR 702.179b — speed is persisted so the inherent trigger (CR 702.179d) and
+    // max speed (CR 702.179e) survive a save/load round-trip. Never 0: a player
+    // either has no speed or has at least 1.
+    if (player.speed) out.speed = player.speed;
     // Energy counters (CR 122.1) — persisted so a player's energy pool survives
     // a save/load round-trip (issue #697).
     if (player.energyCounters) out.energyCounters = player.energyCounters;
@@ -834,6 +839,7 @@ function expandPlayer(player: CompactPlayer, ctx?: ExpandCtx): PlayerState {
         result.qualifyingActionLastTurn = true;
     }
     if (player.poisonCounters) result.poisonCounters = player.poisonCounters;
+    if (player.speed) result.speed = player.speed;
     if (player.energyCounters) result.energyCounters = player.energyCounters;
     if (player.experienceCounters) {
         result.experienceCounters = player.experienceCounters;
@@ -1491,6 +1497,9 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // a player is in the set they stay for the rest of the game — so it must
     // survive every DB write, exactly like `monarchId`.
     "cityBlessingIds",
+    // CR 702.179d — the once-each-turn stamp of the inherent speed trigger; a
+    // plain turn number, and a save between two life losses must not re-arm it.
+    "speedTriggeredOnTurn",
     // Cosmetic crown provenance (issue #1305) — a plain string scalar keying
     // the end-step draw tile's themed marker art; round-trips generically.
     "monarchSourceCardId",

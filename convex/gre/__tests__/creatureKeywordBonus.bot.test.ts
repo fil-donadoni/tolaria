@@ -142,6 +142,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     "backup",
     "boast",
     "ascend",
+    // CR 702.179a — sets a number on the player, never a quality of the body;
+    // its worth is what a max speed ability grants, read at that ability.
+    "start-your-engines",
     "firebending",
     // CR 702.116a — no token in a two-player game, so nothing to price.
     "myriad",

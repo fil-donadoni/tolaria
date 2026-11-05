@@ -55,6 +55,7 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     markLastDrawn: "form-owned",
     rngSeed: "form-owned",
     poison: "form-owned",
+    speed: "form-owned",
     life: "form-owned",
     experience: "form-owned",
     // CR 305.2 (issue #3446) — lands already played this turn. `form-owned`
@@ -331,6 +332,13 @@ export const SCENARIO_SPEC_FIELD_INPUT = {
     poison: {
         kind: "per-seat",
         label: "poison",
+        min: 0,
+        group: "other",
+        section: "players",
+    },
+    speed: {
+        kind: "per-seat",
+        label: "speed",
         min: 0,
         group: "other",
         section: "players",
