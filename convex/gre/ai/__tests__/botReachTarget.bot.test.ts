@@ -16,6 +16,7 @@ import type {
     TargetRequirement,
 } from "../../../cards/types";
 import { getCardByName } from "../../../cards";
+import { getCardColors } from "../../../cards/colors";
 import { enumerateMoves } from "../../moves";
 import { getLegalActions } from "../../rules";
 import {
@@ -387,6 +388,153 @@ describe("the generated position poses a land target on the opponent's side (iss
                 playBotReach(STONE_RAIN_SHAPE)
             )
         ).toEqual({ outcome: "played" });
+    });
+});
+
+describe("the generated position poses a land card in a graveyard (issue #6307)", () => {
+    // CR 115.1 — "target land card from a graveyard" needs one there; a land on
+    // the battlefield is not a legal target for it.
+    const LAND_RECURSION = instant(
+        "land-recursion",
+        { type: "Land", zone: "graveyard", controller: "any" },
+        {
+            types: ["Sorcery"],
+            manaCost: { G: 1, generic: 1 },
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { target: 0 },
+                    to: "battlefield",
+                    controller: "controller",
+                },
+            ] as CardDefinition["effects"],
+        }
+    );
+
+    it("seeds the land in the holder's graveyard, none on the opponent's battlefield", () => {
+        const { cards } = botReachSpec(LAND_RECURSION);
+        expect(
+            cards.filter(
+                (c) =>
+                    c.owner === "me" &&
+                    c.zone === "graveyard" &&
+                    c.name === "Dryad Arbor"
+            ).length
+        ).toBe(1);
+        expect(
+            cards.some(
+                (c) =>
+                    c.owner === "opp" &&
+                    c.zone === "battlefield" &&
+                    c.name === "Forest"
+            )
+        ).toBe(false);
+    });
+
+    it("the engine offers the cast, and the Bot plays the recursion", () => {
+        expect(castable(LAND_RECURSION)).toBe(true);
+        expect(
+            withTemporaryDefinition(LAND_RECURSION, () =>
+                playBotReach(LAND_RECURSION)
+            )
+        ).toEqual({ outcome: "played" });
+    });
+});
+
+describe("the generated position poses every target group's characteristics (CR 601.2c)", () => {
+    const destroyBoth: EffectOp[] = [
+        { op: "destroy", target: { target: 0 } },
+        { op: "destroy", target: { target: 1 } },
+    ];
+    const destroyMode = (
+        id: string,
+        land: string,
+        color: "W" | "U"
+    ): NonNullable<CardDefinition["modes"]>[number] => ({
+        id,
+        label: id,
+        oracleText: id,
+        effects: destroyBoth,
+        targetRequirement: { type: "Land", count: 1, subtypeFilter: [land] },
+        additionalTargetRequirements: [
+            { type: "Creature", count: 1, colorFilter: color },
+        ],
+    });
+    const LAND_AND_COLORED_CREATURE: CardDefinition = {
+        id: "bot-reach-target-test:land-and-colored",
+        name: "Bot Reach Target land-and-colored",
+        rarity: "common",
+        manaCost: { R: 2, generic: 2 },
+        types: ["Sorcery"],
+        modes: [
+            destroyMode("plains-white", "Plains", "W"),
+            destroyMode("island-blue", "Island", "U"),
+        ],
+    };
+
+    it("poses what EACH mode's later group names, on the opponent's side", () => {
+        const posed = targetPoseCards(LAND_AND_COLORED_CREATURE);
+        expect(posed.map((c) => c.owner)).toEqual(posed.map(() => "opp"));
+        const bodies = posed
+            .map((c) => getCardByName(c.name))
+            .filter((body) => body.types.includes("Creature"));
+        expect(bodies.length).toBe(2);
+        expect(getCardColors(bodies[0]!)).toContain("W");
+        expect(getCardColors(bodies[1]!)).toContain("U");
+    });
+
+    it("poses the biggest plain body of a later group it would take", () => {
+        const sizes = targetPoseCards(LAND_AND_COLORED_CREATURE).flatMap(
+            (c) => {
+                const { power, toughness } = getCardByName(c.name);
+                return typeof power === "number" &&
+                    typeof toughness === "number"
+                    ? [power + toughness]
+                    : [];
+            }
+        );
+        expect(sizes.length).toBe(2);
+        // The first white and blue plain bodies by name are 1/4s, under what
+        // the card is worth: the Bot passes them.
+        for (const size of sizes) expect(size).toBeGreaterThan(5);
+    });
+
+    it("the Bot can announce both groups, and plays the spell", () => {
+        expect(botCanCast(LAND_AND_COLORED_CREATURE)).toBe(true);
+        expect(
+            withTemporaryDefinition(LAND_AND_COLORED_CREATURE, () =>
+                playBotReach(LAND_AND_COLORED_CREATURE)
+            )
+        ).toEqual({ outcome: "played" });
+    });
+
+    it("a beneficial later group is posed on the holder's own side", () => {
+        const PUMP_SECOND: CardDefinition = {
+            ...instant("later-pump", {}),
+            additionalTargetRequirements: [
+                { type: "Creature", count: 1, colorFilter: "W" },
+            ],
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 1 },
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        };
+        expect(targetPoseCards(PUMP_SECOND).map((c) => c.owner)).toEqual([
+            "me",
+        ]);
+    });
+
+    it("a plain later group adds nothing", () => {
+        const PLAIN_LATER: CardDefinition = {
+            ...instant("later-plain", {}),
+            additionalTargetRequirements: [{ type: "Creature", count: 1 }],
+        };
+        expect(targetPoseCards(PLAIN_LATER)).toEqual([]);
     });
 });
 
