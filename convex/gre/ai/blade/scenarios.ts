@@ -2038,6 +2038,115 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #4008. Discriminating pair for the dethrone entry: only one life point changed.",
     },
     {
+        // CR 702.149a — beside a 3-power partner the 2/1 flier gets the counter, and
+        // 3 + 3 is exactly lethal past a tapped Craw Wurm. Unseen, the double swing
+        // leaves the opponent at 1 with no chump left for the crackback. Pair: a
+        // partner of equal power (next entry).
+        label: "training: swings both for the lethal only the counter provides",
+        spec: {
+            cards: [
+                {
+                    name: "Gryff Rider",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+            life: { me: 6, opp: 6 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "declare-attackers",
+                    cards: ["Gryff Rider", "Hill Giant"],
+                },
+            ],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the partner has greater power, so the trainee gets the counter and the swing is lethal",
+            },
+        },
+        note: "Issue #4018. The search sees the training trigger through emitAttackersDeclaredEvents and resolves the counter, so the double swing is exactly lethal.",
+    },
+    {
+        // The pair of the entry above: a partner of equal power gives no counter, so
+        // 2 + 2 leaves a 5-life opponent at 1, and the crackback kills a bot that kept
+        // no blocker.
+        label: "training pair: keeps a chump home when the partner's power is not greater",
+        spec: {
+            cards: [
+                {
+                    name: "Gryff Rider",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+            life: { me: 6, opp: 5 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "declare-attackers",
+                    cards: ["Gryff Rider", "Grizzly Bears"],
+                },
+            ],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the partner's power is not greater, so no counter and no lethal",
+            },
+        },
+        note: "Issue #4018. Discriminating pair for the training entry: a counter the bot wrongly expected would make this swing lethal too.",
+    },
+    {
         // CR 702.39a — the only opposing creature is a tapped 1/1, so accepting
         // kills it for free: the 5/3 tramples over it. Pair: the same attack
         // against a tapped Craw Wurm (next entry).

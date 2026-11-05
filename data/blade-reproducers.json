@@ -3795,6 +3795,37 @@
         "turn": 4,
         "libraryCount": 20
     },
+    "training: swings both for the lethal only the counter provides": {
+        "cards": [
+            {
+                "name": "Gryff Rider",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true,
+                "summoningSick": false
+            }
+        ],
+        "phase": "DECLARE_ATTACKERS",
+        "turn": 5,
+        "landCount": 3,
+        "libraryCount": 20,
+        "life": {
+            "me": 6,
+            "opp": 6
+        }
+    },
     "trample overflow: never double-blocks a trampler with two chumps whose overflow is lethal (issue #5785)": null,
     "type-blind potential: casts Monk Realist into an opposing Glorious Anthem": {
         "cards": [

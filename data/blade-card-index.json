@@ -372,6 +372,13 @@
             "needsSetup": true
         }
     ],
+    "Gryff Rider": [
+        {
+            "label": "training: swings both for the lethal only the counter provides",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Hibernation": [
         {
             "label": "bounce sweep: casts Hibernation when the opponent's green board outweighs its mana",
@@ -393,6 +400,11 @@
         {
             "label": "stretch: attacks with a lone 3/3 into an empty board",
             "tier": "stretch",
+            "needsSetup": false
+        },
+        {
+            "label": "training: swings both for the lethal only the counter provides",
+            "tier": "must",
             "needsSetup": false
         },
         {
