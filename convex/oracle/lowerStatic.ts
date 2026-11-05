@@ -46,7 +46,6 @@ import { expandMentor } from "../cards/abilities/mentor";
 import { expandDemonstrate } from "../cards/abilities/demonstrate";
 import { expandIngest } from "../cards/abilities/ingest";
 import { expandCipher } from "../cards/abilities/cipher";
-import { expandMyriad } from "../cards/abilities/myriad";
 import { expandUndaunted } from "../cards/abilities/undaunted";
 import { expandMobilize } from "../cards/abilities/mobilize";
 import { expandUnleash } from "../cards/abilities/unleash";
@@ -289,17 +288,15 @@ function expandKeywords(def: CardDefinition): CardDefinition {
             expandChangeling(
                 expandUndaunted(
                     expandIngest(
-                        expandMyriad(
-                            expandMobilize(
-                                expandAnnihilator(
-                                    expandHideaway(
-                                        expandFadingVanishing(
-                                            expandKeywordTriggers(
-                                                expandExtort(
-                                                    expandMentor(
-                                                        expandRiot(
-                                                            expandUnleash(def)
-                                                        )
+                        expandMobilize(
+                            expandAnnihilator(
+                                expandHideaway(
+                                    expandFadingVanishing(
+                                        expandKeywordTriggers(
+                                            expandExtort(
+                                                expandMentor(
+                                                    expandRiot(
+                                                        expandUnleash(def)
                                                     )
                                                 )
                                             )

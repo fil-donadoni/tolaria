@@ -1,6 +1,6 @@
 // Ingest (CR 702.115) — a TRIGGERED-ability keyword expanded implicitly from
 // the `staticAbilities` string at the `getDefinition` seam
-// (convex/cards/registry.ts), the ADR 0054 mechanism annihilator and myriad
+// (convex/cards/registry.ts), the ADR 0054 mechanism annihilator and mobilize
 // use. A card declares only `staticAbilities: ["ingest"]`; `expandIngest`
 // injects the combat-damage trigger.
 //
