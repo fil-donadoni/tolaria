@@ -10627,10 +10627,11 @@ function stageReanimatedOnBattlefield(
         // CR 614 — it never entered, so the entry type line never began
         // (CR 611.2c). Drop the stamp with it (PR #3023 review, B1).
         discardEntryTypeLine(card);
+        // A card lifted out of the graveyard itself never arrived anywhere.
+        if (card.zone !== "graveyard") noteGraveyardArrival(card);
         card.zone = "graveyard";
         card.attachedTo = undefined;
         getPlayer(state, card.ownerId).graveyard.push(card);
-        noteGraveyardArrival(card);
         return false;
     }
     // CR 712.14b (ADR 0122 §3) — "if a player is instructed to put a modal
@@ -12277,9 +12278,12 @@ function abortStagedEntryTo(
     // CR 614.12a — the staged permanent is being abandoned, not entered, so a
     // pending entry type line never begins (PR #3023 review, B1).
     discardEntryTypeLine(card);
+    // A card lifted out of the graveyard itself never arrived anywhere.
+    if (destination === "graveyard" && card.zone !== "graveyard") {
+        noteGraveyardArrival(card);
+    }
     card.zone = destination;
     getPlayer(state, card.ownerId)[destination].push(card);
-    if (destination === "graveyard") noteGraveyardArrival(card);
 }
 
 /** CR 707.6 / ADR 0100 D4 — the owed list is DISCOVERED, not fixed. An answer

@@ -3,6 +3,7 @@
 // graveyard, read by the `putIntoGraveyardThisTurn` target filter.
 import { beforeAll, describe, expect, it } from "vitest";
 import { registerTokenDefinition } from "../../cards";
+import { withTemporaryDefinition } from "../../cards/registry";
 import {
     makeInstance,
     makePlayer,
@@ -18,6 +19,7 @@ import type {
 } from "../../cards/types";
 import { applyOneTargetSelection } from "../../game";
 import { advancePhase } from "../phases";
+import { applyPlayLand } from "../playLand";
 import {
     getLegalTargets,
     NO_TARGETING_SOURCE,
@@ -173,6 +175,82 @@ describe("CR 400.7 — every path into a graveyard stamps the card (issue #7209)
         ]);
         expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["c"]);
         expect(offeredIds(state)).toEqual(["c"]);
+    });
+});
+
+describe("an entry that never happened (issue #7209)", () => {
+    const HEART: CardDefinition = {
+        id: "test-put-into-graveyard-heart",
+        name: "Test Stamp Heart",
+        rarity: "common",
+        types: ["Land"],
+        entersWith: {
+            asEnters: [
+                {
+                    kind: "sacrifice",
+                    filter: { subtypes: "Forest" },
+                    ifDeclined: "graveyard",
+                },
+            ],
+        },
+    };
+
+    it("a land played from the hand and abandoned has arrived", () => {
+        withTemporaryDefinition(HEART, () => {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        hand: [
+                            makeInstance(HEART.id, { id: "c", zone: "hand" }),
+                        ],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            applyPlayLand(state, state.players[0], "c");
+            expect(state.players[0].graveyard.map((x) => x.id)).toEqual(["c"]);
+            expect(offeredIds(state)).toEqual(["c"]);
+        });
+    });
+
+    it("a card lifted out of the graveyard and abandoned has not", () => {
+        withTemporaryDefinition(HEART, () => {
+            const state = makeState({
+                players: [makePlayer("p1"), makePlayer("p2")],
+            });
+            putReanimatedSetOnBattlefield(state, [
+                {
+                    card: makeInstance(HEART.id, {
+                        id: "c",
+                        zone: "graveyard",
+                    }),
+                    controllerId: "p1",
+                },
+            ]);
+            expect(state.players[0].graveyard.map((x) => x.id)).toEqual(["c"]);
+            expect(offeredIds(state)).toEqual([]);
+        });
+    });
+
+    it("a land Worms of the Earth holds in the graveyard has not", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(wormsOfTheEarth().id, { id: "worms" }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        putReanimatedSetOnBattlefield(state, [
+            {
+                card: makeInstance(LAND_ID, { id: "c", zone: "graveyard" }),
+                controllerId: "p1",
+            },
+        ]);
+        expect(state.players[0].graveyard.map((x) => x.id)).toEqual(["c"]);
+        expect(offeredIds(state)).toEqual([]);
     });
 });
 
