@@ -119,7 +119,7 @@
  *     that runs on the queue's drafts: there the body is Mergify's batch
  *     description, not the queued PR's, so a check judging it reds falsely.
  *   - `advisory-lane-token` — the hosted lane reads a Contained RED's names
- *     off a snapshot (issue #8120). The step holding the token must be inline
+ *     off a snapshot. The step holding the token must be inline
  *     `gh`, fail open to "nothing tolerated", and precede every line of PR
  *     code; the lane step must hold no token; the query must be the store's;
  *     and no self-hosted workflow may name the snapshot, because a lane that
