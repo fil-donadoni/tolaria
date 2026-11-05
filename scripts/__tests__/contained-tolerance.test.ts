@@ -305,7 +305,8 @@ describe("the hosted lane reads the pivot off pr-check's snapshot (issue #8120)"
     const REPO = join(__dirname, "..", "..");
     const dirs: string[] = [];
     afterEach(() => {
-        for (const d of dirs.splice(0)) rmSync(d, { recursive: true });
+        for (const d of dirs.splice(0))
+            rmSync(d, { recursive: true, maxRetries: 10, retryDelay: 100 });
     });
     const tempDir = () => {
         const d = mkdtempSync(join(tmpdir(), "contained-snapshot-"));
