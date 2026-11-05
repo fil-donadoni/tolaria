@@ -4390,6 +4390,11 @@ function extraTurnRewardCredit(
 ): number {
     const grants = botExtraTurnGrantDelta(state, move, botId, weights);
     if (grants <= 0) return 0;
+    // Issue #8271 — the credit stands in for the combat damage the rollout's
+    // horizon washes out, so a board with no creature has none to credit: the
+    // search's own mean decides, and it reads the grant as a cantrip at best.
+    const bot = state.players.find((p) => p.id === botId);
+    if (!bot?.battlefield.some((c) => isCreature(c))) return 0;
     return (
         (1 - 2 * weights.terminalBand) *
         0.5 *
@@ -5957,6 +5962,7 @@ export function selectRootMove(
         ruleOn("standing-spend-hold") &&
         isStandingSpendActivation(rootState, botId, best.move) &&
         !isInPendingCombatExchange(rootState, best.move.cardInstanceId) &&
+        !sacrificeCostHasFodderInCombat(rootState, botId, best.move) &&
         !firingBeatsHolding(rootState, botId, best.move, weights)
     ) {
         const hold = pool.find(
@@ -6656,6 +6662,31 @@ function isInPendingCombatExchange(
     return !!(
         graph.attackersByBlocker[sourceId]?.length ||
         graph.blockersByAttacker[sourceId]?.length
+    );
+}
+
+/** Whether a sacrifice-outlet activation could feed on a creature of `pid`'s
+ *  that is locked in a live combat exchange (issue #8271). The outlet itself
+ *  stands outside combat, so {@link isInPendingCombatExchange} on the source
+ *  reads it as idle; but the creature paying the cost may be dying anyway, and
+ *  this window is the last one in which it is worth anything. The hold rule
+ *  fails open here, as it does for the source itself: the search's mean still
+ *  decides. */
+function sacrificeCostHasFodderInCombat(
+    state: GameState,
+    pid: string,
+    move: Extract<Move, { kind: "activate-ability" }>
+): boolean {
+    const player = state.players.find((p) => p.id === pid);
+    const source = player?.battlefield.find(
+        (c) => c.id === move.cardInstanceId
+    );
+    if (!player || !source) return false;
+    if (!effectiveAbilityOf(source, move.abilityId)?.cost.sacrificeFilter) {
+        return false;
+    }
+    return player.battlefield.some(
+        (c) => c.id !== source.id && isInPendingCombatExchange(state, c.id)
     );
 }
 
