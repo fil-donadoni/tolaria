@@ -254,11 +254,16 @@ const COPY_TOKEN_REPRESENTATIVE_STAT = 2; // unknown copied body's P/T — same 
  *  — written ONLY when the countered object is a permanent's ability (CR
  *  113.7a), so every Op that reads one is a rider that fires on one of the two
  *  stack-object kinds the counter could name. Read by
- *  {@link contingentBindingWeight}. */
+ *  {@link contingentBindingWeight}.
+ *
+ *  `ownPermanents` holds the names bound to a permanent the script itself put
+ *  onto its controller's battlefield (`ownPermanentBoundBy`). Read by
+ *  {@link namesOwnPermanent}. */
 type ScriptScope = {
     readonly controllerChosenPicks: ReadonlySet<string>;
     readonly coinFlipSeriesWinProbability: ReadonlyMap<string, number>;
     readonly counteredSourceBindings: ReadonlySet<string>;
+    readonly ownPermanents: ReadonlySet<string>;
 };
 
 /** The scope a script walk starts from — nothing bound yet. */
@@ -266,6 +271,7 @@ const EMPTY_SCRIPT_SCOPE: ScriptScope = {
     controllerChosenPicks: new Set<string>(),
     coinFlipSeriesWinProbability: new Map<string, number>(),
     counteredSourceBindings: new Set<string>(),
+    ownPermanents: new Set<string>(),
 };
 
 /** A valuer: projects one Op onto the feature basis under a grounding mode,
@@ -1337,6 +1343,9 @@ function withBindingsOf(
     if (op.op === "coinFlipSeries") {
         return withCoinFlipSeriesWinProbability(scope, op, ctx);
     }
+    const ownPermanent = ownPermanentBoundBy(op);
+    if (ownPermanent !== undefined)
+        return withOwnPermanent(scope, ownPermanent);
     if (op.op === "counter" && op.bindSource !== undefined) {
         return {
             ...scope,
@@ -1363,6 +1372,55 @@ function withBindingsOf(
     }
     if (op.candidates !== undefined) return scope;
     return withControllerChosenPick(scope, op.bind);
+}
+
+/** The name an Op binds to a permanent it just put onto its controller's
+ *  battlefield, or `undefined` when it binds none or the walk cannot attribute
+ *  it. A token names its controller outright; a `moveZone` either names one, or
+ *  leaves the card to enter under its owner, which is the caster only for a
+ *  card named as the caster's own: `$source`, or a selector over the
+ *  controller's zone. An announced slot may be anyone's card, and an
+ *  unattributable shape keeps the removal price, as `withBindingsOf` does for
+ *  an unattributable chooser. */
+function ownPermanentBoundBy(op: EffectOp): string | undefined {
+    if (op.op === "createToken" || op.op === "createTokenCopy") {
+        return op.controller === "controller" ? op.bind : undefined;
+    }
+    if (op.op !== "moveZone" || !("bind" in op) || op.to !== "battlefield") {
+        return undefined;
+    }
+    if ("controller" in op && op.controller !== undefined) {
+        return op.controller === "controller" ? op.bind : undefined;
+    }
+    if ("cards" in op) return op.player === "controller" ? op.bind : undefined;
+    const target: object = op.target;
+    const namedOwn =
+        ("ref" in target && target.ref === "$source") ||
+        ("position" in target &&
+            "player" in target &&
+            target.player === "controller");
+    return namedOwn ? op.bind : undefined;
+}
+
+function withOwnPermanent(scope: ScriptScope, name: string): ScriptScope {
+    if (scope.ownPermanents.has(name)) return scope;
+    return { ...scope, ownPermanents: new Set([...scope.ownPermanents, name]) };
+}
+
+/** True when a selector names a permanent of the script's own: its battlefield
+ *  source (through a captured alias too), or one the script itself put onto
+ *  the battlefield. An announced slot is never one: the chooser may name
+ *  anyone's permanent, and it stays priced as removal. */
+function namesOwnPermanent(
+    sel: object,
+    ctx: GroundingContext,
+    scope: ScriptScope
+): boolean {
+    if (!("ref" in sel) || typeof sel.ref !== "string") return false;
+    return (
+        isSourceBattlefieldRefSelector(sel, ctx) ||
+        scope.ownPermanents.has(sel.ref)
+    );
 }
 
 /** Adds one attributed binding name, returning `scope` itself when it is
@@ -1492,17 +1550,17 @@ function coinFlipLossesRef(
     return scope.coinFlipSeriesWinProbability.get(v.ref);
 }
 
-/** issue #3292 — the picks twin of `withCapturedSourceAliases` (PR #3298
+/** issue #3292 — the scope twin of `withCapturedSourceAliases` (PR #3298
  *  review). A `delayedTrigger`/`reflexiveTrigger` body starts from a fresh
  *  scope because `capture` keys are its ONLY initial bindings — but a capture
- *  whose SOURCE is an attributed picks ref carries the attribution across with
- *  it, exactly as one whose source is `{ ref: "$source" }` carries the
- *  battlefield-source fact (issue #1964). Without this seeding, a reflexive
- *  body written as `capture: { $s: { ref: "$picked" } }` +
- *  `sacrifice { permanents: { ref: "$s" } }` keeps the edict value: the same
- *  mis-sign, one level down. Pure passthrough when no capture aliases an
- *  attributed name. */
-function withCapturedPicksAliases(
+ *  whose SOURCE is an attributed ref carries the attribution across with it,
+ *  exactly as one whose source is `{ ref: "$source" }` carries the
+ *  battlefield-source fact. Without this seeding, a reflexive body written as
+ *  `capture: { $s: { ref: "$picked" } }` + `sacrifice { permanents: { ref:
+ *  "$s" } }` keeps the edict value, and Unearth's `capture: { $self: { ref:
+ *  "$returned" } }` + `exile $self` the removal price: the same mis-sign, one
+ *  level down. Pure passthrough when no capture aliases an attributed name. */
+function withCapturedScopeAliases(
     scope: ScriptScope,
     capture: Record<string, EffectCaptureSource> | undefined
 ): ScriptScope {
@@ -1513,10 +1571,14 @@ function withCapturedPicksAliases(
             typeof source === "object" &&
             source !== null &&
             "ref" in source &&
-            typeof source.ref === "string" &&
-            scope.controllerChosenPicks.has(source.ref)
+            typeof source.ref === "string"
         ) {
-            seeded = withControllerChosenPick(seeded, name);
+            if (scope.controllerChosenPicks.has(source.ref)) {
+                seeded = withControllerChosenPick(seeded, name);
+            }
+            if (scope.ownPermanents.has(source.ref)) {
+                seeded = withOwnPermanent(seeded, name);
+            }
         }
     }
     return seeded;
@@ -1702,34 +1764,48 @@ const loseLife: Valuer<"loseLife"> = (op, ctx) => {
     return { points: priced(ctx, "lifeSwing", amount * (self ? -1 : 1)), tags };
 };
 
+// Removing a permanent of the script's own is a cost whatever the verb, priced
+// as `sacrifice` prices its own: a delayed "exile it" and Sneak Attack's delayed
+// "sacrifice it" take the same body off the same board.
+const OWN_PERMANENT_REMOVED: OpValue = {
+    points: SAC_SELF_COST,
+    tags: ["boardRemoval", "self-cost"],
+};
+
 // Issue #3398 — the point of the whole ticket: what a `destroy` is worth is
 // what it destroys. One fitted `boardRemoval` unit price times the units the
 // board's best legal victim is actually worth, so this Op prices Stone Rain
 // against three Forests, against a Shivan Dragon and against an empty board
 // as three different numbers from one weight.
-const destroy: Valuer<"destroy"> = (op, ctx) => ({
-    points: pricedFraction(
-        ctx,
-        "boardRemoval",
-        REMOVAL_COMPLETENESS.destroy,
-        victimUnitsFor(op.target, ctx)
-    ),
-    tags: isAnnouncedTarget(op.target)
-        ? ["boardRemoval", "targeted"]
-        : ["boardRemoval", "board-scaling"],
-});
+const destroy: Valuer<"destroy"> = (op, ctx, scope) =>
+    namesOwnPermanent(op.target, ctx, scope)
+        ? OWN_PERMANENT_REMOVED
+        : {
+              points: pricedFraction(
+                  ctx,
+                  "boardRemoval",
+                  REMOVAL_COMPLETENESS.destroy,
+                  victimUnitsFor(op.target, ctx)
+              ),
+              tags: isAnnouncedTarget(op.target)
+                  ? ["boardRemoval", "targeted"]
+                  : ["boardRemoval", "board-scaling"],
+          };
 
-const exile: Valuer<"exile"> = (op, ctx) => ({
-    points: pricedFraction(
-        ctx,
-        "boardRemoval",
-        REMOVAL_COMPLETENESS.exile,
-        victimUnitsFor(op.target, ctx)
-    ),
-    tags: isAnnouncedTarget(op.target)
-        ? ["boardRemoval", "targeted"]
-        : ["boardRemoval", "board-scaling"],
-});
+const exile: Valuer<"exile"> = (op, ctx, scope) =>
+    namesOwnPermanent(op.target, ctx, scope)
+        ? OWN_PERMANENT_REMOVED
+        : {
+              points: pricedFraction(
+                  ctx,
+                  "boardRemoval",
+                  REMOVAL_COMPLETENESS.exile,
+                  victimUnitsFor(op.target, ctx)
+              ),
+              tags: isAnnouncedTarget(op.target)
+                  ? ["boardRemoval", "targeted"]
+                  : ["boardRemoval", "board-scaling"],
+          };
 
 // CR 701.65a (issue #3551) — airbending exiles the object, but its owner keeps
 // the card, recastable for {2}: tempo, not a clean answer. Priced on the same
@@ -2360,7 +2436,7 @@ const choiceOp: Valuer<"choice"> = () => {
 // that context has to survive or the fix reaches nothing inside the body.
 //
 // Issue #3292 — the nested body does NOT inherit the outer walk's
-// `ScriptScope`; it starts from the one `withCapturedPicksAliases` derives
+// `ScriptScope`; it starts from the one `withCapturedScopeAliases` derives
 // from the `capture` map alone. That is the binding rule the Op itself
 // declares: `capture` keys "become the body's ONLY initial bindings — outer
 // bindings, `$source` included, are NOT visible inside the body"
@@ -2373,7 +2449,7 @@ const delayedTrigger: Valuer<"delayedTrigger"> = (op, ctx, scope) =>
     valueEffectScript(
         op.effects,
         withCapturedSourceAliases(ctx, op.capture),
-        withCapturedPicksAliases(scope, op.capture)
+        withCapturedScopeAliases(scope, op.capture)
     );
 
 // CR 603.12 — a reflexive trigger's whole value IS its body: the Op itself
@@ -2391,7 +2467,7 @@ const reflexiveTrigger: Valuer<"reflexiveTrigger"> = (op, ctx, scope) =>
     valueEffectScript(
         op.effects,
         withCapturedSourceAliases(ctx, op.capture),
-        withCapturedPicksAliases(scope, op.capture)
+        withCapturedScopeAliases(scope, op.capture)
     );
 
 const digMatchingToHand: Valuer<"digMatchingToHand"> = () => ({
