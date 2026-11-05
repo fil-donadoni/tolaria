@@ -14,7 +14,13 @@ import {
     tryGetDefinition,
 } from "@convex/cards";
 import { makeVehicle } from "@convex/cards/abilities/vehicle";
-import type { CardDefinition, EffectOp, TokenSpec } from "@convex/cards/types";
+import type {
+    CardDefinition,
+    EffectOp,
+    EmblemInstance,
+    TokenSpec,
+} from "@convex/cards/types";
+import { SORIN_LORD_OF_INNISTRAD_EMBLEM_ID } from "@convex/cards/emblems";
 import { smugglersCopter } from "@convex/cards/sets/kld/index.cards";
 import { shorikaiGenesisEngine } from "@convex/cards/sets/nec/index.cards";
 import {
@@ -97,25 +103,31 @@ function perm(
 }
 
 /** Builds the view through the REAL reducer (never a hand-rolled object). */
-function viewOf(battlefield: CardInstance[]) {
+function viewOf(battlefield: CardInstance[], emblems?: EmblemInstance[]) {
     return buildTriggerStateView(
         [
             { id: VIEWER, life: 20, hand: [], battlefield, graveyard: [] },
             { id: "p2", life: 20, hand: [], battlefield: [], graveyard: [] },
         ],
-        VIEWER
+        VIEWER,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        emblems
     );
 }
 
 function offeredAbilityIds(
     source: CardInstance,
-    battlefield: CardInstance[]
+    battlefield: CardInstance[],
+    emblems?: EmblemInstance[]
 ): string[] {
     return getStackAbilities(
         source,
         "PRECOMBAT_MAIN",
         true,
-        viewOf(battlefield),
+        viewOf(battlefield, emblems),
         20
     ).map((a) => a.id);
 }
@@ -264,6 +276,27 @@ describe("the crew hint uses EFFECTIVE power (CR 613.4 layers)", () => {
         expect(offeredAbilityIds(vehicle, [vehicle, lions, anthem])).toContain(
             CREW_3_ID
         );
+    });
+
+    // CR 114.3 — an emblem is a source-less continuous effect; the server's
+    // `getEffectivePower` counts it, so the hint must too.
+    it("an emblem anthem (Sorin's +1/+0) lifts a 2/1 over the Crew 3 threshold", () => {
+        const vehicle = perm("vehicle", crewThreeVehicle);
+        const lions = perm("lions", savannahLions());
+        const emblem: EmblemInstance = {
+            id: "emblem-1",
+            ownerId: VIEWER,
+            emblemId: SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
+            name: "Sorin, Lord of Innistrad emblem",
+            text: "Creatures you control get +1/+0.",
+            staticSeq: 1,
+        };
+        expect(offeredAbilityIds(vehicle, [vehicle, lions], [])).not.toContain(
+            CREW_3_ID
+        );
+        expect(
+            offeredAbilityIds(vehicle, [vehicle, lions], [emblem])
+        ).toContain(CREW_3_ID);
     });
 
     it("the rider adds to EFFECTIVE power, not to base power", () => {

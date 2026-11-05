@@ -2485,6 +2485,11 @@ export function activateAbilityOnState(
         ) {
             throw new Error("Not enough life");
         }
+        // CR 118.3 — "discard the last card you drew this turn" must be
+        // payable before target selection begins, as on the untargeted path.
+        if (ability.cost.discardLastDrawn && !canPayDiscardLastDrawn(player)) {
+            throw new Error("No card drawn this turn left to discard");
+        }
         const precondition = activationPreconditionViolation(
             state,
             card,

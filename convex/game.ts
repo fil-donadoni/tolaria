@@ -62,6 +62,7 @@ import {
     addCounterToCard,
     applyKeywordCounterGrant,
     payDiscardAtRandomCost,
+    payDiscardLastDrawn,
     canPayExileTopOfLibrary,
     payExileTopOfLibraryCost,
     commitLandsForCost,
@@ -5255,6 +5256,13 @@ export function finalizeTargetSelection(
                 ability.cost.addCounter.type,
                 ability.cost.addCounter.count
             );
+        }
+        // CR 118.3 — "discard the last card you drew this turn" (Jandor's
+        // Ring), paid on the immediate commit exactly as the deferred path
+        // (`commitPendingActivation`, `discardLastDrawnSource`) and the
+        // untargeted path do. Payability was validated up-front in `activateAbility`.
+        if (ability.cost.discardLastDrawn) {
+            payDiscardLastDrawn(state, player);
         }
         if (ability.cost.discardAtRandom) {
             payDiscardAtRandomCost(
