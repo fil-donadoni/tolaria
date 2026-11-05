@@ -8879,6 +8879,47 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Half 1 of the discriminating pair. Also the FIRST blade position whose decision is a phase trigger: it needs the `phase-trigger` setup step (issue #2707), since a ScenarioSpec names a phase but only describes a board and no step advanced the turn, so no upkeep/draw/end-step trigger could previously be the decision under test. The reveal is CR 701.20a, the free arrival CR 400.7.",
     },
     {
+        // CR 118.12 / 118.3 (issue #8034) — "you may exile two cards from your
+        // graveyard. If you do, put a +1/+1 counter on this creature.": two
+        // spent lands pay for a permanent counter while the Dragon, the one
+        // card worth keeping, stays. A may-pay graveyard leg owes its pick with
+        // the accept, so this is also the no-freeze pin for the exile action.
+        // A predicate, because the pick is the claim and a matcher reads only
+        // the accept.
+        label: "graveyard may-pay: exiles spent lands, never the card worth keeping",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Aegis Sculptor", owner: "me", zone: "battlefield" },
+                { name: "Shivan Dragon", owner: "me", zone: "graveyard" },
+                { name: "Forest", owner: "me", zone: "graveyard", count: 2 },
+            ],
+            phase: "UPKEEP",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        setup: [{ kind: "phase-trigger" }, { kind: "resolve-top" }],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (move, state) => {
+                if (move?.kind !== "may-pay" || !move.accept) return false;
+                const picks = move.graveyardIds ?? [];
+                const dragons = instanceIdsForName(state, "Shivan Dragon");
+                return (
+                    picks.length === 2 && !picks.some((id) => dragons.has(id))
+                );
+            },
+            describe:
+                "accept the may-pay, paying with the two Forests and keeping Shivan Dragon",
+        },
+        note: "Issue #8034. Reaches the live may-pay through the real upkeep trigger.",
+    },
+    {
         // DISCRIMINATING PAIR, HALF 2 of 2 (issue #2707).
         // Same board, same trigger, one difference: the library holds NO
         // creature card. Same library SIZE, same everything — only the card

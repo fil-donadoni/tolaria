@@ -331,22 +331,26 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
         discardSet = instancesById(player.hand, chosenIds);
     }
 
-    // CR 118.3 / 118.12a — the graveyard leg is always a pick (never
-    // auto-resolved). The returned cards are GAINED, not given up, so the
-    // policy takes the MOST valuable matching cards — one candidate, the
-    // single best-first set; affordability above guarantees `count` exist.
+    // CR 118.3 / 118.12 — the graveyard leg is always a pick (never
+    // auto-resolved). Returned cards are GAINED, so the policy takes the MOST
+    // valuable; exiled cards are GIVEN UP, so it takes the LEAST. One
+    // candidate, the single ranked set; affordability above guarantees `count`
+    // exist.
     let graveyardSet: CardInstanceState[] | undefined;
     if (norm.graveyard) {
         const cards = instancesById(
             player.graveyard,
             getMayPayGraveyardCandidateIds(state, playerId, cost)
         );
-        const bestFirst = [...cards].sort(
+        const sign = norm.graveyard.action === "return" ? 1 : -1;
+        const ranked = [...cards].sort(
             (a, b) =>
-                prospectiveCardWorth(state, b) - prospectiveCardWorth(state, a)
+                sign *
+                (prospectiveCardWorth(state, b) -
+                    prospectiveCardWorth(state, a))
         );
-        if (bestFirst.length < norm.graveyard.count) return out;
-        graveyardSet = bestFirst.slice(0, norm.graveyard.count);
+        if (ranked.length < norm.graveyard.count) return out;
+        graveyardSet = ranked.slice(0, norm.graveyard.count);
     }
     const graveyardIds = graveyardSet?.map((c) => c.id);
 

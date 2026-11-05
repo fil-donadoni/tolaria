@@ -190,9 +190,10 @@ describe("card-dependent smoke skips quarantine until a fixture exhibits the for
     it("an op-covered container does not hide a $source body that never runs", () => {
         // The seeded source is evidence only for a script that RUNS: this one
         // skips at `mayPay`, so its `$source` counters clause is unproven.
-        const outcome = compileCard(MAY_SELF_COUNTER);
-        expect(outcome.state).toBe("quarantine");
-        expect(smokeReasons(outcome)).toEqual([
+        // Gated with NO fixture: the registry's Aegis Sculptor row exhibits
+        // this form, and would otherwise clear the card this test is about.
+        const reasons = gate(compiled(MAY_SELF_COUNTER), []);
+        expect(reasons.map((r) => r.detail)).toEqual([
             expect.stringContaining(`Op "counters" targets $source/$each`),
         ]);
     });

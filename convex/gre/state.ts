@@ -25534,7 +25534,7 @@ export function mayPayGraveyardCandidates<T extends MayPayHandCard>(
 }
 
 /** Instance ids of `playerId`'s graveyard cards that could pay a `may-pay`
- *  cost's GRAVEYARD leg (CR 118.3 — the payer chooses which return). `[]`
+ *  cost's GRAVEYARD leg (CR 118.3 — the payer chooses which). `[]`
  *  when the cost has no graveyard leg. Exported so the submit boundary and the
  *  bot validate / pick against the SAME candidate set `requestMayPay`
  *  computed. */
@@ -25552,12 +25552,11 @@ export function getMayPayGraveyardCandidateIds(
 }
 
 /** Whether a `may-pay` GRAVEYARD leg admits a card choice: ALWAYS while the
- *  leg can be paid, even with exactly one legal card — the returned card is a
- *  resource the payer keeps, so which one comes back is the payer's to see
- *  and pick (the `"return"` permanent leg's doctrine,
- *  {@link mayPaySacrificeChoiceRequired}). False for a cost with no graveyard
- *  leg, or with fewer candidates than the leg returns (CR 118.3 — no picker
- *  is opened for a pick that could never complete). */
+ *  leg can be paid, even with exactly one legal card — which card leaves the
+ *  graveyard is the payer's to see and pick (the `"return"` permanent leg's
+ *  doctrine, {@link mayPaySacrificeChoiceRequired}). False for a cost with no
+ *  graveyard leg, or with fewer candidates than the leg takes (CR 118.3 — no
+ *  picker is opened for a pick that could never complete). */
 export function mayPayGraveyardChoiceRequired(
     state: GameState,
     playerId: string,
@@ -25758,14 +25757,14 @@ export function canPayMayPayCost(
     }
     if (
         norm.graveyard &&
-        (norm.graveyard.action !== "return" ||
+        (norm.graveyard.action === "exile" ||
             mayPayGraveyardCandidates(player.graveyard, norm.graveyard).length <
                 norm.graveyard.count)
     ) {
         // CR 118.3 — the payer's graveyard must hold enough matching cards.
         // The positional `"exile"` action is an alternative-cost-only shape
-        // (`CostLegs.graveyard`): the may-pay picker returns cards, so an
-        // exile leg here fails CLOSED rather than being paid as a return.
+        // (`CostLegs.graveyard`): the may-pay picker has no position to read,
+        // so that leg fails CLOSED here rather than being paid as a pick.
         return false;
     }
     return true;
@@ -25861,7 +25860,9 @@ export function payMayPayCost(
         // The graveyard leg never auto-picks: the payer's validated pick is
         // the payment. Checked BEFORE any other leg is paid, so a missing or
         // illegal pick pays nothing at all rather than half the cost.
-        throw new Error("Choose the card(s) to return from your graveyard");
+        throw new Error(
+            `Choose the card(s) to ${norm.graveyard.action === "return" ? "return" : "exile"} from your graveyard`
+        );
     }
     if (norm.mana) {
         const normalized = normalizeManaCost(norm.mana);
@@ -26019,18 +26020,21 @@ export function payMayPayCost(
         player.energyCounters = (player.energyCounters ?? 0) - norm.energy;
     }
     if (norm.graveyard) {
-        // CR 118.12a — "unless you return a <card> from your graveyard to your
-        // hand": the chosen cards (validated above) move graveyard → hand
-        // through the general mover, which tallies the graveyard departure and
-        // keeps each card's identity known to every player (it left a public
-        // zone in plain view, ADR 0026).
+        // CR 118.12 — the chosen cards (validated above) move out of the
+        // graveyard through the general mover, which tallies the graveyard
+        // departure and keeps each card's identity known to every player (it
+        // left a public zone in plain view, ADR 0026): to the hand ("unless
+        // you return a <card> from your graveyard to your hand") or to exile
+        // ("you may exile eight cards from your graveyard. If you do, …").
+        const destination =
+            norm.graveyard.action === "return" ? "hand" : "exile";
         for (const id of graveyardIds ?? []) {
             moveCardWithGraveyardReplacement(
                 state,
                 player,
                 id,
                 "graveyard",
-                "hand"
+                destination
             );
         }
     }

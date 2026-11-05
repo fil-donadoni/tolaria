@@ -24,6 +24,7 @@ import type {
     CardSupertype,
     CardType,
     Color,
+    CostLegs,
     EffectCardFilter,
     EffectCountSpec,
     EffectManaPool,
@@ -3437,6 +3438,39 @@ function lowerSentenceBody(
                       );
             const inner = gatedSentence(sentence.effect, walk, site);
             if (!inner.ok) return inner;
+            const graveyardExile = graveyardExileCost(inner.value);
+            if (sentence.then !== undefined && graveyardExile !== null) {
+                // CR 118.12 + CR 118.3 — exiling N picked cards is paid in full
+                // or not at all, a `mayPay` GRAVEYARD leg's own contract: the
+                // leg cannot be accepted short of N cards, so "If you do" reads
+                // the payment, which no bind on the move could say of a count
+                // above one.
+                const gated =
+                    sentence.reflexive === undefined
+                        ? gatedSentence(sentence.then, walk, site)
+                        : lowerReflexive(
+                              sentence.reflexive,
+                              sentence.then,
+                              walk,
+                              site
+                          );
+                if (!gated.ok) return gated;
+                const paidBind = walk.nextBind("paid");
+                return lowered([
+                    {
+                        op: "mayPay",
+                        player: "controller",
+                        cost: { graveyard: graveyardExile },
+                        prompt: `${capitalise(sentence.clause.split(SELF_MARKER).join(site.selfName))}?`,
+                        bind: paidBind,
+                    },
+                    {
+                        op: "if",
+                        predicate: { binding: paidBind },
+                        then: gated.value,
+                    },
+                ]);
+            }
             const bind = walk.nextBind("may");
             // CR 118.12 — "[A player] may [do something]. If [that player]
             // does, [effect]": the optional action is a COST paid as the
@@ -6285,6 +6319,39 @@ function lowerMoveFrame(
             ]);
         }
     }
+}
+
+/**
+ * CR 118.12 — the `mayPay` graveyard leg an optional "exile N cards from your
+ * graveyard" lowers to: exactly a controller pick of a fixed count from their
+ * own graveyard, then the move of those picks to exile. Any other action reads
+ * `null`.
+ */
+function graveyardExileCost(
+    ops: readonly EffectOp[]
+): NonNullable<CostLegs["graveyard"]> | null {
+    if (ops.length !== 2) return null;
+    const [pick, move] = ops as [EffectOp, EffectOp];
+    if (pick.op !== "choice" || move.op !== "moveZone") return null;
+    if (
+        pick.kind !== "choose-graveyard-card" ||
+        pick.player !== "controller" ||
+        pick.zoneOwnerId !== undefined ||
+        typeof pick.count !== "number"
+    )
+        return null;
+    if (!("cards" in move) || move.cards.ref !== pick.bind) return null;
+    if (
+        move.from !== "graveyard" ||
+        move.to !== "exile" ||
+        move.player !== "controller"
+    )
+        return null;
+    return {
+        action: "exile-chosen",
+        filter: pick.filter ?? {},
+        count: pick.count,
+    };
 }
 
 /**

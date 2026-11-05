@@ -612,7 +612,7 @@ function mayPayIsAffordable(
     }
     if (
         norm.graveyard &&
-        (norm.graveyard.action !== "return" ||
+        (norm.graveyard.action === "exile" ||
             mayPayGraveyardCandidates(bot.graveyard, norm.graveyard).length <
                 norm.graveyard.count)
     ) {
@@ -719,10 +719,10 @@ function mayPayDiscardPick(
 /** Surfaces the may-pay GRAVEYARD-leg pick for the bot's OwedChoice (CR 118.3
  *  / 118.12a): the concrete `graveyardIds` to submit. The leg never
  *  auto-picks, so an accept without them is rejected server-side and the
- *  driver would re-answer forever. The returned cards are GAINED, so the pick
- *  is best-first — the highest-valued legal candidates (`candidates` is the
- *  graveyard filtered to the server's `candidateIds`). Absent when the choice
- *  carries no graveyard pick. */
+ *  driver would re-answer forever. Returned cards are GAINED, so that pick is
+ *  best-first; exiled cards are GIVEN UP, so that one is worst-first
+ *  (`candidates` is the graveyard filtered to the server's `candidateIds`).
+ *  Absent when the choice carries no graveyard pick. */
 function mayPayGraveyardPick(
     head: PendingChoice,
     candidates: ChoiceCandidate[]
@@ -732,9 +732,10 @@ function mayPayGraveyardPick(
     }
     const leg = normalizeMayPayCost(head.cost).graveyard;
     if (!leg || candidates.length < leg.count) return {};
+    const sign = leg.action === "return" ? 1 : -1;
     return {
         graveyardIds: [...candidates]
-            .sort((a, b) => b.value - a.value)
+            .sort((a, b) => sign * (b.value - a.value))
             .slice(0, leg.count)
             .map((c) => c.id),
     };

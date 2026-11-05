@@ -315,9 +315,9 @@ export type OwedChoice = {
      *  `affordable` is already false and the bot declines). */
     discardIds?: string[];
     /** `may-pay` only (CR 118.3 / 118.12a): the CONCRETE graveyard cards to
-     *  return alongside an accepted graveyard leg, resolved by
-     *  `buildOwedChoice` (best-first — the cards come back to hand). The leg
-     *  never auto-picks, so an accept without them is refused server-side.
+     *  pay an accepted graveyard leg with, resolved by `buildOwedChoice`
+     *  (best-first when they come back to hand, worst-first when exiled). The
+     *  leg never auto-picks, so an accept without them is refused server-side.
      *  Undefined when no graveyard pick is owed. */
     graveyardIds?: string[];
     /** `discard-hand` only: the controller's mana picture, so the discard
