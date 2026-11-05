@@ -4,6 +4,7 @@ import { outstandingDamageAssigner } from "~/lib/priority";
 import { isPlaneswalker } from "~/lib/card-utils";
 import DamageAssignmentPanel from "./damage-assignment-panel";
 import BandFormationPanel from "./band-formation-panel";
+import EnlistChoicePanel from "./enlist-choice-panel";
 import ExertChoicePanel from "./exert-choice-panel";
 import AttackDirectionBanner from "./attack-direction-banner";
 
@@ -17,6 +18,8 @@ import AttackDirectionBanner from "./attack-direction-banner";
  *    are still being declared (CR 702.22c), to group banding attackers.
  *  - {@link ExertChoicePanel} — shown in the same step for the optional
  *    "you may exert this creature as it attacks" cost (CR 508.1g / 701.43d).
+ *  - {@link EnlistChoicePanel} — shown in the same step for the optional enlist
+ *    cost (CR 508.1g / 702.154).
  *  - {@link DamageAssignmentPanel} — shown to whichever player is the
  *    outstanding damage assigner during a combat-damage step (CR 510.1c/d,
  *    702.22j-k), which under banding may be the defender.
@@ -110,6 +113,12 @@ export default function CombatPanels({ player }: { player: Player }) {
                         attackers={player.battlefield.filter((c) =>
                             combat.attackerIds.includes(c.id)
                         )}
+                        gameId={gameId}
+                        playerId={playerId}
+                    />
+                    <EnlistChoicePanel
+                        combat={combat}
+                        battlefield={player.battlefield}
                         gameId={gameId}
                         playerId={playerId}
                     />

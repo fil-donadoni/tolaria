@@ -327,7 +327,11 @@ function resolveEventRef(
     // flatten a field that has no meaning without knowing who is asking — the
     // CR 509.1h pair complement (`BLOCKERS_CONFIRMED.otherCombatant`, issue
     // #2762). Every absolute row ignores it.
-    const id = row.resolve(event, ctx.sourceInstanceId);
+    const id = row.resolve(event, ctx.sourceInstanceId, (instanceId) =>
+        ctx.getOwnerId(instanceId) === undefined
+            ? undefined
+            : ctx.getPower({ type: "permanent", id: instanceId })
+    );
     if (id === undefined) return undefined;
     return { family: row.family, id };
 }

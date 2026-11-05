@@ -11,7 +11,11 @@
 // moment either tax takes over the prompt.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import type { Combat, Player } from "~/types/game";
+import type { CardInstance, Combat, Player } from "~/types/game";
+import {
+    grizzlyBears,
+    llanowarElves,
+} from "@convex/cards/sets/lea/green.cards";
 import { GameContext } from "~/hooks/useGameContext";
 
 // The dock's own BandFormationPanel calls useMutation (createBand/removeBand)
@@ -20,7 +24,7 @@ vi.mock("convex/react", () => ({
     useMutation: () => async () => {},
 }));
 vi.mock("@convex/_generated/api", () => ({
-    api: { game: { createBand: {}, removeBand: {} } },
+    api: { game: { createBand: {}, removeBand: {}, toggleEnlist: {} } },
 }));
 
 const { default: CombatPanels } = await import("../combat-panels");
@@ -53,8 +57,7 @@ function baseCombat(over: Partial<Combat> = {}): Combat {
     };
 }
 
-function renderCombatPanels(combat: Combat) {
-    const me = player();
+function renderCombatPanels(combat: Combat, me: Player = player()) {
     const value = {
         gameId: "g1" as never,
         playerId: "me",
@@ -77,6 +80,36 @@ function renderCombatPanels(combat: Combat) {
         </GameContext>
     );
 }
+
+describe("CombatPanels — the enlist choice (CR 508.1g / 702.154a)", () => {
+    it("mounts the panel in the declare-attackers dock", () => {
+        const creature = (
+            id: string,
+            defId: string,
+            staticAbilities: string[] = []
+        ) =>
+            ({
+                id,
+                card: { id: defId },
+                types: ["Creature"],
+                staticAbilities,
+                controllerId: "me",
+                ownerId: "me",
+                zone: "battlefield",
+                isTapped: false,
+            }) as unknown as CardInstance;
+        renderCombatPanels(
+            baseCombat({ attackerIds: ["atk1"] }),
+            player({
+                battlefield: [
+                    creature("atk1", grizzlyBears().id, ["enlist"]),
+                    creature("partner", llanowarElves().id),
+                ],
+            })
+        );
+        expect(screen.getByText(/Enlist \(optional\)/)).toBeTruthy();
+    });
+});
 
 describe("CombatPanels — declare-attackers dock vs. parked attack tax (issue #1762)", () => {
     it("shows the dock while attackers are still being selected (no tax parked)", () => {
