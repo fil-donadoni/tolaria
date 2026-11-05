@@ -76586,6 +76586,14 @@
         "source": "compiled"
     },
     {
+        "name": "Superior Spider-Man",
+        "scryfallId": "ad4adc3e-ec41-4406-8ff2-59ba8067cf4e",
+        "oracleId": "636cc915-9d1b-4ffe-9e74-795b78663911",
+        "firstSet": "spm",
+        "firstPrintId": "ad4adc3e-ec41-4406-8ff2-59ba8067cf4e",
+        "firstPrintSet": "spm"
+    },
+    {
         "name": "Suplex",
         "scryfallId": "f61693a2-7042-44e0-85ba-9bf12ab94e7e",
         "oracleId": "2d1bbeda-2e81-4aaa-9494-094ec3dd6c3b",
