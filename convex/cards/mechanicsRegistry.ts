@@ -2223,7 +2223,10 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Demonstrate",
         kind: "keyword-ability",
         cr: "702.144",
-        status: "planned",
+        status: "implemented",
+        binding:
+            'staticAbilities "demonstrate" + expandDemonstrate (cards/abilities/demonstrate.ts, ADR 0054): a cast trigger of cost-free mayPay + if + copyResolvingSpell twice',
+        note: "CR 702.144a: the controller may copy the spell; if they do, the opponent copies it too, and each may choose new targets for their own copy. The copies re-run the same script under their own controller, and a copy is not cast (CR 707.10), so it never re-triggers. The offers are sequenced by GameState.queuedCopyRetargets, because pendingTarget holds one selection at a time: the controller answers first, then the opponent. Used by Healing Technique, Incarnation Technique.",
     },
     // 702.145 Daybound and Nightbound
     {

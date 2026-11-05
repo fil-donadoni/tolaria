@@ -43,6 +43,7 @@
 import { expandAnnihilator } from "../cards/abilities/annihilator";
 import { expandChangeling } from "../cards/abilities/changeling";
 import { expandMentor } from "../cards/abilities/mentor";
+import { expandDemonstrate } from "../cards/abilities/demonstrate";
 import { expandIngest } from "../cards/abilities/ingest";
 import { expandMyriad } from "../cards/abilities/myriad";
 import { expandUndaunted } from "../cards/abilities/undaunted";
@@ -257,18 +258,22 @@ export function isDefinitionLevelKeyword(keyword: string): boolean {
     // absent: it reads `chapterAbilities`, not a keyword, so no grant can reach
     // it. Each returns its INPUT unchanged when its keyword is absent, which is
     // what makes identity the honest test.
-    const expanded = expandChangeling(
-        expandUndaunted(
-            expandIngest(
-                expandMyriad(
-                    expandMobilize(
-                        expandAnnihilator(
-                            expandHideaway(
-                                expandFadingVanishing(
-                                    expandKeywordTriggers(
-                                        expandExtort(
-                                            expandMentor(
-                                                expandRiot(expandUnleash(bare))
+    const expanded = expandDemonstrate(
+        expandChangeling(
+            expandUndaunted(
+                expandIngest(
+                    expandMyriad(
+                        expandMobilize(
+                            expandAnnihilator(
+                                expandHideaway(
+                                    expandFadingVanishing(
+                                        expandKeywordTriggers(
+                                            expandExtort(
+                                                expandMentor(
+                                                    expandRiot(
+                                                        expandUnleash(bare)
+                                                    )
+                                                )
                                             )
                                         )
                                     )

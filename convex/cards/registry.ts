@@ -24,6 +24,7 @@ import {
 // (`convex/cards/emblems.ts`) is populated whenever the card catalogue loads.
 import "./emblems";
 import { expandAnnihilator } from "./abilities/annihilator";
+import { expandDemonstrate } from "./abilities/demonstrate";
 import { expandIngest } from "./abilities/ingest";
 import { expandMyriad } from "./abilities/myriad";
 import { expandUndaunted } from "./abilities/undaunted";
@@ -702,10 +703,13 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // `expandCompiledStatics`: a compiled static grant gets its trigger too.
     // Ingest (CR 702.115) expands from its bare string into the combat-damage
     // trigger, reading only `staticAbilities`. Undaunted (CR 702.125) likewise,
-    // into its self-host cost reduction.
-    const withKeywords = expandUndaunted(
-        expandIngest(
-            expandExtort(expandMentor(expandRiot(expandUnleash(expanded))))
+    // into its self-host cost reduction. Demonstrate (CR 702.144) likewise, into
+    // its cast trigger.
+    const withKeywords = expandDemonstrate(
+        expandUndaunted(
+            expandIngest(
+                expandExtort(expandMentor(expandRiot(expandUnleash(expanded))))
+            )
         )
     );
     expansionCache.set(base, withKeywords);

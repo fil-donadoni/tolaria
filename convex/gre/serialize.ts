@@ -1348,6 +1348,8 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // compaction, exactly like pendingCast/pendingActivation.
     "pendingCompanionPay",
     "pendingTarget",
+    // CR 707.10c — stack item ids; plain strings, the generic optional-key loop.
+    "queuedCopyRetargets",
     "pendingChoices",
     // CR 603.3b / ADR 0058 — the off-stack simultaneous-trigger batch held while
     // its controllers order it. A pending `trigger-order` choice is a stable save

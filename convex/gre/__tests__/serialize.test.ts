@@ -2032,6 +2032,15 @@ describe("optional field round-trip smoke tests", () => {
         );
     });
 
+    it("queuedCopyRetargets", () => {
+        const state = freshState();
+        state.queuedCopyRetargets = ["copy-1", "copy-2"];
+        expect(roundTrip(state).queuedCopyRetargets).toEqual([
+            "copy-1",
+            "copy-2",
+        ]);
+    });
+
     it("pendingTarget", () => {
         const state = freshState();
         state.pendingTarget = {
