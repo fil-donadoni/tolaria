@@ -33,6 +33,7 @@ import type {
     StackItem,
 } from "./state/declarations";
 import { getPlayer, allocInstanceId } from "./lookup";
+import { buildEncodedCardTrigger } from "./cipher";
 import { buildMiracleTrigger } from "./miracle";
 import { stackTransformStamp } from "./transform";
 import {
@@ -1027,6 +1028,17 @@ export function collectTriggers(
         if (!card) continue;
         const item = buildMiracleTrigger(state, card, event.playerId);
         if (item) out.push(item);
+    }
+
+    // CR 702.99a — "whenever this creature deals combat damage to a player, you
+    // may copy the encoded card". One trigger per encoded card and per damage
+    // event, each naming its card, off what the event captured.
+    for (const event of events) {
+        if (event.type !== "DAMAGE_DEALT") continue;
+        for (const cardId of event.encodedCardIds ?? []) {
+            const item = buildEncodedCardTrigger(state, cardId, event);
+            if (item) out.push(item);
+        }
     }
 
     // CR 702.29c — "When you cycle this card" and any other trigger on the

@@ -83,6 +83,7 @@ export const EVENT_FIELD_KINDS: {
         sourceTypes: "scalar",
         sourceSubtypes: "scalar",
         sourceStaticAbilities: "scalar",
+        encodedCardIds: "scalar",
     },
     // CR 500.1 — a step or phase began.
     PHASE_BEGIN: { phase: "scalar", activePlayerId: "player" },

@@ -34,6 +34,7 @@ import {
 } from "./layers";
 import { checkAscendCityBlessing } from "./cityBlessing";
 import { checkStartYourEnginesSBA } from "./speed";
+import { checkCardCopySBA } from "./castCopy";
 import { checkPreparedCopySBA } from "./prepare";
 import { isProtectedFromSource } from "./protection";
 import { isGuardedAgainst } from "./permanentGuard";
@@ -970,6 +971,7 @@ export function checkStateBasedActions(state: GameState): void {
         // battlefield ceases to exist, save a prepare spell's exiled copy
         // while its permanent is on the battlefield and prepared.
         acted = checkPreparedCopySBA(state) || acted;
+        acted = checkCardCopySBA(state) || acted;
         // CR 714.4 — a Saga past its final chapter with no chapter ability of
         // its own still on the stack is sacrificed. Placed after the
         // death/removal checks and before the world/legend rules: it is an

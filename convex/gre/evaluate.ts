@@ -87,6 +87,7 @@ import {
 import { declaresCombatRestrictionStaticEffect } from "../cards/registry";
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
+import { isEncodedForController } from "./cipher";
 import {
     exileCastLatent,
     exileCastRoutes,
@@ -1851,7 +1852,10 @@ function playableExileCards(
                 // card on the client Bot's wire view) is not a card whose
                 // worth this view can read.
                 (c.card as { id?: string }).id !== FACE_DOWN_CARD_ID &&
-                exileCastLatent(state, c, player.id) &&
+                // CR 702.99a — an encoded card is a spell its creature's
+                // controller holds as long as the creature stays.
+                (exileCastLatent(state, c, player.id) ||
+                    isEncodedForController(state, c, player.id)) &&
                 // A land is PLAYED, never cast (CR 305.9): a cast-only grant
                 // on one is unusable, so it counts only under a play grant —
                 // the same test `resolvePlayLandSourceZone` makes.

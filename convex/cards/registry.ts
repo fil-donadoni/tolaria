@@ -29,6 +29,7 @@ import { expandIngest } from "./abilities/ingest";
 import { expandMyriad } from "./abilities/myriad";
 import { expandUndaunted } from "./abilities/undaunted";
 import { expandCascade } from "./abilities/cascade";
+import { expandCipher } from "./abilities/cipher";
 import { expandFirebending } from "./abilities/firebending";
 import { expandChangeling } from "./abilities/changeling";
 import { expandMobilize } from "./abilities/mobilize";
@@ -644,6 +645,8 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // trigger, for the same reason.
     // Changeling (CR 702.73) expands from its keyword string into the base
     // subtype line, and touches nothing another expander reads.
+    // Cipher (CR 702.99) appends its encode step to the spell's own script,
+    // and touches nothing another expander reads.
     const expanded = expandChangeling(
         expandMyriad(
             expandWard(
@@ -652,31 +655,33 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
                         expandEchoCumulativeUpkeep(
                             expandBestow(
                                 expandCascade(
-                                    expandFirebending(
-                                        expandAnnihilator(
-                                            expandHideaway(
-                                                expandKeywordTriggers(
-                                                    expandFadingVanishing(
-                                                        // CR 716.2 (issue #3234) — the Class level bars sit
-                                                        // beside `expandChapterAbilities`: both desugar a
-                                                        // printed TEXT BOX SECTION declared as data, and
-                                                        // both must run before any expander that reads the
-                                                        // ability arrays they inject into.
-                                                        expandClassLevelBars(
-                                                            expandChapterAbilities(
-                                                                expandCompiledTriggers(
-                                                                    expandCompiledStatics(
-                                                                        // CR 614.1a — the compiled
-                                                                        // "shuffle it into its owner's
-                                                                        // library instead" flag, rebuilt
-                                                                        // innermost beside the other
-                                                                        // compiled descriptors.
-                                                                        expandShuffleFromAnywhere(
-                                                                            expandDamagePreventionCounterRemoval(
-                                                                                expandControllerDamagePrevention(
-                                                                                    expandDamageLifeFloor(
-                                                                                        expandDamageAsCounters(
-                                                                                            base
+                                    expandCipher(
+                                        expandFirebending(
+                                            expandAnnihilator(
+                                                expandHideaway(
+                                                    expandKeywordTriggers(
+                                                        expandFadingVanishing(
+                                                            // CR 716.2 (issue #3234) — the Class level bars sit
+                                                            // beside `expandChapterAbilities`: both desugar a
+                                                            // printed TEXT BOX SECTION declared as data, and
+                                                            // both must run before any expander that reads the
+                                                            // ability arrays they inject into.
+                                                            expandClassLevelBars(
+                                                                expandChapterAbilities(
+                                                                    expandCompiledTriggers(
+                                                                        expandCompiledStatics(
+                                                                            // CR 614.1a — the compiled
+                                                                            // "shuffle it into its owner's
+                                                                            // library instead" flag, rebuilt
+                                                                            // innermost beside the other
+                                                                            // compiled descriptors.
+                                                                            expandShuffleFromAnywhere(
+                                                                                expandDamagePreventionCounterRemoval(
+                                                                                    expandControllerDamagePrevention(
+                                                                                        expandDamageLifeFloor(
+                                                                                            expandDamageAsCounters(
+                                                                                                base
+                                                                                            )
                                                                                         )
                                                                                     )
                                                                                 )

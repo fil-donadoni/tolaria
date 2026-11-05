@@ -5937,6 +5937,9 @@ export interface SpellContext {
      *  CR 707.10). Read by the `castFromZone` predicate ("if this spell was
      *  cast from exile"). */
     getCastFromZone: () => CastFromZone | undefined;
+    /** CR 702.99a — whether the resolving object is a spell represented by a
+     *  card: neither a copy (CR 707.10) nor an ability. */
+    isSpellRepresentedByCard: () => boolean;
     /** Domain (CR 702 preamble — an italic ability word, no independent rules
      *  meaning of its own): the number of basic land types among lands
      *  `playerId` controls (0–5, CR 305.6 — a dual land with two basic
@@ -8408,7 +8411,15 @@ export interface SpellContext {
      *  `finalizeSpellResolution` routes the card to exile instead of the
      *  graveyard when resolution completes. No-op on a stack item that is a
      *  copy (a copy ceases to exist anyway, CR 707.10) or an ability. */
-    exileSelf: () => void;
+    exileSelf: (encodedOnId?: string) => void;
+    /** CR 707.12 / 112.2a — creates, in `ownerId`'s exile, a copy of the card
+     *  `cardInstanceId` names in any exile pile, marked so it becomes a spell
+     *  copy once cast (`onCardCopyCast`). Returns its id, or `undefined` when
+     *  the card is no longer in exile (CR 400.7). */
+    createCardCopyInExile: (
+        ownerId: string,
+        cardInstanceId: string
+    ) => string | undefined;
     /** CR 608.2 / 701.24 (issue #898) — the resolving spell shuffles ITSELF into
      *  its owner's library as the last thing it does ("Shuffle ~ into its
      *  owner's library", Green Sun's Zenith), instead of going to the graveyard
@@ -11863,6 +11874,10 @@ export interface DamageDealtEvent {
     sourceSubtypes?: ReadonlyArray<string>;
     /** Static keyword abilities the source had at emit time (CR 702). */
     sourceStaticAbilities?: ReadonlyArray<string>;
+    /** CR 702.99a — on combat damage to a player, the cards encoded on the
+     *  source whose granted ability it still had at emit time; each fires one
+     *  trigger (`encodedCardsGrantingAbility`, `gre/cipher.ts`). */
+    encodedCardIds?: ReadonlyArray<string>;
 }
 
 /** Phase/step entry event emitted by the turn structure at the start of
@@ -17445,6 +17460,13 @@ export type EffectOp =
           includesLand?: boolean;
           resultBind?: string;
           anyNumber?: true;
+          /** CR 707.12 / 112.2a — cast a COPY of `card` rather than the card:
+           *  the copy is created in the same zone on the accepted offer, owned
+           *  by the caster, and the card itself stays where it is. A copy no
+           *  step cast ceases to exist (CR 704.5e, `checkCardCopySBA`). Only
+           *  with a bare picks `card` and `source: "exile"`
+           *  (validator-enforced). */
+          asCopy?: true;
       }
     /** CR 702.85a (issue #3216) — the CASCADE keyword's entire triggered
      *  ability, in one Op: "exile cards from the top of your library until you
@@ -17607,8 +17629,12 @@ export type EffectOp =
      *  checks BEFORE the normal graveyard placement; no-op for an ability (no
      *  card to move) or a spell copy (CR 707.10 — a copy ceases to exist, it
      *  is never exiled). Mirrors `shuffleSelfIntoLibrary` (issue #898)
-     *  exactly, but redirects to exile instead of a shuffled library. */
-    | { op: "exileSelf" }
+     *  exactly, but redirects to exile instead of a shuffled library.
+     *
+     *  CR 702.99a / 702.99b — `encodedOn` is the bound permanent the card is
+     *  exiled ENCODED on (Cipher, `cards/abilities/cipher.ts`). An empty or
+     *  uncaptured binding exiles nothing, which is the declined "you may". */
+    | { op: "exileSelf"; encodedOn?: EffectRef }
     /** CR 603.7a / 701.13 / ADR 0028 — exile the announced target permanent
      *  keyed to `$source` (the resolving ability's source), arming an
      *  exile-and-return bundle a later `returnExiledForSource` Op restores.
@@ -21691,7 +21717,15 @@ export type EffectPredicate =
     | EffectHasCityBlessingPredicate
     | EffectTargetMatchesGraveyardFilterPredicate
     | EffectCostVictimMatchesFilterPredicate
-    | EffectCastFromZonePredicate;
+    | EffectCastFromZonePredicate
+    | EffectSpellRepresentedByCardPredicate;
+
+/** CR 702.99a — "If this spell is represented by a card": true for a spell that
+ *  is a card, false for a copy of one (CR 707.10) and for an ability, which has
+ *  no card to move. */
+export interface EffectSpellRepresentedByCardPredicate {
+    spellRepresentedByCard: true;
+}
 
 /** Cast-from-zone predicate (issue #2097, CR 601.2a / CR 702.143c): true iff
  *  the resolving spell was cast from the named zone. Reads the zone stamped on

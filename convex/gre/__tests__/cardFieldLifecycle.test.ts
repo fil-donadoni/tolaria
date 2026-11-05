@@ -431,6 +431,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "dashed",
             "dealtDeathtouchDamage",
             "declinedEntryKeywords",
+            "encodedOn",
             "enteredOnTurn",
             "escaped",
             "evoked",
@@ -486,6 +487,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "zoneStaticSeq",
         ],
         stack: [
+            "castCopyOfCard",
             "castOffSorceryTiming",
             "castSpellInGraveyard",
             "chosenModeId",

@@ -10751,6 +10751,42 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: 'Issue #3292. Kjeldoran Dead is a 3/1 whose ETB is `choice { player: "controller" } -> sacrifice($sac)` (CR 701.21) — the caster picks one of their OWN creatures. With a 6/4 Craw Wurm as the only other body, casting it is strictly worse than passing whichever creature the sacrifice takes, so the bot must not cast. It used to, because the ability script priced that sacrifice as +120 board removal: the permanent was credited a standing EDICT it does not have, and `dslRealizedAbilityScriptValue` puts that credit on the board at EVERY search leaf — measured at 590 points before the fix against 430 after (a 160-point swing), on the same two-creature board. Discriminating, measured at authoring time on all five seeds: `cast-spell` before the valuer split, `pass` after. SECOND cause, found by issue #3377: it was ALSO leaning on the `mana` term counting untapped sources, so a 3-mana cast started 36 points down whatever it did. Making that term tap-aware turned this entry red and exposed the real gap — `sacrifice-permanents` had no candidate generator, so `settleStackForBreakdown` could not get past the suspended choice and the margin scored the ENTERING BODY with both creatures still on the battlefield (512, sacrifice invisible). With the generator registered the cast settles to `pendingChoices: 0` and a margin delta of −149 points, and the entry holds on its own reason.',
     },
     {
+        // CIPHER IS A CARD KEPT (CR 702.99a, issue #4017). "You may exile this
+        // card encoded on a creature you control" is an "up to one" pick whose
+        // decline sends the spell to the graveyard, so what it guards is the
+        // price of the encoded card: priced at nothing, the two answers tie and
+        // the Bot throws away every repeat cast the keyword offers.
+        label: "Cipher: Last Thoughts encodes itself on the creature rather than going to the graveyard",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Last Thoughts", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield", count: 4 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Last Thoughts", by: "me" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE: the claim is a cardinality, encode or not.
+        expect: {
+            predicate: (move) =>
+                move?.kind === "resolution-choice" &&
+                move.cardInstanceIds.length === 1,
+            describe: "encodes it on the creature, never declines",
+        },
+        note: "CR 702.99a Cipher — the deterministic half is in `cipher.bot.test.ts`. Proof-of-failure: dropping `isEncodedForController` from `playableExileCards` reds this entry.",
+    },
+    {
         // Issue #3545 — `choose-permanents` "up to N" (CR 608.2), the MAX
         // extreme. The root decision is Frantic Search's live untap pick,
         // reached by really casting it (the cast taps all three Islands),

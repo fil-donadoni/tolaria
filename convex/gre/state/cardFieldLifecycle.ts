@@ -264,6 +264,9 @@ export const CARD_FIELD_LIFECYCLE = {
     castFromExileCostIncrease:  { codec: "scalar",  reset: ["custom:turn"] },
     castableFromExileCondition: { codec: "scalar",  reset: ["custom:turn"] },
     exiledBySourceId:           { codec: "scalar",  reset: ZONE },
+    encodedOn:                  { codec: "defined", reset: ZONE },
+    // Consumed at the cast (`onCardCopyCast`); the stack ladder is the backstop.
+    castCopyOfCard:             { codec: "flag",    reset: STACK },
     // The graveyard twin of the exile window (issue #1344).
     castableFromGraveyardBy:    { codec: "scalar",  reset: ["custom:turn"] },
     castableFromGraveyardUntilTurn: { codec: "defined", reset: ["custom:turn"] },

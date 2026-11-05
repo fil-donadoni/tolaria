@@ -65,6 +65,7 @@ import {
     tickDuration,
     withCardsPutIntoLibraryBatch,
 } from "./state";
+import { encodedCardsGrantingAbility } from "./cipher";
 import { drawnThisTurnCount, offerStacklessMiracleReveal } from "./miracle";
 import { tryGetDefinition } from "../cards";
 import { payDeclaredEnlistCosts } from "./enlist";
@@ -1636,6 +1637,10 @@ export function applyAllCombatDamage(
                 sourceTypes: desc.types,
                 sourceSubtypes: desc.subtypes,
                 sourceStaticAbilities: desc.staticAbilities,
+                // CR 702.99a — read here, while the source is on the battlefield
+                // with the abilities it deals this damage with: it may be dead by
+                // the time the trigger scan runs (CR 603.2).
+                ...encodedCardsGrantingAbility(state, source),
             });
             // CR 702.15b — lifelink: combat damage dealt to a player also gains
             // the source's controller that much life, simultaneously with the

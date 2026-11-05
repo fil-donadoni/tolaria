@@ -183,6 +183,7 @@ import { SPEED_DESIGNATION } from "../cards/designations";
 import { effectivePermanentView, permanentManaValue } from "./permanentView";
 import { resolveGrantedActivatedAbility } from "./activatedAbilities";
 import { getCardsExiledWith as getCardsExiledWithLink } from "./exileLinks";
+import { createCardCopyInExile, onCardCopyCast } from "./castCopy";
 import {
     effectiveRequirementForSource,
     getExtraLandDrops,
@@ -4426,6 +4427,16 @@ function finalizeSpellResolution(
         applyEpicAbilities(state, item);
         if (item.isCopy) return;
         const owner = getPlayer(state, item.ownerId);
+        // CR 702.99a — "exile this card encoded on a creature you control" is
+        // the spell's last instruction and moves it to exile itself, so it is
+        // never a card going to a graveyard for rebound, buyback or an Adventure
+        // to redirect. The link stays on the card (`exileSelf` stamped it).
+        if (item.encodedOn) {
+            item.zone = "exile";
+            resetStackTransientState(item);
+            owner.exile.push(item);
+            return;
+        }
         // CR 608.2 / 701.24 (issue #898) — a spell that instructs "Shuffle
         // <this spell> into its owner's library" as part of its own
         // resolution goes to the (shuffled) library instead of the graveyard
@@ -6957,6 +6968,12 @@ export function clearExileLinksToEnteringSource(
             if (card.exiledBySourceId === sourceInstanceId) {
                 delete card.exiledBySourceId;
             }
+            // CR 702.99c — the card remains encoded only "as long as ... the
+            // creature remains on the battlefield"; a returned permanent is a
+            // new object (CR 400.7).
+            if (card.encodedOn?.permanentId === sourceInstanceId) {
+                delete card.encodedOn;
+            }
         }
     }
 }
@@ -8411,6 +8428,8 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     // its permanent "at the time the spell becomes cast", which is this
     // choke point.
     onPreparedCopyCast(state, item);
+    // CR 707.12 — the same act for a copy of a card made to be cast.
+    onCardCopyCast(item);
     const event: SpellCastEvent = {
         type: "SPELL_CAST",
         casterId: item.castById,
@@ -20357,12 +20376,28 @@ export function buildSpellContext(
             if (idx === -1) state.stack.push(stackItem);
             else state.stack.splice(idx, 0, stackItem);
         },
-        exileSelf(): void {
+        exileSelf(encodedOnId?: string): void {
             // CR 608.2 — "Exile <this spell>". A copy ceases to exist anyway
             // (CR 707.10) and an ability has no card to exile; both no-op.
             if (item.isCopy) return;
             if (item.abilityId || item.triggeredAbilityId) return;
             item.exileOnResolve = true;
+            // CR 702.99a / 702.99b — exiled encoded on the chosen creature.
+            if (encodedOnId !== undefined) {
+                item.encodedOn = {
+                    permanentId: encodedOnId,
+                    seq: allocStaticTimestamp(state),
+                };
+            }
+        },
+        isSpellRepresentedByCard(): boolean {
+            return !item.isCopy && !item.abilityId && !item.triggeredAbilityId;
+        },
+        createCardCopyInExile(ownerId, cardInstanceId): string | undefined {
+            const card = state.players
+                .flatMap((p) => p.exile)
+                .find((c) => c.id === cardInstanceId);
+            return card && createCardCopyInExile(state, card, ownerId);
         },
         shuffleSelfIntoLibrary(): void {
             // CR 608.2 / 701.24 (issue #898) — "Shuffle <this spell> into its
@@ -22353,7 +22388,12 @@ export function moveCard(
     // source link. (The battlefield-entry path — `returnToBattlefield` and
     // friends — clears it separately via `resetBattlefieldTransientState`,
     // since those don't route through this function.)
-    if (from === "exile") delete card.exiledBySourceId;
+    if (from === "exile") {
+        delete card.exiledBySourceId;
+        // CR 702.99c — "remains encoded ... as long as the card with cipher
+        // remains exiled".
+        delete card.encodedOn;
+    }
     // CR 122.1e / 400.7 — a counter exists only on the object it's on in its
     // current zone; a zone change makes a new object with no counters. A card
     // leaving exile (Dauthi Voidwalker's void-countered card being played, a

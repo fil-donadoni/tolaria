@@ -801,6 +801,9 @@ function buildExileAssociation(state: GameState): Map<string, string> {
         for (const c of p.exile) {
             const src = c.exiledBySourceId;
             if (src && onBattlefield.has(src)) map.set(c.id, src);
+            // CR 702.99b — a card encoded on a permanent pins to it the same way.
+            const host = c.encodedOn?.permanentId;
+            if (host && onBattlefield.has(host)) map.set(c.id, host);
         }
     }
     return map;
