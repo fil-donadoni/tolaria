@@ -54,12 +54,22 @@ export const CITY_BLESSING_DESIGNATION: StateDesignationDefinition = {
     imagePrintId: "ba64ed3e-93c5-406f-a38d-65cc68472122",
 };
 
+/** CR 702.179 — Speed. Art: the "Start Your Engines! // Max Speed" marker
+ *  (Aetherdrift printing `tdft`). Keys the inherent trigger's stack tile. */
+export const SPEED_DESIGNATION: StateDesignationDefinition = {
+    id: "speed",
+    name: "Start Your Engines!",
+    text: "Whenever one or more opponents lose life during your turn, if your speed is less than 4, your speed increases by 1. This ability triggers only once each turn.",
+    imagePrintId: "82613de6-ed37-48c1-8d2f-d91a3f496794",
+};
+
 /** Registry keyed by designation id — the analogue of the emblem registry.
  *  Read by the stack UI (`stack-row.tsx`) to render a source-less designation
  *  triggered ability (the Monarch's end-step draw) with its marker art. */
 export const STATE_DESIGNATIONS: Record<string, StateDesignationDefinition> = {
     [MONARCH_DESIGNATION.id]: MONARCH_DESIGNATION,
     [CITY_BLESSING_DESIGNATION.id]: CITY_BLESSING_DESIGNATION,
+    [SPEED_DESIGNATION.id]: SPEED_DESIGNATION,
 };
 
 /** Soft lookup of a state designation by id (undefined for an unknown key). */

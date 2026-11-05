@@ -178,6 +178,8 @@ import {
     grantCityBlessingIfThreshold,
     hasCityBlessing,
 } from "./cityBlessing";
+import { resolveSpeedIncrease, speedTriggerController } from "./speed";
+import { SPEED_DESIGNATION } from "../cards/designations";
 import { effectivePermanentView, permanentManaValue } from "./permanentView";
 import { resolveGrantedActivatedAbility } from "./activatedAbilities";
 import { getCardsExiledWith as getCardsExiledWithLink } from "./exileLinks";
@@ -410,6 +412,7 @@ import {
 } from "./replacements";
 import { attachmentsLast, findUmbraArmorAura } from "./umbraArmor";
 import {
+    buildSpeedIncreaseStackItem,
     collectTriggers,
     placeTriggersOnStack,
     triggerHandlesEventType,
@@ -3010,6 +3013,10 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     // BEFORE the template path so an inline trigger never falls into the
     // def-lookup branch.
     if (top.delayedTriggerId && top.delayedEffects) {
+        // CR 702.179d — the inherent speed trigger prints no Effect Script: it
+        // is a rule of the game, its body the designation it carries.
+        if (top.designationId === SPEED_DESIGNATION.id)
+            resolveSpeedIncrease(state, top.controllerId);
         const ctx = buildSpellContext(state, top);
         runDelayedTriggerBody(
             ctx,
@@ -9028,6 +9035,19 @@ export function recordLifeLost(
     const tally = { ...(state.lifeLostThisTurn ?? {}) };
     tally[playerId] = (tally[playerId] ?? 0) + amount;
     state.lifeLostThisTurn = tally;
+    // CR 702.179d — every path that lowers a life total passes here, so the
+    // inherent speed trigger hears them all, a paid life cost (CR 119.4)
+    // included. It waits with the reflexive abilities (`pendingReflexiveTriggers`)
+    // because it too has no triggering event of its own to be collected from,
+    // and joins the next APNAP batch (CR 603.3b).
+    const speedController = speedTriggerController(state, playerId);
+    if (speedController !== undefined) {
+        state.speedTriggeredOnTurn = state.turn;
+        state.pendingReflexiveTriggers = [
+            ...(state.pendingReflexiveTriggers ?? []),
+            buildSpeedIncreaseStackItem(state, speedController),
+        ];
+    }
 }
 
 /** CR 119.4 — a player PAYS `amount` life as a cost: "the payment is

@@ -13111,6 +13111,9 @@ export interface TriggerStateView {
     players: ReadonlyArray<{
         id: string;
         life: number;
+        /** CR 702.179b — read by the compiled max speed gate. Server-side only:
+         *  no client reducer evaluates a trigger condition. */
+        speed?: number;
         /** Spells this player cast this turn (CR 601.2i). Engine-read, by a
          *  cast trigger's "if you've cast another spell this turn" (CR 603.4);
          *  no client hint reads a cast trigger, so `buildTriggerStateView`

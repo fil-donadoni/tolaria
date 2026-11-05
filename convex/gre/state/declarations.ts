@@ -2219,6 +2219,11 @@ export type PlayerState = {
      *  Kept as a dedicated scalar rather than an entry in the object
      *  `counters[type]` map (ADR 0032). */
     poisonCounters?: number;
+    /** CR 702.179b — this player's speed; absent means they have no speed, and
+     *  an effect reading that absence sees 0 (CR 702.179f, `speedOf`). Set by
+     *  the CR 704.5aa state-based action and raised by the CR 702.179d inherent
+     *  trigger (`gre/speed.ts`). */
+    speed?: number;
     /** Energy counters on this player (CR 122.1 — energy is a player-owned
      *  resource, a counter kind that sits on players, not objects). Absent means
      *  zero; no cap and no loss condition (unlike poison). A player "gets {E}"
@@ -5699,6 +5704,11 @@ export type GameState = {
      *  read through `hasCityBlessing` (`gre/cityBlessing.ts`). Undefined /
      *  empty means no one has the blessing yet (every game starts that way). */
     cityBlessingIds?: string[];
+    /** CR 702.179d — the turn on which the inherent speed trigger last
+     *  triggered ("This ability triggers only once each turn"). It triggers
+     *  only on its controller's own turn, so one turn number serves both
+     *  players and nothing resets it. */
+    speedTriggeredOnTurn?: number;
     /** CR 614.1c / 614.12a (ADR 0100 D2) — permanents that have left their
      *  origin zone but have NOT yet entered the battlefield because their
      *  controller still owes one or more "as it enters" choices (a matching

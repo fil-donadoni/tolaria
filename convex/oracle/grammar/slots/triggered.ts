@@ -325,9 +325,31 @@ const limitedTriggeredBody: Rule<SlotIR> = rule(
  */
 const FLAVOR_WORD_HEAD = /^[A-Z][^\u2014.,]* \u2014 ((?:When|Whenever|At) .*)$/;
 
+/**
+ * CR 702.178a — "Max speed" looks like the flavor word above and is not one: it
+ * is a keyword saying the object has the ability only as long as its
+ * controller's speed is 4, so it survives as the ability's gate. A printed
+ * intervening-if behind it is a second gate the one `condition` slot cannot
+ * hold, and is refused rather than dropped.
+ */
+const MAX_SPEED_HEAD = /^Max speed \u2014 ((?:When|Whenever|At) .*)$/;
+
 const labelledTriggeredBody: Rule<SlotIR> = rule(
     "triggered body behind a flavor word",
     (span, ctx) => {
+        const maxSpeed = span.match(MAX_SPEED_HEAD);
+        if (maxSpeed !== null) {
+            const body = limitedTriggeredBody.run(maxSpeed[1]!, ctx);
+            if (!body.ok) return body;
+            if (body.value.kind !== "triggered")
+                return fail("max speed behind a non-triggered body", span);
+            if (body.value.condition !== undefined)
+                return fail("an intervening-if behind max speed", span);
+            return ok({
+                ...body.value,
+                condition: { kind: "you-have-max-speed" as const },
+            });
+        }
         const match = span.match(FLAVOR_WORD_HEAD);
         return limitedTriggeredBody.run(match === null ? span : match[1]!, ctx);
     }

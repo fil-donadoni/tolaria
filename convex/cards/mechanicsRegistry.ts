@@ -2539,8 +2539,8 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Max Speed",
         kind: "keyword-ability",
         cr: "702.178",
-        status: "out-of-scope",
-        note: "Aetherdrift Speed/Vehicle subsystem not modelled",
+        status: "planned",
+        note: 'The triggered form ships: "Max speed — <trigger>" compiles to the `you-have-max-speed` gate (`convex/cards/compiledTriggers.ts`, CR 702.178a). The activated and static forms have no grammar yet, so those cards stay unparsed rather than losing the gate (issue #8231).',
     },
     // 702.179 Start Your Engines!
     {
@@ -2548,8 +2548,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Start Your Engines!",
         kind: "keyword-ability",
         cr: "702.179",
-        status: "out-of-scope",
-        note: "Aetherdrift Speed subsystem not modelled",
+        status: "implemented",
+        binding: "convex/gre/speed.ts",
+        note: "Issue #7502. `PlayerState.speed` (absent = no speed, CR 702.179b; read as 0, CR 702.179f), the CR 704.5aa state-based action, the source-less CR 702.179d trigger heard at `recordLifeLost` and resolved off its `speed` designation, and CR 702.179e `hasMaxSpeed`. CR 702.179c has no reader until a card prints an increase: no card in the corpus does.",
     },
     // 702.180 Harmonize
     {
