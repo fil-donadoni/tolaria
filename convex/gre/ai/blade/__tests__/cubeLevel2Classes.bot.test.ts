@@ -76,6 +76,27 @@ describe("a strip is a decision node, best card first (CR 608.2d, issue #8271)",
     });
 });
 
+describe("a strip over a hand worth nothing (issue #8271)", () => {
+    it("still answers: a negative best card must not raise the floor above itself", () => {
+        const base = entry(STRIP_PICK);
+        const state = buildBladeState({
+            ...base,
+            spec: {
+                ...base.spec,
+                cards: [
+                    ...base.spec.cards.filter(
+                        (c) => c.zone !== "hand" || c.owner !== "opp"
+                    ),
+                    { name: "Pestilence", owner: "opp", zone: "hand" },
+                ],
+            },
+            expect: { forbidden: [{ kind: "pass" }] },
+        });
+        const choice = state.pendingChoices![0];
+        expect(choiceCandidates(state, choice).length).toBeGreaterThan(0);
+    });
+});
+
 describe("root predicates, through the real search (issue #8271)", () => {
     it.each([
         "extra turn: holds Time Walk with no board",
