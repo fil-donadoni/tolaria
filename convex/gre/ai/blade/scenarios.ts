@@ -19769,13 +19769,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "fast mana: sacrifices Black Lotus for the Serra Angel it pays for",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "card",
-                detail: "the spell the mana pays for",
-            },
-        },
+        classification: { kind: "absolute" },
         spec: {
             phase: "PRECOMBAT_MAIN",
             turn: 5,
@@ -19818,13 +19812,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "fast mana: keeps Black Lotus with nothing to cast",
-        pairOf: {
-            anchor: "fast mana: sacrifices Black Lotus for the Serra Angel it pays for",
-            discriminant: {
-                kind: "card",
-                detail: "the spell the mana pays for",
-            },
-        },
+        classification: { kind: "absolute" },
         spec: {
             phase: "PRECOMBAT_MAIN",
             turn: 5,
@@ -20332,8 +20320,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "Fastbond: plays the extra land with life to spare",
-        classification: {
-            kind: "conditional",
+        pairOf: {
+            anchor: "Fastbond: holds the extra land at 1 life",
             discriminant: {
                 kind: "life",
                 detail: "the Bot's life total against Fastbond's damage",
@@ -20393,8 +20381,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "Fastbond: holds the extra land at 1 life",
-        pairOf: {
-            anchor: "Fastbond: plays the extra land with life to spare",
+        classification: {
+            kind: "conditional",
             discriminant: {
                 kind: "life",
                 detail: "the Bot's life total against Fastbond's damage",
@@ -20454,8 +20442,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "extra turn: casts Time Walk with attackers on board",
-        classification: {
-            kind: "conditional",
+        pairOf: {
+            anchor: "extra turn: holds Time Walk with no board",
             discriminant: {
                 kind: "card",
                 detail: "the attacker the turn is for",
@@ -20508,8 +20496,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "extra turn: holds Time Walk with no board",
-        pairOf: {
-            anchor: "extra turn: casts Time Walk with attackers on board",
+        classification: {
+            kind: "conditional",
             discriminant: {
                 kind: "card",
                 detail: "the attacker the turn is for",
@@ -20708,13 +20696,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "reanimation: Reanimate takes the target its life can pay for",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "card",
-                detail: "the Serra Angel its life can pay for",
-            },
-        },
+        classification: { kind: "absolute" },
         spec: {
             phase: "PRECOMBAT_MAIN",
             turn: 5,
@@ -20767,13 +20749,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "reanimation: Reanimate never pays its own life to lethal",
-        pairOf: {
-            anchor: "reanimation: Reanimate takes the target its life can pay for",
-            discriminant: {
-                kind: "card",
-                detail: "the Serra Angel its life can pay for",
-            },
-        },
+        classification: { kind: "absolute" },
         spec: {
             phase: "PRECOMBAT_MAIN",
             turn: 5,
@@ -20821,8 +20797,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "tutor: casts Entomb with a reanimation spell in hand",
-        classification: {
-            kind: "conditional",
+        pairOf: {
+            anchor: "tutor: holds Entomb with no way to use the graveyard",
             discriminant: {
                 kind: "card",
                 detail: "the reanimation spell in hand",
@@ -20875,8 +20851,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "tutor: holds Entomb with no way to use the graveyard",
-        pairOf: {
-            anchor: "tutor: casts Entomb with a reanimation spell in hand",
+        classification: {
+            kind: "conditional",
             discriminant: {
                 kind: "card",
                 detail: "the reanimation spell in hand",
@@ -21077,8 +21053,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "cheat into play: casts Show and Tell with Griselbrand in hand",
-        classification: {
-            kind: "conditional",
+        pairOf: {
+            anchor: "cheat into play: holds Show and Tell when only the opponent has a fatty",
             discriminant: {
                 kind: "other",
                 detail: "whose hand holds the fatty",
@@ -21126,8 +21102,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "cheat into play: holds Show and Tell when only the opponent has a fatty",
-        pairOf: {
-            anchor: "cheat into play: casts Show and Tell with Griselbrand in hand",
+        classification: {
+            kind: "conditional",
             discriminant: {
                 kind: "other",
                 detail: "whose hand holds the fatty",
@@ -21175,12 +21151,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "cheat into play: activates Sneak Attack at the beginning of combat",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "step",
-                detail: "the step",
-            },
+        pairOf: {
+            anchor: "cheat into play: holds Sneak Attack after combat",
+            discriminant: { kind: "step", detail: "the step" },
         },
         spec: {
             phase: "BEGINNING_OF_COMBAT",
@@ -21224,12 +21197,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "cheat into play: holds Sneak Attack after combat",
-        pairOf: {
-            anchor: "cheat into play: activates Sneak Attack at the beginning of combat",
-            discriminant: {
-                kind: "step",
-                detail: "the step",
-            },
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "step", detail: "the step" },
         },
         spec: {
             phase: "POSTCOMBAT_MAIN",
@@ -21379,12 +21349,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "life X: Toxic Deluge pays exactly what the sweep needs",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "life",
-                detail: "the Bot's life total",
-            },
+        pairOf: {
+            anchor: "life X: Toxic Deluge never pays to lethal",
+            discriminant: { kind: "life", detail: "the Bot's life total" },
         },
         spec: {
             phase: "PRECOMBAT_MAIN",
@@ -21434,12 +21401,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "life X: Toxic Deluge never pays to lethal",
-        pairOf: {
-            anchor: "life X: Toxic Deluge pays exactly what the sweep needs",
-            discriminant: {
-                kind: "life",
-                detail: "the Bot's life total",
-            },
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the Bot's life total" },
         },
         spec: {
             phase: "PRECOMBAT_MAIN",
@@ -22307,12 +22271,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "loyalty: Jace bounces the attacker that would kill him",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "card",
-                detail: "the attacker",
-            },
+        pairOf: {
+            anchor: "loyalty: Jace brainstorms with no attacker",
+            discriminant: { kind: "card", detail: "the attacker" },
         },
         spec: {
             phase: "PRECOMBAT_MAIN",
@@ -22356,12 +22317,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "loyalty: Jace brainstorms with no attacker",
-        pairOf: {
-            anchor: "loyalty: Jace bounces the attacker that would kill him",
-            discriminant: {
-                kind: "card",
-                detail: "the attacker",
-            },
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "card", detail: "the attacker" },
         },
         spec: {
             phase: "PRECOMBAT_MAIN",
@@ -22398,13 +22356,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "loyalty: Oko elks the opposing Craw Wurm",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "other",
-                detail: "who controls the Wurm",
-            },
-        },
+        classification: { kind: "absolute" },
         spec: {
             phase: "PRECOMBAT_MAIN",
             turn: 5,
@@ -22447,13 +22399,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "loyalty: Oko never elks its own Craw Wurm",
-        pairOf: {
-            anchor: "loyalty: Oko elks the opposing Craw Wurm",
-            discriminant: {
-                kind: "other",
-                detail: "who controls the Wurm",
-            },
-        },
+        classification: { kind: "absolute" },
         spec: {
             phase: "PRECOMBAT_MAIN",
             turn: 5,
@@ -22606,13 +22552,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "loyalty: Wrenn and Six returns the Strip Mine",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "card",
-                detail: "the land in its graveyard",
-            },
-        },
+        classification: { kind: "absolute" },
         spec: {
             phase: "PRECOMBAT_MAIN",
             turn: 5,
@@ -22654,13 +22594,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "loyalty: Wrenn and Six holds its -1 with no target worth it",
-        pairOf: {
-            anchor: "loyalty: Wrenn and Six returns the Strip Mine",
-            discriminant: {
-                kind: "card",
-                detail: "the land in its graveyard",
-            },
-        },
+        classification: { kind: "absolute" },
         spec: {
             phase: "PRECOMBAT_MAIN",
             turn: 5,
@@ -22897,12 +22831,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "attack: Ragavan attacks an empty board",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "card",
-                detail: "the blocker",
-            },
+        pairOf: {
+            anchor: "attack: Ragavan stays home from the blocker that eats it",
+            discriminant: { kind: "card", detail: "the blocker" },
         },
         spec: {
             phase: "DECLARE_ATTACKERS",
@@ -22941,12 +22872,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "attack: Ragavan stays home from the blocker that eats it",
-        pairOf: {
-            anchor: "attack: Ragavan attacks an empty board",
-            discriminant: {
-                kind: "card",
-                detail: "the blocker",
-            },
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "card", detail: "the blocker" },
         },
         spec: {
             phase: "DECLARE_ATTACKERS",
