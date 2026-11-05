@@ -42,7 +42,11 @@ import {
 import { castAsAdventure } from "./adventure";
 import { castExileCostPickIds } from "./alternativeCost";
 import { applyBestowCharacteristics } from "./bestow";
-import { graveyardCastStackFlags, reboundCastStackFlags } from "./castCost";
+import {
+    EXILE_ANY_TIME_LEAVES_STACK_FLAGS,
+    graveyardCastStackFlags,
+    reboundCastStackFlags,
+} from "./castCost";
 import type { CastFromZone } from "./castCost";
 import { manaValue } from "./constants";
 import { turnFaceDown } from "./faceDown";
@@ -91,6 +95,10 @@ export type CastCommitSource = {
     zone: CastFromZone;
     /** CR 601.3 (ADR 0093) — spent at commit, against its own source. */
     graveyardPermission?: LiveGraveyardPlayPermission;
+    /** CR 702.133a — jump-start licensed this cast, so it is exiled any time it
+     *  leaves the stack. A jump-start card cast under another permission owes
+     *  no exile, so the card's keyword cannot answer this at commit. */
+    viaJumpStart?: true;
 };
 
 /** The non-mana cost legs the announcement answered, in the shape the
@@ -511,6 +519,7 @@ export function commitCast(
                 spellCard.castFromGraveyardExilesOnResolve
               ? { exileOnResolve: true as const }
               : {}),
+        ...(plan.source.viaJumpStart ? EXILE_ANY_TIME_LEAVES_STACK_FLAGS : {}),
         // CR 702.88a — rebound applies to a cast from the caster's hand under
         // either placement (Word of Command's controlled cast leaves a hand).
         ...reboundCastStackFlags(spellCard, castFromZone),

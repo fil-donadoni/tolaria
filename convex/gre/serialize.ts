@@ -1037,6 +1037,9 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     }
     if (item.isCopy) base.isCopy = item.isCopy;
     if (item.exileOnResolve) base.exileOnResolve = item.exileOnResolve;
+    if (item.exileAnyTimeLeavesStack) {
+        base.exileAnyTimeLeavesStack = item.exileAnyTimeLeavesStack;
+    }
     // CR 702.27a — persist the Buyback-paid flag so the "return to hand
     // instead of the graveyard" resolution redirect survives a DB round-trip
     // while the spell sits on the stack.
@@ -1276,6 +1279,10 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     if (compact.isCopy) item.isCopy = compact.isCopy as boolean;
     if (compact.exileOnResolve) {
         item.exileOnResolve = compact.exileOnResolve as boolean;
+    }
+    if (compact.exileAnyTimeLeavesStack) {
+        item.exileAnyTimeLeavesStack =
+            compact.exileAnyTimeLeavesStack as boolean;
     }
     if (compact.buybackPaid) {
         item.buybackPaid = compact.buybackPaid as boolean;

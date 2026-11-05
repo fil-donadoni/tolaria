@@ -80,6 +80,7 @@ import { resolveDivideTotal } from "./pendingTargetOrigin";
 import { effectivePermanentView } from "./permanentView";
 import { drainAutoPasses, isSorceryTimingFor } from "./phases";
 import { findRetraceCastable } from "./retrace";
+import { findJumpStartCastable } from "./jumpStart";
 import {
     foldPhyrexianManaAdditions,
     resolvePhyrexianActivationPayment,
@@ -435,7 +436,8 @@ function findCastableLibraryTopSpell(
  *  `viaRetrace` is the same idea for Retrace (CR 702.81, issue #2358): the
  *  LAST branch of the chain, so the flag unambiguously says "this cast owes
  *  the discard-a-land additional cost" and no other mechanism's cast ever
- *  pays it.
+ *  pays it. `viaJumpStart` likewise names the one cast that owes the jump-start
+ *  discard and exile (CR 702.133a).
  *  Exported so the flashback integration test can drive the REAL cast-source
  *  resolution (no convex-test harness — issue #944). */
 export function locateCastSource(
@@ -447,6 +449,7 @@ export function locateCastSource(
     zone: CastFromZone;
     graveyardPermission?: LiveGraveyardPlayPermission;
     viaRetrace?: true;
+    viaJumpStart?: true;
 } {
     const inHand = player.hand.find((c) => c.id === instanceId);
     if (inHand) return { card: inHand, zone: "hand" };
@@ -512,6 +515,11 @@ export function locateCastSource(
     const retraceCast = findRetraceCastable(state, player, instanceId);
     if (retraceCast) {
         return { card: retraceCast, zone: "graveyard", viaRetrace: true };
+    }
+    // CR 702.133a — jump-start, after every cheaper graveyard mechanism.
+    const jumpStartCast = findJumpStartCastable(player, instanceId);
+    if (jumpStartCast) {
+        return { card: jumpStartCast, zone: "graveyard", viaJumpStart: true };
     }
     return { zone: "hand" };
 }
@@ -1824,6 +1832,7 @@ export function tryAutoCommitPendingCast(
         source: {
             zone: castSource.zone,
             graveyardPermission: castSource.graveyardPermission,
+            viaJumpStart: castSource.viaJumpStart,
         },
         legs: {
             payLife: pending.payLife,

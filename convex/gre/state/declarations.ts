@@ -2714,6 +2714,11 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  exile zone instead of the graveyard. Set via
      *  `SpellContext.exileSelf()`. */
     exileOnResolve?: boolean;
+    /** True iff this spell is exiled instead of going anywhere else "any time
+     *  it would leave the stack" (flashback CR 702.34a, jump-start CR 702.133a):
+     *  countered, fizzled, or moved to a hand or library, not only on resolving.
+     *  Stamped at cast commit; read at every stack departure. */
+    exileAnyTimeLeavesStack?: boolean;
     /** True iff the resolving spell instructs itself to be shuffled into its
      *  owner's library as the last thing it does (CR 608.2 / 701.24 — "Shuffle
      *  <this spell> into its owner's library", e.g. Green Sun's Zenith, issue

@@ -2112,7 +2112,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Jump-Start",
         kind: "keyword-ability",
         cr: "702.133",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/gre/jumpStart.ts",
+        note: "Cost-system / keyword-cast capability (engine infra, NOT an Effect Script Op). CR 702.133a is the whole keyword: cast from the graveyard (instant or sorcery only) by discarding any card as an additional cost, and exile the card any time it would leave the stack. convex/gre/jumpStart.ts holds JUMP_START_COST_LEGS (the shared CostLegs hand leg, ADR 0079) and hasJumpStart; locateCastSource claims it last among graveyard mechanisms (viaJumpStart), which stamps the exileAnyTimeLeavesStack stack flag, read at every stack departure in state.ts (resolve, fizzle, counter of any destination, moveSpellFromStack). A card that also has retrace is cast under retrace (documented deviation, no mechanism picker exists).",
     },
     // 702.134 Mentor (issue #4003) — the attack trigger expanded from the bare
     // `staticAbilities: ["mentor"]` string at the `getDefinition` seam
