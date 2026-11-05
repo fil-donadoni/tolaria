@@ -594,6 +594,12 @@ async function main(): Promise<void> {
         ? `lost with their runner, no record, charged nothing to the budget: run ${lost.join(", run ")}`
         : null;
     if (lostLine) say(lostLine);
+    // The streak's window is wider than the budget's: read lazily, per failed
+    // run it meets, and fail closed (an unreadable job list is not lost).
+    const lostRun = (r: WorkflowRun): boolean => {
+        const jobs = runJobSteps(r.id);
+        return jobs !== null && isLostRun(jobs);
+    };
     const lineage = readVerdictLineage(() => verdictStore(primaryCheckout()));
     const red = redHoldOf(lineage);
     const local = active
@@ -611,7 +617,7 @@ async function main(): Promise<void> {
         passWorkflowActive: active,
         healthError: lineage.error ?? null,
         missingRecords: missing,
-        streak: failureStreak(passRuns, dispatchRuns),
+        streak: failureStreak(passRuns, dispatchRuns, lostRun),
         red,
         usageLimitResetAt: usageLimitResetAt(records, now),
         budget,

@@ -321,13 +321,19 @@ export interface FailureStreak {
  * The failure streak: completed pass runs, newest first, after the owner's
  * last acknowledgement (a dispatcher run whose name carries `ACK_MARKER`),
  * counted until the first that did not fail; a neutral conclusion is passed
- * over. `notify` holds until a dispatcher run has FAILED (completed) since
+ * over. A run LOST with its runner (`isLost`, issue #8315) is passed over the
+ * same way: it neither counts nor breaks the streak, since no pass did
+ * anything wrong — a host outage would otherwise trip the hold with three
+ * simultaneous losses. The reading is the caller's (it owns the job read) and
+ * fails closed: a run whose jobs cannot be read is not lost, so it counts as
+ * failed. `notify` holds until a dispatcher run has FAILED (completed) since
  * the moment the streak reached the limit — one email per streak, not one
  * per sweep.
  */
 export function failureStreak(
     passRuns: readonly WorkflowRun[],
-    dispatchRuns: readonly WorkflowRun[]
+    dispatchRuns: readonly WorkflowRun[],
+    isLost: (run: WorkflowRun) => boolean = () => false
 ): FailureStreak {
     const acks = dispatchRuns
         .filter((r) => r.title.includes(ACK_MARKER))
@@ -339,8 +345,10 @@ export function failureStreak(
     const runs: WorkflowRun[] = [];
     for (const r of completed) {
         const c = r.conclusion ?? "";
-        if (FAILED_CONCLUSIONS.has(c)) runs.push(r);
-        else if (!NEUTRAL_CONCLUSIONS.has(c)) break;
+        if (FAILED_CONCLUSIONS.has(c)) {
+            if (c === "failure" && isLost(r)) continue;
+            runs.push(r);
+        } else if (!NEUTRAL_CONCLUSIONS.has(c)) break;
     }
     if (runs.length < FAILURE_STREAK_LIMIT) return { runs, notify: false };
     const reachedMs = ms(runs[runs.length - FAILURE_STREAK_LIMIT].updatedAt);
