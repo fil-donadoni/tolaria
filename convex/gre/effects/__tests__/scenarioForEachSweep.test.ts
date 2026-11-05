@@ -388,6 +388,91 @@ describe("'other' names the source only where it is a permanent (CR 113.7)", () 
     });
 });
 
+describe("a mana value guard sized off the source's own counters (CR 608.2h)", () => {
+    const ARTIFACT = abilityHost({ types: ["Artifact"] }, true, true);
+
+    function guard(
+        op: "eq" | "le" | "lt",
+        right: unknown,
+        filter: EffectCardFilter = { excludeType: "Land" },
+        extra: object = {}
+    ): EffectOp {
+        return sweep(
+            {
+                op: "if",
+                predicate: {
+                    left: { manaValue: { of: { ref: "$each" } } },
+                    op,
+                    right,
+                },
+                then: [DESTROY],
+            },
+            filter,
+            extra
+        );
+    }
+    const CHARGE = { counters: { of: { ref: "$source" }, type: "charge" } };
+    const EQUAL_TO_CHARGE = guard("eq", CHARGE);
+
+    it("destroys the members at the count and spares the rest", () => {
+        const plan = runPlan([EQUAL_TO_CHARGE], ARTIFACT);
+        resolveAbility(plan, [EQUAL_TO_CHARGE]);
+        expect(plan.scenario.sweeps?.[0]?.memberIds).toHaveLength(2);
+        expect(failures(plan)).toEqual([]);
+    });
+
+    it.each<[string, EffectOp]>([
+        ["the guard removed", sweep(DESTROY, { excludeType: "Land" })],
+        ["'equal to' read as 'at most'", guard("le", CHARGE)],
+        [
+            "the count read off another counter type",
+            guard("eq", {
+                counters: { of: { ref: "$source" }, type: "age" },
+            }),
+        ],
+        ["the selector's clause dropped", guard("eq", CHARGE, {})],
+    ])("%s breaks the plan", (_label, wide) => {
+        const plan = runPlan([EQUAL_TO_CHARGE], ARTIFACT);
+        resolveAbility(plan, [wide]);
+        expect(failures(plan)).not.toEqual([]);
+    });
+
+    it("a scoped-out seat's card passes the guard, so only the controller clause spares it", () => {
+        const yours = guard(
+            "eq",
+            CHARGE,
+            {},
+            {
+                controller: "controller",
+            }
+        );
+        const plan = runPlan([yours], ARTIFACT);
+        resolveAbility(plan, [guard("eq", CHARGE, {})]);
+        expect(failures(plan)).not.toEqual([]);
+    });
+
+    it("a member's own counters are not seeded, so it does not run", () => {
+        const plan = planSmokeTest(
+            [
+                guard("eq", {
+                    counters: { of: { ref: "$each" }, type: "charge" },
+                }),
+            ],
+            ARTIFACT
+        );
+        expect(plan.kind).toBe("skip");
+    });
+
+    it("a site with no source permanent has no count to read", () => {
+        expect(planSmokeTest([EQUAL_TO_CHARGE]).kind).toBe("skip");
+    });
+
+    it("a guard no seeded card can pass does not run", () => {
+        const plan = planSmokeTest([guard("lt", 1)], ARTIFACT);
+        expect(plan.kind).toBe("skip");
+    });
+});
+
 describe("what the seeded board cannot predict keeps the fail-closed skip", () => {
     const CASES: [string, EffectOp[]][] = [
         [
@@ -563,6 +648,24 @@ describe("the Oracle gate no longer holds a plain mass effect", () => {
             "{2}{U}",
             "Instant",
             "Return all artifacts to their owners' hands.",
+        ],
+        [
+            "Ratchet Bomb",
+            "{2}",
+            "Artifact",
+            "{T}: Put a charge counter on this artifact.\n{T}, Sacrifice this artifact: Destroy each nonland permanent with mana value equal to the number of charge counters on this artifact.",
+        ],
+        [
+            "Wave of Terror",
+            "{2}{B}",
+            "Enchantment",
+            "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAt the beginning of your draw step, destroy each creature with mana value equal to the number of age counters on this enchantment. They can't be regenerated.",
+        ],
+        [
+            "Vandalblast",
+            "{R}",
+            "Sorcery",
+            'Destroy target artifact you don\'t control.\nOverload {4}{R} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
         ],
     ])("%s", (name, manaCost, typeLine, oracleText) => {
         const outcome = compileCard(

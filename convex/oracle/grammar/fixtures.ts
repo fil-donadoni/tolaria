@@ -14842,6 +14842,48 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 702.96a — "Overload {4}{R}": a plain `destroy` of the overload sweep's member. The announced set is not on a seeded board, so `$each` is the form this fixture evidences.
+    {
+        rule: "overload",
+        card: {
+            oracleId: "3567c3c8-b3c7-45b7-935b-b1fdbc973720",
+            name: "Vandalblast",
+            manaCost: "{R}",
+            typeLine: "Sorcery",
+            oracleText:
+                'Destroy target artifact you don\'t control.\nOverload {4}{R} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+            layout: "normal",
+        },
+        expected: {
+            name: "Vandalblast",
+            types: ["Sorcery"],
+            manaCost: { R: 1 },
+            oracleText:
+                'Destroy target artifact you don\'t control.\nOverload {4}{R} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+            overload: {
+                id: "overload",
+                description: "Overload {4}{R}",
+                mana: { X: 4, R: 1 },
+            },
+            targetRequirement: {
+                type: "Artifact",
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [
+                        {
+                            op: "destroy",
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 603.5 + CR 608.2c + CR 205.3 — "mill four cards, then you may return a non-Avatar creature card or a planeswalker card from your graveyard to your hand": the chain's optional tail, a graveyard pick over the filter's `any` of two card nouns, "non-Avatar" on the creature half only (issue #7721). Exhibits the `choice` of that filter and the `moveZone` of its pick, which the smoke scenario cannot stage.
     {
         rule: "effect clause",
