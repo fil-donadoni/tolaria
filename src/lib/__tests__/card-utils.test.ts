@@ -46,6 +46,7 @@ import {
     type DisplayAbilities,
 } from "../card-utils";
 import { getCardImageDefId } from "../card-image-signature";
+import { formatTargetLabel } from "../target-progress";
 import { faceDownRealCardId } from "../face-down";
 import type {
     CardInstance,
@@ -2765,6 +2766,61 @@ describe("getDelayedTriggerOracleText", () => {
 // ---------------------------------------------------------------------------
 // wantsSpellTarget / matchesSpellTypeFilter (Fork — CR 114.1, 707.10)
 // ---------------------------------------------------------------------------
+
+// CR 701.65a (issue #3551) — Aang, Swift Savior's "creature or spell": the three
+// frontend targeting sites read the mixed shape, each its own half.
+describe('mixed target shape ["Creature", "spell"] (CR 115.1)', () => {
+    const mixed = ["Creature", "spell"];
+
+    it("the permanent site takes a creature and never a land", () => {
+        expect(
+            matchesTargetRequirement(
+                makeCardInstance({ types: ["Creature"] }),
+                mixed
+            )
+        ).toBe(true);
+        expect(
+            matchesTargetRequirement(
+                makeCardInstance({ types: ["Land"] }),
+                mixed
+            )
+        ).toBe(false);
+    });
+
+    it("the stack site opens for it", () => {
+        expect(wantsSpellTarget(mixed)).toBe(true);
+    });
+
+    it("the stack site takes a spell, once", () => {
+        const pending = {
+            playerId: "p1",
+            cardInstanceId: "aang",
+            targetType: mixed,
+            count: { min: 0, max: 1 },
+            selected: [],
+        } as PendingTarget;
+        const ctx = { playerId: "p1", activePlayerId: "p1", players: [] };
+        const spell = {
+            id: "spell",
+            card: { id: "def-spell" },
+            types: ["Creature"],
+        };
+        expect(matchesSpellPendingTarget(spell, pending, ctx)).toBe(true);
+        expect(
+            matchesSpellPendingTarget(
+                spell,
+                { ...pending, selected: [{ type: "spell", id: "spell" }] },
+                ctx
+            )
+        ).toBe(false);
+    });
+
+    it("the prompt names both halves", () => {
+        expect(formatTargetLabel(mixed, undefined, undefined, undefined)).toBe(
+            "a creature or a spell on the stack"
+        );
+    });
+});
 
 describe("wantsSpellTarget", () => {
     it("is true for 'spell' and 'spell-or-permanent'", () => {

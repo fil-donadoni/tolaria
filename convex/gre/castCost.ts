@@ -248,6 +248,25 @@ function exileCastPricedFree(
     return route !== undefined && exileRoutePrice(card, route) === "free";
 }
 
+/** CR 118.9 — the cast from exile pays the alternative cost its grant states,
+ *  so an Adventure's own cost is no price here either: only one alternative
+ *  cost applies to a spell (CR 118.9a), and that is the grant's. */
+function exileCastPricedByGrant(
+    state: GameState,
+    card: CardInstanceState,
+    declineManaCostReplacement?: boolean
+): boolean {
+    return (
+        card.castFromExileAlternativeCost !== undefined &&
+        exileCastRoute(
+            state,
+            card,
+            state.priorityPlayerId,
+            declineManaCostReplacement
+        ) === "grant"
+    );
+}
+
 /** CR 709.3 (issue #3344) — the alternative cost a cast ACTUALLY pays once the
  *  zone it comes from is known.
  *
@@ -301,7 +320,12 @@ export function castAlternativeCostForZone(
         // those to the Adventure" (Gatherer ruling, 2019-10-04).
         (isAdventureCastId(def ?? undefined, alternativeCostId) &&
             zone === "exile" &&
-            exileCastPricedFree(state, card, declineManaCostReplacement));
+            (exileCastPricedFree(state, card, declineManaCostReplacement) ||
+                exileCastPricedByGrant(
+                    state,
+                    card,
+                    declineManaCostReplacement
+                )));
     if (!zonePriced) return resolved;
     const mana = castRawManaCost(
         state,
@@ -392,6 +416,11 @@ export function castRawManaCost(
             // (`SpellContext.grantCastFromExile`'s `withoutPayingManaCost`
             // option).
             if (card.castFromExileWithoutPayingManaCost) return {};
+            // CR 118.9 — a grant that states its price ("by paying {2} rather
+            // than paying its mana cost", CR 701.65a).
+            if (card.castFromExileAlternativeCost) {
+                return card.castFromExileAlternativeCost;
+            }
             // CR 702.35a — a card discarded via Madness is cast from exile for
             // its madness cost, not its printed mana cost. `Madness {0}` is
             // the empty cost.
@@ -822,7 +851,9 @@ export function exileCastOnlyUnderPlotPermission(
 export function exileRoutePrice(
     card: Pick<
         CardInstanceState,
-        "castFromExileWithoutPayingManaCost" | "madnessExiled"
+        | "castFromExileWithoutPayingManaCost"
+        | "castFromExileAlternativeCost"
+        | "madnessExiled"
     >,
     route: ExileCastRoute
 ): ExileCastRoutePrice {
@@ -830,6 +861,7 @@ export function exileRoutePrice(
     if (route === "foretell") return "alternative";
     if (route === "warp") return "printed";
     if (card.castFromExileWithoutPayingManaCost === true) return "free";
+    if (card.castFromExileAlternativeCost !== undefined) return "alternative";
     return card.madnessExiled === true ? "alternative" : "printed";
 }
 
@@ -865,6 +897,7 @@ export function exileCastRoutes(
         Pick<
             CardInstanceState,
             | "castFromExileWithoutPayingManaCost"
+            | "castFromExileAlternativeCost"
             | "madnessExiled"
             | "castFromExileManaSubstitution"
             | "castFromExileCostIncrease"
@@ -955,7 +988,7 @@ function exileRouteView(
             : route === "foretell"
               ? getForetellCost(card)
               : price === "alternative"
-                ? getMadnessCost(card)
+                ? (card.castFromExileAlternativeCost ?? getMadnessCost(card))
                 : getInstanceManaCost(card);
     return { price, xLocked: typeof cost?.X !== "string" };
 }

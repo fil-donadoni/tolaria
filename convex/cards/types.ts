@@ -1444,10 +1444,16 @@ export interface CounterOutcome {
  *    on the stack, CR 113.6g) does not answer it — that ability speaks only
  *    to countering, CR 701.6a — and no counter-watching effect sees it;
  *  - "put on the BOTTOM of its owner's library" is expressible here
- *    (Subtlety) and not there, while `"graveyard"`/`"exile"` have no
- *    non-counter card wording asking for them yet — an unused member would
- *    be an untested branch, so the union carries exactly what ships. */
-export type SpellStackDestination = "hand" | "library-top" | "library-bottom";
+ *    (Subtlety) and not there, while `"graveyard"` has no non-counter card
+ *    wording asking for it yet — an unused member would be an untested branch,
+ *    so the union carries exactly what ships;
+ *  - `"exile"` is CR 701.65a's airbend: exiling a spell is not countering it,
+ *    so "can't be countered" does not stop it. */
+export type SpellStackDestination =
+    | "hand"
+    | "library-top"
+    | "library-bottom"
+    | "exile";
 
 export interface TargetSelection {
     /** "permanent" = battlefield card, "player" = player, "spell" = stack
@@ -5789,6 +5795,12 @@ export interface SpellContext {
              *  the taxed cast identically. Omitted (the default) is the
              *  historical untaxed grant (Ice Cauldron, Robber of the Rich). */
             costIncrease?: ManaCost;
+            /** CR 118.9 — the permission states the cast's price: "by paying
+             *  {2} rather than paying its mana cost" (CR 701.65a, Airbend).
+             *  Stamps `CardInstanceState.castFromExileAlternativeCost`, read
+             *  by `castRawManaCost`. Omitted (the default) pays the printed
+             *  cost. */
+            alternativeCost?: ManaCost;
             /** CR 611.2b (issue #7295) — a CONDITION on the permission: "you
              *  may play them if you control a Wizard". Stamps
              *  `CardInstanceState.castableFromExileCondition`, re-read at every
@@ -12218,6 +12230,10 @@ export interface SpellCastEvent {
      *  spellCastTrigger.ts`) reads it. Optional like the field above: a
      *  hand-built fixture without it reads as "no spell of any type yet". */
     casterSpellTypeCountsThisTurn?: Partial<Record<CardType, number>>;
+    /** CR 601.2a — the zone the spell was cast from, off
+     *  `StackItem.castFromZone`, for "whenever you cast a spell from exile".
+     *  Optional like the tallies above: a hand-built fixture has no zone. */
+    spellCastFromZone?: CastFromZone;
 }
 
 /** "A player copies a spell" (CR 707.10) — one event per copy, emitted by the
@@ -21239,6 +21255,22 @@ export type EffectOp =
           op: "moveSpellFromStack";
           target: EffectTargetRef;
           destination: SpellStackDestination;
+      }
+    /** CR 701.65a (issue #3551) — AIRBEND one object: exile `target`, a
+     *  permanent or a spell, and if a card landed in exile its OWNER may cast
+     *  it by paying {2} rather than its mana cost for as long as it stays
+     *  exiled. A spell leaves through `SpellContext.moveSpellFromStack`, so it
+     *  is NOT countered and "can't be countered" does not stop it (CR 701.6a).
+     *  A token or a copy of a spell ceases to exist (CR 111.7, CR 707.10a): no
+     *  card, no permission. Exiled face up (CR 406.3), so the exile has no
+     *  knowledge stamp. Skipped when `target` is gone (CR 608.2b).
+     *
+     *  One Op per object: "up to N target" reads N slots, an open-ended count
+     *  iterates `forEach { set: "targets" }`. No trigger reads CR 701.65b's
+     *  "whenever a player airbends" in the catalogue yet. */
+    | {
+          op: "airbend";
+          target: EffectObjectSelector;
       }
     /** CR 707.10 + CR 707.10c — "[player] may copy this spell and may choose
      *  new targets for the copy" (issue #5604): the RESOLVING spell copies

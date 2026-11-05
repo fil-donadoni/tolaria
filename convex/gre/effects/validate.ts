@@ -2469,15 +2469,16 @@ function isCounterDestination(value: unknown): boolean {
 
 /** The JSON-pure `destination` discriminator of a `moveSpellFromStack` Op
  *  (issue #2605, `SpellStackDestination`) — which of its OWNER's zones a spell
- *  moved off the stack without being countered ends up in. No `"graveyard"` /
- *  `"exile"` member: those are `counter`'s destinations, and admitting them
- *  here would validate a shape no card wording asks for and no executor branch
- *  is tested against. */
+ *  moved off the stack without being countered ends up in. No `"graveyard"`
+ *  member: that is `counter`'s destination, and admitting it here would
+ *  validate a shape no card wording asks for and no executor branch is tested
+ *  against. `"exile"` is airbend's (CR 701.65a). */
 function isSpellStackDestination(value: unknown): boolean {
     return (
         value === "hand" ||
         value === "library-top" ||
-        value === "library-bottom"
+        value === "library-bottom" ||
+        value === "exile"
     );
 }
 
@@ -4791,6 +4792,8 @@ const OP_SCHEMAS: OpSchemaTable = {
             linkToSource: isBoolean,
         },
     },
+    // CR 701.65a (issue #3551) — airbend one object, a permanent or a spell.
+    airbend: { required: { target: isObjectSelector } },
     // CR 608.2 (issue #1097) — the resolving spell exiles ITSELF instead of
     // going to the graveyard (Recall / Restock). No fields — it always
     // redirects the currently-resolving stack item. Mirrors

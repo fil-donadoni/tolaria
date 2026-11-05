@@ -2776,6 +2776,18 @@ const ABILITY_WORDS: MechanicRow[] = [
  *  set-wide; a row still stays here rather than migrating array on that
  *  basis alone.) */
 const SET_KEYWORDS: MechanicRow[] = [
+    // Airbend — TLA, a CR 701 keyword action performed by an effect. Never on a
+    // permanent's keyword line, so `bindingPattern` documents the name only.
+    {
+        id: "airbend",
+        name: "Airbend",
+        kind: "keyword-action",
+        cr: "701.65",
+        status: "implemented",
+        bindingPattern: /^airbend\b/i,
+        binding: "airbend Op (gre/effects/interpreter.ts)",
+        note: 'CR 701.65a: "To do so, that player exiles those objects. For each card exiled this way, for as long as it remains exiled, its owner may cast it by paying {2} rather than paying its mana cost." The price is `CardInstanceState.castFromExileAlternativeCost`, a stated alternative cost on the grant record named for the mechanism: `castRawManaCost` pays it, `exileRoutePrice` calls the route `alternative`, `getLegalActions` probes it, and additional costs and increases still apply onto it (CR 118.9d). Foretell (CR 702.143) landed first with its own derived route and `grantedForetellCost`, and keeps them: a foretold permission is derived from the designation, not written to the grant record. A spell leaves through `moveSpellFromStack`, so airbending is not countering (CR 701.6a). CR 701.65b ("whenever a player airbends") is N/A: no card in the catalogue triggers on it.',
+    },
     // Waterbend {N} — TLA, a CR 701 keyword action paid as a cost. Never on a
     // permanent's keyword line, so `bindingPattern` documents the name only.
     {
@@ -3371,6 +3383,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.counter",
         mechanicId: "counter",
         note: 'Effect Script Op for the CR 701 keyword action "Counter" — removes the target spell from the stack into its owner\'s graveyard by default. The consequence half of the counter/punisher pattern ("Counter target spell unless its controller pays {N}", issue #806). An optional `destination` (issue #683) redirects a COUNTERED SPELL to exile / the top of its owner\'s library / its owner\'s hand instead — "if that spell is countered this way, exile it / put it on top of its owner\'s library / put it into its owner\'s hand instead" (No More Lies, Memory Lapse, Remand).',
+    },
+    {
+        op: "airbend",
+        status: "implemented",
+        cr: "701.65",
+        binding: "SpellContext.exile / moveSpellFromStack + grantCastFromExile",
+        mechanicId: "airbend",
+        note: 'Effect Script Op for the CR 701 keyword action "Airbend" (issue #3551). Exiles one object, a permanent through `exile` or a spell through the non-counter `moveSpellFromStack` leg (`destination: "exile"`), then grants each card that landed in exile a `while-exiled` cast permission for its OWNER, priced by `castFromExileAlternativeCost`. A token or a copy of a spell ceases to exist and takes no grant (CR 111.7, CR 707.10a); a melded permanent is two cards, each granted (CR 712.21e).',
     },
     {
         op: "moveSpellFromStack",

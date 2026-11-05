@@ -461,6 +461,7 @@ describe("validateEffectScript — bind + ref + count constructs (#802)", () => 
             "hand",
             "library-top",
             "library-bottom",
+            "exile",
         ] as const) {
             expect(
                 validateEffectScript(
@@ -487,7 +488,7 @@ describe("validateEffectScript — bind + ref + count constructs (#802)", () => 
             {
                 op: "moveSpellFromStack",
                 target: { target: 0 },
-                destination: "exile",
+                destination: "graveyard",
             },
             {
                 op: "moveSpellFromStack",

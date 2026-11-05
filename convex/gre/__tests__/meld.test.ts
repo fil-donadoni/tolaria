@@ -16,6 +16,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+    getCardByName,
     getDefinition,
     getPermanentManaValueCost,
     preloadDefinitions,
@@ -395,6 +396,46 @@ describe("a melded permanent leaving the battlefield (CR 712.21)", () => {
         expect(
             put && "cards" in put ? put.cards.map((c) => c.cardInstanceId) : []
         ).toEqual(["holder", "partner"]);
+    });
+});
+
+describe("airbending a melded permanent (CR 701.65a, CR 712.21e)", () => {
+    it("exiles two cards, each castable for {2} by its own owner", () => {
+        const state = board("p2");
+        const melded = meld(state)!;
+        const appa = makeInstance(
+            getCardByName("Appa, Steadfast Guardian").id,
+            {
+                id: "appa",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
+        state.players[0].battlefield.push(appa);
+        state.stack.push({
+            ...appa,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "appa-steadfast-guardian-airbend",
+            triggerSourceId: "appa",
+            triggerEvent: {
+                type: "PERMANENT_ENTERED",
+                instanceId: "appa",
+                controllerId: "p1",
+                types: ["Creature"],
+            },
+            targets: [{ type: "permanent", id: melded.id }],
+        } as StackItem);
+
+        resolveTopOfStack(state);
+
+        const holder = state.players[0].exile.find((c) => c.id === "holder")!;
+        const partner = state.players[1].exile.find((c) => c.id === "partner")!;
+        expect(holder.castableFromExileBy).toBe("p1");
+        expect(partner.castableFromExileBy).toBe("p2");
+        for (const card of [holder, partner]) {
+            expect(card.castFromExileAlternativeCost).toEqual({ X: 2 });
+        }
     });
 });
 
