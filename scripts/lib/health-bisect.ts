@@ -720,6 +720,10 @@ export function bisectFirstRed(
     return { culprit: commits[lo], probes };
 }
 
+/** Why no culprit is named when every probe ran and none was red: the one
+ *  unnamed outcome that is a fact, not a bisect that died (ADR 0163 §3). */
+export const NO_PROBE_REPRODUCED = "no probe reproduced it by name";
+
 /** What one probe of the failing tests at a commit found: the tests that
  *  failed there, or `infra` — it could not run. */
 export type TestProbe = readonly FailingTest[] | "infra";
@@ -815,7 +819,7 @@ export function bisectCulprits(
                 found,
                 unexplained: {
                     tests: rest,
-                    reason: `no probe reproduced it by name, the RED tip \`${r.culprit.slice(0, 12)}\` included`,
+                    reason: `${NO_PROBE_REPRODUCED}, the RED tip \`${r.culprit.slice(0, 12)}\` included`,
                 },
                 probes,
             };
@@ -1039,6 +1043,57 @@ export function remainingGates(
 /** The evidence line every confirmed RED gets, culprit or not — the mark
  *  that its ladder ran, so a later run does not climb it twice (one email). */
 export const LADDER_MARK = "- **culprit:** ";
+
+/** What a bisect established, read off the culprit lines it published. */
+export type BisectOutcome =
+    /** At least one culprit named, none of them generated. */
+    | { kind: "named" }
+    /** Every probe ran and none reproduced it: nothing to revert. */
+    | { kind: "no-culprit" }
+    /** It died, never ran, or its first red probe was a generated commit. */
+    | { kind: "refused"; why: string };
+
+const GENERATED_PROBE =
+    /the first red probe was (?:generated )?base maintenance/;
+const NAMED_CULPRIT = /^(?:PR #\d+|a direct commit) · /;
+const UNNAMED_CULPRIT = /^not named\b/;
+
+/**
+ * The bisect's outcome, as ADR 0163 §2-3 needs it. An ALLOW-LIST: a line that
+ * reads as neither a clean culprit nor "no probe reproduced it" refuses, so a
+ * new wording of `culpritLines` blocks instead of granting. No line at all is
+ * a bisect that died, or whose publication failed.
+ */
+export function bisectOutcome(evidence: string | null): BisectOutcome {
+    const lines = (evidence ?? "")
+        .split("\n")
+        .filter((l) => l.startsWith(LADDER_MARK))
+        .map((l) => l.slice(LADDER_MARK.length));
+    if (lines.length === 0)
+        return { kind: "refused", why: "the bisect published no culprit line" };
+    let named = false;
+    for (const line of lines) {
+        if (GENERATED_PROBE.test(line))
+            return {
+                kind: "refused",
+                why: "the first red probe was a generated commit",
+            };
+        if (NAMED_CULPRIT.test(line)) {
+            named = true;
+            continue;
+        }
+        const reason = line.split(" — ").at(-1) ?? "";
+        if (
+            !UNNAMED_CULPRIT.test(line) ||
+            !reason.startsWith(NO_PROBE_REPRODUCED)
+        )
+            return {
+                kind: "refused",
+                why: `the bisect did not settle: ${line}`,
+            };
+    }
+    return { kind: named ? "named" : "no-culprit" };
+}
 
 /** Whether a published evidence body says its ladder already ran. */
 export function laddered(body: string | null): boolean {

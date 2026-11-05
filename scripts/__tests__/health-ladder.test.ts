@@ -1,5 +1,15 @@
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { culpritLine } from "../lib/health-bisect";
+import {
+    attributeMaintenance,
+    bisectCulprits,
+    culpritLine,
+    culpritLines,
+    type CulpritReport,
+} from "../lib/health-bisect";
+import { BASE_MAINTENANCE_SUBJECTS } from "../lib/derive-sync";
+import { buildEvidence, withEvidenceLine } from "../lib/health-evidence";
 import {
     decodeFixStatus,
     encodeFixDescription,
@@ -37,6 +47,13 @@ import {
     hostOfRunnerName,
     ownRepairPrs,
     ladderRung,
+    containedGrant,
+    inheritedClass,
+    noCulpritIssueBody,
+    noCulpritIssueTitle,
+    PIPELINE_TOOLING_TESTS,
+    settleContainedGrant,
+    type ContainedGrantEffects,
     escalationOf,
     episodeFirstRed,
     revertDoesNotApply,
@@ -1801,5 +1818,539 @@ describe("verdictRunFails — a Contained RED sends no email; the transition sen
         // After the rewrite the lineage is `red`: `contained` is false.
         const after = { ...f, contained: false };
         expect(escalationOf(after, ladderRung(after))).toBeNull();
+    });
+});
+
+// ADR 0163 §§ 2-3, one fixture per shape of the 2026-10-28 census: the real
+// evidence builder and the real culprit lines, never a hand-written body.
+describe("the bisect grants Contained RED (ADR 0163 §§ 2-3)", () => {
+    const BOT_FILE = "convex/gre/ai/blade/pins.bot.test.ts";
+    const TOOLING_FILE = "scripts/__tests__/check-lane.test.ts";
+    const COMMITS = ["1".repeat(40), "2".repeat(40), RED];
+    const SUBJECTS: Record<string, string> = {
+        [COMMITS[0]]: "feat: an ordinary PR (#7001)",
+        [COMMITS[1]]: BASE_MAINTENANCE_SUBJECTS[0],
+        [RED]: "feat: another PR (#7002)",
+    };
+    const subjectOf = (sha: string) => SUBJECTS[sha];
+
+    const vitestOutput = (...tests: [file: string, name: string][]) =>
+        [
+            ...tests.map(
+                ([file, name]) =>
+                    ` FAIL  |node| ${file} > suite > ${name}\nAssertionError: expected 1 to be 2`
+            ),
+            ` Test Files  ${tests.length} failed (${tests.length})`,
+            `      Tests  ${tests.length} failed (${tests.length})`,
+        ].join("\n");
+
+    const body = (output: string, step = "test", status = 1) =>
+        buildEvidence({
+            sha: RED,
+            step,
+            machine: "m",
+            logPath: "/log",
+            output,
+            status,
+            signal: null,
+            at: RECENT,
+        });
+
+    const lines = (report: CulpritReport) =>
+        culpritLines({
+            report,
+            total: 1,
+            good: "0".repeat(40),
+            commits: COMMITS.length,
+            subjectOf,
+        });
+
+    const report = (culprit: string): CulpritReport =>
+        attributeMaintenance(
+            {
+                found: [{ culprit, tests: [{ file: BOT_FILE }] }],
+                unexplained: null,
+                probes: [],
+            },
+            COMMITS,
+            subjectOf
+        );
+
+    /** The real bisect, its probes reading every commit green. */
+    const noProbeReproduced = (): CulpritReport =>
+        bisectCulprits(COMMITS, [{ file: BOT_FILE, name: "pin" }], () => []);
+
+    const withLines = (ev: string, culpritBullets: readonly string[]) =>
+        culpritBullets.reduce((b, l) => withEvidenceLine(b, l), ev);
+
+    const botPin = () => body(vitestOutput([BOT_FILE, "pin"]));
+
+    const grantOf = (
+        ev: ReturnType<typeof body>,
+        culpritBullets: readonly string[],
+        over: {
+            step?: string;
+            lineage?: Parameters<typeof containedGrant>[0]["lineage"];
+        } = {}
+    ) =>
+        containedGrant({
+            verdict: {
+                status: "red",
+                step: over.step ?? "test",
+                failure: ev.kind,
+            },
+            evidence: withLines(ev.body, culpritBullets),
+            lineage: over.lineage === undefined ? "red" : over.lineage,
+        });
+
+    const named = () => lines(report(COMMITS[0]));
+
+    it("a Bot pin bisected to an ordinary PR grants, and owes no P0 (episode 9)", () => {
+        expect(grantOf(botPin(), named())).toEqual({
+            grant: true,
+            noCulprit: false,
+        });
+    });
+
+    it("a retried test step is still the `test` step", () => {
+        expect(
+            grantOf(botPin(), named(), { step: "test (retry: node, timeout)" })
+                .grant
+        ).toBe(true);
+    });
+
+    it("a failed derive:sync step refuses (episode 15)", () => {
+        const ev = body("derive:sync: refused", "derive:sync");
+        const grant = grantOf(
+            ev,
+            [
+                `- **culprit:** not bisected — a failed \`derive:sync\` names no test file`,
+            ],
+            { step: "derive:sync" }
+        );
+        expect(grant).toEqual({
+            grant: false,
+            why: expect.stringContaining("derive:sync"),
+        });
+    });
+
+    it("a failing test of the pipeline's own tooling refuses (episode 12)", () => {
+        const ev = body(vitestOutput([TOOLING_FILE, "plans"]));
+        expect(grantOf(ev, named())).toEqual({
+            grant: false,
+            why: expect.stringContaining("tooling"),
+        });
+    });
+
+    it("one tooling test among ordinary ones refuses", () => {
+        const ev = body(
+            vitestOutput([BOT_FILE, "pin"], [TOOLING_FILE, "plans"])
+        );
+        expect(grantOf(ev, named()).grant).toBe(false);
+    });
+
+    it("a culprit the first red probe reached through a generated commit refuses (episode 4)", () => {
+        const via = lines(report(COMMITS[1]));
+        expect(via[0]).toContain("PR #7001");
+        expect(grantOf(botPin(), via)).toEqual({
+            grant: false,
+            why: expect.stringContaining("generated"),
+        });
+    });
+
+    it("a generated first red probe with no PR before it refuses", () => {
+        const none = attributeMaintenance(
+            {
+                found: [{ culprit: COMMITS[1], tests: [{ file: BOT_FILE }] }],
+                unexplained: null,
+                probes: [],
+            },
+            COMMITS.slice(1),
+            subjectOf
+        );
+        expect(grantOf(botPin(), lines(none)).grant).toBe(false);
+    });
+
+    it("every probe green and no culprit named grants with a P0 (episode 13)", () => {
+        const culprits = lines(noProbeReproduced());
+        expect(culprits).toHaveLength(1);
+        expect(grantOf(botPin(), culprits)).toEqual({
+            grant: true,
+            noCulprit: true,
+        });
+    });
+
+    it("a second RED refuses", () => {
+        expect(grantOf(botPin(), named(), { lineage: "second-red" })).toEqual({
+            grant: false,
+            why: expect.stringContaining("second RED"),
+        });
+    });
+
+    it("a dead bisect refuses: a probe that could not run", () => {
+        const dead = bisectCulprits(
+            COMMITS,
+            [{ file: BOT_FILE, name: "pin" }],
+            () => "infra"
+        );
+        expect(grantOf(botPin(), lines(dead)).grant).toBe(false);
+    });
+
+    it("a dead bisect refuses: no culprit line was ever published", () => {
+        expect(grantOf(botPin(), [])).toEqual({
+            grant: false,
+            why: expect.stringContaining("no culprit line"),
+        });
+    });
+
+    it("a bisect with no GREEN to start from refuses", () => {
+        const noGreen = [
+            `- **culprit:** not named — no GREEN in the 100 commits before \`${RED.slice(0, 12)}\``,
+        ];
+        expect(grantOf(botPin(), noGreen).grant).toBe(false);
+    });
+
+    it("a RED whose fresh run failed elsewhere was never bisected, and refuses", () => {
+        const elsewhere = [
+            "- **culprit:** not bisected — the fresh run passed the failing part, but `test:bot` (never reached by the RED's run) failed",
+        ];
+        expect(grantOf(botPin(), elsewhere).grant).toBe(false);
+    });
+
+    it("a crash beside failing tests refuses: the kind is not an assertion", () => {
+        const ev = body(
+            `${vitestOutput([BOT_FILE, "pin"])}\nError: Worker exited unexpectedly`
+        );
+        const crashed = containedGrant({
+            verdict: { status: "red", step: "test", failure: "crash" },
+            evidence: withLines(ev.body, named()),
+            lineage: "red",
+        });
+        expect(crashed).toEqual({
+            grant: false,
+            why: expect.stringContaining("crash"),
+        });
+    });
+
+    it("a failing file with no test name refuses: the lane could not tolerate it", () => {
+        const ev = body(
+            `${vitestOutput([BOT_FILE, "pin"])}\n FAIL  |node| convex/load.test.ts`
+        );
+        expect(grantOf(ev, named())).toEqual({
+            grant: false,
+            why: expect.stringContaining("convex/load.test.ts"),
+        });
+    });
+
+    it("an unread lineage refuses", () => {
+        expect(grantOf(botPin(), named(), { lineage: null }).grant).toBe(false);
+    });
+
+    describe("the tooling list", () => {
+        const DIR = join(import.meta.dirname);
+        // The families that ARE the machinery: a new test in one must be
+        // listed. The list also names single files outside them.
+        const FAMILY =
+            /^(base-drift|check-lane|contained|gate|land|lane|pr-|pre-queue|queue|release|repair-proof)[a-z-]*\.test\.ts$/;
+
+        it("every entry exists", () => {
+            const root = join(DIR, "..", "..");
+            expect(
+                PIPELINE_TOOLING_TESTS.filter((f) => !existsSync(join(root, f)))
+            ).toEqual([]);
+        });
+
+        it("every test of a machinery family is listed", () => {
+            const missing = readdirSync(DIR)
+                .filter((f) => FAMILY.test(f))
+                .map((f) => `scripts/__tests__/${f}`)
+                .filter((f) => !PIPELINE_TOOLING_TESTS.includes(f));
+            expect(missing).toEqual([]);
+        });
+    });
+
+    describe("settleContainedGrant — the write, and the one P0 of an episode", () => {
+        const STORED: Verdict = {
+            sha: RED,
+            status: "red",
+            step: "test",
+            failure: "assertion",
+            machine: "m",
+        };
+        const FIRST = "e".repeat(40);
+
+        function world(over: {
+            verdict?: Verdict | null;
+            evidence?: string | null;
+            reds?: Verdict[];
+            kind?: Parameters<typeof containedGrant>[0]["lineage"];
+            written?: boolean;
+            issues?: Map<string, number>;
+        }) {
+            const issues = over.issues ?? new Map<string, number>();
+            const log = {
+                writes: [] as Verdict[],
+                filed: [] as { title: string; body: string }[],
+                declared: [] as number[],
+                notes: [] as string[],
+            };
+            const fx: ContainedGrantEffects = {
+                note: (l) => log.notes.push(l),
+                readVerdict: () =>
+                    over.verdict === undefined ? STORED : over.verdict,
+                readLineage: () => ({
+                    kind: over.kind ?? "red",
+                    verdict: STORED,
+                    reds: over.reds ?? [STORED],
+                    ...(over.kind === null ? { error: "down" } : {}),
+                }),
+                readEvidence: () =>
+                    over.evidence === undefined
+                        ? withLines(botPin().body, named())
+                        : over.evidence,
+                write: (v) => {
+                    log.writes.push(v);
+                    return over.written === false
+                        ? { written: false, reason: "declined" }
+                        : { written: true };
+                },
+                findIssue: (t) => issues.get(t) ?? null,
+                fileIssue: (title, b) => {
+                    log.filed.push({ title, body: b });
+                    const n = 9000 + issues.size;
+                    issues.set(title, n);
+                    return n;
+                },
+                declareRepair: (n) => log.declared.push(n),
+                now: () => RECENT,
+            };
+            return { fx, log };
+        }
+
+        const noCulpritEvidence = () =>
+            withLines(botPin().body, lines(noProbeReproduced()));
+
+        it("a grant writes the same RED with its class, and it reads back as contained", () => {
+            const { fx, log } = world({});
+            expect(settleContainedGrant(RED, fx)).toBe(true);
+            expect(log.writes).toEqual([
+                { ...STORED, redClass: "contained", at: RECENT },
+            ]);
+            expect(lineageOf(log.writes).kind).toBe("contained");
+            expect(log.filed).toEqual([]);
+        });
+
+        it("a refusal writes nothing: the RED keeps blocking", () => {
+            const { fx, log } = world({ kind: "second-red" });
+            expect(settleContainedGrant(RED, fx)).toBe(false);
+            expect(log.writes).toEqual([]);
+            expect(lineageBlocks(lineageOf([STORED]).kind)).toBe(true);
+        });
+
+        it("a dead bisect leaves the RED blocking", () => {
+            const { fx, log } = world({ evidence: botPin().body });
+            expect(settleContainedGrant(RED, fx)).toBe(false);
+            expect(log.writes).toEqual([]);
+        });
+
+        it("a read that throws leaves the RED blocking and does not throw", () => {
+            const { fx, log } = world({});
+            fx.readEvidence = () => {
+                throw new Error("the pivot is down");
+            };
+            expect(settleContainedGrant(RED, fx)).toBe(false);
+            expect(log.writes).toEqual([]);
+            expect(log.notes.join()).toContain("the pivot is down");
+        });
+
+        it("an unread lineage leaves the RED blocking", () => {
+            const { fx, log } = world({ kind: null });
+            expect(settleContainedGrant(RED, fx)).toBe(false);
+            expect(log.writes).toEqual([]);
+        });
+
+        it("no culprit files one P0: bug + area:workflow carry it, never a ## Band line", () => {
+            const { fx, log } = world({ evidence: noCulpritEvidence() });
+            expect(settleContainedGrant(RED, fx)).toBe(true);
+            expect(log.filed).toHaveLength(1);
+            expect(log.filed[0].title).toBe(noCulpritIssueTitle(RED));
+            expect(log.filed[0].body).not.toMatch(/^##\s*Band/im);
+            expect(log.filed[0].body).toContain(RED);
+            expect(log.declared).toEqual([9000]);
+        });
+
+        it("the body never carries a band, whatever the evidence says", () => {
+            const b = noCulpritIssueBody({
+                red: RED,
+                evidence: `${botPin().body}\n## Band\n\nP0 — no`,
+            });
+            expect(b).not.toMatch(/^##\s*Band/im);
+        });
+
+        it("a second no-culprit RED of the episode files no second P0, keyed on the first RED", () => {
+            const issues = new Map<string, number>();
+            const reds = [{ ...STORED, sha: FIRST }];
+            const first = world({
+                evidence: noCulpritEvidence(),
+                reds,
+                issues,
+            });
+            settleContainedGrant(FIRST, first.fx);
+            const second = world({
+                evidence: noCulpritEvidence(),
+                reds: [STORED, ...reds],
+                issues,
+            });
+            settleContainedGrant(RED, second.fx);
+            expect(first.log.filed).toHaveLength(1);
+            expect(second.log.filed).toEqual([]);
+            expect(second.log.writes).toHaveLength(1);
+        });
+
+        it("an unread dedup key files nothing, and the grant stands", () => {
+            const { fx, log } = world({ evidence: noCulpritEvidence() });
+            fx.findIssue = () => {
+                throw new Error("gh is down");
+            };
+            expect(settleContainedGrant(RED, fx)).toBe(true);
+            expect(log.filed).toEqual([]);
+        });
+
+        it("a RED that inherited the class is left alone", () => {
+            const { fx, log } = world({
+                verdict: { ...STORED, redClass: "contained" },
+                evidence: noCulpritEvidence(),
+            });
+            expect(settleContainedGrant(RED, fx)).toBe(false);
+            expect(log.writes).toEqual([]);
+            expect(log.filed).toEqual([]);
+        });
+
+        it("an ordinary culprit whose revert did not clear it is contained, then blocking through the escalation (episode 11)", () => {
+            const { fx, log } = world({});
+            expect(settleContainedGrant(RED, fx)).toBe(true);
+            expect(lineageBlocks(lineageOf(log.writes).kind)).toBe(false);
+            const f = facts({
+                contained: lineageOf(log.writes).kind === "contained",
+                landingsSinceFirstRed: 1,
+                episode: [
+                    {
+                        sha: RED,
+                        culprits: [CULPRIT],
+                        attempt: {
+                            sha: RED,
+                            rung: "revert",
+                            outcome: "handed-off",
+                            pr: 7701,
+                            at: RECENT,
+                        },
+                    },
+                ],
+                revertPrs: [
+                    { number: 7701, state: "merged", landFailed: false },
+                ],
+            });
+            const rung = ladderRung(f);
+            expect(rung.kind).toBe("stop");
+            expect(escalationOf(f, rung)?.trigger).toBe("stop");
+            expect(
+                lineageBlocks(
+                    lineageOf([withoutClass(log.writes[0], RECENT)]).kind
+                )
+            ).toBe(true);
+        });
+    });
+
+    describe("inheritedClass — at write time", () => {
+        const standing: Verdict = {
+            sha: OLD_RED,
+            status: "red",
+            step: "test",
+            failure: "assertion",
+            redClass: "contained",
+        };
+        const standingBody = body(
+            vitestOutput([BOT_FILE, "pin"], [BOT_FILE, "other"])
+        ).body;
+        const inherit = (
+            output: string,
+            over: {
+                step?: string;
+                failure?: string;
+                evidence?: string | null;
+                kind?: Parameters<typeof containedGrant>[0]["lineage"];
+                standingEvidence?: string | null;
+            } = {}
+        ) => {
+            const ev = body(output);
+            return inheritedClass({
+                verdict: {
+                    step: over.step ?? "test",
+                    failure: over.failure ?? ev.kind,
+                },
+                evidence: over.evidence === undefined ? ev.body : over.evidence,
+                lineage: () =>
+                    over.kind === null
+                        ? { kind: "none", verdict: null, error: "down" }
+                        : {
+                              kind: over.kind ?? "contained",
+                              verdict: standing,
+                              reds: [standing],
+                          },
+                standingEvidence: () =>
+                    over.standingEvidence === undefined
+                        ? standingBody
+                        : over.standingEvidence,
+            });
+        };
+
+        it("the same names inherit, and a subset does", () => {
+            expect(
+                inherit(vitestOutput([BOT_FILE, "pin"], [BOT_FILE, "other"]))
+            ).toBe("contained");
+            expect(inherit(vitestOutput([BOT_FILE, "pin"]))).toBe("contained");
+        });
+
+        it("a new name blocks until its own bisect", () => {
+            expect(
+                inherit(vitestOutput([BOT_FILE, "pin"], [BOT_FILE, "new one"]))
+            ).toBeUndefined();
+        });
+
+        it("the same name in another file is another test", () => {
+            expect(
+                inherit(vitestOutput(["convex/other.test.ts", "pin"]))
+            ).toBeUndefined();
+        });
+
+        it("a blocking lineage gives nothing to inherit: an escalation is not undone", () => {
+            for (const kind of ["red", "second-red", "green"] as const)
+                expect(
+                    inherit(vitestOutput([BOT_FILE, "pin"]), { kind })
+                ).toBeUndefined();
+        });
+
+        it("a failure of another shape never inherits", () => {
+            const out = vitestOutput([BOT_FILE, "pin"]);
+            expect(inherit(out, { step: "check:all" })).toBeUndefined();
+            expect(inherit(out, { failure: "crash" })).toBeUndefined();
+        });
+
+        it("an unread fact never inherits, and does not throw", () => {
+            const out = vitestOutput([BOT_FILE, "pin"]);
+            expect(inherit(out, { evidence: null })).toBeUndefined();
+            expect(inherit(out, { kind: null })).toBeUndefined();
+            expect(inherit(out, { standingEvidence: null })).toBeUndefined();
+            expect(
+                inheritedClass({
+                    verdict: { step: "test", failure: "assertion" },
+                    evidence: body(out).body,
+                    lineage: () => {
+                        throw new Error("down");
+                    },
+                    standingEvidence: () => standingBody,
+                })
+            ).toBeUndefined();
+        });
     });
 });
