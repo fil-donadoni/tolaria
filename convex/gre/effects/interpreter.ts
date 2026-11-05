@@ -247,6 +247,9 @@ export const SNAP_CONTROLLER = 2;
 export const SNAP_ID = 3;
 const SNAP_MANA_VALUE = 4;
 export const SNAP_OWNER = 5;
+
+/** CR 701.65a — "by paying {2} rather than paying its mana cost". */
+const AIRBEND_CAST_COST: ManaCost = { X: 2 };
 /** CR 205 / 110.1 (issue #1311) — "1" if the snapshotted object was a
  *  permanent card (its types included at least one permanent type) at bind
  *  time, else "0". Read via `.isPermanentCard` in a numeric ref (Lion Sash:
@@ -4213,6 +4216,30 @@ export const OP_EXECUTORS: {
             ctx.linkExileToSource(target.id, ctx.sourceInstanceId);
         }
     },
+    // CR 701.65a (issue #3551) — airbend one object: exile it (a spell through
+    // the non-counter stack departure, CR 701.6a), then each card's OWNER may
+    // cast it for {2} rather than its mana cost while it stays exiled. A card
+    // already in exile before the move is a target that left (CR 608.2b), not
+    // one this exiled; a token or a copy leaves no card to grant (CR 111.7, CR
+    // 707.10a). A melded permanent is two cards exiled this way (CR 712.21e).
+    airbend(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target || target.type === "player") return;
+        if (ctx.getExileCardOwner(target.id) !== undefined) return;
+        if (target.type === "spell") {
+            ctx.moveSpellFromStack(target, "exile");
+        } else {
+            ctx.exile(target);
+        }
+        const cards = [target, ...ctx.meldGroupPartners(target.id)];
+        for (const { id } of cards) {
+            const ownerId = ctx.getExileCardOwner(id);
+            if (ownerId === undefined) continue;
+            ctx.grantCastFromExile(id, ownerId, ownerId, "while-exiled", {
+                alternativeCost: AIRBEND_CAST_COST,
+            });
+        }
+    },
     // CR 608.2 (issue #1097) — the resolving spell exiles ITSELF instead of
     // going to the graveyard ("Exile ~", Recall / Restock). A thin
     // declarative skin over the single SpellContext primitive `exileSelf`,
@@ -8096,6 +8123,8 @@ export const MELD_GROUP_DISPOSITION: Readonly<
     // the delayed trigger fires (Flickerwisp's return).
     delayedTrigger:
         "captures the reference only; the delayed body's own Ops act and expand",
+    airbend:
+        "exiles the object through the move that takes both cards, then grants each itself (CR 712.21e)",
     addSubtype: BATTLEFIELD_ONLY,
     animate: BATTLEFIELD_ONLY,
     attach: BATTLEFIELD_ONLY,

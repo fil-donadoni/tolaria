@@ -1399,6 +1399,17 @@ export type CardInstanceState = {
      *  same way. Cleared alongside `castableFromExileBy` wherever that field
      *  is cleared. Persisted so the tax survives a DB round-trip. */
     castFromExileCostIncrease?: ManaCost;
+    /** CR 118.9 — a stated alternative TOTAL mana cost riding {@link
+     *  castableFromExileBy}: the grantee may cast this card "by paying {2}
+     *  rather than paying its mana cost" (CR 701.65a, Airbend). Named for the
+     *  mechanism, not the keyword: any grant that names a flat price stamps
+     *  this. Read by `castRawManaCost` (`gre/castCost.ts`), the one chokepoint
+     *  the payment, the "cast" affordance and the Bot price a cast through, so
+     *  CR 118.9c holds by construction: the card's mana cost and mana value are
+     *  untouched. Additional costs and increases still apply onto it (CR
+     *  118.9d). Cleared alongside `castableFromExileBy` wherever that field is
+     *  cleared. */
+    castFromExileAlternativeCost?: ManaCost;
     /** CR 611.2b (issue #7295) — a BOARD CONDITION riding {@link
      *  castableFromExileBy}: "For as long as they remain exiled, you may play
      *  them IF YOU CONTROL A WIZARD" (Flameshape). An ongoing effect, so it is

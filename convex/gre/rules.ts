@@ -1831,6 +1831,25 @@ export function getLegalActions(
         if (!exileRouteOfPrice("printed")) return actions;
     }
 
+    // CR 118.9 — a grant stating its own price ("by paying {2} rather than
+    // paying its mana cost", CR 701.65a): the same gates at the stated cost,
+    // whichever half is announced, so an {8} card under it asks for {2}.
+    const grantedAlternativeCost = card.castFromExileAlternativeCost;
+    if (grantedAlternativeCost !== undefined && exileRoutes.includes("grant")) {
+        if (
+            passesCastPhaseRestriction(state, card) &&
+            hasPayableAdditionalCost(caster, card) &&
+            anyCastAnnouncementLegal(state, caster, card, {
+                timingZone: "exile",
+                cost: () => grantedAlternativeCost,
+            })
+        ) {
+            actions.push("cast");
+            return actions;
+        }
+        if (!exileRouteOfPrice("printed")) return actions;
+    }
+
     // CR 601.3 / 118.9-analog / 119.4 (issue #2398, Bolas's Citadel) —
     // the NONLAND card on TOP of the player's own library, while the player
     // holds the player-wide cast-from-top permission

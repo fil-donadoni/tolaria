@@ -586,6 +586,9 @@ export interface CardInstance {
      *  (`convex/gre/state.ts`), exactly like `castableFromExileUntilTurn`
      *  above. */
     castFromExileCostIncrease?: ManaCost;
+    /** CR 118.9 — parity with `CardInstanceState.castFromExileAlternativeCost`:
+     *  priced server-side, the client reads `exileCastRouteChoice`. */
+    castFromExileAlternativeCost?: ManaCost;
     /** Instance id of the battlefield permanent this exiled card is associated
      *  with (the permanent that exiled / holds it). Mechanism-agnostic — set by
      *  the projection for exile-and-return bundles (Banishing Light / Tawnos's

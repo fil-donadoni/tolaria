@@ -8438,6 +8438,9 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
         spellTypes: item.types,
         spellSubtypes: item.subtypes,
         spellColors: colors,
+        ...(item.castFromZone !== undefined
+            ? { spellCastFromZone: item.castFromZone }
+            : {}),
         priorSpellCount,
         casterSpellCountThisTurn,
         casterSpellTypeCountsThisTurn,
@@ -15947,9 +15950,19 @@ export function buildSpellContext(
             // for a move that is not a counter too.
             const exiledInstead = item.exileAnyTimeLeavesStack === true;
             resetStackTransientState(item);
-            if (exiledInstead) {
+            // CR 406.3 — exile is a public zone, face up by default: no
+            // knowledge stamp is owed, unlike the two hidden zones below.
+            if (exiledInstead || destination === "exile") {
                 item.zone = "exile";
                 owner.exile.push(item);
+                emitCardsExiled(state, [
+                    {
+                        cardInstanceId: item.id,
+                        cardId: (item.card as { id?: string }).id,
+                        fromZone: "stack",
+                        ownerId: item.ownerId,
+                    },
+                ]);
                 return;
             }
             if (destination === "hand") {
@@ -16176,6 +16189,8 @@ export function buildSpellContext(
                  *  paid for in its own colours. */
                 manaSubstitution?: ManaSubstitutionBreadth;
                 costIncrease?: ManaCost;
+                /** CR 118.9 — see `SpellContext.grantCastFromExile`. */
+                alternativeCost?: ManaCost;
                 /** CR 611.2b (issue #7295) — see `SpellContext.grantCastFromExile`. */
                 condition?: AlternativeCostCondition;
             }
@@ -16296,6 +16311,14 @@ export function buildSpellContext(
                 card.castFromExileCostIncrease = opts.costIncrease;
             } else {
                 delete card.castFromExileCostIncrease;
+            }
+            // CR 118.9 — the stated alternative cost ("by paying {2} rather
+            // than paying its mana cost"), stamped on the CARD like the tax
+            // above; cleared with the permission it rides.
+            if (opts?.alternativeCost) {
+                card.castFromExileAlternativeCost = opts.alternativeCost;
+            } else {
+                delete card.castFromExileAlternativeCost;
             }
             // CR 611.2b (issue #7295) — the permission's board condition
             // ("if you control a Wizard"), re-read at every cast / play attempt
@@ -22446,6 +22469,7 @@ export function moveCard(
         delete card.castableFromExileIncludesLand;
         delete card.castFromExileManaSubstitution;
         delete card.castFromExileCostIncrease;
+        delete card.castFromExileAlternativeCost;
         // CR 611.2b (issue #7295) — the permission's board condition rides the
         // same window; cleared with it.
         delete card.castableFromExileCondition;
@@ -22801,6 +22825,8 @@ export function removeFromZone(
     // rides the SAME permission window; consumed together, so the card carries
     // no stale tax if it is ever exiled again by something else.
     delete card.castFromExileCostIncrease;
+    // CR 118.9 — the stated alternative cost, consumed with the grant it rides.
+    delete card.castFromExileAlternativeCost;
     // CR 611.2b (issue #7295) — the permission's board condition rides the
     // same window; cleared with it.
     delete card.castableFromExileCondition;

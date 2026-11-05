@@ -118,6 +118,10 @@ const STACK_DEPARTURE_COMPLETENESS = {
     "library-bottom": { num: 1, den: 1 },
     "library-top": { num: 11, den: 13 },
     hand: { num: 1, den: 2 },
+    // CR 701.65a — airbend's departure, the one card that names this leg: its
+    // owner recasts it for {2}, so it answers the tempo and the mana, a shade
+    // above a bounce.
+    exile: { num: 2, den: 3 },
 } as const;
 
 /** The `protection` twin: a one-shot destroy-proof shield is the unit. */
@@ -1720,6 +1724,21 @@ const exile: Valuer<"exile"> = (op, ctx) => ({
         ctx,
         "boardRemoval",
         REMOVAL_COMPLETENESS.exile,
+        victimUnitsFor(op.target, ctx)
+    ),
+    tags: isAnnouncedTarget(op.target)
+        ? ["boardRemoval", "targeted"]
+        : ["boardRemoval", "board-scaling"],
+});
+
+// CR 701.65a (issue #3551) — airbending exiles the object, but its owner keeps
+// the card, recastable for {2}: tempo, not a clean answer. Priced on the same
+// scale as a bounce's completeness, and `victimUnitsFor` reads the slot.
+const airbend: Valuer<"airbend"> = (op, ctx) => ({
+    points: pricedFraction(
+        ctx,
+        "boardRemoval",
+        STACK_DEPARTURE_COMPLETENESS.exile,
         victimUnitsFor(op.target, ctx)
     ),
     tags: isAnnouncedTarget(op.target)
@@ -3419,6 +3438,7 @@ export const OP_VALUERS: {
     exile,
     exileSelf,
     exileWithAttachments,
+    airbend,
     returnExiledForSource,
     captureBinding,
     recallCapturedBinding,
@@ -3818,6 +3838,9 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     fight: "harmful",
     exile: "harmful",
     exileWithAttachments: "harmful",
+    // CR 701.65a — the owner loses the permanent or the spell and the mana on
+    // it, and keeps only a {2} recast.
+    airbend: "harmful",
     // CR 702.26b — the recipient loses use of the permanent until its next
     // untap step: an attack on the one it is aimed at, however brief.
     phaseOut: "harmful",

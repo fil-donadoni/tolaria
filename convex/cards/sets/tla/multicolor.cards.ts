@@ -6,7 +6,9 @@
 import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
+import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+import { waterbendCost } from "../../abilities/waterbend";
 
 const AANG_AT_THE_CROSSROADS_ID = "fea89ca0-8070-4f28-9851-994314f9d248";
 
@@ -155,6 +157,97 @@ export const aangAtTheCrossroads = defineCard(() => ({
                                 to: "battlefield",
                                 tapped: true,
                                 controller: "controller",
+                            },
+                        ],
+                    },
+                ],
+            }),
+        ],
+    },
+}));
+
+// Aang, Swift Savior // Aang and La, Ocean's Fury — {1}{W}{U} Legendary Creature,
+// 2/3 with flash and flying, issue #3551.
+// Airbend (CR 701.65a): "creature or spell" is the mixed `type: ["Creature",
+// "spell"]`, the battlefield half read by card type and the stack half by
+// `spell`, and removing a spell this way is not countering it. "Up to one"
+// announces zero or one (CR 601.2c), and a slot left empty no-ops.
+// Waterbend {8} is `waterbendCost` (CR 701.67a).
+// Transform turns over to the back face (CR 701.27).
+const AANG_SWIFT_SAVIOR_ID = "82866a0e-485a-4f7e-8c49-f7d9ff3f4ad4";
+//
+// compiler-gap: "When {self} enters, airbend up to one other target creature or spell." (#2693)
+// compiler-gap: "Waterbend {8}: Transform {self}." (#2693)
+// compiler-gap: "Whenever {self} attack, put a +1/+1 counter on each tapped creature you control." (#2693)
+export const aangSwiftSavior = defineCard(() => ({
+    id: AANG_SWIFT_SAVIOR_ID,
+    name: "Aang, Swift Savior",
+    rarity: "rare",
+    oracleText:
+        "Flash\nFlying\nWhen Aang enters, airbend up to one other target creature or spell. (Exile it. While it's exiled, its owner may cast it for {2} rather than its mana cost.)\nWaterbend {8}: Transform Aang.",
+    manaCost: { X: 1, W: 1, U: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Avatar", "Ally"],
+    power: 2,
+    toughness: 3,
+    staticAbilities: ["flash", "flying"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "aang-swift-savior-airbend",
+            oracleText:
+                "When Aang enters, airbend up to one other target creature or spell.",
+            scope: "self",
+            targetRequirement: {
+                type: ["Creature", "spell"],
+                count: { min: 0, max: 1 },
+                excludeSource: true,
+            },
+            effects: [{ op: "airbend", target: { target: 0 } }],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "aang-swift-savior-transform",
+            oracleText: "Waterbend {8}: Transform Aang.",
+            cost: waterbendCost(8),
+            useStack: true,
+            effects: [{ op: "transform", target: { ref: "$source" } }],
+        },
+    ],
+    backFace: {
+        name: "Aang and La, Ocean's Fury",
+        types: ["Creature"],
+        supertypes: ["Legendary"],
+        subtypes: ["Avatar", "Spirit", "Ally"],
+        power: 5,
+        toughness: 5,
+        staticAbilities: ["reach", "trample"],
+        oracleText:
+            "Reach, trample\nWhenever Aang and La attack, put a +1/+1 counter on each tapped creature you control.",
+        imagePrintId: AANG_SWIFT_SAVIOR_ID,
+        triggeredAbilities: [
+            attacksTrigger({
+                id: "aang-and-la-counters",
+                oracleText:
+                    "Whenever Aang and La attack, put a +1/+1 counter on each tapped creature you control.",
+                scope: "self",
+                effects: [
+                    {
+                        op: "forEach",
+                        select: {
+                            set: "permanents",
+                            zone: "battlefield",
+                            controller: "controller",
+                            filter: { type: "Creature", tapped: true },
+                        },
+                        effects: [
+                            {
+                                op: "counters",
+                                action: "add",
+                                counter: "+1/+1",
+                                count: 1,
+                                target: { ref: "$each" },
                             },
                         ],
                     },

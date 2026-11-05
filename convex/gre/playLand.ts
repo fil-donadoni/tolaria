@@ -444,6 +444,8 @@ function consumeExilePlayGrant(card: CardInstanceState): void {
     // permission window; a land is never cast so it has no tax to pay, but
     // drop the stale marker for hygiene like every sibling above.
     delete card.castFromExileCostIncrease;
+    // CR 118.9 — the grant's stated alternative cost, the same hygiene.
+    delete card.castFromExileAlternativeCost;
     // CR 611.2b (issue #7295) — the permission's board condition rides the
     // same window; cleared with it.
     delete card.castableFromExileCondition;

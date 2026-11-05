@@ -5752,6 +5752,19 @@ function lowerFrameChain(
                 });
                 break;
             }
+            // CR 701.65a — one Op per announced object: each is airbended, and
+            // each card's own owner holds its permission.
+            case "airbend": {
+                const targets = objectSelectors(
+                    frame.subject,
+                    walk.targets,
+                    site
+                );
+                if (!targets.ok) return targets;
+                for (const target of targets.value)
+                    ops.push({ op: "airbend", target });
+                break;
+            }
             // CR 701.27a / 701.27f — "this permanent" turns over; a spell's own
             // text has no permanent to transform. The engine's `transform`
             // primitive ignores a permanent that already transformed since

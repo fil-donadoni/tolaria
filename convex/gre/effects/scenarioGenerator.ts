@@ -2464,6 +2464,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             return;
         }
         case "destroy":
+        case "airbend":
         case "exile":
             if ("target" in op.target) {
                 recordSlot(req, op.target.target, "permanent");
@@ -5185,6 +5186,26 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: now === expected,
                     detail: `matching emblems ${now}, expected ${expected}`,
+                };
+            },
+        };
+    },
+    airbend(rawOp, scenario) {
+        const op = rawOp as Extract<EffectOp, { op: "airbend" }>;
+        if (!("target" in op.target)) return null; // $each — skipped upstream
+        const permId = scenario.targetPermanentIds[op.target.target];
+        return {
+            label: `airbend exiles target permanent ${permId} with a {2} cast permission for its owner`,
+            check: (post) => {
+                const exiled = post.players
+                    .flatMap((p) => p.exile)
+                    .find((c) => c.id === permId);
+                return {
+                    ok:
+                        exiled !== undefined &&
+                        exiled.castableFromExileBy === exiled.ownerId &&
+                        exiled.castFromExileAlternativeCost?.X === 2,
+                    detail: `inExile=${exiled !== undefined} castableBy=${exiled?.castableFromExileBy} cost=${JSON.stringify(exiled?.castFromExileAlternativeCost)}`,
                 };
             },
         };

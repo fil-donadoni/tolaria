@@ -98,6 +98,14 @@
         "firstPrintSet": "tla"
     },
     {
+        "name": "Aang, Swift Savior",
+        "scryfallId": "82866a0e-485a-4f7e-8c49-f7d9ff3f4ad4",
+        "oracleId": "cbf09050-39d0-463b-96db-9e22011ae0d8",
+        "firstSet": "tla",
+        "firstPrintId": "82866a0e-485a-4f7e-8c49-f7d9ff3f4ad4",
+        "firstPrintSet": "tla"
+    },
+    {
         "name": "Aang's Defense",
         "scryfallId": "642e1b90-c240-44fe-82b2-7522026224ae",
         "oracleId": "92b617f9-6e6b-42a0-9c45-6ff5f6193051",
@@ -1218,6 +1226,26 @@
         "firstSet": "afr",
         "firstPrintId": "fba82564-a9a9-4ded-a5fa-0e5fab2a3faa",
         "firstPrintSet": "afr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Airbender's Reversal",
+        "scryfallId": "6b7078e4-2892-4b5f-83ab-90369e0d6dba",
+        "oracleId": "64e3791b-de99-4eed-af49-cbec218c28aa",
+        "firstSet": "tla",
+        "firstPrintId": "6b7078e4-2892-4b5f-83ab-90369e0d6dba",
+        "firstPrintSet": "tla",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Airbending Lesson",
+        "scryfallId": "e2bcd0a6-e94d-4a21-a334-a57459c1b8cc",
+        "oracleId": "e101b744-9175-4aa5-bf80-d6944359e538",
+        "firstSet": "tla",
+        "firstPrintId": "e2bcd0a6-e94d-4a21-a334-a57459c1b8cc",
+        "firstPrintSet": "tla",
         "rarity": "common",
         "source": "compiled"
     },
@@ -2952,6 +2980,14 @@
         "firstPrintSet": "shm",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Appa, Steadfast Guardian",
+        "scryfallId": "829d91e9-4878-4e55-a262-ac0d55b65d4e",
+        "oracleId": "03c141ca-11e4-4927-a6bd-980ee1203c73",
+        "firstSet": "tla",
+        "firstPrintId": "829d91e9-4878-4e55-a262-ac0d55b65d4e",
+        "firstPrintSet": "tla"
     },
     {
         "name": "Appetite for the Unnatural",
@@ -31341,6 +31377,16 @@
         "firstPrintId": "0613afb5-4cee-4132-8adf-404767ed8d07",
         "firstPrintSet": "tla",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Glider Staff",
+        "scryfallId": "7517f2eb-a24d-49f6-82bf-08de55d3789a",
+        "oracleId": "823006a8-098c-457a-8546-77ae2457c459",
+        "firstSet": "tla",
+        "firstPrintId": "7517f2eb-a24d-49f6-82bf-08de55d3789a",
+        "firstPrintSet": "tla",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
