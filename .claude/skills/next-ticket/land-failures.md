@@ -39,6 +39,12 @@ the check run it links.
       the PR until AMBER/GREEN); if you see it, the lineage changed under the
       run — re-queue as below.
 
+- **A red that is not red: a cancelled twin** (issue #8291). The queue's
+  comment blames `check:lane (advisory)` or a refusal job, but the head's run
+  of it is green and a second run of it is `cancelled`
+  (`gh api "repos/{owner}/{repo}/commits/<head>/check-runs?filter=all"`). No
+  fix, no push: `bun run land:ready <PR#>` re-runs the twin before it labels.
+
 ## Before the push: did the base move? (issue #6647)
 
 A repair verifies for 20–60 min; 8 of them re-failed within 2 h because the

@@ -1476,6 +1476,32 @@ TRUSTED_AUTHORS=<login> bun scripts/pr-gate.ts --dry-run --pr <N>
 Both statuses are entry conditions of [the merge queue](#the-merge-queue)
 (the [structure guard](#g-structure-guard)'s `queue-entry` rule).
 
+**A cancelled twin** (issue #8291). A push and a body edit a moment apart make
+two [`pr-check`](#pr-check) runs on one head, and its concurrency group cancels
+one. Mergify judges a check name by the run in the highest check suite and
+reads `cancelled` as `check-failure`, so the shape matters: a cancelled run in
+the lower suite is ignored (22 of the 80 PRs measured, all landed), one in the
+higher suite refuses the PR however green its twin (PR #8266). Neither the
+check-run id nor `started_at` tells them apart; only the suite does. The cure
+is to re-run that run, which goes back into the same suite:
+
+- `land:ready` does it before it labels, and waits for the check to flip: with
+  the cancelled check standing, the repair-pick rule would turn the label into
+  `land-failed` at once;
+- `housekeeping` does it for every queue PR, on each base push and hourly. It
+  has the owner's credentials; `pr-gate`'s token (`actions: read`) cannot;
+- `pr-gate` keeps `queue:held` on such a PR (`heldPrAction` → `twin`), never
+  requeues or releases it, and says why on the PR, once per head.
+
+**Known gap:** a twin that appears after the label, on a PR not `queue:held`,
+still reaches the repair-pick rule. Only `.mergify.yml` or `pr-check.yml` can
+close that. [The repair pass](#the-merge-queue) sees a red lane that is not
+red, and `land:ready` heals it.
+
+When a requeue does not take within `REQUEUE_GRACE_MS` for any other reason,
+`pr-gate` removes the label as before and says which `pr-check` jobs are not
+green.
+
 ### owner-merge
 
 `.github/workflows/owner-merge.yml` tells the owner, by email, that a
