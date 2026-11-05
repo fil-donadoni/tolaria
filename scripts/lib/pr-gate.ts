@@ -193,9 +193,9 @@ export const REQUEUE_GRACE_MS = 10 * 60_000;
  *    `ready-to-land` or is already `land-failed`: remove the label and let
  *    the repair-pick rules judge it;
  *  - `release-refused` — the same, because a requeue older than
- *    `REQUEUE_GRACE_MS` did not take: the PR also says so (issue #8291);
+ *    `REQUEUE_GRACE_MS` did not take: the PR also says so;
  *  - `twin` — a cancelled `pr-check` twin is what the queue refuses
- *    (`cancelledTwinRuns`, issue #8291). No requeue can take and a release
+ *    (`cancelledTwinRuns`). No requeue can take and a release
  *    would make it a false repair pick, so the label stays, the PR says why,
  *    and the re-run (the owner's credentials: `housekeeping`) ends it;
  *  - `none` — not held, the lineage cannot be read, this PR's own

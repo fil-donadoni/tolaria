@@ -28,7 +28,7 @@
  * that clears before Mergify judges the dequeue is still a hold. An unreadable verdict store posts
  * `base-health` `pending` and exits 1. A held PR whose queue refusal is a
  * cancelled `pr-check` twin keeps its label and says why, once per head; its
- * job token cannot re-run it, `housekeeping` does (issue #8291).
+ * job token cannot re-run it, `housekeeping` does (`lib/pr-check-twin.ts`).
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
