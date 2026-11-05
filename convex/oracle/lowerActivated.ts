@@ -692,7 +692,7 @@ export function lowerManaAbility(input: {
                 colors: "producesType",
             };
             break;
-        // CR 614.12a — the five colours are the no-board list (CR 106.4: what
+        // CR 614.12a — the five colours are the no-board list (CR 106.7: what
         // the card could produce before it entered), the stored one the live
         // read. Only the card's own line: a quoted grant would read the
         // HOST's choice, never the granting permanent's (CR 607.2d).

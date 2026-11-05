@@ -58,7 +58,7 @@ describe('manaColorSource "chosen-color" (CR 614.12a, CR 106.5)', () => {
         expect(getEffectiveManaChoices(elf, "p1", battlefields)).toEqual([]);
     });
 
-    // CR 106.4 — on a board it could produce its fixed {G} and the stored
+    // CR 106.7 — on a board it could produce its fixed {G} and the stored
     // colour, not the five-colour fallback list.
     it("could produce the stored colour on a board", () => {
         const { elf, battlefields } = board("U");
@@ -67,7 +67,7 @@ describe('manaColorSource "chosen-color" (CR 614.12a, CR 106.5)', () => {
         ).toEqual(["G", "U"]);
     });
 
-    // CR 106.4 — off the battlefield it may yet choose any of the five, so
+    // CR 106.7 — off the battlefield it may yet choose any of the five, so
     // deck analysis keeps reading it as a five-colour source.
     it("could produce all five off the battlefield", () => {
         expect(

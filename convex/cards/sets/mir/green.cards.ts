@@ -67,7 +67,7 @@ export const quirionElves = defineCard(() => ({
             oracleText: "{T}: Add one mana of the chosen color.",
             cost: { tap: true },
             useStack: false,
-            // The no-board list (CR 106.4): every colour Quirion Elves could
+            // The no-board list (CR 106.7): every colour Quirion Elves could
             // choose, for a caller reading the bare `CardDefinition`.
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
             // CR 614.12a / 605.1a — the actual output is the stored colour: a

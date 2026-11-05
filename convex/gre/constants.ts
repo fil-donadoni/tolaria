@@ -1076,7 +1076,7 @@ function producibleColorsFromAbilities(
         // contributes nothing rather than five phantom colours.
         //
         // A `"chosen-color"` read with no board is the exception: the list IS
-        // what the card could produce off the battlefield (CR 106.4 — it may
+        // what the card could produce off the battlefield (CR 106.7 — it may
         // enter choosing any of the five), so it falls through to the list.
         if (
             ability.manaColorSource &&
