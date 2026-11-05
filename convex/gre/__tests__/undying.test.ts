@@ -33,6 +33,7 @@ import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
 import { withTemporaryDefinition } from "../../cards/registry";
 import { getDefinition } from "../../cards";
+import { liveKeywordTriggerInstances } from "../../cards/abilities/liveKeywordTriggers";
 import { enteredTrigger } from "../../cards/abilities/triggers/enteredTrigger";
 import type { CardDefinition, PermanentEnteredEvent } from "../../cards/types";
 
@@ -160,15 +161,17 @@ function destroy(state: GameState, id: string): void {
     resolveTriggerOrder(state);
 }
 
-describe("Undying — expansion (CR 702.93a)", () => {
-    it("the bare keyword injects ONE self PERMANENT_LEFT trigger", () => {
+describe("Undying — the live keyword (CR 702.93a)", () => {
+    it("one occurrence is ONE self PERMANENT_LEFT trigger, on no definition", () => {
         withDefs([undyingCreature], () => {
-            const def = getDefinition(UNDYING_ID);
-            const undying = (def.triggeredAbilities ?? []).filter(
-                (t) => t.id === "undying"
-            );
-            expect(undying).toHaveLength(1);
-            expect(undying[0].event).toBe("PERMANENT_LEFT");
+            expect(
+                (getDefinition(UNDYING_ID).triggeredAbilities ?? []).filter(
+                    (t) => t.id === "undying"
+                )
+            ).toHaveLength(0);
+            const abilities = liveKeywordTriggerInstances(["undying"]);
+            expect(abilities).toHaveLength(1);
+            expect(abilities[0].event).toBe("PERMANENT_LEFT");
         });
     });
 });

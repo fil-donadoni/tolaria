@@ -37,6 +37,7 @@ import { projectPublicState } from "../../gameProjections";
 import { validateAbilityEffectScript } from "../effects/validate";
 import { withTemporaryDefinition } from "../../cards/registry";
 import { getDefinition } from "../../cards";
+import { liveKeywordTriggerInstances } from "../../cards/abilities/liveKeywordTriggers";
 import { enteredTrigger } from "../../cards/abilities/triggers/enteredTrigger";
 import type {
     CardDefinition,
@@ -165,15 +166,17 @@ function destroy(state: GameState, id: string): void {
     resolveTriggerOrder(state);
 }
 
-describe("Persist — expansion (CR 702.79a)", () => {
-    it("the bare keyword injects ONE self PERMANENT_LEFT trigger", () => {
+describe("Persist — the live keyword (CR 702.79a)", () => {
+    it("one occurrence is ONE self PERMANENT_LEFT trigger, on no definition", () => {
         withDefs([persister], () => {
-            const def = getDefinition(PERSISTER_ID);
-            const persist = (def.triggeredAbilities ?? []).filter(
-                (t) => t.id === "persist"
-            );
-            expect(persist).toHaveLength(1);
-            expect(persist[0].event).toBe("PERMANENT_LEFT");
+            expect(
+                (getDefinition(PERSISTER_ID).triggeredAbilities ?? []).filter(
+                    (t) => t.id === "persist"
+                )
+            ).toHaveLength(0);
+            const abilities = liveKeywordTriggerInstances(["persist"]);
+            expect(abilities).toHaveLength(1);
+            expect(abilities[0].event).toBe("PERMANENT_LEFT");
         });
     });
 });

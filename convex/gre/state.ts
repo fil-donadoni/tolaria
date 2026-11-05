@@ -305,6 +305,7 @@ import {
     CASTABLE_PERMANENT_TYPES,
     replaceProducedManaColor,
     isCreature,
+    sameOrder,
 } from "./constants";
 import { PLAYER_COUNTER_FIELD, readPlayerCounters } from "./playerCounters";
 import {
@@ -7359,6 +7360,9 @@ export function removePermanentTo(
     const lkiCardId = (initial.card.card as { id?: string }).id;
     const lkiWasAura = isAura(initial.card);
     const lkiOwnerId = initial.card.ownerId;
+    // CR 603.10a / 613.1f — the keywords it had, before an Aura's or its own
+    // effects stop applying and before the identity reverts recompose layer 6.
+    const lkiKeywords = [...initial.card.staticAbilities];
     // Before the effects below stop applying: they are what the object last was.
     stampDepartedEntrySubject(state, initial.card);
     // CR 611.2 — a static effect from a source stops applying when the source
@@ -7646,6 +7650,12 @@ export function removePermanentTo(
         creature.countersAtLeave = { ...countersAtLeave };
     } else {
         delete creature.countersAtLeave;
+    }
+    // CR 603.10a — stored only when the card in the new zone no longer shows it.
+    if (sameOrder(lkiKeywords, creature.staticAbilities)) {
+        delete creature.keywordsAtLeave;
+    } else {
+        creature.keywordsAtLeave = lkiKeywords;
     }
     delete creature.counters;
     // CR 400.7 / 716.2b — the class level goes with the object on EVERY

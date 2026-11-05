@@ -573,8 +573,8 @@ describe("spell slot — a granted keyword is censused, not trusted", () => {
         // Guard A polices `staticAbilities[]`, which a `grantAbility` Op never
         // touches — the grant writes the TARGET instance's abilities at
         // resolution. So nothing else in the pipeline asks whether the keyword
-        // is implemented, and Undying Evil ("Target creature gains undying
-        // until end of turn.") reached `ready` promising an inert effect.
+        // is implemented, and a spell granting one would reach `ready` promising
+        // an inert effect.
         //
         // The keyword is READ from the registry: a named one reds this test on
         // the merged tree of whichever PR implements it, and its own lane never
@@ -600,12 +600,11 @@ describe("spell slot — a granted keyword is censused, not trusted", () => {
     });
 
     it("quarantines a spell granting a keyword only an expander implements", () => {
-        // CR 702.93a (issue #3997) — undying IS implemented, but by the ADR
-        // 0054 expander, which reads the definition and never the instance a
-        // grant writes: Undying Evil would still promise an inert effect.
+        // CR 702.83a — exalted IS implemented, but by the ADR 0054 expander, which
+        // reads the definition and never the instance a grant writes.
         const outcome = compileCard(
             spellCard({
-                oracleText: "Target creature gains undying until end of turn.",
+                oracleText: "Target creature gains exalted until end of turn.",
             })
         );
         expect(outcome.state).toBe("quarantine");
@@ -614,9 +613,20 @@ describe("spell slot — a granted keyword is censused, not trusted", () => {
                 outcome.reasons.some(
                     (r) =>
                         r.kind === "ungrantable-keyword" &&
-                        r.detail.includes("undying")
+                        r.detail.includes("exalted")
                 )
             ).toBe(true);
+    });
+
+    it("reaches ready when the granted keyword's trigger reads the live multiset", () => {
+        // CR 702.93a — undying's trigger comes from `liveKeywordTriggers.ts`, so
+        // the grant the spell writes is what produces it (Undying Evil).
+        const outcome = compileCard(
+            spellCard({
+                oracleText: "Target creature gains undying until end of turn.",
+            })
+        );
+        expect(outcome.state).toBe("ready");
     });
 
     it("still reaches ready when the granted keyword IS implemented", () => {
