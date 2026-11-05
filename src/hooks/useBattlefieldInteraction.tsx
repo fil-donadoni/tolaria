@@ -393,7 +393,8 @@ export function useBattlefieldInteraction(player: Player) {
         undefined,
         undefined,
         undefined,
-        continuousEffects
+        continuousEffects,
+        emblems
     );
 
     /** The FULL viewer-visible board projection every ability-menu gate and
@@ -421,7 +422,8 @@ export function useBattlefieldInteraction(player: Player) {
         cannotActivateAbilitiesThisTurn,
         lifeGainedThisTurn,
         controlContinuity,
-        continuousEffects
+        continuousEffects,
+        emblems
     );
 
     // CR 106.1 (issue #1889) — `allPlayers` is handed to `hasManaAbility` below

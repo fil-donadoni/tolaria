@@ -120,6 +120,7 @@ export default function GreHandCard({
         cannotActivateAbilitiesThisTurn,
         combat,
         continuousEffects,
+        emblems,
     } = game;
     const activateAbility = useMutation(api.game.activateAbility);
     const activateManaAbility = useMutation(api.game.activateManaAbility);
@@ -216,7 +217,8 @@ export default function GreHandCard({
                   cannotActivateAbilitiesThisTurn,
                   undefined,
                   undefined,
-                  continuousEffects
+                  continuousEffects,
+                  emblems
               )
             : null;
     const stackAbilities =
