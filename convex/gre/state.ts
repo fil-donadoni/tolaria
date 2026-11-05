@@ -3810,6 +3810,7 @@ export function resetStackTransientState(item: StackItem): void {
     delete item.emblemSourceId;
     delete item.castCopySnapshot;
     delete item.castCopiesRemaining;
+    delete item.castCopyCountReadOnResolution;
     delete item.delayedTriggerId;
     delete item.delayedPayload;
     delete item.delayedEffects;
@@ -7815,6 +7816,13 @@ export function removePermanentTo(
                 (owner.nontokenCreaturesToGraveyardThisTurn ?? 0) + 1;
         }
     }
+    // CR 702.69a — Gravestorm's tally: any permanent, token or not. `toZone` is
+    // the destination after every replacement above, so a redirected departure
+    // is not counted; a melded pair is one permanent, however many cards land.
+    if (toZone === "graveyard") {
+        state.permanentsToGraveyardThisTurn =
+            (state.permanentsToGraveyardThisTurn ?? 0) + 1;
+    }
     // CR 607.2a + CR 113.7a — the pile this object's linked exile ability
     // exiled, read as it leaves: a return of the same id before its leaves
     // trigger resolves (a flicker) clears the live stamps for the NEW object
@@ -8516,6 +8524,9 @@ const STORM_KEYWORD = "storm";
  *  Mechanics Registry row id (`cards/mechanicsRegistry.ts`, CR 702.40). A
  *  Replicate trigger's id is its keyword, `"replicate"`, for the same reason. */
 const STORM_TRIGGER_ID = "storm";
+/** CR 702.69 — Gravestorm's keyword, which is also its trigger's stack-item id,
+ *  the same convention as Storm's and Replicate's. */
+const GRAVESTORM_KEYWORD = "gravestorm";
 
 /** Cast-trigger collection pass (CR 702.40, ADR 0052) — distinct from
  *  `collectTriggers` (triggers.ts), which only scans BATTLEFIELD (plus
@@ -8531,9 +8542,10 @@ const STORM_TRIGGER_ID = "storm";
  *     paid, read through {@link additionalCostPaidCount}. Recognised by the
  *     entry's `ADDITIONAL_COST_KEYWORDS` row (`castCopyTrigger`), never by a
  *     keyword-name comparison, so conspire (CR 702.78) attaches as a table
- *     row rather than a new branch.
- *  Gravestorm (CR 702.69, still `planned` in the registry) attaches here later
- *  as another count provider, not a new mechanism.
+ *     row rather than a new branch;
+ *   - Gravestorm (CR 702.69a) — `state.permanentsToGraveyardThisTurn`, read
+ *     when the trigger RESOLVES (CR 608.2h), since unlike Storm's "before it"
+ *     nothing in its text fixes the count at the cast.
  *
  *  ALSO collects the cast card's OWN "when you cast this spell" triggers
  *  (CR 603.6e, issue #2319) — see `collectSelfCastTriggers` below. Same reason
@@ -8561,6 +8573,21 @@ function collectCastTriggers(
             event.priorSpellCount ?? 0
         );
     }
+    // CR 702.69b — each instance of gravestorm triggers separately. Like storm,
+    // no intervening if: a zero count still goes on the stack.
+    const gravestormInstances = (def?.staticAbilities ?? []).filter(
+        (a) => a.toLowerCase() === GRAVESTORM_KEYWORD
+    ).length;
+    for (let i = 0; i < gravestormInstances; i++) {
+        pushCastCopyTrigger(
+            state,
+            castSpell,
+            event,
+            GRAVESTORM_KEYWORD,
+            state.permanentsToGraveyardThisTurn ?? 0,
+            true
+        );
+    }
     for (const entry of def?.kickers ?? []) {
         const keyword = additionalCostKeywordOf(entry);
         if (!ADDITIONAL_COST_KEYWORDS[keyword].castCopyTrigger) continue;
@@ -8581,7 +8608,8 @@ function pushCastCopyTrigger(
     castSpell: StackItem,
     event: SpellCastEvent,
     triggeredAbilityId: string,
-    copies: number
+    copies: number,
+    readCountOnResolution = false
 ): void {
     // The cast-copy trigger's resolve body is engine code (like flying's
     // combat handling), exempt from the DSL-first card-authoring mandate — it
@@ -8617,6 +8645,9 @@ function pushCastCopyTrigger(
         // Replicate/Storm copy of an Arcane spell is a copy of the MAIN spell.
         castCopySnapshot: spliceStripped(structuredClone(castSpell)),
         castCopiesRemaining: copies,
+        ...(readCountOnResolution
+            ? { castCopyCountReadOnResolution: true as const }
+            : {}),
     };
     state.stack.push(triggerItem);
 }
@@ -12940,6 +12971,11 @@ function resolveCastCopyTrigger(
     state: GameState,
     top: StackItem
 ): StackItem | null {
+    // CR 702.69a + CR 608.2h — Gravestorm's count, determined once, here.
+    if (top.castCopyCountReadOnResolution) {
+        top.castCopiesRemaining = state.permanentsToGraveyardThisTurn ?? 0;
+        delete top.castCopyCountReadOnResolution;
+    }
     while ((top.castCopiesRemaining ?? 0) > 0) {
         top.castCopiesRemaining = (top.castCopiesRemaining ?? 0) - 1;
         // CR 707.10 — cloned from the detached SNAPSHOT, not a live

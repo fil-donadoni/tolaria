@@ -241,6 +241,7 @@ export type SpecDraft = {
     artifactDamageToPlayerThisTurn: SeatPairDraft;
     lifeGainedThisTurn: SeatPairDraft;
     deathsThisTurn: string;
+    permanentsToGraveyardThisTurn: string;
     creatureAttackedThisTurn: boolean;
     /** CR 508.1c (issue #3450) — Arboria's qualifying-action flags: whether
      *  each seat cast a spell or put a nontoken permanent onto the
@@ -290,6 +291,7 @@ export function emptySpecDraft(): SpecDraft {
         artifactDamageToPlayerThisTurn: { ...EMPTY_SEAT_PAIR },
         lifeGainedThisTurn: { ...EMPTY_SEAT_PAIR },
         deathsThisTurn: "",
+        permanentsToGraveyardThisTurn: "",
         creatureAttackedThisTurn: false,
         qualifyingActionThisTurn: { ...EMPTY_SEAT_FLAG_PAIR },
         qualifyingActionLastTurn: { ...EMPTY_SEAT_FLAG_PAIR },
@@ -352,6 +354,10 @@ export function specToDraft(spec: ScenarioSpec | null): SpecDraft {
     draft.lifeGainedThisTurn = seatPairToDraft(spec.lifeGainedThisTurn);
     if (spec.deathsThisTurn !== undefined)
         draft.deathsThisTurn = String(spec.deathsThisTurn);
+    if (spec.permanentsToGraveyardThisTurn !== undefined)
+        draft.permanentsToGraveyardThisTurn = String(
+            spec.permanentsToGraveyardThisTurn
+        );
     draft.creatureAttackedThisTurn = spec.creatureAttackedThisTurn ?? false;
     draft.qualifyingActionThisTurn = seatFlagPairToDraft(
         spec.qualifyingActionThisTurn
@@ -448,6 +454,9 @@ export function draftToSpec(draft: SpecDraft): Omit<ScenarioSpec, "cards"> {
     if (lifeGained) spec.lifeGainedThisTurn = lifeGained;
     const deaths = num(draft.deathsThisTurn);
     if (deaths !== undefined) spec.deathsThisTurn = deaths;
+    const permanentsToGraveyard = num(draft.permanentsToGraveyardThisTurn);
+    if (permanentsToGraveyard !== undefined)
+        spec.permanentsToGraveyardThisTurn = permanentsToGraveyard;
     if (draft.creatureAttackedThisTurn) spec.creatureAttackedThisTurn = true;
     const qaThisTurn = seatFlagPairFromDraft(draft.qualifyingActionThisTurn);
     if (qaThisTurn) spec.qualifyingActionThisTurn = qaThisTurn;

@@ -227,6 +227,11 @@ export const SCENARIO_JSON_SCHEMA = {
             description:
                 "Creatures that have died this turn, any controller (default 0).",
         },
+        permanentsToGraveyardThisTurn: {
+            type: "integer",
+            description:
+                "Permanents put into any graveyard from the battlefield this turn, tokens included — what gravestorm reads (default 0).",
+        },
         creatureAttackedThisTurn: {
             type: "boolean",
             description:
@@ -492,7 +497,7 @@ export function buildScenarioSystemPrompt(
         "  `spellsCastThisGame`, `stormCount`,",
         "  `damageDealtToPlayerThisTurn`,",
         "  `artifactDamageToPlayerThisTurn`, `lifeGainedThisTurn`,",
-        "  `deathsThisTurn`, `creatureAttackedThisTurn`,",
+        "  `deathsThisTurn`, `permanentsToGraveyardThisTurn`, `creatureAttackedThisTurn`,",
         "  `qualifyingActionThisTurn`, `qualifyingActionLastTurn`,",
         "  `hiddenHand`, `turnsTaken` and `revolt`: emit them ONLY when the",
         "  description",

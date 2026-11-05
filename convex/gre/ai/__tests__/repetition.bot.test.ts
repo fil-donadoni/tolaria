@@ -32,6 +32,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../cards/__tests__/setup.helper";
+import type { CardDefinition } from "../../../cards/types";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
 
 const HARPY_POSITION: ScenarioSpec = {
@@ -46,6 +47,34 @@ const HARPY_POSITION: ScenarioSpec = {
     landCount: 0,
     libraryCount: 20,
 };
+
+/** A gravestorm spell the test registers itself, so the position needs nothing
+ *  from the packed catalogue. */
+const GRAVESTORM_CARD = {
+    id: "synthetic-repetition-gravestorm",
+    name: "Synthetic Repetition Gravestorm",
+    rarity: "rare",
+    manaCost: { X: 2, B: 1 },
+    types: ["Sorcery"],
+    subtypes: [],
+    staticAbilities: ["gravestorm"],
+} as CardDefinition;
+preloadDefinitions([GRAVESTORM_CARD]);
+
+function harpyPositionHoldingGravestorm(): GameState {
+    const state = buildPositionFromSpec(HARPY_POSITION);
+    const me = state.players[0];
+    me.hand.push(
+        makeInstance(GRAVESTORM_CARD.id, {
+            id: "gravestorm-in-hand",
+            controllerId: me.id,
+            ownerId: me.id,
+            zone: "hand",
+            staticAbilities: GRAVESTORM_CARD.staticAbilities,
+        })
+    );
+    return state;
+}
 
 function harpyCast(state: ReturnType<typeof buildPositionFromSpec>): Move {
     const cast = enumerateMoves(state, state.players[0].id).find(
@@ -114,6 +143,20 @@ describe("positionFingerprint — live play and readers of an ignored tally (iss
         const saved = { ...state, seq: 41 } as GameState;
         const resaved = { ...state, seq: 42 } as GameState;
         expect(positionFingerprint(resaved)).toBe(positionFingerprint(saved));
+    });
+
+    it("keeps the graveyard tally while a gravestorm card could read it (CR 702.69)", () => {
+        const plain = buildPositionFromSpec(HARPY_POSITION);
+        const plainLap = cloneGameState(plain);
+        plainLap.permanentsToGraveyardThisTurn = 1;
+        expect(positionFingerprint(plainLap)).toBe(positionFingerprint(plain));
+
+        const gravestorm = harpyPositionHoldingGravestorm();
+        const gravestormLap = cloneGameState(gravestorm);
+        gravestormLap.permanentsToGraveyardThisTurn = 1;
+        expect(positionFingerprint(gravestormLap)).not.toBe(
+            positionFingerprint(gravestorm)
+        );
     });
 
     it("keeps the spell count while a storm card could read it (CR 702.40)", () => {
@@ -272,6 +315,33 @@ describe("no progress within one step (issue #3590)", () => {
         const stormLap = cloneGameState(storm);
         stormLap.players[0].spellsCastThisTurn = 1;
         expect(repeatedMoveKeys(stormHistory, stormLap, me).size).toBe(0);
+    });
+
+    it("a higher graveyard tally is progress while a gravestorm card could read it (CR 702.69), and only then", () => {
+        const plain = buildPositionFromSpec(HARPY_POSITION);
+        const me = plain.players[0].id;
+        const plainHistory = recordRepetition(
+            undefined,
+            plain,
+            me,
+            harpyCast(plain)
+        );
+        const plainLap = cloneGameState(plain);
+        plainLap.permanentsToGraveyardThisTurn = 1;
+        expect(repeatedMoveKeys(plainHistory, plainLap, me).size).toBe(1);
+
+        const gravestorm = harpyPositionHoldingGravestorm();
+        const gravestormHistory = recordRepetition(
+            undefined,
+            gravestorm,
+            me,
+            harpyCast(gravestorm)
+        );
+        const gravestormLap = cloneGameState(gravestorm);
+        gravestormLap.permanentsToGraveyardThisTurn = 1;
+        expect(
+            repeatedMoveKeys(gravestormHistory, gravestormLap, me).size
+        ).toBe(0);
     });
 
     it("an improvement of the seat's own margin is progress", () => {

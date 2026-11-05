@@ -610,6 +610,7 @@ export function buildStateFromScenario(
     // deliberately below from its own spec field, so a CAPTURED position
     // round-trips and a hand-written one places what it names.
     state.deathsThisTurn = undefined;
+    state.permanentsToGraveyardThisTurn = undefined;
     state.creatureAttackedThisTurn = undefined;
     state.damageDealtToPlayerThisTurn = undefined;
     state.artifactDamageToPlayerThisTurn = undefined;
@@ -1631,6 +1632,12 @@ export function buildStateFromScenario(
     if (spec.deathsThisTurn !== undefined) {
         state.deathsThisTurn =
             spec.deathsThisTurn > 0 ? spec.deathsThisTurn : undefined;
+    }
+    if (spec.permanentsToGraveyardThisTurn !== undefined) {
+        state.permanentsToGraveyardThisTurn =
+            spec.permanentsToGraveyardThisTurn > 0
+                ? spec.permanentsToGraveyardThisTurn
+                : undefined;
     }
     if (spec.creatureAttackedThisTurn !== undefined) {
         state.creatureAttackedThisTurn = spec.creatureAttackedThisTurn
@@ -4503,6 +4510,7 @@ export const GAME_STATE_ALLOWLIST = new Set<string>([
     "artifactDamageToPlayerThisTurn",
     "lifeGainedThisTurn",
     "deathsThisTurn",
+    "permanentsToGraveyardThisTurn",
     "creatureAttackedThisTurn",
     // CR 608.2 (issue #3453) — lowered PER CARD, into each source's own
     // `abilityResolutions` entry, because the store's key carries an instance
@@ -5392,6 +5400,7 @@ export function specFromState(
             opp: state.lifeGainedThisTurn?.[opp.id] ?? 0,
         },
         deathsThisTurn: state.deathsThisTurn ?? 0,
+        permanentsToGraveyardThisTurn: state.permanentsToGraveyardThisTurn ?? 0,
         creatureAttackedThisTurn: state.creatureAttackedThisTurn ?? false,
         // CR 500.1 (issue #3450) — always explicit, like `life` and the
         // tallies above: the builder does not clear `turnsTaken` (it is a

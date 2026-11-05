@@ -1007,6 +1007,9 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.castCopiesRemaining !== undefined) {
         base.castCopiesRemaining = item.castCopiesRemaining;
     }
+    if (item.castCopyCountReadOnResolution) {
+        base.castCopyCountReadOnResolution = true;
+    }
     if (item.delayedTriggerId) base.delayedTriggerId = item.delayedTriggerId;
     if (item.delayedPayload) base.delayedPayload = item.delayedPayload;
     // ADR 0048 — an inline delayed-trigger body (pure JSON) must survive a
@@ -1234,6 +1237,9 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     if (castCopiesRemaining !== undefined) {
         item.castCopiesRemaining = castCopiesRemaining as number;
     }
+    if (compact.castCopyCountReadOnResolution) {
+        item.castCopyCountReadOnResolution = true;
+    }
     if (compact.delayedTriggerId) {
         item.delayedTriggerId = compact.delayedTriggerId as string;
     }
@@ -1401,6 +1407,8 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "nextInstanceId",
     "pendingEvents",
     "deathsThisTurn",
+    // CR 702.69a — Gravestorm's tally, read when a later trigger resolves.
+    "permanentsToGraveyardThisTurn",
     // Storm (CR 702.40a, ADR 0052) — the per-turn spell tally must survive a
     // DB round-trip while the turn is in progress (e.g. saved mid-priority
     // between two casts).

@@ -7024,6 +7024,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bitter Ordeal",
+        "scryfallId": "2879e7a1-0256-4116-be22-7c9972e4ce0b",
+        "oracleId": "c02fdb2e-10bb-49fc-bce0-b31b6fad8e38",
+        "firstSet": "fut",
+        "firstPrintId": "2879e7a1-0256-4116-be22-7c9972e4ce0b",
+        "firstPrintSet": "fut",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Bitter Revelation",
         "scryfallId": "e42f5aa9-2a47-47c3-ab87-dc25735b0e54",
         "oracleId": "f3e025ce-6114-42d0-842f-73366c853657",

@@ -3786,6 +3786,8 @@ function advanceTurn(state: GameState): void {
     state.drawLookReplacements = undefined;
     // Reset the per-turn deaths tally so end-step counts are turn-scoped.
     state.deathsThisTurn = undefined;
+    // CR 702.69a — Gravestorm's tally is "this turn" too.
+    state.permanentsToGraveyardThisTurn = undefined;
     // Reset per-turn player damage tally (CR 120.3) — Simulacrum scopes its
     // "damage dealt to you this turn" lookup to the current turn.
     state.damageDealtToPlayerThisTurn = undefined;
