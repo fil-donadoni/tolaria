@@ -877,7 +877,8 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // manaValue (CR 202.3): the amount reads a selected object's mana value. The
     // canned generator's filler permanents have no controlled mana value the
     // predictor can size a declared outcome against; skip-with-reason — the
-    // per-card / interpreter test is the behavioural guarantor.
+    // per-card / interpreter test is the behavioural guarantor. A sweep's own
+    // `manaValue($each)` guard never reaches here: `planSweep` seeds those.
     if ("manaValue" in value) {
         skipBecause(
             req,
@@ -3403,8 +3404,28 @@ function sweepControllerSeats(
     return null;
 }
 
+/** The right side of a mana value guard the board can be sized against: a
+ *  literal, the announced X, or the count of counters on the ability's own
+ *  source, which the scenario seeds ("equal to the number of charge counters on
+ *  this artifact", CR 608.2h). `$each`'s own counters are not seeded. */
+function isSizableGuardRight(value: EffectValue): boolean {
+    if (isLiteralOrX(value)) return true;
+    return (
+        typeof value !== "number" &&
+        "counters" in value &&
+        isSourceRef(value.counters.of)
+    );
+}
+
+/** The number a sizable guard's right side reads in the canned scenario. */
+function guardRightValue(value: EffectValue): number {
+    if (typeof value === "number") return value;
+    return "counters" in value ? SMOKE_SOURCE_COUNTERS : SMOKE_CHOSEN_X;
+}
+
 /** The `{ if manaValue($each) <cmp> N, then [body] }` guard of "each artifact
- *  with mana value X or less", or null when `body` is anything else. */
+ *  with mana value X or less" or "each permanent with mana value equal to the
+ *  number of counters on this", or null when `body` is anything else. */
 function manaValueGuard(body: EffectOp): {
     then: EffectOp;
     compare: "eq" | "ne" | "lt" | "le" | "gt" | "ge";
@@ -3415,7 +3436,8 @@ function manaValueGuard(body: EffectOp): {
     const p = body.predicate;
     if (!("left" in p && "right" in p)) return null;
     if (typeof p.left === "number" || !("manaValue" in p.left)) return null;
-    if (!isEachRef(p.left.manaValue.of) || !isLiteralOrX(p.right)) return null;
+    if (!isEachRef(p.left.manaValue.of) || !isSizableGuardRight(p.right))
+        return null;
     return { then: body.then[0]!, compare: p.op, right: p.right };
 }
 
@@ -3441,20 +3463,28 @@ function sweepSeats(
 ): SweepSeat[] {
     const { specs, seats } = selector;
     const seated: SweepSeat[] = [];
+    // CR 608.2h — the guard reads each member's own mana value, so one card on
+    // either side of it, and one exactly at it, tell the guard from its absence
+    // and "equal to" from "at most".
+    const right = guard === null ? 0 : guardRightValue(guard.right);
+    const manaValues = [
+        ...new Set([SWEEP_LOW_MANA_VALUE, right, SWEEP_HIGH_MANA_VALUE]),
+    ];
+    const passing =
+        guard === null
+            ? undefined
+            : manaValues.find((mv) => compareValues(mv, guard.compare, right));
+    // A card outside the selector must pass the guard, or the guard alone would
+    // spare it and the clause it violates would go unproven.
+    const passingGuard = (spec: SweepCardSpec): SweepCardSpec =>
+        passing === undefined ? spec : { ...spec, manaValue: passing };
     for (const owner of seats) {
         for (const spec of specs.members) {
             if (guard === null) {
                 seated.push({ spec, owner, role: "member" });
                 continue;
             }
-            // CR 608.2h — the guard reads each member's own mana value, so one
-            // card on either side of it tells the guard from its absence.
-            const right =
-                typeof guard.right === "number" ? guard.right : SMOKE_CHOSEN_X;
-            for (const manaValue of [
-                SWEEP_LOW_MANA_VALUE,
-                SWEEP_HIGH_MANA_VALUE,
-            ])
+            for (const manaValue of manaValues)
                 seated.push({
                     spec: { ...spec, manaValue },
                     owner,
@@ -3464,12 +3494,20 @@ function sweepSeats(
                 });
         }
         for (const spec of specs.bystanders)
-            seated.push({ spec, owner, role: "bystander" });
+            seated.push({
+                spec: passingGuard(spec),
+                owner,
+                role: "bystander",
+            });
     }
     if (seats.length === 1) {
         const other = seats[0] === CASTER_ID ? OPPONENT_ID : CASTER_ID;
         for (const spec of specs.members)
-            seated.push({ spec, owner: other, role: "bystander" });
+            seated.push({
+                spec: passingGuard(spec),
+                owner: other,
+                role: "bystander",
+            });
     }
     return seated;
 }
@@ -3503,6 +3541,9 @@ function planSweep(
     const outcome = permanentBodyOutcome(guard?.then ?? body);
     if (outcome === null || !outcomeReadableOn(outcome, selector.specs.members))
         return null;
+    const seats = sweepSeats(selector, guard);
+    // A guard no seeded card passes would assert only that nothing happened.
+    if (!seats.some((seat) => seat.role === "member")) return null;
     if (
         select.controller !== undefined &&
         typeof select.controller === "object"
@@ -3517,7 +3558,7 @@ function planSweep(
     return {
         op,
         outcome,
-        seats: sweepSeats(selector, guard),
+        seats,
         excludesSource: select.excludeSource === true,
     };
 }
