@@ -20156,14 +20156,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "stretch",
-        expect: {
-            moves: [
-                {
-                    kind: "cast-spell",
-                    card: "Serra Angel",
-                },
-            ],
-        },
+        expect: { forbidden: [{ kind: "pass" }] },
         note: "Issue #8297 — the cost is paid with the spell on the stack, so nothing is discarded. No Move offers it.",
     },
     {

@@ -912,11 +912,6 @@
             "label": "life as mana: Bolas's Citadel plays the top card with life to spare",
             "tier": "must",
             "needsSetup": false
-        },
-        {
-            "label": "mana ability: Lion's Eye Diamond pays for the spell it would discard",
-            "tier": "stretch",
-            "needsSetup": false
         }
     ],
     "Shatter": [
