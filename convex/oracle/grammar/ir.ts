@@ -85,6 +85,9 @@ export interface KickerIR {
     };
     /** CR 702.33c — Multikicker: payable any number of times. */
     readonly multi: boolean;
+    /** CR 701.59c — "you may collect evidence N" as an optional additional
+     *  cost: the threshold. Marks the entry `keyword: "collect-evidence"`. */
+    readonly collectEvidence?: number;
 }
 
 /**

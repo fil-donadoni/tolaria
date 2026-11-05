@@ -28,6 +28,7 @@
 // 1-ply leaf and the ISMCTS tree pay the same cards. The live bot answers any
 // owed park through `pickForOwedPayment`. Three callers, one set of picks.
 
+import { graveyardCardManaValue, manaValueCoverPick } from "./collectEvidence";
 import { tryGetDefinition } from "../cards/index";
 import { matchesPermanentFilter } from "../cards/filters";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
@@ -169,6 +170,14 @@ export type CastExileChoiceView = {
         minCardTypes: number;
         typesById: Record<string, readonly string[]>;
     };
+    /** CR 701.59a (collect evidence) — the VARIABLE "exile any number of
+     *  cards with total mana value N or greater". Same "which, not how many"
+     *  question as {@link typeCover}, over summed mana value: `manaValueById`
+     *  carries each candidate's mana value. Absent for every other mode. */
+    manaValueCover?: {
+        minTotalManaValue: number;
+        manaValueById: Record<string, number>;
+    };
 };
 
 /** The parked generic-mana spend choice (CR 601.2g, #1444/#1446), reduced to
@@ -242,6 +251,22 @@ export function chooseManaSpendOrder(choice: ManaSpendChoiceView): string[] {
  *  need. For a fixed flashback / escape cost `required` equals the exact count
  *  the picker demands. Clamped to what is actually available so an
  *  under-supplied view can never emit an illegal submission (issue #1336). */
+/** CR 701.59a — the Bot's activation payment of collect evidence `n`:
+ *  {@link cheapestFirst} through {@link manaValueCoverPick}. One answer for the
+ *  search's plan (`planExilePick`) and the live park's fallback. */
+export function planEvidenceCardIds(
+    graveyard: readonly CardInstanceState[],
+    n: number
+): string[] | null {
+    return manaValueCoverPick(
+        cheapestFirst(graveyard).map((c) => ({
+            id: c.id,
+            manaValue: graveyardCardManaValue(c),
+        })),
+        n
+    );
+}
+
 export function chooseCastExileCost(choice: CastExileChoiceView): string[] {
     // CR 702.138a escape (Nethergoyf) — "exile any number of other cards …
     // more card types among them". The cheapest legal payment is a MINIMAL
@@ -254,6 +279,24 @@ export function chooseCastExileCost(choice: CastExileChoiceView): string[] {
     // the card contributing the most NEW types, ties going to the cheaper one,
     // until the threshold is met. Deterministic — the candidate order is
     // already stable and the scan is left-to-right.
+    // CR 701.59a — collect evidence N: the cheapest-first candidates (lowest
+    // mana value first, the cards the graveyard is least likely being kept
+    // for) accumulated until their total reaches N. A zero-mana-value card
+    // adds nothing toward the threshold and is never exiled for it. Falls back
+    // to every candidate when the threshold is unreachable (the server then
+    // rejects, rather than this answer being silently wrong).
+    if (choice.manaValueCover) {
+        const { minTotalManaValue, manaValueById } = choice.manaValueCover;
+        return (
+            manaValueCoverPick(
+                choice.candidateIds.map((id) => ({
+                    id,
+                    manaValue: manaValueById[id] ?? 0,
+                })),
+                minTotalManaValue
+            ) ?? [...choice.candidateIds]
+        );
+    }
     if (choice.typeCover) {
         const { minCardTypes, typesById } = choice.typeCover;
         const covered = new Set<string>();
@@ -445,11 +488,24 @@ export function castExileViewFor(
     // demands an exact `count`.
     const required = ec.offsetGeneric
         ? ec.offsetGeneric.min
-        : ec.minCardTypes !== undefined
+        : ec.minCardTypes !== undefined || ec.minTotalManaValue !== undefined
           ? candidateIds.length
           : ec.count;
     return {
         candidateIds,
+        // CR 701.59a — the collect-evidence threshold; see `manaValueCover`.
+        ...(ec.minTotalManaValue !== undefined
+            ? {
+                  manaValueCover: {
+                      minTotalManaValue: ec.minTotalManaValue,
+                      manaValueById: Object.fromEntries(
+                          source
+                              .filter((c) => candidateIds.includes(c.id))
+                              .map((c) => [c.id, instanceManaValue(c)])
+                      ),
+                  },
+              }
+            : {}),
         required,
         maximum: ec.offsetGeneric ? ec.offsetGeneric.max : required,
         // CR 702.138a — the variable escape cost carries its own question; see
@@ -676,6 +732,20 @@ export function pickForOwedPayment(
                           ...state.players.filter((p) => p.id !== playerId),
                           ...state.players.filter((p) => p.id === playerId),
                       ];
+            // CR 701.59a — collect evidence: the same cover the plan names.
+            if (ec.minTotalManaValue !== undefined) {
+                const picked = planEvidenceCardIds(
+                    player.graveyard,
+                    ec.minTotalManaValue
+                );
+                return picked
+                    ? {
+                          mutation: "selectActivationExileCost",
+                          graveyardOwnerId: player.id,
+                          cardInstanceIds: picked,
+                      }
+                    : null;
+            }
             for (const p of sources) {
                 const matching = p.graveyard.filter(
                     (c) =>

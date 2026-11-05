@@ -69,13 +69,15 @@ describe("AdditionalCostKeyword ↔ Mechanics Registry (CR 702.33a, ADR 0085)", 
         ).toBeGreaterThan(0);
     });
 
-    it.each(unionMembers)("%s is a censused keyword-ability row", (keyword) => {
+    it.each(unionMembers)("%s is a censused keyword row", (keyword) => {
         const row = registryRow(keyword);
         expect(
             row,
             `no Mechanics Registry row named "${keyword}"`
         ).toBeDefined();
-        expect(row!.kind).toBe("keyword-ability");
+        // Collect evidence is a keyword ACTION (CR 701.59) in the family's cost
+        // shape; every other member is a keyword ability.
+        expect(["keyword-ability", "keyword-action"]).toContain(row!.kind);
     });
 
     it.each(unionMembers)(

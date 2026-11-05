@@ -343,7 +343,14 @@ export interface EscapeCost {
  *  says so with `paidPerExtraMode`. Everything else — the legs, the folds, the
  *  pickers, the payment record — is this family's machinery verbatim. Never
  *  kicked (CR 702.33d), no twin trigger, and no "any number of times" clause:
- *  it repeats exactly as often as the mode count says, never more. */
+ *  it repeats exactly as often as the mode count says, never more.
+ *
+ *  Collect evidence (CR 701.59c, issue #7723) is a keyword ACTION, not a keyword
+ *  ability, but "As an additional cost to cast this spell, you may collect
+ *  evidence N" is this family's cost half: optional, announced, paid on top of
+ *  the printed cost, and read back by a linked ability ("if evidence was
+ *  collected", CR 607). Never kicked (CR 702.33d), no twin trigger the keyword
+ *  itself demands, not repeatable. */
 export type AdditionalCostKeyword =
     | "kicker"
     | "offspring"
@@ -351,7 +358,8 @@ export type AdditionalCostKeyword =
     | "replicate"
     | "splice"
     | "escalate"
-    | "conspire";
+    | "conspire"
+    | "collect-evidence";
 
 /** CR 702.175a / 702.157a — the LINK between the two halves of an additional-cost
  *  keyword that "represents two abilities": the `kickers[]` cost entry and the
@@ -444,6 +452,12 @@ export type KickerCost = CastCostLegs & {
      *  ("Kicker {2}{U}", "Kicker — sacrifice two lands"). The client renders
      *  this verbatim, so a non-mana leg is legible BEFORE the caster commits. */
     description: string;
+    /** CR 701.59c — the COLLECT EVIDENCE leg of a `keyword: "collect-evidence"`
+     *  entry: the threshold `N`. Paid through the cast's one graveyard-exile
+     *  picker in its `minTotalManaValue` mode (`gre/collectEvidence.ts`), the
+     *  same one {@link AlternativeCost.collectEvidence} parks on. On the entry
+     *  rather than on {@link CostLegs}, whose may-pay reader has no such picker. */
+    collectEvidence?: number;
     /** CR 702.33c — Multikicker: THIS Kicker's cost may be paid any number of
      *  times as the spell is cast. Omitted/false = a single kicker (paid at most
      *  once). Only legal on a keyword whose `ADDITIONAL_COST_KEYWORDS` row says
@@ -2000,6 +2014,13 @@ export interface ActivatedAbility {
              *  single-graveyard rule as the exile cost: only the commit
              *  destination differs. */
             destination?: "library-bottom";
+            /** CR 701.59a — "Collect evidence N" as an activation cost: exile ANY
+             *  number of cards from your OWN graveyard whose total mana value is
+             *  N or greater. When set, `count` is the minimum selection (always
+             *  1) and `owner` is always `"you"`; the same picker, commit and
+             *  Bot payment as every other mode, and an unaware reader still
+             *  demands a pick, so a missed site can never make the cost free. */
+            minTotalManaValue?: number;
         };
         /** "Exile the top card of your library" as an activation cost (CR 118.1
          *  — a cost is an action necessary to take another action; CR 701.13a —
@@ -13322,6 +13343,9 @@ export interface TriggerStateView {
          *  Nether Shadow needs "three or more creature cards above it"
          *  (CR 603.6e). Only the fields cards may rely on are surfaced. */
         graveyard?: ReadonlyArray<{
+            /** CR 701.59b — collect evidence prices the pile by mana value,
+             *  read off the definition id (`gre/collectEvidence.ts`). */
+            card: { id?: string };
             id: string;
             ownerId: string;
             types: ReadonlyArray<string>;
@@ -22189,6 +22213,29 @@ export type AlternativeCost = CostLegs & {
      *  so can consist of nothing but this) declares it. Applied at the Cast
      *  Commit (CR 601.2h), when the hand becomes known to every player. */
     revealHand?: true;
+    /** COLLECT EVIDENCE leg (CR 701.59a — "exile any number of cards from your
+     *  graveyard with total mana value N or greater"): the threshold `N`.
+     *  Detective's Phoenix's "Bestow—{R}, Collect evidence 6".
+     *
+     *  On the alternative cost, NOT on {@link CostLegs} (the `revealHand`
+     *  precedent): the may-pay reader has no such picker, so it cannot even
+     *  express it. The CR 701.59c optional additional cost is
+     *  {@link KickerCost.collectEvidence}; the activated-ability cost is
+     *  `exileFromGraveyard.minTotalManaValue` (issue #7723).
+     *
+     *  A leg of its own rather than a `graveyard` variant: it has no filter
+     *  and no card COUNT — the payer picks a variable-size set whose summed
+     *  mana value meets `N` (over-payment is legal, minimality is not
+     *  required), which is the shape of the `permanent` leg's
+     *  `minTotalPower` threshold, not of a fixed-count graveyard leg. Payable
+     *  only while the payer's graveyard (the cast card excluded, CR 601.2a)
+     *  holds cards whose total mana value reaches `N` (CR 701.59b — "can't
+     *  choose to collect evidence"). WHICH cards pay is ALWAYS the payer's
+     *  explicit pick (`PendingCast.exileFromGraveyardChoice
+     *  .minTotalManaValue`), never auto-picked, not even when forced:
+     *  graveyard fuel is tactical (the delve precedent). Read by
+     *  `gre/collectEvidence.ts`. */
+    collectEvidence?: number;
 };
 
 /** When an {@link AlternativeCost} variant is legal to choose (CR 118.9). */
@@ -23383,8 +23430,18 @@ export interface CardDefinition {
      *  ("You may cast this card from your graveyard", Hogaak). Distinct from the
      *  external, turn-scoped Yawgmoth's Will / Lurrus permissions and from
      *  Flashback/Escape (which pay an ALTERNATIVE cost): the card resolves and
-     *  lands in the graveyard normally, no exile-on-resolve. Non-land only. */
-    castableFromOwnGraveyard?: boolean;
+     *  lands in the graveyard normally, no exile-on-resolve. Non-land only.
+     *
+     *  CR 118.9b — "An effect that allows you to cast a spell may
+     *  require a certain alternative cost to be paid." The object form
+     *  `{ requiredAlternativeCost }` is that permission SCOPED to one of the
+     *  card's own alternative costs: "You may cast this card from your
+     *  graveyard using its bestow ability" (Detective's Phoenix). The
+     *  graveyard cast must announce that cost; a printed-cost cast from the
+     *  graveyard is illegal. The card still resolves normally (no exile), so a
+     *  countered or dead Phoenix is castable again. Read through
+     *  `requiredGraveyardAlternativeCost` (`gre/castCost.ts`), never directly. */
+    castableFromOwnGraveyard?: boolean | { requiredAlternativeCost: "bestow" };
     /** CR 601.3a — "Cast this spell only if <board predicate>" (Blizzard, ICE).
      *  The card's OWN cast-legality gate, checked by the shared, frontend-safe
      *  `castProhibitionReason` (`convex/cards/castRestrictions.ts`) — so the

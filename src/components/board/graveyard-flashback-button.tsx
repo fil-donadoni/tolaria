@@ -50,9 +50,13 @@ export default function GraveyardFlashbackButton({
     // SPECIFIC-CARD grant (Malcolm, Alluring Scoundrel) renders identically —
     // "Cast", gated purely by `legalActions` (which is already free when the
     // grant waives the mana cost, `castRawManaCost`'s graveyard-grant branch).
+    // CR 601.3 / 118.9b (issue #2074) — the card's OWN permission (Hogaak;
+    // Detective's Phoenix, whose scope to its bestow cost the alt-cost picker
+    // enforces via `printedCostCastUnavailable`) renders the same "Cast".
     const isPermissionCast =
         card.castKind === "graveyard-permission" ||
-        card.castKind === "graveyard-grant";
+        card.castKind === "graveyard-grant" ||
+        card.castKind === "graveyard-intrinsic";
     // CR 702.81a (issue #2358) — a RETRACE cast is the only graveyard mechanism
     // that pays the card's PRINTED mana cost *plus* an extra cost (discard a
     // land card), so it needs its own label and its own disabled explanation.

@@ -5165,6 +5165,41 @@ export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
     });
 }
 
+const EVIDENCE_GATE_HEAD = "If evidence was collected, ";
+
+/**
+ * CR 701.59c — a linked sentence behind an optional collect evidence cost:
+ * "When this creature enters, tap target creature. If evidence was collected,
+ * put a stun counter on it." A combinator like `kickedSentenceRule`, and as
+ * fail-closed; the trigger slot owns the check that the head really fires on
+ * this permanent entering, the one moment the record is still there to read.
+ */
+export function evidenceGatedSentenceRule(
+    inner: Rule<SentenceIR>
+): Rule<SentenceIR> {
+    return rule(`evidence gated ${inner.label}`, (span, ctx) => {
+        if (!span.startsWith(EVIDENCE_GATE_HEAD)) return inner.run(span, ctx);
+        const parsed = inner.run(
+            capitalise(span.slice(EVIDENCE_GATE_HEAD.length)),
+            ctx
+        );
+        if (!parsed.ok) return parsed;
+        if (parsed.value.role !== "effect")
+            return fail(
+                `an evidence condition gates an effect, not a ${parsed.value.role}`,
+                span
+            );
+        return ok({
+            role: "effect" as const,
+            effect: {
+                kind: "kicked" as const,
+                kicked: { kind: "evidence" as const },
+                effect: parsed.value.effect,
+            },
+        });
+    });
+}
+
 /**
  * CR 608.2c — a spell sentence gated on a leading comparison: "If an opponent
  * controls more lands than you, search …".

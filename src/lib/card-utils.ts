@@ -1,3 +1,4 @@
+import { activationEvidenceUnpayable } from "@convex/gre/collectEvidence";
 import type {
     CardInstance,
     GenericSpendAmbiguity,
@@ -1915,6 +1916,9 @@ export function buildTriggerStateView(
             // activation-cost affordability hint (Grim Lavamancer, Night Soil)
             // in `getStackAbilities`; without it the ability is wrongly hidden.
             graveyard: (p.graveyard ?? []).map((c) => ({
+                // CR 701.59b — collect evidence prices the pile by mana value,
+                // read off the definition id (`gre/collectEvidence.ts`).
+                card: c.card,
                 id: c.id,
                 ownerId: c.ownerId,
                 types: c.types ?? [],
@@ -2477,6 +2481,7 @@ export function getStackAbilities(
                 count: number;
                 cardType?: CardType;
                 owner?: "you";
+                minTotalManaValue?: number;
             };
             /** CR 602.1 / 118.8 + CR 702.122a — "tap untapped permanents you
              *  control" (fixed `count`) / Crew N (`totalPower`). */
@@ -2806,6 +2811,17 @@ export function getStackAbilities(
                     ).length >= count
             );
             if (!payable) return false;
+            // CR 701.59b — below the threshold there is no choice to make.
+            if (
+                activationEvidenceUnpayable(
+                    a.cost.exileFromGraveyard,
+                    (stateView?.players ?? []).find(
+                        (p) => p.id === card.controllerId
+                    )
+                )
+            ) {
+                return false;
+            }
         }
         // CR 602.5b — ability-specific activation precondition. Evaluated as a
         // UI hint against the viewer-visible `stateView` (real player/turn data

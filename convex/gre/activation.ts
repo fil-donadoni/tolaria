@@ -24,6 +24,7 @@
  * function mutates the `GameState` it is handed, in place.
  */
 
+import { activationEvidenceUnpayable } from "./collectEvidence";
 import { getDefinition, tryGetDefinition } from "../cards";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
 import { activationPreconditionViolation } from "./activationPrecondition";
@@ -821,6 +822,14 @@ export function buildPendingActivation(opts: {
                           ? {
                                 destination:
                                     ability.cost.exileFromGraveyard.destination,
+                            }
+                          : {}),
+                      ...(ability.cost.exileFromGraveyard.minTotalManaValue !==
+                      undefined
+                          ? {
+                                minTotalManaValue:
+                                    ability.cost.exileFromGraveyard
+                                        .minTotalManaValue,
                             }
                           : {}),
                   },
@@ -2786,6 +2795,14 @@ export function activateAbilityOnState(
         ) {
             throw new Error(
                 "No single graveyard has enough cards to pay the exile cost"
+            );
+        }
+        // CR 701.59b — below the threshold there is no choice to make.
+        if (
+            activationEvidenceUnpayable(ability.cost.exileFromGraveyard, player)
+        ) {
+            throw new Error(
+                "Not enough total mana value in your graveyard to collect evidence"
             );
         }
     }

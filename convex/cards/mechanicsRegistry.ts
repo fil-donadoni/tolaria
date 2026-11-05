@@ -676,7 +676,9 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         name: "Collect Evidence",
         kind: "keyword-action",
         cr: "701.59",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/gre/collectEvidence.ts",
+        note: 'Cost leg (engine/cost infra, NOT an Effect Script Op). Every surface reads gre/collectEvidence.ts and pays through a graveyard-exile picker\'s minTotalManaValue mode (CR 701.59a/b; the payer always picks). Shipped: the alternative cost (AlternativeCost.collectEvidence, issue #2074, Detective\'s Phoenix); the activation cost (cost.exileFromGraveyard.minTotalManaValue, issue #7723; picker selectActivationExileCost, Bot planExilePick); the CR 701.59c optional additional cost (kickers[] entry keyword: "collect-evidence", KickerCost.collectEvidence, issue #7723; the linked "if evidence was collected" reads { additionalCostPaid }). Not expressible yet, each refused by the grammar, never compiled free: the triggered may-pay ("you may collect evidence N"), Ward—Collect evidence N, a mandatory or X additional cost (Urgent Necropsy), a cost reduction read off the payment (Bite Down on Crime), the event trigger "Whenever you collect evidence". A second exile cost on the same cast (an escape cast of a collect-evidence spell) cannot share the cast\'s one picker slot, so that pairing is refused at announcement and never offered to the Bot.',
     },
     // 701.60 Suspect
     {

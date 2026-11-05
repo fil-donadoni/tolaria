@@ -422,6 +422,40 @@ export const kickerRule: Rule<SlotIR> = rule("kicker", (span, ctx) => {
     return ok({ kind: "kicker" as const, kickers });
 });
 
+/** CR 701.59c — the whole line, so "This spell costs {2} less to cast if
+ *  evidence was collected" behind it is refused rather than dropped. */
+const OPTIONAL_COLLECT_EVIDENCE =
+    /^As an additional cost to cast this spell, you may collect evidence (\d+)\.$/;
+
+/**
+ * CR 701.59c — "As an additional cost to cast this spell, you may collect
+ * evidence N." An optional additional cost, so it is a cost entry of the kicker
+ * family, printed on its own line like one; `lowerKickers` names it and the
+ * linked "if evidence was collected" reads its payment record.
+ *
+ * Refused: the X form (Urgent Necropsy's is mandatory and computed), and any
+ * sentence sharing the line.
+ */
+export const optionalCollectEvidenceRule: Rule<SlotIR> = rule(
+    "optional collect evidence",
+    (span) => {
+        const match = span.match(OPTIONAL_COLLECT_EVIDENCE);
+        if (match === null)
+            return fail("not an optional collect evidence line", span);
+        const collectEvidence = Number(match[1]);
+        return ok({
+            kind: "kicker" as const,
+            kickers: [
+                {
+                    description: `Collect evidence ${collectEvidence}`,
+                    collectEvidence,
+                    multi: false,
+                },
+            ],
+        });
+    }
+);
+
 // ── Cycling / Madness / Morph <mana cost> (CR 702.29a, 702.35a, 702.37) ────
 
 /**
@@ -855,6 +889,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     map(protectionListRule, keywordsSlot),
     enchantRule,
     kickerRule,
+    optionalCollectEvidenceRule,
     cyclingRule,
     madnessRule,
     plotRule,

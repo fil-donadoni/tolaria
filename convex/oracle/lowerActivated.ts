@@ -26,6 +26,7 @@ import {
     declareTargets,
     lowerSentence,
     SentenceWalk,
+    TargetSlots,
     type SiteOptions,
 } from "./lowerEffects";
 
@@ -242,7 +243,7 @@ export function lowerActivatedAbility(input: {
             reason: "an Aura removed by its own cost needs its host as last-known information, which $host (seeded from the live attachment) does not carry (CR 608.2h)",
         };
 
-    const walk = new SentenceWalk();
+    const walk = new SentenceWalk(new TargetSlots(true));
     const ops: EffectOp[] = [];
     // CR 107.3 — an activated ability announces X in its ACTIVATION cost, as a
     // variable `{X}` pip (`readManaCost` writes it as `X: "X"`). Judged here
@@ -549,6 +550,15 @@ export function lowerManaAbility(input: {
     // silently becomes no cost). Fail CLOSED here, the way
     // `lowerAdditionalCosts` and `flashbackLine` already do for the same atom
     // stream, rather than emit the ability.
+    // CR 701.59a — collect evidence's picker parks a `PendingActivation`, which a
+    // stackless ability never reaches: "{T}, Collect evidence 3: Add {G}" would be
+    // free mana.
+    if (cost.value.exileFromGraveyard?.minTotalManaValue !== undefined) {
+        return {
+            ok: false,
+            reason: "collect evidence has no payment site on a mana ability's stackless path (CR 605.1a)",
+        };
+    }
     const unpayable = Object.keys(cost.value).filter((leg) =>
         MANA_ABILITY_UNPAYABLE_COST_LEGS.has(leg)
     );
