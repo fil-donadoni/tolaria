@@ -29,6 +29,7 @@ import {
 import {
     getChooseableCardNames,
     tryGetPlaceableCardByName,
+    lookupCardNameInIndex,
 } from "../catalogue";
 
 import type { CardDefinition } from "../types";
@@ -191,6 +192,9 @@ describe("the choice DOMAIN and the placeable POPULATION are different sets", ()
         );
         expect(extras).toContain(INSET);
         for (const name of extras) {
+            // CR 712.19 — a meld pair's combined name is choosable yet no card
+            // has it (CR 712.4b): the submit gate reads the index, not a twin.
+            if (lookupCardNameInIndex(name).kind === "meld-back") continue;
             const resolved = tryGetCardByName(name);
             expect(resolved, `"${name}" resolves`).not.toBeNull();
             expect(resolved!.id).toContain("#");
