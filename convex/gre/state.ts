@@ -15,7 +15,7 @@ import {
     type CounterOutcome,
     type CostReductionAmount,
     type CountDrivenCostReduction,
-    type DomainDrivenCostReduction,
+    type CensusDrivenCostReduction,
     type DelayedTriggerInlineBody,
     type DelayedTriggerTiming,
     type DiscardCause,
@@ -24237,13 +24237,13 @@ function isCountDrivenCostReduction(
     );
 }
 
-/** True iff a `costReduction` value is the DOMAIN-driven shape (issue #1958,
- *  Draco / Stratadon) rather than a fixed literal `ManaCost` or a
+/** True iff a `costReduction` value is the CENSUS-driven shape (Domain, issue
+ *  #1958; opponents, CR 702.125a) rather than a fixed literal `ManaCost` or a
  *  permanent-count. Discriminated on `countMode` — no `ManaCost` mana-symbol
  *  key collides with it, and the count-driven shape has no such key. */
-function isDomainDrivenCostReduction(
+function isCensusDrivenCostReduction(
     reduction: CostReductionAmount
-): reduction is DomainDrivenCostReduction {
+): reduction is CensusDrivenCostReduction {
     return (
         typeof reduction === "object" &&
         reduction !== null &&
@@ -24263,8 +24263,27 @@ function isManaCostReduction(
 ): reduction is ManaCost {
     return (
         !isCountDrivenCostReduction(reduction) &&
-        !isDomainDrivenCostReduction(reduction)
+        !isCensusDrivenCostReduction(reduction)
     );
+}
+
+/** The number a census-driven reduction multiplies by, for its own `player`.
+ *
+ *  `"opponents"` (CR 702.125a) counts `state.players` other than `player`.
+ *  CR 702.125b excludes players who have left the game, and that array holds no
+ *  such player: `PlayerState` has no left-the-game status, because the engine
+ *  plays two-player games and a player leaving ends the game (CR 104.2a). */
+function censusOf(
+    mode: CensusDrivenCostReduction["countMode"],
+    player: PlayerState,
+    state: GameState
+): number {
+    switch (mode) {
+        case "domain":
+            return countDomain(state as never, player.id);
+        case "opponents":
+            return state.players.filter((p) => p.id !== player.id).length;
+    }
 }
 
 /** Resolve a CR 601.2f `costReduction`'s generic-mana amount. Three shapes,
@@ -24286,7 +24305,9 @@ function isManaCostReduction(
  *     the `{ domain: { of } }` EffectValue, the Domain-scaled `pt-cda`
  *     closures) rather than recomputing Domain here — the live `subtypes` array
  *     it reads is the post-layer-4 one, so a land whose type was added or
- *     changed counts correctly (CR 613.1d).
+ *     changed counts correctly (CR 613.1d);
+ *   - an opponent-driven amount (undaunted, CR 702.125a) multiplies it by
+ *     `player`'s opponents (`censusOf`).
  *
  *  Domain is board-wide, so it needs the whole `state`, not just the
  *  announcing `player` (a land the announcer controls may sit in the other
@@ -24297,10 +24318,10 @@ function resolveCostReductionGeneric(
     player: PlayerState,
     state: GameState
 ): number {
-    if (isDomainDrivenCostReduction(reduction)) {
+    if (isCensusDrivenCostReduction(reduction)) {
         const per = normalizeManaCost(reduction.perCount).X ?? 0;
         if (per <= 0) return 0;
-        return per * countDomain(state as never, player.id);
+        return per * censusOf(reduction.countMode, player, state);
     }
     if (isCountDrivenCostReduction(reduction)) {
         const per = normalizeManaCost(reduction.perCount).X ?? 0;

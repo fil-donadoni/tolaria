@@ -79,6 +79,7 @@ const NOT_A_BODY_KEYWORD = new Set([
     "morph",
     "storm",
     "affinity",
+    "undaunted",
     "sunburst",
     "splice",
     "convoke",

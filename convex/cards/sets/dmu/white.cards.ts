@@ -20,7 +20,7 @@ import { holdsExileBundle } from "../../abilities/exileBundle";
 // Two shipped primitives, no new engine work:
 //
 //   - The cost clause is `CardDefinition.selfCostReduction` in the
-//     `countMode: "domain"` shape (`DomainDrivenCostReduction`,
+//     `countMode: "domain"` shape (`CensusDrivenCostReduction`,
 //     `cards/types.ts`, issue #1958 — Draco / Stratadon, `pls/colorless.cards.ts`).
 //     Domain counts distinct basic land TYPES (CR 305.6 — Plains, Island,
 //     Swamp, Mountain, Forest), not permanents: three Forests are ONE, a

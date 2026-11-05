@@ -514,7 +514,7 @@ export const terminalMoraine = defineCard(() => ({
 // Draco and Stratadon each reduce their OWN cast cost by their controller's
 // Domain — the number of distinct basic land types among the lands they
 // control (0–5, CR 305.6). Both are `CardDefinition.selfCostReduction` in the
-// new `countMode: "domain"` shape (`DomainDrivenCostReduction`,
+// new `countMode: "domain"` shape (`CensusDrivenCostReduction`,
 // `cards/types.ts`), NOT the pre-existing permanent-count shape
 // (`countFilter`, Emry / affinity): a permanent filter counts PERMANENTS —
 // three Forests would be three — while Domain counts distinct basic land
