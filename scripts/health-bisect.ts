@@ -87,6 +87,8 @@ import {
     verdictStore,
     type Verdict,
 } from "./lib/health-verdict-store";
+import { settleContainedGrant } from "./lib/health-ladder";
+import { recordPivotRepairIssue } from "./lib/health-pivot";
 import { clearDeferredRed, readDeferredRed } from "./lib/health-verdict-job";
 import { primaryCheckout } from "./lib/primary-checkout";
 
@@ -391,6 +393,81 @@ function fileFlake(ctx: Ctx, plan: Plan, evidence: string | undefined): void {
     }
 }
 
+/** The issue of exactly this title, in any state, or null. Throws on a failed
+ *  read: an unread answer must not file a second P0. */
+function findIssue(root: string, title: string): number | null {
+    const r = spawnSync(
+        "gh",
+        [
+            "issue",
+            "list",
+            "--state",
+            "all",
+            "--search",
+            `"${title}" in:title`,
+            "--json",
+            "number,title",
+            "--limit",
+            "20",
+        ],
+        { cwd: root, encoding: "utf8" }
+    );
+    if (r.status !== 0) throw new Error((r.stderr ?? "").trim());
+    return (
+        (
+            JSON.parse(r.stdout || "[]") as { number: number; title: string }[]
+        ).find((i) => i.title === title)?.number ?? null
+    );
+}
+
+/** Files the episode's P0: `bug` + `area:workflow` raise it on the board
+ *  (`issue-band.yml`), `ready-for-agent` hands it to the dispatcher. */
+function fileContainedIssue(
+    root: string,
+    title: string,
+    body: string
+): number | null {
+    const r = spawnSync(
+        "gh",
+        [
+            "issue",
+            "create",
+            "--title",
+            title,
+            "--body",
+            body,
+            "--label",
+            "bug",
+            "--label",
+            "area:workflow",
+            "--label",
+            "ready-for-agent",
+        ],
+        { cwd: root, encoding: "utf8" }
+    );
+    const n = /\/issues\/(\d+)/.exec(r.stdout ?? "")?.[1];
+    return r.status === 0 && n ? Number(n) : null;
+}
+
+/** The ladder's grant (ADR 0163 §§ 2-3), over the store as it stands now. */
+function grantContained(ctx: Ctx): void {
+    const store = verdictStore(ctx.root);
+    settleContainedGrant(ctx.sha, {
+        note: (line) => note(ctx, line),
+        readVerdict: (sha) => store.read(sha),
+        readLineage: () => readVerdictLineage(() => verdictStore(ctx.root)),
+        readEvidence: (sha) => evidenceStore(ctx.root).read(sha),
+        write: (v) => store.write(v),
+        findIssue: (title) => findIssue(ctx.root, title),
+        fileIssue: (title, body) => fileContainedIssue(ctx.root, title, body),
+        declareRepair: (issue) => {
+            recordPivotRepairIssue(ctx.root, issue);
+        },
+        runUrl: runUrl(),
+        now: () => new Date().toISOString(),
+    });
+}
+
 /** The bisect over the base's first-parent commits after the last GREEN:
  *  its culprit lines, oldest culprit first. */
 function bisect(
@@ -633,6 +710,7 @@ function ladder(ctx: Ctx): number {
     }
     for (const line of lines) note(ctx, line);
     publishCulprit(ctx, lines);
+    if (!ctx.dryRun) grantContained(ctx);
     return 1;
 }
 

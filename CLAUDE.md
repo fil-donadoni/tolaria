@@ -285,9 +285,10 @@ targeted tests. Red landing: `/next-ticket`'s `land-failures.md`.
 **Green-at-release (ADR 0116): release branch moves only to a health-proven
 base tip.** The queue proves the lane, batch health the rest, `release` re-proves
 the exact tip. Failure leaves durable `RED` marker (`bun run health:status`):
-revert FIRST, fix-forward as the reopened issue's pass (ADR 0158);
-never stack work on a red tip, never silence a test; "not my test" is no
-exemption.
+revert FIRST, fix-forward as the reopened issue's pass (ADR 0158). **A RED
+blocks unless the bisect made it a Contained RED** (ADR 0163): it stops the
+release, not the queue, and a lane tolerates exactly its test names. Never stack
+work on a blocking RED, never silence a test; "not my test" is no exemption.
 
 ## Rules Implementation Process
 
