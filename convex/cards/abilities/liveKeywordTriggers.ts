@@ -15,6 +15,7 @@ import { DETHRONE_KEYWORD, DETHRONE_TRIGGER } from "./dethrone";
 import { ENLIST_KEYWORD, ENLIST_TRIGGER } from "./enlist";
 import { FLANKING_KEYWORD, FLANKING_TRIGGER } from "./flanking";
 import { MELEE_KEYWORD, MELEE_TRIGGER } from "./melee";
+import { MYRIAD_KEYWORD, MYRIAD_TRIGGER } from "./myriad";
 import { PROVOKE_KEYWORD, PROVOKE_TRIGGER } from "./provoke";
 import {
     PERSIST_KEYWORD,
@@ -38,6 +39,7 @@ const LIVE_KEYWORD_TRIGGERS: ReadonlyArray<{
     { keyword: PROVOKE_KEYWORD, ability: PROVOKE_TRIGGER },
     { keyword: TRAINING_KEYWORD, ability: TRAINING_TRIGGER },
     { keyword: MELEE_KEYWORD, ability: MELEE_TRIGGER },
+    { keyword: MYRIAD_KEYWORD, ability: MYRIAD_TRIGGER },
     { keyword: PERSIST_KEYWORD, ability: PERSIST_TRIGGER },
     { keyword: UNDYING_KEYWORD, ability: UNDYING_TRIGGER },
 ];

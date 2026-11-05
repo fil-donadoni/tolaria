@@ -2608,6 +2608,14 @@ describe("getTriggeredAbilityOracleText — melee (CR 702.121a)", () => {
     });
 });
 
+describe("getTriggeredAbilityOracleText — myriad (CR 702.116a)", () => {
+    it("names the trigger of a keyword no definition lists as an ability", () => {
+        expect(getTriggeredAbilityOracleText("any-card", "myriad")).toContain(
+            "other than defending player"
+        );
+    });
+});
+
 describe("getTriggeredAbilityOracleText — persist and undying (CR 702.79a, CR 702.93a)", () => {
     it("names the trigger of a keyword no definition lists as an ability", () => {
         expect(getTriggeredAbilityOracleText("any-card", "persist")).toContain(
