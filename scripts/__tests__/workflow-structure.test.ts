@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { historyQuery } from "../lib/health-verdict-store";
 import {
     checkStructure,
     formatViolation,
@@ -91,10 +92,20 @@ jobs:
     if: \${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      statuses: read
     steps:
       - uses: actions/checkout@${SHA}
+      - name: Contained RED snapshot
+        continue-on-error: true
+        env:
+          GH_TOKEN: \${{ github.token }}
+          HISTORY_QUERY: '${historyQuery("health")}'
+        run: gh api graphql -f query="$HISTORY_QUERY" -F n=60 >"$RUNNER_TEMP/contained/history.json"
       - uses: ./.github/actions/job-setup
       - run: bun run check:lane --regenerate-derived
+        env:
+          TOLARIA_CONTAINED_SNAPSHOT: \${{ runner.temp }}/contained
   refusals:
     if: \${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}
     runs-on: ubuntu-24.04
@@ -328,6 +339,101 @@ describe("the pass's failed-setup record (issue #6781)", () => {
     });
 });
 
+describe("the advisory lane's token (issue #8120)", () => {
+    const SNAPSHOT_STEP = HOSTED.slice(
+        HOSTED.indexOf("      - name: Contained RED snapshot"),
+        HOSTED.indexOf("      - uses: ./.github/actions/job-setup")
+    );
+    const SETUP_STEP = "      - uses: ./.github/actions/job-setup\n";
+    const LANE_ENV =
+        "        env:\n          TOLARIA_CONTAINED_SNAPSHOT: ${{ runner.temp }}/contained\n";
+    const refused = (hosted: string) =>
+        checkStructure(fixture({ hosted }))
+            .filter((v) => v.rule === "advisory-lane-token")
+            .map((v) => v.message);
+
+    it("refuses a token on the step that runs the PR's tests", () => {
+        const hosted = edit(
+            HOSTED,
+            LANE_ENV,
+            `${LANE_ENV}          GH_TOKEN: \${{ github.token }}\n`
+        );
+        expect(refused(hosted).join()).toMatch(/must hold no token/);
+    });
+
+    it("refuses the snapshot after PR code has run", () => {
+        const hosted = edit(
+            edit(HOSTED, SNAPSHOT_STEP, ""),
+            SETUP_STEP,
+            `${SETUP_STEP}${SNAPSHOT_STEP}`
+        );
+        expect(refused(hosted).join()).toMatch(/first step after the checkout/);
+    });
+
+    it("refuses a run: step of any kind before the snapshot", () => {
+        const hosted = edit(
+            HOSTED,
+            SNAPSHOT_STEP,
+            `      - run: echo hi\n${SNAPSHOT_STEP}`
+        );
+        expect(rules(fixture({ hosted }))).toContain("advisory-lane-token");
+    });
+
+    it("refuses checkout code in the step holding the token", () => {
+        for (const cmd of [
+            "bun run contained:read",
+            "./read.sh",
+            "scripts/ci/read.sh",
+            "bash read.sh",
+            "cd /tmp && ../read.sh",
+        ]) {
+            const hosted = edit(
+                HOSTED,
+                'run: gh api graphql -f query="$HISTORY_QUERY" -F n=60 >"$RUNNER_TEMP/contained/history.json"',
+                `run: |\n          gh api graphql -F n=60 >"$RUNNER_TEMP/h"\n          ${cmd}`
+            );
+            expect(refused(hosted).join(), cmd).toMatch(/only `gh` and `jq`/);
+        }
+    });
+
+    it("refuses a snapshot that can fail the job", () => {
+        const hosted = edit(HOSTED, "        continue-on-error: true\n", "");
+        expect(refused(hosted).join()).toMatch(/continue-on-error/);
+    });
+
+    it("refuses a query the verdict store does not ask", () => {
+        const hosted = edit(
+            HOSTED,
+            'context(name:"health")',
+            'context(name:"x")'
+        );
+        expect(refused(hosted).join()).toMatch(/not the verdict store/);
+    });
+
+    it("refuses a missing snapshot, reader wire or permission", () => {
+        expect(refused(edit(HOSTED, SNAPSHOT_STEP, "")).join()).toMatch(
+            /no `Contained RED snapshot`/
+        );
+        expect(refused(edit(HOSTED, LANE_ENV, "")).join()).toMatch(
+            /must set TOLARIA_CONTAINED_SNAPSHOT/
+        );
+        expect(
+            refused(
+                edit(HOSTED, "    permissions:\n      statuses: read\n", "")
+            ).join()
+        ).toMatch(/statuses: read/);
+    });
+
+    it("refuses the snapshot variable in a workflow with a self-hosted job", () => {
+        const self = edit(
+            SELF_HOSTED,
+            "      - uses: ./.github/actions/job-setup\n",
+            '      - uses: ./.github/actions/job-setup\n      - run: bun run check:lane\n        env:\n          TOLARIA_CONTAINED_SNAPSHOT: "/x"\n'
+        );
+        expect(rules(fixture({ self }))).toEqual(["advisory-lane-token"]);
+    });
+});
+
 describe("workflow structure guard", () => {
     it("the fixture holds every invariant", () => {
         expect(checkStructure(fixture()).map(formatViolation)).toEqual([]);
@@ -360,8 +466,8 @@ describe("workflow structure guard", () => {
           TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1"`;
         const hosted = edit(
             HOSTED,
-            "      - run: bun run check:lane --regenerate-derived",
-            `      - run: bun run check:lane --regenerate-derived${env}`
+            "          TOLARIA_CONTAINED_SNAPSHOT:",
+            '          TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1"\n          TOLARIA_CONTAINED_SNAPSHOT:'
         );
         expect(rules(fixture({ hosted }))).toEqual([]);
         const self = edit(
@@ -469,7 +575,11 @@ describe("workflow structure guard", () => {
             `actions/checkout@${SHA}`,
             "docker://alpine:3"
         );
-        expect(rules(fixture({ hosted: docker }))).toEqual(["unpinned-uses"]);
+        // Also `advisory-lane-token`: only a checkout may precede the snapshot.
+        expect(rules(fixture({ hosted: docker })).sort()).toEqual([
+            "advisory-lane-token",
+            "unpinned-uses",
+        ]);
         const setup = edit(
             JOB_SETUP,
             "          run: scripts/ci/setup-bun.sh",
@@ -512,8 +622,8 @@ describe("workflow structure guard", () => {
         expect(rules(fixture({ hosted }))).toEqual(["no-toolchain"]);
         const late = edit(
             HOSTED,
-            "      - uses: ./.github/actions/job-setup\n      - run: bun run check:lane --regenerate-derived\n",
-            "      - run: bun run check:lane --regenerate-derived\n      - uses: ./.github/actions/job-setup\n"
+            "      - uses: ./.github/actions/job-setup\n      - run: bun run check:lane --regenerate-derived\n        env:\n          TOLARIA_CONTAINED_SNAPSHOT: ${{ runner.temp }}/contained\n",
+            "      - run: bun run check:lane --regenerate-derived\n        env:\n          TOLARIA_CONTAINED_SNAPSHOT: ${{ runner.temp }}/contained\n      - uses: ./.github/actions/job-setup\n"
         );
         expect(rules(fixture({ hosted: late }))).toEqual(["no-toolchain"]);
         // Naming the worktree script exempts only the first and last step.

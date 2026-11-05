@@ -13,7 +13,8 @@
 # GitHub-hosted on purpose: a `pull_request` can come from a fork, and no job
 # an outsider can trigger ever reaches the owner's machines (the structure
 # guard, scripts/__tests__/workflow-structure.test.ts). No secret, read-only
-# token. docs/guides/github-pipeline.md § Workflows.
+# token, and no token at all where the lane runs the PR's own code.
+# docs/guides/github-pipeline.md § Workflows.
 name: pr-check
 
 on:
@@ -41,15 +42,38 @@ jobs:
         if: ${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 60
-        # `actions: write` only to dispatch pr-fixup below (issue #5640).
+        # `actions: write` only to dispatch pr-fixup below (issue #5640);
+        # `statuses: read` only for the Contained RED snapshot (issue #8120).
         permissions:
             contents: read
+            statuses: read
             actions: write
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
                   persist-credentials: false
+            # What a Contained RED forgives (ADR 0163 §4, issue #8120). The
+            # one step here holding a token, and it precedes `job-setup`, the
+            # first PR code: inline `gh` and `jq`, nothing from the checkout.
+            # Any failure leaves no `history.json`, so the lane tolerates
+            # nothing. The structure guard's `advisory-lane-token` pins all this.
+            - name: Contained RED snapshot
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  BASE_REF: ${{ github.event.pull_request.base.ref }}
+                  HISTORY_QUERY: 'query($owner:String!,$name:String!,$ref:String!,$n:Int!){repository(owner:$owner,name:$name){ref(qualifiedName:$ref){target{... on Commit{history(first:$n){nodes{oid status{context(name:"health"){state description targetUrl createdAt}}}}}}}}}'
+              shell: bash
+              run: |
+                  dir="$RUNNER_TEMP/contained"
+                  mkdir -p "$dir"
+                  gh api graphql -f query="$HISTORY_QUERY" -F owner="${GITHUB_REPOSITORY%/*}" -F name="${GITHUB_REPOSITORY#*/}" -F ref="refs/heads/$BASE_REF" -F n=60 >"$dir/history.tmp"
+                  sha="$(jq -r '[.data.repository.ref.target.history.nodes[] | select(.status.context.state == "FAILURE") | .oid][0] // empty' "$dir/history.tmp")"
+                  if [ -n "$sha" ]; then
+                      gh api "repos/$GITHUB_REPOSITORY/commits/$sha/comments?per_page=100" >"$dir/comments-$sha.json"
+                  fi
+                  mv "$dir/history.tmp" "$dir/history.json"
             - uses: ./.github/actions/job-setup
             - name: check:lane (one flaky re-run)
               # No Verdict Store read key here (ADR 0156 §8: no secret in a
@@ -64,6 +88,9 @@ jobs:
                   # `base` role would red `check:oracle` on exactly the header
                   # the rule demands. Role `pr`: rows only, no corpus is no red.
                   TOLARIA_TREE_ROLE: pr
+                  # The pivot, read above: this step runs the PR's tests, so it
+                  # gets no `GH_TOKEN` (ADR 0156 §8, issue #8120).
+                  TOLARIA_CONTAINED_SNAPSHOT: ${{ runner.temp }}/contained
               # stderr teed to lane.log: a refusal leaves lane.json empty and
               # its reason there, for the fixup step (issue #6003).
               # `--regenerate-derived` (ADR 0157, issue #6338): the merge ref
