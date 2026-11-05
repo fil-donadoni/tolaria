@@ -1731,10 +1731,16 @@ const exile: Valuer<"exile"> = (op, ctx) => ({
 // graveyard to exile (Restock, Recall). Opposite sign from
 // `shuffleSelfIntoLibrary`: it forfeits future graveyard recursion on THIS
 // card rather than gaining any, a small downside rather than an upside.
-const exileSelf: Valuer<"exileSelf"> = () => ({
-    points: EXILE_SELF_VALUE,
-    tags: [],
-});
+//
+// CR 702.99a — encoded, the card is instead a free cast each time its creature
+// connects: at least one free cast, whatever it casts is unknown to this model.
+const exileSelf: Valuer<"exileSelf"> = (op) =>
+    op.encodedOn
+        ? {
+              points: CAST_DURING_RESOLUTION_FREE_VALUE,
+              tags: tagScaling(true, "cardAdvantage"),
+          }
+        : { points: EXILE_SELF_VALUE, tags: [] };
 
 // CR 603.7a / 701.13 / ADR 0028 — the exile half of the O-Ring / Banishing
 // Light family removes an opponent's permanent from the board (until this

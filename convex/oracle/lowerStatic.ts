@@ -45,6 +45,7 @@ import { expandChangeling } from "../cards/abilities/changeling";
 import { expandMentor } from "../cards/abilities/mentor";
 import { expandDemonstrate } from "../cards/abilities/demonstrate";
 import { expandIngest } from "../cards/abilities/ingest";
+import { expandCipher } from "../cards/abilities/cipher";
 import { expandMyriad } from "../cards/abilities/myriad";
 import { expandUndaunted } from "../cards/abilities/undaunted";
 import { expandMobilize } from "../cards/abilities/mobilize";
@@ -283,20 +284,22 @@ const GRANT_PROBE: CardDefinition = {
  * which is what makes identity the honest test.
  */
 function expandKeywords(def: CardDefinition): CardDefinition {
-    return expandDemonstrate(
-        expandChangeling(
-            expandUndaunted(
-                expandIngest(
-                    expandMyriad(
-                        expandMobilize(
-                            expandAnnihilator(
-                                expandHideaway(
-                                    expandFadingVanishing(
-                                        expandKeywordTriggers(
-                                            expandExtort(
-                                                expandMentor(
-                                                    expandRiot(
-                                                        expandUnleash(def)
+    return expandCipher(
+        expandDemonstrate(
+            expandChangeling(
+                expandUndaunted(
+                    expandIngest(
+                        expandMyriad(
+                            expandMobilize(
+                                expandAnnihilator(
+                                    expandHideaway(
+                                        expandFadingVanishing(
+                                            expandKeywordTriggers(
+                                                expandExtort(
+                                                    expandMentor(
+                                                        expandRiot(
+                                                            expandUnleash(def)
+                                                        )
                                                     )
                                                 )
                                             )

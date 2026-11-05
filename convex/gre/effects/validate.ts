@@ -3623,6 +3623,10 @@ function isPredicate(value: unknown): boolean {
             isCardFilter(obj.filter)
         );
     }
+    // spellRepresentedByCard form (CR 702.99a) — a single literal `true`.
+    if (keys.length === 1 && keys[0] === "spellRepresentedByCard") {
+        return obj.spellRepresentedByCard === true;
+    }
     // castFromZone form (issue #2097, Delayed Blast Fireball) — a single key
     // naming one of the four cast-from zones (CR 601.2a).
     if (keys.length === 1 && keys[0] === "castFromZone") {
@@ -4641,11 +4645,24 @@ const OP_SCHEMAS: OpSchemaTable = {
             resultBind: bindingDeclaration("boolean"),
             // Issue #2608 — "cast any number of spells from among <set>".
             anyNumber: (v: unknown) => v === true,
+            // CR 707.12 — "cast a copy of" the bound card.
+            asCopy: (v: unknown) => v === true,
         },
         check: (entry) => {
             const errors: string[] = [];
             const hasCard = "card" in entry;
             const fromTop = entry.fromTopOfLibrary === true;
+            if (
+                entry.asCopy === true &&
+                (!isBarePicksRef(entry.card) ||
+                    entry.source !== "exile" ||
+                    entry.anyNumber === true ||
+                    entry.includesLand === true)
+            ) {
+                errors.push(
+                    'field "asCopy" requires a bare picks "card" and source "exile", without "anyNumber" or "includesLand"'
+                );
+            }
             // CR 608.2g — "any number" iterates a SET of cards an earlier Op
             // bound; the single-card shapes name exactly one card (the top of
             // the library, the one CR 607 linked card), a land PLAY is a
@@ -4760,7 +4777,7 @@ const OP_SCHEMAS: OpSchemaTable = {
     // going to the graveyard (Recall / Restock). No fields — it always
     // redirects the currently-resolving stack item. Mirrors
     // `shuffleSelfIntoLibrary`'s empty-required shape exactly.
-    exileSelf: { required: {} },
+    exileSelf: { required: {}, optional: { encodedOn: isBarePicksRef } },
     // CR 603.7a / 701.13 / ADR 0028 — exile the announced target keyed to
     // `$source`, arming the exile-and-return bundle (O-Ring / Banishing Light /
     // Tawnos's Coffin). `returnTapped` returns the host tapped; `includeAttachments`
@@ -7494,6 +7511,9 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                         // — a bare picks ref naming a `choice` Op's bind
                         // (singular: the choice's `count: 1` pick).
                         keyHint === "card" ||
+                        // `exileSelf`'s `encodedOn` (CR 702.99a) — the same
+                        // shape: the creature a `choice` Op picked.
+                        keyHint === "encodedOn" ||
                         // `EffectCountSpec.picks` (issue #3807) — the
                         // picks-family binding a graveyard `count` narrows to
                         // ("each land card discarded this way"). The only

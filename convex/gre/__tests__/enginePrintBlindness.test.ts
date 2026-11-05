@@ -122,6 +122,12 @@ const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
         reason: "forwards a copy Op's `except.imagePrintId` into the `CopyEffectOptions` `copy.ts` applies.",
     },
     {
+        file: "castCopy.ts",
+        count: 3,
+        role: "copy",
+        reason: "a CR 707.12 copy of a card made to be cast shows the print of the card it copies, cosmetic and read by no rule.",
+    },
+    {
         file: "prepare.ts",
         count: 3,
         role: "copy",

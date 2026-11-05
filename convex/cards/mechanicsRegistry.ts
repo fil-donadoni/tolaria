@@ -1777,7 +1777,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Cipher",
         kind: "keyword-ability",
         cr: "702.99",
-        status: "planned",
+        status: "implemented",
+        binding: "expandCipher",
+        note: "CR 702.99a represents two abilities. The spell ability is the last step of the script: `expandCipher` (`getDefinition` seam, ADR 0054) appends an `if` on `spellRepresentedByCard` holding an optional `choice` of a creature you control and `exileSelf { encodedOn }`, so a countered or fizzled spell encodes nothing and a copy is asked nothing (CR 707.10a). `exileSelf` stamps `encodedOn` on the card (CR 702.99b), and `finalizeSpellResolution` exiles it ahead of every redirect of a card going to a graveyard. The static ability functions from exile, and `gre/cipher.ts` owns it: the combat damage event names the encoded cards (`encodedCardIds`, read while the creature is on the battlefield, CR 603.2), so a creature killed by the same damage still fires (CR 113.7a), and a CR 613.1f loss later than the encoding fires nothing while the card stays encoded. `collectTriggers` builds one inline trigger per card, controlled by the creature's controller, whose body is `castDuringResolution { free, asCopy }` (CR 707.12): the copy is owned by the caster (CR 112.2a), becomes a spell copy at the cast choke point (`onCardCopyCast`), and ceases to exist if not cast (CR 704.5e, `checkCardCopySBA`). CR 702.99c: the link names the instance, so it survives a change of controller or of creature-ness; it ends when the card leaves exile (`moveCard`, `removeFromZone`) or at a same-id return (`clearExileLinksToEnteringSource`). Wire: the card pins to its creature through `exiledByPermanentId`. Bot: `playableExileCards` prices an encoded card as held by the creature's controller, so the search prefers encoding over the graveyard. Definition-level, so `isDefinitionLevelKeyword` quarantines a compiled grant of cipher.",
     },
     // 702.100 Evolve (issue #4001) — expanded from the bare
     // `staticAbilities: ["evolve"]` string at the `getDefinition` seam

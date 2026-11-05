@@ -1653,6 +1653,21 @@ export type CardInstanceState = {
      *  Persisted so the link survives a DB round-trip; projected via
      *  `exiledByPermanentId` (Arena pinning). */
     exiledBySourceId?: string;
+    /** CR 702.99b / 702.99c — the permanent this exiled card is ENCODED on, and
+     *  the CR 613.7 timestamp of the ability the encoding grants it. A keyed
+     *  link, read by `gre/cipher.ts`: it survives the permanent changing
+     *  controller or ceasing to be a creature, and ends when the card leaves
+     *  exile (`moveCard`, `removeFromZone`) or the permanent leaves the
+     *  battlefield. The second is read off the battlefield, not cleared at the
+     *  departure: a trigger the permanent's last combat damage fired still names
+     *  this card (CR 113.7a), and a same-id return drops the link at entry
+     *  (`clearExileLinksToEnteringSource`). Stamped on the stack item by
+     *  `exileSelf`, which is what sends the card to exile. */
+    encodedOn?: { permanentId: string; seq: number };
+    /** CR 707.12 / 704.5e — this exiled object is a copy of a card created to
+     *  be cast: `onCardCopyCast` makes the spell a copy, and `checkCardCopySBA`
+     *  removes one nothing cast. */
+    castCopyOfCard?: boolean;
     /** CR 702.34 — a Flashback cost granted to this card at the instance level
      *  (Snapcaster Mage: "target instant or sorcery card in your graveyard
      *  gains flashback until end of turn"). When set on a card in a graveyard,
