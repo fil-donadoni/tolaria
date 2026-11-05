@@ -3559,6 +3559,10 @@ export interface TokenSpec {
     subtypes?: string[];
     /** Optional supertypes (Legendary, Snow). */
     supertypes?: CardSupertype[];
+    /** CR 202.1b (issue #8168) — tokens have no mana cost "unless the effect
+     *  that creates them specifies otherwise" (the Gingerbrute token's {1}).
+     *  Omitted = the colour-derived cost every other token synthesizes. */
+    manaCost?: ManaCost;
     /** Power for creature tokens (CR 208.2). */
     power?: number;
     /** Toughness for creature tokens. */
@@ -3774,6 +3778,9 @@ export interface EffectTokenSpec {
     subtypes?: string[];
     /** Optional supertypes (Legendary, Snow). */
     supertypes?: CardSupertype[];
+    /** See {@link TokenSpec.manaCost} (CR 202.1b). Passed verbatim to
+     *  `SpellContext.createToken`. */
+    manaCost?: ManaCost;
     /** Power for creature tokens (CR 208.2). A full `EffectValue` (issue
      *  #2384), not a bare number: Skyclave Apparition's leave-trigger creates
      *  "an X/X blue Illusion creature token, where X is the mana value of the
@@ -7089,6 +7096,16 @@ export interface SpellContext {
     setCantBeBlockedBySubtypeThisTurn: (
         target: TargetSelection,
         subtype: string
+    ) => void;
+    /** Marks a target permanent (an attacker) as unable to be blocked this turn
+     *  except by creatures matching `filter` (CR 509.1b — Gingerbrute's "can't
+     *  be blocked this turn except by creatures with haste"). Cumulative: every
+     *  recorded filter must pass. Read on the attacker side by combat
+     *  block-validation; cleared at CLEANUP (CR 514.2). No-op if target is not
+     *  a permanent on the battlefield. */
+    setCantBeBlockedExceptByThisTurn: (
+        target: TargetSelection,
+        filter: PermanentFilter
     ) => void;
     /** Flips a coin (CR 705) using the game's seeded PRNG, so flips are
      *  replay-safe and reproducible given the seed. Returns true on "heads"
@@ -21760,11 +21777,18 @@ export type EffectOp =
      *  `target` is an object selector: an announced target slot, `$source`, or
      *  a `forEach { set: "bound" }` member `$each` over an unchosen pile (Fight
      *  or Flight, Stand or Fall). Skipped when the referenced permanent is gone
-     *  (CR 608.2b). */
+     *  (CR 608.2b).
+     *
+     *  `exceptBy` (only on `"cant-be-blocked"`, issue #8168) narrows the grant
+     *  to "can't be blocked this turn except by <filter>" (CR 509.1b —
+     *  Gingerbrute's "except by creatures with haste"), routing to
+     *  `setCantBeBlockedExceptByThisTurn`. Read at the declaration against the
+     *  live blocker, so only battlefield-honest filter fields are accepted. */
     | {
           op: "restrictCombat";
           restriction: "cant-attack" | "cant-block" | "cant-be-blocked";
           target: EffectObjectSelector;
+          exceptBy?: EffectCardFilter;
       }
     /** CR 508.1c (issue #2002) — Orim's Chant's kicked mode: "creatures can't
      *  attack this turn", EVERY creature rather than one target. A thin

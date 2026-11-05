@@ -213,6 +213,7 @@ export const CARD_FIELD_LIFECYCLE = {
     cantAttackThisTurn:         { codec: "flag",    reset: TURN },
     cantBeBlockedThisTurn:      { codec: "flag",    reset: TURN_ZONE },
     cantBeBlockedBySubtypesThisTurn: { codec: "list", reset: TURN_ZONE },
+    cantBeBlockedExceptByThisTurn: { codec: "list", reset: TURN_ZONE },
     chosenPlayerId:             { codec: "scalar",  reset: ZONE },
     chosenSubtypes:             { codec: "list",    reset: ZONE },
     pileLabel:                  { codec: "scalar",  reset: NONE },

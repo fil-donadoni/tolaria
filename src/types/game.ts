@@ -18,6 +18,7 @@ import type { SacrificeSelection } from "@convex/gre/sacrificeChoice";
 import type { FaceDownProducer } from "@convex/gre/faceDown";
 import type { WireCharacteristics } from "@convex/gre/wireCharacteristics";
 import type { GrantedAbilityOrigin } from "@convex/gre/activatedAbilities";
+import type { PermanentFilter } from "@convex/cards/filters";
 import type {
     PublicGrantedAbility,
     SlimCompanionSlot,
@@ -429,6 +430,10 @@ export interface CardInstance {
     cantAttackThisTurn?: boolean;
     cantBlockThisTurn?: boolean;
     cantBeBlockedThisTurn?: boolean;
+    /** CR 509.1b (issue #8168) — every filter a blocker of this attacker must
+     *  match this turn. Forwarded by `slimCard`; read by the declare-blockers
+     *  affordance and the card preview. */
+    cantBeBlockedExceptByThisTurn?: PermanentFilter[];
     /** CR 614.12 as-enters NAME choice (Meddling Mage: "As this creature
      *  enters, choose a nonland card name"). Forwarded by `slimCard` like
      *  `chosenModeId`; read by `resolveChosenName` in `src/lib/preview-body.ts`
