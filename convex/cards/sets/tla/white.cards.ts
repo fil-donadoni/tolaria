@@ -4,9 +4,10 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import { defineCard, PERMANENT_TYPES } from "../../types";
-import type { SpellContext } from "../../types";
+import type { EffectTokenSpec, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
+import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { waterbendCost } from "../../abilities/waterbend";
 
 // Aang's Iceberg — {2}{W} Enchantment (Vintage Cube FREE: ETB/dies/attack
@@ -140,5 +141,77 @@ export const aangsIceberg = defineCard(() => ({
                 },
             ],
         },
+    ],
+}));
+
+// Appa, Steadfast Guardian — {2}{W}{W} Legendary Creature, 3/4, flash, flying.
+// CR 701.65a, issue #3551 — the enter trigger airbends every announced permanent
+// (`count: { min: 0 }`, CR 601.2c: "any number of" accepts zero); `forEach
+// { set: "targets" }` reads an open-ended count no positional slot can. The cast
+// trigger reads the zone off the SPELL_CAST event (CR 601.2a), so a spell cast
+// off airbend, or off any other exile permission, makes an Ally.
+const APPA_STEADFAST_GUARDIAN_ID = "829d91e9-4878-4e55-a262-ac0d55b65d4e";
+/** "1/1 white Ally creature token" — pinned to its TLA token print. */
+const ALLY_TOKEN: EffectTokenSpec = {
+    name: "Ally",
+    types: ["Creature"],
+    subtypes: ["Ally"],
+    power: 1,
+    toughness: 1,
+    colors: ["W"],
+    imagePrintId: "f842c52a-04b6-4625-ba58-45b043ada340",
+};
+//
+// compiler-gap: "When {self} enters, airbend any number of other target nonland permanents you control." (#2693)
+// compiler-gap: "Whenever you cast a spell from exile, create a 1/1 white Ally creature token." (#2693)
+export const appaSteadfastGuardian = defineCard(() => ({
+    id: APPA_STEADFAST_GUARDIAN_ID,
+    name: "Appa, Steadfast Guardian",
+    rarity: "mythic",
+    oracleText:
+        "Flash\nFlying\nWhen Appa enters, airbend any number of other target nonland permanents you control. (Exile them. While each one is exiled, its owner may cast it for {2} rather than its mana cost.)\nWhenever you cast a spell from exile, create a 1/1 white Ally creature token.",
+    manaCost: { X: 2, W: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Bison", "Ally"],
+    power: 3,
+    toughness: 4,
+    staticAbilities: ["flash", "flying"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "appa-steadfast-guardian-airbend",
+            oracleText:
+                "When Appa enters, airbend any number of other target nonland permanents you control.",
+            scope: "self",
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                count: { min: 0 },
+                excludeTypes: "Land",
+                controller: "you",
+                excludeSource: true,
+            },
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "targets" },
+                    effects: [{ op: "airbend", target: { ref: "$each" } }],
+                },
+            ],
+        }),
+        spellCastTrigger({
+            id: "appa-steadfast-guardian-ally",
+            oracleText:
+                "Whenever you cast a spell from exile, create a 1/1 white Ally creature token.",
+            scope: "you",
+            condition: (event) => event.spellCastFromZone === "exile",
+            effects: [
+                {
+                    op: "createToken",
+                    token: ALLY_TOKEN,
+                    controller: "controller",
+                    count: 1,
+                },
+            ],
+        }),
     ],
 }));

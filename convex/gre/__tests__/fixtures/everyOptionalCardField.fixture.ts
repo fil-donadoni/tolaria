@@ -204,6 +204,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         castableFromExileIncludesLand: true,
         castFromExileManaSubstitution: "any-color",
         castFromExileCostIncrease: { generic: 2 },
+        castFromExileAlternativeCost: { X: 2 },
         castableFromExileCondition: {
             kind: "control",
             filter: { subtypes: ["Wizard"] },

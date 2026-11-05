@@ -176,4 +176,5 @@ export function clearReboundMarkers(card: CardInstanceState): void {
     delete card.reboundExiled;
     delete card.castableFromExileBy;
     delete card.castFromExileWithoutPayingManaCost;
+    delete card.castFromExileAlternativeCost;
 }

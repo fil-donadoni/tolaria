@@ -284,6 +284,15 @@ export type FrameIR =
           readonly player: "you" | "that-player";
       }
     | {
+          /**
+           * CR 701.65a — airbend announced battlefield permanents. The stack
+           * form ("creature or spell"), the open-ended count and a named
+           * object ("that creature") stay refused, each under its own gap.
+           */
+          readonly frame: "airbend";
+          readonly subject: SubjectIR;
+      }
+    | {
           readonly frame: "sacrifice";
           /** CR 701.21a — who sacrifices: the controller for the imperative
            *  ("Sacrifice a creature"), the named player otherwise ("Target
@@ -729,6 +738,7 @@ export const VERB_FRAMES: readonly {
     { name: "monstrosity", opens: /^monstrosity \S+$/i },
     { name: "becomePrepared", opens: /^\S+(?: \S+)? becomes prepared$/i },
     { name: "transform", opens: /^transform \S/i },
+    { name: "airbend", opens: /^airbend \S/i },
     {
         name: "addSubtype",
         opens: /^(?:.+? (?:becomes|is)|it's) an? \S+ in addition to its other types$/i,
@@ -2144,6 +2154,21 @@ function readMember(
                 refused: `"${member}" — only the card itself transforms`,
             };
         return { frames: [{ frame: "transform" }], referent };
+    }
+    if (opensFrame("airbend", lower)) {
+        const subject = subjectRule.run(member.slice("airbend ".length), ctx);
+        if (!subject.ok) return { refused: subject.reason, failure: subject };
+        if (
+            subject.value.kind !== "target" ||
+            subject.value.requirement.zone !== undefined
+        )
+            return {
+                refused: `"${member}" — airbend is read for announced battlefield permanents`,
+            };
+        return {
+            frames: [{ frame: "airbend", subject: subject.value }],
+            referent,
+        };
     }
     if (opensFrame("playerCounters", lower)) {
         const counters = lower.match(PLAYER_COUNTERS);

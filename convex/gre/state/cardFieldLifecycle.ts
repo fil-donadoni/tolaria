@@ -262,6 +262,7 @@ export const CARD_FIELD_LIFECYCLE = {
     castableFromExileIncludesLand: { codec: "flag", reset: ["custom:turn"] },
     castFromExileManaSubstitution: { codec: "scalar", reset: ["custom:turn"] },
     castFromExileCostIncrease:  { codec: "scalar",  reset: ["custom:turn"] },
+    castFromExileAlternativeCost: { codec: "scalar", reset: ["custom:turn"] },
     castableFromExileCondition: { codec: "scalar",  reset: ["custom:turn"] },
     exiledBySourceId:           { codec: "scalar",  reset: ZONE },
     encodedOn:                  { codec: "defined", reset: ZONE },

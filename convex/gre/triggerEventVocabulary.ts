@@ -144,6 +144,7 @@ export const EVENT_FIELD_KINDS: {
         spellTypes: "scalar",
         spellSubtypes: "scalar",
         spellColors: "scalar",
+        spellCastFromZone: "scalar",
         priorSpellCount: "scalar",
         casterSpellCountThisTurn: "scalar",
         casterSpellTypeCountsThisTurn: "scalar",
