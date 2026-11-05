@@ -53,13 +53,14 @@ jobs:
               with:
                   fetch-depth: 0
                   persist-credentials: false
-            # What a Contained RED forgives (ADR 0163 §4, issue #8120). The
-            # one step here holding a token, and it precedes `job-setup`, the
-            # first PR code: inline `gh` and `jq`, nothing from the checkout.
+            # What a Contained RED forgives (ADR 0163 §4, issue #8120). This
+            # step holds a token, so it precedes `job-setup`, the first PR
+            # code: inline `gh` and `jq`, nothing from the checkout.
             # Any failure leaves no `history.json`, so the lane tolerates
             # nothing. The structure guard's `advisory-lane-token` pins all this.
             - name: Contained RED snapshot
               continue-on-error: true
+              timeout-minutes: 2
               env:
                   GH_TOKEN: ${{ github.token }}
                   BASE_REF: ${{ github.event.pull_request.base.ref }}
