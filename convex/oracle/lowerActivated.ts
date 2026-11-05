@@ -10,6 +10,7 @@
 
 import type { ActivatedAbility, EffectOp, ManaCost } from "../cards/types";
 import { hasFilteredGiveUpCost, MANA_COLORS } from "../gre/constants";
+import { COLORED_MANA_COLORS } from "../gre/manaColors";
 import {
     lowerActivationCost,
     type ActivationCostIR,
@@ -513,6 +514,8 @@ export function lowerManaAbility(input: {
     readonly oracleText: string;
     readonly cost: ActivationCostIR;
     readonly produces: ManaProductionIR;
+    /** The ability is printed on the card itself, not granted in quotes. */
+    readonly ownLine?: true;
 }): LowerAbilityResult {
     // The cost lowering is shared with the stack-using activated slot
     // (CR 602.1a draws no distinction); only the EFFECT half differs.
@@ -688,6 +691,19 @@ export function lowerManaAbility(input: {
                 filter: input.produces.filter,
                 colors: "producesType",
             };
+            break;
+        // CR 614.12a — the five colours are the no-board list (CR 106.7: what
+        // the card could produce before it entered), the stored one the live
+        // read. Only the card's own line: a quoted grant would read the
+        // HOST's choice, never the granting permanent's (CR 607.2d).
+        case "chosen-color":
+            if (input.ownLine !== true)
+                return {
+                    ok: false,
+                    reason: '"the chosen color" in a granted ability reads no choice the host made',
+                };
+            ability.manaChoices = COLORED_MANA_COLORS.map((c) => ({ [c]: 1 }));
+            ability.manaColorSource = { colors: "chosen-color" };
             break;
         default: {
             const never: never = input.produces;

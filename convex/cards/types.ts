@@ -2782,7 +2782,19 @@ export type {
  *  contribute, and HOW each one yields a colour. Everything else (whose
  *  battlefield, land vs. basic land vs. any permanent) is already expressible
  *  as a {@link PermanentFilter}, so this adds no second selector vocabulary. */
-export interface BoardManaColorSource {
+export type BoardManaColorSource = BoardManaColorRead | ChosenManaColorRead;
+
+/** CR 614.12a / 106.5 — "Add one mana of the chosen color": the one colour the
+ *  SOURCE stored as it entered (`chosenModeId`, the as-enters `{ kind: "mode" }`
+ *  answer). No board read, so no filter. A source with no stored colour (it
+ *  became a copy after entering) offers nothing: CR 106.5, mana of an undefined
+ *  type is no mana. */
+export interface ChosenManaColorRead {
+    colors: "chosen-color";
+}
+
+/** The board read of {@link BoardManaColorSource}. */
+export interface BoardManaColorRead {
     /** Selector over the contributing permanents, evaluated against EVERY
      *  player's battlefield. `controllerRelation` is what scopes it: `"you"`
      *  = the activating player's own permanents, `"opponents"` = every OTHER
@@ -10550,7 +10562,13 @@ export function colorGrantColors(
     source: PermanentView
 ): Color[] {
     if (effect.colors !== "chosen-color") return effect.colors;
-    const chosen = (source as { chosenModeId?: string }).chosenModeId;
+    return chosenColorOf(source as { chosenModeId?: string });
+}
+
+/** CR 105.1 — the colour a permanent stored as its choice, as a list: empty
+ *  when it stored none, or a mode id that is not one of the five colours. */
+export function chosenColorOf(source: { chosenModeId?: string }): Color[] {
+    const chosen = source.chosenModeId;
     return chosen !== undefined && FIVE_COLORS.includes(chosen as Color)
         ? [chosen as Color]
         : [];

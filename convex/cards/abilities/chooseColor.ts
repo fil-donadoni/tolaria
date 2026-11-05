@@ -18,6 +18,7 @@ import type {
     EffectMode,
     EffectObjectSelector,
     EffectOp,
+    ModeOption,
 } from "../types";
 
 const COLOR_LABELS: ReadonlyArray<[Color, string]> = [
@@ -62,6 +63,19 @@ export function colorChoiceModes(
         label,
         color,
         effects: bodyForColor(color),
+    }));
+}
+
+/** The five `CardDefinition.modes` of "As this enters, choose a color"
+ *  (CR 614.12a, CR 105.1): each id is the colour itself, which is what a reader
+ *  of `chosenModeId` takes it for. A mode here only drives the picker; what the
+ *  colour does lives on the card's other lines. */
+export function asEntersColorModes(): ModeOption[] {
+    return COLOR_LABELS.map(([color, label]) => ({
+        id: color,
+        // Lower case: the card preview prints it inside a sentence ("(red)").
+        label: label.toLowerCase(),
+        oracleText: `${label}.`,
     }));
 }
 

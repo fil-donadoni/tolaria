@@ -18,7 +18,7 @@ import type {
 import { matchesPermanentFilter } from "../cards/filters";
 import type { MatchablePermanent, PermanentFilter } from "../cards/filters";
 import { liveSupertypesOf } from "../cards/snowReads";
-import { LANDWALK_KEYWORD_BY_BASIC_TYPE } from "../cards/types";
+import { chosenColorOf, LANDWALK_KEYWORD_BY_BASIC_TYPE } from "../cards/types";
 import type { ManaRestriction } from "./types";
 import {
     CREATURE_SUBTYPES,
@@ -1074,7 +1074,15 @@ function producibleColorsFromAbilities(
         // the board: with a resolver the descriptor is evaluated against it,
         // without one (definition-level analysis, no battlefield) the ability
         // contributes nothing rather than five phantom colours.
-        if (ability.manaColorSource) {
+        //
+        // A `"chosen-color"` read with no board is the exception: the list IS
+        // what the card could produce off the battlefield (CR 106.7 — it may
+        // enter choosing any of the five), so it falls through to the list.
+        if (
+            ability.manaColorSource &&
+            (resolveManaColorSource ||
+                ability.manaColorSource.colors !== "chosen-color")
+        ) {
             if (resolveManaColorSource) {
                 // CR 106.7 — a nested `"producesType"` descriptor (a
                 // Reflecting Pool read by a Fellwar Stone) can yield {C};
@@ -1229,7 +1237,11 @@ export function getProducibleColorsOnBoard(
                       battlefields,
                       depth + 1
                   )
-            : undefined,
+            : // Past the bound a board read contributes nothing, but the
+              // stored colour is no board read: without a resolver the five-
+              // colour no-board list would make this a phantom WUBRG source.
+              (source) =>
+                  source.colors === "chosen-color" ? chosenColorOf(card) : [],
         // Read every TYPE, {C} included: a Wastes under Infernal Darkness
         // could produce {B}. Filtered back to colours below.
         true,
@@ -1341,6 +1353,9 @@ function boardDerivedManaColors(
     }>,
     depth: number
 ): Set<Color> {
+    // CR 614.12a / 106.5 — the source's own stored colour; none stored, none
+    // offered.
+    if (source.colors === "chosen-color") return new Set(chosenColorOf(self));
     const colors = new Set<Color>();
     for (const permanent of boardPermanentsMatching(
         source.filter,

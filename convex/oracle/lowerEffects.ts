@@ -46,7 +46,10 @@ import {
     chooseColorEffects,
     colorChoiceModes,
 } from "../cards/abilities/chooseColor";
-import { PROTECTION_QUALITY_NAMES } from "../cards/abilities";
+import {
+    PROTECTION_QUALITY_NAMES,
+    protectionColorModes,
+} from "../cards/abilities";
 import { landTypeChangeEffects } from "../cards/abilities/chooseLandType";
 import { empowerJaceOps } from "../cards/abilities/empowerJace";
 import type { KickedRefIR } from "./grammar/shared/condition";
@@ -2309,6 +2312,18 @@ function lowerSentenceBody(
         case "set-color-choice": {
             const target = colorChangeSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
+            // CR 105.2c — colorless is no colour, so no pick: the empty set.
+            if (sentence.colorless === true)
+                return lowered([
+                    {
+                        op: "setColor",
+                        target: target.value,
+                        colors: [],
+                        ...(sentence.duration === undefined
+                            ? {}
+                            : { duration: durationSpec(sentence.duration) }),
+                    },
+                ]);
             return lowered(
                 chooseColorEffects(
                     target.value,
@@ -4939,6 +4954,46 @@ function lowerSentenceBody(
             ]);
         }
         case "choose-color-grant-protection": {
+            // CR 702.16a / 105.1 — "<one object> gains protection from the
+            // color of your choice": the pick is this sentence's own, on
+            // resolution. Target or source, permanent only: protection on a
+            // player, a spell or a graveyard card is another form.
+            if (sentence.ofYourChoice === true) {
+                const subject = sentence.subject;
+                if (subject.kind !== "self" && subject.kind !== "target")
+                    return unlowerable(
+                        "protection of your choice reads a target or the source"
+                    );
+                if (
+                    subject.kind === "target" &&
+                    (subject.requirement.zone === "graveyard" ||
+                        (
+                            [
+                                "player",
+                                "any",
+                                "card",
+                                "spell",
+                                "spell-or-permanent",
+                            ] as unknown[]
+                        ).includes(subject.requirement.type))
+                )
+                    return unlowerable(
+                        "protection of your choice reads a permanent target"
+                    );
+                const target = objectSelector(subject, slots, site);
+                if (!target.ok) return target;
+                return lowered([
+                    {
+                        op: "optionChoice",
+                        prompt: `Choose a color (${site.selfName}).`,
+                        modes: protectionColorModes(
+                            ["W", "U", "B", "R", "G"],
+                            target.value,
+                            durationSpec(sentence.duration)
+                        ),
+                    },
+                ]);
+            }
             // CR 613.1f — evidenced by exactly one corpus form (Glory): a
             // plain controller-scoped sweep. A target-player sweep or an
             // X-bounded one is a different selector shape (`sweepOps`'s two
