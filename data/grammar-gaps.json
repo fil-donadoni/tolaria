@@ -4586,6 +4586,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › construct \"forEach\" excludes its source at a site with no source permanent — the sweep would exclude nothing",
+            "issue": 8201
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › construct \"forEach\" iterates a runtime-selected set — covered by the card's own tests",
             "issue": 4156
         },
