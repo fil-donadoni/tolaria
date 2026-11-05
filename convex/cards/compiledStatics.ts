@@ -67,6 +67,7 @@ import type {
     StaticTargetChoiceRequirement,
 } from "./types";
 import type { CompiledControlsCondition } from "./compiledTriggers";
+import type { StaticLoyaltyActivationAllowance } from "./types";
 
 /** Creatures among a set of permanents. */
 function countCreatures(permanents: readonly PermanentView[]): number {
@@ -260,6 +261,8 @@ export type CompiledPtBuffCount =
  *  answer, so a descriptor whose kind named something else would drop its
  *  card out of a layer walk silently. */
 export type CompiledStaticEffect =
+    /** CR 606.3 — already the engine's own effect, returned unchanged. */
+    | StaticLoyaltyActivationAllowance
     /** CR 613.4c layer 7c — "<filter> get +N/+N" / "Enchanted creature gets
      *  +N/+N". */
     | ({
@@ -1047,6 +1050,9 @@ export function resolveCompiledStatic(
             return descriptor;
         // CR 601.2c — verbatim, by the same argument.
         case "target-choice-requirement":
+            return descriptor;
+        // CR 606.3 — verbatim: read-time and self-scoped, no closure to build.
+        case "loyalty-activation-allowance":
             return descriptor;
         // CR 702.18a — verbatim, by the same argument.
         case "player-guard":

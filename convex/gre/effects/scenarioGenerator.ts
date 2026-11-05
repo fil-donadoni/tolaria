@@ -2003,6 +2003,12 @@ const SCENARIO_SKIPS = {
     // cannot express), plus one more: the canned generator seeds a
     // plain permanent with no `backFace`, so the scripted flip would
     // have nothing to flip INTO and the run would assert nothing.
+    // CR 701.42a (issue #3341) — needs both halves of a registered meld pair
+    // on one battlefield; the canned generator seeds neither half.
+    meld: {
+        code: "op-own-tests",
+        reason: `Op "meld" needs a real meld pair on the battlefield — covered by the Op's own interpreter tests`,
+    },
     // Explicit skip — covered by the Op's own interpreter tests
     // (per-Op regime).
     exileAndReturnTransformed: {

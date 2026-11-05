@@ -2,6 +2,7 @@
 // `import * as bro from "./sets/bro/index.cards"` re-exports this module.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 import { defineCard, type GameEvent, type PermanentView } from "../../types";
+import { urzaPlaneswalkerFace } from "./urzaPlaneswalkerFace.cards";
 
 // Third Path Iconoclast — {U}{R} Creature — Human Monk 2/1 (Vintage Cube token
 // maker, issue #678). "Whenever you cast a noncreature spell, create a 1/1
@@ -48,6 +49,65 @@ export const thirdPathIconoclast = defineCard(() => ({
                     controller: "controller",
                 },
             ],
+        },
+    ],
+}));
+
+// Urza, Lord Protector — the half of the Urza meld pair that carries the meld
+// ability (CR 712.4a). Hand-written only because the combined back face's art
+// has no compile path (`imagePrintId`, its own Scryfall card); the rest is the
+// compiler's output, pinned by `urzaPairClauses.test.ts`. "If you both own and control"
+// is read on resolution by the `meld` Op, never at activation.
+export const urzaLordProtector = defineCard(() => ({
+    id: "8aefe8bd-216a-4ec1-9362-3f9dbf7fd083",
+    rarity: "mythic",
+    ...{
+        name: "Urza, Lord Protector",
+        types: ["Creature"],
+        supertypes: ["Legendary"],
+        subtypes: ["Human", "Artificer"],
+        manaCost: {
+            X: 1,
+            W: 1,
+            U: 1,
+        },
+        power: 2,
+        toughness: 4,
+        oracleText:
+            "Artifact, instant, and sorcery spells you cast cost {1} less to cast.\n{7}: If you both own and control Urza, Lord Protector and an artifact named The Mightstone and Weakstone, exile them, then meld them into Urza, Planeswalker. Activate only as a sorcery.",
+    },
+    backFace: urzaPlaneswalkerFace,
+    compiledStaticEffects: [
+        {
+            kind: "cost-modifier",
+            spells: {
+                types: ["Artifact", "Instant", "Sorcery"],
+                controller: "you",
+            },
+            reduction: 1,
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "urza-lord-protector-ability",
+            oracleText:
+                "{7}: If you both own and control {self} and an artifact named The Mightstone and Weakstone, exile them, then meld them into Urza, Planeswalker. Activate only as a sorcery.",
+            cost: {
+                mana: {
+                    X: 7,
+                },
+            },
+            useStack: true,
+            effects: [
+                {
+                    op: "meld",
+                    partner: {
+                        type: "Artifact",
+                        name: "The Mightstone and Weakstone",
+                    },
+                },
+            ],
+            sorcerySpeedOnly: true,
         },
     ],
 }));

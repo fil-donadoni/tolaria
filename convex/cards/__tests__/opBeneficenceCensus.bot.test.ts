@@ -263,6 +263,7 @@ const NEUTRAL_ROWS = [
     "lookHand",
     "lookRandomHand",
     "mayPay",
+    "meld",
     "moveZone",
     "nameCard",
     "payVariableMana",

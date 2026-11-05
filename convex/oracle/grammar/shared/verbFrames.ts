@@ -114,6 +114,7 @@
 
 import { readNumberWord } from "./quantity";
 import type { ImpulsePlayIR } from "./impulsePlay";
+import type { CompiledSpellFilter } from "../../../cards/compiledStatics";
 import { PERMANENT_TYPES } from "../../../cards/types";
 import type {
     CardType,
@@ -594,6 +595,21 @@ export type FrameIR =
           readonly returned: SubjectIR;
       }
     | {
+          /**
+           * CR 701.42a — the meld ability's one atomic instruction. The holder
+           * is the Op's own source, so only the counterpart is read.
+           */
+          readonly frame: "meld";
+          readonly partnerType: CardType;
+          readonly partnerName: string;
+      }
+    | {
+          /** CR 601.2f — a floating reduction for the rest of the turn. */
+          readonly frame: "reduceSpellCostThisTurn";
+          readonly amount: number;
+          readonly filter: CompiledSpellFilter;
+      }
+    | {
           readonly frame: "bringFromOutsideGame";
           /** What the card may be (`OUTSIDE_GAME_FILTERS`), as the Op's filter. */
           readonly filter: EffectCardFilter;
@@ -779,6 +795,14 @@ export const VERB_FRAMES: readonly {
     {
         name: "sacrificeAndReturn",
         opens: /^choose target \S+ a player controls and target \S+ card in that player's graveyard$/i,
+    },
+    {
+        name: "meld",
+        opens: /^if you both own and control .+ named .+, exile them, then meld them into /i,
+    },
+    {
+        name: "reduceSpellCostThisTurn",
+        opens: /^.+ spells you cast this turn cost \{\d+\} less to cast$/i,
     },
     {
         name: "bringFromOutsideGame",

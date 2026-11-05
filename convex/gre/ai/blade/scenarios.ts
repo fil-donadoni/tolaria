@@ -19767,4 +19767,84 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #4006 — `auraAttachmentSign` read every `keyword-grant` as beneficial, so the Aura granting phasing was steered onto the bot's own creature. Asserted as `forbidden`, like the Wild Growth entry: holding the Aura is legitimate play, weakening its own creature never is.",
     },
+    // CR 701.42a (issue #3341) — the discriminating pair for the `meld` Op, whose
+    // leaf value is neutral: the search reads the boards, never a flat bonus.
+    {
+        label: "meld: pays {7} to meld Urza when no attack is on offer",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Urza, Lord Protector",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "The Mightstone and Weakstone",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Island", owner: "me", zone: "battlefield", count: 7 },
+                { name: "Serra Angel", owner: "opp", zone: "battlefield" },
+                { name: "Hill Giant", owner: "me", zone: "library", count: 6 },
+                { name: "Hill Giant", owner: "opp", zone: "library", count: 6 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A predicate, not `moves`: as a Verdict this entry moves `manaDevWeight`
+        // by 18% (melding spends a mana rock), and that refit reds an unrelated
+        // `must` entry. Measured on issue #3341; kept out of the weight fit.
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "activate-ability",
+                    card: "Urza, Lord Protector",
+                }),
+            describe: "activates Urza, Lord Protector's {7} to meld",
+        },
+        note: "Issue #3341 — the walker's +1 and -3 outweigh a 2/4 that cannot attack into a 4/4 vigilant flyer, so the search melds with a neutral valuer. The other half of the pair keeps the 2/4 when it swings for lethal.",
+    },
+    {
+        label: "meld: keeps the 2/4 and the rock when the attack is lethal",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Urza, Lord Protector",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "The Mightstone and Weakstone",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Island", owner: "me", zone: "battlefield", count: 7 },
+                { name: "Hill Giant", owner: "me", zone: "library", count: 6 },
+                { name: "Hill Giant", owner: "opp", zone: "library", count: 6 },
+            ],
+            life: { opp: 2 },
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Urza, Lord Protector" },
+            ],
+        },
+        note: "Issue #3341 — melding here turns the attacker that wins the game into a walker that cannot attack this turn. Paired with the entry above, it proves the choice is the search's, not a sign on the Op.",
+    },
 ];
