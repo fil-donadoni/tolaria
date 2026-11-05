@@ -2380,10 +2380,14 @@ function isCopyExceptClause(value: unknown): boolean {
     }
     const e = value as Record<string, unknown>;
     const known = new Set([
+        // CR 707.9b "except its name is X" (issue #8041).
+        "name",
         "basePower",
         "baseToughness",
         "colors",
         "additionalSubtypes",
+        // CR 707.9b "except he's legendary in addition to his other types".
+        "additionalSupertypes",
         // CR 707.2 "except it has haste" (issue #2399).
         "additionalStaticAbilities",
         "noManaCost",
@@ -2397,6 +2401,17 @@ function isCopyExceptClause(value: unknown): boolean {
     const keys = Object.keys(e);
     if (keys.length === 0) return false;
     if (!keys.every((k) => known.has(k))) return false;
+    if ("name" in e && (typeof e.name !== "string" || e.name.length === 0)) {
+        return false;
+    }
+    if (
+        "additionalSupertypes" in e &&
+        (!Array.isArray(e.additionalSupertypes) ||
+            e.additionalSupertypes.length === 0 ||
+            !isStringArray(e.additionalSupertypes, TOKEN_SUPERTYPES))
+    ) {
+        return false;
+    }
     if ("basePower" in e && typeof e.basePower !== "number") return false;
     if ("baseToughness" in e && typeof e.baseToughness !== "number") {
         return false;

@@ -10,6 +10,7 @@ import {
 import { isSplitCard, splitSideOfDefinitionId } from "@convex/cards/splitCard";
 import { parentIdOfTwin } from "@convex/cards/twinId";
 import { copyExceptName } from "@convex/cards/cardNames";
+import { copiableSupertypesOf } from "@convex/cards/snowReads";
 import { isMeldCard } from "@convex/cards/meld";
 import {
     getArtCropImageUrl,
@@ -520,7 +521,8 @@ export function buildPreviewBody(
     const typeLine = formatTypeLine(
         cardInstance?.types ?? def?.types,
         cardInstance?.subtypes ?? def?.subtypes,
-        def?.supertypes
+        // CR 707.9b — a copy effect's "except he's legendary" clause.
+        cardInstance ? copiableSupertypesOf(def, cardInstance) : def?.supertypes
     );
     const types = cardInstance?.types ?? def?.types ?? [];
     const subtypes = cardInstance?.subtypes ?? def?.subtypes ?? [];

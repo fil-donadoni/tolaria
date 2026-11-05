@@ -13,6 +13,8 @@ export {
     countSnowLands,
     controlsSnowSubtype,
     liveSupertypesOf,
+    copiableSupertypesOf,
+    copyExceptSupertypes,
 } from "../cards/snowReads";
 export type { SupertypeView } from "../cards/snowReads";
 

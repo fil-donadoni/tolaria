@@ -15,6 +15,7 @@
 // evasion rule already scans, so scanning that same battlefield is enough.
 
 import { tryGetDefinition } from ".";
+import { copiableSupertypesOf } from "./snowReads";
 
 /** Minimal permanent shape the scan needs. Both `CardInstanceState` (server)
  *  and the client's `CardInstance` satisfy this structurally. */
@@ -54,6 +55,8 @@ export function negatedLandwalkSubtypes(
 interface LandSupertypePermanent {
     types?: ReadonlyArray<string>;
     card: { id?: string };
+    faceDown?: boolean;
+    copyExcept?: { additionalSupertypes?: readonly string[] };
 }
 
 /** True if `battlefield` contains a Land whose printed supertypes include
@@ -73,6 +76,6 @@ export function controlsLandWithSupertype(
         const cardId = perm.card?.id;
         if (!cardId) return false;
         const def = tryGetDefinition(cardId);
-        return def?.supertypes?.includes(supertype as never) ?? false;
+        return copiableSupertypesOf(def, perm).includes(supertype);
     });
 }
