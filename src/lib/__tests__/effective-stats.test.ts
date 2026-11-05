@@ -4,6 +4,9 @@ import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import type { CardInstance, Player } from "~/types/game";
 import type { EmblemInstance } from "@convex/cards/types";
 import { SORIN_LORD_OF_INNISTRAD_EMBLEM_ID } from "@convex/cards/emblems";
+import { preloadDefinitions } from "@convex/cards/registry";
+import { resolveCardExport } from "@convex/cards/defineCard";
+import { keenEyedCurator } from "@convex/cards/sets/blb/green.cards";
 
 // Known card ids from convex/cards/sets/lea.ts
 const SAVANNAH_LIONS = "d05b92bd-797e-413f-a8b0-32e0937a1ee0";
@@ -483,6 +486,8 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
     // `types` (the projected `card` handle is stripped) or it reads 3/3.
     describe("card types among cards exiled with the source (Keen-Eyed Curator)", () => {
         const CURATOR = "8cf33d80-0704-4dc4-8e8d-1dcbcbc35add";
+        // No catalogue row on the PR head (ADR 0157): register the module's.
+        preloadDefinitions([resolveCardExport(keenEyedCurator)!]);
         const exiledWith = (id: string, types: CardInstance["types"]) =>
             ({
                 ...makeCreature({ id, cardId: GRIZZLY_BEARS }),

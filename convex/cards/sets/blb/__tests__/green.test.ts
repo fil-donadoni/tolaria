@@ -18,8 +18,16 @@ import { projectPublicState } from "../../../../gameProjections";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import type { CardType } from "../../../types";
 import { getDefinition } from "../../../index";
+import { preloadDefinitions } from "../../../registry";
+import { resolveCardExport } from "../../../defineCard";
+import { keenEyedCurator as curatorModuleExport } from "../green.cards";
 
+// The PR head carries no `definition-index.json` row for the card (ADR 0157:
+// derived state is regenerated post-merge), so register the module's own
+// definition rather than depend on the lazy catalogue source.
+preloadDefinitions([resolveCardExport(curatorModuleExport)!]);
 const keenEyedCurator = getDefinition("8cf33d80-0704-4dc4-8e8d-1dcbcbc35add");
+
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 
 /** A card of `types` sitting in `ownerId`'s graveyard. */
