@@ -458,7 +458,7 @@ export function effectiveTriggeredAbilities(
     // grants the engine's activated-ability reader kept — the two authorities
     // disagreed about the same rule.
     const strippedAt = abilityLossTimestamp(card);
-    // Flanking, dethrone, provoke and melee come from the composed multiset, printed or granted,
+    // These keywords come from the composed multiset, printed or granted,
     // which has already applied any loss of abilities (`liveKeywordTriggers.ts`).
     const granted = [
         ...grantedTriggeredAbilities(card, strippedAt),
@@ -554,6 +554,27 @@ export function lookBackSelf(
 ): CardInstanceState {
     const entry = state.lastKnownCopiable?.[card.id];
     if (!entry) return card;
+    return withKeywordsAtLeave(card, lookBackIdentity(state, card, entry));
+}
+
+/** CR 603.10a / 613.1f — the object looked back at has the abilities it left
+ *  with, and the departure's own reverts cannot be replayed from the card. Absent
+ *  when the card still shows that list, which keeps `view` the same reference. */
+function withKeywordsAtLeave(
+    card: CardInstanceState,
+    view: CardInstanceState
+): CardInstanceState {
+    return card.keywordsAtLeave
+        ? { ...view, staticAbilities: [...card.keywordsAtLeave] }
+        : view;
+}
+
+/** {@link lookBackSelf}'s identity half: layer 1, then a layer 3 full text. */
+function lookBackIdentity(
+    state: LookBackStateView,
+    card: CardInstanceState,
+    entry: LastKnownCopiable
+): CardInstanceState {
     const printedId = presentedDefId(card);
     const view =
         entry.defId === printedId ? card : lookBackLayer1(state, card, entry);

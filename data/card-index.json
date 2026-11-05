@@ -82580,6 +82580,16 @@
         "source": "compiled"
     },
     {
+        "name": "Undying Evil",
+        "scryfallId": "325f2243-54fd-484b-a742-166cea7ec179",
+        "oracleId": "3ceaeb1b-8b25-453d-ac09-e466cfdd9c77",
+        "firstSet": "dka",
+        "firstPrintId": "325f2243-54fd-484b-a742-166cea7ec179",
+        "firstPrintSet": "dka",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Undying Rage",
         "scryfallId": "c3de981b-e274-4a78-816e-7c11341f6c00",
         "oracleId": "622d783d-4201-4769-8a0f-442b358d8bf1",

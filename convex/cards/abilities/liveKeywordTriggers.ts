@@ -14,6 +14,12 @@ import { DETHRONE_KEYWORD, DETHRONE_TRIGGER } from "./dethrone";
 import { FLANKING_KEYWORD, FLANKING_TRIGGER } from "./flanking";
 import { MELEE_KEYWORD, MELEE_TRIGGER } from "./melee";
 import { PROVOKE_KEYWORD, PROVOKE_TRIGGER } from "./provoke";
+import {
+    PERSIST_KEYWORD,
+    PERSIST_TRIGGER,
+    UNDYING_KEYWORD,
+    UNDYING_TRIGGER,
+} from "./returnWithCounter";
 import { TRAINING_KEYWORD, TRAINING_TRIGGER } from "./training";
 
 const LIVE_KEYWORD_TRIGGERS: ReadonlyArray<{
@@ -25,6 +31,8 @@ const LIVE_KEYWORD_TRIGGERS: ReadonlyArray<{
     { keyword: PROVOKE_KEYWORD, ability: PROVOKE_TRIGGER },
     { keyword: TRAINING_KEYWORD, ability: TRAINING_TRIGGER },
     { keyword: MELEE_KEYWORD, ability: MELEE_TRIGGER },
+    { keyword: PERSIST_KEYWORD, ability: PERSIST_TRIGGER },
+    { keyword: UNDYING_KEYWORD, ability: UNDYING_TRIGGER },
 ];
 
 /** One ability per occurrence of each table keyword in the multiset. A client slim

@@ -112,6 +112,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         monstrous: true,
         saddled: true,
         countersAtLeave: { "+1/+1": 1 },
+        keywordsAtLeave: ["undying"],
         capturedBindings: { exiled: ["inst-x"] },
         worldSeq: 12,
         staticSeq: 13,

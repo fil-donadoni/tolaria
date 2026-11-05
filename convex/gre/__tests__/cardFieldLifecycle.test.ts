@@ -450,6 +450,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "isAttacking",
             "isBlocking",
             "isSummoningSick",
+            "keywordsAtLeave",
             "kickerPayments",
             "lifePaidThisTap",
             "manaCommitted",

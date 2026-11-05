@@ -69,6 +69,10 @@ const KEYWORD_BONUS: Record<string, (power: number) => number> = {
     // Training (CR 702.149): same reason; a counter on the swings beside a bigger
     // creature, discounted further than dethrone for needing that partner.
     training: () => 6,
+    // Persist (CR 702.79), Undying (CR 702.93): same reason; a second body on the
+    // first death, the price their return script had (`dslRealizedAbilityValueById`).
+    persist: () => 140,
+    undying: () => 140,
     // Provoke (CR 702.39): same reason; a removal-shaped lever on each swing,
     // worth little on a small body, which a block kills first.
     provoke: (p) => 3 * p,

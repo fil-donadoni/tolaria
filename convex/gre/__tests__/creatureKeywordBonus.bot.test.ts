@@ -35,8 +35,6 @@ const SCRIPT_PRICED: Record<
     exalted: { declared: "exalted" },
     prowess: { declared: "prowess" },
     "battle-cry": { declared: "battle cry" },
-    persist: { declared: "persist" },
-    undying: { declared: "undying" },
     evolve: { declared: "evolve" },
     extort: { declared: "extort" },
     annihilator: { declared: "annihilator 2" },
