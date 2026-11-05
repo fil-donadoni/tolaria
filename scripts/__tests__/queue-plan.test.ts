@@ -40,6 +40,7 @@ import {
     readBoardPriorityCache,
     writeBoardPriorityCache,
     readWholeQueue,
+    blockerState,
     NO_PRIORITY_MESSAGE,
     type BoardPriorityDeps,
     type BoardPrioritySnapshot,
@@ -946,6 +947,41 @@ describe("queue planner — unmergeable work (issue #2181)", () => {
         expect(plan.skipped).toContainEqual(
             expect.objectContaining({ number: 100, action: "relabel-human" })
         );
+    });
+});
+
+describe("queue planner — a PR blocker's state (issue #8257)", () => {
+    // `gh issue view` answers for a pull request too: its state is OPEN,
+    // CLOSED (unmerged) or MERGED.
+    const dependent = (raw: string) => {
+        const details = {
+            100: {
+                body: body({ targetFiles: ["src/a.ts"], blockedBy: [999] }),
+            },
+            999: { state: blockerState(raw), body: "" },
+        };
+        return planBatch([issue(100, {})], CONFIG, makePort(details));
+    };
+
+    it("a merged PR is no open blocker", () => {
+        expect(blockerState("MERGED")).toBe("CLOSED");
+        expect(numbers(dependent("MERGED"))).toEqual([100]);
+    });
+
+    it("an open issue or open PR still blocks", () => {
+        expect(blockerState("OPEN")).toBe("OPEN");
+        expect(deferredNumbers(dependent("OPEN"))).toEqual([100]);
+    });
+
+    it("a closed issue or closed-unmerged PR does not block", () => {
+        expect(blockerState("CLOSED")).toBe("CLOSED");
+        expect(numbers(dependent("CLOSED"))).toEqual([100]);
+    });
+
+    it("an unknown state fails closed: still blocks", () => {
+        expect(blockerState("DRAFT")).toBe("OPEN");
+        expect(blockerState("")).toBe("OPEN");
+        expect(deferredNumbers(dependent("DRAFT"))).toEqual([100]);
     });
 });
 

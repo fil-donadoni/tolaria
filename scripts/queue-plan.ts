@@ -768,6 +768,15 @@ export function readReadyQueue(limit: number = DEFAULTS.limit): QueueIssue[] {
     );
 }
 
+/** A `gh issue view` state as the planner's open/closed blocker state (issue
+ *  #8257). `gh issue view` also answers for a pull request, whose state is
+ *  `OPEN`, `CLOSED` (unmerged) or `MERGED`: a merged PR is done, never an open
+ *  blocker. Fail closed: any other value reads as `OPEN`, so a surprise from
+ *  `gh` defers an issue instead of admitting it. */
+export function blockerState(state: string): "OPEN" | "CLOSED" {
+    return state === "CLOSED" || state === "MERGED" ? "CLOSED" : "OPEN";
+}
+
 /** The planner's live `QueuePort` over `gh` — cached detail and blocked-by
  *  reads, the open-PR set, the board priority. Exported for the AFK
  *  dispatcher (issue #5649), so both pick through the same door. */
@@ -812,7 +821,7 @@ export function liveQueuePort(): QueuePort {
                 body: string;
             };
             const detail: IssueDetail = {
-                state: raw.state === "CLOSED" ? "CLOSED" : "OPEN",
+                state: blockerState(raw.state),
                 stateReason:
                     raw.stateReason === "NOT_PLANNED" ||
                     raw.stateReason === "COMPLETED" ||
