@@ -360,7 +360,7 @@ export const temporalSpring = defineCard(() => ({
 // `modes` member, and the mode is announced as the ability goes on the stack
 // (CR 700.2b), not chosen at resolution. Any damage — combat or not, to any
 // recipient — fires it, so `matches` gates on the source alone.
-// hand-tail: Whenever this creature deals damage, choose one — • Each player loses 1 life. • Each player gains 1 life. (#4339)
+// compiler-gap: Whenever this creature deals damage, choose one — • Each player loses 1 life. • Each player gains 1 life. (#8334)
 export const putridWarrior = defineCard(() => ({
     id: "17fce298-3338-4f41-8156-ab6322951a76", // APC 117
     rarity: "common",
