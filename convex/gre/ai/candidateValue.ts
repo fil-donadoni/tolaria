@@ -32,7 +32,11 @@ import {
     dslLatentAbilityScriptOpValue,
     dslSpellScriptOpValue,
 } from "./cardScriptValue";
-import { contextAwareGrounding, type GroundingContext } from "./grounding";
+import {
+    contextAwareGrounding,
+    isDamagedPlayerRef,
+    type GroundingContext,
+} from "./grounding";
 import {
     hasGraveyardRecursionAccess,
     isSelfReachableInGraveyard,
@@ -1091,6 +1095,7 @@ export function contextAwareGroundingForChoice(
         resolveIsSelf: (ref) => {
             if (ref === "controller") return true;
             if (ref === "opponent") return false;
+            if (isDamagedPlayerRef(ref)) return false;
             // {target}/{controllerOf}/ref — no announced target/bound object
             // pre-cast; a card's own effect is, by construction, something
             // its future caster wants to happen (mirrors

@@ -40,6 +40,8 @@ const SCRIPT_PRICED: Record<
     evolve: { declared: "evolve" },
     extort: { declared: "extort" },
     annihilator: { declared: "annihilator 2" },
+    // CR 702.115a — the expanded combat-damage trigger's exile script.
+    ingest: { declared: "ingest" },
     // CR 702.181a — the expanded attack trigger's createToken script.
     mobilize: { declared: "mobilize 2" },
     // CR 702.134a — the expanded attack trigger's counters script.

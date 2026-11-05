@@ -1931,7 +1931,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Ingest",
         kind: "keyword-ability",
         cr: "702.115",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/cards/abilities/ingest.ts expandIngest",
+        note: 'Issue #4014 — "ingest" is a TRIGGERED ability (CR 702.115a), expanded IMPLICITLY from the `staticAbilities` string at the `getDefinition` seam (`expandIngest`, `convex/cards/registry.ts`, ADR 0054). The injected `damageDealtTrigger` (self source, combat damage, player recipient) has one `exileTopOfLibrary` Op on `$event.damagedPlayer`: "that player" is whoever was dealt the damage, a redirection to the controller included, never the bare opponent. An empty library is a clean no-op (CR 608.2b). CR 702.115b: one trigger per declared instance. NOT covered: a GRANTED ingest — a definition-level expander never reads the target instance, so a granting card stays quarantined as `ungrantable-keyword` (`isDefinitionLevelKeyword`).',
     },
     // 702.116 Myriad
     {
