@@ -342,12 +342,16 @@ export function fixtureForms(
     for (const fixture of fixtures) {
         let rebuilt: RebuiltTrigger[];
         try {
-            rebuilt = (fixture.expected.compiledTriggeredAbilities ?? []).map(
-                (descriptor) => ({
-                    ability: resolveCompiledTrigger(descriptor),
-                    head: descriptor.head,
-                })
-            );
+            // CR 712.8e — a transform back face's triggers are gated when that
+            // face compiles, so its fixture clears the forms they exhibit too.
+            rebuilt = [
+                ...(fixture.expected.compiledTriggeredAbilities ?? []),
+                ...(fixture.expected.backFace?.compiledTriggeredAbilities ??
+                    []),
+            ].map((descriptor) => ({
+                ability: resolveCompiledTrigger(descriptor),
+                head: descriptor.head,
+            }));
         } catch {
             // A fixture whose trigger cannot be rebuilt is evidence of
             // nothing; `goldenFixtures.test.ts` reds on it. The gate never

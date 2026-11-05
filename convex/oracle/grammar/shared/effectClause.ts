@@ -2797,6 +2797,8 @@ export type SentenceIR =
           readonly pick: HandPickIR;
           /** "… and exile that card": the route is printed in the pick. */
           readonly exile: boolean;
+          /** CR 608.2c — "You may choose": the pick may take nothing. */
+          readonly optional: boolean;
       }
     | { readonly role: "hand-pick-route"; readonly route: HandPickRoute }
     /**
@@ -2824,7 +2826,7 @@ export type SentenceIR =
     | { readonly role: "pay-life-or-topdeck"; readonly costPerKept: number };
 
 /** Where a `reveal-hand-pick`'s chosen card goes. */
-export type HandPickRoute = "discard" | "exile";
+export type HandPickRoute = "discard" | "exile" | "discard-then-draw";
 
 /** The card a `reveal-hand-pick` lets the controller choose. */
 export interface HandPickIR {
@@ -2999,6 +3001,7 @@ export function assembleSentences(
     let handReveal: {
         readonly player: PlayerRefIR;
         readonly pick?: HandPickIR;
+        readonly optional?: boolean;
     } | null = null;
     // CR 608.2c — an optional hand exile waits for the "If you do" it gates.
     let optionalHandCost: Extract<
@@ -3297,7 +3300,11 @@ export function assembleSentences(
                     handReveal = null;
                     continue;
                 }
-                handReveal = { player: handReveal.player, pick: sentence.pick };
+                handReveal = {
+                    player: handReveal.player,
+                    pick: sentence.pick,
+                    optional: sentence.optional,
+                };
                 continue;
             }
             const route =
@@ -3310,6 +3317,16 @@ export function assembleSentences(
                 return {
                     ok: false,
                     reason: "a card chosen from a revealed hand is not followed by where it goes",
+                };
+            // CR 608.2c — "If you do" gates on a pick that may take nothing, and
+            // a pick that may take nothing owes the gate.
+            if (
+                (route === "discard-then-draw") !==
+                (handReveal.optional === true)
+            )
+                return {
+                    ok: false,
+                    reason: '"You may choose" and "If you do" come as a pair behind a revealed hand',
                 };
             effects.push({
                 kind: "reveal-hand-pick",
@@ -5065,6 +5082,9 @@ export function optionalSentenceRule(
         // stripped into an optional wrapper.
         if (printsGraveyardCastGrant(probe))
             return inner.run(capitalise(probe), ctx);
+        // CR 608.2c — a revealed hand's pick carries its own "You may": the
+        // marker says the pick may take nothing (`assembleSentences` folds it).
+        if (OPTIONAL_HAND_PICK.test(probe)) return inner.run(probe, ctx);
         const clause = probe.slice(MAY_PREFIX.length);
         // CR 608.2c — "you may exile a card from your hand" is the first half
         // of an `optional-hand-cost-then`: what it gates is the "If you do"
@@ -6801,6 +6821,13 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
                 effect: { frames: [{ frame: "copySpell" as const }] },
             });
         }
+        // CR 608.2c — a hand pick's own gate, folded with the pick it follows.
+        const handRoute = HAND_PICK_ROUTES.get(span);
+        if (handRoute !== undefined)
+            return ok({
+                role: "hand-pick-route" as const,
+                route: handRoute,
+            } satisfies SentenceIR);
         const ifYouDo = span.match(IF_YOU_DO);
         if (ifYouDo !== null) {
             const inner = sentenceRule.run(capitalise(ifYouDo[1]!), ctx);
@@ -7465,9 +7492,16 @@ const HAND_REVEAL_PICK =
     /^(.+) reveals their hand and you choose (.+) from it$/;
 /** CR 701.9b — the controller's pick from the revealed hand. */
 const HAND_PICK = /^You choose (.+) from it( and exile that card)?$/;
+/** CR 608.2c — the same pick behind "You may": it may take nothing. */
+const OPTIONAL_HAND_PICK = /^you may choose (.+) from it$/i;
 /** Where the picked card goes: the routing sentence, whole. */
 const HAND_PICK_ROUTES: ReadonlyMap<string, HandPickRoute> = new Map([
     ["That player discards that card", "discard"],
+    // CR 608.2c — the replacement draw happens only if a card was chosen.
+    [
+        "If you do, that player discards that card, then draws a card",
+        "discard-then-draw",
+    ],
 ]);
 /**
  * What the controller may choose from a revealed hand, as an
@@ -7553,6 +7587,19 @@ function handPickSentence(span: string, ctx: unknown) {
             role: "hand-pick" as const,
             pick,
             exile: chosen[2] !== undefined,
+            optional: false,
+        } satisfies SentenceIR);
+    }
+    const optional = span.match(OPTIONAL_HAND_PICK);
+    if (optional !== null) {
+        const pick = readHandPick(optional[1]!);
+        if (pick === null)
+            return fail(`"${optional[1]}" is not a card this pick reads`, span);
+        return ok({
+            role: "hand-pick" as const,
+            pick,
+            exile: false,
+            optional: true,
         } satisfies SentenceIR);
     }
     return null;

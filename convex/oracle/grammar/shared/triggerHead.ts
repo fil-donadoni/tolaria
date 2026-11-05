@@ -216,6 +216,7 @@ export type TriggerHeadIR =
      * permanent turned up.
      */
     | { readonly kind: "turned-face-up" }
+    | { readonly kind: "transforms" }
     /**
      * CR 701.26a — "whenever this land becomes tapped": the source itself
      * going from untapped to tapped, however it was tapped (a {T} cost, a
@@ -722,6 +723,19 @@ export const SELF_HEADS: readonly {
         tail: " is turned face up",
         ir: { kind: "turned-face-up" },
     },
+    // CR 701.27e — the source transformed and has the named characteristic
+    // right after. `{self}` names the face now up, and only that face carries
+    // the ability, so the two openers read the same event (CR 603.1).
+    {
+        opener: "when ",
+        tail: " transforms into {self}",
+        ir: { kind: "transforms" },
+    },
+    {
+        opener: "whenever ",
+        tail: " transforms into {self}",
+        ir: { kind: "transforms" },
+    },
     // CR 701.26a — the source itself becoming tapped, by any means.
     {
         opener: "whenever ",
@@ -837,6 +851,9 @@ export function headPronounReferent(
             return "source";
         // CR 708.8 — the permanent turned face up is the source itself.
         case "turned-face-up":
+            return "source";
+        // CR 701.27e — the permanent that transformed is the source itself.
+        case "transforms":
             return "source";
         // CR 303.4b — "enchanted creature" names the Aura's host, not the Aura.
         case "damage-dealt":

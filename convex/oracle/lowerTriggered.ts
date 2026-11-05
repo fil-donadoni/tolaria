@@ -148,6 +148,8 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             return { kind: "attacks-unblocked" };
         case "turned-face-up":
             return { kind: "turned-face-up" };
+        case "transforms":
+            return { kind: "transforms" };
         case "becomes-tapped":
             return { kind: "tapped", scope: head.scope };
         case "tapped-for-mana":

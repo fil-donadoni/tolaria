@@ -160,9 +160,10 @@ export const TRANSFORM_LAYOUT = "transform";
  * off the FRONT face's cost), so it has no mana cost, no spell script, no
  * target and no land-entry replacement; its colour is the face's colour
  * indicator (CR 202.2e), read off the corpus face, never off a compiled
- * field. A compiled TRIGGER or STATIC EFFECT is a descriptor
- * (`compiledTriggeredAbilities` / `compiledStaticEffects`) the token codec
- * has no slot for, so a face compiling to one is refused, not truncated, for
+ * field. A compiled TRIGGER is a descriptor the registry seam rebuilds on the
+ * declaring card (`expandCompiledTriggers`), where the token codec reads it. A
+ * compiled STATIC EFFECT (`compiledStaticEffects`) has no slot there, so a face
+ * compiling to one is refused, not truncated, for
  * {@link MODAL_BACK_FACE_FIELDS}' reason.
  */
 const TRANSFORM_BACK_FACE_FIELDS = new Set<string>([
@@ -175,6 +176,7 @@ const TRANSFORM_BACK_FACE_FIELDS = new Set<string>([
     "loyalty",
     "staticAbilities",
     "activatedAbilities",
+    "compiledTriggeredAbilities",
     "oracleText",
 ]);
 
@@ -863,6 +865,12 @@ function compileTransformLayout(card: OracleCard): CompileOutcome {
                 : {}),
             ...(backDef.activatedAbilities
                 ? { activatedAbilities: backDef.activatedAbilities }
+                : {}),
+            ...(backDef.compiledTriggeredAbilities
+                ? {
+                      compiledTriggeredAbilities:
+                          backDef.compiledTriggeredAbilities,
+                  }
                 : {}),
             oracleText: faces[1].oracleText,
         },

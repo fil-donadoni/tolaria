@@ -1152,6 +1152,13 @@ setRegistryEntry(FACE_DOWN_CARD_ID, {
     ],
 });
 
+/** CR 712.8e — the back face a registry row presents. The registry holds a
+ *  compiled row raw, its back face's triggers still descriptors, so the face
+ *  (its closures, and the id its content derives) is read off the expansion;
+ *  `expandDefinition` is memoised, so these are the card's own objects. */
+const expandedBackFaceOf = (def: CardDefinition): CardBackFace | undefined =>
+    def.backFace && expandDefinition(def).backFace;
+
 /** CR 712.8e (issue #3249) — the triggered abilities, closures intact, of the
  *  PRINTED nonmodal back face whose content-derived id is `cardId`, or
  *  undefined when no printed card declares that face. A transformed
@@ -1172,11 +1179,11 @@ function printedBackFaceTriggers(
     const ownerId = printedBackFaceOwner?.(cardId);
     if (ownerId !== undefined) {
         const owner = registry.get(ownerId) ?? resolveFromSource(ownerId);
-        const triggers = owner?.backFace?.triggeredAbilities;
+        const triggers = owner && expandedBackFaceOf(owner)?.triggeredAbilities;
         if (triggers?.length) return triggers;
     }
     for (const [id, def] of registry) {
-        const backFace = def.backFace;
+        const backFace = expandedBackFaceOf(def);
         if (id !== def.id || !backFace?.triggeredAbilities?.length) continue;
         if (!isTokenCodecBackFace(backFace)) continue;
         if (tokenDefinitionId(backFaceAsTokenSpec(backFace)) === cardId) {
@@ -1443,7 +1450,7 @@ function isNonmodalBackFaceDefinitionId(cardId: string): boolean {
     if (!cardId.startsWith("token:")) return false;
     if (printedBackFaceOwner?.(cardId) !== undefined) return true;
     for (const [id, def] of registry) {
-        const backFace = def.backFace;
+        const backFace = expandedBackFaceOf(def);
         if (id !== def.id || !backFace || !isTokenCodecBackFace(backFace)) {
             continue;
         }

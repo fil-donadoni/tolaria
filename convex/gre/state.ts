@@ -15243,6 +15243,16 @@ export function buildSpellContext(
                 // either direction.
                 found.card.staticSeq = allocStaticTimestamp(state);
                 recomputeContinuousEffects(state);
+                // CR 701.27e — queued after the flip, so the face now up is
+                // the one whose "transforms into" ability is collected.
+                state.pendingEvents = [
+                    ...(state.pendingEvents ?? []),
+                    {
+                        type: "PERMANENT_TRANSFORMED",
+                        permanentId: found.card.id,
+                        controllerId: found.card.controllerId,
+                    },
+                ];
             }
         },
         // CR 712 / 400.7 (issue #2380) — "exile it, then return it to the

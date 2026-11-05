@@ -3342,6 +3342,12 @@ export interface CardBackFace {
      *  so a printed back face's triggers never degrade to the token codec's
      *  never-firing stub. */
     triggeredAbilities?: TriggeredAbility[];
+    /** The compiler's JSON form of `triggeredAbilities` above, for the reason
+     *  {@link CardDefinition.compiledTriggeredAbilities} exists: a compiled
+     *  card is JSON and `matches` is a closure. `expandCompiledTriggers` rebuilds
+     *  it into `triggeredAbilities` at the registry seam, on the card that
+     *  declares the face, so everything downstream reads one field. */
+    compiledTriggeredAbilities?: CompiledTriggeredAbility[];
     /** Printed Oracle text of the back face (display/reference only). */
     oracleText?: string;
     /** CR 614.12 / 712.12 — the back face's own land-entry pay-choice ("As
@@ -11931,6 +11937,7 @@ export type GameEventType =
     | "CREATURE_MENTORED"
     | "CREATURE_ENLISTED"
     | "PERMANENT_TURNED_FACE_UP"
+    | "PERMANENT_TRANSFORMED"
     | "ABILITY_ACTIVATED"
     | "STATE_CHECK"
     | "TRIGGER_FIZZLED"
@@ -12438,6 +12445,18 @@ export interface PermanentUntappedEvent {
  *  every enters ability silent. */
 export interface PermanentTurnedFaceUpEvent {
     type: "PERMANENT_TURNED_FACE_UP";
+    permanentId: string;
+    controllerId: string;
+}
+
+/** CR 701.27a / 701.27e — a permanent on the battlefield turned over to its
+ *  other face, in either direction, queued once the flip is done so the face
+ *  now up is the one whose abilities are collected. Only a flip that happened
+ *  emits it: an instruction CR 701.27c, 701.27d or 701.27f ignores moved
+ *  nothing. A permanent that ENTERS transformed never transformed (CR 712.14a),
+ *  and CR 701.27b keeps a turn-up apart from a transform. */
+export interface PermanentTransformedEvent {
+    type: "PERMANENT_TRANSFORMED";
     permanentId: string;
     controllerId: string;
 }
@@ -13219,6 +13238,7 @@ export type GameEvent =
     | CreatureMentoredEvent
     | CreatureEnlistedEvent
     | PermanentTurnedFaceUpEvent
+    | PermanentTransformedEvent
     | AbilityActivatedEvent
     | StateCheckEvent
     | TriggerFizzledEvent
