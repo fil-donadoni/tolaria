@@ -23726,6 +23726,16 @@
         "firstPrintSet": "dsk"
     },
     {
+        "name": "Enduring Ideal",
+        "scryfallId": "7dc7091e-0c98-434d-9190-dcab813d3e14",
+        "oracleId": "d2045055-197c-436a-9874-199db5fe1c96",
+        "firstSet": "sok",
+        "firstPrintId": "7dc7091e-0c98-434d-9190-dcab813d3e14",
+        "firstPrintSet": "sok",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Enduring Innocence",
         "scryfallId": "08f79439-b8f8-418f-9772-26d81844749e",
         "oracleId": "98a389f4-2905-47f3-b60e-3d4afb3e5cb0",

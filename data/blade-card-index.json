@@ -251,6 +251,13 @@
             "needsSetup": false
         }
     ],
+    "Enduring Ideal": [
+        {
+            "label": "epic: casts the tutor whose hit stops the attackers it cannot survive",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Enraged Revolutionary": [
         {
             "label": "dethrone: swings for the lethal only the counter provides, tied for most life",
