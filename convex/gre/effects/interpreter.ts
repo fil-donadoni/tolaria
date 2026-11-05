@@ -8695,6 +8695,13 @@ function selectForEachMembers(
     select: EffectForEachSelector
 ): string[] {
     if (select.set === "players") return [...ctx.apNapOrder()];
+    // CR 508.3b — "those creatures": the group the firing declaration named.
+    if (select.set === "eventAttackers") {
+        const event = ctx.triggerEvent;
+        return event?.type === "ATTACKERS_DECLARED"
+            ? [...event.attackerIds]
+            : [];
+    }
     // `times` (issue #1368) — N repetitions of the body, N read ONCE here and
     // frozen with the member set (CR 608.2h): the members are iteration
     // indices, never objects. A non-positive or unresolvable count (an

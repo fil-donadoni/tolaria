@@ -42,6 +42,10 @@ import {
     lookBackSelf,
 } from "./copy";
 import { raiseTriggerTargetSelection } from "./rules";
+import {
+    attackWatchFirings,
+    UNTIL_NEXT_TURN_ATTACK_WATCHES,
+} from "./attackWatch";
 
 /** Builds the StackItem a fired delayed triggered ability resolves from (CR
  *  603.7a, ADR 0048). Shared by the phase-boundary fire path
@@ -939,26 +943,25 @@ export function collectTriggers(
     // 2-player scope `event.attackingPlayerId !== t.controller` already
     // identifies every attacker in the batch as attacking the instance's
     // controller (or a planeswalker they control): no per-attacker
-    // `combat.attackTargets` check is needed.
+    // `combat.attackTargets` check is needed. The other windows, and what each
+    // one fires on, are rows of `UNTIL_NEXT_TURN_ATTACK_WATCHES`
+    // (`gre/attackWatch.ts`, issue #8166).
     if (state.delayedTriggers?.length) {
-        const attackWatchers = state.delayedTriggers.filter(
-            (t) => t.timing === "until-next-turn-creature-attacks-you"
-        );
-        if (attackWatchers.length > 0) {
-            for (const event of events) {
-                if (event.type !== "ATTACKERS_DECLARED") continue;
-                for (const t of attackWatchers) {
-                    if (event.attackingPlayerId === t.controller) continue;
-                    for (const attackerId of event.attackerIds) {
-                        out.push({
-                            ...buildDelayedTriggerStackItem(state, t),
-                            triggerEvent: {
-                                type: "ATTACKERS_DECLARED",
-                                attackingPlayerId: event.attackingPlayerId,
-                                attackerIds: [attackerId],
-                            },
-                        });
-                    }
+        for (const event of events) {
+            if (event.type !== "ATTACKERS_DECLARED") continue;
+            for (const t of state.delayedTriggers) {
+                const watch = UNTIL_NEXT_TURN_ATTACK_WATCHES[t.timing];
+                if (!watch) continue;
+                for (const firing of attackWatchFirings(
+                    state,
+                    event,
+                    t.controller,
+                    watch
+                )) {
+                    out.push({
+                        ...buildDelayedTriggerStackItem(state, t),
+                        triggerEvent: firing,
+                    });
                 }
             }
         }
