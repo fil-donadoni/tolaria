@@ -49,6 +49,24 @@ function watchedAttackers(
     );
 }
 
+/** CR 508.3a / 725 (issue #7202) — true when this declaration has `watched`
+ *  attacking the player who is the monarch right now. The defending player is
+ *  the one player not attacking (CR 506.2); an `attackTargets` entry means a
+ *  planeswalker or battle is attacked instead of that player (CR 508.3a), and a
+ *  game with no monarch has no one to attack as the monarch (CR 725.1). */
+export function watchedCreatureAttacksMonarch(
+    state: GameState,
+    event: Extract<GameEvent, { type: "ATTACKERS_DECLARED" }>,
+    watched: string
+): boolean {
+    if (!event.attackerIds.includes(watched)) return false;
+    if (state.combat?.attackTargets?.[watched] !== undefined) return false;
+    const defender = state.players.find(
+        (p) => p.id !== event.attackingPlayerId
+    );
+    return defender !== undefined && defender.id === state.monarchId;
+}
+
 /** The `ATTACKERS_DECLARED` events one window fires on for one declaration,
  *  each threaded onto its own stack item: one per creature, or one naming the
  *  whole group. No watched attacker means no firing at all. */

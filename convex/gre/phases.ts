@@ -3109,7 +3109,8 @@ export function finalizeCleanup(state: GameState): void {
     // REPEATING this-turn instance watch — purged unconditionally, like
     // `this-turn-creature-blocks`; so is
     // `this-turn-watched-creature-deals-combat-damage` (CR 603.7b, issue
-    // #2142, Vigorous Charge).
+    // #2142, Vigorous Charge), and `this-turn-watched-creature-attacks-monarch`
+    // (CR 603.7b, issue #7202, Okoye, Mighty and Adored).
     if (state.delayedTriggers?.length) {
         const kept = state.delayedTriggers.filter(
             (t) =>
@@ -3119,6 +3120,7 @@ export function finalizeCleanup(state: GameState): void {
                 t.timing !== "becomes-blocked-by" &&
                 t.timing !== "this-turn-creature-blocks" &&
                 t.timing !== "this-turn-watched-creature-deals-combat-damage" &&
+                t.timing !== "this-turn-watched-creature-attacks-monarch" &&
                 t.timing !== "this-turn-creature-deals-combat-damage-to-player"
         );
         state.delayedTriggers = kept.length > 0 ? kept : undefined;

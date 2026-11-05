@@ -8740,7 +8740,21 @@ export type DelayedTriggerTiming =
      *  at CLEANUP (the "this turn" bound, CR 514.2) and dropped when the
      *  watched creature leaves the battlefield (CR 400.7 — its return is a
      *  new object). Rejects `targetPlayer`. */
-    | "this-turn-watched-creature-deals-combat-damage";
+    | "this-turn-watched-creature-deals-combat-damage"
+    /** CR 508.3a / 603.7b / 725 (issue #7202) — an INSTANCE-scoped, REPEATING,
+     *  this-turn-bounded attack watch: "Whenever that creature attacks the
+     *  monarch this turn, …" (Okoye, Mighty and Adored). Names ONE watched
+     *  instance (`watch` required) and fires once per declaration that has it
+     *  attacking the PLAYER who is the monarch as attackers are declared
+     *  (`watchedCreatureAttacksMonarch`, `gre/attackWatch.ts`): a creature
+     *  attacking that player's planeswalker or battle does not attack the
+     *  monarch, one put onto the battlefield attacking does not trigger it
+     *  (CR 508.3a), and with no monarch it never fires (CR 725.1). Stays queued
+     *  after firing, so an extra combat fires it again (CR 603.7b); purged at
+     *  CLEANUP (CR 514.2) and dropped when the creature leaves the battlefield
+     *  (CR 400.7). The body reads the creature through a `capture`, not `$event`,
+     *  exactly as `attacks-unblocked` does. Rejects `targetPlayer`. */
+    | "this-turn-watched-creature-attacks-monarch";
 
 /** What one "until your next turn" attack window watches: the two axes its
  *  Oracle line varies on, as data (`UNTIL_NEXT_TURN_ATTACK_WATCHES`).
