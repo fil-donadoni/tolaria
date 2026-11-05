@@ -8795,7 +8795,9 @@ function selectForEachMembers(
     // sentence before it: the sweep spares what the spell targeted.
     const announced = select.excludeTargets
         ? new Set(
-              ctx.targets.flatMap((t) => (t.type === "permanent" ? [t.id] : []))
+              ctx.targets.flatMap((t) =>
+                  t?.type === "permanent" ? [t.id] : []
+              )
           )
         : null;
     const members =

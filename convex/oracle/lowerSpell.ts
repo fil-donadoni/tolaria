@@ -151,7 +151,7 @@ function antecedentSweepSubtype(
     )
         return undefined;
     const { subtype, ...others } = earlier.filter ?? {};
-    const filter: Readonly<Record<string, unknown>> = select.filter ?? {};
+    const filter = (select.filter ?? {}) as Readonly<Record<string, unknown>>;
     const shared = Object.entries(others).every(
         ([key, value]) => JSON.stringify(filter[key]) === JSON.stringify(value)
     );
