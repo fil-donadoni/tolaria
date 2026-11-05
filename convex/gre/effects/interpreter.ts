@@ -7836,7 +7836,8 @@ export const OP_EXECUTORS: {
             op.timing === "dies" ||
             op.timing === "attacks-unblocked" ||
             op.timing === "becomes-blocked-by" ||
-            op.timing === "this-turn-watched-creature-deals-combat-damage"
+            op.timing === "this-turn-watched-creature-deals-combat-damage" ||
+            op.timing === "this-turn-watched-creature-attacks-monarch"
         ) {
             const watched =
                 op.watch !== undefined

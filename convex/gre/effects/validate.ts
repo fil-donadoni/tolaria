@@ -4158,6 +4158,13 @@ const DELAYED_TIMINGS = new Set([
     // `targetPlayer`) and REPEATING — its body reads the live `$event`
     // (`$event.amount`, checked below) — purged at CLEANUP.
     "this-turn-watched-creature-deals-combat-damage",
+    // Instance attack watch (CR 508.3a / 603.7b, issue #7202) — fires when the
+    // WATCHED permanent is declared attacking the player who is the monarch
+    // ("Whenever that creature attacks the monarch this turn", Okoye, Mighty
+    // and Adored). Instance-scoped (requires `watch`, rejects `targetPlayer`),
+    // REPEATING across combats, purged at CLEANUP. Its body reads the creature
+    // through a `capture`; `$event` stays illegal.
+    "this-turn-watched-creature-attacks-monarch",
 ]);
 
 function isDelayedTiming(value: unknown): boolean {
@@ -7065,7 +7072,8 @@ const OP_SCHEMAS: OpSchemaTable = {
                 entry.timing === "attacks-unblocked" ||
                 entry.timing === "becomes-blocked-by" ||
                 entry.timing ===
-                    "this-turn-watched-creature-deals-combat-damage";
+                    "this-turn-watched-creature-deals-combat-damage" ||
+                entry.timing === "this-turn-watched-creature-attacks-monarch";
             if (instanceScoped && !("watch" in entry)) {
                 errors.push(
                     `timing "${String(entry.timing)}" is instance-scoped (CR 603.7a) — field "watch" is required`
@@ -7073,7 +7081,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             }
             if (!instanceScoped && "watch" in entry) {
                 errors.push(
-                    `field "watch" is only valid with the instance-scoped timings "leaves-battlefield" / "leaves-battlefield-indefinite" / "dies" / "attacks-unblocked" / "becomes-blocked-by" / "this-turn-watched-creature-deals-combat-damage"`
+                    `field "watch" is only valid with the instance-scoped timings "leaves-battlefield" / "leaves-battlefield-indefinite" / "dies" / "attacks-unblocked" / "becomes-blocked-by" / "this-turn-watched-creature-deals-combat-damage" / "this-turn-watched-creature-attacks-monarch"`
                 );
             }
             // CR 509.3d (issue #3809) — the blocker condition only has a
