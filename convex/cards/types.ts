@@ -9270,6 +9270,10 @@ export interface StaticEffectStateView {
              *  server-side and client-side. */
             readonly power?: number;
             readonly toughness?: number;
+            /** The exiled card's types (CR 205.2a), for a clause counting card
+             *  types among the linked pile. Survives the wire projection
+             *  (`slimCard` keeps `types`). */
+            readonly types?: readonly CardType[];
         }>;
     }>;
     /** The player whose turn it currently is (CR 102.1). Optional because the

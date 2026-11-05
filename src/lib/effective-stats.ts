@@ -77,6 +77,7 @@ export function toLayerState(
                 card: c.card as Readonly<Record<string, unknown>>,
                 power: c.power,
                 toughness: c.toughness,
+                types: (c.types ?? []) as CardType[],
             })),
             // Hand-size-gated conditions (CR 611.2c, issue #1379 — Carnage
             // Interpreter's "as long as you have one or fewer cards in

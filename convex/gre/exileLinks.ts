@@ -24,6 +24,9 @@ export interface ExileLinkCandidate {
     readonly id: string;
     readonly exiledBySourceId?: string;
     readonly card: Readonly<Record<string, unknown>>;
+    /** The card's types (CR 205.2a). Survives the wire projection (`slimCard`
+     *  keeps `types`), unlike `card`; absent reads as "no known types". */
+    readonly types?: readonly string[];
 }
 
 /** The minimum a board must expose. Both `GameState` and
@@ -53,4 +56,20 @@ export function getCardsExiledWith<C extends ExileLinkCandidate>(
         }
     }
     return out;
+}
+
+/** CR 205.2a / 607.2a — the number of DISTINCT card types among the cards
+ *  exiled with `sourceInstanceId` ("four or more card types among cards exiled
+ *  with this creature"). Subtypes are not card types; a multi-type card (an
+ *  artifact creature) contributes each of its types once. The ONE reading, so a
+ *  P/T buff and a keyword grant gated on the same clause cannot disagree. */
+export function countCardTypesExiledWith<C extends ExileLinkCandidate>(
+    state: ExileLinkStateView<C>,
+    sourceInstanceId: string
+): number {
+    const seen = new Set<string>();
+    for (const { card } of getCardsExiledWith(state, sourceInstanceId)) {
+        for (const t of card.types ?? []) seen.add(t);
+    }
+    return seen.size;
 }

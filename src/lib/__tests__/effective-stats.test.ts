@@ -4,6 +4,9 @@ import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import type { CardInstance, Player } from "~/types/game";
 import type { EmblemInstance } from "@convex/cards/types";
 import { SORIN_LORD_OF_INNISTRAD_EMBLEM_ID } from "@convex/cards/emblems";
+import { preloadDefinitions } from "@convex/cards/registry";
+import { resolveCardExport } from "@convex/cards/defineCard";
+import { keenEyedCurator } from "@convex/cards/sets/blb/green.cards";
 
 // Known card ids from convex/cards/sets/lea.ts
 const SAVANNAH_LIONS = "d05b92bd-797e-413f-a8b0-32e0937a1ee0";
@@ -475,6 +478,45 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
             expect(
                 effectivePower(players, lion, [sorinEmblem("opp")], undefined)
             ).toBe(2);
+        });
+    });
+
+    // CR 607.2a / 205.2a — Keen-Eyed Curator counts card types among cards
+    // exiled with it; the client's layer view must carry the exiled cards'
+    // `types` (the projected `card` handle is stripped) or it reads 3/3.
+    describe("card types among cards exiled with the source (Keen-Eyed Curator)", () => {
+        const CURATOR = "8cf33d80-0704-4dc4-8e8d-1dcbcbc35add";
+        // No catalogue row on the PR head (ADR 0157): register the module's.
+        preloadDefinitions([resolveCardExport(keenEyedCurator)!]);
+        const exiledWith = (id: string, types: CardInstance["types"]) =>
+            ({
+                ...makeCreature({ id, cardId: GRIZZLY_BEARS }),
+                zone: "exile",
+                types,
+                exiledBySourceId: "curator",
+            }) as CardInstance;
+
+        it("reads +4/+4 from four distinct exiled card types", () => {
+            const curator = makeCreature({
+                id: "curator",
+                cardId: CURATOR,
+                power: 3,
+                toughness: 3,
+            });
+            const me = makePlayer("me", [curator]);
+            me.exile = [
+                exiledWith("e1", ["Land"]),
+                exiledWith("e2", ["Instant"]),
+                exiledWith("e3", ["Enchantment"]),
+                exiledWith("e4", ["Artifact", "Creature"]),
+            ];
+            expect(
+                effectivePower([me, makePlayer("opp")], curator, [], undefined)
+            ).toBe(7);
+            me.exile.pop();
+            expect(
+                effectivePower([me, makePlayer("opp")], curator, [], undefined)
+            ).toBe(3);
         });
     });
 });
