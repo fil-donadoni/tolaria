@@ -15996,6 +15996,7 @@
         {"id":"400.7","line":"// (`resetBattlefieldTransientState`, CR 400.7 — what re-enters is a new object","sites":1,"status":"baseline"},
         {"id":"400.7","line":"// (`resetBattlefieldTransientState`, CR 400.7) rather than on the way out,","sites":1,"status":"baseline"},
         {"id":"400.7","line":"// (`resetBattlefieldTransientState`, CR 400.7).","sites":1,"status":"confirmed","ruleHash":"7c6531f78518051c"},
+        {"id":"400.7","line":"// (issue #7209, CR 400.7): one per-card stamp, written on every path into a","sites":1,"status":"confirmed","ruleHash":"7c6531f78518051c"},
         {"id":"400.7","line":"// (leaving clears the live history, CR 400.7): the ability is a","sites":1,"status":"confirmed","ruleHash":"7c6531f78518051c"},
         {"id":"400.7","line":"// (the CR 400.7 `enteredOnTurn` entry stamp and the turn-scoped","sites":1,"status":"baseline"},
         {"id":"400.7","line":"// - CR 400.7 same-resolution blink (issue #1401): `exile` with a `bind`","sites":1,"status":"baseline"},
