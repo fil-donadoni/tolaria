@@ -4801,6 +4801,15 @@ export type GameState = {
          *  (`getAttackTarget`, the `combatPartnerOf` filter). Cleared at
          *  END_OF_COMBAT with the rest of `combat`. */
         departedCombatants?: Record<string, string>;
+        /** CR 508.1b — the PLAYERS the active player declared a creature as
+         *  attacking, stamped once as attackers are declared
+         *  (`stampAttackedPlayers`, `gre/combat.ts`). A record of the declaration,
+         *  not a read of the live attackers: a creature removed from combat
+         *  still attacked, a creature put onto the battlefield attacking never
+         *  did (CR 508.4), and one declared at a planeswalker or battle attacked
+         *  that permanent, not its controller. Absent when no player was
+         *  attacked. Cleared at END_OF_COMBAT with the rest of `combat`. */
+        attackedPlayerIds?: string[];
         /** CR 508.1g / 701.43d — the declared attackers whose controller chose
          *  to pay the OPTIONAL "you may exert this creature as it attacks"
          *  cost. Toggled while the declaration is still open (the choice is

@@ -20,6 +20,7 @@
 
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import { getOpponentId, getPlayer } from "../state";
+import { opponentsAttackedThisCombat } from "../combat";
 import { findPermanent } from "../lookup";
 import { getEffectivePT } from "../layers";
 import { getInstanceManaCost, tryGetDefinition } from "../../cards";
@@ -979,6 +980,13 @@ function resolveValueAgainstBoard(
         return v.nontokenCreaturesToGraveyardThisTurn.of === "controller"
             ? (state.players.find((p) => p.id === perspectivePlayerId)
                   ?.nontokenCreaturesToGraveyardThisTurn ?? 0)
+            : CF_ASSUMED_REF_FALLBACK;
+    }
+    // opponentsAttackedThisCombat (CR 702.121a) — the controller's declaration is a live board
+    // fact; any other selector needs an announcement that doesn't exist yet.
+    if ("opponentsAttackedThisCombat" in v) {
+        return v.opponentsAttackedThisCombat.of === "controller"
+            ? opponentsAttackedThisCombat(state, perspectivePlayerId)
             : CF_ASSUMED_REF_FALLBACK;
     }
     // difference (issue #2006) — both operands are terminals (a literal or a

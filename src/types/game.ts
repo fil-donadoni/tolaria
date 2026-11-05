@@ -678,6 +678,9 @@ export interface Combat {
      *  the attacker is attacking that planeswalker (combat damage → loyalty,
      *  issue #1220). Mirrors the GRE `combat.attackTargets`. */
     attackTargets?: Record<string, string>;
+    /** CR 508.1b — the players a creature was declared as attacking this combat.
+     *  Mirrors the GRE `combat.attackedPlayerIds`; absent when none was. */
+    attackedPlayerIds?: string[];
     /** CR 508.1g / 701.43d — declared attackers whose controller chose to pay
      *  the optional "you may exert this creature as it attacks" cost. Mirrors
      *  the GRE `combat.exertedIds`; absent when nothing was exerted. */

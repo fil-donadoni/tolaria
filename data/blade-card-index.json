@@ -170,6 +170,13 @@
             "needsSetup": false
         }
     ],
+    "Deputized Protester": [
+        {
+            "label": "melee: swings for the lethal only the pump provides",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Disenchant": [
         {
             "label": "each-step dig: Disenchant takes the Oath of Druids that digs only the opponent's Craw Wurms, not the 2-MV artifact (issue #5627)",

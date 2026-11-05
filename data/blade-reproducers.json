@@ -2277,6 +2277,31 @@
             "opp": 20
         }
     },
+    "melee: swings for the lethal only the pump provides": {
+        "cards": [
+            {
+                "name": "Deputized Protester",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true,
+                "summoningSick": false
+            }
+        ],
+        "phase": "DECLARE_ATTACKERS",
+        "turn": 5,
+        "landCount": 3,
+        "libraryCount": 20,
+        "life": {
+            "me": 3,
+            "opp": 3
+        }
+    },
     "miracle-hide-bounce-own-board": null,
     "miracle-reveal-bounce-their-board": null,
     "morph: casts Exalted Angel face down for {3} on three lands": {
