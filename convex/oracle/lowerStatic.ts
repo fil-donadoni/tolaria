@@ -50,10 +50,7 @@ import { expandUndaunted } from "../cards/abilities/undaunted";
 import { expandMobilize } from "../cards/abilities/mobilize";
 import { expandUnleash } from "../cards/abilities/unleash";
 import { expandRiot } from "../cards/abilities/riot";
-import {
-    expandExtort,
-    staticGrantOfKeywordIsExpanded,
-} from "../cards/abilities/extort";
+import { expandExtort } from "../cards/abilities/extort";
 import { expandFadingVanishing } from "../cards/abilities/fadingVanishing";
 import { expandHideaway } from "../cards/abilities/hideaway";
 import { expandKeywordTriggers } from "../cards/abilities/keywordTriggers";
@@ -229,11 +226,10 @@ const DOES_NOT_UNTAP_MARKER = "does-not-untap";
  * `haste`, `flying`, `lifelink`. It is NOT enough for one whose implementation
  * is an ADR 0054 expander: `expandKeywordTriggers` reads
  * `def.staticAbilities` off the DEFINITION and injects a triggered ability
- * there (CR 702.83a exalted, CR 702.108a prowess), and trigger collection
- * reads the definition's `triggeredAbilities`, never the instance's keyword
- * list. Granting `exalted` therefore produces no trigger at all: First Sliver's
- * Chosen ("Sliver creatures you control have exalted") would ship `ready` and
- * do nothing.
+ * there (CR 702.108a prowess), and trigger collection reads the definition's
+ * `triggeredAbilities`, never the instance's keyword list. Granting `prowess`
+ * therefore produces no trigger at all: "Creatures you control have prowess"
+ * would ship `ready` and do nothing.
  *
  * The registry's `status: "implemented"` cannot answer this — it is a claim
  * about the PRINTED keyword, and reading it as a claim about the GRANTED one
@@ -245,20 +241,49 @@ const DOES_NOT_UNTAP_MARKER = "does-not-untap";
  */
 export function isDefinitionLevelKeyword(keyword: string): boolean {
     const bare: CardDefinition = {
-        id: "oracle-grant-probe",
-        rarity: "common",
-        name: "Grant probe",
-        types: ["Creature"],
-        power: 1,
-        toughness: 1,
+        ...GRANT_PROBE,
         staticAbilities: [keyword],
     };
-    // The keyword expanders from `expandDefinition`'s chain (`cards/registry.ts`)
-    // that key off `staticAbilities`. `expandChapterAbilities` is deliberately
-    // absent: it reads `chapterAbilities`, not a keyword, so no grant can reach
-    // it. Each returns its INPUT unchanged when its keyword is absent, which is
-    // what makes identity the honest test.
-    const expanded = expandDemonstrate(
+    return expandKeywords(bare) !== bare;
+}
+
+/**
+ * Does a STATIC grant of `keyword` reach the engine anyway, because an expander
+ * puts a `triggered-grant` of its trigger beside it (`staticKeywordGrant.ts`)?
+ * The census' exception to "granting an expander-backed keyword does nothing",
+ * asked of the expanders for the same reason as above.
+ */
+function staticGrantOfKeywordIsExpanded(keyword: string): boolean {
+    const expanded = expandKeywords({
+        ...GRANT_PROBE,
+        staticEffects: [
+            { kind: "keyword-grant", applies: () => true, keyword },
+        ],
+    });
+    return (
+        expanded.staticEffects?.some((e) => e.kind === "triggered-grant") ===
+        true
+    );
+}
+
+const GRANT_PROBE: CardDefinition = {
+    id: "oracle-grant-probe",
+    rarity: "common",
+    name: "Grant probe",
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+};
+
+/**
+ * The keyword expanders from `expandDefinition`'s chain (`cards/registry.ts`)
+ * that key off `staticAbilities` or a static grant. `expandChapterAbilities` is
+ * deliberately absent: it reads `chapterAbilities`, not a keyword, so no grant
+ * can reach it. Each returns its INPUT unchanged when its keyword is absent,
+ * which is what makes identity the honest test.
+ */
+function expandKeywords(def: CardDefinition): CardDefinition {
+    return expandDemonstrate(
         expandChangeling(
             expandUndaunted(
                 expandIngest(
@@ -271,7 +296,7 @@ export function isDefinitionLevelKeyword(keyword: string): boolean {
                                             expandExtort(
                                                 expandMentor(
                                                     expandRiot(
-                                                        expandUnleash(bare)
+                                                        expandUnleash(def)
                                                     )
                                                 )
                                             )
@@ -285,7 +310,6 @@ export function isDefinitionLevelKeyword(keyword: string): boolean {
             )
         )
     );
-    return expanded !== bare;
 }
 
 /**
