@@ -415,6 +415,19 @@ function isNegated(v: EffectSignedValue): v is { negate: EffectValue } {
     return typeof v === "object" && v !== null && "negate" in v;
 }
 
+/** CR 120.3 — "that player" behind a "deals damage to a player" head: the
+ *  player a damaging ability hurt (Ingest, Blazing Specter). A script is written
+ *  for the seat its controller aims the damage at, so a value reader treats the
+ *  ref as the opponent; taking it for the controller, as the other `$event.*`
+ *  and `$source` refs are, flips the sign of every such trigger. Issue #4014. */
+export function isDamagedPlayerRef(ref: EffectPlayerRef): boolean {
+    return (
+        typeof ref === "object" &&
+        "ref" in ref &&
+        ref.ref === "$event.damagedPlayer"
+    );
+}
+
 /** Context-free grounding: representative assumptions, caster's perspective. */
 export function contextFreeGrounding(
     weights: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
@@ -515,6 +528,7 @@ export function contextFreeGrounding(
         isSelf(ref, cfAssumption) {
             if (ref === "controller") return true;
             if (ref === "opponent") return false;
+            if (isDamagedPlayerRef(ref)) return false;
             if (typeof ref === "object" && "ref" in ref) return true; // $source etc.
             // {target} / {controllerOf} — the valuer's natural assumption.
             return cfAssumption === "self";

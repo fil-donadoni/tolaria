@@ -16294,6 +16294,16 @@
         "source": "compiled"
     },
     {
+        "name": "Culling Drone",
+        "scryfallId": "1a623415-46c0-45aa-ab75-1e2d9708013a",
+        "oracleId": "bda0ca68-78a6-4b32-842f-0bee9a9c84ef",
+        "firstSet": "bfz",
+        "firstPrintId": "1a623415-46c0-45aa-ab75-1e2d9708013a",
+        "firstPrintSet": "bfz",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Culling the Weak",
         "scryfallId": "50c33f18-0a5c-4e46-ab0d-6e450915594f",
         "oracleId": "6385fd0d-256d-4400-9319-afa8170024db",
@@ -48457,6 +48467,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mist Intruder",
+        "scryfallId": "f8c2e662-d8c3-44d4-b666-fe0d4a046271",
+        "oracleId": "e4e9b48b-92f9-46ac-b55a-573bc328b11a",
+        "firstSet": "bfz",
+        "firstPrintId": "f8c2e662-d8c3-44d4-b666-fe0d4a046271",
+        "firstPrintSet": "bfz",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Mist Leopard",
         "scryfallId": "3f3a26c7-e028-4741-803d-6384925b8500",
         "oracleId": "49cade2f-92ab-48c8-aed3-d52ab3263506",
@@ -70161,6 +70181,16 @@
         "firstPrintId": "df14aa0e-6d34-48ca-aee0-3563bbfb3b15",
         "firstPrintSet": "dst",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Sludge Crawler",
+        "scryfallId": "9782b463-0677-40f4-ab2c-4c3ff19f1168",
+        "oracleId": "dd05294b-2c5b-48c2-a9f6-8a528baa3dff",
+        "firstSet": "bfz",
+        "firstPrintId": "9782b463-0677-40f4-ab2c-4c3ff19f1168",
+        "firstPrintSet": "bfz",
+        "rarity": "common",
         "source": "compiled"
     },
     {
