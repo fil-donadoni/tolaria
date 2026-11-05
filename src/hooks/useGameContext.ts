@@ -166,7 +166,8 @@ type GameContext = {
     /** CR 611.2a — player-scoped "for the rest of the game" locks (CR 119.7:
      *  can't gain life), forwarded from the wire
      *  `GameState.playerRestrictions`. Never removed once granted.
-     *  Consumed by {@link PlayerLifeGainLock} to badge the nameplate. */
+     *  CR 702.50b: can't cast spells. Consumed by {@link PlayerLifeGainLock} and
+     *  {@link PlayerCastLock} to badge the nameplate. */
     playerRestrictions?: PlayerRestriction[];
     /** One-shot look/reveal notifications for this viewer (CR 400.2 look /
      *  701.20 reveal, `SpellContext.notifyReveal`). The projection filters

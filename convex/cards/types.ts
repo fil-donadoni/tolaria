@@ -8449,6 +8449,10 @@ export type DelayedTriggerTiming =
     | "next-draw-step"
     | "next-main-phase"
     | "next-upkeep"
+    /** CR 702.50a — "at the beginning of each of your upkeeps for the rest of
+     *  the game": `targetPlayerId` is that player, and the instance stays queued
+     *  after firing. */
+    | "each-own-upkeep"
     /** CR 603.7 / 514.3a — "at the beginning of the next cleanup step". A
      *  phase-boundary timing like its five siblings above, but the ONLY one
      *  whose step normally grants no priority at all: CR 514.3 says "Normally,
@@ -12196,7 +12200,8 @@ export interface SpellCopiedEvent {
     /** The copy's own colours — a copying effect may change them (Fork). */
     spellColors: ReadonlyArray<Color>;
     /** True when the copy came from a cast-copy trigger (Storm, CR 702.40a;
-     *  Replicate, CR 702.56a) rather than from a spell's effect. */
+     *  Replicate, CR 702.56a; Epic's upkeep trigger, CR 702.50a) rather than from
+     *  a spell's effect. */
     fromCastCopyTrigger: boolean;
 }
 

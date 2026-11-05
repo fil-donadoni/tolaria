@@ -1589,6 +1589,15 @@ export function compactState(state: GameState): Record<string, unknown> {
         if (isPlainEmpty(v)) continue;
         out[k] = v;
     }
+    // CR 702.50a — an epic trigger's spell is a full stack item, slimmed like
+    // one on the stack (the generic loop above stored it raw).
+    if (state.delayedTriggers?.some((t) => t.spellToCopy)) {
+        out.delayedTriggers = state.delayedTriggers.map((t) =>
+            t.spellToCopy
+                ? { ...t, spellToCopy: compactStackItem(t.spellToCopy, ctx) }
+                : t
+        );
+    }
     // CR 702.26 — phased-out bundles hold full battlefield-shaped permanents.
     // Slim their `card` fat field down to `{ id }` like every other zone so
     // the registry hydrates the definition on expand (the generic loop above
@@ -1708,6 +1717,20 @@ export function expandState(data: Record<string, unknown>): GameState {
         const v = data[k];
         if (v === undefined || v === null) continue;
         (result as Record<string, unknown>)[k] = v;
+    }
+    // CR 702.50a — mirror of `compactState`.
+    if (result.delayedTriggers?.some((t) => t.spellToCopy)) {
+        result.delayedTriggers = result.delayedTriggers.map((t) =>
+            t.spellToCopy
+                ? {
+                      ...t,
+                      spellToCopy: expandStackItem(
+                          t.spellToCopy as unknown as CompactCard,
+                          ctx
+                      ),
+                  }
+                : t
+        );
     }
     // ADR 0094 deserialize shim — a pending announcement persisted before the
     // move to `chosenModeIds` carries its one mode under the singular key.

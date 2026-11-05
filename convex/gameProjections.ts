@@ -1871,6 +1871,23 @@ export function projectPublicState(
         pendingTriggerBatch: state.pendingTriggerBatch?.map((i) =>
             projectStackItem(i, viewerId)
         ),
+        // CR 702.50a — an epic trigger's spell is a full stack item; the raw
+        // spread would ship its fat card def.
+        ...(state.delayedTriggers
+            ? {
+                  delayedTriggers: state.delayedTriggers.map((t) =>
+                      t.spellToCopy
+                          ? {
+                                ...t,
+                                spellToCopy: projectStackItem(
+                                    t.spellToCopy,
+                                    viewerId
+                                ),
+                            }
+                          : t
+                  ),
+              }
+            : {}),
         // CR 702.26 — phased-out permanents are public (set aside face-up), so
         // project them for the wire (the raw `...state` spread would leak the
         // fat card defs). Per-card face-down hiding still applies via
@@ -2081,6 +2098,15 @@ export function projectFullState(
         // the raw `...state` spread never leaks fat card defs (mirror of the
         // public projection).
         pendingTriggerBatch: state.pendingTriggerBatch?.map(slimCard),
+        ...(state.delayedTriggers
+            ? {
+                  delayedTriggers: state.delayedTriggers.map((t) =>
+                      t.spellToCopy
+                          ? { ...t, spellToCopy: slimCard(t.spellToCopy) }
+                          : t
+                  ),
+              }
+            : {}),
         // CR 702.26 phasing — full debug view reveals everything; slim the phased-out
         // bundle cards to match the battlefield treatment (line above).
         phasedOut: state.phasedOut?.map((b) => ({
