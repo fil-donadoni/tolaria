@@ -9,7 +9,7 @@
 // mana cost."
 
 import { describe, it, expect } from "vitest";
-import type { CardDefinition, EffectOp } from "../../cards/types";
+import type { EffectOp } from "../../cards/types";
 import { registerTokenDefinition, getCardByName } from "../../cards";
 import {
     makeInstance,
@@ -32,7 +32,7 @@ import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
 import { computeSoloViewerId } from "../../soloViewer";
 import { validateEffectScript } from "../effects/validate";
-import { GOLDEN_FIXTURES } from "../../oracle/grammar/fixtures";
+import { compiledDevastationTide } from "../../oracle/__tests__/devastationTide.fixture";
 import { metamorphosisFanatic } from "../../cards/sets/dsc/black.cards";
 
 const islandId = getCardByName("Island").id;
@@ -40,13 +40,12 @@ const swampId = getCardByName("Swamp").id;
 const bearsId = getCardByName("Balduvian Bears").id;
 const sphereId = getCardByName("Sphere of Resistance").id;
 
-/** Devastation Tide, exactly as the compiler emits it (its golden fixture's
- *  expected definition), registered under a test id: the timing proof runs on
- *  the compiled card, not a lookalike. */
+/** Devastation Tide, exactly as the compiler emits it (compiled from its
+ *  Oracle row), registered under a test id: the timing proof runs on the
+ *  compiled card, not a lookalike. */
 const TIDE_ID = "test-miracle-devastation-tide";
 registerTokenDefinition({
-    ...(GOLDEN_FIXTURES.find((f) => f.card.name === "Devastation Tide")!
-        .expected as unknown as CardDefinition),
+    ...compiledDevastationTide(),
     id: TIDE_ID,
     rarity: "rare",
 });

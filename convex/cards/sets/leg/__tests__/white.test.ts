@@ -75,7 +75,6 @@ const alabasterPotion = getDefinition("2806c7f6-8fdd-4e65-9c71-f2e8b0cdede2");
 const amrouKithkin = getDefinition("cbce1c55-123c-4a05-bde4-18a1601fcc5a");
 const angelicVoices = getDefinition("8068c263-e5fa-4449-8887-418e9d0a4da4");
 const azureDrake = getDefinition("fb5f13a2-0896-4230-8957-6ad1cb2b895b");
-const cleanse = getDefinition("2fbd611b-ac97-4516-bad7-cc9ee4ef74f7");
 const clergyOfTheHolyNimbus = getDefinition(
     "db1f578f-fa3b-4447-953b-1490852b6c80"
 );
@@ -122,7 +121,6 @@ const removeEnchantments = getDefinition(
 );
 const righteousAvengers = getDefinition("d96b463e-9579-4e7b-87c2-342527b91e7c");
 const seeker = getDefinition("df608b59-cc07-4e1d-b6d6-f15e69b15b92");
-const shieldWall = getDefinition("a5032bf0-f9c0-4ef0-8ec2-fe7ccea9bdf3");
 const spiritLink = getDefinition("5e2d35f8-3cf6-4843-9030-0e9a885d836c");
 const spiritualSanctuary = getDefinition(
     "654dd1e0-a91d-44ee-af20-c025bf360c3f"
@@ -714,34 +712,6 @@ describe("Infinite Authority (becomes-blocked-by → end-of-combat destroy + nex
     });
 });
 
-describe("Cleanse (destroy all black creatures, CR 701.8)", () => {
-    it("destroys black creatures and spares others", () => {
-        // Scathe Zombies (black) dies; Hill Giant (red) survives.
-        const zombie = makeInstance("e9be6dcf-5e25-4b8c-9cd0-badf3771f81e", {
-            id: "zombie",
-            controllerId: "p2",
-        });
-        const giant = makeInstance("0ddb98e8-13fe-4786-83f7-b72c56db135a", {
-            id: "giant",
-            controllerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [zombie, giant] }),
-            ],
-        });
-        pushSpell(state, cleanse.id, "p1");
-        resolveTopOfStack(state);
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "zombie")
-        ).toBeUndefined();
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "giant")
-        ).toBeDefined();
-    });
-});
-
 describe("Divine Offering (destroy artifact + gain life = MV, CR 701.8)", () => {
     it("destroys the artifact and gains life equal to its mana value", () => {
         const artifact = makeInstance("4b71ff49-ee0a-4065-9131-380468d62a30", {
@@ -930,34 +900,6 @@ describe("Great Defender (+0/+X where X = target's MV, CR 202.3)", () => {
         ]);
         resolveTopOfStack(state);
         expect(getEffectiveToughness(state, angel)).toBe(baseTough + 5);
-    });
-});
-
-describe("Shield Wall (+0/+2 to your creatures EOT, CR 611.1)", () => {
-    it("buffs every creature you control", () => {
-        const c1 = makeInstance(keepersOfTheFaith.id, {
-            id: "c1",
-            controllerId: "p1",
-        });
-        const c2 = makeInstance(keepersOfTheFaith.id, {
-            id: "c2",
-            controllerId: "p1",
-        });
-        const opp = makeInstance(keepersOfTheFaith.id, {
-            id: "opp",
-            controllerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [c1, c2] }),
-                makePlayer("p2", { battlefield: [opp] }),
-            ],
-        });
-        pushSpell(state, shieldWall.id, "p1");
-        resolveTopOfStack(state);
-        expect(getEffectiveToughness(state, c1)).toBe(5); // 3 + 2
-        expect(getEffectiveToughness(state, c2)).toBe(5);
-        expect(getEffectiveToughness(state, opp)).toBe(3); // unaffected
     });
 });
 

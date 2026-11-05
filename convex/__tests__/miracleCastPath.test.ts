@@ -16,9 +16,9 @@ import {
 import { registerTokenDefinition, getCardByName } from "../cards";
 import { resolveTopOfStack } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
-import type { CardDefinition, EffectOp } from "../cards/types";
+import type { EffectOp } from "../cards/types";
 import type { Id } from "../_generated/dataModel";
-import { GOLDEN_FIXTURES } from "../oracle/grammar/fixtures";
+import { compiledDevastationTide } from "../oracle/__tests__/devastationTide.fixture";
 import {
     makeMutationCtx,
     runMutation,
@@ -31,8 +31,7 @@ const BEARS = getCardByName("Balduvian Bears").id;
 
 const TIDE_ID = "test-miracle-path-devastation-tide";
 registerTokenDefinition({
-    ...(GOLDEN_FIXTURES.find((f) => f.card.name === "Devastation Tide")!
-        .expected as unknown as CardDefinition),
+    ...compiledDevastationTide(),
     id: TIDE_ID,
     rarity: "rare",
 });

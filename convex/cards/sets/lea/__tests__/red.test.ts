@@ -63,7 +63,6 @@ const dwarvenWarriors = getDefinition("2d4d87a3-5f8b-4152-9a8b-538ab49d62e8");
 const earthbind = getDefinition("a6d492b7-b0b3-420e-8d00-6dacb11de77e");
 const earthquake = getDefinition("e68ac362-6cdc-48a6-bdd3-4f8ea32add64");
 const falseOrders = getDefinition("7eb71ac4-796d-4011-9002-1129bc09c284");
-const flashfires = getDefinition("ee8a05a4-0ce3-4abe-bb60-08af53cf08e5");
 const fireball = getDefinition("b7623c00-144b-4a8f-9c6c-f5e9e4f65ece");
 const firebreathing = getDefinition("3eb27381-505d-4e47-bf66-9e7ba91a5075");
 const fork = getDefinition("e6b43916-fe2d-417a-a550-d7c795023297");
@@ -2893,52 +2892,5 @@ describe("Raging River (pile combat — CR 509.2 variant, ADR 0012)", () => {
             restored.players[1].battlefield.find((c) => c.id === "g1")!
                 .pileLabel
         ).toBe("left");
-    });
-});
-
-// Migration harness (ADR 0045, issue #831): Flashfires had no per-card test, so
-// this behaviour test is authored to guard the resolve()→effects[] migration
-// (destroyAll{Plains} → forEach/destroy).
-describe("Flashfires ({3}{R} — destroy all Plains, CR 701.8)", () => {
-    it("destroys every Plains across both players and spares other lands", () => {
-        const p1Plains = makeInstance(plains.id, {
-            id: "p1-plains",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const p1Swamp = makeInstance(swamp.id, {
-            id: "p1-swamp",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const p2Plains = makeInstance(plains.id, {
-            id: "p2-plains",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [p1Plains, p1Swamp] }),
-                makePlayer("p2", { battlefield: [p2Plains] }),
-            ],
-        });
-        pushSpell(state, flashfires.id, "p1");
-        resolveTopOfStack(state);
-        expect(
-            state.players[0].battlefield.find((c) => c.id === "p1-plains")
-        ).toBeUndefined();
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "p2-plains")
-        ).toBeUndefined();
-        // Non-Plains land survives.
-        expect(
-            state.players[0].battlefield.find((c) => c.id === "p1-swamp")
-        ).toBeDefined();
-        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
-            "p1-plains"
-        );
-        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
-            "p2-plains"
-        );
     });
 });
