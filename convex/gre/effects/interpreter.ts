@@ -3433,6 +3433,7 @@ function copyOptionsFromExcept(
     // resolves it from Thespian's Stage's definition, not the land it copies).
     const abilityCardId = ctx.abilityCardId ?? ctx.sourceCardId;
     return {
+        ...(except.name !== undefined ? { name: except.name } : {}),
         ...(except.basePower !== undefined
             ? { basePower: except.basePower }
             : {}),

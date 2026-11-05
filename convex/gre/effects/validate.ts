@@ -69,6 +69,7 @@ export type EffectScriptHost = Pick<
     | "effect"
     | "modes"
     | "aiEffects"
+    | "entersWith"
 > &
     // CR 300.1 permanent types (issue #1097) — read ONLY by the
     // exileSelf/shuffleSelfIntoLibrary permanent-spell gate below; every
@@ -9976,6 +9977,19 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
     const errors: string[] = [];
     const label = `${def.name} (${def.id})`;
 
+    // CR 603.11 — an as-enters copy's linked trigger is an Effect Script too,
+    // reading the copied card as `$copied` (`AsEntersChoice.whenCopied`).
+    for (const choice of def.entersWith?.asEnters ?? []) {
+        if (choice.kind !== "copy" || !choice.whenCopied) continue;
+        validateEffectOpList(
+            choice.whenCopied.effects,
+            `${label}: asEnters copy whenCopied`,
+            COPY_LINKED_TRIGGER_BINDINGS,
+            errors,
+            undefined
+        );
+    }
+
     if (def.effects === undefined) return errors;
 
     // 3 — mutual exclusivity per effect site (ADR 0045: one authoring mode
@@ -10178,6 +10192,12 @@ const EMPTY_BINDINGS: ReadonlySet<string> = new Set();
  *  resolves it to undefined and the reading Op skips (CR 608.2b), exactly as
  *  `$source` does for a source that has left the battlefield. */
 const ABILITY_BINDINGS: ReadonlySet<string> = new Set(["$source", "$host"]);
+/** What `AsEntersChoice.whenCopied`'s body may read: the ability site's own, and
+ *  the card the copy effect copied. */
+const COPY_LINKED_TRIGGER_BINDINGS: ReadonlySet<string> = new Set([
+    ...ABILITY_BINDINGS,
+    "$copied",
+]);
 
 /** The narrow ability slice the ability-site validator reads. Both
  *  `ActivatedAbility` and `TriggeredAbility` satisfy it structurally.

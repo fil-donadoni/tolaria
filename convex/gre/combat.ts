@@ -3,6 +3,7 @@ import type {
     GameState,
     GrantedAttackRequirement,
 } from "./state";
+import { copyExceptName } from "../cards/cardNames";
 import { recomputeContinuousEffects } from "./state";
 import type {
     ManaCost,
@@ -1127,7 +1128,8 @@ function unobeyedBlockRequirement(state: GameState): string | undefined {
     const inst = defender?.battlefield.find((c) => c.id === missingIds[0]);
     const name =
         (inst
-            ? tryGetDefinition((inst.card as { id?: string }).id ?? "")?.name
+            ? (copyExceptName(inst) ??
+              tryGetDefinition((inst.card as { id?: string }).id ?? "")?.name)
             : undefined) ?? "A creature";
     return `${name} must block this combat if able`;
 }

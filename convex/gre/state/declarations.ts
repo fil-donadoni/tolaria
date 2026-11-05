@@ -3674,10 +3674,12 @@ export type PendingChoice = {
     /** Optional battlefield filter (card types / subtypes / keywords). Ignored
      *  for hand choices. */
     filter?: PermanentFilter;
-    /** When true, the choosable set spans EVERY player's battlefield rather
-     *  than a single owner's (CR 707 — Clone / Copy Artifact "a copy of any
-     *  creature/artifact on the battlefield"). Only meaningful for
-     *  `zone: "battlefield"`; the UI routes clicks to all battlefields. */
+    /** When true, the choosable set spans EVERY player's battlefield or
+     *  graveyard rather than a single owner's (CR 707 — Clone / Copy Artifact "a
+     *  copy of any creature/artifact on the battlefield", a copy of "any
+     *  creature card in a graveyard"). Only meaningful for `zone: "battlefield"`
+     *  (the UI routes clicks to all battlefields) and `zone: "graveyard"` (the
+     *  chooser's pile shows every graveyard). */
     allControllers?: boolean;
     /** Number of items to pick. Two shapes:
      *  - `number` (fixed N) — the chooser must select exactly N.
@@ -6172,6 +6174,14 @@ export interface StagedEntry {
      *  copied definition's own `asEnters` (CR 707.6, ADR 0100 D4). The entry
      *  resumes only when this is empty. */
     owed: AsEntersChoice[];
+    /** CR 603.11 / 707.9g — the linked trigger of the copy effect this entry
+     *  applied last (`AsEntersChoice.whenCopied`), queued once the permanent has
+     *  entered. JSON-pure: it survives the entry's DB round-trip. */
+    copyLinkedTrigger?: {
+        copiedCardId: string;
+        oracleText: string;
+        effects: EffectOp[];
+    };
     /** Definition ids whose `entersWith.asEnters` have already been folded into
      *  `owed` (CR 707.6 / ADR 0100 D4). A copy answer rewrites the staged card's
      *  presented definition; the refresh pass appends the new definition's

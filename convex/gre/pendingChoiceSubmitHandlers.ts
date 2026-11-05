@@ -40,6 +40,7 @@ import {
 import { findCardInAnyZone } from "./lookup";
 import { outsideGamePool } from "./outsideGame";
 import { tryGetDefinition } from "../cards";
+import { copyExceptName } from "../cards/cardNames";
 import { damageSourceChoicePool } from "./damageSourceChoice";
 import { applyMulliganBottomChoice } from "./mulligan";
 import {
@@ -453,7 +454,9 @@ function pileCardNames(state: GameState, ids: string[] = []): string[] {
             names.push("Face-down card");
             continue;
         }
-        const name = tryGetDefinition(card.card.id as string)?.name;
+        const name =
+            copyExceptName(card) ??
+            tryGetDefinition(card.card.id as string)?.name;
         if (name) names.push(name);
     }
     return names;

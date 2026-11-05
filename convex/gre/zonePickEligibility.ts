@@ -28,6 +28,13 @@ export function choiceSpansAllBattlefields(head: PendingChoice): boolean {
     return head.allControllers === true || head.kind === "choose-damage-target";
 }
 
+/** Whether a graveyard pick draws from EVERY player's graveyard (an as-enters
+ *  copy "of any creature card in a graveyard", CR 707.2). The ONE reader of
+ *  this scope, like {@link choiceSpansAllBattlefields}. */
+export function choiceSpansAllGraveyards(head: PendingChoice): boolean {
+    return head.zone === "graveyard" && head.allControllers === true;
+}
+
 /** The cards the chooser may legally include in a zone-pick submission — the
  *  enumeration mirror of `applyPendingChoiceSubmit`'s per-id validation: zone
  *  membership (of `zoneOwnerId ?? playerId`, or every battlefield for
@@ -61,7 +68,9 @@ export function eligibleZonePickCards(
             pool = zoneOwner.library;
             break;
         case "graveyard":
-            pool = zoneOwner.graveyard;
+            pool = choiceSpansAllGraveyards(head)
+                ? state.players.flatMap((p) => p.graveyard)
+                : zoneOwner.graveyard;
             break;
         case "battlefield-or-stack":
             // CR 609.7a (issue #5601) — the source pool; the raise's

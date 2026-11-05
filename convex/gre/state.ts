@@ -241,6 +241,7 @@ import {
     runModeInstanceScripts,
 } from "./effects/interpreter";
 import { spliceMergedEffects } from "./splice";
+import { copyExceptName } from "../cards/cardNames";
 import { matchesPermanentFilter, matchesSpellFilter } from "../cards/filters";
 import { getEffectiveColors } from "../cards/effectiveColors";
 import type {
@@ -11431,6 +11432,22 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
         }
         case "copy": {
             const candidateIds = asEntersCopyCandidates(state, card, choice);
+            if (choice.fromGraveyard) {
+                // CR 707.2 — the graveyard twin of the battlefield pick below,
+                // on the shipped `choose-graveyard-card` shape; optional for
+                // the same reason. `allControllers` spans every graveyard
+                // (`zonePickEligibility.ts`, the client's pile).
+                pending = {
+                    ...base,
+                    kind: "choose-graveyard-card",
+                    zone: "graveyard",
+                    allControllers: true,
+                    candidateIds,
+                    count: { min: 0, max: 1 },
+                    prompt: `Choose what ${subject} enters as a copy of.`,
+                };
+                break;
+            }
             pending = {
                 ...base,
                 kind: "choose-permanents",
@@ -11697,6 +11714,19 @@ function asEntersCopyCandidates(
     card: CardInstanceState,
     choice: Extract<AsEntersChoice, { kind: "copy" }>
 ): string[] {
+    const fromGraveyard = choice.fromGraveyard;
+    if (fromGraveyard) {
+        // CR 113.6b — matched as a GRAVEYARD card, in every player's graveyard.
+        return state.players.flatMap((p) =>
+            p.graveyard
+                .filter(
+                    (c) =>
+                        c.id !== card.id &&
+                        handCardMatchesFilter(c, fromGraveyard, "graveyard")
+                )
+                .map((c) => c.id)
+        );
+    }
     const candidateIds: string[] = [];
     for (const p of state.players) {
         for (const c of p.battlefield) {
@@ -11989,13 +12019,37 @@ function applyAsEntersAnswer(
         }
         case "copy": {
             const sourceId = selected[0];
-            const source = sourceId
-                ? findOnBattlefield(state, sourceId)?.card
-                : undefined;
+            // Re-derived against the LIVE zone, as `exileFromGraveyard` does: a
+            // sibling entry may have moved the card since the prompt.
+            const source = !sourceId
+                ? undefined
+                : choice.fromGraveyard
+                  ? asEntersCopyCandidates(state, card, choice).includes(
+                        sourceId
+                    )
+                      ? state.players
+                            .flatMap((p) => p.graveyard)
+                            .find((c) => c.id === sourceId)
+                      : undefined
+                  : findOnBattlefield(state, sourceId)?.card;
             // CR 707.6 — the copy is applied to the object BEFORE it enters, so
             // nothing ever observes the printed 0/0 (CR 707.5 forbids the
             // "enters, then becomes a copy" shape outright).
-            if (source) applyCopy(state, card, source, choice.opts ?? {});
+            if (source) {
+                applyCopy(state, card, source, choice.opts ?? {});
+                // CR 707.9g — only the copy effect applied LAST keeps its
+                // linked trigger: a later one (a copied Clone's own clause,
+                // CR 707.6) replaces this, and declining it leaves this alone.
+                if (choice.whenCopied) {
+                    entry.copyLinkedTrigger = {
+                        copiedCardId: source.id,
+                        oracleText: choice.whenCopied.oracleText,
+                        effects: [...choice.whenCopied.effects],
+                    };
+                } else {
+                    delete entry.copyLinkedTrigger;
+                }
+            }
             return {};
         }
         case "opponent": {
@@ -12420,6 +12474,56 @@ function runStagedEntryTail(state: GameState, entry: StagedEntry): void {
     }
 }
 
+/** CR 603.12 — one reflexive triggered ability, not yet on the stack: the ONE
+ *  shape `pushReflexiveTrigger` (a resolving effect's "when you do") and an
+ *  as-enters copy's linked trigger (CR 603.11) both queue on
+ *  `pendingReflexiveTriggers`. */
+function buildReflexiveStackItem(
+    state: GameState,
+    trigger: {
+        sourceInstanceId: string;
+        sourceCardId: string;
+        controllerId: string;
+        oracleText: string;
+        effects: readonly EffectOp[];
+        payload: Record<string, string | string[]>;
+        targetRequirement?: TargetRequirement;
+    }
+): StackItem {
+    const source = findOnBattlefield(state, trigger.sourceInstanceId);
+    return {
+        id: allocInstanceId(state),
+        // CR 603.12 → 603.7d/603.7e (issue #3719) — a reflexive ability's SOURCE
+        // is the source of the ability that created it (the spell, for a
+        // spell). Without it the body resolved with its own fresh stack id as
+        // `ctx.sourceInstanceId`, so an `excludeSource` filter inside it ("a
+        // red permanent other than Ajani") excluded nothing.
+        triggerSourceId: trigger.sourceInstanceId,
+        card: { id: trigger.sourceCardId },
+        controllerId: trigger.controllerId,
+        ownerId: trigger.controllerId,
+        zone: "stack",
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        isTapped: false,
+        castById: trigger.controllerId,
+        delayedTriggerId: INLINE_DELAYED_TRIGGER_ID,
+        delayedEffects: [...trigger.effects],
+        delayedOracleText: trigger.oracleText,
+        reflexiveTrigger: true,
+        ...(source
+            ? { stackTransformStamp: stackTransformStamp(source.card) }
+            : {}),
+        ...(Object.keys(trigger.payload).length > 0
+            ? { delayedPayload: trigger.payload }
+            : {}),
+        ...(trigger.targetRequirement
+            ? { inlineTargetRequirement: trigger.targetRequirement }
+            : {}),
+    };
+}
+
 /** Applies one answer to the head of `entry.owed` and advances the entry: either
  *  the next owed choice is queued (the list may have GROWN — CR 707.6), or the
  *  entry is unstaged and its deferred entry tail runs. Deliberately does NOT
@@ -12443,7 +12547,31 @@ export function advanceStagedEntry(
     }
     const remaining = (state.stagedEntries ?? []).filter((e) => e !== entry);
     state.stagedEntries = remaining.length > 0 ? remaining : undefined;
-    if (!outcome.aborted) runStagedEntryTail(state, entry);
+    if (!outcome.aborted) {
+        runStagedEntryTail(state, entry);
+        queueCopyLinkedTrigger(state, entry);
+    }
+}
+
+/** CR 603.11 / 707.9g — "When you do, exile that card": the permanent entered
+ *  with the copy effect its trigger is linked to, so that trigger waits for the
+ *  next priority beside every other (CR 603.3b). Sourced from the permanent's
+ *  own PRINTED card: the ability is the printed one, whatever it now copies. */
+function queueCopyLinkedTrigger(state: GameState, entry: StagedEntry): void {
+    const linked = entry.copyLinkedTrigger;
+    if (!linked) return;
+    state.pendingReflexiveTriggers = [
+        ...(state.pendingReflexiveTriggers ?? []),
+        buildReflexiveStackItem(state, {
+            sourceInstanceId: entry.card.id,
+            sourceCardId: entry.card.copiedFrom ?? presentedDefId(entry.card),
+            controllerId: entry.controllerId,
+            oracleText: linked.oracleText,
+            effects: linked.effects,
+            // The binding sigil is stripped on store (`runDelayedTriggerBody`).
+            payload: { copied: linked.copiedCardId },
+        }),
+    ];
 }
 
 /** CR 614.12b — "that player may not make choices for those effects that would
@@ -13296,7 +13424,9 @@ export function buildSpellContext(
             return matchesPermanentFilter(
                 {
                     ...lki,
-                    name: cardId ? tryGetDefinition(cardId)?.name : undefined,
+                    name:
+                        copyExceptName(lki) ??
+                        (cardId ? tryGetDefinition(cardId)?.name : undefined),
                     manaValue: permanentManaValue(lki),
                 },
                 filter,
@@ -17499,51 +17629,20 @@ export function buildSpellContext(
             payload: Record<string, string | string[]>,
             targetRequirement?: TargetRequirement
         ): void {
-            const controller = item.castById;
             // CR 701.27f (issue #3537) — a reflexive trigger is a triggered
             // ability of the resolving ability's source permanent (none for a
             // spell: its id is on no battlefield).
-            const reflexiveSourceId = item.triggerSourceId ?? item.id;
-            const reflexiveSource = findOnBattlefield(state, reflexiveSourceId);
-            const reflexive: StackItem = {
-                id: allocInstanceId(state),
-                // CR 603.12 → 603.7d/603.7e (issue #3719) — a reflexive
-                // ability's SOURCE is the source of the ability that created
-                // it (the spell, for a spell). Without it the body resolved
-                // with its own fresh stack id as `ctx.sourceInstanceId`, so
-                // an `excludeSource` filter inside it ("a red permanent other
-                // than Ajani") excluded nothing.
-                triggerSourceId: reflexiveSourceId,
-                card: { id: sourceCardId },
-                controllerId: controller,
-                ownerId: controller,
-                zone: "stack",
-                types: [],
-                subtypes: [],
-                staticAbilities: [],
-                isTapped: false,
-                castById: controller,
-                delayedTriggerId: INLINE_DELAYED_TRIGGER_ID,
-                delayedEffects: [...effects],
-                delayedOracleText: oracleText,
-                reflexiveTrigger: true,
-                ...(reflexiveSource
-                    ? {
-                          stackTransformStamp: stackTransformStamp(
-                              reflexiveSource.card
-                          ),
-                      }
-                    : {}),
-                ...(Object.keys(payload).length > 0
-                    ? { delayedPayload: payload }
-                    : {}),
-                ...(targetRequirement
-                    ? { inlineTargetRequirement: targetRequirement }
-                    : {}),
-            };
             state.pendingReflexiveTriggers = [
                 ...(state.pendingReflexiveTriggers ?? []),
-                reflexive,
+                buildReflexiveStackItem(state, {
+                    sourceInstanceId: item.triggerSourceId ?? item.id,
+                    sourceCardId,
+                    controllerId: item.castById,
+                    oracleText,
+                    effects,
+                    payload,
+                    targetRequirement,
+                }),
             ];
         },
         hasAttackedThisTurn(target: TargetSelection): boolean {
@@ -19041,7 +19140,10 @@ export function buildSpellContext(
                     const found = zone.find((c) => c.id === cardInstanceId);
                     if (found) {
                         const id = (found.card as { id?: string }).id;
-                        return id ? tryGetDefinition(id)?.name : undefined;
+                        return (
+                            copyExceptName(found) ??
+                            (id ? tryGetDefinition(id)?.name : undefined)
+                        );
                     }
                 }
             }
@@ -19154,9 +19256,9 @@ export function buildSpellContext(
                     // CR 201.2 — live printed name from the registry, so a
                     // `name` filter (issue #985) matches on the battlefield.
                     const cardId = (c.card as { id?: string }).id;
-                    const name = cardId
-                        ? tryGetDefinition(cardId)?.name
-                        : undefined;
+                    const name =
+                        copyExceptName(c) ??
+                        (cardId ? tryGetDefinition(cardId)?.name : undefined);
                     return matchesPermanentFilter(
                         {
                             ...c,
@@ -19569,7 +19671,7 @@ export function buildSpellContext(
                 return {
                     types: [...found.card.types],
                     subtypes: [...found.card.subtypes],
-                    name: def?.name ?? "",
+                    name: copyExceptName(found.card) ?? def?.name ?? "",
                 };
             }
             if (target.type === "spell") {
