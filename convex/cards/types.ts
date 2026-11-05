@@ -19888,6 +19888,17 @@ export type EffectOp =
      *  nothing here, which is exactly what "that creature" in the Oracle text
      *  means. */
     | { op: "exileOnDeath"; target: EffectObjectSelector }
+    /** CR 614.1a (issue #8165) — arm the persistent replacement "if it would
+     *  leave the battlefield, exile it instead of putting it anywhere else"
+     *  on a permanent (Unearth, CR 702.84a). A thin declarative skin over the
+     *  single SpellContext primitive `setExileOnLeave`, one execution path
+     *  (ADR 0045). `target` is an announced slot, `$source`, `$each` or a
+     *  bound ref. Distinct from `exileOnDeath`: EVERY departure path, no
+     *  turn scope, any permanent; it ends only when the object does (CR
+     *  400.7). It is not an ability of the permanent, so removing the
+     *  permanent's abilities leaves it standing. No-op on a non-permanent
+     *  target or one that has already left (CR 609.3). */
+    | { op: "exileOnLeave"; target: EffectObjectSelector }
     /** CR 615.12 / 614.9 (issue #2231) — lock a permanent so that damage which
      *  would be dealt TO it this turn "can't be prevented or dealt instead to
      *  another permanent or player" (Whippoorwill). A thin declarative skin

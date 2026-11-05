@@ -389,6 +389,11 @@ export type SlotIR =
      */
     | { readonly kind: "ninjutsu"; readonly cost: ManaCost }
     /**
+     * CR 702.84a — an "Unearth [cost]" line: an activated ability usable from
+     * the graveyard, lowered through the catalogue's `unearthAbility` factory.
+     */
+    | { readonly kind: "unearth"; readonly cost: ManaCost }
+    /**
      * CR 702.175a — an "Offspring [cost]" line: the additional cost (a
      * `kickers[]` entry with `keyword: "offspring"`) and its token-copy
      * trigger. `description` is the printed line.

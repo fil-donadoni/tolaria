@@ -5472,6 +5472,14 @@ const OP_SCHEMAS: OpSchemaTable = {
             target: isObjectSelector,
         },
     },
+    // CR 614.1a (issue #8165) — the persistent "if it would leave the
+    // battlefield, exile it instead" replacement. No duration: the lifetime is
+    // the object's own (CR 400.7).
+    exileOnLeave: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
     // CR 615.12 / 614.9 (issue #2231) — lock a permanent so damage dealt TO it
     // this turn can't be prevented or dealt instead to another permanent or
     // player (Whippoorwill). `target` is an object selector (announced slot,

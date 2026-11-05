@@ -37,6 +37,7 @@
 // authority: Eternalize is row `id: "eternalize"`.
 
 import type { ActivatedAbility, Color, ManaCost } from "../types";
+import { keywordCostLabel } from "./keywordCostLabel";
 
 /** CR 702.129a — the base power/toughness every Eternalize token has. */
 const ETERNALIZE_BASE_PT = 4;
@@ -47,21 +48,6 @@ const ETERNALIZE_COLOR: Color = "B";
 /** CR 702.129a — the creature type every Eternalize token gains, in addition to
  *  the copied card's own subtypes (CR 205.1b). */
 const ETERNALIZE_SUBTYPE = "Zombie";
-
-/** Renders a `ManaCost` as its `{2}{G}{G}` reminder-text label (CR 107.1/202.1).
- *  Generic first (the codebase encodes fixed generic as a numeric `X`, see
- *  `ManaCost`), then one pip per coloured/colourless unit in WUBRG order so the
- *  label matches the printed cost's canonical ordering. */
-function eternalizeCostLabel(cost: ManaCost): string {
-    const generic =
-        (typeof cost.X === "number" ? cost.X : 0) + (cost.generic ?? 0);
-    let out = generic > 0 ? `{${generic}}` : "";
-    for (const sym of ["W", "U", "B", "R", "G", "C"] as const) {
-        const n = cost[sym];
-        if (typeof n === "number") out += `{${sym}}`.repeat(n);
-    }
-    return out;
-}
 
 /** Builds the Eternalize activated ability (CR 702.129) for a card whose
  *  printed eternalize cost is `cost`. Add the returned ability to the card's
@@ -85,7 +71,7 @@ export function eternalizeAbility(
     imagePrintId: string,
     id = "eternalize"
 ): ActivatedAbility {
-    const label = eternalizeCostLabel(cost);
+    const label = keywordCostLabel(cost);
     const body = [ETERNALIZE_SUBTYPE, ...subtypes].join(" ");
     return {
         id,

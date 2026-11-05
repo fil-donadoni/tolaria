@@ -501,13 +501,11 @@ export const dreamsOfTheDead = defineCard(() => ({
                 colorFilterAny: ["W", "B"],
             },
             // NOT DSL-migratable (ADR 0045): even though `moveZone` could
-            // cover the graveyard→battlefield reanimation clause, TWO later
-            // clauses have no Op: (a) CR 113.1/611.2c PERMANENT triggered-
+            // cover the graveyard→battlefield reanimation clause, a later
+            // clause has no Op: the CR 113.1/611.2c PERMANENT triggered-
             // ability grant onto the reanimated creature (no Op wraps
-            // `grantTriggeredAbilityPermanent`) and (b) CR 614.1c "exile
-            // instead of leaving anywhere else" persistent replacement (no Op
-            // wraps `setExileOnLeave`). Blocked on: a permanent
-            // triggered-ability-grant Op and an exile-on-leave Op.
+            // `grantTriggeredAbilityPermanent`). Blocked on that Op; the
+            // exile-on-leave clause has its Op, `exileOnLeave`.
             resolve: (ctx: SpellContext) => {
                 const t = ctx.targets[0];
                 if (!t || t.type !== "graveyard-card" || !t.playerId) return;
