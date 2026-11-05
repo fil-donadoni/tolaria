@@ -12,6 +12,7 @@ import {
     mayPayRequiredSacrifices,
     mayPaySacrificeThreshold,
     mayPaySacrificeSelectionPower,
+    mayPayGraveyardVerb,
     mayPayHandVerb,
     mayPayRequiredDiscards,
     mayPayRequiredGraveyardReturns,
@@ -202,7 +203,7 @@ export default function PendingChoicePrompt({
             : 0;
     const needsDiscardPick = discardPickCount > 0;
     // CR 118.3 / 118.12a — a may-pay graveyard leg sets `zone: "graveyard"`;
-    // the chooser picks the card(s) to return in the graveyard picker.
+    // the chooser picks the card(s) that pay it in the graveyard picker.
     const graveyardPickCount =
         isMayPay && choice.zone === "graveyard"
             ? mayPayRequiredGraveyardReturns(choice.cost)
@@ -557,7 +558,8 @@ export default function PendingChoicePrompt({
                                         <p className="text-text-disabled text-xs">
                                             {selected} / {graveyardPickCount}{" "}
                                             selected — choose a card in your
-                                            graveyard to return
+                                            graveyard to{" "}
+                                            {mayPayGraveyardVerb(choice.cost)}
                                         </p>
                                     )}
                                     <div className="flex gap-2 mt-1">

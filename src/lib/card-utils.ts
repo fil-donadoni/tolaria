@@ -4210,7 +4210,7 @@ export function mayPayCanAfford(
     }
     if (
         norm.graveyard &&
-        (norm.graveyard.action !== "return" ||
+        (norm.graveyard.action === "exile" ||
             mayPayGraveyardCandidates(graveyard ?? [], norm.graveyard).length <
                 norm.graveyard.count)
     ) {
@@ -4669,6 +4669,17 @@ export function mayPayHandVerb(
     return cost.hand.action === "exile" ? "exile" : "discard";
 }
 
+/** The verb a may-pay graveyard leg's picker names: what happens to the picked
+ *  cards (CR 118.12). */
+export function mayPayGraveyardVerb(
+    cost: MayPayCost | undefined
+): "return" | "exile" {
+    if (!cost) return "return";
+    return normalizeMayPayCost(cost).graveyard?.action === "exile-chosen"
+        ? "exile"
+        : "return";
+}
+
 /** Whether the chooser's current discard pick satisfies a hand `may-pay`
  *  discard leg (CR 701.9 / 118.9, issue #899): the selection must name exactly
  *  `count` distinct hand cards AND cover every requirement from DISTINCT
@@ -4769,10 +4780,11 @@ export function mayPayCostLabel(cost?: MayPayCost): string {
         const n = norm.graveyard.count;
         const noun = graveyardLegNoun(norm.graveyard.filter);
         const article = /^[aeiou]/.test(noun) ? "an" : "a";
+        const verb = norm.graveyard.action === "return" ? "return" : "exile";
         parts.push(
             n === 1
-                ? `return ${article} ${noun} from your graveyard`
-                : `return ${n} ${noun}s from your graveyard`
+                ? `${verb} ${article} ${noun} from your graveyard`
+                : `${verb} ${n} ${noun}s from your graveyard`
         );
     }
     return parts.join(" and ");
