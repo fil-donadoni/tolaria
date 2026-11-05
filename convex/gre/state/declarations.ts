@@ -820,6 +820,11 @@ export type CardInstanceState = {
      *  it into P/T, and it is dropped on any further zone change and on any
      *  re-entry to the battlefield (`resetBattlefieldTransientState`). */
     countersAtLeave?: Record<string, number>;
+    /** CR 603.10a / 613.1f last-known information: the composed keyword multiset
+     *  this permanent had as it left the battlefield, when the card in the new zone
+     *  no longer shows it (a duration or Aura grant, a copy's keywords). Read only
+     *  by the look-back (`lookBackSelf`); never a live ability of the card. */
+    keywordsAtLeave?: string[];
     /** CR 608.2h / 400.7 (issue #2384): binding rows one of THIS permanent's
      *  abilities captured for a LATER, separate ability of the same permanent
      *  to read — the cross-ability last-known-information channel, written by

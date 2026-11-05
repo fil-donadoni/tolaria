@@ -175,6 +175,7 @@ export const CARD_FIELD_LIFECYCLE = {
     canAttackDespiteDefenderThisTurn: { codec: "flag", reset: TURN },
     counters:                   { codec: "record",  reset: ZONE },
     countersAtLeave:            { codec: "record",  reset: ZONE },
+    keywordsAtLeave:            { codec: "list",    reset: ZONE },
     capturedBindings:           { codec: "record",  reset: NONE },
     worldSeq:                   { codec: "defined", reset: NONE },
     staticSeq:                  { codec: "defined", reset: ZONE },

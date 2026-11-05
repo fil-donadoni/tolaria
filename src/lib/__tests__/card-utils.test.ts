@@ -2600,6 +2600,17 @@ describe("getTriggeredAbilityOracleText — melee (CR 702.121a)", () => {
     });
 });
 
+describe("getTriggeredAbilityOracleText — persist and undying (CR 702.79a, CR 702.93a)", () => {
+    it("names the trigger of a keyword no definition lists as an ability", () => {
+        expect(getTriggeredAbilityOracleText("any-card", "persist")).toContain(
+            "-1/-1 counter"
+        );
+        expect(getTriggeredAbilityOracleText("any-card", "undying")).toContain(
+            "+1/+1 counter"
+        );
+    });
+});
+
 describe("getTriggeredAbilityOracleText — emblem source (CR 114)", () => {
     // Regression: an emblem-sourced trigger's `card.id` is an emblem KEY, not a
     // card registry id, so a hard `getDefinition` threw "Card not found" and

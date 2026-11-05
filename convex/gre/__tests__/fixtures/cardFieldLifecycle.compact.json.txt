@@ -236,6 +236,9 @@
           "countersAtLeave": {
             "+1/+1": 1
           },
+          "keywordsAtLeave": [
+            "undying"
+          ],
           "capturedBindings": {
             "exiled": [
               "inst-x"
@@ -688,6 +691,9 @@
       "countersAtLeave": {
         "+1/+1": 1
       },
+      "keywordsAtLeave": [
+        "undying"
+      ],
       "capturedBindings": {
         "exiled": [
           "inst-x"
