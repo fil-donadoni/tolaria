@@ -53,6 +53,7 @@ import {
     noCulpritIssueTitle,
     PIPELINE_TOOLING_TESTS,
     settleContainedGrant,
+    withClass,
     type ContainedGrantEffects,
     escalationOf,
     episodeFirstRed,
@@ -1958,6 +1959,32 @@ describe("the bisect grants Contained RED (ADR 0163 §§ 2-3)", () => {
         });
     });
 
+    it("a generated first red probe merged into a culprit already named refuses", () => {
+        const merged = attributeMaintenance(
+            {
+                found: [
+                    {
+                        culprit: COMMITS[0],
+                        tests: [{ file: BOT_FILE, name: "one" }],
+                    },
+                    {
+                        culprit: COMMITS[1],
+                        tests: [{ file: BOT_FILE, name: "two" }],
+                    },
+                ],
+                unexplained: null,
+                probes: [],
+            },
+            COMMITS,
+            subjectOf
+        );
+        expect(merged.found).toHaveLength(1);
+        expect(grantOf(botPin(), lines(merged))).toEqual({
+            grant: false,
+            why: expect.stringContaining("generated"),
+        });
+    });
+
     it("a generated first red probe with no PR before it refuses", () => {
         const none = attributeMaintenance(
             {
@@ -2157,6 +2184,30 @@ describe("the bisect grants Contained RED (ADR 0163 §§ 2-3)", () => {
             ]);
             expect(lineageOf(log.writes).kind).toBe("contained");
             expect(log.filed).toEqual([]);
+        });
+
+        it("the rewrites keep a cut file list cut, in both directions", () => {
+            const tests = Array.from(
+                { length: 8 },
+                (_, i) =>
+                    `scripts/__tests__/a-rather-long-file-name-${i}.test.ts`
+            );
+            const back = (v: Verdict) =>
+                decodeStatus({
+                    sha: RED,
+                    state: "failure",
+                    description: encodeDescription(v),
+                    targetUrl: null,
+                    createdAt: null,
+                }) as Verdict;
+            const read = back({ ...STORED, tests });
+            const total = (v: Verdict) =>
+                (v.tests?.length ?? 0) + (v.testsMore ?? 0);
+            expect(read.testsMore).toBeGreaterThan(0);
+            const granted = back(withClass(read, RECENT));
+            expect(granted.redClass).toBe("contained");
+            expect(total(granted)).toBe(8);
+            expect(total(back(withoutClass(granted, RECENT)))).toBe(8);
         });
 
         it("a refusal writes nothing: the RED keeps blocking", () => {
