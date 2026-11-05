@@ -2954,6 +2954,16 @@
         "source": "compiled"
     },
     {
+        "name": "Apprentice Sharpshooter",
+        "scryfallId": "f03f0790-cdc9-4bb4-ae54-2c248435b0a4",
+        "oracleId": "40d6e1ff-995b-42fc-8146-8d5e5f1adcd9",
+        "firstSet": "vow",
+        "firstPrintId": "f03f0790-cdc9-4bb4-ae54-2c248435b0a4",
+        "firstPrintSet": "vow",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Apprentice Wizard",
         "scryfallId": "151b332e-164b-4646-8f52-741984cd71ad",
         "oracleId": "d16d2451-1c21-4a6b-8a4a-40ac8cd9fe08",
@@ -33986,6 +33996,16 @@
         "source": "compiled"
     },
     {
+        "name": "Gryff Rider",
+        "scryfallId": "5317077b-370e-41a9-9162-c713362fd7f4",
+        "oracleId": "e1ca5c24-bbd8-4eed-bb2b-17163f90e72b",
+        "firstSet": "vow",
+        "firstPrintId": "5317077b-370e-41a9-9162-c713362fd7f4",
+        "firstPrintSet": "vow",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Gryff Vanguard",
         "scryfallId": "b7238136-c8de-4949-9b54-ff75094e0569",
         "oracleId": "3bcdf832-4ce2-4043-b46a-0c5fd7019fcd",
@@ -33993,6 +34013,16 @@
         "firstPrintId": "b7238136-c8de-4949-9b54-ff75094e0569",
         "firstPrintSet": "avr",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Gryffwing Cavalry",
+        "scryfallId": "792d5b41-27f3-455b-890e-a1771944fc7d",
+        "oracleId": "8e5e6f1d-4945-4074-a33e-c0e8b6b24a47",
+        "firstSet": "vow",
+        "firstPrintId": "792d5b41-27f3-455b-890e-a1771944fc7d",
+        "firstPrintSet": "vow",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -63176,6 +63206,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rural Recruit",
+        "scryfallId": "1bf35971-f1c4-4ccb-af5c-fd396391bb4b",
+        "oracleId": "fda06d9e-d17f-4bb6-916b-06116e47c8e8",
+        "firstSet": "vow",
+        "firstPrintId": "1bf35971-f1c4-4ccb-af5c-fd396391bb4b",
+        "firstPrintSet": "vow",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Rushing River",
         "scryfallId": "52ddf7bf-de9c-4657-8d5b-79869d36fa63",
         "oracleId": "6e2a695d-305a-4bbe-b302-11fdc5c2a451",
@@ -80217,6 +80257,16 @@
         "firstPrintId": "dfcf9a88-c5f8-4c26-a2ee-d2827e9a31d8",
         "firstPrintSet": "kld",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Torens, Fist of the Angels",
+        "scryfallId": "bd111dc9-b8de-4e92-a63d-75a961b2db3b",
+        "oracleId": "2cb96408-9195-4e41-ad9a-f8c74fbad083",
+        "firstSet": "vow",
+        "firstPrintId": "bd111dc9-b8de-4e92-a63d-75a961b2db3b",
+        "firstPrintSet": "vow",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

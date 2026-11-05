@@ -2256,7 +2256,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Training",
         kind: "keyword-ability",
         cr: "702.149",
-        status: "planned",
+        status: "implemented",
+        binding: "training",
+        note: 'Issue #4018. convex/cards/abilities/training.ts: a triggered keyword derived from the live layer-6 `staticAbilities` multiset (`liveKeywordTriggers.ts`), because a grant can carry it; each occurrence is one CR 702.149b instance. CR 702.149a compares the declared attackers\' effective power once, at ATTACKERS_DECLARED. CR 702.149c is `trainedTrigger`, read off `COUNTER_ADDED.byTriggeredAbilityId`; its "Whenever this creature trains" readers stay behind their own Grammar Gap.',
     },
     // 702.150 Compleated
     {
