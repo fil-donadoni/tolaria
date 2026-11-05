@@ -872,6 +872,7 @@ const TRIGGER_HEAD_EVENT: Record<CompiledTriggerHead["kind"], GameEventType> = {
     "damage-taken": "DAMAGE_DEALT",
     "attacks-unblocked": "ATTACKER_UNBLOCKED",
     "turned-face-up": "PERMANENT_TURNED_FACE_UP",
+    transforms: "PERMANENT_TRANSFORMED",
     "power-reached": "STATE_CHECK",
     tapped: "PERMANENT_TAPPED",
     "tapped-for-mana": "PERMANENT_TAPPED",

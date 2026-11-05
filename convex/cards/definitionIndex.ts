@@ -28,6 +28,7 @@
 import type { CardDefinition } from "./types";
 import { chooseableDomainNamesOf } from "./cardNames";
 import { backFaceAsTokenSpec } from "./backFaceSpec";
+import { expandBackFaceTriggers } from "./compiledTriggers";
 import { insetSpellTwinDefinition } from "./insetSpell";
 import { isTokenCodecBackFace, modalBackTwinDefinition } from "./modalDfc";
 import {
@@ -143,7 +144,9 @@ export function twinNameEntriesOf(def: CardDefinition): NameEntry[] {
 export function backFaceTriggerTokenId(
     def: CardDefinition
 ): string | undefined {
-    const backFace = def.backFace;
+    // A compiled row holds its back face's triggers as descriptors: the id a
+    // permanent presents is the REBUILT face's, so the lookup is read off it.
+    const backFace = expandBackFaceTriggers(def).backFace;
     if (!backFace?.triggeredAbilities?.length) return undefined;
     if (!isTokenCodecBackFace(backFace)) return undefined;
     return tokenDefinitionId(backFaceAsTokenSpec(backFace));

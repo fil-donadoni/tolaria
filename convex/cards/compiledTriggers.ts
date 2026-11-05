@@ -52,6 +52,7 @@ import type { Phase } from "../gre/types";
 import { hasMaxSpeed } from "../gre/speed";
 import { attackerUnblockedTrigger } from "./abilities/triggers/attackerUnblockedTrigger";
 import { becameTargetTrigger } from "./abilities/triggers/becameTargetTrigger";
+import { transformsTrigger } from "./abilities/triggers/transformsTrigger";
 import { turnedFaceUpTrigger } from "./abilities/triggers/turnedFaceUpTrigger";
 import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
 import { attacksOrBlocksTrigger } from "./abilities/triggers/attacksOrBlocksTrigger";
@@ -364,6 +365,7 @@ export type CompiledTriggerHead =
     | { readonly kind: "attacks-unblocked" }
     /** CR 708.8 — "when this creature is turned face up". Self only. */
     | { readonly kind: "turned-face-up" }
+    | { readonly kind: "transforms" }
     /** CR 701.26a — "whenever this permanent becomes tapped" (any tap). Self only. */
     | { readonly kind: "tapped"; readonly scope: "self" }
     /**
@@ -841,6 +843,8 @@ function resolveCompiledTriggerHead(
             return attackerUnblockedTrigger(common);
         case "turned-face-up":
             return turnedFaceUpTrigger(common);
+        case "transforms":
+            return transformsTrigger(common);
         case "tapped":
             return tappedTrigger({ ...common, scope: head.scope });
         case "tapped-for-mana": {
@@ -992,6 +996,25 @@ function expandBarTriggers(base: CardDefinition): CardDefinition {
     };
 }
 
+/** CR 712.8e — a compiled back face's descriptors, rebuilt onto the face on the
+ *  card that declares it: `registerBackFaceDefinition` and a cold decode of the
+ *  face's id (`printedBackFaceTriggers`) both read `backFace.triggeredAbilities`
+ *  off the expanded card. */
+export function expandBackFaceTriggers(base: CardDefinition): CardDefinition {
+    if (base.backFace?.compiledTriggeredAbilities === undefined) return base;
+    const { compiledTriggeredAbilities: descriptors, ...face } = base.backFace;
+    return {
+        ...base,
+        backFace: {
+            ...face,
+            triggeredAbilities: [
+                ...(face.triggeredAbilities ?? []),
+                ...(descriptors ?? []).map(resolveCompiledTrigger),
+            ],
+        },
+    };
+}
+
 /**
  * ADR 0054 seam — rebuild every compiled descriptor into a real triggered
  * ability, and REMOVE the descriptor field from the expanded definition.
@@ -1003,7 +1026,7 @@ function expandBarTriggers(base: CardDefinition): CardDefinition {
  * the harness would report that as a compiler defect on every trigger card.
  */
 export function expandCompiledTriggers(raw: CardDefinition): CardDefinition {
-    const base = expandBarTriggers(raw);
+    const base = expandBackFaceTriggers(expandBarTriggers(raw));
     const descriptors = base.compiledTriggeredAbilities;
     const grantDescriptors = base.compiledTriggeredGrantTemplates;
     if (

@@ -15394,6 +15394,124 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 701.27e + CR 608.2c — "When this creature transforms into {self}", on the
+    // back face it names, over an optional pick from the revealed hand. Exhibits
+    // the ranged `choice` and the `if` that reads its binding, neither of which
+    // the canned smoke scenario models.
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "a3a56b02-7290-4352-a862-f2de608f2a86",
+            name: "Concealing Curtains // Revealing Eye",
+            manaCost: "",
+            typeLine: "Creature — Wall // Creature — Eye Horror",
+            oracleText: "",
+            layout: "transform",
+            faces: [
+                {
+                    name: "Concealing Curtains",
+                    manaCost: "{B}",
+                    typeLine: "Creature — Wall",
+                    oracleText:
+                        "Defender\n{2}{B}: Transform this creature. Activate only as a sorcery.",
+                    power: "0",
+                    toughness: "4",
+                },
+                {
+                    name: "Revealing Eye",
+                    manaCost: "",
+                    typeLine: "Creature — Eye Horror",
+                    oracleText:
+                        "Menace\nWhen this creature transforms into Revealing Eye, target opponent reveals their hand. You may choose a nonland card from it. If you do, that player discards that card, then draws a card.",
+                    power: "3",
+                    toughness: "4",
+                    colors: ["B"],
+                },
+            ],
+        },
+        expected: {
+            name: "Concealing Curtains",
+            types: ["Creature"],
+            subtypes: ["Wall"],
+            manaCost: { B: 1 },
+            power: 0,
+            toughness: 4,
+            oracleText:
+                "Defender\n{2}{B}: Transform this creature. Activate only as a sorcery.",
+            staticAbilities: ["defender"],
+            activatedAbilities: [
+                {
+                    id: "concealing-curtains-ability",
+                    oracleText:
+                        "{2}{B}: Transform this creature. Activate only as a sorcery.",
+                    cost: { mana: { X: 2, B: 1 } },
+                    useStack: true,
+                    effects: [{ op: "transform", target: { ref: "$source" } }],
+                    sorcerySpeedOnly: true,
+                },
+            ],
+            backFace: {
+                name: "Revealing Eye",
+                types: ["Creature"],
+                subtypes: ["Eye", "Horror"],
+                power: 3,
+                toughness: 4,
+                colors: ["B"],
+                staticAbilities: ["menace"],
+                compiledTriggeredAbilities: [
+                    {
+                        id: "revealing-eye-trigger",
+                        oracleText:
+                            "When this creature transforms into {self}, target opponent reveals their hand. You may choose a nonland card from it. If you do, that player discards that card, then draws a card.",
+                        head: { kind: "transforms" },
+                        targetRequirement: {
+                            type: "player",
+                            count: 1,
+                            controller: "opponent",
+                        },
+                        effects: [
+                            {
+                                op: "reveal",
+                                player: { target: 0 },
+                                zone: "hand",
+                            },
+                            {
+                                op: "choice",
+                                kind: "choose-hand-card",
+                                player: "controller",
+                                zoneOwnerId: { target: 0 },
+                                zone: "hand",
+                                filter: { excludeType: "Land" },
+                                count: { min: 0, max: 1 },
+                                prompt: "You may choose a nonland card from that player's hand.",
+                                bind: "$picked1",
+                            },
+                            {
+                                op: "if",
+                                predicate: {
+                                    picksNonEmpty: { ref: "$picked1" },
+                                },
+                                then: [
+                                    {
+                                        op: "discard",
+                                        player: { target: 0 },
+                                        cards: { ref: "$picked1" },
+                                    },
+                                    {
+                                        op: "draw",
+                                        player: { target: 0 },
+                                        count: 1,
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+                oracleText:
+                    "Menace\nWhen this creature transforms into Revealing Eye, target opponent reveals their hand. You may choose a nonland card from it. If you do, that player discards that card, then draws a card.",
+            },
+        },
+    },
     // CR 712.14a + CR 603.7a — "exile it at end of combat, then return it to the
     // battlefield transformed under your control": a delayed trigger whose body
     // is `exileAndReturnTransformed` on the captured source. The canned smoke

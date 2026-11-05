@@ -193,6 +193,11 @@ export const EVENT_FIELD_KINDS: {
         permanentId: "object",
         controllerId: "player",
     },
+    // CR 701.27e — the permanent just transformed, still on the battlefield.
+    PERMANENT_TRANSFORMED: {
+        permanentId: "object",
+        controllerId: "player",
+    },
     // CR 702.134c — the mentor may have left the battlefield; the name-and-seat
     // walk refuses an object it cannot name.
     CREATURE_MENTORED: {

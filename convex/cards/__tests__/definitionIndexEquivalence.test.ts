@@ -214,18 +214,16 @@ describe("a fresh module graph (issue #4856)", () => {
 
     it("decodes a printed back face's token id with the declaring card's own triggers (CR 712.8e)", () => {
         expect(eager.backFaceOwner.size).toBeGreaterThan(0);
-        const rawOwners = new Map(
-            [
-                ...fresh.walkHandWrittenDefinitions().map((e) => e.definition),
-                ...compiledRows,
-            ].map((def) => [def.id, def])
-        );
         for (const [tokenId, owner] of eager.backFaceOwner) {
             const resident = new Set(fresh.residentDefinitionIds());
             expect(resident.has(owner.id)).toBe(false);
             const decoded = fresh.tryGetDefinition(tokenId);
+            // Read off the EXPANDED declarer, resolved only after the decode:
+            // a compiled row holds its back face's triggers as descriptors,
+            // so the closures exist on the expanded card alone.
+            const declared = fresh.tryGetDefinition(owner.id)!;
             expect(decoded?.triggeredAbilities?.[0]).toBe(
-                rawOwners.get(owner.id)!.backFace!.triggeredAbilities![0]
+                declared.backFace!.triggeredAbilities![0]
             );
         }
     });
