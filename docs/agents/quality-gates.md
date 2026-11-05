@@ -17,6 +17,8 @@ gate mutex, machine and session admission, the health cadence — is gone. Where
 section below names those pieces it is recording the measurement that shaped a
 rule, in the past tense or under a `Retired` note: history, not an instruction.
 `land` itself is retired too (issue #7990): a RED repair goes through the queue.
+A RED holds the queue unless the bisect made it a Contained RED, which stops the
+release only (ADR 0163; `docs/guides/github-pipeline.md` § RED ladder).
 
 ## Why `check:pr` may never be hand-picked
 

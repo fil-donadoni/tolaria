@@ -959,6 +959,29 @@ dispatch was lost — else this machine's last run, when the store never took
 its RED. Probe worktrees (`tolaria-bisect-<pid>-<n>`) a killed job left are
 removed at the next ladder's start.
 
+**The bisect grants the Contained RED** (ADR 0163 §§ 2-3, `containedGrant` in
+`scripts/lib/health-ladder.ts`). A RED is written with no class and blocks. Right
+after the bisect publishes its lines, the ladder rewrites it as contained only if
+ALL hold: step `test`; kind `assertion`; every failing file names its tests in
+the evidence; none in `PIPELINE_TOOLING_TESTS`; no generated commit behind the
+culprit; not `second-red`. A bisect that died, was never run or wrote no line
+grants nothing, and neither does a write that fails. It is one pass per climb:
+the ladder never re-reads a RED it already climbed, so an escalation stays. The
+job's `Verdict` step then sends no email and its `Re-gate the queue` step releases
+any PR `queue:held` holds.
+
+- **No culprit** (every probe ran, none reproduced it): the same grant, the
+  headless fixer as today, and one issue
+  `Contained RED with no culprit, since <first RED sha8>`, once per episode
+  (dedup on that title, any state; an unread answer files nothing). Its `bug` +
+  `area:workflow` labels raise it to `P0` through `issue-band.yml`,
+  `ready-for-agent` hands it to the dispatcher, and it is declared a repair of
+  the RED. Never a `## Band` line.
+- **Inheritance**: a new RED whose names are a subset of the standing Contained
+  RED's takes the class when it is written (`inheritedClass`, `health-main`). New
+  names, or a lineage an escalation made blocking, write no class: the RED blocks
+  until its own bisect.
+
 Its next rungs — the fixer, the revert of the culprit, the stop — are
 [`health-fix`](#health-fix)'s. Each `health` job ends by asking
 `bun run health:fix ladder --dry-run` whether one is owed (`rung=fix`,

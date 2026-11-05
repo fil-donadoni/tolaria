@@ -319,7 +319,7 @@ export function encodeDescription(v: Verdict): string {
     if (contained) fit(CONTAINED);
     if (v.failure && !(contained && v.failure === CONTAINED_FAILURE))
         fit(`failure: ${v.failure}`);
-    out += testsField(out.length, v.tests ?? []);
+    out += testsField(out.length, v.tests ?? [], v.testsMore ?? 0);
     if (v.issues && v.issues.length > 0) fit(`issues: ${v.issues.join(",")}`);
     if (v.ladderIssues && v.ladderIssues.length > 0)
         fit(`ladder-issues: ${v.ladderIssues.join(",")}`);
@@ -335,15 +335,23 @@ export function encodeDescription(v: Verdict): string {
  * hosted early run reports every suite's failing files, more than 140
  * characters ever held; the old encoder dropped the rest silently.
  */
-function testsField(used: number, tests: readonly string[]): string {
-    const at = (k: number) =>
-        (k > 0 ? `${SEP}tests: ${tests.slice(0, k).join(",")}` : "") +
-        (k < tests.length ? `${SEP}${MORE_FIELD}: ${tests.length - k}` : "");
+function testsField(
+    used: number,
+    tests: readonly string[],
+    /** Files an earlier write already cut: a decoded verdict written back (a
+     *  class granted or removed) must not forget them. */
+    alreadyCut: number
+): string {
+    const at = (k: number) => {
+        const more = tests.length - k + alreadyCut;
+        return (
+            (k > 0 ? `${SEP}tests: ${tests.slice(0, k).join(",")}` : "") +
+            (more > 0 ? `${SEP}${MORE_FIELD}: ${more}` : "")
+        );
+    };
     for (let k = tests.length; k > 0; k--)
         if (used + at(k).length <= DESCRIPTION_MAX) return at(k);
-    return tests.length > 0 && used + at(0).length <= DESCRIPTION_MAX
-        ? at(0)
-        : "";
+    return used + at(0).length <= DESCRIPTION_MAX ? at(0) : "";
 }
 
 /** The description field naming how many failing tests had no room. */
