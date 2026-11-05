@@ -3471,7 +3471,14 @@ function manaValueGuard(body: EffectOp): {
 function sweepSelector(select: ForEachOp["select"]): SweepSelector | null {
     if (select.set === "players") return { set: "players" };
     if (select.set !== "permanents") return null;
-    const allowed = ["set", "zone", "controller", "filter", "excludeSource"];
+    const allowed = [
+        "set",
+        "zone",
+        "controller",
+        "filter",
+        "excludeSource",
+        "excludeTargets",
+    ];
     if (!holdsOnlyKeys(select, allowed)) return null;
     const specs = sweepFilterSpecs(select.filter);
     const seats = sweepControllerSeats(select.controller);
@@ -3618,6 +3625,17 @@ function analyseForEach(op: ForEachOp, req: Requirements): void {
             req,
             "source-or-each-subject",
             `construct "forEach" excludes its source at a site with no source permanent — the sweep would exclude nothing`
+        );
+        return;
+    }
+    // CR 115.1 — a member set narrowed by the announced target: what it spares
+    // is a slot the seeded board does not know, so the board assertion cannot
+    // say. The exclusion is the interpreter's, proven by its own test.
+    if (op.select.set === "permanents" && op.select.excludeTargets === true) {
+        skipBecause(
+            req,
+            "op-own-tests",
+            `construct "forEach" spares the announced target — its exclusion is proven alone`
         );
         return;
     }

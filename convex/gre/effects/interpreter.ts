@@ -8798,9 +8798,22 @@ function selectForEachMembers(
     // the frozen member set. Mirrors `TargetRequirement.excludeSource`'s
     // resolution (`raiseTriggerTargetSelection`, gre/rules.ts), just applied
     // to a non-targeted mass-sweep selector instead of an announced target.
-    const members = select.excludeSource
+    const withoutSource = select.excludeSource
         ? ids.filter((id) => id !== ctx.sourceInstanceId)
         : ids;
+    // CR 115.1 + CR 608.2c — "other" naming the announced target of the
+    // sentence before it: the sweep spares what the spell targeted.
+    const announced = select.excludeTargets
+        ? new Set(
+              ctx.targets.flatMap((t) =>
+                  t?.type === "permanent" ? [t.id] : []
+              )
+          )
+        : null;
+    const members =
+        announced === null
+            ? withoutSource
+            : withoutSource.filter((id) => !announced.has(id));
     // CR 120.1 — "each planeswalker it has dealt damage to this game": only
     // the members on the source's damage history (CR 400.7 keeps a returned
     // permanent off it, `forgetDamageToEnteringObject`).

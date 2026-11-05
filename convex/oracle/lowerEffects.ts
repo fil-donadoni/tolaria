@@ -831,6 +831,7 @@ export function destroysEveryLand(effects: readonly EffectOp[]): boolean {
         if (
             select.controller !== undefined ||
             select.excludeSource === true ||
+            select.excludeTargets === true ||
             filter === undefined ||
             Object.keys(filter).length !== 1 ||
             filter.type !== "Land"

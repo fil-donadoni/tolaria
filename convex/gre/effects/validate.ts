@@ -3834,9 +3834,10 @@ function isVoteCandidates(value: unknown): boolean {
 
 /** The `forEach` construct's set selector (ADR 0045) — `{ set:
  *  "players" }`, `{ set: "permanents", zone: "battlefield", controller?,
- *  filter?, excludeSource?, damagedBySourceThisGame? }` (`excludeSource` —
- *  issue #1957 — drops the resolving ability/spell's own source from the
- *  frozen member set; `damagedBySourceThisGame` keeps only what that source
+ *  filter?, excludeSource?, excludeTargets?, damagedBySourceThisGame? }`
+ *  (`excludeSource` — issue #1957 — drops the resolving ability/spell's own
+ *  source from the frozen member set; `excludeTargets` — issue #8187 — drops
+ *  its announced targets; `damagedBySourceThisGame` keeps only what that source
  *  has dealt damage to, CR 120.1), `{ set:
  *  "graveyard", controller?, filter? }`, or `{ set: "bound",
  *  ref }`. Unknown keys are rejected (the grammar is frozen; selector SHAPES
@@ -3897,6 +3898,7 @@ function isForEachSelector(value: unknown): boolean {
         "controller",
         "filter",
         "excludeSource",
+        "excludeTargets",
         "damagedBySourceThisGame",
     ]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
@@ -3905,6 +3907,10 @@ function isForEachSelector(value: unknown): boolean {
     if ("controller" in s && !isPlayerRef(s.controller)) return false;
     // issue #1957 — reflexive self-exclude (Waterspout Elemental).
     if ("excludeSource" in s && typeof s.excludeSource !== "boolean") {
+        return false;
+    }
+    // issue #8187 — "other" naming the announced target.
+    if ("excludeTargets" in s && typeof s.excludeTargets !== "boolean") {
         return false;
     }
     // CR 120.1 — the source's damage history (The Fallen).
