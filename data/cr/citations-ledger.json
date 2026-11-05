@@ -58402,6 +58402,7 @@
         {"id":"712.8e","line":"* nonmodal back face is never cast or played (CR 712.8e reads its mana value","sites":1,"status":"confirmed","ruleHash":"d4c22e4118529495"},
         {"id":"712.8e","line":"/** CR 712.8e (issue #3249) — the triggered abilities, closures intact, of the","sites":1,"status":"baseline"},
         {"id":"712.8e","line":"/** CR 712.8e — a compiled back face's descriptors, rebuilt onto the face on the","sites":1,"status":"confirmed","ruleHash":"d4c22e4118529495"},
+        {"id":"712.8e","line":"/** CR 712.8e — the back face a registry row presents. The registry holds a","sites":1,"status":"confirmed","ruleHash":"d4c22e4118529495"},
         {"id":"712.8e","line":"/** CR 712.8e — the content-derived token id of `def`'s printed NONMODAL back","sites":1,"status":"confirmed","ruleHash":"d4c22e4118529495"},
         {"id":"712.8e","line":"/** Triggered abilities the back face has (CR 712.8e — a transformed","sites":1,"status":"baseline"},
         {"id":"712.8e","line":"// CR 701.27a / 712.8e — \"Transform this creature.\": the `transform` Op","sites":1,"status":"confirmed","ruleHash":"d4c22e4118529495"},
