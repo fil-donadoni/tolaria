@@ -1065,6 +1065,19 @@ const zoneOwnerIdDescriptor = defineFilter<string>({
     },
 });
 
+// Issue #7209 — "that was put there from anywhere this turn": a look-back at
+// the graveyard object itself, stamped by `noteGraveyardArrival` (CR 400.7).
+// Card kind only: a battlefield candidate is no graveyard object.
+const putIntoGraveyardThisTurnDescriptor = defineFilter<true>({
+    lower: (req) => req.putIntoGraveyardThisTurn,
+    checks: {
+        card: (card) =>
+            card.putIntoGraveyardThisTurn
+                ? null
+                : "Must target a card put into a graveyard this turn",
+    },
+});
+
 /** Resolves the LIVE controllerId a `sameController`-constrained
  *  requirement's NEXT pick must match (CR 601.2c, issue #1104), from
  *  whatever has already been chosen under the SAME requirement. Undefined
@@ -1619,6 +1632,8 @@ export const REGISTRY = {
         playerControlsMoreThanDescriptor as FilterDescriptor<unknown>,
     sameController: sameControllerDescriptor as FilterDescriptor<unknown>,
     zoneOwnerId: zoneOwnerIdDescriptor as FilterDescriptor<unknown>,
+    putIntoGraveyardThisTurn:
+        putIntoGraveyardThisTurnDescriptor as FilterDescriptor<unknown>,
     isToken: isTokenDescriptor as FilterDescriptor<unknown>,
     controlledSinceTurnStart:
         controlledSinceTurnStartDescriptor as FilterDescriptor<unknown>,
@@ -2059,6 +2074,7 @@ export const CARD_FILTER_KEYS = [
     "sameController",
     "zoneOwnerId",
     "excludeInstanceIds",
+    "putIntoGraveyardThisTurn",
 ] as const;
 
 export type CardFilterKey = (typeof CARD_FILTER_KEYS)[number];
@@ -2076,6 +2092,7 @@ export type CardFilterValues = Partial<{
     sameController: boolean;
     zoneOwnerId: string;
     excludeInstanceIds: ReadonlyArray<string>;
+    putIntoGraveyardThisTurn: true;
 }>;
 
 /** Builds `CardFilterValues` directly off a `PendingTarget` (or the client's

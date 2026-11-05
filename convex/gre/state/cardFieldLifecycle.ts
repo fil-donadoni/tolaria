@@ -278,6 +278,9 @@ export const CARD_FIELD_LIFECYCLE = {
     castFromGraveyardWithoutPayingManaCost: { codec: "flag", reset: ["custom:turn"] },
     // Issue #4931: stamped as the spell lands in the graveyard, ended on recast.
     castSpellInGraveyard:       { codec: "flag",    reset: STACK },
+    // Issue #7209: `noteGraveyardArrival` stamps it, `noteGraveyardDeparture`
+    // ends it, `advanceTurn` (`gre/phases.ts`) sweeps every graveyard.
+    putIntoGraveyardThisTurn:   { codec: "flag",    reset: ["custom:turn"] },
     // Swept off every graveyard card at cleanup (`gre/phases.ts`).
     grantedFlashback:           { codec: "scalar",  reset: ["custom:turn"] },
     // `clearGrantedEnchantRestriction` on re-entry; `revertBestow` on both.

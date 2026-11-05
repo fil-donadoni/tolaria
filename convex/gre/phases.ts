@@ -3787,6 +3787,11 @@ function advanceTurn(state: GameState): void {
     // again as it resolves, so a mid-turn clear would answer "no" on the
     // second check for a departure that really happened.
     for (const p of state.players) p.leftGraveyardThisTurn = undefined;
+    // Issue #7209 — "put there this turn" is a look-back within one turn, so
+    // its per-card stamp ends at the same boundary.
+    for (const p of state.players) {
+        for (const card of p.graveyard) delete card.putIntoGraveyardThisTurn;
+    }
     // CR 700.4 — turn-scoped like the global deaths tally below.
     for (const p of state.players)
         p.nontokenCreaturesToGraveyardThisTurn = undefined;

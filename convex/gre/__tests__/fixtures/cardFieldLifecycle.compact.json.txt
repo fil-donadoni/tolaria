@@ -412,6 +412,7 @@
           },
           "castFromGraveyardWithoutPayingManaCost": true,
           "castSpellInGraveyard": true,
+          "putIntoGraveyardThisTurn": true,
           "grantedFlashback": {
             "R": 1
           },
@@ -875,6 +876,7 @@
       },
       "castFromGraveyardWithoutPayingManaCost": true,
       "castSpellInGraveyard": true,
+      "putIntoGraveyardThisTurn": true,
       "grantedFlashback": {
         "R": 1
       },

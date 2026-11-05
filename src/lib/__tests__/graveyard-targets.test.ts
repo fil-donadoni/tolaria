@@ -361,6 +361,59 @@ describe("matchesGraveyardTarget — driven through projectPublicState (wiring r
         ).toBe(true);
     });
 
+    it("issue #7209 — the put-into-graveyard-this-turn stamp and filter both cross the wire", () => {
+        const fresh = makeInstance({
+            id: "gy-fresh",
+            putIntoGraveyardThisTurn: true,
+        });
+        const old = makeInstance({ id: "gy-old" });
+        const state: GameState = {
+            players: [
+                makeServerPlayer("p1", [fresh, old]),
+                makeServerPlayer("p2", []),
+            ],
+            stack: [],
+            turn: 1,
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+            phase: "PRECOMBAT_MAIN",
+            rngSeed: 0,
+            rngCounter: 0,
+            pendingTarget: {
+                playerId: "p1",
+                cardInstanceId: "src",
+                targetType: "card",
+                count: 1,
+                selected: [],
+                ...pendingTargetFiltersFromRequirement(
+                    {
+                        type: "card",
+                        count: 1,
+                        zone: "graveyard",
+                        controller: "you",
+                        putIntoGraveyardThisTurn: true,
+                    },
+                    undefined
+                ),
+            },
+        };
+        const projected = projectPublicState(state, 1, "p1");
+        const pending = projected.pendingTarget as PendingTarget;
+        const graveyard = projected.players[0]
+            .graveyard as unknown as CardInstance[];
+        const accepts = (id: string) =>
+            matchesGraveyardTarget(
+                graveyard.find((c) => c.id === id)!,
+                "p1",
+                pending,
+                "p1",
+                "p1"
+            );
+        expect(accepts("gy-fresh")).toBe(true);
+        expect(accepts("gy-old")).toBe(false);
+    });
+
     // Issue #1950 review round 3, MAJOR 2 — the round-2 fixup (delegating
     // `matchesGraveyardTarget` to `checkCardTargetFilters` via
     // `pickCardFilterValues`) shipped with no assertion that `subtypeFilter`

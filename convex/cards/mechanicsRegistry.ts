@@ -4155,6 +4155,9 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  `ctx.getBattlefieldIds`) — and composes with every other clause,
  *  including `isToken`. Deliberately shipped with no card consumer of its
  *  own; its first consumer is Ocelot Pride.
+ *  `TargetRequirement.putIntoGraveyardThisTurn` (issue #7209) is NOT an Op
+ *  either: an announced-target filter on the card kind of the target-filter
+ *  registry, earning no EFFECT_OP_REGISTRY row.
  *  `EffectCardFilter.controlledSinceTurnStart` (Keldon Twilight)
  *  is its sibling and likewise NOT an Op and NOT a new grammar member — a
  *  plain boolean card-filter clause, battlefield-only, mirroring
