@@ -19577,6 +19577,39 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     // CR 702.26a — phasing granted to a creature is a drawback on that creature:
     // it is out of the game every other turn of its controller.
     {
+        label: "gravestorm: aims Bitter Ordeal at the short opposing library",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                    tapped: false,
+                },
+                { name: "Bitter Ordeal", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "library", count: 10 },
+                { name: "Plains", owner: "opp", zone: "library", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            permanentsToGraveyardThisTurn: 1,
+            landCount: 0,
+            libraryCount: 0,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "cast-spell", card: "Bitter Ordeal", target: "opp" },
+            ],
+        },
+        note: "Issue #8223 — split off issue #6289, which could not name a card its own diff compiled `ready`. Pins the card's reach through the `search-library` choice surface: without that generator the Bot passes on every seed. It does not pin the gravestorm tally, since the short library alone draws the cast at a tally of 0. At a 20-card library the Bot passes on every seed.",
+    },
+    {
         label: "phasing: an Aura granting phasing never enchants its own creature",
         classification: { kind: "absolute" },
         spec: {
