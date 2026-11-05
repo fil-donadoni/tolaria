@@ -2383,8 +2383,11 @@ const animate: Valuer<"animate"> = (op) => {
     const points =
         ANIMATE_DISCOUNT *
         creatureValueRaw(
-            Math.max(0, op.power),
-            Math.max(0, op.toughness),
+            // Both absent (issue #7212): the body is the permanent's own, which
+            // a leaf valuer has no state to read; the animation prices as the
+            // bare type change.
+            Math.max(0, op.power ?? 0),
+            Math.max(0, op.toughness ?? 0),
             0,
             op.grantedAbilities ?? []
         );

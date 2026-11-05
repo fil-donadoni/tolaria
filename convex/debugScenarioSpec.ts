@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { ManaRestriction } from "./gre/types";
 import type {
     AnimateSpec,
+    AnimateSpecWithPT,
     CardType,
     Color,
     ManaPersistence,
@@ -1090,7 +1091,7 @@ export type ScenarioCard = {
      *  `buildStateFromScenario` through the animate primitive itself, so the
      *  expiry is real; `duration` absent means INDEFINITE (CR 611.2a), not
      *  "until end of turn". Battlefield only. */
-    animated?: AnimateSpec;
+    animated?: AnimateSpecWithPT;
 };
 
 /** CR 106.6 (issue #3460) — one unit of restricted floating mana in a spec, the
@@ -1811,12 +1812,12 @@ function normalizeBlocker(
  *  duration is not silently downgraded to "until end of turn": `phase` is the
  *  one required member, and a row without a readable one carries no duration,
  *  which the round trip then reports as the indefinite animation it rebuilt. */
-function normalizeAnimation(raw: unknown): AnimateSpec | null {
+function normalizeAnimation(raw: unknown): AnimateSpecWithPT | null {
     if (!isRecord(raw)) return null;
     const power = pickNumber(raw.power);
     const toughness = pickNumber(raw.toughness);
     if (power === undefined || toughness === undefined) return null;
-    const spec: AnimateSpec = { power, toughness };
+    const spec: AnimateSpecWithPT = { power, toughness };
     set(spec, "subtype", pickString(raw.subtype));
 
     const types = (pickStringArray(raw.additionalTypes) ?? []).filter(

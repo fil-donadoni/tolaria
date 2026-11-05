@@ -36,14 +36,16 @@
 //    crewed Vehicle is a legal no-op (`animateAsCreature`'s one-animation
 //    guard), also CR-correct.
 
-import type {
-    ActivatedAbility,
-    CardDefinition,
-    CardSupertype,
-    ManaCost,
-    Rarity,
-    StaticEffect,
-    TriggeredAbility,
+import {
+    AURA_AFFECTS_HOST,
+    type ActivatedAbility,
+    type CardDefinition,
+    type CardSupertype,
+    type CardType,
+    type ManaCost,
+    type Rarity,
+    type StaticEffect,
+    type TriggeredAbility,
 } from "../types";
 
 /** Slug used to namespace a Vehicle's generated ability ids. */
@@ -112,6 +114,94 @@ export function crewAbility(args: {
                 power: args.power,
                 toughness: args.toughness,
                 duration: { phase: "end-of-turn" },
+            },
+        ],
+    };
+}
+
+/** The card types an effect saying "it loses all other card types" takes from
+ *  a Vehicle artifact. Instant and Sorcery are absent: no permanent has them. */
+const NON_ARTIFACT_PERMANENT_TYPES: CardType[] = [
+    "Creature",
+    "Planeswalker",
+    "Enchantment",
+    "Land",
+    "Battle",
+    "Kindred",
+];
+
+/** "Enchanted permanent is a Vehicle artifact with crew N and it loses all
+ *  other card types." — CR 301.7 + CR 702.122a on the host of an Aura, as data:
+ *  spread the two fields onto the Aura's definition.
+ *
+ *  Layer 4 (CR 613.1d), derived at every read, so the Aura leaving restores the
+ *  host with nothing to undo:
+ *   - `type-add` Artifact + `type-remove` every other card type (CR 205.1a);
+ *   - `subtype-set` Vehicle, in that order: the set then reads a host that is
+ *     no longer a land, so it is the wholesale replace CR 205.1a asks for —
+ *     an Equipment stops being one, a Bear stops being one.
+ *
+ *  Layer 6 (CR 613.1f): the `crew N` keyword and its enforcing ability. The
+ *  host keeps every ability it has, a Vehicle's own crew included.
+ *
+ *  The crew ability states no P/T: the Aura cannot know the host's, and a host
+ *  crewed has its printed ones (CR 301.7b), or 0/0 with none printed.
+ *
+ *  Deviation: CR 205.1a removes a subtype correlated with a removed card type
+ *  only "for the entire time the object's card type is removed". While crewed,
+ *  the host is a creature again and its creature types would return; here it
+ *  stays a Vehicle with no creature type (tracked-by: issue #8314). */
+export function enchantedPermanentIsVehicle(args: {
+    /** Aura card name — namespaces the granted ability id. */
+    name: string;
+    crew: number;
+}): Required<Pick<CardDefinition, "grantTemplates" | "staticEffects">> {
+    const crew: ActivatedAbility = {
+        id: `${slugify(args.name)}-crew`,
+        oracleText: crewReminderText(args.crew),
+        cost: {
+            tapOtherFilter: {
+                filter: { types: "Creature", controllerRelation: "you" },
+                totalPower: args.crew,
+            },
+        },
+        useStack: true,
+        animatesSelf: true,
+        effects: [
+            {
+                op: "animate",
+                target: { ref: "$source" },
+                duration: { phase: "end-of-turn" },
+            },
+        ],
+    };
+    return {
+        grantTemplates: [crew],
+        staticEffects: [
+            {
+                kind: "type-add",
+                applies: AURA_AFFECTS_HOST,
+                types: ["Artifact"],
+            },
+            {
+                kind: "type-remove",
+                applies: AURA_AFFECTS_HOST,
+                types: NON_ARTIFACT_PERMANENT_TYPES,
+            },
+            {
+                kind: "subtype-set",
+                applies: AURA_AFFECTS_HOST,
+                subtypes: ["Vehicle"],
+            },
+            {
+                kind: "keyword-grant",
+                applies: AURA_AFFECTS_HOST,
+                keyword: crewKeyword(args.crew),
+            },
+            {
+                kind: "activated-grant",
+                applies: AURA_AFFECTS_HOST,
+                abilityId: crew.id,
             },
         ],
     };

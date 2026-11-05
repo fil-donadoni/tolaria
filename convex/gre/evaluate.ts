@@ -54,7 +54,10 @@ import {
 } from "./constants";
 import { currentLoyalty, LOYALTY_COUNTER_KEY } from "./loyalty";
 import type { ActivatedAbility } from "../cards/types";
-import { getEffectiveActivatedAbilities } from "./activatedAbilities";
+import {
+    getEffectiveActivatedAbilities,
+    isAnimatedCreature,
+} from "./activatedAbilities";
 // Issue #1890 item 3 — the single authority on whether an activation could just
 // as well happen in a later, better-informed window (CR 117.1b / 602.5d).
 import {
@@ -1085,7 +1088,7 @@ function hasFlexibleActivation(
         ) {
             continue;
         }
-        if (ability.animatesSelf && perm.animation) continue;
+        if (isAnimatedCreature(ability, perm)) continue;
         if (ability.controllerTurnOnly && state.activePlayerId !== player.id) {
             continue;
         }
