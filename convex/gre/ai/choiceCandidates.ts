@@ -1308,8 +1308,9 @@ export function isOptionalOwnBattlefieldPut(
  *  the EMPTY submission, so Chrome Mox resolved its imprint trigger imprinting
  *  nothing and stayed a Mox that taps for no mana, every game, deterministically.
  *
- *  A MANDATORY hand pick (`min > 0`) gets no candidates and therefore stays off
- *  the tree exactly as before: those are costs already priced elsewhere
+ *  A MANDATORY hand pick (`min > 0`) out of the chooser's OWN hand gets no
+ *  candidates and therefore stays off the tree exactly as before (a strip out of
+ *  another hand is a node, `handPickIsAStrip`): those are costs already priced elsewhere
  *  (Brainstorm's two-card putback, an upkeep discard) and turning them into
  *  search nodes is a separate, much wider change. Returning `[]` is the
  *  registry's own "not a decision node" signal (`decidingPlayer`, `search.ts`),
@@ -1394,8 +1395,11 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
     // search's horizon washes out of every leaf: the Shivan Dragon and the
     // Savannah Lions tied, and the pick fell to rollout noise. Candidates far
     // below the best one are dropped rather than weighed.
+    // Only over a best card worth something: a floor scaled off a negative
+    // worth sits ABOVE that card and would leave a mandatory strip no answer,
+    // disagreeing with `handPickIsSearchable`.
     const stripFloor =
-        handPickIsAStrip(choice) && ranked.length > 0
+        handPickIsAStrip(choice) && ranked.length > 0 && ranked[0].worth > 0
             ? ranked[0].worth * STRIP_WORTH_FLOOR
             : -Infinity;
     const seen = new Set<string>();
@@ -1430,7 +1434,7 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *
  *  A MANDATORY `discard-hand` (CR 701.9b — by default the discarding player
  *  chooses) is no in-tree node, deliberately (see `handPickCandidates`:
- *  mandatory hand picks are costs, and making them search nodes is a wider
+ *  mandatory own-hand picks are costs, and making them search nodes is a wider
  *  change). But the 1-ply policy probe's settle stopped THERE and scored the
  *  position one Op into the resolution: the discard spell spent, the mana
  *  tapped, the discard not yet made — a Mind Rot read as its cost alone.
@@ -2805,7 +2809,7 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
  *
  *  Registry membership answers "is this KIND ever an in-tree node?"; a
  *  registered generator may still legitimately decline a PARTICULAR choice —
- *  `handPickCandidates` returns `[]` for a MANDATORY (`min > 0`) hand pick. The
+ *  `handPickCandidates` returns `[]` for a MANDATORY (`min > 0`) own-hand pick. The
  *  authority on "will this generator emit anything" is the generator's output
  *  (`decidingPlayer` / `keyedMovesFor` have always used it), but the CLIENT-side
  *  `searchable` gate (`src/lib/ai/bot-view.ts`) only ever holds the projected
