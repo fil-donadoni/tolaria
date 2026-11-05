@@ -1252,7 +1252,14 @@ const STRIP_WORTH_FLOOR = 0.6;
  *  priced elsewhere, unlike the chooser's own discard, so it is a search node
  *  whatever its minimum. */
 function handPickIsAStrip(choice: PendingChoice): boolean {
-    return (choice.zoneOwnerId ?? choice.playerId) !== choice.playerId;
+    return (
+        (choice.zoneOwnerId ?? choice.playerId) !== choice.playerId &&
+        // An Effect Script's pick binds a `$name`. A protocol `resolve()` card
+        // names its own, and what it does with the pick is unreadable: Word of
+        // Command's (ADR 0037) is a card the owner is MADE to cast, so no worth
+        // moves out of that hand. Those stay what they were.
+        choice.choiceId.startsWith("$")
+    );
 }
 
 /** Whether a hand pick moves the chosen card out of the CHOOSER's own hand onto

@@ -1667,9 +1667,19 @@ describe("selectRootMove — extra-turn structural credit (issue #244)", () => {
             { move: PASS, meanReward: 0.66, visits: 760 },
             { move: CAST_WALK, meanReward: 0.61, visits: 240 },
         ]);
-        expect(
-            selectRootMove(root, [PASS, CAST_WALK], rootState(), "p1").kind
-        ).toBe("cast-spell");
+        // The credit stands in for combat damage, so the board holds a creature
+        // (issue #8271): with none, the grant is a cantrip and the mean decides.
+        const state = rootState();
+        state.players[0].battlefield.push(
+            makeInstance(BEARS, {
+                id: "walker",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        expect(selectRootMove(root, [PASS, CAST_WALK], state, "p1").kind).toBe(
+            "cast-spell"
+        );
     });
 
     it("NO-FIRE: a clearly-winning pass (beyond the credit) is not overridden", () => {

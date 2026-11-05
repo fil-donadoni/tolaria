@@ -2944,30 +2944,6 @@
     },
     "madness-cast-when-affordable": null,
     "madness-decline-when-unaffordable": null,
-    "mana ability: Lion's Eye Diamond pays for the spell it would discard": {
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 0,
-        "libraryCount": 20,
-        "cards": [
-            {
-                "name": "Lion's Eye Diamond",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield",
-                "count": 2
-            },
-            {
-                "name": "Serra Angel",
-                "owner": "me",
-                "zone": "hand"
-            }
-        ]
-    },
     "mana may-pay: taps untapped lands to pay the tax that keeps its creature": null,
     "may-search tutor: casts Tinker for the artifact the find puts onto the battlefield": {
         "cards": [

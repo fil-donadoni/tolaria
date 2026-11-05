@@ -90,6 +90,7 @@ import {
     validateAttackerEligibility,
 } from "./combat";
 import { beginLayer7Pass, getEffectivePT } from "./layers";
+import { lethalDamageThreshold } from "./lethalDamage";
 import {
     enumerateMoves,
     onlyPassIsLegal,
@@ -5962,7 +5963,7 @@ export function selectRootMove(
         ruleOn("standing-spend-hold") &&
         isStandingSpendActivation(rootState, botId, best.move) &&
         !isInPendingCombatExchange(rootState, best.move.cardInstanceId) &&
-        !sacrificeCostHasFodderInCombat(rootState, botId, best.move) &&
+        !sacrificeCostHasDoomedFodder(rootState, botId, best.move) &&
         !firingBeatsHolding(rootState, botId, best.move, weights)
     ) {
         const hold = pool.find(
@@ -6666,13 +6667,15 @@ function isInPendingCombatExchange(
 }
 
 /** Whether a sacrifice-outlet activation could feed on a creature of `pid`'s
- *  that is locked in a live combat exchange (issue #8271). The outlet itself
- *  stands outside combat, so {@link isInPendingCombatExchange} on the source
- *  reads it as idle; but the creature paying the cost may be dying anyway, and
- *  this window is the last one in which it is worth anything. The hold rule
- *  fails open here, as it does for the source itself: the search's mean still
+ *  that the live combat exchange is about to kill (issue #8271). The outlet
+ *  itself stands outside combat, so {@link isInPendingCombatExchange} on the
+ *  source reads it as idle; but this window is the last in which that creature
+ *  is worth anything. A creature winning its exchange buys nothing: the
+ *  outlet's hold rule still stands (issue #3369). "About to kill" is the same
+ *  arithmetic the engine assigns damage with (`lethalDamageThreshold`). The
+ *  hold rule fails open here, as it does for the source: the mean still
  *  decides. */
-function sacrificeCostHasFodderInCombat(
+function sacrificeCostHasDoomedFodder(
     state: GameState,
     pid: string,
     move: Extract<Move, { kind: "activate-ability" }>
@@ -6685,9 +6688,38 @@ function sacrificeCostHasFodderInCombat(
     if (!effectiveAbilityOf(source, move.abilityId)?.cost.sacrificeFilter) {
         return false;
     }
-    return player.battlefield.some(
-        (c) => c.id !== source.id && isInPendingCombatExchange(state, c.id)
+    const graph = getEffectiveBlockGraph(state);
+    const opposing = state.players.flatMap((p) =>
+        p.id === pid ? [] : p.battlefield
     );
+    return player.battlefield.some((c) => {
+        if (c.id === source.id || !isInPendingCombatExchange(state, c.id)) {
+            return false;
+        }
+        const facing = new Set<string>([
+            ...(graph.attackersByBlocker[c.id] ?? []),
+            ...(graph.blockersByAttacker[c.id] ?? []),
+        ]);
+        const against = opposing.filter((o) => facing.has(o.id));
+        const damage = against.reduce(
+            (sum, o) => sum + Math.max(0, getEffectivePT(state, o).power),
+            0
+        );
+        return (
+            damage > 0 &&
+            damage >=
+                lethalDamageThreshold({
+                    effectiveToughness: Math.max(
+                        0,
+                        getEffectivePT(state, c).toughness
+                    ),
+                    damageMarked: c.damageMarked,
+                    sourceHasDeathtouch: against.some((o) =>
+                        o.staticAbilities.includes("deathtouch")
+                    ),
+                })
+        );
+    });
 }
 
 /** Whether `move` is an activation `pid` controls that GIVES UP A PERMANENT

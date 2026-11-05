@@ -52,7 +52,6 @@ import type { BladeScenario } from "../blade/types";
 import { MAX_CHOICE_DEPTH } from "../choiceDepth";
 import { choiceCandidates } from "../choiceCandidates";
 import { choiceFindDestination } from "../searchDestination";
-import { NEUTRAL_PRIOR } from "../choicePriors";
 
 /** Flash plus one creature, on exactly its own {1}{U} and nothing more — so
  *  the {2}-reduced cost of a seven-drop can never be paid and the trailing
@@ -446,16 +445,11 @@ describe("cheat-into-play is worth what survives (issue #3293)", () => {
             expect(picks[0].prior).toBeGreaterThan(decline.prior);
         });
 
-        it("leaves a pick out of ANOTHER player's hand exactly as it was", () => {
-            // The gate on the new direction (PR review finding C1). A
-            // `choose-hand-card` can name someone else's hand (`zoneOwnerId` —
-            // the Deep-Cavern Bat / Elite Spellbinder strip), and there the
-            // worth moves away from the OPPONENT: signing it by the destination
-            // alone would hint the decider "gained" their opponent's card, and
-            // routing it through the signed prior band would subtract that loss
-            // from the decider's own prior and open the best strip LAST. Both
-            // stay off it — flat neutral, cost-shaped hint, exactly as before
-            // this issue (the drawer holds the draft for signing it properly).
+        it("signs a pick out of ANOTHER player's hand as a gain (issue #8271)", () => {
+            // A `choose-hand-card` can name someone else's hand (`zoneOwnerId`
+            // — the Thoughtseize / Deep-Cavern Bat strip), and there the worth
+            // moves away from the OPPONENT, so the strip is priced as a gain
+            // and its best card opens first, whatever the destination.
             const { state } = atHandPickWithBoth([PAYOFF, VANILLA]);
             const oppId = state.players[1].id;
             const own = state.pendingChoices![0];
@@ -478,9 +472,8 @@ describe("cheat-into-play is worth what survives (issue #3293)", () => {
             );
             expect(picks.length).toBeGreaterThan(0);
             for (const c of picks) {
-                expect(c.hint?.materialGained).toBeUndefined();
-                expect(c.hint?.materialGivenUp).toBeGreaterThan(0);
-                expect(c.prior).toBe(NEUTRAL_PRIOR);
+                expect(c.hint?.materialGained).toBeGreaterThan(0);
+                expect(c.hint?.materialGivenUp).toBeUndefined();
             }
         });
     });
