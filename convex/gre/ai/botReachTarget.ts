@@ -72,6 +72,11 @@ const GRAVEYARD_SPELL = "Ancestral Recall";
  *  it costs the holder. Ancestral Recall is an instant, so a requirement naming
  *  only the sorcery type cannot be posed with it. */
 const GRAVEYARD_SORCERY = "Time Walk";
+/** The land card a land recursion ("put target land card from a graveyard onto
+ *  the battlefield") returns: a land creature, mana and a body with nothing else
+ *  to it. A basic adds less than the spell costs the holder, so the Bot rightly
+ *  keeps the card. */
+const GRAVEYARD_LAND = "Dryad Arbor";
 
 /** How many cards of the kind a look-and-distribute ETB Ability finds sit in
  *  the holder's library. The search re-deals the library's ORDER at every
@@ -205,13 +210,35 @@ const SWEEP_ID_PREFIX = "oracle-bot-reach:";
 
 const creatureCache = new Map<string, CardDefinition | null>();
 
+/** Power plus toughness of a body {@link satisfiesCharacteristics} admitted,
+ *  whose numbers are printed. */
+function bodySize(def: CardDefinition): number {
+    return (def.power as number) + (def.toughness as number);
+}
+
+/** Between two bodies of one rank: the bigger when `largest` asks, else (and on
+ *  a tie) the first by name. */
+function precedes(
+    a: CardDefinition,
+    b: CardDefinition,
+    largest: boolean
+): boolean {
+    if (largest && bodySize(a) !== bodySize(b))
+        return bodySize(a) > bodySize(b);
+    return a.name < b.name;
+}
+
 /** A plain creature satisfying `req`: the base creature when it
  *  already does, else the best plain one in the catalogue (a card a spec can
  *  place by name — never a synthesized token) — by rank, then by
- *  name, because the registry's load order must not move a verdict. `null`
- *  when there is none. */
-function creatureFor(req: TargetRequirement): CardDefinition | null {
-    const key = JSON.stringify(req);
+ *  name, because the registry's load order must not move a verdict. With
+ *  `largest`, the biggest body of the best rank, the base creature getting no
+ *  preference. `null` when there is none. */
+function creatureFor(
+    req: TargetRequirement,
+    largest = false
+): CardDefinition | null {
+    const key = `${largest}:${JSON.stringify(req)}`;
     const cached = creatureCache.get(key);
     if (cached !== undefined) return cached;
     let found: { def: CardDefinition; rank: number } | null = null;
@@ -224,14 +251,14 @@ function creatureFor(req: TargetRequirement): CardDefinition | null {
         // played before, which must not move a verdict either.
         if (tryGetCardByName(def.name)?.id !== def.id) continue;
         const rank =
-            def.name === BASE_CREATURE
+            def.name === BASE_CREATURE && !largest
                 ? -1
                 : plainRank(def, req.requireAbility);
         if (rank === null || !satisfiesCharacteristics(def, req)) continue;
         if (
             found === null ||
             rank < found.rank ||
-            (rank === found.rank && def.name < found.def.name)
+            (rank === found.rank && precedes(def, found.def, largest))
         )
             found = { def, rank };
     }
@@ -263,13 +290,14 @@ function creatureRequirement(
     return types.includes("Creature") ? req : null;
 }
 
-/** The requirement a single-target LAND spell states, if it is one — a type
- *  list of exactly Land. Its subtype / supertype / nonbasic clauses are not
- *  read, except a basic land type (CR 305.6), which names the land posed. */
+/** The requirement a single-target LAND spell states on the battlefield, if it
+ *  is one — a type list of exactly Land. Its subtype / supertype / nonbasic
+ *  clauses are not read, except a basic land type (CR 305.6), which names the
+ *  land posed. A land CARD in a graveyard is {@link graveyardCardRequirement}'s. */
 function landRequirement(
     req: CardDefinition["targetRequirement"]
 ): TargetRequirement | null {
-    if (!req || Array.isArray(req)) return null;
+    if (!req || Array.isArray(req) || req.zone === "graveyard") return null;
     const types = Array.isArray(req.type) ? req.type : [req.type];
     return types.length === 1 && types[0] === "Land" ? req : null;
 }
@@ -306,11 +334,12 @@ function landPose(
 function favoursItsTarget(
     def: CardDefinition,
     req: TargetRequirement,
-    modeId?: string
+    modeId?: string,
+    slot = 0
 ): boolean {
     return (
         req.controller === "you" ||
-        targetSlotBeneficence(def, modeId, 0) === "beneficial"
+        targetSlotBeneficence(def, modeId, slot) === "beneficial"
     );
 }
 
@@ -672,10 +701,15 @@ function spellPose(def: CardDefinition): TargetPose {
     const modes = def.targetRequirement ? [] : (def.modes ?? []);
     if (modes.length === 0)
         return withDamageCeiling(
-            withLaterCombatants(
-                requirementPose(def, def.targetRequirement, undefined),
-                def.targetRequirement,
-                def.additionalTargetRequirements ?? []
+            withLaterBodies(
+                withLaterCombatants(
+                    requirementPose(def, def.targetRequirement, undefined),
+                    def.targetRequirement,
+                    def.additionalTargetRequirements ?? []
+                ),
+                def,
+                def.additionalTargetRequirements ?? [],
+                undefined
             ),
             boostOutlastsDamage(
                 def,
@@ -690,10 +724,15 @@ function spellPose(def: CardDefinition): TargetPose {
     // (issue #4268). A combat a mode's role names is the first such mode's.
     const poses = modes.map((m) =>
         withDamageCeiling(
-            withLaterCombatants(
-                requirementPose(def, m.targetRequirement, m.id),
-                m.targetRequirement,
-                m.additionalTargetRequirements ?? []
+            withLaterBodies(
+                withLaterCombatants(
+                    requirementPose(def, m.targetRequirement, m.id),
+                    m.targetRequirement,
+                    m.additionalTargetRequirements ?? []
+                ),
+                def,
+                m.additionalTargetRequirements ?? [],
+                m.id
             ),
             boostOutlastsDamage(
                 def,
@@ -898,12 +937,13 @@ function exchangePose(def: CardDefinition): TargetPose | null {
 }
 
 /** The card a recursion spell returns, by the card type its requirement names
- *  — an artifact (alone, or with enchantment), a sorcery, or an instant or
- *  sorcery (the two spell types together). */
+ *  — an artifact (alone, or with enchantment), a sorcery, a land, or an instant
+ *  or sorcery (the two spell types together). */
 function graveyardCardFor(types: readonly string[]): string | null {
     if (types.length === 1 && types[0] === "Artifact")
         return GRAVEYARD_ARTIFACT;
     if (types.length === 1 && types[0] === "Sorcery") return GRAVEYARD_SORCERY;
+    if (types.length === 1 && types[0] === "Land") return GRAVEYARD_LAND;
     // "artifact or enchantment": the artifact card satisfies either branch.
     if (
         types.length === 2 &&
@@ -921,7 +961,7 @@ function graveyardCardFor(types: readonly string[]): string | null {
 }
 
 /** The requirement a single-target spell states on an ARTIFACT (or ENCHANTMENT),
- *  a SORCERY or an INSTANT OR SORCERY CARD in a graveyard, if it is one. */
+ *  a SORCERY, a LAND or an INSTANT OR SORCERY CARD in a graveyard, if it is one. */
 function graveyardCardRequirement(
     req: CardDefinition["targetRequirement"]
 ): TargetRequirement | null {
@@ -953,11 +993,13 @@ function graveyardCardPose(req: TargetRequirement): TargetPose {
     };
 }
 
-/** The pose for ONE target requirement — the spell's own, or a mode's. */
+/** The pose for ONE target requirement — the spell's own, or a mode's; `slot`
+ *  is the announced target it fills, whose sign picks the side. */
 function requirementPose(
     def: CardDefinition,
     target: CardDefinition["targetRequirement"],
-    modeId: string | undefined
+    modeId: string | undefined,
+    slot = 0
 ): TargetPose {
     const landReq = landRequirement(target);
     if (landReq) return landPose(def, landReq, modeId);
@@ -972,12 +1014,15 @@ function requirementPose(
                 ? (untapPose(def) ?? exchangePose(def))
                 : null) ?? NO_POSE
         );
-    const printed = creatureFor(req);
+    const owner = favoursItsTarget(def, req, modeId, slot) ? "me" : "opp";
+    // A later group's opposing body is part of what the spell is cast to take.
+    // The first plain body by name can be too small for that to pay for the
+    // card, so the Bot rightly keeps it: the biggest one poses the removal.
+    const printed = creatureFor(req, slot > 0 && owner === "opp");
     const granted = printed === null ? grantedBody(req) : null;
     const body = printed ?? granted?.body ?? null;
     if (body === null) return NO_POSE;
     const name = body.name;
-    const owner = favoursItsTarget(def, req, modeId) ? "me" : "opp";
     const other = owner === "me" ? "opp" : "me";
     // The position already seeds the base creature on both sides.
     const tapped = req.tappedFilter === "tapped";
@@ -1222,6 +1267,36 @@ function withLaterCombatants(
                     : {}),
             },
         },
+    };
+}
+
+/**
+ * CR 601.2c — `pose`, plus a body for every LATER target group whose
+ * characteristics narrow the creature and that names no combat role
+ * ({@link withLaterCombatants} seats those). The announcement needs a legal
+ * target in EVERY group, so "destroy target Plains and target white creature"
+ * finds none in a position whose only creatures are the plain seeded ones: the
+ * group is posed as a spell's own would be, on the side its own slot's sign
+ * names (each earlier group read as one target, as every such card's is).
+ */
+function withLaterBodies(
+    pose: TargetPose,
+    def: CardDefinition,
+    later: readonly TargetRequirement[],
+    modeId: string | undefined
+): TargetPose {
+    const poses = later.flatMap((group, i) => {
+        const req = creatureRequirement(group);
+        return req && narrows(req) && req.combatRoleFilter === undefined
+            ? [requirementPose(def, req, modeId, i + 1)]
+            : [];
+    });
+    if (poses.length === 0) return pose;
+    return {
+        ...pose,
+        cards: [...pose.cards, ...poses.flatMap((p) => p.cards)],
+        omitToughnessBoost:
+            pose.omitToughnessBoost || poses.some((p) => p.omitToughnessBoost),
     };
 }
 
