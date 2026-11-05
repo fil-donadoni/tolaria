@@ -184,11 +184,16 @@ function readModalHead(
     });
 }
 
-const modalSpell: Rule<SlotIR> = rule<SlotIR>("modal spell", (span, ctx) => {
-    const parts = span.split(GROUP_SEPARATOR);
-    const head = readModalHead(parts[0]!, span, ctx);
-    if (!head.ok) return head;
-    const bullets = parts.slice(1);
+/**
+ * CR 700.2 — the bullet lines of a modal text, read as modes. Shared by the
+ * modal spell and the modal triggered ability: a mode is the same sentence list
+ * wherever its list is printed.
+ */
+export function readModeBullets(
+    bullets: readonly string[],
+    span: string,
+    ctx: RuleContext
+): RuleResult<SpellModeIR[]> {
     // CR 700.2 — a mode list with fewer than two modes is not a choice; it is
     // a line whose bullets we failed to group.
     if (bullets.length < 2)
@@ -225,9 +230,18 @@ const modalSpell: Rule<SlotIR> = rule<SlotIR>("modal spell", (span, ctx) => {
     const texts = new Set(modes.map((m) => m.text));
     if (texts.size !== modes.length)
         return fail("a modal spell prints the same mode twice", span);
+    return ok(modes);
+}
+
+const modalSpell: Rule<SlotIR> = rule<SlotIR>("modal spell", (span, ctx) => {
+    const parts = span.split(GROUP_SEPARATOR);
+    const head = readModalHead(parts[0]!, span, ctx);
+    if (!head.ok) return head;
+    const modes = readModeBullets(parts.slice(1), span, ctx);
+    if (!modes.ok) return modes;
     return ok({
         kind: "spell-modal" as const,
-        modes,
+        modes: modes.value,
         ...(head.value.selection !== undefined
             ? { selection: head.value.selection }
             : {}),

@@ -782,6 +782,11 @@ export function lowerManaAbility(input: {
             // CR 605.3a — instant speed is a mana ability's only speed.
             case "instant-only":
                 break;
+            // CR 106.6 — applied by the tap-for-mana paths, which the guard
+            // above already requires.
+            case "not-nonartifact-spells":
+                ability.manaRestriction = "not-nonartifact-spell";
+                break;
             // CR 122.1 / 701.21a — the engine sacrifices once the cost's
             // counter leg has been paid and none of that kind remain, so a
             // sentence naming a kind the cost never removes would read a
