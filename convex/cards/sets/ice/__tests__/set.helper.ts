@@ -162,7 +162,7 @@ export function answerMayPay(
 // ─────────────────────────────────────────────────────────────────────────────
 // Cumulative upkeep — grant statics + restricted-CU mana (#639, ADR 0042).
 // CR 702.24 (cumulative upkeep), CR 611 / 613 (continuous ability-grant layer
-// 6), CR 106.6 (restricted mana, ADR 0022), CR 614.1c (leave → exile).
+// 6), CR 106.6 (restricted mana, ADR 0022), CR 614.1a (leave → exile).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const UPKEEP_P2_EVENT = {

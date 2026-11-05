@@ -913,7 +913,7 @@ export type CardInstanceState = {
      *  `SpellContext.setDamageLockThisTurn` / the `lockDamage` Op. */
     damageLockThisTurn?: boolean;
     /** When set, this permanent is exiled instead of going to any other zone if
-     *  it would leave the battlefield (CR 614.1c — Dreams of the Dead). Read by
+     *  it would leave the battlefield (CR 614.1a — Dreams of the Dead). Read by
      *  `removePermanentTo` for EVERY departure path (dies, sacrifice, bounce,
      *  destroy), redirecting the destination to exile. PERSISTENT — unlike
      *  `exileOnDeath` it is not cleared at CLEANUP and survives across turns;
