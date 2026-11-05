@@ -8737,6 +8737,37 @@ describe("chosen type / colour as an effect parameter (CR 205.3m / 607.2d / 509.
     });
 });
 
+describe("validateEffectScript — instance attack-the-monarch watch (CR 508.3a / 603.7b, issue #7202)", () => {
+    const run = (effects: unknown[]) =>
+        validateEffectScript(host({ effects: effects as EffectOp[] }));
+    const monarchWatch = (extra: Record<string, unknown> = {}) => ({
+        op: "delayedTrigger",
+        timing: "this-turn-watched-creature-attacks-monarch",
+        oracleText: "o",
+        watch: { target: 0 },
+        capture: { $c: { target: 0 } },
+        effects: [
+            {
+                op: "grantAbility",
+                ability: "trample",
+                target: { ref: "$c" },
+                duration: { phase: "end-of-turn" },
+            },
+        ],
+        ...extra,
+    });
+
+    it("accepts a captured creature; requires `watch`; rejects `targetPlayer`", () => {
+        expect(run([monarchWatch()])).toEqual([]);
+        const noWatch: Record<string, unknown> = monarchWatch();
+        delete noWatch.watch;
+        expect(run([noWatch]).length).toBeGreaterThan(0);
+        expect(
+            run([monarchWatch({ targetPlayer: { target: 0 } })]).length
+        ).toBeGreaterThan(0);
+    });
+});
+
 describe("validateEffectScript — instance combat-damage watch (CR 603.7b / 510.2, issue #2142)", () => {
     const run = (effects: unknown[]) =>
         validateEffectScript(host({ effects: effects as EffectOp[] }));

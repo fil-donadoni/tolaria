@@ -44,6 +44,7 @@ import {
 import { raiseTriggerTargetSelection } from "./rules";
 import {
     attackWatchFirings,
+    watchedCreatureAttacksMonarch,
     UNTIL_NEXT_TURN_ATTACK_WATCHES,
 } from "./attackWatch";
 
@@ -920,6 +921,44 @@ export function collectTriggers(
                 );
                 state.delayedTriggers = kept.length > 0 ? kept : undefined;
             }
+        }
+    }
+
+    // CR 508.3a / 603.7b (issue #7202, Okoye, Mighty and Adored) — a `timing:
+    // "this-turn-watched-creature-attacks-monarch"` instance watches ONE
+    // creature and fires on each declaration that has it attacking the monarch
+    // (`attackWatch.ts`). Repeating — stays queued for an extra combat, purged
+    // at CLEANUP (phases.ts). CR 400.7 — dropped when the creature leaves the
+    // battlefield: instance ids survive zone changes, and its return is a new
+    // object this watch must not reach.
+    if (state.delayedTriggers?.length) {
+        for (const event of events) {
+            if (event.type !== "ATTACKERS_DECLARED") continue;
+            for (const t of state.delayedTriggers) {
+                if (
+                    t.timing === "this-turn-watched-creature-attacks-monarch" &&
+                    t.watchInstanceId !== undefined &&
+                    watchedCreatureAttacksMonarch(
+                        state,
+                        event,
+                        t.watchInstanceId
+                    )
+                ) {
+                    out.push(buildDelayedTriggerStackItem(state, t));
+                }
+            }
+        }
+        if (recentlyLeft.size > 0) {
+            const kept = state.delayedTriggers.filter(
+                (t) =>
+                    !(
+                        t.timing ===
+                            "this-turn-watched-creature-attacks-monarch" &&
+                        t.watchInstanceId !== undefined &&
+                        recentlyLeft.has(t.watchInstanceId)
+                    )
+            );
+            state.delayedTriggers = kept.length > 0 ? kept : undefined;
         }
     }
 
