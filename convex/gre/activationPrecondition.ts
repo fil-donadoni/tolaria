@@ -1,3 +1,4 @@
+import { splitSecondSpellOnStack } from "../cards/abilities/splitSecond";
 import { countControlledMatching } from "../cards/controlledCount";
 import { CARD_TYPES, countGraveyardCardTypes } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
@@ -11,7 +12,7 @@ import type {
     TriggerStateView,
 } from "../cards/types";
 import { activationRestrictionViolation } from "./activationRestrictions";
-import { COLORED_MANA_COLORS, isManaAbilityDefinition } from "./constants";
+import { COLORED_MANA_COLORS, isManaAbilityForRules } from "./constants";
 
 /**
  * CR 602.1b / 602.5 — an activated ability's own printed restriction ("Activate only
@@ -33,7 +34,9 @@ import { COLORED_MANA_COLORS, isManaAbilityDefinition } from "./constants";
  * It also answers CR 602.5's OTHER half — a prohibition imposed from outside
  * the ability, by an `activation-restriction` static on the battlefield
  * (Cursed Totem, `activationRestrictionViolation`) — checked first, so every
- * one of those consumers honours it with no second gate to forget.
+ * one of those consumers honours it with no second gate to forget. The same
+ * goes for a prohibition imposed from the stack (CR 702.61a, split second), which
+ * exempts mana abilities.
  *
  * `source` is the instance exactly as the mutation resolves it, from whichever
  * zone the ability functions in (a battlefield permanent, or the graveyard
@@ -51,12 +54,17 @@ export function activationPreconditionViolation(
         | "manaProduced"
         | "manaChoices"
         | "manaColorSource"
+        | "getManaChoices"
     >
 ): string | null {
+    const isManaAbility = isManaAbilityForRules(ability);
+    if (!isManaAbility && splitSecondSpellOnStack(state)) {
+        return "Players can't activate abilities that aren't mana abilities while a spell with split second is on the stack.";
+    }
     const restricted = activationRestrictionViolation(
         state,
         source.id,
-        isManaAbilityDefinition(ability)
+        isManaAbility
     );
     if (restricted !== null) return restricted;
     // CR 702.151a — "Activate only if this permanent is attached to a creature".

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Player, GrantedAbility } from "~/types/game";
+import { splitSecondSpellOnStack } from "@convex/cards/abilities/splitSecond";
 import { useGameContext } from "~/hooks/useGameContext";
 import { formatOracleText } from "~/lib/oracle-text";
 
@@ -51,6 +52,8 @@ function canActivateGrant(
          *  queue is empty — the mutation's `assertNoPendingChoices` reads the
          *  head only, so this mirror does too. */
         pendingChoiceHead?: { kind?: string; playerId?: string };
+        /** CR 702.61a — a spell with split second is on the stack. */
+        splitSecondLock: boolean;
     }
 ): boolean {
     const isManaGrant = !grant.useStack;
@@ -65,6 +68,7 @@ function canActivateGrant(
     if (grant.useStack) {
         return (
             hasPriority &&
+            !args.splitSecondLock &&
             args.pendingCastPlayerId === undefined &&
             args.pendingActivationPlayerId === undefined
         );
@@ -108,6 +112,7 @@ export default function PlayerGrantedAbilities({ player }: { player: Player }) {
         pendingCast,
         pendingActivation,
         pendingChoices,
+        stackItems,
     } = useGameContext();
     const activate = useMutation(api.game.activatePlayerAbility);
     const [busy, setBusy] = useState(false);
@@ -122,6 +127,7 @@ export default function PlayerGrantedAbilities({ player }: { player: Player }) {
         pendingCastPlayerId: pendingCast?.playerId,
         pendingActivationPlayerId: pendingActivation?.playerId,
         pendingChoiceHead: pendingChoices?.[0],
+        splitSecondLock: splitSecondSpellOnStack({ stack: stackItems }),
     };
 
     const affordable = (grant: GrantedAbility) =>

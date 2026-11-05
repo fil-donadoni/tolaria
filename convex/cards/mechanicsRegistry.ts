@@ -1349,7 +1349,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Split Second",
         kind: "keyword-ability",
         cr: "702.61",
-        status: "planned",
+        status: "implemented",
+        binding: "split second",
+        note: "Issue #4007. convex/cards/abilities/splitSecond.ts: read live off the stack (`splitSecondSpellOnStack`), nothing materialized, so the lock starts and ends with the spell. Only a SPELL's own `staticAbilities` count, so a permanent with the keyword and an ability on the stack whose item spreads such a source lock nothing (CR 702.61a), and a face-down spell has none (CR 708.2). Casts: `castProhibitionReason`, the one gate of `getLegalActions` and of every cast during resolution (CR 608.2g). Activations: `activationPreconditionViolation`, which exempts mana abilities and which the mutations, `enumerateAbilityMoves` and the client read; the player-grant path has no source permanent, so `activatePlayerAbility` and `enumerateGrantedAbilityMoves` read the lock directly. Special actions and land plays read neither gate, and triggers are untouched (CR 702.61b). The client's `legalActions` carry the cast half over the wire; the activation hint is `nonManaActivationLockedPlayers`, forwarded by `board.tsx` through the Abeyance channel.",
     },
     // 702.62 Suspend
     {

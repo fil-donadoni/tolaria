@@ -3134,9 +3134,11 @@ export function getManaChoiceCounterCost(
  *  (`search.ts`), and the Brain's standing-ability reader
  *  (`ai/cardScriptValue.ts`), which must skip a land's mana abilities because
  *  the `mana` term already scores them. A `getManaChoices` chooser with no
- *  static output declared beside it is NOT counted — no shipped card has one,
- *  every chooser card also carries `manaChoices` — because it reads every
- *  battlefield, which a definition-level predicate cannot supply. */
+ *  static output declared beside it is NOT counted, because it reads every
+ *  battlefield, which a definition-level predicate cannot supply, and because
+ *  the click-to-tap recognizer must not take a non-tap chooser for a tappable
+ *  source (`fin/multicolor.cards.ts`). What a RULE exempts is the wider
+ *  {@link isManaAbilityForRules}. */
 export function isManaAbilityDefinition(
     ability: Pick<
         ActivatedAbility,
@@ -3150,6 +3152,27 @@ export function isManaAbilityDefinition(
             ability.manaChoices ||
             ability.manaColorSource
         )
+    );
+}
+
+/** CR 605.1a — whether a rule that exempts mana abilities exempts this one
+ *  (CR 702.61b, or an `exemptManaAbilities` restriction). The rule asks what the
+ *  ability IS, not how the engine pays with it, so a non-stack ability declaring
+ *  only a `getManaChoices` chooser counts here, where
+ *  {@link isManaAbilityDefinition} leaves it out for its own readers. */
+export function isManaAbilityForRules(
+    ability: Pick<
+        ActivatedAbility,
+        | "useStack"
+        | "manaProduced"
+        | "manaChoices"
+        | "manaColorSource"
+        | "getManaChoices"
+    >
+): boolean {
+    return (
+        isManaAbilityDefinition(ability) ||
+        (!ability.useStack && ability.getManaChoices !== undefined)
     );
 }
 

@@ -7,6 +7,7 @@ import BoardCardsLoadingOverlay from "~/components/board/board-cards-loading-ove
 import { usePauseMenuHotkey } from "~/hooks/usePauseMenuHotkey";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { nonManaActivationLockedPlayers } from "@convex/cards/abilities/splitSecond";
 import type { Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import { usePageVisible } from "~/hooks/usePageVisible";
@@ -395,9 +396,11 @@ export default function Board({
     const pendingExtraCleanupStep = state.pendingExtraCleanupStep;
     // CR 602.1 / 605.1a (issue #1124) — Abeyance's turn-scoped "can't activate
     // abilities that aren't mana abilities" lock, forwarded to
-    // `buildTriggerStateView` call sites via GameContext.
+    // `buildTriggerStateView` call sites via GameContext. CR 702.61a — split
+    // second imposes the same lock on every player while its spell is on the
+    // stack.
     const cannotActivateAbilitiesThisTurn =
-        state.cannotActivateAbilitiesThisTurn;
+        nonManaActivationLockedPlayers(state);
     const pendingTarget = state.pendingTarget;
     const pendingChoices = state.pendingChoices;
     const promptChoice = pendingChoices?.[0] ?? lingeringReveal;

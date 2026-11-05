@@ -283,6 +283,32 @@ describe("player-level granted abilities on the board (issue #2691, CR 605.3a)",
         expect(mutationSpies.activate).not.toHaveBeenCalled();
     });
 
+    it("is DISABLED for a STACK-using grant while a spell with split second is on the stack (CR 702.61a)", () => {
+        const stack = (staticAbilities: string[]) => ({
+            stackItems: [{ id: "spell", staticAbilities }] as never,
+        });
+        const { container } = renderSeat(
+            projectStackGrantSeat(),
+            stack(["split second"])
+        );
+        const button = grantButton(container);
+        expect(button!.disabled).toBe(true);
+        fireEvent.click(button!);
+        expect(mutationSpies.activate).not.toHaveBeenCalled();
+        cleanup();
+        const open = renderSeat(projectStackGrantSeat(), stack([]));
+        expect(grantButton(open.container)!.disabled).toBe(false);
+    });
+
+    it("stays ENABLED for a MANA grant while a spell with split second is on the stack (CR 702.61b)", () => {
+        const { container } = renderSeat(projectChannelSeat("p1", "p1"), {
+            stackItems: [
+                { id: "spell", staticAbilities: ["split second"] },
+            ] as never,
+        });
+        expect(grantButton(container)!.disabled).toBe(false);
+    });
+
     it("is DISABLED — not hidden — when the viewer neither holds priority nor is paying a cost", () => {
         const { container } = renderSeat(projectChannelSeat("p1", "p1"), {
             priorityPlayerId: "p2",
