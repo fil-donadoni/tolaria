@@ -156,6 +156,25 @@
         "landCount": 3,
         "libraryCount": 20
     },
+    "attack: Ragavan attacks an empty board": {
+        "phase": "DECLARE_ATTACKERS",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Ragavan, Nimble Pilferer",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "library"
+            }
+        ]
+    },
     "audit: cast-blink: Flickerwisp exiles the opposing body when its own creature is vanilla": null,
     "audit: cast-blink: Flickerwisp flickers its own Flametongue Kavu for the permanent kill": null,
     "battle cry: swings for exactly-lethal only the pump provides": {
@@ -474,6 +493,30 @@
     "charter: fetches the land that makes its removal castable": null,
     "charter: picks the modal mode that survives a lethal red spell": null,
     "charter: Stifles its own Phyrexian Dreadnought trigger": null,
+    "cheat into play: activates Sneak Attack at the beginning of combat": {
+        "phase": "BEGINNING_OF_COMBAT",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Sneak Attack",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 1
+            }
+        ]
+    },
     "cheat into play: casts for a body that pays on the way out": {
         "cards": [
             {
@@ -491,6 +534,30 @@
         "turn": 3,
         "landCount": 2,
         "libraryCount": 20
+    },
+    "cheat into play: casts Show and Tell with Griselbrand in hand": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Show and Tell",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Griselbrand",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            }
+        ]
     },
     "cheat into play: the reported Worldspine Wurm position": {
         "cards": [
@@ -659,6 +726,8 @@
             "opp": 20
         }
     },
+    "counterspell: Force of Will pitches against a lethal Lightning Bolt": null,
+    "counterspell: Mana Drain counters the Craw Wurm": null,
     "damage sweep: casts Pyroclasm when the opponent holds the bodies it kills and the Bot a survivor": {
         "cards": [
             {
@@ -1533,6 +1602,82 @@
             "opp": 20
         }
     },
+    "equipment: Skullclamp equips the 1-toughness creature and draws": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 0,
+        "cards": [
+            {
+                "name": "Skullclamp",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Llanowar Elves",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 1
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "library"
+            }
+        ]
+    },
+    "equipment: Umezawa's Jitte spends a counter to win the combat": null,
     "escape: casts Phlage from the graveyard": {
         "cards": [
             {
@@ -1580,6 +1725,40 @@
         "turn": 5,
         "landCount": 2,
         "libraryCount": 20
+    },
+    "escape: casts Underworld Breach with a burn spell to escape at lethal": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Underworld Breach",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "graveyard",
+                "count": 4
+            }
+        ],
+        "life": {
+            "me": 20,
+            "opp": 3
+        }
     },
     "escape: reaches for a Lightning Bolt Underworld Breach made escapable": {
         "cards": [
@@ -1755,6 +1934,199 @@
         "libraryCount": 20
     },
     "explore: bins the revealed blank instead of leaving it as the next draw": null,
+    "extra turn: casts Time Walk with attackers on board": {
+        "phase": "POSTCOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "life": {
+            "me": 20,
+            "opp": 8
+        },
+        "cards": [
+            {
+                "name": "Time Walk",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ]
+    },
+    "fast mana: casts Mana Crypt for the Serra Angel it enables": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Mana Crypt",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            }
+        ]
+    },
+    "fast mana: casts Mana Vault for the Craw Wurm it pays for this turn": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Mana Vault",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 4
+            }
+        ]
+    },
+    "fast mana: casts Mox Diamond with a spare land past its drop": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "landsPlayed": {
+            "me": 1
+        },
+        "cards": [
+            {
+                "name": "Mox Diamond",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 1
+            }
+        ]
+    },
+    "fast mana: sacrifices Black Lotus for the Serra Angel it pays for": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Black Lotus",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ]
+    },
+    "fast mana: Sol Ring before the other one-mana play": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Sol Ring",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Skullclamp",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 1
+            }
+        ]
+    },
+    "Fastbond: plays the extra land with life to spare": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "landsPlayed": {
+            "me": 1
+        },
+        "life": {
+            "me": 20,
+            "opp": 20
+        },
+        "cards": [
+            {
+                "name": "Fastbond",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 1
+            }
+        ]
+    },
     "flanking pair: a vanilla 2/2 attacker is still blocked by a 2/2": null,
     "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block": null,
     "flash permanent NEGATIVE CONTROL: still casts hasty Raging Kavu for lethal this turn": {
@@ -1966,6 +2338,45 @@
         },
         "landCount": 0,
         "libraryCount": 20
+    },
+    "graveyard: casts Yawgmoth's Will on a full graveyard": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Yawgmoth's Will",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 4
+            },
+            {
+                "name": "Black Lotus",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Hypnotic Specter",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Sengir Vampire",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Dark Ritual",
+                "owner": "me",
+                "zone": "graveyard"
+            }
+        ]
     },
     "held answer: counters Stone Rain with Counterspell when the opponent has no cards left": null,
     "held answer: counters Stone Rain with Mana Leak when the opponent has no cards left": null,
@@ -2277,6 +2688,135 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "land: Library of Alexandria draws at seven cards": {
+        "phase": "END_STEP",
+        "activePlayer": "opp",
+        "priority": "me",
+        "turn": 6,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Library of Alexandria",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "hand",
+                "count": 7
+            }
+        ]
+    },
+    "life as mana: Bolas's Citadel plays the top card with life to spare": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 0,
+        "life": {
+            "me": 20,
+            "opp": 20
+        },
+        "cards": [
+            {
+                "name": "Bolas's Citadel",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "library",
+                "position": 0
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 5
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "library"
+            }
+        ]
+    },
+    "life X: Toxic Deluge pays exactly what the sweep needs": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "life": {
+            "me": 20,
+            "opp": 20
+        },
+        "cards": [
+            {
+                "name": "Toxic Deluge",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 3
+            }
+        ]
+    },
     "loyalty: activates Liliana's −2 to eat the opponent's only creature": {
         "cards": [
             {
@@ -2299,8 +2839,135 @@
         "landCount": 3,
         "libraryCount": 20
     },
+    "loyalty: Jace bounces the attacker that would kill him": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Jace, the Mind Sculptor",
+                "owner": "me",
+                "zone": "battlefield",
+                "counters": {
+                    "loyalty": 3
+                }
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ]
+    },
+    "loyalty: Jace brainstorms with no attacker": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Jace, the Mind Sculptor",
+                "owner": "me",
+                "zone": "battlefield",
+                "counters": {
+                    "loyalty": 3
+                }
+            }
+        ]
+    },
+    "loyalty: Oko elks the opposing Craw Wurm": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Oko, Thief of Crowns",
+                "owner": "me",
+                "zone": "battlefield",
+                "counters": {
+                    "loyalty": 4
+                }
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ]
+    },
+    "loyalty: Teferi bounces the opposing Craw Wurm": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Teferi, Time Raveler",
+                "owner": "me",
+                "zone": "battlefield",
+                "counters": {
+                    "loyalty": 4
+                }
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ]
+    },
+    "loyalty: Wrenn and Six returns the Strip Mine": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Wrenn and Six",
+                "owner": "me",
+                "zone": "battlefield",
+                "counters": {
+                    "loyalty": 3
+                }
+            },
+            {
+                "name": "Strip Mine",
+                "owner": "me",
+                "zone": "graveyard"
+            }
+        ]
+    },
     "madness-cast-when-affordable": null,
     "madness-decline-when-unaffordable": null,
+    "mana ability: Lion's Eye Diamond pays for the spell it would discard": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Lion's Eye Diamond",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ]
+    },
     "mana may-pay: taps untapped lands to pay the tax that keeps its creature": null,
     "may-search tutor: casts Tinker for the artifact the find puts onto the battlefield": {
         "cards": [
@@ -2832,11 +3499,126 @@
     "protection colour choice: Mother of Runes picks the opponent's shown colour": null,
     "protection colour choice: negative control — the lethal threat's colour wins over evidence share": null,
     "protection colour choice: Thornscape Master picks the opponent's shown colour (shared seam)": null,
+    "protection: casts The One Ring under lethal pressure": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "life": {
+            "me": 5,
+            "opp": 20
+        },
+        "cards": [
+            {
+                "name": "The One Ring",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 4
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 2,
+                "summoningSick": false
+            }
+        ]
+    },
     "provoke pair: leaves a tapped large creature tapped": null,
     "provoke target: announces the creature that dies in the block": null,
     "provoke: drags a tapped small creature into a block that kills it": null,
     "random reveal: the Bot flipper acknowledges the coin flip": null,
     "reachability: counters an opponent's land-targeting activation with Teferi's Response": null,
+    "reanimation: Animate Dead takes the opponent's Griselbrand over its own Bears": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Animate Dead",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Griselbrand",
+                "owner": "opp",
+                "zone": "graveyard"
+            }
+        ]
+    },
+    "reanimation: Reanimate takes the target its life can pay for": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "life": {
+            "me": 7,
+            "opp": 20
+        },
+        "cards": [
+            {
+                "name": "Reanimate",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 1
+            },
+            {
+                "name": "Griselbrand",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "graveyard"
+            }
+        ]
+    },
+    "reanimation: Recurring Nightmare swaps the Bears for Griselbrand": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Recurring Nightmare",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Griselbrand",
+                "owner": "me",
+                "zone": "graveyard"
+            }
+        ]
+    },
     "recoverable sweep: casts Armageddon when the Bot keeps its mana in rocks and the opponent has only lands": {
         "cards": [
             {
@@ -3021,6 +3803,37 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "removal: Swords to Plowshares takes the greater threat": {
+        "phase": "END_STEP",
+        "activePlayer": "opp",
+        "priority": "me",
+        "turn": 6,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Swords to Plowshares",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 1
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ]
+    },
     "replacement pricing: Disenchant takes the Solitary Confinement shielding the opponent from three Hill Giants, not the 2-MV artifact (issue #5362)": {
         "cards": [
             {
@@ -3147,6 +3960,37 @@
         "turn": 5,
         "libraryCount": 20
     },
+    "reset: casts Upheaval against a lost board": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Upheaval",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 6
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 6
+            }
+        ]
+    },
     "restriction pricing: Disenchant takes the Moat grounding three Bears, not the 4-MV artifact with a script (issue #5154)": {
         "cards": [
             {
@@ -3200,6 +4044,7 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "sacrifice outlet: Goblin Bombardment takes the blocked creature before it dies": null,
     "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict": {
         "cards": [
             {
@@ -3412,6 +4257,33 @@
     "source of your choice: shields itself from the burn spell on the stack, not an idle red creature": null,
     "split second pair: pumps in response to Shock on the bot's creature": null,
     "starved search: pumps toughness in response to damage removal": null,
+    "storm: casts Tendrils of Agony when the count is lethal": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "stormCount": 8,
+        "life": {
+            "me": 5,
+            "opp": 18
+        },
+        "spellsCastThisTurn": {
+            "me": 8
+        },
+        "cards": [
+            {
+                "name": "Tendrils of Agony",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 4
+            }
+        ]
+    },
     "storm: Grapeshot is lethal because the search counts the spell cast before it": null,
     "stretch: attacks with a lone 3/3 into an empty board": {
         "cards": [
@@ -3427,6 +4299,42 @@
         "libraryCount": 20
     },
     "stretch: Chrome Mox imprints a card rather than nothing": null,
+    "strip: casts Thoughtseize at a castable Shivan Dragon": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Thoughtseize",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 1
+            },
+            {
+                "name": "Shivan Dragon",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 6
+            }
+        ]
+    },
+    "strip: Thoughtseize takes the Shivan Dragon, not the Savannah Lions": null,
     "sunglasses of urza: spends white mana as red for exact lethal (CR 609.4b)": {
         "cards": [
             {
@@ -3778,6 +4686,79 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "symmetric: casts Oath of Druids when it feeds the Bot": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Oath of Druids",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 2,
+                "summoningSick": false
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "me",
+                "zone": "library"
+            }
+        ]
+    },
+    "symmetric: casts Timetwister on an empty hand against seven": {
+        "phase": "POSTCOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Timetwister",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Black Lotus",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "graveyard",
+                "count": 4
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "hand",
+                "count": 7
+            }
+        ]
+    },
     "this-turn tap activations: Dega Disciple pumps its own blocked attacker to kill the blocker": {
         "cards": [
             {
@@ -3919,6 +4900,66 @@
         }
     },
     "trample overflow: never double-blocks a trampler with two chumps whose overflow is lethal (issue #5785)": null,
+    "tutor: casts Entomb with a reanimation spell in hand": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Entomb",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Reanimate",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Griselbrand",
+                "owner": "me",
+                "zone": "library"
+            }
+        ]
+    },
+    "tutor: Entomb bins the fatty, not the Bears": null,
+    "tutor: Natural Order sacrifices the Elves for the Craw Wurm": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Natural Order",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 4
+            },
+            {
+                "name": "Llanowar Elves",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "me",
+                "zone": "library"
+            }
+        ]
+    },
     "type-blind potential: casts Monk Realist into an opposing Glorious Anthem": {
         "cards": [
             {
@@ -3948,6 +4989,26 @@
         "turn": 5,
         "landCount": 4,
         "libraryCount": 20
+    },
+    "vehicle: crews Smuggler's Copter with the summoning-sick spare": {
+        "phase": "BEGINNING_OF_COMBAT",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Smuggler's Copter",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Llanowar Elves",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": true
+            }
+        ]
     },
     "wasted mana NEGATIVE CONTROL: casts Dark Ritual when it turns on a Craw Wurm": {
         "cards": [
@@ -4071,6 +5132,55 @@
         "priority": "me"
     },
     "wish: brings the sorcery in from outside the game rather than declining": null,
+    "X spell: Green Sun's Zenith finds the Bears at X = 2": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Green Sun's Zenith",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            }
+        ]
+    },
+    "X spell: Mind Twist for all it can at a full hand": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Mind Twist",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 5
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "hand",
+                "count": 5
+            }
+        ]
+    },
     "zero-output mana source: casts its removal instead of tapping a 0-counter Everflowing Chalice": {
         "cards": [
             {
