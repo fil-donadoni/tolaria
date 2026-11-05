@@ -1421,7 +1421,10 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Gravestorm",
         kind: "keyword-ability",
         cr: "702.69",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "GameState.permanentsToGraveyardThisTurn (gre/state.ts, written by removePermanentTo) + collectCastTriggers/resolveCastCopyTrigger (ADR 0052) — Storm's engine-synthesized cast-copy trigger with another count provider, read when the trigger resolves (CR 608.2h) rather than at the cast",
+        note: "CR 702.69a counts every permanent put into any graveyard from the battlefield this turn: tokens and noncreatures included, a departure replaced into another zone not. CR 702.69b: one trigger per instance. A copy is not cast (CR 707.10), so it never re-triggers. Client: getTriggeredAbilityOracleText labels the trigger id. The Bot reaches it through the ordinary cast Move, and its sandbox casts through emitSpellCastEvent, so the copies resolve in simulation. Used by Bitter Ordeal.",
     },
     // 702.70 Poisonous
     {

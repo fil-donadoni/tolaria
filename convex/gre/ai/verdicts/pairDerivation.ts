@@ -123,6 +123,7 @@ export const PER_TURN_SPEC_KEYS = [
     "artifactDamageToPlayerThisTurn",
     "lifeGainedThisTurn",
     "deathsThisTurn",
+    "permanentsToGraveyardThisTurn",
     "creatureAttackedThisTurn",
     "qualifyingActionThisTurn",
     "revolt",

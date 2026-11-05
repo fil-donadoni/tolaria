@@ -502,6 +502,9 @@ const ECHOED_BOOKKEEPING_KEYS = [
     // `removePermanentTo` (`state.ts`), immediately after the battlefield →
     // graveyard move — and for the opponent both zones are compared.
     "deathsThisTurn",
+    // Bumped by ANY permanent reaching a graveyard, same sole writer and same
+    // reasoning.
+    "permanentsToGraveyardThisTurn",
     // Last-known information stamped for a permanent as it LEAVES the
     // battlefield. Same sole writer, on the departure itself, which is the
     // primary change.
@@ -1495,6 +1498,10 @@ function normalize(
         // hide here.
         delete (mover as unknown as Record<string, unknown>)
             .permanentYouControlledLeftThisTurn;
+        // A single global tally the spent permanent's departure bumped whatever
+        // its types, so it is dropped on both sides for every self-sacrifice.
+        delete (state as unknown as Record<string, unknown>)
+            .permanentsToGraveyardThisTurn;
         // `deathsThisTurn` is a single global tally, so it cannot be un-bumped
         // for one instance: drop it on both sides, and only when the spent
         // permanent was the creature whose death bumped it (CR 700.4). Inert

@@ -2694,6 +2694,12 @@ describe("getTriggeredAbilityOracleText — cast-copy triggers (ADR 0052)", () =
         );
     });
 
+    it("labels Gravestorm's trigger (CR 702.69a)", () => {
+        expect(getTriggeredAbilityOracleText(LOSE_FOCUS_ID, "gravestorm")).toBe(
+            "Gravestorm (When you cast this spell, copy it for each permanent put into a graveyard this turn. You may choose new targets for the copies.)"
+        );
+    });
+
     it("still labels Storm's trigger (CR 702.40a)", () => {
         expect(getTriggeredAbilityOracleText(LOSE_FOCUS_ID, "storm")).toBe(
             "Storm (When you cast this spell, copy it for each spell cast before it this turn. You may choose new targets for the copies.)"

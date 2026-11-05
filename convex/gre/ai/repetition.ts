@@ -70,9 +70,10 @@
  * count — and it would be wrong wherever something READS the tally. The one
  * such reader this engine has for the spell count is storm (CR 702.40), so
  * while any storm card is in a hand, on the battlefield or on the stack the
- * spell counts are part of the position again. The other tallies have no loop
- * that pays off through them today; a card that makes one pay off belongs on
- * the same footing as storm here.
+ * spell counts are part of the position again. Gravestorm (CR 702.69) stands on
+ * the same footing for the graveyard tally: a sacrifice lap that changes nothing
+ * else still raises its copies. The other tallies have no loop that pays off
+ * through them today; a card that makes one pay off belongs here too.
  *
  * Determinism: a pure function of the state and the history the caller hands
  * in. The history is plain data (strings and arrays), so it survives the
@@ -109,6 +110,7 @@ const SEARCH_STAMP_KEYS = ["deckColorKnowledge"] as const;
 /** Game-level tallies a loop lap bumps without changing the board. */
 const TALLY_STATE_KEYS = [
     "deathsThisTurn",
+    "permanentsToGraveyardThisTurn",
     "lifeGainedThisTurn",
     "damageDealtToPlayerThisTurn",
     "artifactDamageToPlayerThisTurn",
@@ -137,14 +139,26 @@ const SPELL_COUNT_KEY = "spellsCastThisTurn";
 /** The storm keyword id (CR 702.40), as the Mechanics Registry names it. */
 const STORM_KEYWORD = "storm";
 
+/** The graveyard tally, restored to the position while a gravestorm card could
+ *  read it (see the module header). */
+const GRAVEYARD_TALLY_KEY = "permanentsToGraveyardThisTurn";
+
+/** The gravestorm keyword id (CR 702.69), as the Mechanics Registry names it. */
+const GRAVESTORM_KEYWORD = "gravestorm";
+
 type IgnoreSets = {
     state: ReadonlySet<string>;
     player: ReadonlySet<string>;
 };
 
-function ignoreSets(keepSpellCount: boolean): IgnoreSets {
+function ignoreSets(
+    keepSpellCount: boolean,
+    keepGraveyardTally: boolean
+): IgnoreSets {
     const drop = (k: string) =>
-        KEPT_PRIORITY_KEYS.has(k) || (keepSpellCount && k === SPELL_COUNT_KEY);
+        KEPT_PRIORITY_KEYS.has(k) ||
+        (keepSpellCount && k === SPELL_COUNT_KEY) ||
+        (keepGraveyardTally && k === GRAVEYARD_TALLY_KEY);
     return {
         state: new Set(
             [
@@ -162,8 +176,10 @@ function ignoreSets(keepSpellCount: boolean): IgnoreSets {
     };
 }
 
-const IGNORE_DEFAULT = ignoreSets(false);
-const IGNORE_WITH_SPELL_COUNT = ignoreSets(true);
+const IGNORE_DEFAULT = ignoreSets(false, false);
+const IGNORE_WITH_SPELL_COUNT = ignoreSets(true, false);
+const IGNORE_WITH_GRAVEYARD_TALLY = ignoreSets(false, true);
+const IGNORE_WITH_BOTH = ignoreSets(true, true);
 const IGNORED_INSTANCE: ReadonlySet<string> = new Set(IGNORED_INSTANCE_KEYS);
 
 /** Zones with no meaningful order (CR 403.1 battlefield, 402.1 hand, 406.1
@@ -176,19 +192,38 @@ const UNORDERED_ZONE_KEYS: ReadonlySet<string> = new Set([
     "exile",
 ]);
 
-function hasStorm(item: unknown): boolean {
+function hasKeyword(item: unknown, keyword: string): boolean {
     const abilities = (item as { staticAbilities?: unknown }).staticAbilities;
-    return Array.isArray(abilities) && abilities.includes(STORM_KEYWORD);
+    return Array.isArray(abilities) && abilities.includes(keyword);
+}
+
+/** Does a card with `keyword` sit in a hand, on the battlefield or on the stack? */
+function keywordIsInReach(state: GameState, keyword: string): boolean {
+    const carries = (item: unknown) => hasKeyword(item, keyword);
+    for (const player of state.players) {
+        if (player.hand.some(carries) || player.battlefield.some(carries)) {
+            return true;
+        }
+    }
+    return state.stack.some(carries);
 }
 
 /** Is anything in a position to read the spell count (CR 702.40)? */
 function spellCountIsRead(state: GameState): boolean {
-    for (const player of state.players) {
-        if (player.hand.some(hasStorm) || player.battlefield.some(hasStorm)) {
-            return true;
-        }
+    return keywordIsInReach(state, STORM_KEYWORD);
+}
+
+/** Is anything in a position to read the graveyard tally (CR 702.69)? */
+function graveyardTallyIsRead(state: GameState): boolean {
+    return keywordIsInReach(state, GRAVESTORM_KEYWORD);
+}
+
+function ignoreSetsFor(state: GameState): IgnoreSets {
+    const spells = spellCountIsRead(state);
+    if (graveyardTallyIsRead(state)) {
+        return spells ? IGNORE_WITH_BOTH : IGNORE_WITH_GRAVEYARD_TALLY;
     }
-    return state.stack.some(hasStorm);
+    return spells ? IGNORE_WITH_SPELL_COUNT : IGNORE_DEFAULT;
 }
 
 /** Canonical JSON: sorted keys, `undefined` dropped, a card DEFINITION
@@ -307,9 +342,7 @@ function positionField(state: GameState, key: string, value: unknown): unknown {
 }
 
 function fingerprintOf(state: GameState): string {
-    const sets = spellCountIsRead(state)
-        ? IGNORE_WITH_SPELL_COUNT
-        : IGNORE_DEFAULT;
+    const sets = ignoreSetsFor(state);
     const out: string[] = [];
     const top = state as unknown as Record<string, unknown>;
     out.push("{");
@@ -351,6 +384,8 @@ export type RepetitionEntry = {
     /** The seat's spell count this turn while a storm card could read it
      *  (CR 702.40); 0 otherwise. */
     spells: number;
+    /** The table's graveyard tally, 0 unless a gravestorm card could read it. */
+    permanentsToGraveyard: number;
 };
 
 /** The Bot's decision history for one seat: step-and-move key → the progress
@@ -401,11 +436,18 @@ function progressOf(state: GameState, seatId: string): RepetitionEntry {
     return {
         margin: materialMargin(state, seatId),
         spells: spellCountIsRead(state) ? (seat?.spellsCastThisTurn ?? 0) : 0,
+        permanentsToGraveyard: graveyardTallyIsRead(state)
+            ? (state.permanentsToGraveyardThisTurn ?? 0)
+            : 0,
     };
 }
 
 function madeProgress(now: RepetitionEntry, then: RepetitionEntry): boolean {
-    return now.margin > then.margin + PROGRESS_EPS || now.spells > then.spells;
+    return (
+        now.margin > then.margin + PROGRESS_EPS ||
+        now.spells > then.spells ||
+        now.permanentsToGraveyard > then.permanentsToGraveyard
+    );
 }
 
 /** Record that `seatId` took `move` at `state`. Returns the updated history (a

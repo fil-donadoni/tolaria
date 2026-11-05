@@ -74,6 +74,7 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     artifactDamageToPlayerThisTurn: "form-owned",
     lifeGainedThisTurn: "form-owned",
     deathsThisTurn: "form-owned",
+    permanentsToGraveyardThisTurn: "form-owned",
     creatureAttackedThisTurn: "form-owned",
     // CR 508.1c / 500.1 / 207.2c (issue #3450) — the per-seat turn history:
     // Arboria's qualifying-action flags, the seat's own turn count and
@@ -429,6 +430,13 @@ export const SCENARIO_SPEC_FIELD_INPUT = {
     deathsThisTurn: {
         kind: "number",
         label: "creatures died",
+        min: 0,
+        group: "other",
+        section: "this-turn",
+    },
+    permanentsToGraveyardThisTurn: {
+        kind: "number",
+        label: "permanents to graveyard",
         min: 0,
         group: "other",
         section: "this-turn",

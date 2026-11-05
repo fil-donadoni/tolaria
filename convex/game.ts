@@ -16227,6 +16227,7 @@ export const debugSetupScenario = mutation({
             })
         ),
         deathsThisTurn: v.optional(v.number()),
+        permanentsToGraveyardThisTurn: v.optional(v.number()),
         creatureAttackedThisTurn: v.optional(v.boolean()),
         /** CR 508.1c / 500.1 (issue #3450, PRD #3397) — the per-seat turn
          *  history: Arboria's qualifying-action flags (this turn, and the

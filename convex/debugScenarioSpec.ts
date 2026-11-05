@@ -788,6 +788,7 @@ export const scenarioSpecValidator = v.object({
     // (Scavenging Ghoul). Game-level and a single number, exactly as the
     // engine holds it.
     deathsThisTurn: v.optional(v.number()),
+    permanentsToGraveyardThisTurn: v.optional(v.number()),
     // CR 508.1a / 506.3 — whether ANY player has declared an attacker this
     // turn, read by "if no creatures attacked this turn" intervening-ifs
     // (CR 603.4, Keldon Twilight). A boolean rather than a scan of the
@@ -1290,6 +1291,10 @@ export type ScenarioSpec = {
     /** CR 700.4 (issue #3453) — creatures that have died this turn, any
      *  controller (`GameState.deathsThisTurn`, Scavenging Ghoul). */
     deathsThisTurn?: number;
+    /** Permanents put into any graveyard from the battlefield this turn, tokens
+     *  included (`GameState.permanentsToGraveyardThisTurn`, Gravestorm,
+     *  CR 702.69a). */
+    permanentsToGraveyardThisTurn?: number;
     /** CR 508.1a (issue #3453) — whether any player has declared an attacker
      *  this turn (`GameState.creatureAttackedThisTurn`), read by "if no
      *  creatures attacked this turn" (Keldon Twilight). */
@@ -2405,6 +2410,11 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         }
     }
     set(spec, "deathsThisTurn", pickNumber(raw.deathsThisTurn));
+    set(
+        spec,
+        "permanentsToGraveyardThisTurn",
+        pickNumber(raw.permanentsToGraveyardThisTurn)
+    );
     set(
         spec,
         "creatureAttackedThisTurn",
