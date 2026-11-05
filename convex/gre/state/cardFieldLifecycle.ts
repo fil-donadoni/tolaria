@@ -202,7 +202,7 @@ export const CARD_FIELD_LIFECYCLE = {
     sourcePrintId:              { codec: "scalar",  reset: NONE },
     exileOnDeath:               { codec: "flag",    reset: TURN_ZONE },
     damageLockThisTurn:         { codec: "flag",    reset: TURN_ZONE },
-    exileOnLeave:               { codec: "flag",    reset: NONE },
+    exileOnLeave:               { codec: "flag",    reset: ZONE },
     cantBeRegeneratedThisTurn:  { codec: "flag",    reset: TURN },
     mustAttackThisTurn:         { codec: "flag",    reset: TURN },
     canBlockAdditional:         { codec: "defined", reset: TURN },

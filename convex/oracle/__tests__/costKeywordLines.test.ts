@@ -431,3 +431,30 @@ describe("Fading N (CR 702.32a)", () => {
         expect(readLine(line).ok).toBe(false);
     });
 });
+
+describe("Unearth [cost] (CR 702.84a)", () => {
+    it("reads a mana cost, generic included, and prints it in the factory's label", () => {
+        expect(readLine("Unearth {3}{R}{R}").ok).toBe(true);
+        const def = compiled(
+            oracleCard({
+                name: "Phyrexian Dragon Engine Fragment",
+                manaCost: "{3}",
+                typeLine: "Artifact Creature — Phyrexian Dragon",
+                oracleText:
+                    "Unearth {3}{R}{R} ({3}{R}{R}: Return this card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step or if it would leave the battlefield. Unearth only as a sorcery.)",
+            })
+        );
+        const [ability] = def.activatedAbilities ?? [];
+        expect(ability?.id).toBe("unearth");
+        expect(ability?.oracleText).toContain("Unearth {3}{R}{R} ({3}{R}{R}:");
+        expect(ability?.activateFromGraveyard).toBe(true);
+        expect(ability?.sorcerySpeedOnly).toBe(true);
+    });
+
+    it.each(["Unearth—Pay eight {E}.", "Unearth {X}{R}"])(
+        "refuses %s",
+        (line) => {
+            expect(readLine(line).ok).toBe(false);
+        }
+    );
+});

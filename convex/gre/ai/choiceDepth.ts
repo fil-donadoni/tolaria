@@ -150,6 +150,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     exile: false,
     exileAndReturnTransformed: false,
     exileOnDeath: false,
+    exileOnLeave: false,
     exileSelf: false,
     exileWithAttachments: false,
     extraCombat: false,

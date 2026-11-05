@@ -10787,6 +10787,37 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "CR 702.99a Cipher — the deterministic half is in `cipher.bot.test.ts`. Proof-of-failure: dropping `isEncodedForController` from `playableExileCards` reds this entry.",
     },
     {
+        // UNEARTH IS AN ATTACK (CR 702.84a, issue #8165). Haste makes the 2/1
+        // lethal into an empty board this turn, whatever the end-step exile
+        // costs: not enumerated from the graveyard, or the haste dropped, and
+        // the Bot passes with the game in hand.
+        label: "Unearth: Dregscape Zombie returns from the graveyard for a lethal attack",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Dregscape Zombie", owner: "me", zone: "graveyard" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { opp: 2 },
+        },
+        setup: [],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE: the Zombie's is the only ability on the board, and the
+        // claim is reachability, not a preference that owes the fit a verdict.
+        expect: {
+            predicate: (move) => move?.kind === "activate-ability",
+            describe: "activates unearth",
+        },
+        note: 'CR 702.84a Unearth, the graveyard activation through `enumerateMoves`. Proof of failure: `ability: "vigilance"` in place of haste in `unearthAbility` reds it.',
+    },
+    {
         // Issue #3545 — `choose-permanents` "up to N" (CR 608.2), the MAX
         // extreme. The root decision is Frantic Search's live untap pick,
         // reached by really casting it (the cast taps all three Islands),

@@ -58,6 +58,7 @@ import {
     reconfigureAbilities,
 } from "../cards/abilities/equipment";
 import { ninjutsuAbility } from "../cards/abilities/ninjutsu";
+import { unearthAbility } from "../cards/abilities/unearth";
 import { CONSPIRE_KEYWORD, conspireCost } from "../cards/abilities/conspire";
 import { offspringTriggerParts } from "../cards/abilities/offspring";
 import { crewAbility, crewKeyword } from "../cards/abilities/vehicle";
@@ -993,6 +994,13 @@ function lowerLine(
             if (acc.activatedAbilities.some((a) => a.id === "ninjutsu"))
                 return "a card declares ninjutsu twice (CR 702.49a)";
             acc.activatedAbilities.push(ninjutsuAbility(ir.cost));
+            return null;
+        }
+        case "unearth": {
+            // The factory's ability id is the keyword's own ("unearth").
+            if (acc.activatedAbilities.some((a) => a.id === "unearth"))
+                return "a card declares unearth twice (CR 702.84a)";
+            acc.activatedAbilities.push(unearthAbility(ir.cost));
             return null;
         }
         case "offspring": {

@@ -2832,6 +2832,19 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSubject(req, op.target);
             return;
+        case "exileOnLeave":
+            // `exileOnLeave` (CR 614.1a, issue #8165) sets an IMMEDIATE flag,
+            // observable in the same resolution, on any permanent subject.
+            if (!subjectModelled(req, op.target)) {
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "exileOnLeave" targets $source/$each — covered by the card's own per-card test`
+                );
+                return;
+            }
+            recordSubject(req, op.target);
+            return;
         case "lockDamage":
             // `lockDamage` (CR 615.12 / 614.9, issue #2231) sets an IMMEDIATE
             // `damageLockThisTurn` flag on the target creature — the same shape
@@ -5008,6 +5021,29 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: perm.exileOnDeath === true,
                     detail: `exileOnDeath ${perm.exileOnDeath}, expected true`,
+                };
+            },
+        };
+    },
+    // `exileOnLeave` (CR 614.1a, issue #8165) — the persistent replacement armed
+    // on an announced permanent slot, observable as the flag flipping
+    // undefined→true. Other subjects are skipped upstream in `analyseOp`.
+    exileOnLeave(rawOp, scenario) {
+        const op = rawOp as Extract<EffectOp, { op: "exileOnLeave" }>;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
+        return {
+            label: `exile-on-leave permanent ${permId} (exileOnLeave undefined→true)`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                return {
+                    ok: perm.exileOnLeave === true,
+                    detail: `exileOnLeave ${perm.exileOnLeave}, expected true`,
                 };
             },
         };

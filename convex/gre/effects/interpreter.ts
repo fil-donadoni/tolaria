@@ -6311,6 +6311,15 @@ export const OP_EXECUTORS: {
         if (!target || target.type !== "permanent") return;
         ctx.setExileOnDeath(target);
     },
+    // CR 614.1a (issue #8165) — arm the persistent "if it would leave the
+    // battlefield, exile it instead" replacement. Thin skin over the single
+    // primitive `setExileOnLeave`. No-op when the target is gone or was never
+    // put on the battlefield (CR 609.3 — a redirected reanimation).
+    exileOnLeave(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target || target.type !== "permanent") return;
+        ctx.setExileOnLeave(target);
+    },
     // CR 615.12 / 614.9 (issue #2231) — arm the turn-scoped "damage dealt to
     // that creature can't be prevented or dealt instead to another permanent or
     // player" lock. Thin skin over the single primitive
@@ -8096,6 +8105,7 @@ export const MELD_GROUP_DISPOSITION: Readonly<
     destroy: BATTLEFIELD_ONLY,
     exileAndReturnTransformed: BATTLEFIELD_ONLY,
     exileOnDeath: BATTLEFIELD_ONLY,
+    exileOnLeave: BATTLEFIELD_ONLY,
     // Acts on a battlefield host; its own RETURN leg brings a melded host's
     // two cards back (`ExileReturnBundle.meldPartners`, `gre/state.ts`).
     exileWithAttachments: BATTLEFIELD_ONLY,

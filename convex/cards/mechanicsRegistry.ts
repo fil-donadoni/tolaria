@@ -1575,7 +1575,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Unearth",
         kind: "keyword-ability",
         cr: "702.84",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/cards/abilities/unearth.ts",
+        note: 'Graveyard-activation capability, NOT an Effect Script Op (issue #8165). CR 702.84a: "[Cost]: Return this card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step. If it would leave the battlefield, exile it instead of putting it anywhere else. Activate only as a sorcery." Declared by the `unearthAbility(cost)` factory over `activateFromGraveyard` + `sorcerySpeedOnly` and four Ops: `moveZone from: "graveyard"` (binding the returned object, so a card that left the graveyard in response gets none of the rest), indefinite `grantAbility haste`, `exileOnLeave` and a next-end-step `delayedTrigger`. The "Unearth [mana cost]" keyword line lowers through the same factory; a non-mana cost ("Unearth—Pay eight {E}") stays refused by the shared cost parameter.',
     },
     // 702.85 Cascade
     {
@@ -3790,11 +3792,18 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Two creatures fight (CR 701.14a, issue #2013, issue #4572): each deals damage equal to its power to the other, simultaneously, through the normal damage path (prevention, protection, deathtouch, wither and damage triggers all apply; CR 701.14d - not combat damage). A thin declarative skin over the single SpellContext primitive `fight`, one execution path (ADR 0045), with BOTH combatants named: `creature` and `other` are object selectors (an announced slot, `$source`, a forEach `$each`, a bound ref), so "Target creature you control fights target creature an opponent controls" (Triangle of War) and "this creature fights target creature" are one shape. CR 701.14b - if either creature is gone, no longer a creature, or an illegal target at resolution (its slot blanked by the CR 608.2b gate), NEITHER fights: the Op is skipped whole. DISTINCT from a one-way "deals damage equal to its power to target creature" (`dealDamage`), which is not a fight. The hand-written `ctx.fight(target)` cards (Tracker, Karplusan Yeti, Tahngarth) predate the Op and print the two-sentence pre-"fight" template, not "fights".',
     },
     {
+        op: "exileOnLeave",
+        status: "implemented",
+        cr: "614.1a",
+        binding: "SpellContext.setExileOnLeave",
+        note: 'Arm the persistent replacement "if it would leave the battlefield, exile it instead of putting it anywhere else" on a permanent (CR 614.1a, issue #8165). A thin declarative skin over the single SpellContext primitive `setExileOnLeave`, read by `removePermanentTo`, the one battlefield-departure funnel. Unlike `exileOnDeath` it covers every departure path and has no turn scope; the `exileOnLeave` card field is cleared when the object leaves (CR 400.7), so a card returned later is a new object without it. Emitted by the Unearth keyword line (`unearthAbility`).',
+    },
+    {
         op: "exileOnDeath",
         status: "implemented",
         cr: "614.1a",
         binding: "SpellContext.setExileOnDeath",
-        note: 'Arm a one-shot, turn-scoped death replacement on a permanent: "if it would die this turn, exile it instead" (CR 614.1a, issue #1095). A thin declarative skin over the single SpellContext primitive `setExileOnDeath`, one execution path (ADR 0045) — the DSL skin for the three `resolve()` closures that already call it (Disintegrate `drk/green.ts`, `fin/red.ts`, `lea/red.ts`), plus Scorching Lava\'s kicked rider. `target` is an announced target slot (`{ target: N }`), the resolving source (`$source`), or a forEach `$each`. No duration field — the one-shot, DEATH-only, cleared-at-CLEANUP lifetime (CR 514.2) is intrinsic to the flag, exactly as it is for the sibling `preventRegeneration` lock the same Oracle sentence usually pairs it with. DISTINCT from `SpellContext.setExileOnLeave` (Dreams of the Dead), a PERSISTENT flag covering every battlefield-departure path — bounce, sacrifice, destroy — and surviving across turns; that shape has no Op yet and is not folded here. No-op on a non-permanent target, a non-CREATURE permanent, or one already gone (CR 608.2b) — an "any target" spell aimed at a player or a planeswalker does nothing, which is exactly what "that creature" in the Oracle text means.',
+        note: 'Arm a one-shot, turn-scoped death replacement on a permanent: "if it would die this turn, exile it instead" (CR 614.1a, issue #1095). A thin declarative skin over the single SpellContext primitive `setExileOnDeath`, one execution path (ADR 0045) — the DSL skin for the three `resolve()` closures that already call it (Disintegrate `drk/green.ts`, `fin/red.ts`, `lea/red.ts`), plus Scorching Lava\'s kicked rider. `target` is an announced target slot (`{ target: N }`), the resolving source (`$source`), or a forEach `$each`. No duration field — the one-shot, DEATH-only, cleared-at-CLEANUP lifetime (CR 514.2) is intrinsic to the flag, exactly as it is for the sibling `preventRegeneration` lock the same Oracle sentence usually pairs it with. DISTINCT from `SpellContext.setExileOnLeave` (Dreams of the Dead), a PERSISTENT flag covering every battlefield-departure path — bounce, sacrifice, destroy — and surviving across turns; that shape is its own Op, `exileOnLeave`. No-op on a non-permanent target, a non-CREATURE permanent, or one already gone (CR 608.2b) — an "any target" spell aimed at a player or a planeswalker does nothing, which is exactly what "that creature" in the Oracle text means.',
     },
     {
         op: "lockDamage",
