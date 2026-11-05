@@ -12783,6 +12783,227 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // Verb Frames (CR 118.12, CR 118.3) — "you may exile N cards from your
+    // graveyard" under the `optional` wrapper: a `mayPay` graveyard leg, paid
+    // in full or refused, whose `if` reads the payment. Exhibits the bodies the
+    // canned generator does not model behind that `if`: an Op acting on the
+    // ability's source, and a "When you do" reflexive return.
+    {
+        rule: "effect clause",
+        card: {
+            name: "Emeritus of Ideation // Ancestral Recall",
+            manaCost: "{3}{U}{U} // {U}",
+            typeLine: "Creature — Human Wizard // Instant",
+            oracleText: "",
+            power: "5",
+            toughness: "5",
+            oracleId: "24a29be4-5bc2-469b-b2ce-2fb305c3facb",
+            layout: "prepare",
+            faces: [
+                {
+                    name: "Emeritus of Ideation",
+                    manaCost: "{3}{U}{U}",
+                    typeLine: "Creature — Human Wizard",
+                    oracleText:
+                        "Flying, ward {2}\nThis creature enters prepared.\nWhenever this creature attacks, you may exile eight cards from your graveyard. If you do, this creature becomes prepared.",
+                    power: "5",
+                    toughness: "5",
+                },
+                {
+                    name: "Ancestral Recall",
+                    manaCost: "{U}",
+                    typeLine: "Instant",
+                    oracleText: "Target player draws three cards.",
+                },
+            ],
+        },
+        expected: {
+            name: "Emeritus of Ideation",
+            types: ["Creature"],
+            subtypes: ["Human", "Wizard"],
+            manaCost: { X: 3, U: 2 },
+            power: 5,
+            toughness: 5,
+            oracleText:
+                "Flying, ward {2}\nThis creature enters prepared.\nWhenever this creature attacks, you may exile eight cards from your graveyard. If you do, this creature becomes prepared.",
+            staticAbilities: ["flying", "ward {2}"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "emeritus-of-ideation-trigger",
+                    oracleText:
+                        "Whenever this creature attacks, you may exile eight cards from your graveyard. If you do, this creature becomes prepared.",
+                    head: { kind: "attacks" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            cost: {
+                                graveyard: {
+                                    action: "exile-chosen",
+                                    filter: {},
+                                    count: 8,
+                                },
+                            },
+                            prompt: "Exile eight cards from your graveyard?",
+                            bind: "$paid2",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$paid2" },
+                            then: [
+                                {
+                                    op: "becomePrepared",
+                                    target: { ref: "$source" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            entersPrepared: true,
+            insetSpell: {
+                kind: "prepare",
+                name: "Ancestral Recall",
+                manaCost: { U: 1 },
+                types: ["Instant"],
+                oracleText: "Target player draws three cards.",
+                effects: [{ op: "draw", player: { target: 0 }, count: 3 }],
+                targetRequirement: { type: "player", count: 1 },
+            },
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            name: "Aegis Sculptor",
+            manaCost: "{3}{U}",
+            typeLine: "Creature — Bird Wizard",
+            oracleText:
+                "Flying\nWard {2} (Whenever this creature becomes the target of a spell or ability an opponent controls, counter it unless that player pays {2}.)\nAt the beginning of your upkeep, you may exile two cards from your graveyard. If you do, put a +1/+1 counter on this creature.",
+            power: "2",
+            toughness: "3",
+            oracleId: "3a75c56a-bdf7-490d-aa41-51d5eb8be46c",
+            layout: "normal",
+        },
+        expected: {
+            name: "Aegis Sculptor",
+            types: ["Creature"],
+            subtypes: ["Bird", "Wizard"],
+            manaCost: { X: 3, U: 1 },
+            power: 2,
+            toughness: 3,
+            oracleText:
+                "Flying\nWard {2} (Whenever this creature becomes the target of a spell or ability an opponent controls, counter it unless that player pays {2}.)\nAt the beginning of your upkeep, you may exile two cards from your graveyard. If you do, put a +1/+1 counter on this creature.",
+            staticAbilities: ["flying", "ward {2}"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "aegis-sculptor-trigger",
+                    oracleText:
+                        "At the beginning of your upkeep, you may exile two cards from your graveyard. If you do, put a +1/+1 counter on this creature.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            cost: {
+                                graveyard: {
+                                    action: "exile-chosen",
+                                    filter: {},
+                                    count: 2,
+                                },
+                            },
+                            prompt: "Exile two cards from your graveyard?",
+                            bind: "$paid2",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$paid2" },
+                            then: [
+                                {
+                                    op: "counters",
+                                    action: "add",
+                                    counter: "+1/+1",
+                                    target: { ref: "$source" },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            name: "Young Necromancer",
+            manaCost: "{4}{B}",
+            typeLine: "Creature — Human Warlock",
+            oracleText:
+                "When this creature enters, you may exile two cards from your graveyard. When you do, return target creature card from your graveyard to the battlefield.",
+            power: "2",
+            toughness: "3",
+            oracleId: "17455491-c295-4130-99b4-1b5c6ac1cd25",
+            layout: "normal",
+        },
+        expected: {
+            name: "Young Necromancer",
+            types: ["Creature"],
+            subtypes: ["Human", "Warlock"],
+            manaCost: { X: 4, B: 1 },
+            power: 2,
+            toughness: 3,
+            oracleText:
+                "When this creature enters, you may exile two cards from your graveyard. When you do, return target creature card from your graveyard to the battlefield.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "young-necromancer-trigger",
+                    oracleText:
+                        "When this creature enters, you may exile two cards from your graveyard. When you do, return target creature card from your graveyard to the battlefield.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            cost: {
+                                graveyard: {
+                                    action: "exile-chosen",
+                                    filter: {},
+                                    count: 2,
+                                },
+                            },
+                            prompt: "Exile two cards from your graveyard?",
+                            bind: "$paid2",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$paid2" },
+                            then: [
+                                {
+                                    op: "reflexiveTrigger",
+                                    oracleText:
+                                        "When you do, return target creature card from your graveyard to the battlefield.",
+                                    targetRequirement: {
+                                        type: "Creature",
+                                        count: 1,
+                                        zone: "graveyard",
+                                        controller: "you",
+                                    },
+                                    effects: [
+                                        {
+                                            op: "moveZone",
+                                            target: { target: 0 },
+                                            to: "battlefield",
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // Verb Frames (issue #6630, CR 701.21a, CR 118.12) — the `sacrifice`
     // frame's "another <descriptor>" (the source excluded from the pool,
     // `excludeSource`) under the `optional` wrapper and the `If you do`

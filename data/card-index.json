@@ -730,6 +730,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Aegis Sculptor",
+        "scryfallId": "19c1417a-9719-46f6-8749-d92b93ce0529",
+        "oracleId": "3a75c56a-bdf7-490d-aa41-51d5eb8be46c",
+        "firstSet": "tdm",
+        "firstPrintId": "19c1417a-9719-46f6-8749-d92b93ce0529",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Aegis Turtle",
         "scryfallId": "e433e7f0-7417-4dfe-a7a4-3f222b0a835f",
         "oracleId": "f84c30e7-2ea8-43ff-9356-1f907558cfd9",
@@ -1615,6 +1625,16 @@
         "firstPrintId": "457a5613-d1d4-4112-8484-f40120079b7b",
         "firstPrintSet": "pcy",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Algae Gharial",
+        "scryfallId": "946e08b5-1c99-467c-abba-07ddede07a6c",
+        "oracleId": "7020dc51-8271-40a3-9c4c-ebd40c0b08b2",
+        "firstSet": "ala",
+        "firstPrintId": "946e08b5-1c99-467c-abba-07ddede07a6c",
+        "firstPrintSet": "ala",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -8013,6 +8033,16 @@
         "firstPrintId": "a8c468cd-1255-4257-9a69-c6b40a27c427",
         "firstPrintSet": "rtr",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Bloodhall Ooze",
+        "scryfallId": "e8b7208e-aa64-43fa-b7f8-8d40d7005358",
+        "oracleId": "79591c18-0065-49bb-a77a-734d4af87a3c",
+        "firstSet": "con",
+        "firstPrintId": "e8b7208e-aa64-43fa-b7f8-8d40d7005358",
+        "firstPrintSet": "con",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -17948,6 +17978,16 @@
         "source": "compiled"
     },
     {
+        "name": "Deathbringer Thoctar",
+        "scryfallId": "f09f166f-dd3c-4cf5-b5f9-3989f46f050c",
+        "oracleId": "2500a811-2435-4915-ac83-9bfe2887621a",
+        "firstSet": "arb",
+        "firstPrintId": "f09f166f-dd3c-4cf5-b5f9-3989f46f050c",
+        "firstPrintSet": "arb",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Deathcap Marionette",
         "scryfallId": "ccc9d22c-dfce-4136-aed8-a5fe9bb852f2",
         "oracleId": "6c4247d0-6dc8-4139-bbf5-c83dfdc7be1f",
@@ -23353,6 +23393,16 @@
         "oracleId": "e5152e8d-9f55-493d-a0fc-753cc72ee299",
         "firstSet": "sos",
         "firstPrintId": "ac095763-6f4e-4d4e-9c99-414646368f8d",
+        "firstPrintSet": "sos",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Emeritus of Ideation // Ancestral Recall",
+        "scryfallId": "75961d36-acf6-425f-9698-0bf52af74f31",
+        "oracleId": "24a29be4-5bc2-469b-b2ce-2fb305c3facb",
+        "firstSet": "sos",
+        "firstPrintId": "75961d36-acf6-425f-9698-0bf52af74f31",
         "firstPrintSet": "sos",
         "rarity": "mythic",
         "source": "compiled"
@@ -32382,6 +32432,16 @@
         "source": "compiled"
     },
     {
+        "name": "Godtracker of Jund",
+        "scryfallId": "7bd3fb7a-3eed-4b0a-9de0-ed8b7cf03533",
+        "oracleId": "9be3e610-f6bf-4e79-87ca-79dde27945d0",
+        "firstSet": "arb",
+        "firstPrintId": "7bd3fb7a-3eed-4b0a-9de0-ed8b7cf03533",
+        "firstPrintSet": "arb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Goham Djinn",
         "scryfallId": "d67796c7-4d93-4c50-8839-bb69e075bc42",
         "oracleId": "e9db02fb-78e2-44b3-9e1b-ef0148234337",
@@ -34748,6 +34808,16 @@
         "firstSet": "big",
         "firstPrintId": "a3012af9-621d-4fae-b00d-079a89ae35fe",
         "firstPrintSet": "big"
+    },
+    {
+        "name": "Harvester Troll",
+        "scryfallId": "0bf92744-0acc-4c7e-819c-51b0696facad",
+        "oracleId": "28c44f88-1d47-4894-86ce-4089bd761360",
+        "firstSet": "ogw",
+        "firstPrintId": "0bf92744-0acc-4c7e-819c-51b0696facad",
+        "firstPrintSet": "ogw",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Hashep Oasis",
@@ -42153,6 +42223,16 @@
         "firstPrintId": "f663cd86-39e6-467b-85b7-dd27536251a6",
         "firstPrintSet": "mkm",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Kroxa and Kunoros",
+        "scryfallId": "13e4a233-e40b-4e6a-9863-4d0fc052484c",
+        "oracleId": "56679f06-982b-4f33-9e48-ecc64c802393",
+        "firstSet": "mom",
+        "firstPrintId": "13e4a233-e40b-4e6a-9863-4d0fc052484c",
+        "firstPrintSet": "mom",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -62154,6 +62234,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rockslide Elemental",
+        "scryfallId": "d4f26025-8777-41a2-a871-ea8d1af164ae",
+        "oracleId": "c848a9d8-40d5-498d-9da9-e71a9ddeb5ab",
+        "firstSet": "ala",
+        "firstPrintId": "d4f26025-8777-41a2-a871-ea8d1af164ae",
+        "firstPrintSet": "ala",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Rocky Tar Pit",
         "scryfallId": "1e21c347-7aaf-42ae-abf3-f1283c5b54e6",
         "oracleId": "8709b5b1-ef9e-45b2-bf4f-ef4c4d613dcd",
@@ -62981,6 +63071,16 @@
         "firstPrintId": "55367a94-b343-4a04-bfa9-47722e32cc45",
         "firstPrintSet": "mmq",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rushwood Elemental",
+        "scryfallId": "52128694-d9f5-4acb-b684-bb02a4e766b8",
+        "oracleId": "d98edd47-c9de-46e9-a184-ba3bc0be42c4",
+        "firstSet": "mmq",
+        "firstPrintId": "52128694-d9f5-4acb-b684-bb02a4e766b8",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -64600,6 +64700,16 @@
         "firstSet": "inv",
         "firstPrintId": "4e8072a9-2699-4c6c-9556-67d91bd67a4b",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Scavenger Drake",
+        "scryfallId": "30b7806f-c28f-40d4-b79e-f5a7725db298",
+        "oracleId": "7d51b860-f7a4-4b13-a83c-134931ae7baf",
+        "firstSet": "ala",
+        "firstPrintId": "30b7806f-c28f-40d4-b79e-f5a7725db298",
+        "firstPrintSet": "ala",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Scavenger Folk",
@@ -69613,6 +69723,16 @@
         "firstPrintId": "c8125473-a296-4032-bacd-1c1b96819cf9",
         "firstPrintSet": "con",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Skywarp Skaab",
+        "scryfallId": "73168804-3c22-4fcb-907a-2f08999c0cea",
+        "oracleId": "e11b2b6e-3819-4dcb-b64e-2dfe6a6b049d",
+        "firstSet": "vow",
+        "firstPrintId": "73168804-3c22-4fcb-907a-2f08999c0cea",
+        "firstPrintSet": "vow",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -76721,6 +76841,16 @@
         "firstPrintId": "ac93faba-8b40-48f4-b4eb-7c8677ed07e2",
         "firstPrintSet": "shm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Taurean Mauler",
+        "scryfallId": "d50b5df1-b658-4df0-900e-79c44599b93e",
+        "oracleId": "fd5ee26c-cc54-4dc0-b611-5cda14354a5e",
+        "firstSet": "mor",
+        "firstPrintId": "d50b5df1-b658-4df0-900e-79c44599b93e",
+        "firstPrintSet": "mor",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -83935,6 +84065,16 @@
         "source": "compiled"
     },
     {
+        "name": "Veteran of the Depths",
+        "scryfallId": "c36fe821-e9b1-453d-8e44-f8dce111a6de",
+        "oracleId": "70bcec56-1485-4e4e-8fff-940d7b133c5d",
+        "firstSet": "lrw",
+        "firstPrintId": "c36fe821-e9b1-453d-8e44-f8dce111a6de",
+        "firstPrintSet": "lrw",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Veteran's Reflexes",
         "scryfallId": "783f220b-f860-4ebb-a424-22598bdd6fae",
         "oracleId": "efee0ca0-0897-4972-99c4-432561b6e9f8",
@@ -85318,6 +85458,16 @@
         "firstPrintId": "1348aa65-85e7-4ac7-bcdb-a83f2c3aa1a6",
         "firstPrintSet": "dka",
         "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Vorosh, the Hunter",
+        "scryfallId": "da4438fe-b11b-4adb-b8dd-b44e12ef6124",
+        "oracleId": "fda3c312-1a76-425c-8b23-0196452c4a5e",
+        "firstSet": "plc",
+        "firstPrintId": "da4438fe-b11b-4adb-b8dd-b44e12ef6124",
+        "firstPrintSet": "plc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -89536,6 +89686,16 @@
         "firstPrintId": "56b0f66b-dca9-4a01-9394-20a513c2b225",
         "firstPrintSet": "clb",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Young Necromancer",
+        "scryfallId": "84b5f6da-5e0f-4cce-92fe-7aa69124e265",
+        "oracleId": "17455491-c295-4130-99b4-1b5c6ac1cd25",
+        "firstSet": "mh2",
+        "firstPrintId": "84b5f6da-5e0f-4cce-92fe-7aa69124e265",
+        "firstPrintSet": "mh2",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

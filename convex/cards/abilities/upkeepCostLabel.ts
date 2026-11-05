@@ -77,8 +77,11 @@ export function upkeepCostLabel(cost: MayPayCost): string {
     if (cost.energy !== undefined) parts.push("{E}".repeat(cost.energy));
     if (cost.graveyard) {
         const n = cost.graveyard.count;
+        const cards = n === 1 ? "a card" : `${n} cards`;
         parts.push(
-            `return ${n === 1 ? "a card" : `${n} cards`} from your graveyard to your hand`
+            cost.graveyard.action === "return"
+                ? `return ${cards} from your graveyard to your hand`
+                : `exile ${cards} from your graveyard`
         );
     }
     const joined = parts.join(" and ");

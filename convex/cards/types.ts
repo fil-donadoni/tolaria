@@ -3001,10 +3001,14 @@ export interface CostLegs {
      *     the top three black cards of your graveyard rather than pay this
      *     spell's mana cost" (Spinning Darkness) is the topmost three black
      *     cards, NOT "the top three cards, if they are black". An
-     *     alternative-cost-only shape: the may-pay and kicker paths refuse it. */
+     *     alternative-cost-only shape: the may-pay and kicker paths refuse it.
+     *   - `action: "exile-chosen"` — the cards the payer picks are exiled (CR
+     *     701.13a): "you may exile eight cards from your graveyard. If you do,
+     *     …", a cost paid as the ability resolves (CR 118.12). A may-pay-only
+     *     shape, for the same reason as `"return"`. */
     graveyard?:
         | {
-              action: "return";
+              action: "return" | "exile-chosen";
               filter: EffectCardFilter;
               count: number;
           }
