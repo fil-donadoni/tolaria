@@ -10544,8 +10544,8 @@ export interface CountDrivenCostReduction {
  *  `"opponents"` counts that player's opponents (undaunted, CR 702.125a).
  *
  *  `"domain"` (issue #1958) counts the BASIC LAND TYPES among the lands that
- *  player controls — 0–5, CR 305.6 (Draco: "This spell costs {2} less to cast for each basic land
- *  type among lands you control"; Stratadon: {1} less).
+ *  player controls — 0–5, CR 305.6 (Draco: "This spell costs {2} less to cast
+ *  for each basic land type among lands you control"; Stratadon: {1} less).
  *
  *  A SEPARATE shape from {@link CountDrivenCostReduction} rather than a
  *  `dedupe` flag on its `countFilter`, because the thing being counted is
