@@ -905,8 +905,11 @@ export function attributeMaintenance(
             continue;
         }
         const named = found.find((g) => g.culprit === r.sha);
-        if (named) named.tests = [...named.tests, ...f.tests];
-        else if (r.generated === undefined) found.push(f);
+        if (named) {
+            named.tests = [...named.tests, ...f.tests];
+            // Its derived state showed this failure: the evidence says so.
+            named.maintenance ??= r.generated;
+        } else if (r.generated === undefined) found.push(f);
         else
             found.push({
                 culprit: r.sha,
