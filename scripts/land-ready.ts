@@ -103,6 +103,7 @@ import {
     type DerivedCarried,
 } from "./lib/derived-in-pr";
 import { gh } from "./lib/gh";
+import { advisoryRedRefusal, type CheckRunView } from "./lib/merge-manual";
 import { issueOfBranch } from "./lib/issue-worktree";
 import {
     lastDequeueAt,
@@ -757,6 +758,37 @@ function preQueueGate(
 }
 
 /**
+ * Issue #8181 — refuse a head whose `check:lane (advisory)` is already red:
+ * Mergify's repair rule would bounce the label within a minute. A head the
+ * restore commit just pushed has no run yet, so nothing refuses. The same
+ * announced escape as the pre-queue steps covers a red that is base's.
+ */
+function advisoryLaneGate(pr: number, head: string): void {
+    const runs = gh([
+        "api",
+        "--paginate",
+        `repos/{owner}/{repo}/commits/${head}/check-runs?per_page=100`,
+        "--jq",
+        ".check_runs[] | {id, name, headSha: .head_sha, status, conclusion} | tojson",
+    ])
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as CheckRunView);
+    const refusal = advisoryRedRefusal(runs, head);
+    if (refusal === null) return;
+    if (process.env[PREQUEUE_ESCAPE_ENV] === "1") {
+        const note = `land:ready: advisory lane red OVERRIDDEN (${PREQUEUE_ESCAPE_ENV}=1) — ${refusal}; queued anyway`;
+        console.error(note);
+        gh(["pr", "comment", String(pr), "--body", note]);
+        return;
+    }
+    console.error(
+        `✗ land:ready: PR #${pr} NOT queued — ${refusal}. Only a red you KNOW is base's: ${PREQUEUE_ESCAPE_ENV}=1 bun run land:ready ${pr}.`
+    );
+    process.exit(1);
+}
+
+/**
  * The PR's `trusted-author` verdict, computed here exactly as `pr-gate` posts
  * it (issue #5952): the queue admits only a green one. An unreadable
  * `TRUSTED_AUTHORS` trusts nobody, which hands the PR to the runner.
@@ -895,6 +927,7 @@ function main(): void {
         view.headRefName
     );
     preQueueGate(pr, head, view.headRefOid, view.body, role);
+    advisoryLaneGate(pr, head);
     if (issue !== null) {
         const body = bodyWithClosingRef(
             view.body,
