@@ -10,11 +10,8 @@
 // fail-CLOSED rows below carry the weight of this file: every shape that is not
 // an unambiguous "this exact Kicker was paid at least once" must read false.
 import { describe, expect, it } from "vitest";
-import { additionalCostPaidCondition, wasKickedCondition } from "../shared";
-import {
-    additionalCostPaidCount,
-    totalKickerCount,
-} from "../../../../gre/kicker";
+import { additionalCostPaidCondition } from "../shared";
+import { additionalCostPaidCount } from "../../../../gre/kicker";
 import type { CardType, PermanentView } from "../../../types";
 
 function makeSelf(overrides: Partial<PermanentView> = {}): PermanentView {
@@ -190,43 +187,5 @@ describe("additionalCostPaidCondition (CR 702.33 / 603.4 per-Kicker check-time g
                 k.startsWith("additionalCostPaid")
             )
         ).toEqual(["additionalCostPaidCondition"]);
-    });
-});
-
-describe("wasKickedCondition (CR 702.33d / 603.4 aggregate check-time gate)", () => {
-    const RECORDS: Partial<PermanentView>[] = [
-        {},
-        { kickerPayments: {} },
-        { kickerPayments: { kicker: 1 } },
-        { kickerPayments: { kicker: 3 } },
-        { kickerPayments: { "kicker-g": 0, "kicker-u": 1 } },
-        { kickerPayments: { kicker: 0 } },
-        { kickerPayments: { kicker: -1 } },
-        { kickerPayments: { kicker: "1" as unknown as number } },
-        // ADR 0085 — a cost that does not count as kicked never makes it so.
-        { unkickedCostPayments: { offspring: 1 } },
-    ];
-
-    it("agrees with totalKickerCount on every record shape", () => {
-        for (const record of RECORDS) {
-            const self = makeSelf(record);
-            expect(wasKickedCondition(self), JSON.stringify(record)).toBe(
-                totalKickerCount(self.kickerPayments) > 0
-            );
-        }
-    });
-
-    it("reads kicked only off a positive payment in kickerPayments", () => {
-        expect(RECORDS.map((r) => wasKickedCondition(makeSelf(r)))).toEqual([
-            false,
-            false,
-            true,
-            true,
-            true,
-            false,
-            false,
-            false,
-            false,
-        ]);
     });
 });

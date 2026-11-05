@@ -548,17 +548,3 @@ export function additionalCostPaidCondition(
 ): (self: PermanentView) => boolean {
     return (self) => additionalCostPaidTimes(self, kickerId) >= 1;
 }
-
-/** CR 702.33d + CR 603.4 check-time predicate — "if it was kicked", with no
- *  kicker named: at least one of the object's kicker costs was paid. Reads
- *  `kickerPayments` ALONE (ADR 0085): the sibling `unkickedCostPayments` record
- *  holds costs that never make a spell kicked. Local for the reason
- *  {@link additionalCostPaidTimes} is; the agreement test pins it to
- *  `totalKickerCount` (`gre/kicker.ts`). Pair it with an
- *  `if { kickerCount: true }` branch in the ability's own `effects[]`, the
- *  resolution-time gate. */
-export function wasKickedCondition(self: PermanentView): boolean {
-    return Object.values(self.kickerPayments ?? {}).some(
-        (n) => typeof n === "number" && n > 0
-    );
-}

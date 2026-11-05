@@ -334,20 +334,13 @@ function lowerCondition(
         case "kicked-permanent": {
             // CR 702.33e/f — a NAMED kicker's payment record, read off the
             // permanent entering. An unnamed "if it was kicked" is the
-            // aggregate tally, which no check-time gate expresses there.
-            // CR 702.33d — behind "when you cast this spell" the record is the
-            // spell's own, and both forms read it.
-            const casting = head.kind === "spell-cast" && head.scope === "self";
-            if (!casting && (head.kind !== "enters" || head.scope !== "self"))
+            // aggregate tally, which no check-time gate expresses here.
+            if (head.kind !== "enters" || head.scope !== "self")
                 return '"if it was kicked" needs a head that fires when this permanent enters';
-            if (condition.kicked.kind === "any" && !casting)
+            if (condition.kicked.kind === "any")
                 return 'only "if it was kicked with its {A} kicker" is a check-time gate';
-            if (condition.kicked.kind === "evidence" && casting)
-                return '"if evidence was collected" is no gate behind a cast head';
             const value = kickedValue(condition.kicked, kickers);
             if (!value.ok) return value.reason;
-            if (condition.kicked.kind === "any")
-                return { kind: "spell-kicked" };
             const paid = value.value as { additionalCostPaid?: string };
             if (paid.additionalCostPaid === undefined)
                 return "a named kicker reads its own payment record";
@@ -620,8 +613,7 @@ export function lowerTriggeredAbility(input: {
                 ? { targetRequirement: declared.targetRequirement }
                 : {}),
             effects:
-                condition?.kind === "kicker-paid" ||
-                condition?.kind === "spell-kicked"
+                condition?.kind === "kicker-paid"
                     ? // CR 603.4 — the load-bearing resolution-time gate, which
                       // also covers an ability COPY (CR 707.10) that never
                       // re-ran the check-time condition.
@@ -629,13 +621,9 @@ export function lowerTriggeredAbility(input: {
                           {
                               op: "if",
                               predicate: {
-                                  left:
-                                      condition.kind === "kicker-paid"
-                                          ? {
-                                                additionalCostPaid:
-                                                    condition.kickerId,
-                                            }
-                                          : { kickerCount: true },
+                                  left: {
+                                      additionalCostPaid: condition.kickerId,
+                                  },
                                   op: "ge",
                                   right: 1,
                               },

@@ -72770,16 +72770,6 @@
         "source": "compiled"
     },
     {
-        "name": "Sowing Mycospawn",
-        "scryfallId": "cdfadb17-76ad-4d4d-9fa7-33c4b88b4c0a",
-        "oracleId": "63a19c7c-49d7-4b75-aac8-d0ff36c45fb8",
-        "firstSet": "mh3",
-        "firstPrintId": "cdfadb17-76ad-4d4d-9fa7-33c4b88b4c0a",
-        "firstPrintSet": "mh3",
-        "rarity": "rare",
-        "source": "compiled"
-    },
-    {
         "name": "Spara's Headquarters",
         "scryfallId": "7363f1fb-9af3-4212-921f-d59533faf0e5",
         "oracleId": "3123ec89-8e95-4761-ba17-747ec667509f",
@@ -88409,16 +88399,6 @@
         "firstPrintId": "7019912c-bd9b-4b96-9388-400794909aa1",
         "firstPrintSet": "ogw",
         "rarity": "common",
-        "source": "compiled"
-    },
-    {
-        "name": "Wastescape Battlemage",
-        "scryfallId": "6bc119b8-429c-4ab6-adba-b65b03810e98",
-        "oracleId": "3cc6475d-aae9-4592-a26b-0fbb4269759d",
-        "firstSet": "mh3",
-        "firstPrintId": "6bc119b8-429c-4ab6-adba-b65b03810e98",
-        "firstPrintSet": "mh3",
-        "rarity": "uncommon",
         "source": "compiled"
     },
     {
