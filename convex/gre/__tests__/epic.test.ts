@@ -118,6 +118,10 @@ function advanceToUpkeepOf(state: GameState, playerId: string): void {
     throw new Error("never reached the upkeep");
 }
 
+function top<T>(stack: readonly T[]): T {
+    return stack[stack.length - 1];
+}
+
 const epicTriggers = (state: GameState) =>
     state.stack.filter((s) => s.triggeredAbilityId === "epic");
 
@@ -277,7 +281,7 @@ describe("Epic's upkeep trigger (CR 702.50a)", () => {
             advanceToUpkeepOf(state, "p1");
             state.spellsCastThisTurn = 0;
             resolveTopOfStack(state);
-            const copy = state.stack.at(-1)!;
+            const copy = top(state.stack);
             expect(copy.isCopy).toBe(true);
             expect(copy.triggeredAbilityId).toBeUndefined();
             expect(state.spellsCastThisTurn).toBe(0);
@@ -291,7 +295,7 @@ describe("Epic's upkeep trigger (CR 702.50a)", () => {
             resolveTopOfStack(state);
             advanceToUpkeepOf(state, "p1");
             resolveTopOfStack(state);
-            expect(state.stack.at(-1)!.staticAbilities).not.toContain("epic");
+            expect(top(state.stack).staticAbilities).not.toContain("epic");
             resolveTopOfStack(state);
             expect(state.delayedTriggers).toHaveLength(1);
         });
@@ -330,7 +334,7 @@ describe("Epic's upkeep trigger (CR 702.50a)", () => {
             resolveTopOfStack(state);
             advanceToUpkeepOf(state, "p1");
             resolveTopOfStack(state);
-            expect(state.stack.at(-1)!.chosenX).toBe(3);
+            expect(top(state.stack).chosenX).toBe(3);
         });
     });
 });
@@ -384,9 +388,7 @@ describe("A copy of an epic spell made by another effect keeps epic (CR 707.2)",
             const state = board();
             const epic = pushSpell(state, EPIC_GAIN.id, "p1");
             const fork = pushSpell(state, FILLER.id, "p2");
-            buildSpellContext(state, fork).copyStackItem(epic.id, {
-                controllerId: "p2",
-            });
+            buildSpellContext(state, fork).copyStackItem(epic.id);
             state.stack = state.stack.filter((s) => s.id !== fork.id);
             resolveTopOfStack(state);
             expect(playerHasRestriction(state, "p2", "cantCastSpells")).toBe(
@@ -419,7 +421,7 @@ describe("Epic across the save and the wire", () => {
             advanceToUpkeepOf(state, "p1");
             const reloaded = reload(state);
             resolveTopOfStack(reloaded);
-            const copy = reloaded.stack.at(-1)!;
+            const copy = top(reloaded.stack);
             expect(copy.isCopy).toBe(true);
             expect(copy.staticAbilities).not.toContain("epic");
             resolveTopOfStack(reloaded);
@@ -460,7 +462,7 @@ describe("Epic across the save and the wire", () => {
             const state = afterEpic();
             advanceToUpkeepOf(state, "p1");
             const projected = projectPublicState(state, 1, "p2");
-            const item = projected.stack.at(-1)!;
+            const item = top(projected.stack);
             expect(item.triggeredAbilityId).toBe("epic");
             expect((item.card as { id: string }).id).toBe(EPIC_GAIN.id);
         });

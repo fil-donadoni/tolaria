@@ -34,7 +34,7 @@ export const EPIC_KEYWORD = "epic";
  *  the keyword off the object rather than its definition: the definition of a
  *  copy still prints epic, and the copy no longer has it. */
 export function applyEpicAbilities(state: GameState, spell: StackItem): void {
-    if (!spell.staticAbilities.includes(EPIC_KEYWORD)) return;
+    if (!spell.staticAbilities?.includes(EPIC_KEYWORD)) return;
     const controller = spell.controllerId;
     addPlayerRestriction(state, controller, "cantCastSpells");
     const spellToCopy = structuredClone(spell);
