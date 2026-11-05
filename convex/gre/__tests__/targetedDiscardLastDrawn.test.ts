@@ -10,6 +10,7 @@ import type { CardDefinition } from "../../cards/types";
 import { withTemporaryDefinition } from "../../cards/registry";
 import type { PendingTarget } from "../state";
 import { drawCard } from "../state";
+import { activateAbilityOnState } from "../activation";
 import { finalizeTargetSelection } from "../../game";
 import {
     makeInstance,
@@ -72,6 +73,31 @@ describe("targeted activation pays discardLastDrawn on the immediate commit (CR 
             expect(state.stack).toHaveLength(1);
             expect(p1.hand).toHaveLength(0);
             expect(p1.graveyard.map((c) => c.id)).toEqual([drawn.id]);
+        });
+    });
+});
+
+describe("targeted activation rejects an unpayable discardLastDrawn up-front (CR 118.3)", () => {
+    it("throws before pendingTarget when no drawn card is left in hand", () => {
+        withTemporaryDefinition(ring, () => {
+            const p1 = makePlayer("p1", {
+                battlefield: [
+                    makeInstance(RING_ID, {
+                        id: "ring",
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    }),
+                ],
+            });
+            const state = makeState({ players: [p1, makePlayer("p2")] });
+            expect(() =>
+                activateAbilityOnState(state, {
+                    playerId: "p1",
+                    cardInstanceId: "ring",
+                    abilityId: ABILITY_ID,
+                })
+            ).toThrow(/drawn this turn/);
+            expect(state.pendingTarget).toBeUndefined();
         });
     });
 });

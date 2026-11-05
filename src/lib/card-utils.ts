@@ -145,7 +145,11 @@ import {
     controlsLandWithSupertype,
     negatedLandwalkSubtypes,
 } from "@convex/cards/landwalkNegation";
-import { toLayerState, toPermanentView } from "./effective-stats";
+import {
+    toLayerState,
+    toPermanentView,
+    type LayerPlayersInput,
+} from "./effective-stats";
 import { getEffectivePower, getEffectiveToughness } from "@convex/gre/layers";
 
 export function isLand(card: CardInstance): boolean {
