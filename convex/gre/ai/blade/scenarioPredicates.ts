@@ -374,7 +374,8 @@ export function castsCardNamed(
     const card = state.players
         .flatMap((p) => [...p.hand, ...p.graveyard, ...p.exile])
         .find((c) => c.id === move.cardInstanceId);
-    return !!card && tryGetDefinition(card.card.id)?.name === name;
+    const id = (card?.card as { id?: string } | undefined)?.id;
+    return !!id && tryGetDefinition(id)?.name === name;
 }
 
 /** "…and when the source is the only victim the board offers, the activation
