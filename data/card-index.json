@@ -23730,6 +23730,16 @@
         "source": "compiled"
     },
     {
+        "name": "Engineered Explosives",
+        "scryfallId": "8492a272-e595-4f94-a6eb-08d29f211fd6",
+        "oracleId": "95fd897e-9086-42c4-8e0d-61bb02333c5f",
+        "firstSet": "5dn",
+        "firstPrintId": "8492a272-e595-4f94-a6eb-08d29f211fd6",
+        "firstPrintSet": "5dn",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Engineered Plague",
         "scryfallId": "27e158d5-efb2-4f90-8898-60ede98f7d29",
         "oracleId": "dc8210b4-8e17-4156-994b-e95e215e3e34",
@@ -59276,6 +59286,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Ratchet Bomb",
+        "scryfallId": "c3db7645-20b9-4884-849b-a7d4b6d3aa00",
+        "oracleId": "255d752a-8251-4e4c-99d6-4a1648de1474",
+        "firstSet": "som",
+        "firstPrintId": "c3db7645-20b9-4884-849b-a7d4b6d3aa00",
+        "firstPrintSet": "som",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Rath's Edge",
         "scryfallId": "42681dce-5c63-4e56-955e-39f085ea6ae9",
         "oracleId": "e10e84a7-d564-487a-ac64-5a001a45ee90",
@@ -86907,6 +86927,16 @@
         "firstSet": "rav",
         "firstPrintId": "139b90cd-8272-457a-be32-1298145345be",
         "firstPrintSet": "rav"
+    },
+    {
+        "name": "Wave of Terror",
+        "scryfallId": "d40ab3e7-9abb-4acc-9932-de03b533722f",
+        "oracleId": "2346be19-7344-4f11-be2c-a22750cb7e1d",
+        "firstSet": "wth",
+        "firstPrintId": "d40ab3e7-9abb-4acc-9932-de03b533722f",
+        "firstPrintSet": "wth",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Waveskimmer Aven",
