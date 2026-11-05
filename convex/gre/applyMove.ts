@@ -198,6 +198,7 @@ import {
     buildCastExileCostChoice,
     castSourceForSearch,
     findCastSourceCard,
+    EXILE_ANY_TIME_LEAVES_STACK_FLAGS,
     graveyardCastMechanism,
     graveyardCastStackFlags,
     reboundCastStackFlags,
@@ -1617,6 +1618,14 @@ export function commitCastInSearch(
                   playerId
               )
             : undefined;
+    // CR 702.133a — the jump-start discard, the cheapest card as the live Bot
+    // pays it (`paymentPicks.ts`). A stale Move with an empty hand is skipped
+    // rather than cast for free.
+    if (castMechanism === "jump-start") {
+        const discard = cheapestFirst(player.hand)[0];
+        if (!discard) return null;
+        discardToGraveyard(state, playerId, discard.id, { kind: "cost" });
+    }
     // CR 702.143c — read before the removal clears the designation, exactly
     // as the server kernel (`castCommit.ts`) reads it.
     const foretoldFlags = foretoldCastStackFlags(
@@ -1700,6 +1709,9 @@ export function commitCastInSearch(
         // flashback card as infinitely recastable. A new mechanism added to
         // those helpers reaches the search for free.
         ...graveyardCastStackFlags(state, spellCard, castFromZone),
+        ...(castMechanism === "jump-start"
+            ? EXILE_ANY_TIME_LEAVES_STACK_FLAGS
+            : {}),
         ...reboundCastStackFlags(spellCard, castFromZone),
     };
     // CR 601.2b (issues #2388 / #2705 / #1964 / #2796) — the characteristics of

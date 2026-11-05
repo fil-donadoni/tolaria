@@ -3765,6 +3765,7 @@ export function resetStackTransientState(item: StackItem): void {
     delete item.massRiderTargets;
     delete item.isCopy;
     delete item.exileOnResolve;
+    delete item.exileAnyTimeLeavesStack;
     delete item.shuffleIntoLibraryOnResolve;
     delete item.castFromZone;
     delete item.reboundFromHand;
@@ -3843,6 +3844,15 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     // the battlefield and the stack it "has only the characteristics of its
     // front face". A no-op on every item not cast as a back face.
     revertModalBackCastIdentity(item);
+    // CR 702.34a / 702.133a — exiled "instead of putting it anywhere else": a
+    // fizzled or countered spell never reaches the graveyard, so no graveyard
+    // replacement or "put into a graveyard" trigger sees it.
+    if (item.exileAnyTimeLeavesStack) {
+        item.zone = "exile";
+        resetStackTransientState(item);
+        owner.exile.push(item);
+        return;
+    }
     const { destination, tagCounters } = graveyardDestinationFor(
         state,
         item.id,
@@ -12496,6 +12506,7 @@ function cloneSpellOntoStack(
     // one-shot effect per CR 707.10a).
     delete copy.castFromZone;
     delete copy.exileOnResolve;
+    delete copy.exileAnyTimeLeavesStack;
     // `shuffleIntoLibraryOnResolve` is likewise a cast-site artifact (issue
     // #898) — the ORIGINAL is shuffled into its owner's library, not the copy,
     // which ceases to exist as a one-shot effect (CR 707.10a).
@@ -15677,7 +15688,9 @@ export function buildSpellContext(
             // flag and leave a real-looking card in the owner's zone. The
             // fizzle and resolve paths already skip copies the same way.
             if (item.isCopy) return outcome;
-            switch (destination) {
+            // CR 702.34a / 702.133a — "exile this card instead of putting it
+            // anywhere else" overrides Remand's hand and Memory Lapse's library.
+            switch (item.exileAnyTimeLeavesStack ? "exile" : destination) {
                 case "exile":
                     item.zone = "exile";
                     resetStackTransientState(item);
@@ -15765,7 +15778,15 @@ export function buildSpellContext(
             // never its controller's (a spell cast from an opponent's library
             // or graveyard goes home to its owner).
             const owner = getPlayer(state, item.ownerId);
+            // CR 702.34a / 702.133a — "any time it would leave the stack" holds
+            // for a move that is not a counter too.
+            const exiledInstead = item.exileAnyTimeLeavesStack === true;
             resetStackTransientState(item);
+            if (exiledInstead) {
+                item.zone = "exile";
+                owner.exile.push(item);
+                return;
+            }
             if (destination === "hand") {
                 item.zone = "hand";
                 owner.hand.push(item);

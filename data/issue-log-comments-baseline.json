@@ -98,7 +98,6 @@
     "convex/gre/__tests__/pitch-cost.test.ts#9d049f12a1",
     "convex/gre/__tests__/searchCost.bot.test.ts#1a8ca58036",
     "convex/gre/__tests__/searchSandboxCastEvent.bot.test.ts#c40a8cda8c",
-    "convex/gre/activation.ts#b5f3b38d50",
     "convex/gre/ai/__tests__/botReachPlayPump.bot.test.ts#d849f69a23",
     "convex/gre/ai/__tests__/botReachPlaySweepKill.bot.test.ts#0fb05a0b9b",
     "convex/gre/ai/__tests__/botReachPlaySweepPose.bot.test.ts#5ebfff5c6a",

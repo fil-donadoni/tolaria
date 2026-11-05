@@ -80,6 +80,7 @@ import { resolveDivideTotal } from "./pendingTargetOrigin";
 import { effectivePermanentView } from "./permanentView";
 import { drainAutoPasses, isSorceryTimingFor } from "./phases";
 import { findRetraceCastable } from "./retrace";
+import { findJumpStartCastable } from "./jumpStart";
 import {
     foldPhyrexianManaAdditions,
     resolvePhyrexianActivationPayment,
@@ -422,8 +423,8 @@ function findCastableLibraryTopSpell(
 
 /** Locate the card being cast and the zone it comes from — hand, exile
  *  (Ice Cauldron, CR 601.3), or graveyard (Flashback, CR 702.34, Escape,
- *  CR 702.138, or the BROAD graveyard-cast permission, CR 305.1-analog / 601,
- *  issue #1149). A single choke point so every cast-commit site derives the
+ *  CR 702.138, or the BROAD graveyard-cast permission, CR 305.1-analog / 601).
+ *  A single choke point so every cast-commit site derives the
  *  origin identically. The `card` is undefined when the id isn't castable
  *  from any zone (callers throw "Card not in hand"). `graveyardPermission`
  *  is set ONLY when a graveyard play permission (ADR 0093) is what supplied
@@ -432,12 +433,12 @@ function findCastableLibraryTopSpell(
  *  intrinsic permission) already claimed the card — and it carries the exact
  *  permission selected, so the commit spends that source's once-per-turn use
  *  and no other (`markGraveyardPlayPermissionUsed`).
- *  `viaRetrace` is the same idea for Retrace (CR 702.81, issue #2358): the
- *  LAST branch of the chain, so the flag unambiguously says "this cast owes
- *  the discard-a-land additional cost" and no other mechanism's cast ever
- *  pays it.
+ *  `viaRetrace` is the same idea for Retrace (CR 702.81): the flag says "this
+ *  cast owes the discard-a-land additional cost" and no other mechanism's cast
+ *  ever pays it. `viaJumpStart`, the LAST branch of the chain, likewise names
+ *  the one cast that owes the jump-start discard and exile (CR 702.133a).
  *  Exported so the flashback integration test can drive the REAL cast-source
- *  resolution (no convex-test harness — issue #944). */
+ *  resolution (no convex-test harness). */
 export function locateCastSource(
     state: GameState,
     player: PlayerState,
@@ -447,6 +448,7 @@ export function locateCastSource(
     zone: CastFromZone;
     graveyardPermission?: LiveGraveyardPlayPermission;
     viaRetrace?: true;
+    viaJumpStart?: true;
 } {
     const inHand = player.hand.find((c) => c.id === instanceId);
     if (inHand) return { card: inHand, zone: "hand" };
@@ -512,6 +514,11 @@ export function locateCastSource(
     const retraceCast = findRetraceCastable(state, player, instanceId);
     if (retraceCast) {
         return { card: retraceCast, zone: "graveyard", viaRetrace: true };
+    }
+    // CR 702.133a — jump-start, after every cheaper graveyard mechanism.
+    const jumpStartCast = findJumpStartCastable(player, instanceId);
+    if (jumpStartCast) {
+        return { card: jumpStartCast, zone: "graveyard", viaJumpStart: true };
     }
     return { zone: "hand" };
 }
@@ -1824,6 +1831,7 @@ export function tryAutoCommitPendingCast(
         source: {
             zone: castSource.zone,
             graveyardPermission: castSource.graveyardPermission,
+            viaJumpStart: castSource.viaJumpStart,
         },
         legs: {
             payLife: pending.payLife,

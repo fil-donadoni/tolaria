@@ -113,6 +113,7 @@ import {
     hasEscape,
 } from "./escape";
 import { canPayRetraceDiscard, hasRetrace } from "./retrace";
+import { canPayJumpStartDiscard, hasJumpStart } from "./jumpStart";
 import { substituteColorFilter } from "./textChanges";
 import type { TextChangeCarrier } from "./textChanges";
 import {
@@ -1696,6 +1697,23 @@ export function getLegalActions(
                 // CR 702.81a / 709.3a — retrace ADDS the discard to "its other
                 // costs" instead of replacing the mana cost, so the mana is the
                 // spell's own: the announced half's printed cost.
+                cost: (subject) => getInstanceManaCost(subject) ?? {},
+            })
+        ) {
+            actions.push("cast");
+        }
+        return actions;
+    }
+
+    // CR 702.133a — a card in the player's OWN graveyard with JUMP-START is
+    // castable for its printed mana cost plus discarding a card. Last for the
+    // same reason as retrace: every mechanism above costs the caster less.
+    if (player.graveyard.some((c) => c.id === card.id) && hasJumpStart(card)) {
+        if (
+            passesCastPhaseRestriction(state, card) &&
+            canPayJumpStartDiscard(player, card.id) &&
+            anyCastAnnouncementLegal(state, caster, card, {
+                timingZone: "graveyard",
                 cost: (subject) => getInstanceManaCost(subject) ?? {},
             })
         ) {

@@ -127,6 +127,7 @@ import { playerHasProtectionFromEverything } from "./gre/protection";
 import { getFlashbackAdditionalCost } from "./gre/flashback";
 import { countDistinctCardTypes, hasEscape } from "./gre/escape";
 import { RETRACE_COST_LEGS } from "./gre/retrace";
+import { JUMP_START_COST_LEGS } from "./gre/jumpStart";
 import {
     buildAssistChoice,
     closeAssistChoiceOnCasterMana,
@@ -2547,7 +2548,9 @@ import type { CastFromZone } from "./gre/castCost";
  *     Triumph), read off the already-`oneOf`-flattened spec;
  *   - the RETRACE additional cost (CR 702.81a — "discard a land card"), which is
  *     keyword-derived rather than declared on the definition and so can only be
- *     known from WHICH mechanism supplied this cast (`CastSource.viaRetrace`).
+ *     known from WHICH mechanism supplied this cast (`CastSource.viaRetrace`);
+ *   - the JUMP-START additional cost (CR 702.133a — "discarding a card"),
+ *     known the same way (`CastSource.viaJumpStart`).
  *
  *  THE choke point (issue #2358 review, finding 1). It exists because the same
  *  cost was previously threaded per call site: `finalizeTargetSelection` spread
@@ -2564,7 +2567,7 @@ import type { CastFromZone } from "./gre/castCost";
  *  CR 118.9 hand leg. Returns `[]` for the overwhelming majority of casts. */
 export function castExtraHandCostLegs(
     effectiveAdditionalCosts: AdditionalCostSpec | undefined,
-    castSource: { viaRetrace?: true },
+    castSource: { viaRetrace?: true; viaJumpStart?: true },
     // CR 601.2b / 118.4 — the announced X, for a `discard: { count: "X" }`
     // additional cost (Sickening Dreams, issue #2714). Every other leg ignores
     // it; a card with a fixed count is unaffected by its absence.
@@ -2577,6 +2580,7 @@ export function castExtraHandCostLegs(
     return [
         ...(additionalHandLeg ? [additionalHandLeg] : []),
         ...(castSource.viaRetrace ? [RETRACE_COST_LEGS] : []),
+        ...(castSource.viaJumpStart ? [JUMP_START_COST_LEGS] : []),
     ];
 }
 
@@ -5981,6 +5985,7 @@ export function finalizeTargetSelection(
             source: {
                 zone: castZone,
                 graveyardPermission: castSource.graveyardPermission,
+                viaJumpStart: castSource.viaJumpStart,
             },
             legs: {
                 payLife,
@@ -7866,6 +7871,7 @@ export const announceCast = mutation({
                 source: {
                     zone: castFromZone,
                     graveyardPermission: castSource.graveyardPermission,
+                    viaJumpStart: castSource.viaJumpStart,
                 },
                 legs: {
                     payLife: altPayLife,
@@ -8299,6 +8305,7 @@ export const announceCast = mutation({
                 source: {
                     zone: castFromZone,
                     graveyardPermission: castSource.graveyardPermission,
+                    viaJumpStart: castSource.viaJumpStart,
                 },
                 legs: {
                     payLife: phyrexianPayLife,

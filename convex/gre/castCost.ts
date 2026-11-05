@@ -45,6 +45,7 @@ import {
 } from "./flashback";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import { hasRetrace } from "./retrace";
+import { hasJumpStart } from "./jumpStart";
 import { isAdventureCastId } from "./adventure";
 import { castSubjectView, isFaceChoiceCastId } from "./castMode";
 import {
@@ -66,6 +67,14 @@ import {
 // re-exported here for the cast-path modules that already import it from here.
 export type { CastFromZone };
 
+/** CR 702.34a / 702.133a — the stack flags of a spell exiled "any time it would
+ *  leave the stack": `exileOnResolve` for the resolution branch, and
+ *  `exileAnyTimeLeavesStack` for every other departure. */
+export const EXILE_ANY_TIME_LEAVES_STACK_FLAGS = {
+    exileOnResolve: true,
+    exileAnyTimeLeavesStack: true,
+} as const;
+
 /** CR 702.34 — the stack-item flag a Flashback cast (from the graveyard) adds:
  *  `exileOnResolve` (so `finalizeSpellResolution` exiles the card instead of
  *  returning it to the graveyard). The provenance itself is the commit site's
@@ -74,8 +83,9 @@ export type { CastFromZone };
  *  pattern). */
 export function flashbackStackFlags(zone: CastFromZone): {
     exileOnResolve?: true;
+    exileAnyTimeLeavesStack?: true;
 } {
-    return zone === "graveyard" ? { exileOnResolve: true } : {};
+    return zone === "graveyard" ? EXILE_ANY_TIME_LEAVES_STACK_FLAGS : {};
 }
 
 /** CR 702.34 / 702.138 / 305.1-analog / 118.9 — the MECHANISM flags a
@@ -98,7 +108,11 @@ export function graveyardCastStackFlags(
     state: GameState,
     card: CardInstanceState,
     zone: CastFromZone
-): { exileOnResolve?: true; escaped?: true } {
+): {
+    exileOnResolve?: true;
+    exileAnyTimeLeavesStack?: true;
+    escaped?: true;
+} {
     if (zone !== "graveyard") return {};
     if (hasEscape(state, card)) {
         return { escaped: true };
@@ -463,6 +477,7 @@ export type GraveyardCastMechanism =
     | "escape"
     | "flashback"
     | "retrace"
+    | "jump-start"
     | "grant"
     | "intrinsic"
     | "permission";
@@ -531,6 +546,9 @@ export function graveyardCastMechanismForMember(
     if (canCastFromGraveyardByPermission(state, player, card)) {
         return "permission";
     }
+    // CR 702.133a — jump-start, last: it adds a discard, so every permission
+    // above is cheaper, the order `locateCastSource` claims them in.
+    if (hasJumpStart(card)) return "jump-start";
     return undefined;
 }
 
@@ -553,6 +571,7 @@ const GRAVEYARD_LICENCE_REACHES_BACK_FACE: Record<
     escape: false,
     flashback: false,
     retrace: false,
+    "jump-start": false,
     intrinsic: false,
     grant: true,
     permission: true,

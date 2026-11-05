@@ -12774,6 +12774,16 @@
         "source": "compiled"
     },
     {
+        "name": "Chemister's Insight",
+        "scryfallId": "0e13a295-0d51-4b56-8c58-0896eb41c567",
+        "oracleId": "a2cb30d7-c0a9-4f79-bc19-fc88c4986725",
+        "firstSet": "grn",
+        "firstPrintId": "0e13a295-0d51-4b56-8c58-0896eb41c567",
+        "firstPrintSet": "grn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Child of Alara",
         "scryfallId": "863f701f-fba2-48db-95ef-0926986cdac9",
         "oracleId": "70dbe8a9-505d-41c2-9b5b-a991d13ab459",
@@ -19708,6 +19718,16 @@
         "firstSet": "ice",
         "firstPrintId": "a602c93d-e00f-4b4f-a7ff-95316b7e7641",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Direct Current",
+        "scryfallId": "166b0d75-824c-4c04-833b-7f7c69569a18",
+        "oracleId": "54e34440-c890-4a07-83c6-63a2f7a65639",
+        "firstSet": "grn",
+        "firstPrintId": "166b0d75-824c-4c04-833b-7f7c69569a18",
+        "firstPrintSet": "grn",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Direct Hit",
@@ -58632,6 +58652,16 @@
         "source": "compiled"
     },
     {
+        "name": "Radical Idea",
+        "scryfallId": "c9570734-5e9b-46ff-b606-9759b5195756",
+        "oracleId": "fd51dce2-8e8a-4686-910e-1bbc2825d190",
+        "firstSet": "grn",
+        "firstPrintId": "c9570734-5e9b-46ff-b606-9759b5195756",
+        "firstPrintSet": "grn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Raffine's Tower",
         "scryfallId": "a2c56479-4bee-4edb-80d7-4af010b7c793",
         "oracleId": "6e9ef5ef-6aed-4d3e-a59b-9e3dc8740b1b",
@@ -71144,6 +71174,16 @@
         "firstSet": "ice",
         "firstPrintId": "6cff3547-8c72-439a-91fe-ebe729dab748",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Sonic Assault",
+        "scryfallId": "cc61a398-cf16-415b-b3cf-897217dc7cc9",
+        "oracleId": "dfe9e485-c070-4efd-8c35-69d4eb3f58e4",
+        "firstSet": "grn",
+        "firstPrintId": "cc61a398-cf16-415b-b3cf-897217dc7cc9",
+        "firstPrintSet": "grn",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Sootfeather Flock",
