@@ -37924,8 +37924,19 @@ describe("Effect Script Op: copyResolvingSpell (CR 707.10, CR 707.10c)", () => {
             [{ op: "copyResolvingSpell", player: { target: 1 } }],
             { targetRequirement: { type: "any", count: 2 } }
         );
+        // A creature gives the copy a target beyond the inherited pair: with
+        // none, the offer is a zero-branch auto-keep (CR 707.10c).
+        const bystander = makeInstance(BEAR_ID, {
+            id: "bystander",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
         const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2")],
+            players: [
+                makePlayer("p1", { battlefield: [bystander] }),
+                makePlayer("p2"),
+            ],
         });
         pushSpell(state, id, "p1", [
             { type: "player", id: "p1" },

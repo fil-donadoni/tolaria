@@ -4692,6 +4692,11 @@ export type GameState = {
     pendingCompanionPay?: PendingCompanionPay;
     /** Active target selection in progress (CR 601.2c). */
     pendingTarget?: PendingTarget;
+    /** Spell copies whose retarget offer (CR 707.10c) waits for the selection
+     *  in `pendingTarget` to be answered, oldest first: one resolution can
+     *  create several copies (CR 702.144a) and `pendingTarget` is one slot.
+     *  Stack item ids, read by `raiseQueuedCopyRetarget`. */
+    queuedCopyRetargets?: string[];
     /** Mid-resolution choices awaiting player input (CR 608.2, 101.4). FIFO:
      *  front entry is active. Non-empty blocks priority and further actions —
      *  the engine is suspended between resolve steps of the top stack item. */

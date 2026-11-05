@@ -40,6 +40,7 @@ import type {
 import {
     PENDING_TARGET_FILTER_KEYS,
     emitBecameTargetEvents,
+    raiseQueuedCopyRetarget,
     resolveTargetRequirementCount,
 } from "./state";
 import type { TargetRequirement, TargetSelection } from "../cards/types";
@@ -357,6 +358,9 @@ export function applyRaisedTargetFinalization(
             // illegal-slot verdict is void.
             delete copy.illegalTargetSlots;
         }
+        // CR 707.10c — the next copy of the same resolution is answered before
+        // anyone receives priority.
+        if (raiseQueuedCopyRetarget(state)) return true;
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
         drainAutoPasses(state);
