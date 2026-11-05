@@ -5551,6 +5551,14 @@ const OP_SCHEMAS: OpSchemaTable = {
             controller: isPlayerRef,
         },
     },
+    // CR 701.42a (issue #3341) — the counterpart a meld ability names. A
+    // battlefield selector, so its battlefield-only filter fields are admitted.
+    meld: {
+        required: {
+            partner: (value: unknown) =>
+                isCardFilter(value, { allowControlledSinceTurnStart: true }),
+        },
+    },
     // CR 111 / 701.7 (issue #847) — create token permanents. `token` is the
     // JSON-pure token spec (EffectTokenSpec — name + types required, the rest
     // optional; staticEffects deliberately excluded, not JSON-expressible);

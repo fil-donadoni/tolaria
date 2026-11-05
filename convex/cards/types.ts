@@ -3500,7 +3500,8 @@ export type TokenStaticEffectKey =
     | "pt-cda-artifacts-you-control"
     | "vigilance-land-creatures-you-control"
     | "cant-block-non-spirit-self"
-    | "cant-be-blocked-by-non-spirit-self";
+    | "cant-be-blocked-by-non-spirit-self"
+    | "loyalty-activation-twice";
 
 /** Characteristics a card takes on in every zone OTHER than the battlefield
  *  (CR 113.6c — "an ability that states which zones it doesn't function in
@@ -5377,6 +5378,11 @@ export interface SpellContext {
         target: TargetSelection,
         controllerId?: string
     ) => void;
+    /** CR 701.42a / 712.4a (ADR 0161) — exile `holderId` and `partnerId`,
+     *  then meld them into one permanent under the resolving controller when
+     *  they form a meld pair (CR 701.42b); otherwise they stay in exile
+     *  (CR 701.42c). */
+    meldPermanents: (holderId: string, partnerId: string) => void;
     /** Changes control of a target permanent to `newControllerId` (CR 613.1b,
      *  layer 2). Routes through the shared control-change machinery: the host
      *  moves into the new controller's battlefield array, summoning sickness is
@@ -20153,6 +20159,34 @@ export type EffectOp =
           op: "exileAndReturnTransformed";
           target: EffectObjectSelector;
           controller?: EffectPlayerRef;
+      }
+    /** CR 701.42a / 712.4a (issue #3341, ADR 0161) — "If you both own and
+     *  control <this> and <partner>, exile them, then meld them into <face>."
+     *  A thin skin over the single primitive `SpellContext.meldPermanents`,
+     *  one execution path (ADR 0045). ONE atomic Op, never `exile` + a meld:
+     *  the `exile` valuer scores exiling a permanent as removal, which would
+     *  invert the sign on the player's own two permanents (PRD #3227 call 4).
+     *
+     *  The source of the resolving ability is always the holder (CR 712.4a: the
+     *  ability lives on one card of the pair and exiles "that object and its
+     *  counterpart"), so it is no field. `partner` describes the counterpart
+     *  ("an artifact named The Mightstone and Weakstone").
+     *
+     *  The "both own and control" condition is read HERE, on resolution, and
+     *  not by an `if` around the Op, because `EffectCardFilter` has no owner
+     *  and one more field on it would fail open at its dozen zone-scoped
+     *  readers. It is printed on every meld ability of the corpus. False, or no
+     *  counterpart, does nothing at all: nothing is exiled. Two eligible
+     *  counterparts raise one pick (only owned ones are offered), one is taken
+     *  without a prompt.
+     *
+     *  Past that gate the exile always happens, and CR 701.42b / 701.42c decide
+     *  the rest inside the primitive: a token copy of a meld card, or a pair
+     *  that is no pair, stays in exile. The Op deliberately does NOT name the
+     *  combined back face: the holder's own `backFace` declaration does. */
+    | {
+          op: "meld";
+          partner: EffectCardFilter;
       }
     /** CR 111 / 701.7 (issue #847) — create one or more token permanents. A
      *  thin declarative skin over the single SpellContext primitive

@@ -981,7 +981,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Sky Weaver",
     "Skyclave Apparition",
     "Skyship Weatherlight",
-    "Skyshroud Blessing",
     "Sleeper's Robe",
     "Sleeping Potion",
     "Sleight of Mind",
