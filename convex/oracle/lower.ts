@@ -28,6 +28,7 @@ import type {
 } from "../cards/types";
 import type { CompiledStaticEffect } from "../cards/compiledStatics";
 import type { CompiledTriggeredAbility } from "../cards/compiledTriggers";
+import { asEntersColorModes } from "../cards/abilities/chooseColor";
 import { lowerActivatedAbility, lowerManaAbility } from "./lowerActivated";
 import {
     lowerAdditionalCosts,
@@ -128,6 +129,10 @@ interface Accumulator {
     asEntersCardNameLines: string[];
     /** CR 614.12a — the "as this enters, choose an opponent" lines read. */
     asEntersOpponentLines: string[];
+    /** CR 614.12a — the "as this enters, choose a color" lines read. */
+    asEntersColorLines: string[];
+    /** CR 614.12a — the mana lines that read the stored colour. */
+    readsChosenColorLines: string[];
     /** CR 601.3a — lines that read the card's `chosenName`. */
     readsChosenNameLines: string[];
     /** CR 607.2d — lines that read the card's `chosenSubtypes` ("the chosen type"). */
@@ -459,9 +464,12 @@ function lowerLine(
                 oracleText: parsed.line,
                 cost: ir.cost,
                 produces: ir.produces,
+                ownLine: true,
             });
             if (!lowered.ok) return lowered.reason;
             const ability = lowered.ability;
+            if (ir.produces.kind === "chosen-color")
+                acc.readsChosenColorLines.push(parsed.line);
             // See `isPainlessColorlessTap`'s doc comment — the painland merge.
             if (
                 ir.produces.kind === "choice" &&
@@ -691,6 +699,12 @@ function lowerLine(
                 if (acc.asEntersOpponentLines.length > 0)
                     return "a card declares an as-enters opponent choice twice";
                 acc.asEntersOpponentLines.push(parsed.line);
+            }
+            if (out.asEntersColor === true) {
+                // Two colour choices make "the chosen color" ambiguous.
+                if (acc.asEntersColorLines.length > 0)
+                    return "a card declares an as-enters color choice twice";
+                acc.asEntersColorLines.push(parsed.line);
             }
             if (out.readsChosenName === true)
                 acc.readsChosenNameLines.push(parsed.line);
@@ -1113,6 +1127,8 @@ export function lowerCard(
         asEntersCosts: [],
         asEntersCreatureTypeLines: [],
         asEntersOpponentLines: [],
+        asEntersColorLines: [],
+        readsChosenColorLines: [],
         asEntersCardNameLines: [],
         readsChosenNameLines: [],
         readsChosenTypeLines: [],
@@ -1394,10 +1410,34 @@ export function lowerCard(
             reason: '"the chosen type" on a card with no as-enters creature-type choice',
             fragment: acc.readsChosenTypeLines[0]!,
         };
+    // CR 106.5 — "the chosen color" with no colour choice on the card is mana
+    // of an undefined type, for good: refuse, don't ship a land that taps for
+    // nothing.
+    if (
+        acc.readsChosenColorLines.length > 0 &&
+        acc.asEntersColorLines.length === 0
+    )
+        return {
+            ok: false,
+            reason: '"the chosen color" on a card with no as-enters color choice',
+            fragment: acc.readsChosenColorLines[0]!,
+        };
+    // CR 614.12a — the converse: a choice nothing on the card reads. Every
+    // printed one has a reader, so this card is one whose reader was not read.
+    if (
+        acc.asEntersColorLines.length > 0 &&
+        acc.readsChosenColorLines.length === 0
+    )
+        return {
+            ok: false,
+            reason: "an as-enters color choice no line of the card reads",
+            fragment: acc.asEntersColorLines[0]!,
+        };
     const asEntersChoiceLines = [
         acc.asEntersCardNameLines,
         acc.asEntersCreatureTypeLines,
         acc.asEntersOpponentLines,
+        acc.asEntersColorLines,
     ].filter((lines) => lines.length > 0);
     if (asEntersChoiceLines.length > 1)
         return {
@@ -1412,7 +1452,8 @@ export function lowerCard(
         (acc.asEntersCosts.length > 0 &&
             (acc.asEntersCardNameLines.length > 0 ||
                 acc.asEntersCreatureTypeLines.length > 0 ||
-                acc.asEntersOpponentLines.length > 0))
+                acc.asEntersOpponentLines.length > 0 ||
+                acc.asEntersColorLines.length > 0))
     )
         return {
             ok: false,
@@ -1434,6 +1475,7 @@ export function lowerCard(
         acc.asEntersCreatureTypeLines.length > 0 ||
         acc.asEntersCardNameLines.length > 0 ||
         acc.asEntersOpponentLines.length > 0 ||
+        acc.asEntersColorLines.length > 0 ||
         acc.asEntersCosts.length > 0
     )
         definition.entersWith = {
@@ -1463,6 +1505,11 @@ export function lowerCard(
             // CR 614.1c / 614.12a — the shape Cursed Rack and The Rack declare.
             ...(acc.asEntersOpponentLines.length > 0
                 ? { asEnters: [{ kind: "opponent" as const }] }
+                : {}),
+            // CR 614.12a — the shape Quirion Elves and Voice of All declare:
+            // the answer lands on `chosenModeId`, one of the `modes` below.
+            ...(acc.asEntersColorLines.length > 0
+                ? { asEnters: [{ kind: "mode" as const }] }
                 : {}),
             // CR 614.12a / 201.4a — "nonland card name", enforced exactly by
             // the filter (the shape Meddling Mage is hand-written with).
@@ -1616,6 +1663,9 @@ export function lowerCard(
     if (acc.spellKickedTargetRequirement !== undefined)
         definition.kickedTargetRequirement = acc.spellKickedTargetRequirement;
     if (acc.spellModes !== undefined) definition.modes = acc.spellModes;
+    // CR 105.1 — the as-enters picker's five answers; each id is a colour.
+    if (acc.asEntersColorLines.length > 0)
+        definition.modes = asEntersColorModes();
     if (acc.spellModeSelection !== undefined)
         definition.modeSelection = acc.spellModeSelection;
     if (acc.additionalCosts !== undefined)

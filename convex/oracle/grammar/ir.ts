@@ -189,6 +189,15 @@ export type ManaProductionIR =
           readonly read: "type";
           readonly filter: PermanentFilter;
           readonly riders?: readonly ManaRiderIR[];
+      }
+    /**
+     * CR 614.12a — "one mana of the chosen color": the colour the source
+     * stored as it entered (`manaColorSource: { colors: "chosen-color" }`).
+     * `lower.ts` ties it to the as-enters choice on the same card.
+     */
+    | {
+          readonly kind: "chosen-color";
+          readonly riders?: readonly ManaRiderIR[];
       };
 
 export type SlotIR =

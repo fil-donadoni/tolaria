@@ -888,10 +888,15 @@ export type EffectSentenceIR =
            * `assembleSentences` — a card printing the grant with no "Choose a
            * color." sentence before it has no antecedent for "the chosen
            * color" and is refused there, not here.
+           *
+           * `ofYourChoice`: "<one object> gains protection from the color of
+           * your choice until <duration>" (Mother of Runes) — the same five
+           * grants on one object, the pick the sentence's own, so no marker.
            */
           readonly kind: "choose-color-grant-protection";
           readonly subject: SubjectIR;
           readonly duration: DurationIR;
+          readonly ofYourChoice?: true;
       }
     | {
           /**
@@ -911,10 +916,15 @@ export type EffectSentenceIR =
            * Reading the absence as "until end of turn" would quietly un-set
            * Alchor's Tomb, and reading it as an error would refuse two of the
            * four printed forms, so it is carried as what it is.
+           *
+           * `colorless`: "<subject> becomes colorless[ <duration>]" (Ancient
+           * Kavu, Moonlace) — the same layer 5 write with the empty set and no
+           * pick (CR 105.2c).
            */
           readonly kind: "set-color-choice";
           readonly subject: SubjectIR;
           readonly duration?: DurationIR;
+          readonly colorless?: true;
       }
     | {
           /**
@@ -3649,7 +3659,8 @@ export function assembleSentences(
             awaitingColorChoice = false;
             if (
                 sentence.role !== "effect" ||
-                sentence.effect.kind !== "choose-color-grant-protection"
+                sentence.effect.kind !== "choose-color-grant-protection" ||
+                sentence.effect.ofYourChoice === true
             )
                 return {
                     ok: false,
@@ -4466,7 +4477,10 @@ export function assembleSentences(
         // "The chosen color" names no pick without a "Choose a color."
         // sentence right before it; reaching this fold (rather than the
         // `awaitingColorChoice` one above) means it never got one.
-        if (sentence.effect.kind === "choose-color-grant-protection")
+        if (
+            sentence.effect.kind === "choose-color-grant-protection" &&
+            sentence.effect.ofYourChoice !== true
+        )
             return {
                 ok: false,
                 reason: '"… protection from the chosen color" follows no "Choose a color."',
@@ -5433,6 +5447,18 @@ const REMOVE_DISTRIBUTED_COUNTERS =
  * group is a DURATION or nothing.
  */
 const SET_COLOR_CHOICE = /^(.+) becomes the color of your choice(?: (.+))?$/;
+/**
+ * CR 105.2c — "<subject> becomes colorless[ <duration>]". The tail is a duration
+ * or nothing: "that mana becomes colorless instead" names no object anyway.
+ */
+const SET_COLORLESS = /^(.+) becomes colorless(?: (.+))?$/;
+/**
+ * CR 702.16a / 105.1 — "<one object> gains protection from the color of your
+ * choice until <duration>". The singular verb: "You gain …" and any plural
+ * subject are other forms.
+ */
+const GAINS_PROTECTION_COLOR_OF_CHOICE =
+    /^(.+) gains protection from the color of your choice (until .+)$/;
 // CR 305.7 — "<subject> becomes <land types> <duration>". The duration half is
 // spelled into the pattern rather than left to a trailing `(.+)`: every
 // land-type change in the corpus prints one, and a pattern that made it
@@ -8096,6 +8122,24 @@ function effectSentence(
     if (loseBecome !== null)
         return readLoseAbilitiesBecomeCreature(loseBecome, span, ctx);
 
+    // ── protection of your choice (CR 702.16a, CR 105.1) ───────────────────
+    //
+    // Ahead of the keyword grant below, which reads its keyword from a closed
+    // vocabulary and would refuse this one.
+    const protectionOfChoice = span.match(GAINS_PROTECTION_COLOR_OF_CHOICE);
+    if (protectionOfChoice !== null) {
+        const subject = subjectRule.run(protectionOfChoice[1]!, ctx);
+        if (!subject.ok) return subject;
+        const duration = durationRule.run(protectionOfChoice[2]!, ctx);
+        if (!duration.ok) return duration;
+        return ok({
+            kind: "choose-color-grant-protection" as const,
+            subject: subject.value,
+            duration: duration.value,
+            ofYourChoice: true as const,
+        } satisfies EffectSentenceIR);
+    }
+
     // ── grant a keyword (CR 613.1f, layer 6) ───────────────────────────────
     const gainsAt = span.indexOf(" gains ");
     if (
@@ -8166,6 +8210,28 @@ function effectSentence(
             kind: "set-color-choice" as const,
             subject: subject.value,
             duration: duration.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── colorless (CR 105.2c, layer 5) ─────────────────────────────────────
+    const setColorless = span.match(SET_COLORLESS);
+    if (setColorless !== null) {
+        const subject = subjectRule.run(setColorless[1]!, ctx);
+        if (!subject.ok) return subject;
+        const tail = setColorless[2];
+        if (tail === undefined)
+            return ok({
+                kind: "set-color-choice" as const,
+                subject: subject.value,
+                colorless: true as const,
+            } satisfies EffectSentenceIR);
+        const duration = durationRule.run(tail, ctx);
+        if (!duration.ok) return duration;
+        return ok({
+            kind: "set-color-choice" as const,
+            subject: subject.value,
+            duration: duration.value,
+            colorless: true as const,
         } satisfies EffectSentenceIR);
     }
 

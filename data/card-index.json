@@ -1878,6 +1878,16 @@
         "source": "compiled"
     },
     {
+        "name": "Alseid of Life's Bounty",
+        "scryfallId": "36c8c075-9597-412e-9fc4-9d73b4405d12",
+        "oracleId": "d371031e-78be-4964-b521-b1eaa22a5480",
+        "firstSet": "thb",
+        "firstPrintId": "36c8c075-9597-412e-9fc4-9d73b4405d12",
+        "firstPrintSet": "thb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Altar of Bone",
         "scryfallId": "75d5b014-8675-4d91-a539-ac5c31d44b35",
         "oracleId": "607a3f5f-4a36-4077-b5cf-40ffd52fa580",
@@ -4808,6 +4818,16 @@
         "source": "compiled"
     },
     {
+        "name": "Aven Liberator",
+        "scryfallId": "b2804006-2a60-400c-be0b-8aa042469372",
+        "oracleId": "0f3fff7a-cc46-4c72-9edc-fdbddd3b51b5",
+        "firstSet": "scg",
+        "firstPrintId": "b2804006-2a60-400c-be0b-8aa042469372",
+        "firstPrintSet": "scg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Aven of Enduring Hope",
         "scryfallId": "02c1310c-1b54-42dd-bf24-889770fa2ded",
         "oracleId": "e8291185-9d87-4aa2-b7ba-d4946e5a082f",
@@ -6840,6 +6860,16 @@
         "source": "compiled"
     },
     {
+        "name": "Benevolent Bodyguard",
+        "scryfallId": "22492fb3-5ceb-4d5e-ba82-ae1a6a69c105",
+        "oracleId": "c8c38570-0b42-4bfc-896f-f57f9a11ba9d",
+        "firstSet": "jud",
+        "firstPrintId": "22492fb3-5ceb-4d5e-ba82-ae1a6a69c105",
+        "firstPrintSet": "jud",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Benthic Behemoth",
         "scryfallId": "cc9fb7b6-d20c-4c08-9dae-4ccc9138b662",
         "oracleId": "aea98950-536e-451d-bd25-ae6e3e459ffb",
@@ -7474,6 +7504,16 @@
         "firstSet": "dsk",
         "firstPrintId": "d151c8e2-d715-470d-868a-f45191db9fa0",
         "firstPrintSet": "dsk"
+    },
+    {
+        "name": "Blazing Blade Askari",
+        "scryfallId": "cabf35d5-de8a-4d9d-be59-7ad7039873c6",
+        "oracleId": "a298b2aa-02e3-422a-8804-861fd6bb1068",
+        "firstSet": "tsp",
+        "firstPrintId": "cabf35d5-de8a-4d9d-be59-7ad7039873c6",
+        "firstPrintSet": "tsp",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Blazing Crescendo",
@@ -11634,6 +11674,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cartel Aristocrat",
+        "scryfallId": "25bcfbc0-1401-4e5e-8145-c8936c4ff725",
+        "oracleId": "9603e553-f72d-40bf-94ab-596afb7d6db3",
+        "firstSet": "gtc",
+        "firstPrintId": "25bcfbc0-1401-4e5e-8145-c8936c4ff725",
+        "firstPrintSet": "gtc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Cartographer",
         "scryfallId": "7f2c2cc9-37ce-435e-9df2-083d5e3c8c5c",
         "oracleId": "50d33663-5d83-4e3c-9ed7-074fe29a9fc8",
@@ -12308,6 +12358,16 @@
         "firstSet": "rtr",
         "firstPrintId": "08598b2b-6fd2-4a1d-8d74-7ca6d93ad382",
         "firstPrintSet": "rtr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Center Soul",
+        "scryfallId": "bfca3763-9823-4fa4-968d-c701434b3d28",
+        "oracleId": "686b44ec-3446-4e1f-a15f-9d8557db6d70",
+        "firstSet": "dtk",
+        "firstPrintId": "bfca3763-9823-4fa4-968d-c701434b3d28",
+        "firstPrintSet": "dtk",
         "rarity": "common",
         "source": "compiled"
     },
@@ -14309,6 +14369,16 @@
         "firstPrintId": "cf339549-4325-40c6-adde-0cd31bb738e0",
         "firstPrintSet": "dom",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Coldsteel Heart",
+        "scryfallId": "cdd5015e-fe31-42e3-923d-44b9cdece273",
+        "oracleId": "21d700e8-0255-418e-96a0-6fe05b3f836d",
+        "firstSet": "csp",
+        "firstPrintId": "cdd5015e-fe31-42e3-923d-44b9cdece273",
+        "firstPrintSet": "csp",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -23712,6 +23782,16 @@
         "source": "compiled"
     },
     {
+        "name": "Emerge Unscathed",
+        "scryfallId": "0c23013b-4202-45c1-a756-b9a8c5a9dc05",
+        "oracleId": "894015d5-ee78-45df-8d37-53df963c59a6",
+        "firstSet": "roe",
+        "firstPrintId": "0c23013b-4202-45c1-a756-b9a8c5a9dc05",
+        "firstPrintSet": "roe",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Emergency Medical Hologram",
         "scryfallId": "dda6f965-cbdf-4dbc-b0b1-00c27e32f5f2",
         "oracleId": "8170dcbb-9879-414c-819d-ea2658ff770c",
@@ -24551,6 +24631,16 @@
         "firstPrintId": "03188bc3-0ef1-40cd-9c3c-4bb4d806fb92",
         "firstPrintSet": "war",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ersatz Gnomes",
+        "scryfallId": "5a2747ab-00c8-4f59-b9a6-54ff4e99f6c8",
+        "oracleId": "ea016b84-7f77-42e7-bd14-2e62a1e35f3b",
+        "firstSet": "mir",
+        "firstPrintId": "5a2747ab-00c8-4f59-b9a6-54ff4e99f6c8",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -32874,6 +32964,16 @@
         "firstSet": "gpt",
         "firstPrintId": "be010c2f-06db-47e3-80bd-df3f2a21ca34",
         "firstPrintSet": "gpt"
+    },
+    {
+        "name": "Gods Willing",
+        "scryfallId": "abafabb3-b2e7-4d78-b4b7-d8f701d3ee8b",
+        "oracleId": "48e603a2-b965-4fbc-ad57-4388bce5ac8b",
+        "firstSet": "ths",
+        "firstPrintId": "abafabb3-b2e7-4d78-b4b7-d8f701d3ee8b",
+        "firstPrintSet": "ths",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Gods' Hall Guardian",
@@ -42130,6 +42230,16 @@
         "source": "compiled"
     },
     {
+        "name": "Knight of Dawn",
+        "scryfallId": "bf0e5034-a134-4eb6-af8e-b2419b92b3a6",
+        "oracleId": "51262155-f1be-45a8-a21f-94e920a93e55",
+        "firstSet": "tmp",
+        "firstPrintId": "bf0e5034-a134-4eb6-af8e-b2419b92b3a6",
+        "firstPrintSet": "tmp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Knight of Glory",
         "scryfallId": "1646cb67-e0ac-4f2d-af21-618ff3613d69",
         "oracleId": "10b8fd4d-1696-4b0d-b791-7bd3de504457",
@@ -48365,6 +48475,16 @@
         "source": "compiled"
     },
     {
+        "name": "Midvast Protector",
+        "scryfallId": "d4f6214f-90cb-4575-b221-3c8d0ed65ffe",
+        "oracleId": "33a5ad42-cd81-4724-9f68-7f32a1c8a047",
+        "firstSet": "avr",
+        "firstPrintId": "d4f6214f-90cb-4575-b221-3c8d0ed65ffe",
+        "firstPrintSet": "avr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Might of Alara",
         "scryfallId": "9514c013-bc11-4cc5-af8c-f82fd4098bcf",
         "oracleId": "44570849-b2b0-47a8-9d77-f7c738896a0a",
@@ -49994,6 +50114,16 @@
         "firstPrintId": "effb7761-98a8-4cb8-883a-ddcb91d30c08",
         "firstPrintSet": "lrw",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Moonlace",
+        "scryfallId": "c781cc80-5f57-4677-a9da-3523191cc7c6",
+        "oracleId": "52d4dc8a-2799-4b4e-9c20-f14bb75c2279",
+        "firstSet": "tsp",
+        "firstPrintId": "c781cc80-5f57-4677-a9da-3523191cc7c6",
+        "firstPrintSet": "tsp",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -59462,6 +59592,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Raging Spirit",
+        "scryfallId": "a196c21b-e9f5-4ae8-8a1e-668685ef4cf0",
+        "oracleId": "137e0ad2-e10a-4327-86a3-5ac7bc7fc469",
+        "firstSet": "mir",
+        "firstPrintId": "a196c21b-e9f5-4ae8-8a1e-668685ef4cf0",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Ragnar",
         "scryfallId": "2cf6a3a3-4a06-4eb7-981a-b70cf05b2473",
         "oracleId": "6d474413-e72f-414e-872f-aa00d38b7da4",
@@ -60010,6 +60150,16 @@
         "firstSet": "leg",
         "firstPrintId": "e26e7c9c-e6de-47f4-8394-7e853408f84c",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Rappelling Scouts",
+        "scryfallId": "113b8366-e6d0-423e-af4b-52c1e08ed446",
+        "oracleId": "c71eb9b5-2017-4e6c-8140-f9c8af65893f",
+        "firstSet": "mmq",
+        "firstPrintId": "113b8366-e6d0-423e-af4b-52c1e08ed446",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Raptor Companion",
@@ -61735,6 +61885,16 @@
         "firstPrintId": "ada14bc8-4549-4a73-8cbb-9a43698deb36",
         "firstPrintSet": "cmr",
         "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Resilient Wanderer",
+        "scryfallId": "5e5a61de-ee4e-4097-b342-b5f2c976e16e",
+        "oracleId": "cb1e5b14-e440-4ca9-b3f4-e770e158bf69",
+        "firstSet": "ody",
+        "firstPrintId": "5e5a61de-ee4e-4097-b342-b5f2c976e16e",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -66896,6 +67056,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sejiri Steppe",
+        "scryfallId": "668f5732-da88-4d42-9186-70cfef81f689",
+        "oracleId": "3dfbf95e-a91b-429c-96e2-95ac777e7027",
+        "firstSet": "wwk",
+        "firstPrintId": "668f5732-da88-4d42-9186-70cfef81f689",
+        "firstPrintSet": "wwk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Select for Inspection",
         "scryfallId": "120f0fb0-4831-4759-b58c-05c4be90a4af",
         "oracleId": "cfee4ba9-3cf2-4e8b-a4a7-21974828cd54",
@@ -68078,6 +68248,16 @@
         "firstPrintSet": "lrw"
     },
     {
+        "name": "Shelter",
+        "scryfallId": "9c726ab3-1692-4e14-ab21-664a1679bc53",
+        "oracleId": "c1909d70-d8f4-4c54-8587-0a910f123238",
+        "firstSet": "ody",
+        "firstPrintId": "9c726ab3-1692-4e14-ab21-664a1679bc53",
+        "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Sheltered Thicket",
         "scryfallId": "d23cd764-3f5c-4c93-ba83-e5ff397003a2",
         "oracleId": "db8d8643-3d0b-4f20-bf53-f4cd26a0e8df",
@@ -68232,6 +68412,16 @@
         "firstSet": "rna",
         "firstPrintId": "76e3092d-2422-438c-b5dd-bf8eca33a76e",
         "firstPrintSet": "rna",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Shimmerdrift Vale",
+        "scryfallId": "f09d98db-0176-41a7-b99b-ead29876cdab",
+        "oracleId": "2ac34f3e-822d-4fde-99ca-a31c4d9503fd",
+        "firstSet": "khm",
+        "firstPrintId": "f09d98db-0176-41a7-b99b-ead29876cdab",
+        "firstPrintSet": "khm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -69282,6 +69472,16 @@
         "firstSet": "bfz",
         "firstPrintId": "9b715fc0-9c36-4619-8d65-6d1064ed8a32",
         "firstPrintSet": "bfz",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Silhana Starfletcher",
+        "scryfallId": "fa9c7e09-8384-4866-af92-ba56bd307d9c",
+        "oracleId": "3b4b6af2-f929-4082-a5ae-61a4e074bf14",
+        "firstSet": "gpt",
+        "firstPrintId": "fa9c7e09-8384-4866-af92-ba56bd307d9c",
+        "firstPrintSet": "gpt",
         "rarity": "common",
         "source": "compiled"
     },
@@ -71672,6 +71872,16 @@
         "firstSet": "tla",
         "firstPrintId": "004be4bc-ac3c-4026-8d36-f4687ab18c70",
         "firstPrintSet": "tla",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Sol Grail",
+        "scryfallId": "62652722-e345-4670-9547-d9579efa227d",
+        "oracleId": "0396ef40-3774-4684-9971-160aaccf6ac6",
+        "firstSet": "all",
+        "firstPrintId": "62652722-e345-4670-9547-d9579efa227d",
+        "firstPrintSet": "all",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -74430,6 +74640,16 @@
         "source": "compiled"
     },
     {
+        "name": "Stave Off",
+        "scryfallId": "3bb09157-5d7a-4da2-92b6-9354489e607f",
+        "oracleId": "c77c23bc-efde-43ce-bf6f-7a8531d81d89",
+        "firstSet": "m12",
+        "firstPrintId": "3bb09157-5d7a-4da2-92b6-9354489e607f",
+        "firstPrintSet": "m12",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Steadfast Cathar",
         "scryfallId": "5e1b65a7-d385-428b-986c-a0d9283a5f75",
         "oracleId": "00895741-f94f-4d80-8ca4-c436bf3c8d56",
@@ -77125,6 +77345,16 @@
         "firstPrintId": "6452ba94-6bb0-409c-99f7-71e6457c3f2a",
         "firstPrintSet": "rix",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Sygg, River Guide",
+        "scryfallId": "fb1aefaf-1b96-4c08-a73e-98e401655965",
+        "oracleId": "73f6da1e-b8ce-4b5a-9da0-84ca67adaf1c",
+        "firstSet": "lrw",
+        "firstPrintId": "fb1aefaf-1b96-4c08-a73e-98e401655965",
+        "firstPrintSet": "lrw",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

@@ -158,6 +158,8 @@ export interface LoweredStatic {
     readonly asEntersNonlandCardName?: true;
     /** CR 614.1c / 614.12a — "As this enters, choose an opponent". */
     readonly asEntersOpponent?: true;
+    /** CR 614.12a / 105.1 — "As this enters, choose a color". */
+    readonly asEntersColor?: true;
     /** CR 601.3a — the lowered clause reads the card's `chosenName`;
      *  `lower.ts` checks the card also declares the as-enters choice. */
     readonly readsChosenName?: true;
@@ -712,6 +714,8 @@ export function lowerStaticClause(
             return { ok: true, lowered: { asEntersNonlandCardName: true } };
         case "as-enters-choose-opponent":
             return { ok: true, lowered: { asEntersOpponent: true } };
+        case "as-enters-choose-color":
+            return { ok: true, lowered: { asEntersColor: true } };
         case "chosen-name-spells-cant-be-cast":
             return {
                 ok: true,

@@ -59,7 +59,7 @@ describe("as-enters opponent choice (CR 614.12a)", () => {
             refusal("As this artifact enters, choose a player.")
         ).toBeTruthy();
         expect(
-            refusal("As this artifact enters, choose a color.")
+            refusal("As this artifact enters, choose a color other than black.")
         ).toBeTruthy();
     });
 

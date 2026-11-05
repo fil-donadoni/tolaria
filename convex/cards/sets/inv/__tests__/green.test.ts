@@ -812,7 +812,9 @@ describe("Quirion Elves (CR 700.2c ETB colour choice + CR 605.1a two mana abilit
         }
     );
 
-    it("falls back to {G} when no colour was ever stored (defensive — real casts always lock a mode)", () => {
+    // CR 106.5 — a permanent that became a Quirion Elves after entering made no
+    // choice: "the chosen color" is undefined, and that is no mana, not {G}.
+    it("offers nothing when no colour was ever stored (CR 106.5)", () => {
         const elf = makeInstance(quirionElves.id, { id: "qe-no-choice" });
         const state = makeState({
             players: [
@@ -824,9 +826,7 @@ describe("Quirion Elves (CR 700.2c ETB colour choice + CR 605.1a two mana abilit
             playerId: p.id,
             battlefield: p.battlefield,
         }));
-        expect(getDynamicManaChoices(elf, "p1", battlefields)).toEqual([
-            { G: 1 },
-        ]);
+        expect(getDynamicManaChoices(elf, "p1", battlefields)).toEqual([]);
     });
 
     it("getManaTapOptionsDetailed unifies both abilities into one 2-option tap picker", () => {

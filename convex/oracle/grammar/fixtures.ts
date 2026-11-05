@@ -4362,6 +4362,118 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 105.2c — "This creature becomes colorless until end of turn": a
+    // `setColor` of the empty set on `$source`, the form the canned smoke
+    // scenario refuses. Evidence for every card printing the same self form
+    // (Raging Spirit, Blazing Blade Askari).
+    {
+        rule: "becomes colorless",
+        card: {
+            oracleId: "598a7347-b772-4839-a02f-b930076c1354",
+            name: "Ancient Kavu",
+            manaCost: "{3}{R}",
+            typeLine: "Creature — Kavu",
+            oracleText:
+                "{2}: This creature becomes colorless until end of turn.",
+            power: "3",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Ancient Kavu",
+            types: ["Creature"],
+            subtypes: ["Kavu"],
+            manaCost: { X: 3, R: 1 },
+            power: 3,
+            toughness: 3,
+            oracleText:
+                "{2}: This creature becomes colorless until end of turn.",
+            activatedAbilities: [
+                {
+                    id: "ancient-kavu-ability",
+                    oracleText:
+                        "{2}: This creature becomes colorless until end of turn.",
+                    cost: { mana: { X: 2 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "setColor",
+                            target: { ref: "$source" },
+                            colors: [],
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 702.16a — "This creature gains protection from the color of your
+    // choice until end of turn": five `grantAbility` modes on `$source`, the
+    // form the canned smoke scenario refuses. Evidence for every card printing
+    // the same self form (Cartel Aristocrat, Rappelling Scouts).
+    {
+        rule: "protection of your choice",
+        card: {
+            oracleId: "51262155-f1be-45a8-a21f-94e920a93e55",
+            name: "Knight of Dawn",
+            manaCost: "{1}{W}{W}",
+            typeLine: "Creature — Human Knight",
+            oracleText:
+                "First strike\n{W}{W}: This creature gains protection from the color of your choice until end of turn.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Knight of Dawn",
+            types: ["Creature"],
+            subtypes: ["Human", "Knight"],
+            manaCost: { X: 1, W: 2 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "First strike\n{W}{W}: This creature gains protection from the color of your choice until end of turn.",
+            staticAbilities: ["first strike"],
+            activatedAbilities: [
+                {
+                    id: "knight-of-dawn-ability",
+                    oracleText:
+                        "{W}{W}: This creature gains protection from the color of your choice until end of turn.",
+                    cost: { mana: { W: 2 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "optionChoice",
+                            prompt: "Choose a color (Knight of Dawn).",
+                            modes: (
+                                [
+                                    ["W", "white"],
+                                    ["U", "blue"],
+                                    ["B", "black"],
+                                    ["R", "red"],
+                                    ["G", "green"],
+                                ] as const
+                            ).map(([color, quality]) => ({
+                                id: `protection-${quality}`,
+                                label: `Protection from ${quality}`,
+                                color,
+                                effects: [
+                                    {
+                                        op: "grantAbility" as const,
+                                        ability: `protection from ${quality}`,
+                                        target: { ref: "$source" as const },
+                                        duration: {
+                                            phase: "end-of-turn" as const,
+                                        },
+                                    },
+                                ],
+                            })),
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 613.1e — "This creature becomes the color of your choice until end of
     // turn": the layer-5 colour change applied to the ability's OWN source.
     // Exhibits the form the canned smoke scenario refuses — a `setColor` on
