@@ -15292,6 +15292,11 @@ export function buildSpellContext(
         // `stampBackFaceForEntry` returning false means (the caller ignores
         // the result and returns the card either way).
         //
+        // CR 701.42a / 701.42c (ADR 0161) — the Effect Script's door to the
+        // engine's atomic meld step.
+        meldPermanents(holderId: string, partnerId: string): void {
+            meldPermanents(state, holderId, partnerId, item.controllerId);
+        },
         // The RETURN leg is skipped in one case only: a replacement effect
         // moved the card somewhere other than exile on the way out, so it is
         // left where it landed rather than force-returned — a card that never
@@ -23659,7 +23664,10 @@ export function manaSpentDelta(
  *    "Legendary" (Delighted Halfling, issue #1559) — the one member keyed on
  *    `spellSupertypes` rather than `spellTypes`. Exhaustive `switch` over the
  *    union: a new member must add a case here (and the compiler enforces
- *    it). */
+ *    it).
+ *  - `not-nonartifact-spell` — may not cast a nonartifact spell, so of spells
+ *    it pays for the same set `artifact-spell` does (The Mightstone and
+ *    Weakstone, issue #3341). */
 export function restrictionAllowsSpell(
     restriction: ManaRestriction,
     spellTypes: readonly string[],
@@ -23669,6 +23677,7 @@ export function restrictionAllowsSpell(
         case "creature-spell":
             return spellTypes.includes("Creature");
         case "artifact-spell":
+        case "not-nonartifact-spell":
             return spellTypes.includes("Artifact");
         case "cumulative-upkeep":
             // CR 702.24 / ADR 0042 — cumulative-upkeep mana is never spendable
@@ -23708,6 +23717,10 @@ export function restrictionAllowsAbility(
             // CR 106.6 (issue #1559) — a SPELL-cast restriction, like
             // creature-spell/artifact-spell, never permits an ACTIVATION.
             return false;
+        case "not-nonartifact-spell":
+            // CR 106.6 (issue #3341) — "can't be spent to cast nonartifact
+            // spells" says nothing of abilities, so any ability is payable.
+            return true;
         case "artifact-ability":
             return sourceTypes.includes("Artifact");
     }
@@ -26029,6 +26042,9 @@ export function mayPayUnitIsEligible(
 ): boolean {
     if (unit.castableCardId !== undefined) return false;
     if (unit.restriction === undefined) return true;
+    // CR 106.6 (issue #3341) — a prohibition names only nonartifact spells, and
+    // a `may-pay` leg is no spell, so this mana pays any of them.
+    if (unit.restriction === "not-nonartifact-spell") return true;
     return restriction !== undefined && unit.restriction === restriction;
 }
 

@@ -55,6 +55,8 @@ export function restrictedManaLabel(
                 return "Artifact abilities only";
             case "legendary-spell":
                 return "Legendary spells only";
+            case "not-nonartifact-spell":
+                return "Not for nonartifact spells";
             default:
                 return "Restricted";
         }
