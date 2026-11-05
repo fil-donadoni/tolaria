@@ -7,11 +7,13 @@ import { isEligibleAttacker } from "~/lib/attacker-eligibility";
 import { unleashForbidsBlock } from "@convex/cards/abilities/unleash";
 import { combatDeclarationCap } from "@convex/cards/attackRestrictions";
 import { useAttackSequence } from "~/hooks/useAttackSequence";
+import { effectivePower } from "~/lib/effective-stats";
 import {
     isCreature,
     isPlaneswalker,
     isHorsemanshipBarred,
     isLandwalkUnblockable,
+    isSkulkBarred,
     hasManaAbility,
     matchesPermanentFilter,
     matchesTargetRequirement,
@@ -427,6 +429,13 @@ export function useBattlefieldVisualState(
             if (!attacker) continue;
             if (isLandwalkUnblockable(attacker, player.battlefield)) continue;
             if (isHorsemanshipBarred(attacker, blocker)) continue;
+            if (
+                isSkulkBarred(attacker, blocker, (card) =>
+                    effectivePower(allPlayers, card, emblems, continuousEffects)
+                )
+            ) {
+                continue;
+            }
             const attackerFlies =
                 attacker.staticAbilities?.includes("flying") ?? false;
             if (!attackerFlies || hasFlying || hasReach) return true;

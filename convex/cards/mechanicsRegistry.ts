@@ -1955,7 +1955,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Skulk",
         kind: "keyword-ability",
         cr: "702.118",
-        status: "planned",
+        status: "implemented",
+        binding: "skulk",
+        note: "combatRegistry.ts EvasionRule — attacker-keyed only: CR 702.118b restricts who may block a creature with skulk, never what it may block. It is the one evasion rule that compares power, so `evaluateBlockerKeywords` takes the caller's layer read (`EvasionPowerReader`). The client's block affordance reads the same comparison through card-utils.ts (isSkulkBarred).",
     },
     // 702.119 Emerge
     {
