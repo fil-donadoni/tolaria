@@ -483,6 +483,7 @@ import {
     payExertActivationCost,
     restoreExertOnUntap,
 } from "./gre/exert";
+import { pruneEnlistChoices, toggleEnlistChoice } from "./gre/enlist";
 import {
     applyManaAbilityEffects,
     reverseManaAbilityEffectsOnUntap,
@@ -11345,6 +11346,8 @@ function selectAttacker(
         throw new Error(attackerCap.oracleText);
     }
     combat.attackerIds.push(cardInstanceId);
+    // CR 702.154a — a creature chosen to attack can't be tapped to enlist.
+    pruneEnlistChoices(combat);
     // CR 508.1a (issue #1220) — record the planeswalker this attacker is
     // attacking, if one was chosen at declaration. Absence = the
     // defending player.
@@ -11394,6 +11397,8 @@ function deselectAttacker(
         const kept = combat.exertedIds.filter((id) => id !== cardInstanceId);
         combat.exertedIds = kept.length > 0 ? kept : undefined;
     }
+    // CR 508.1g / 702.154: and so are the enlist costs chosen for it.
+    pruneEnlistChoices(combat);
     // CR 702.22f: a deselected attacker leaves any band it was in.
     // Drop the now-stale member and discard bands that fall below a
     // legal size (need 2+ members, 1+ with banding).
@@ -11550,6 +11555,16 @@ export const declareAttackers = mutation({
         /** CR 508.1g / 701.43d — declared attackers whose OPTIONAL exert cost
          *  the declarer chooses to pay. */
         exertIds: v.optional(v.array(v.string())),
+        /** CR 508.1g / 702.154 — the OPTIONAL enlist costs the declarer chooses
+         *  to pay: each attacker with the creature it taps. */
+        enlists: v.optional(
+            v.array(
+                v.object({
+                    attackerId: v.string(),
+                    enlistedId: v.string(),
+                })
+            )
+        ),
     },
     handler: async (ctx, args) => {
         // SECURITY (issue #1645 review): seat-addressed mutation — the
@@ -11653,6 +11668,26 @@ export const declareAttackers = mutation({
             }
         }
 
+        // CR 508.1g / 702.154 — the optional enlist costs, likewise after every
+        // attacker is in: a partner is judged against the whole selection.
+        for (const pair of args.enlists ?? []) {
+            const alreadyChosen = combat.enlists?.some(
+                (p) =>
+                    p.attackerId === pair.attackerId &&
+                    p.enlistedId === pair.enlistedId
+            );
+            if (alreadyChosen) continue;
+            try {
+                toggleEnlistChoice(state, pair.attackerId, pair.enlistedId);
+                changed = true;
+            } catch (e) {
+                rejected.push({
+                    cardInstanceId: pair.enlistedId,
+                    reason: e instanceof Error ? e.message : String(e),
+                });
+            }
+        }
+
         if (changed) {
             await saveGameState(
                 ctx,
@@ -11731,6 +11766,38 @@ export const toggleExert = mutation({
             throw new Error("Attacker selection is not open");
         }
         applyExertToggle(state, state.combat, args.cardInstanceId);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** CR 508.1g / 702.154 — choose, swap or withdraw the creature one declared
+ *  attacker taps for its OPTIONAL enlist cost, while the declaration is open. Part
+ *  of declaring attackers, as with `toggleExert`: the tap happens as the attack
+ *  is declared, and the choice can be revised until then. */
+export const toggleEnlist = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        attackerId: v.string(),
+        enlistedId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertAttackerDeclarationOpen(state, args.playerId);
+        toggleEnlistChoice(state, args.attackerId, args.enlistedId);
 
         await saveGameState(
             ctx,
@@ -12168,6 +12235,9 @@ export const confirmAttackers = mutation({
             (id) => !foldedAttackers.includes(id)
         );
         state.combat.attackerIds = foldedAttackers;
+        // CR 702.154a — the fold can drop an attacker, or fold in a creature that
+        // had been chosen as a partner.
+        pruneEnlistChoices(state.combat);
         if (droppedAttackers.length > 0) {
             // A dropped attacker takes its planeswalker attack target (CR
             // 508.1a) and its band membership (CR 702.22f) with it — the same
@@ -12300,8 +12370,13 @@ export const autoTapForAttackTax = mutation({
 
         const player = getPlayer(state, args.playerId);
         const subs = getManaSubstitutions(state, player.id);
+        // CR 508.1h/1j — a creature chosen to pay enlist is already spoken for:
+        // auto-tap must not quietly spend it on this tax.
+        const enlisted = new Set(
+            (state.combat?.enlists ?? []).map((pair) => pair.enlistedId)
+        );
         const sources = buildAutoTapSources(
-            player.battlefield,
+            player.battlefield.filter((c) => !enlisted.has(c.id)),
             manaGateBattlefields(state),
             undefined,
             state
@@ -12372,6 +12447,15 @@ export const tapForAttackTax = mutation({
             (c) => c.id === args.cardInstanceId
         );
         if (!card) throw new Error("Card not on battlefield");
+        // CR 508.1h/1j — the total cost is locked in, enlist's tap included, and
+        // partial payments are not allowed: this creature is already spoken for.
+        if (
+            state.combat?.enlists?.some(
+                (pair) => pair.enlistedId === args.cardInstanceId
+            )
+        ) {
+            throw new Error("That creature is tapping to enlist");
+        }
 
         tapSourceIntoPayment(
             state,
@@ -12484,6 +12568,9 @@ export const cancelAttackTax = mutation({
         // re-declare (or decline to attack).
         combat.attackerIds = [];
         combat.bands = undefined;
+        // CR 508.1g — and the enlist costs chosen for them, or re-selecting the
+        // same attacker would pay a cost the new declaration never chose.
+        combat.enlists = undefined;
 
         await saveGameState(
             ctx,

@@ -224,8 +224,20 @@ export function describeMove(move: Move, state: GameState): string {
             const exerted = (move.exertIds ?? [])
                 .map((id) => instanceName(state, id))
                 .join(", ");
-            return exerted.length > 0
-                ? `attack: ${attackers} (exert: ${exerted})`
+            // CR 508.1g / 702.154 — enlist likewise: the same attack with and
+            // without the tap are two different moves.
+            const enlisted = (move.enlists ?? [])
+                .map(
+                    (pair) =>
+                        `${instanceName(state, pair.attackerId)} ← ${instanceName(state, pair.enlistedId)}`
+                )
+                .join(", ");
+            const costs = [
+                ...(exerted.length > 0 ? [`exert: ${exerted}`] : []),
+                ...(enlisted.length > 0 ? [`enlist: ${enlisted}`] : []),
+            ];
+            return costs.length > 0
+                ? `attack: ${attackers} (${costs.join("; ")})`
                 : `attack: ${attackers}`;
         }
         case "declare-blockers":

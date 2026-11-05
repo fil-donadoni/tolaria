@@ -53,6 +53,7 @@ vi.mock("@convex/_generated/api", () => {
         "untapForAttackTax",
         "toggleAttacker",
         "toggleExert",
+        "toggleEnlist",
         "selectBlocker",
         "assignBlockerTarget",
         "selectTarget",

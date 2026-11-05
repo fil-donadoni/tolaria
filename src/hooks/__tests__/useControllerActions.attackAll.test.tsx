@@ -272,6 +272,44 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         expect(seq.begin).not.toHaveBeenCalled();
     });
 
+    it("with enlist and a creature it could tap: declares but leaves the declaration unconfirmed (CR 508.1g / 702.154a)", async () => {
+        const me = player("me", [
+            creature({ id: "a", staticAbilities: ["enlist"] }),
+            creature({ id: "wall", staticAbilities: ["defender"] }),
+        ]);
+        const opp = player("opp", []);
+        const seq = makeSequence();
+        const { result } = renderCtrl(me, opp, seq);
+
+        await act(async () => {
+            await findAction(result, "attack-with-all")!.onClick();
+        });
+
+        expect(
+            (
+                calls.find((c) => c.ref === "declareAttackers")?.args as {
+                    attackerIds: string[];
+                }
+            ).attackerIds
+        ).toEqual(["a"]);
+        expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(false);
+    });
+
+    it("with enlist but no one left to tap: confirms immediately (CR 702.154a)", async () => {
+        const me = player("me", [
+            creature({ id: "a", staticAbilities: ["enlist"] }),
+            creature({ id: "b" }),
+        ]);
+        const opp = player("opp", []);
+        const { result } = renderCtrl(me, opp, makeSequence());
+
+        await act(async () => {
+            await findAction(result, "attack-with-all")!.onClick();
+        });
+
+        expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(true);
+    });
+
     it("with a defending planeswalker: declares all then opens the sequence", async () => {
         const me = player("me", [creature({ id: "a" }), creature({ id: "b" })]);
         const opp = player("opp", [planeswalker()]);
