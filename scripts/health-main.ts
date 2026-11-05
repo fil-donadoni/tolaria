@@ -179,6 +179,7 @@ import {
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
 import { readDeploymentSkew } from "./lib/deployment-skew";
 import { buildEvidence, evidenceSummary } from "./lib/health-evidence";
+import { inheritedClass } from "./lib/health-ladder";
 import {
     corpusTestFiles,
     fileMovesBetween,
@@ -731,7 +732,13 @@ function publishEvidence(
     step: string,
     failed: FailedOutput,
     retry?: RetryFields
-): { tests: string[]; failure: string; pointer: string } {
+): {
+    tests: string[];
+    failure: string;
+    pointer: string;
+    /** The body as published; null when the store did not take it. */
+    published: string | null;
+} {
     const ev = buildEvidence({
         sha: ctx.tip,
         step,
@@ -744,15 +751,17 @@ function publishEvidence(
         at: new Date().toISOString(),
     });
     let pointer = ctx.logPath;
+    let published: string | null = null;
     try {
         pointer = evidenceStore(ctx.root).publish(ctx.tip, ev.body);
+        published = ev.body;
     } catch (err) {
         console.error(
             `health-main: the RED evidence could not be published — ${String(err)}`
         );
     }
     console.error(evidenceSummary(ev.body));
-    return { tests: ev.files, failure: ev.kind, pointer };
+    return { tests: ev.files, failure: ev.kind, pointer, published };
 }
 
 function finishRed(
@@ -783,6 +792,16 @@ function finishRed(
         ...halves,
         ...(proof ? { proof } : {}),
     });
+    // The same names as a standing Contained RED: no new block (ADR 0163 §2).
+    const redClass = inheritedClass({
+        verdict: { step: failedStep, failure: ev.failure },
+        evidence: ev.published,
+        lineage: () =>
+            readVerdictLineage(() =>
+                verdictStore(ctx.root, { branch: ctx.branch })
+            ),
+        standingEvidence: (sha) => evidenceStore(ctx.root).read(sha),
+    });
     publishVerdict(ctx, {
         sha: ctx.tip,
         status: "red",
@@ -793,6 +812,7 @@ function finishRed(
         failure: ev.failure,
         ...(tests.length > 0 ? { tests } : {}),
         ...(proof ? { proof } : {}),
+        ...(redClass ? { redClass } : {}),
     });
     const lineage = readVerdictLineage(() =>
         verdictStore(ctx.root, { branch: ctx.branch })

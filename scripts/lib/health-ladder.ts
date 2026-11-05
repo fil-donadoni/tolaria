@@ -40,9 +40,20 @@
  * evidence, fix-attempt records), the base tip and the revert PR's state;
  * `scripts/health-fix.ts ladder` and `scripts/health-revert.ts` are the I/O.
  */
-import { LADDER_MARK } from "./health-bisect";
+import { baseStepName, bisectOutcome, LADDER_MARK } from "./health-bisect";
 import { LANDINGS_PER_BATCH } from "./health-batch-due";
-import type { LineageKind, Verdict } from "./health-verdict-store";
+import {
+    evidenceSummary,
+    evidenceTestNames,
+    evidenceTests,
+} from "./health-evidence";
+import type {
+    Lineage,
+    LineageKind,
+    RedClass,
+    Verdict,
+    WriteOutcome,
+} from "./health-verdict-store";
 import { prsOf, type FixAttempt } from "./health-fix-attempts";
 import { RUNNER_ROLES } from "./github-runner";
 import type {
@@ -1000,6 +1011,275 @@ export function withoutClass(v: Verdict, at: string): Verdict {
     const out: Verdict = { ...v, at };
     delete out.redClass;
     return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The bisect grants the class (ADR 0163 §§ 2-3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The test files that exercise the pipeline's own machinery: the gate, the
+ *  lane, the queue, `land` and this ladder. While one is red, none of them can
+ *  be trusted to contain anything, so such a RED blocks (ADR 0163 §2). A file
+ *  not listed is not tooling; `health-ladder.test.ts` guards the drift. */
+export const PIPELINE_TOOLING_TESTS: readonly string[] = [
+    "base-drift",
+    "check-lane",
+    "contained-tolerance",
+    "gate",
+    "gate-rule-parity",
+    "gate-run",
+    "health-bisect",
+    "health-bisect-maintenance",
+    "health-bisect-tests",
+    "health-evidence",
+    "health-evidence-pivot",
+    "health-ladder",
+    "health-pivot",
+    "health-repair-proof",
+    "health-status-contained",
+    "health-verdict",
+    "health-verdict-store",
+    "land-requeue",
+    "landing-walk-owed",
+    "lane-sentinels",
+    "lane-sources-injected",
+    "lane-verdict",
+    "pr-checks",
+    "pr-fixup",
+    "pr-gate",
+    "pr-merge",
+    "pr-refresh",
+    "pr-refusals",
+    "pre-queue-steps",
+    "queue-churn",
+    "queue-hand-off",
+    "queue-lint",
+    "queue-plan",
+    "release",
+    "repair-proof",
+    "workflow-structure",
+].map((name) => `scripts/__tests__/${name}.test.ts`);
+
+/** Why this failure can never be contained, or null when it can. The facts a
+ *  grant and an inheritance share: a named assertion in a non-tooling test. A
+ *  failing file with no name (it could not load, the excerpt was cut) refuses:
+ *  the lane could not tolerate it. */
+function notContainable(
+    v: Pick<Verdict, "step" | "failure">,
+    evidence: string | null
+): string | null {
+    if (baseStepName(v.step) !== "test")
+        return `the failed step is \`${v.step ?? "-"}\`, not \`test\``;
+    if (v.failure !== "assertion")
+        return `the failure kind is \`${v.failure ?? "-"}\`, not \`assertion\``;
+    if (evidence === null) return "no evidence is published";
+    const tests = evidenceTests(evidence);
+    if (tests.length === 0) return "the evidence names no test";
+    const nameless = tests.find((t) => t.name === undefined);
+    if (nameless) return `\`${nameless.file}\` failed with no test name`;
+    const tooling = tests.find((t) => PIPELINE_TOOLING_TESTS.includes(t.file));
+    if (tooling) return `\`${tooling.file}\` is the pipeline's own tooling`;
+    return null;
+}
+
+export type ContainedGrant =
+    | {
+          grant: true;
+          /** No culprit to revert: one P0 is owed (§ 3). */ noCulprit: boolean;
+      }
+    | { grant: false; why: string };
+
+/**
+ * May a bisected RED become contained (ADR 0163 §2)? ALL must hold; anything
+ * unread refuses, since a RED with no class blocks. Pure. `lineage` is null
+ * when it could not be read.
+ */
+export function containedGrant(input: {
+    verdict: Pick<Verdict, "status" | "step" | "failure">;
+    evidence: string | null;
+    lineage: LineageKind | null;
+}): ContainedGrant {
+    if (input.verdict.status !== "red")
+        return { grant: false, why: "no RED stands on this sha" };
+    if (input.lineage === null)
+        return { grant: false, why: "the lineage could not be read" };
+    if (input.lineage === "second-red")
+        return { grant: false, why: "a second RED follows a proved repair" };
+    if (input.lineage !== "red" && input.lineage !== "contained")
+        return { grant: false, why: `the lineage is ${input.lineage}` };
+    const why = notContainable(input.verdict, input.evidence);
+    if (why !== null) return { grant: false, why };
+    const outcome = bisectOutcome(input.evidence);
+    if (outcome.kind === "refused") return { grant: false, why: outcome.why };
+    return { grant: true, noCulprit: outcome.kind === "no-culprit" };
+}
+
+/**
+ * The class a NEW RED carries when it is written (ADR 0163 §2): a Contained RED
+ * stands and this failure's names are a subset of the ones its evidence lists.
+ * New names, an unread fact or a blocking lineage: none, until the bisect.
+ * Never throws: a verdict write must not fail on this.
+ */
+export function inheritedClass(input: {
+    verdict: Pick<Verdict, "step" | "failure">;
+    /** This RED's own evidence, as published; null when it was not. */
+    evidence: string | null;
+    lineage: () => Lineage & { error?: string };
+    standingEvidence: (sha: string) => string | null;
+}): RedClass | undefined {
+    try {
+        if (notContainable(input.verdict, input.evidence) !== null)
+            return undefined;
+        const lineage = input.lineage();
+        if (lineage.error || lineage.kind !== "contained" || !lineage.verdict)
+            return undefined;
+        const standing = input.standingEvidence(lineage.verdict.sha);
+        if (standing === null) return undefined;
+        const known = new Set(evidenceTestNames(standing));
+        return evidenceTestNames(input.evidence as string).every((n) =>
+            known.has(n)
+        )
+            ? "contained"
+            : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/** The standing verdict rewritten with its class. */
+export function withClass(v: Verdict, at: string): Verdict {
+    return { ...v, redClass: "contained", at };
+}
+
+/** The P0's title: one per EPISODE, keyed on its first RED, its dedup key. */
+export function noCulpritIssueTitle(firstRed: string): string {
+    return `Contained RED with no culprit, since ${short(firstRed)}`;
+}
+
+/** Its body. No `## Band`: a filer never writes `P0`, and `backlog:triage`
+ *  refuses the line; the `bug` + `area:workflow` labels raise it on the board
+ *  (`issue-band.yml`, ADR 0143 Amendment VII), as they do the stop's issue. */
+export function noCulpritIssueBody(input: {
+    red: string;
+    evidence: string;
+    runUrl?: string;
+}): string {
+    return [
+        "## What happened",
+        "",
+        `The bisect of the RED at \`${input.red}\` named no culprit: every probe ran and none reproduced it, so no revert can repair the tip (ADR 0163 § 3). The RED is contained: the queue keeps running and \`release\` stays refused. The headless fixer is also on it.`,
+        "",
+        "## Evidence",
+        "",
+        evidenceSummary(input.evidence),
+        "",
+        `Full evidence: \`bun run health:status --evidence ${input.red}\``,
+        ...(input.runUrl ? ["", `Run: ${input.runUrl}`] : []),
+        "",
+        "## What to build",
+        "",
+        "Make the failing tests pass, or correct what they pin. Never silence one. This issue is a declared repair of the RED: a PR closing it is its repair.",
+        "",
+    ].join("\n");
+}
+
+/** What `settleContainedGrant` acts through: the ladder's I/O, injected. Any of
+ *  them may throw; the RED then keeps blocking. */
+export interface ContainedGrantEffects {
+    note(line: string): void;
+    readVerdict(sha: string): Verdict | null;
+    readLineage(): Lineage & { error?: string };
+    readEvidence(sha: string): string | null;
+    write(v: Verdict): WriteOutcome;
+    /** The issue of this title in ANY state, or null. */
+    findIssue(title: string): number | null;
+    fileIssue(title: string, body: string): number | null;
+    declareRepair(issue: number): void;
+    runUrl?: string;
+    now(): string;
+}
+
+/** The one P0 of an episode. Never fatal: the grant already stands. */
+function fileNoCulpritIssue(
+    red: string,
+    evidence: string,
+    firstRed: string,
+    fx: ContainedGrantEffects
+): void {
+    try {
+        const title = noCulpritIssueTitle(firstRed);
+        const existing = fx.findIssue(title);
+        if (existing !== null) {
+            fx.note(`the episode's P0 is already issue #${existing}`);
+            return;
+        }
+        const issue = fx.fileIssue(
+            title,
+            noCulpritIssueBody({ red, evidence, runUrl: fx.runUrl })
+        );
+        if (issue === null) {
+            fx.note("the episode's P0 could not be filed");
+            return;
+        }
+        fx.declareRepair(issue);
+        fx.note(`filed issue #${issue}, the episode's P0`);
+    } catch (e) {
+        fx.note(
+            `the episode's P0 could not be filed — ${(e as Error).message}`
+        );
+    }
+}
+
+/**
+ * The switch (ADR 0163 §§ 2-3), right after the bisect published its lines:
+ * rewrite the RED with its class when `containedGrant` allows, and file the P0
+ * a RED with no culprit owes. Called once per climb, never on a RED already
+ * climbed: a re-read there would undo an escalation. Returns whether the class
+ * was written; any failure leaves the RED blocking.
+ */
+export function settleContainedGrant(
+    sha: string,
+    fx: ContainedGrantEffects
+): boolean {
+    try {
+        const stored = fx.readVerdict(sha);
+        if (stored === null) {
+            fx.note("not contained — no verdict could be read");
+            return false;
+        }
+        if (stored.redClass === "contained") {
+            fx.note("contained already — inherited when it was written");
+            return false;
+        }
+        const lineage = fx.readLineage();
+        const evidence = fx.readEvidence(sha);
+        const grant = containedGrant({
+            verdict: stored,
+            evidence,
+            lineage: lineage.error ? null : lineage.kind,
+        });
+        if (!grant.grant) {
+            fx.note(`not contained — ${grant.why}`);
+            return false;
+        }
+        const out = fx.write(withClass(stored, fx.now()));
+        if (!out.written) {
+            fx.note(`not contained — the write was declined: ${out.reason}`);
+            return false;
+        }
+        fx.note("contained — it stops the release, not the queue (ADR 0163)");
+        if (grant.noCulprit)
+            fileNoCulpritIssue(
+                sha,
+                evidence as string,
+                lineage.reds?.at(-1)?.sha ?? sha,
+                fx
+            );
+        return true;
+    } catch (e) {
+        fx.note(`not contained — ${(e as Error).message}`);
+        return false;
+    }
 }
 
 /**

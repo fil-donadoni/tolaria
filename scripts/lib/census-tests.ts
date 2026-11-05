@@ -143,6 +143,12 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/docs-lane.test.ts",
         admits: /^scripts\/__tests__\//,
     },
+    // scripts/__tests__/ — a new test of a machinery family is on the Contained
+    // RED grant's tooling list (issue #8079)
+    {
+        test: "scripts/__tests__/health-ladder.test.ts",
+        admits: /^scripts\/__tests__\//,
+    },
     // docs/findings/ — every drawer entry parses
     { test: "scripts/__tests__/findings.test.ts", admits: /^docs\/findings\// },
     // data/full-catalogue/ artefacts
