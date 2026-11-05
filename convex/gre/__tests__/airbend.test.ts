@@ -280,7 +280,7 @@ describe("airbend a spell (CR 701.65a) — not a counter (CR 701.6a)", () => {
 });
 
 describe("mixed target shape, GRE and game.ts (CR 115.1, end-to-end targeting)", () => {
-    function position(): { state: GameState; aang: CardInstanceState } {
+    function position(): { state: GameState } {
         const aang = permanent(AANG, "aang");
         const state = board(
             {
@@ -303,11 +303,11 @@ describe("mixed target shape, GRE and game.ts (CR 115.1, end-to-end targeting)",
             castById: "p2",
         } as StackItem);
         pushEnterTrigger(state, aang, AANG_TRIGGER);
-        return { state, aang };
+        return { state };
     }
 
     it("offers creatures and spells, never a land, an ability or Aang himself", () => {
-        const { state, aang } = position();
+        const { state } = position();
         const req =
             getDefinition(AANG).triggeredAbilities![0].targetRequirement!;
         const legal = getLegalTargets(
