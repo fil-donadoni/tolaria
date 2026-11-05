@@ -235,9 +235,35 @@ describe("As this enters, choose a color + its mana reader (CR 614.12a, CR 607.2
             "static clause: All nonland permanents are the chosen color",
         ]);
     });
+});
 
-    it("reaches ready — Quirion Elves is not a quarantined parse", () => {
-        expect(compileCard(oracleCard(QUIRION_ELVES)).state).toBe("ready");
+// A parse is not a graduation: a form the smoke generator cannot scenario-ize
+// quarantines every card printing it until a `GOLDEN_FIXTURES` row clears it.
+describe("the forms reach ready, not quarantine (ADR 0105 § 3)", () => {
+    const KNIGHT_OF_DAWN = {
+        oracleId: "51262155-f1be-45a8-a21f-94e920a93e55",
+        name: "Knight of Dawn",
+        manaCost: "{1}{W}{W}",
+        typeLine: "Creature — Human Knight",
+        oracleText:
+            "First strike\n{W}{W}: This creature gains protection from the color of your choice until end of turn.",
+        power: "2",
+        toughness: "2",
+    };
+
+    it.each([
+        QUIRION_ELVES,
+        MOTHER_OF_RUNES,
+        ANCIENT_KAVU,
+        KNIGHT_OF_DAWN,
+        ERSATZ_GNOMES,
+    ])("$name compiles to ready", (card) => {
+        const outcome = compileCard(oracleCard(card));
+        expect(
+            outcome.state === "quarantine"
+                ? outcome.reasons.map((reason) => reason.detail)
+                : outcome.state
+        ).toBe("ready");
     });
 });
 
