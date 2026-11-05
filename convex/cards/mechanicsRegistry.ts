@@ -1564,6 +1564,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         // with a single attacker), that lone attacker gets +1/+1 until end of
         // turn (pump Op, `{ ref: "$event.soleAttacker" }`, CR 613.4c).
         binding: "exalted",
+        note: 'A static grant (Sublime Archangel) expands to a `triggered-grant` beside the keyword grant, one entry per grant, so a printed and a granted instance each trigger (CR 603.2). A one-shot "gains exalted" stays quarantined as `ungrantable-keyword`.',
     },
     // 702.84 Unearth
     {
