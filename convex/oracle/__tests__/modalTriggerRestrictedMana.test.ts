@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
+import { runGates } from "../gates";
 import { sortKeys } from "../gates";
 import { compiledTwin, roundTripCard } from "../gold";
 import { theMightstoneAndWeakstone } from "../../cards/sets/bro/colorless.cards";
@@ -68,6 +69,32 @@ describe("modal triggered ability (CR 700.2b / 603.3c) — goldens", () => {
             type: "Creature",
             count: 1,
         });
+    });
+});
+
+describe("modal triggered ability — the compile gate reads the modes", () => {
+    it("a broken mode body quarantines the card (CR 700.2b)", () => {
+        const outcome = compileCard(
+            creature(
+                "When this creature enters, choose one —\n• Draw two cards.\n• Target creature gets -5/-5 until end of turn."
+            )
+        );
+        if (outcome.state !== "ready") throw new Error("not ready");
+        const definition = structuredClone(outcome.definition);
+        const modes = definition.compiledTriggeredAbilities![0]!.modes!;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (modes[0] as any).effects = [
+            { op: "draw", player: { ref: "$nonexistent" }, count: 1 },
+        ];
+        const result = runGates({
+            oracleId: "x",
+            plannedMechanics: [],
+            ungrantableKeywords: [],
+            definition,
+        });
+        expect(result.reasons.map((r) => r.kind)).toContain(
+            "validate-effect-script"
+        );
     });
 });
 
