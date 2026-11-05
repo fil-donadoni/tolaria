@@ -65,6 +65,140 @@ export interface LoweredSpellBody {
     readonly kickedTargetRequirement?: TargetRequirement;
 }
 
+type SweepOp = Extract<EffectOp, { op: "forEach" }>;
+type SweepSelect = Extract<SweepOp["select"], { set: "permanents" }>;
+
+const OTHER_WITHOUT_ANTECEDENT =
+    '"other" on a spell names no earlier sweep or announced target it can exclude (CR 608.2c)';
+
+/**
+ * CR 608.2c — "other" on a spell. The grammar reads the word as the source
+ * excluding itself, which is right on a permanent's ability; a resolving spell
+ * is on no battlefield, so `excludeSource` there excludes nothing and the sweep
+ * would hit every member. Read as English, the word names what the sentence
+ * before it named, so the exclusion moves to that antecedent, and a spell with
+ * no antecedent the selector can name is refused. Returns the script, or the
+ * refusal.
+ */
+function resolveOtherOnSpell(
+    ops: readonly EffectOp[],
+    requirements: readonly TargetRequirement[]
+): EffectOp[] | string {
+    const out: EffectOp[] = [];
+    for (const op of ops) {
+        if (op.op !== "forEach" || op.select.set !== "permanents") {
+            if (excludesSourceInside(op)) return OTHER_WITHOUT_ANTECEDENT;
+            out.push(op);
+            continue;
+        }
+        if (excludesSourceInside(op.effects)) return OTHER_WITHOUT_ANTECEDENT;
+        if (op.select.excludeSource !== true) {
+            out.push(op);
+            continue;
+        }
+        const select = selectExcludingAntecedent(
+            op.select,
+            out[out.length - 1],
+            requirements
+        );
+        if (select === null) return OTHER_WITHOUT_ANTECEDENT;
+        out.push({ ...op, select });
+    }
+    return out;
+}
+
+/** The sweep with `excludeSource` traded for its antecedent's exclusion. */
+function selectExcludingAntecedent(
+    select: SweepSelect,
+    antecedent: EffectOp | undefined,
+    requirements: readonly TargetRequirement[]
+): SweepSelect | null {
+    if (antecedent === undefined) return null;
+    const rest = { ...select };
+    delete rest.excludeSource;
+    if (antecedent.op === "forEach") {
+        const subtype = antecedentSweepSubtype(select, antecedent);
+        if (subtype === undefined) return null;
+        return {
+            ...rest,
+            filter: { ...select.filter, excludeSubtype: subtype },
+        };
+    }
+    return namesTheSweptTarget(select, antecedent, requirements)
+        ? { ...rest, excludeTargets: true }
+        : null;
+}
+
+/**
+ * CR 205.3 — "Zombies you control get … Other creatures you control get …": the
+ * subtype the earlier sweep narrowed to, when that is ALL it adds over this one
+ * on the same battlefield. Anything else about the earlier set (a colour, a
+ * different controller) is an exclusion `excludeSubtype` would not say.
+ */
+function antecedentSweepSubtype(
+    select: SweepSelect,
+    antecedent: SweepOp
+): string | string[] | undefined {
+    const earlier = antecedent.select;
+    if (
+        earlier.set !== "permanents" ||
+        earlier.excludeSource === true ||
+        earlier.excludeTargets === true ||
+        earlier.damagedBySourceThisGame === true ||
+        JSON.stringify(earlier.controller) !==
+            JSON.stringify(select.controller) ||
+        select.filter?.excludeSubtype !== undefined
+    )
+        return undefined;
+    const { subtype, ...others } = earlier.filter ?? {};
+    const filter: Readonly<Record<string, unknown>> = select.filter ?? {};
+    const shared = Object.entries(others).every(
+        ([key, value]) => JSON.stringify(filter[key]) === JSON.stringify(value)
+    );
+    if (!shared || filter.subtype !== undefined) return undefined;
+    // A `{ ref }` subtype is chosen during resolution; the exclusion takes names.
+    return typeof subtype === "string" || Array.isArray(subtype)
+        ? (subtype as string | string[])
+        : undefined;
+}
+
+/**
+ * CR 115.1 — "… target creature you control. Other creatures you control …":
+ * the sentence before acts on the ONE announced group, which names the noun the
+ * sweep ranges over. `excludeTargets` reads every target, so a second group
+ * would be spared with it.
+ */
+function namesTheSweptTarget(
+    select: SweepSelect,
+    antecedent: EffectOp,
+    requirements: readonly TargetRequirement[]
+): boolean {
+    const named = (antecedent as { readonly target?: unknown }).target;
+    const requirement = requirements[0];
+    return (
+        requirements.length === 1 &&
+        requirement !== undefined &&
+        typeof named === "object" &&
+        named !== null &&
+        "target" in named &&
+        (requirement.zone === undefined ||
+            requirement.zone === "battlefield") &&
+        requirement.type === select.filter?.type
+    );
+}
+
+/** Whether a source exclusion on a `forEach` hides anywhere in this script. */
+function excludesSourceInside(node: unknown): boolean {
+    if (Array.isArray(node)) return node.some(excludesSourceInside);
+    if (typeof node !== "object" || node === null) return false;
+    const op = node as {
+        readonly op?: unknown;
+        readonly select?: { readonly excludeSource?: unknown };
+    };
+    if (op.op === "forEach" && op.select?.excludeSource === true) return true;
+    return Object.values(node).some(excludesSourceInside);
+}
+
 /**
  * One sentence list → an Effect Script plus the target it announced.
  *
@@ -84,12 +218,14 @@ function lowerBody(
         if (!lowered.ok) return { ok: false, reason: lowered.reason };
         ops.push(...lowered.value);
     }
+    const resolved = resolveOtherOnSpell(ops, walk.targets.requirements());
+    if (typeof resolved === "string") return { ok: false, reason: resolved };
     const body: {
         effects: EffectOp[];
         targetRequirement?: TargetRequirement;
         additionalTargetRequirements?: TargetRequirement[];
         kickedTargetRequirement?: TargetRequirement;
-    } = { effects: ops };
+    } = { effects: resolved };
     const kicked = walk.targets.kickedRequirement();
     if (kicked !== undefined) body.kickedTargetRequirement = kicked;
     // CR 702.33g (issue #4220) — a mode's body is lowered through this same

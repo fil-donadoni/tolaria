@@ -1275,6 +1275,8 @@ function sweptNetLoss(
     // CR 120.1 — a member set narrowed by the source's damage history is not
     // one this lens can read off the board alone.
     if (select.damagedBySourceThisGame) return undefined;
+    // CR 115.1 — nor one narrowed by a target not yet announced.
+    if (select.excludeTargets) return undefined;
     const filter = sweepPermanentFilter(select.filter);
     if (filter === UNREADABLE_SWEEP_FILTER) return undefined;
     const controller = select.controller;
