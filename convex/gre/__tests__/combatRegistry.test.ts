@@ -457,3 +457,81 @@ describe("evaluateAttackerKeywords — defender (CR 702.3a)", () => {
         expect(result.eligible).toBe(false);
     });
 });
+
+// ---------------------------------------------------------------------------
+// evaluateBlockerKeywords — skulk (CR 702.118b)
+// ---------------------------------------------------------------------------
+
+describe("evaluateBlockerKeywords — skulk (CR 702.118b)", () => {
+    const skulker = (power: number) =>
+        makeCard({
+            types: ["Creature"],
+            power,
+            staticAbilities: ["skulk"],
+        });
+    const plain = (power: number) => makeCard({ types: ["Creature"], power });
+
+    it("refuses a blocker with greater power", () => {
+        const blocker = plain(3);
+        const result = evaluateBlockerKeywords(skulker(2), blocker, [blocker]);
+        expect(result.eligible).toBe(false);
+        if (!result.eligible) expect(result.reason).toMatch(/skulk/);
+    });
+
+    it("admits a blocker with equal power", () => {
+        const blocker = plain(2);
+        expect(
+            evaluateBlockerKeywords(skulker(2), blocker, [blocker]).eligible
+        ).toBe(true);
+    });
+
+    it("admits a blocker with lesser power", () => {
+        const blocker = plain(1);
+        expect(
+            evaluateBlockerKeywords(skulker(2), blocker, [blocker]).eligible
+        ).toBe(true);
+    });
+
+    it("does not restrict a creature with skulk from blocking a stronger attacker", () => {
+        const blocker = skulker(1);
+        expect(
+            evaluateBlockerKeywords(plain(5), blocker, [blocker]).eligible
+        ).toBe(true);
+    });
+
+    it("compares through the caller's power reader, on both sides", () => {
+        const attacker = skulker(2);
+        const blocker = plain(3);
+        const pumped = (id: string, by: number) => (c: CardInstanceState) =>
+            (c.power ?? 0) + (c.id === id ? by : 0);
+        expect(
+            evaluateBlockerKeywords(
+                attacker,
+                blocker,
+                [blocker],
+                pumped(attacker.id, 1)
+            ).eligible
+        ).toBe(true);
+        const small = plain(2);
+        expect(
+            evaluateBlockerKeywords(
+                attacker,
+                small,
+                [small],
+                pumped(small.id, 1)
+            ).eligible
+        ).toBe(false);
+    });
+
+    it("multiple instances are redundant (CR 702.118c)", () => {
+        const twice = makeCard({
+            types: ["Creature"],
+            power: 2,
+            staticAbilities: ["skulk", "skulk"],
+        });
+        const equal = plain(2);
+        expect(evaluateBlockerKeywords(twice, equal, [equal]).eligible).toBe(
+            true
+        );
+    });
+});

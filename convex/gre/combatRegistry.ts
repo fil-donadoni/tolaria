@@ -29,6 +29,14 @@ import { controlsSnowSubtype } from "./snow";
 // Rule types
 // ---------------------------------------------------------------------------
 
+/** Reads a creature's power for an evasion comparison (CR 702.118b). The caller
+ *  owns the layer view: the registry holds no `GameState`. */
+export type EvasionPowerReader = (card: CardInstanceState) => number;
+
+/** The printed `power` field, for a caller with no state to read layers from —
+ *  the same fallback `validateBlockerEligibility` applies when it has none. */
+const printedPower: EvasionPowerReader = (card) => card.power ?? 0;
+
 /** A keyword rule that restricts which creatures can block an attacker. */
 export interface EvasionRule {
     /** Keyword string on the attacker's `staticAbilities`. */
@@ -40,7 +48,9 @@ export interface EvasionRule {
     canBlock: (
         attacker: CardInstanceState,
         blocker: CardInstanceState,
-        defenderBattlefield: CardInstanceState[]
+        defenderBattlefield: CardInstanceState[],
+        /** Omitted, a power comparison reads the printed field. */
+        powerOf?: EvasionPowerReader
     ) => boolean;
     /** Human-readable reason when the block is rejected. */
     reason: string;
@@ -210,6 +220,24 @@ const HORSEMANSHIP_RULE: EvasionRule = {
     reason: "Attacker has horsemanship — only creatures with horsemanship can block it",
 };
 
+// CR 702.118b — Skulk: "A creature with skulk can't be blocked by creatures with
+// greater power." Both sides are read through the caller's layer view (CR 613.4),
+// so a pump on either creature moves the answer, and neither is floored: the rule
+// compares the values as they are. Equal power is a legal block. One-directional,
+// so this attacker-keyed entry is the whole rule; `includes` makes multiple
+// instances redundant (CR 702.118c).
+const SKULK_RULE: EvasionRule = {
+    keyword: "skulk",
+    cr: "702.118b",
+    canBlock: (
+        attacker,
+        blocker,
+        _defenderBattlefield,
+        powerOf = printedPower
+    ) => powerOf(blocker) <= powerOf(attacker),
+    reason: "Attacker has skulk — creatures with greater power can't block it",
+};
+
 export const EVASION_RULES: readonly EvasionRule[] = [
     UNBLOCKABLE_RULE,
     ...LANDWALK_RULES,
@@ -220,6 +248,7 @@ export const EVASION_RULES: readonly EvasionRule[] = [
     FLYING_RULE,
     SHADOW_RULE,
     HORSEMANSHIP_RULE,
+    SKULK_RULE,
 ];
 
 // ---------------------------------------------------------------------------
@@ -356,14 +385,17 @@ export type AttackerKeywordResult =
 export function evaluateBlockerKeywords(
     attacker: CardInstanceState,
     blocker: CardInstanceState,
-    defenderBattlefield: CardInstanceState[]
+    defenderBattlefield: CardInstanceState[],
+    /** A caller holding a game state passes its layer read here; omitted, a
+     *  power comparison reads the printed field. */
+    powerOf?: EvasionPowerReader
 ): BlockerKeywordResult {
     // CR 612: a text change can rewrite the attacker's landwalk keyword
     // (forestwalk → islandwalk), so match against the rewritten abilities.
     const attackerAbilities = applySubstitution(attacker).staticAbilities;
     for (const rule of EVASION_RULES) {
         if (!attackerAbilities.includes(rule.keyword)) continue;
-        if (!rule.canBlock(attacker, blocker, defenderBattlefield)) {
+        if (!rule.canBlock(attacker, blocker, defenderBattlefield, powerOf)) {
             return { eligible: false, reason: rule.reason };
         }
     }

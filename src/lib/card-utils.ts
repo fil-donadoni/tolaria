@@ -333,6 +333,20 @@ export function isHorsemanshipBarred(
     );
 }
 
+/** CR 702.118b — `attacker` has skulk and `blocker` has greater power, so this
+ *  pair is no legal block. Mirrors the server's `SKULK_RULE`; the caller supplies
+ *  the effective power read, as the rule's own caller does. */
+export function isSkulkBarred(
+    attacker: CardInstance,
+    blocker: CardInstance,
+    powerOf: (card: CardInstance) => number
+): boolean {
+    return (
+        (attacker.staticAbilities?.includes("skulk") ?? false) &&
+        powerOf(blocker) > powerOf(attacker)
+    );
+}
+
 /** CR 305.6 — does this permanent have an intrinsic basic-land mana ability
  *  (one per basic land type)? The engine's own probe (`hasBasicLandMana`), so
  *  the board reads the same text-change-aware subtypes the server taps by and
