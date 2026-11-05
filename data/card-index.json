@@ -27256,6 +27256,16 @@
         "source": "compiled"
     },
     {
+        "name": "First Sliver's Chosen",
+        "scryfallId": "7f5c4368-4f2e-4f5f-8944-8b0d49ab3e38",
+        "oracleId": "f664596a-9ad1-4db3-95b0-457698ad2f66",
+        "firstSet": "mh1",
+        "firstPrintId": "7f5c4368-4f2e-4f5f-8944-8b0d49ab3e38",
+        "firstPrintSet": "mh1",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Fishliver Oil",
         "scryfallId": "deb6ed87-aa07-4b5e-ac40-1e16dc2a817a",
         "oracleId": "75457fe5-4ab6-42c4-98e5-8ed6e8bf122c",
@@ -53573,6 +53583,16 @@
         "source": "compiled"
     },
     {
+        "name": "Order of Sacred Dusk",
+        "scryfallId": "32f34099-c6ff-49d2-911a-23ab806c77e9",
+        "oracleId": "0cb41c3f-5e6a-4c63-80b5-c9ab84b4e4bf",
+        "firstSet": "lcc",
+        "firstPrintId": "32f34099-c6ff-49d2-911a-23ab806c77e9",
+        "firstPrintSet": "lcc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Order of the Ebon Hand",
         "scryfallId": "9e51f5d8-a7cc-4720-8af5-e002bcfd78a0",
         "oracleId": "2f65f16f-c6c2-48f0-b556-63cf7d162000",
@@ -75082,6 +75102,16 @@
         "firstSet": "atq",
         "firstPrintId": "a64d4f93-0c04-4078-aec0-7e9de92f260f",
         "firstPrintSet": "atq"
+    },
+    {
+        "name": "Sublime Archangel",
+        "scryfallId": "f5cc38bc-55a4-446a-b054-48fb90216946",
+        "oracleId": "b5479c97-df19-49c7-b305-7a0336fd1cb3",
+        "firstSet": "m13",
+        "firstPrintId": "f5cc38bc-55a4-446a-b054-48fb90216946",
+        "firstPrintSet": "m13",
+        "rarity": "mythic",
+        "source": "compiled"
     },
     {
         "name": "Sublime Exhalation",

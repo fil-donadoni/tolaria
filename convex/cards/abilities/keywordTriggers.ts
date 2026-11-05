@@ -18,7 +18,9 @@
 //     LONE ATTACKER, which need not be the exalted source itself, so the pump
 //     targets `{ ref: "$event.soleAttacker" }` — the ATTACKERS_DECLARED
 //     event-field row (ADR 0049, EVENT_FIELD_REGISTRY) that flattens
-//     `attackerIds` to its single member.
+//     `attackerIds` to its single member. A static grant ("Other creatures you
+//     control have exalted") expands too (`staticKeywordGrant.ts`), and every
+//     instance triggers separately (CR 603.2): the same pump, once per trigger.
 //   * Prowess (CR 702.108a) — "Whenever you cast a noncreature spell, this
 //     creature gets +1/+1 until end of turn." A SPELL_CAST trigger (scope
 //     "you", filter excludeTypes "Creature") pumping the source itself.
@@ -41,6 +43,7 @@ import type {
     TriggeredAbility,
 } from "../types";
 import { EVOLVE_KEYWORD, EVOLVE_TRIGGER_ID, evolveTrigger } from "./evolve";
+import { expandStaticKeywordGrants } from "./staticKeywordGrant";
 import { attacksTrigger } from "./triggers/attacksTrigger";
 import { spellCastTrigger } from "./triggers/spellCastTrigger";
 
@@ -49,6 +52,7 @@ const PROWESS_KEYWORD = "prowess";
 const BATTLE_CRY_KEYWORD = "battle cry";
 
 const EXALTED_TRIGGER_ID = "exalted";
+const EXALTED_GRANT_ID = "exalted-granted";
 const PROWESS_TRIGGER_ID = "prowess";
 const BATTLE_CRY_TRIGGER_ID = "battle-cry";
 
@@ -65,9 +69,9 @@ function pumpPlusOne(target: EffectObjectSelector): EffectOp {
 }
 
 /** Exalted's CR 702.83a triggered ability: pump the lone attacker +1/+1 EOT. */
-function exaltedTrigger(): TriggeredAbility {
+function exaltedTrigger(id: string): TriggeredAbility {
     return {
-        id: EXALTED_TRIGGER_ID,
+        id,
         oracleText:
             "Whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn.",
         event: "ATTACKERS_DECLARED",
@@ -172,8 +176,16 @@ function keywordInstances(
  *  Idempotent by construction (the `getDefinition` seam memo dedups) and
  *  additionally guarded against double-injection by the trigger-id presence
  *  check. A card may carry several of the keywords; every matching trigger is
- *  injected. */
+ *  injected. A static grant of exalted expands as well. */
 export function expandKeywordTriggers(def: CardDefinition): CardDefinition {
+    return expandStaticKeywordGrants(
+        expandPrintedKeywordTriggers(def),
+        EXALTED_KEYWORD,
+        () => exaltedTrigger(EXALTED_GRANT_ID)
+    );
+}
+
+function expandPrintedKeywordTriggers(def: CardDefinition): CardDefinition {
     const hasExalted = hasKeyword(def.staticAbilities, EXALTED_KEYWORD);
     const hasProwess = hasKeyword(def.staticAbilities, PROWESS_KEYWORD);
     const hasBattleCry = hasKeyword(def.staticAbilities, BATTLE_CRY_KEYWORD);
@@ -184,7 +196,7 @@ export function expandKeywordTriggers(def: CardDefinition): CardDefinition {
     const existing = def.triggeredAbilities ?? [];
     const injected: TriggeredAbility[] = [];
     if (hasExalted && !existing.some((t) => t.id === EXALTED_TRIGGER_ID)) {
-        injected.push(exaltedTrigger());
+        injected.push(exaltedTrigger(EXALTED_TRIGGER_ID));
     }
     if (hasProwess && !existing.some((t) => t.id === PROWESS_TRIGGER_ID)) {
         injected.push(prowessTrigger());
