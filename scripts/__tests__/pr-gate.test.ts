@@ -507,6 +507,7 @@ describe("holdsBeforeRed — the hold is labelled before the failure that dequeu
                 trustedAuthor: "success",
                 lastRequeueAt: () => null,
                 laneRedStale: () => false,
+                twinHolds: () => false,
                 now,
             });
         expect(dequeued.map(offRed)).toEqual(["requeue", "requeue"]);
@@ -529,6 +530,7 @@ describe("heldPrAction — a queue:held PR off RED (issue #6957)", () => {
         trustedAuthor: "success" as const,
         lastRequeueAt: (): string | null => null,
         laneRedStale: () => false,
+        twinHolds: () => false,
         now: NOW,
     };
 
@@ -554,7 +556,7 @@ describe("heldPrAction — a queue:held PR off RED (issue #6957)", () => {
                 ...held,
                 lastRequeueAt: () => ago(REQUEUE_GRACE_MS / 60_000 + 1),
             })
-        ).toBe("release");
+        ).toBe("release-refused");
     });
 
     it("releases a PR already out of the queue's hands; keeps one an entry gate stops", () => {
@@ -620,6 +622,7 @@ describe("heldPrAction — a held PR whose lane is still the cleared RED's red (
         trustedAuthor: "success" as const,
         lastRequeueAt: (): string | null => null,
         laneRedStale: () => true,
+        twinHolds: () => false,
         now: NOW,
     };
 
@@ -725,6 +728,7 @@ describe("heldPrAction — a declared repair held under RED (issue #7140)", () =
         trustedAuthor: "success" as const,
         lastRequeueAt: (): string | null => null,
         laneRedStale: () => false,
+        twinHolds: () => false,
         now: NOW,
     };
 
@@ -751,7 +755,7 @@ describe("heldPrAction — a declared repair held under RED (issue #7140)", () =
                 ...repair,
                 lastRequeueAt: () => ago(REQUEUE_GRACE_MS / 60_000 + 1),
             })
-        ).toBe("release");
+        ).toBe("release-refused");
         expect(
             heldPrAction({ ...repair, labels: [...repair.labels, "queued"] })
         ).toBe("release");
@@ -1021,6 +1025,7 @@ describe("a Contained RED holds nothing at the queue (ADR 0163, issue #8074)", (
                 trustedAuthor: "success" as const,
                 lastRequeueAt: (): string | null => null,
                 laneRedStale: () => false,
+                twinHolds: () => false,
                 now: Date.parse("2026-11-02T10:00:00Z"),
             };
         };

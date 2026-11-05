@@ -113,6 +113,13 @@ import {
 } from "./lib/land-requeue";
 import { FAILED_LABEL, MANUAL_LABEL, READY_LABEL } from "./lib/land-labels";
 import {
+    healTwinBeforeLabel,
+    parseTwinCheckRuns,
+    rerunArgs,
+    TWIN_FLIP_TIMEOUT_MS,
+    twinChecksArgs,
+} from "./lib/pr-check-twin";
+import {
     bodyWithClosingRef,
     handsToQueue,
     labelArgs,
@@ -789,6 +796,27 @@ function advisoryLaneGate(pr: number, head: string): void {
 }
 
 /**
+ * Issue #8291 — a cancelled `pr-check` twin the queue reads as red: re-run it
+ * BEFORE the label, or the repair-pick rule turns the label into `land-failed`
+ * at once. The lane it may cancel is redone by the re-run.
+ */
+function cancelledTwinGate(pr: number, head: string): void {
+    const repo = "{owner}/{repo}";
+    const healed = healTwinBeforeLabel({
+        read: () => parseTwinCheckRuns(gh(twinChecksArgs(repo, head))),
+        rerun: (id) => gh(rerunArgs(repo, id)),
+        sleep: (ms) => Bun.sleepSync(ms),
+        now: () => Date.now(),
+        say: (line) => console.error(`land:ready: ${line}`),
+    });
+    if (healed) return;
+    console.error(
+        `✗ land:ready: PR #${pr} NOT queued — the re-run of its cancelled \`pr-check\` twin did not show within ${TWIN_FLIP_TIMEOUT_MS / 1000}s; re-run \`bun run land:ready ${pr}\`.`
+    );
+    process.exit(1);
+}
+
+/**
  * The PR's `trusted-author` verdict, computed here exactly as `pr-gate` posts
  * it (issue #5952): the queue admits only a green one. An unreadable
  * `TRUSTED_AUTHORS` trusts nobody, which hands the PR to the runner.
@@ -936,6 +964,7 @@ function main(): void {
         );
         if (body !== null) gh(["pr", "edit", String(pr), "--body", body]);
     }
+    cancelledTwinGate(pr, head);
     const admission = queueAdmission(pr);
     const toQueue = handsToQueue({ trustedAuthor: admission.state });
     gh(labelArgs.ready(pr, { manual: !toQueue }));

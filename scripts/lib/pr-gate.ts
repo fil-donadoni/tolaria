@@ -190,9 +190,14 @@ export const REQUEUE_GRACE_MS = 10 * 60_000;
  *  - `requeue` — the PR would enter the queue and no `@mergifyio requeue`
  *    was posted since it was labelled held: post one, KEEP the label;
  *  - `release` — the PR is `queued` again (the hold is over), is no longer
- *    `ready-to-land` or is already `land-failed`, or a requeue older than
- *    `REQUEUE_GRACE_MS` did not take: remove the label and let the
- *    repair-pick rules judge it;
+ *    `ready-to-land` or is already `land-failed`: remove the label and let
+ *    the repair-pick rules judge it;
+ *  - `release-refused` — the same, because a requeue older than
+ *    `REQUEUE_GRACE_MS` did not take: the PR also says so;
+ *  - `twin` — a cancelled `pr-check` twin is what the queue refuses
+ *    (`cancelledTwinRuns`). No requeue can take and a release
+ *    would make it a false repair pick, so the label stays, the PR says why,
+ *    and the re-run (the owner's credentials: `housekeeping`) ends it;
  *  - `none` — not held, the lineage cannot be read, this PR's own
  *    `base-health` (red under RED for a non-repair) or `trusted-author` is
  *    not green (an entry gate,
@@ -203,7 +208,12 @@ export const REQUEUE_GRACE_MS = 10 * 60_000;
  *    release would make the base's red a repair pick — `pr-refresh` pushes
  *    it, and the fresh lane decides), or a requeue is still within its grace.
  */
-export type HeldAction = "none" | "requeue" | "release";
+export type HeldAction =
+    | "none"
+    | "requeue"
+    | "release"
+    | "release-refused"
+    | "twin";
 
 export function heldPrAction(input: {
     labels: readonly string[];
@@ -216,6 +226,9 @@ export function heldPrAction(input: {
     /** `laneRedPredatesRelease` on this PR's head. Read only when the
      *  answer matters: it costs one API call. */
     laneRedStale: () => boolean;
+    /** `cancelledTwinRuns` found one on this PR's head. Read only when the
+     *  answer matters: it costs one API call. */
+    twinHolds: () => boolean;
     now: number;
 }): HeldAction {
     const { labels } = input;
@@ -229,9 +242,12 @@ export function heldPrAction(input: {
         return "release";
     if (input.trustedAuthor !== "success") return "none";
     if (input.laneRedStale()) return "none";
+    if (input.twinHolds()) return "twin";
     const at = input.lastRequeueAt();
     if (at === null) return "requeue";
-    return input.now - Date.parse(at) < REQUEUE_GRACE_MS ? "none" : "release";
+    return input.now - Date.parse(at) < REQUEUE_GRACE_MS
+        ? "none"
+        : "release-refused";
 }
 
 /**

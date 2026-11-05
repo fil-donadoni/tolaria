@@ -107,6 +107,13 @@ import { releaseEditArgs } from "./lib/claim-labels";
 import { gh, netEnv } from "./lib/gh";
 import { HOLES_EXIT } from "./lib/grammar-residue";
 import { issueOfBranch } from "./lib/issue-worktree";
+import { READY_LABEL } from "./lib/land-labels";
+import {
+    healQueueTwins,
+    parseTwinCheckRuns,
+    rerunArgs,
+    twinChecksArgs,
+} from "./lib/pr-check-twin";
 import { forgetNotice, notifyOnce, notifyOwner } from "./lib/notify-owner";
 import { primaryCheckout } from "./lib/primary-checkout";
 import {
@@ -807,6 +814,47 @@ function fileDeriveFailure(
     }
 }
 
+/** Re-run the cancelled `pr-check` twins of the PRs the queue would take. A
+ *  failure here is said, never this run's red: the next run repeats it. */
+function healCancelledTwins(say: (line: string) => void): void {
+    const repo = "{owner}/{repo}";
+    try {
+        const rows = JSON.parse(
+            gh([
+                "pr",
+                "list",
+                "--state",
+                "open",
+                "--label",
+                READY_LABEL,
+                "--base",
+                BASE_BRANCH,
+                "--limit",
+                "100",
+                "--json",
+                "number,headRefOid,labels",
+            ])
+        ) as {
+            number: number;
+            headRefOid: string;
+            labels: { name: string }[];
+        }[];
+        healQueueTwins({
+            prs: rows.map((r) => ({
+                ...r,
+                labels: r.labels.map((l) => l.name),
+            })),
+            read: (sha) => parseTwinCheckRuns(gh(twinChecksArgs(repo, sha))),
+            rerun: (id) => {
+                gh(rerunArgs(repo, id));
+            },
+            say,
+        });
+    } catch (e) {
+        say(`twins not healed (${(e as Error).message.split("\n")[0]})`);
+    }
+}
+
 function main(): void {
     const dryRun = process.argv.includes("--dry-run");
     const sinceArg = flag("--since");
@@ -833,6 +881,10 @@ function main(): void {
         say("another run holds the lock on this machine — nothing to do");
         return;
     }
+    // First, and whatever the batch: no PR may wait on the watermark, and a
+    // run with nothing merged returns early. It runs on every base push and
+    // hourly, with the owner's credentials `pr-gate` lacks (issue #8291).
+    if (!dryRun) healCancelledTwins(say);
     let workspace: string | null = null;
     const exit = (code: number): never => {
         if (workspace !== null && !removeWorkspace(primary, workspace))
