@@ -26,7 +26,9 @@
  * gets the requeue alone. A queue PR about to get `base-health` `failure`
  * is labelled `queue:held` first (`holdsBeforeRed`, issue #6986), so a RED
  * that clears before Mergify judges the dequeue is still a hold. An unreadable verdict store posts
- * `base-health` `pending` and exits 1.
+ * `base-health` `pending` and exits 1. A held PR whose queue refusal is a
+ * cancelled `pr-check` twin keeps its label and says why, once per head; its
+ * job token cannot re-run it, `housekeeping` does (`lib/pr-check-twin.ts`).
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -34,6 +36,15 @@ import { evidenceFiles, failingFiles } from "./lib/health-evidence";
 import { FAILED_LABEL, HELD_LABEL, READY_LABEL } from "./lib/land-labels";
 import { lastRequeueSince, type PrComment } from "./lib/land-requeue";
 import { readPivotRepairIssues } from "./lib/health-pivot";
+import {
+    cancelledTwinRuns,
+    nonGreenPrCheckJobs,
+    parseTwinCheckRuns,
+    requeueRefusedComment,
+    twinChecksArgs,
+    twinHoldComment,
+    twinHoldSaid,
+} from "./lib/pr-check-twin";
 import {
     githubEvidenceStore,
     githubVerdictStore,
@@ -63,6 +74,7 @@ import {
     ownRedAction,
     redOwnership,
     REQUEUE_COMMENT,
+    REQUEUE_GRACE_MS,
     parseTrustedAuthors,
     PR_FILES_JQ,
     prFilesApiPath,
@@ -464,6 +476,10 @@ function main(): number {
                 "--body",
                 REQUEUE_COMMENT,
             ]);
+        const headChecks = () =>
+            parseTwinCheckRuns(gh(run, twinChecksArgs(repo, raw.head.sha)));
+        let twinRuns: number[] = [];
+        let requeuedAt: string | null = null;
         let action: HeldAction;
         try {
             action = heldPrAction({
@@ -471,17 +487,23 @@ function main(): number {
                 lineage,
                 baseHealth: next,
                 trustedAuthor: trustedState,
-                lastRequeueAt: () =>
-                    lastRequeueSince(
+                lastRequeueAt: () => {
+                    requeuedAt = lastRequeueSince(
                         prComments(run, repo, raw.number),
                         heldSince(run, repo, raw.number)
-                    ),
+                    );
+                    return requeuedAt;
+                },
                 laneRedStale: () =>
                     laneRedPredatesRelease({
                         laneFailedRunStartedAt: () =>
                             laneFailedAt(run, repo, raw.head.sha),
                         lineage,
                     }),
+                twinHolds: () => {
+                    twinRuns = cancelledTwinRuns(headChecks());
+                    return twinRuns.length > 0;
+                },
                 now: Date.now(),
             });
         } catch (e) {
@@ -494,10 +516,35 @@ function main(): number {
                 `PR #${raw.number}: ${REQUEUE_COMMENT} (${HELD_LABEL} kept until it is ${MERGIFY_QUEUED_LABEL})`
             );
             requeue();
-        } else if (action === "release") {
+        } else if (action === "twin") {
+            console.log(
+                `PR #${raw.number}: cancelled twin ${twinRuns.join(", ")} — ${HELD_LABEL} kept`
+            );
+            try {
+                if (
+                    !twinHoldSaid(
+                        prComments(run, repo, raw.number),
+                        raw.head.sha
+                    )
+                )
+                    edit([
+                        "pr",
+                        "comment",
+                        String(raw.number),
+                        "--repo",
+                        repo,
+                        "--body",
+                        twinHoldComment(raw.head.sha, twinRuns),
+                    ]);
+            } catch (e) {
+                failed++;
+                console.error(`PR #${raw.number}: ${(e as Error).message}`);
+            }
+        } else if (action === "release" || action === "release-refused") {
             console.log(
                 `PR #${raw.number}: hold over — removing ${HELD_LABEL}`
             );
+            const before = failed;
             edit([
                 "pr",
                 "edit",
@@ -507,6 +554,29 @@ function main(): number {
                 "--remove-label",
                 HELD_LABEL,
             ]);
+            // Only after the label went: the next sweep retries a failed edit
+            // and must not repeat the comment.
+            if (action === "release-refused" && failed === before) {
+                let nonGreen: string[] | null = null;
+                try {
+                    nonGreen = nonGreenPrCheckJobs(headChecks());
+                } catch (e) {
+                    console.error(`PR #${raw.number}: ${(e as Error).message}`);
+                }
+                edit([
+                    "pr",
+                    "comment",
+                    String(raw.number),
+                    "--repo",
+                    repo,
+                    "--body",
+                    requeueRefusedComment({
+                        requeuedAt,
+                        graceMinutes: REQUEUE_GRACE_MS / 60_000,
+                        nonGreen,
+                    }),
+                ]);
+            }
         } else if (
             next &&
             trustedState &&

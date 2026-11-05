@@ -294,6 +294,7 @@ describe("repair issues on the pivot", () => {
                 trustedAuthor: "success",
                 lastRequeueAt: () => null,
                 laneRedStale: () => false,
+                twinHolds: () => false,
                 now: NOW(),
             })
         ).toBe("requeue");
