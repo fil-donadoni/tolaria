@@ -2086,7 +2086,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         classification: {
             kind: "conditional",
             discriminant: {
-                kind: "board",
+                kind: "card",
                 detail: "the partner has greater power, so the trainee gets the counter and the swing is lethal",
             },
         },
@@ -2140,7 +2140,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         classification: {
             kind: "conditional",
             discriminant: {
-                kind: "board",
+                kind: "card",
                 detail: "the partner's power is not greater, so no counter and no lethal",
             },
         },
