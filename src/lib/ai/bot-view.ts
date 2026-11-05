@@ -52,7 +52,10 @@ import { isExileCostEligible } from "@convex/cards/exileCostEligibility";
 import { getEffectiveColors } from "@convex/cards/effectiveColors";
 import type { Color, PermanentView } from "@convex/cards/types";
 import { STATIC_EFFECT_CTX } from "@convex/gre/layers";
-import { choiceSpansAllBattlefields } from "@convex/gre/zonePickEligibility";
+import {
+    choiceSpansAllBattlefields,
+    choiceSpansAllGraveyards,
+} from "@convex/gre/zonePickEligibility";
 import { nextOwedPayment } from "@convex/gre/owedPayment";
 import {
     completeSacrificeSelection,
@@ -448,7 +451,9 @@ function readChoiceZone(
             // to hand. The graveyard is a public zone, fully projected; the
             // `candidateIds` allow-list (applied below) narrows it to the
             // eligible snapshot.
-            cards = owner.graveyard;
+            cards = choiceSpansAllGraveyards(head)
+                ? state.players.flatMap((p) => p.graveyard)
+                : owner.graveyard;
             break;
         case "battlefield-or-stack": {
             // CR 609.7a (issue #5601) — "a source of your choice": a permanent

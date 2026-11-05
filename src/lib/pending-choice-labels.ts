@@ -93,6 +93,8 @@ export function pendingChoiceSourceLabel(
     choice: Pick<PendingChoice, "kind" | "asEntersKind">
 ): string {
     if (choice.asEntersKind === "exileFromGraveyard") return "Exile";
+    // CR 707.2 — an as-enters copy of a graveyard card returns nothing.
+    if (choice.asEntersKind === "copy") return "Copy";
     return pendingChoiceLabel(choice.kind);
 }
 

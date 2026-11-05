@@ -4003,7 +4003,26 @@ export type AsEntersChoice =
     /** CR 707.6 — "as this enters, it becomes a copy of …" (Clone). Answering it
      *  can GROW the owed list: the COPIED definition's own `asEnters` entries are
      *  discovered only once the copy has been applied (ADR 0100 D4). */
-    | { kind: "copy"; filter?: PermanentFilter; opts?: CopyEffectOptions }
+    | {
+          kind: "copy";
+          filter?: PermanentFilter;
+          /** CR 707.2 / 614.12 — "enter as a copy of any <filter> card in a
+           *  graveyard": the choice picks from EVERY player's graveyard rather
+           *  than the battlefield, matched as graveyard cards (CR 113.6b). An
+           *  empty filter admits any card. `filter` (a permanent filter) is
+           *  ignored when this is set. */
+          fromGraveyard?: EffectCardFilter;
+          opts?: CopyEffectOptions;
+          /** CR 603.11 / 707.9g — a triggered ability written in the same
+           *  paragraph as the copy ("When you do, exile that card"), linked to
+           *  the replacement effect (CR 607): it triggers when the permanent
+           *  enters with THIS copy effect, and not when another copy effect
+           *  was applied over it during the same entry (Clone in the graveyard,
+           *  CR 707.6). Goes on the stack like any reflexive trigger
+           *  (`pendingReflexiveTriggers`, CR 603.3b); the body reads the copied
+           *  card as `$copied`. */
+          whenCopied?: { oracleText: string; effects: EffectOp[] };
+      }
     /** CR 303.4f — an Aura entering by a non-cast path chooses what it enchants.
      *  Not declared by any card: the entry sites raise it themselves for an Aura
      *  with two or more legal hosts (ADR 0100 D2 folds the shipped
@@ -4132,6 +4151,8 @@ export type AsEntersChoice =
  *  white Zombie, printed body kept) is the SAME clause with different values,
  *  so the seam hosts it with no redesign. */
 export interface EffectCopyExcept {
+    /** "…except its name is X" (CR 707.9b). See `CopyEffectOptions.name`. */
+    name?: string;
     /** "…it's a N/N" — base power/toughness (layer 7a). */
     basePower?: number;
     baseToughness?: number;
@@ -4178,6 +4199,12 @@ export interface CopyGainedActivatedAbility {
 
 /** Options for a copy effect applied via `SpellContext.becomeCopyOf`. */
 export interface CopyEffectOptions {
+    /** CR 707.9b "except its name is X" — the copy's NAME is a copiable value,
+     *  stamped on `CopyExcept` and so inherited by a copy of the copy (CR
+     *  707.3). The copy still presents the copied definition, whose `name` is
+     *  the wrong answer from then on: read through `copyExceptName`
+     *  (`cards/cardNames.ts`). A face-down copy has no name (CR 708.2). */
+    name?: string;
     /** When false, the copy keeps its own color rather than the copied
      *  object's (Vesuvan Doppelganger, CR 707.9d). Defaults to true. */
     copyColor?: boolean;
@@ -4296,6 +4323,7 @@ export interface CopyEffectOptions {
  *  and `imagePrintId` (art, never a characteristic). */
 export type CopyExcept = Pick<
     CopyEffectOptions,
+    | "name"
     | "basePower"
     | "baseToughness"
     | "colorOverride"

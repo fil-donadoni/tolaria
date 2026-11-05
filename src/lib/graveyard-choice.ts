@@ -33,3 +33,17 @@ export function isGraveyardChoiceActive(
     const zoneOwner = choice.zoneOwnerId ?? choice.playerId;
     return player.id === zoneOwner;
 }
+
+/** The cards a graveyard pick shows in the chooser's pile. A pick spanning every
+ *  graveyard (`allControllers`, an as-enters copy of "any creature card in a
+ *  graveyard", CR 707.2) still has ONE surface: the chooser's own forced grid,
+ *  so that two piles never fight over one modal. */
+export function graveyardChoiceCards<C>(
+    choice: Pick<PendingChoice, "allControllers"> | undefined,
+    player: { graveyard: C[] },
+    allPlayers: readonly { graveyard: C[] }[]
+): C[] {
+    return choice?.allControllers
+        ? allPlayers.flatMap((p) => p.graveyard)
+        : player.graveyard;
+}

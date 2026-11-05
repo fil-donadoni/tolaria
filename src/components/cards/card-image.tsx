@@ -7,6 +7,7 @@ import {
     resolveCardImageFace,
 } from "~/lib/images";
 import { tryGetDefinition } from "@convex/cards";
+import { copyExceptName } from "@convex/cards/cardNames";
 import type { CardInstance } from "~/types/game";
 import {
     cardImageSignature,
@@ -142,7 +143,11 @@ function CardImageImpl({
         ? resolveFaceDownFace(faceDownProducer(card))
         : null;
     const def = tryGetDefinition(defId);
-    const name = def?.name ?? defId;
+    // CR 707.9b — a copy's "except its name is X" names the object it shows.
+    const name =
+        (cardInstance ? copyExceptName(cardInstance) : undefined) ??
+        def?.name ??
+        defId;
     // CR 613.1e — a layer-5 colour (`colorOverride` / `grantedColors`) rings
     // the card wherever it is drawn, not only on the battlefield: an
     // every-zone grant (Painter's Servant) colours hand, graveyard and exile

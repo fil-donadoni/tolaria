@@ -84,6 +84,18 @@ export function hasName(
     return chooseableNamesOf(def).includes(chosen);
 }
 
+/** CR 707.9b — the name an "except its name is X" copy effect gave this object:
+ *  a copiable value the presented definition does not hold, so every reader of
+ *  a permanent's name asks here first. Undefined when no clause named one, and
+ *  for a face-down object, which has no name (CR 708.2) though the stamp stays
+ *  on the instance to apply again when it is turned face up. */
+export function copyExceptName(card: {
+    faceDown?: boolean;
+    copyExcept?: { name?: string };
+}): string | undefined {
+    return card.faceDown ? undefined : card.copyExcept?.name;
+}
+
 /** CR 709.4a — {@link hasName} for a card INSTANCE rather than a definition:
  *  "an object has the chosen name if one of its names is the chosen name."
  *
@@ -95,10 +107,16 @@ export function hasName(
  *  An EMBEDDED name (a synthesized token, a fixture card with no registry
  *  definition) answers for itself: it has exactly one name and no halves. */
 export function objectHasChosenName(
-    card: { card?: unknown },
+    card: {
+        card?: unknown;
+        faceDown?: boolean;
+        copyExcept?: { name?: string };
+    },
     name: string,
     resolve: (cardId: string) => CardDefinition | null | undefined
 ): boolean {
+    const excepted = copyExceptName(card);
+    if (excepted !== undefined) return excepted === name;
     const cardId = (card.card as { id?: string } | undefined)?.id;
     const def = cardId ? resolve(cardId) : undefined;
     if (def) return chooseableNamesOf(def).includes(name);

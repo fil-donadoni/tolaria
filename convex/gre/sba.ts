@@ -1,4 +1,5 @@
 import { applyMeldArrangement, raiseMeldArrangement } from "./meld";
+import { copyExceptName } from "../cards/cardNames";
 import { findPermanent } from "./lookup";
 import type { CardInstanceState, GameState } from "./state";
 import {
@@ -711,7 +712,8 @@ function isLegendaryPermanent(card: CardInstanceState): boolean {
  *  copied definition so Vesuvan Doppelganger / Clone group with the original.
  *  Undefined when the definition is missing (defensive — never groups). */
 function legendName(card: CardInstanceState): string | undefined {
-    return permanentDefinition(card)?.name;
+    // CR 707.9b — "except its name is X" (not the copied card's name).
+    return copyExceptName(card) ?? permanentDefinition(card)?.name;
 }
 
 /** CR 704.5j (modern, per-controller "legend rule") — if a player controls two

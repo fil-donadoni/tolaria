@@ -18,7 +18,10 @@ import { usePileActions, NO_PILE_ACTIONS } from "~/hooks/usePileActionsContext";
 import { usePileBrowseMenu } from "~/hooks/usePileBrowseMenu";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
-import { isGraveyardChoiceActive } from "~/lib/graveyard-choice";
+import {
+    graveyardChoiceCards,
+    isGraveyardChoiceActive,
+} from "~/lib/graveyard-choice";
 import {
     buildTriggerStateView,
     getGraveyardStackAbilities,
@@ -172,7 +175,11 @@ export default function PlayerGraveyard({
 
     const pile = (
         <CardsPile
-            cards={player.graveyard}
+            cards={
+                isGraveyardChoice
+                    ? graveyardChoiceCards(head, player, allPlayers)
+                    : player.graveyard
+            }
             actionableIds={actionableIds}
             emptyLabel="Graveyard"
             title={
