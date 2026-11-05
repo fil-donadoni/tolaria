@@ -42,14 +42,14 @@ describe("a granted exalted in the search (CR 702.83a, CR 603.3b)", () => {
             id: "b",
             controllerId: "p1",
             ownerId: "p1",
-            summoningSick: false,
+            isSummoningSick: false,
         });
         const archangel = makeInstance(ARCHANGEL, {
             id: "a",
             controllerId: "p1",
             ownerId: "p1",
-            tapped: true,
-            summoningSick: false,
+            isTapped: true,
+            isSummoningSick: false,
         });
         const state = makeState({
             activePlayerId: "p1",
