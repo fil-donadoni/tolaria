@@ -209,8 +209,17 @@ describe("CR 712.4 — a meld front card is ADMITTED with a meld back face", () 
         });
     });
 
-    it("is READY now the Meld registry row is implemented (issue #3341)", () => {
-        expect(compileCard(partner).state).toBe("ready");
+    it("is QUARANTINED while the Meld registry row is not implemented", () => {
+        // CR 712.4b — the back face is reachable only as a melded permanent,
+        // which issue #3341 builds; a `ready` half would ship a back face the
+        // engine cannot turn up.
+        const outcome = compileCard(partner);
+        expect(outcome.state).toBe("quarantine");
+        if (outcome.state !== "quarantine") return;
+        expect(outcome.reasons).toContainEqual({
+            kind: "planned-mechanic",
+            detail: 'keyword "Meld" is not implemented in the Mechanics Registry',
+        });
     });
 
     it("round-trips through goldOracleCard, so Guard C compares the whole card", () => {
@@ -233,40 +242,10 @@ describe("CR 712.4 — a meld front card is ADMITTED with a meld back face", () 
 describe("CR 712.4 — refused meld rows, each under its own key", () => {
     const paired = withMeldPairs([HOLDER, PARTNER, RESULT]);
 
-    it("reads the activated meld ability as the one atomic meld Op (CR 701.42a)", () => {
-        const outcome = compileCard(byName(paired, "Quiet Keeper"));
-        if (outcome.state === "unparsed") throw new Error("expected a card");
-        expect(outcome.state).toBe("ready");
-        expect(outcome.definition.activatedAbilities?.[0].effects).toEqual([
-            {
-                op: "meld",
-                partner: { type: "Creature", name: "Quiet Warden" },
-            },
-        ]);
-    });
-
-    it("refuses a TRIGGERED meld ability under the meld-action key: its intervening-if is unread (CR 603.4)", () => {
-        const triggered = withMeldPairs([
-            {
-                ...HOLDER,
-                oracleText:
-                    "At the beginning of your end step, if you both own and control Quiet Keeper and a creature named Quiet Warden, exile them, then meld them into Quiet Colossus.",
-            },
-            PARTNER,
-            RESULT,
-        ]);
-        expect(reasonsOf(byName(triggered, "Quiet Keeper"))).toEqual([
+    it("refuses the meld ability's clause under the meld-action key (CR 701.42)", () => {
+        expect(reasonsOf(byName(paired, "Quiet Keeper"))).toEqual([
             MELD_CLAUSE_REASON,
         ]);
-    });
-
-    it("refuses a counterpart that is not named, whatever the clause says after it", () => {
-        const outcome = compileCard({
-            ...byName(paired, "Quiet Keeper"),
-            oracleText:
-                "{5}: If you both own and control Quiet Keeper and a creature, exile them, then meld them into Quiet Colossus.",
-        });
-        expect(outcome.state).toBe("unparsed");
     });
 
     it("refuses the combined back face as a card (CR 712.4b)", () => {

@@ -125,12 +125,6 @@ export const TOKEN_STATIC_EFFECT_FACTORIES: Record<
     // CR 303.4 — "This token can't be enchanted." (Tetravite, `sets/atq`.)
     "cant-be-enchanted-self": cantBeEnchantedSelfGuard,
     "pt-cda-artifacts-you-control": ptCdaArtifactsYouControl,
-    // CR 606.3 — "twice each turn rather than only once": one activation added
-    // to the default of one (Urza, Planeswalker, a meld back face).
-    "loyalty-activation-twice": () => ({
-        kind: "loyalty-activation-allowance",
-        extra: 1,
-    }),
     "vigilance-land-creatures-you-control": vigilanceLandCreaturesYouControl,
     "cant-block-non-spirit-self": cantBlockNonSpiritSelf,
     "cant-be-blocked-by-non-spirit-self": cantBeBlockedByNonSpiritSelf,

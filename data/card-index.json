@@ -7140,16 +7140,6 @@
         "source": "compiled"
     },
     {
-        "name": "Bitter Reunion",
-        "scryfallId": "345a1c80-41d6-43b1-83ab-1aa56dd06b1b",
-        "oracleId": "173e86f4-17f3-44f5-8073-78e7e2e12c4a",
-        "firstSet": "bro",
-        "firstPrintId": "345a1c80-41d6-43b1-83ab-1aa56dd06b1b",
-        "firstPrintSet": "bro",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
         "name": "Bitter Revelation",
         "scryfallId": "e42f5aa9-2a47-47c3-ab87-dc25735b0e54",
         "oracleId": "f3e025ce-6114-42d0-842f-73366c853657",
@@ -10672,16 +10662,6 @@
         "firstSet": "ulg",
         "firstPrintId": "43d590d2-cfa3-43d1-9e65-bc68b5a2a3ee",
         "firstPrintSet": "ulg",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
-        "name": "Burst of Speed",
-        "scryfallId": "dc8c7aa0-2067-4513-a658-ed866279e671",
-        "oracleId": "91e33674-b13a-41de-8998-4b57016ae42f",
-        "firstSet": "m10",
-        "firstPrintId": "dc8c7aa0-2067-4513-a658-ed866279e671",
-        "firstPrintSet": "m10",
         "rarity": "common",
         "source": "compiled"
     },
@@ -15898,16 +15878,6 @@
         "source": "compiled"
     },
     {
-        "name": "Crashing Drawbridge",
-        "scryfallId": "b7d7108f-635c-423b-988a-bc8fc4c6edef",
-        "oracleId": "328d5ef0-b25e-4f2a-80fe-35c6ae419e8a",
-        "firstSet": "eld",
-        "firstPrintId": "b7d7108f-635c-423b-988a-bc8fc4c6edef",
-        "firstPrintSet": "eld",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
         "name": "Craterhoof Behemoth",
         "scryfallId": "a249be17-73ed-4108-89c0-f7e87939beb8",
         "oracleId": "8c52bd39-0586-48ca-b263-17210cf9feb6",
@@ -17847,16 +17817,6 @@
         "firstPrintId": "bb1a458a-d3b6-44d9-ac80-a7a46b505805",
         "firstPrintSet": "soi",
         "rarity": "common",
-        "source": "compiled"
-    },
-    {
-        "name": "Dauntless Escort",
-        "scryfallId": "832309e0-c047-4c82-baa3-16f3c76e4b6f",
-        "oracleId": "c0516c2c-d7c9-4763-9180-980f60205a28",
-        "firstSet": "arb",
-        "firstPrintId": "832309e0-c047-4c82-baa3-16f3c76e4b6f",
-        "firstPrintSet": "arb",
-        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -60010,16 +59970,6 @@
         "firstPrintSet": "ice"
     },
     {
-        "name": "Rally at the Hornburg",
-        "scryfallId": "ee7292f7-1c7e-449c-9c52-7584d6a14c2c",
-        "oracleId": "7d3f542a-de64-4de8-9de0-0e25004467f1",
-        "firstSet": "ltr",
-        "firstPrintId": "ee7292f7-1c7e-449c-9c52-7584d6a14c2c",
-        "firstPrintSet": "ltr",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
         "name": "Rally the Peasants",
         "scryfallId": "514fe7de-16b2-42c0-adb1-f0af1c89cfd6",
         "oracleId": "3f0a0a15-613a-4864-9309-a340dc4cf94d",
@@ -65650,16 +65600,6 @@
         "firstPrintSet": "ice"
     },
     {
-        "name": "Scampering Scorcher",
-        "scryfallId": "dccbe031-1547-4fa5-ba9a-caa1b1f5eb5d",
-        "oracleId": "4899595e-e626-432c-9c9f-f9d5c243a64b",
-        "firstSet": "m20",
-        "firstPrintId": "dccbe031-1547-4fa5-ba9a-caa1b1f5eb5d",
-        "firstPrintSet": "m20",
-        "rarity": "uncommon",
-        "source": "compiled"
-    },
-    {
         "name": "Scar",
         "scryfallId": "b34e3f7c-468a-456c-8ed0-0cb88f6d86fc",
         "oracleId": "4eafe158-abff-43e9-aeae-596430c5ce21",
@@ -67313,16 +67253,6 @@
         "firstPrintId": "6911759c-7177-402c-a95a-f9f46efaf521",
         "firstPrintSet": "m21",
         "rarity": "uncommon",
-        "source": "compiled"
-    },
-    {
-        "name": "Selfless Spirit",
-        "scryfallId": "a4624976-3773-4a1e-b725-5f6efce147a5",
-        "oracleId": "71d785a9-ddc8-472e-a778-a551b444a4bd",
-        "firstSet": "emn",
-        "firstPrintId": "a4624976-3773-4a1e-b725-5f6efce147a5",
-        "firstPrintSet": "emn",
-        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -72544,16 +72474,6 @@
         "source": "compiled"
     },
     {
-        "name": "Soul of New Phyrexia",
-        "scryfallId": "c4d37dec-98d6-4815-8f3e-7de26817990c",
-        "oracleId": "add500e1-8eeb-45d7-a10d-2fae2cc69233",
-        "firstSet": "m15",
-        "firstPrintId": "c4d37dec-98d6-4815-8f3e-7de26817990c",
-        "firstPrintSet": "m15",
-        "rarity": "mythic",
-        "source": "compiled"
-    },
-    {
         "name": "Soul of the Rapids",
         "scryfallId": "2a1aed7d-4236-4d44-9366-ee03e15469bc",
         "oracleId": "011b2243-b8be-471f-9d8f-824a40e599df",
@@ -72767,16 +72687,6 @@
         "firstPrintId": "7ff50606-491c-4946-8d03-719b01cfad77",
         "firstPrintSet": "fdn",
         "rarity": "common",
-        "source": "compiled"
-    },
-    {
-        "name": "Sowing Mycospawn",
-        "scryfallId": "cdfadb17-76ad-4d4d-9fa7-33c4b88b4c0a",
-        "oracleId": "63a19c7c-49d7-4b75-aac8-d0ff36c45fb8",
-        "firstSet": "mh3",
-        "firstPrintId": "cdfadb17-76ad-4d4d-9fa7-33c4b88b4c0a",
-        "firstPrintSet": "mh3",
-        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -79560,14 +79470,6 @@
         "firstPrintSet": "tla"
     },
     {
-        "name": "The Mightstone and Weakstone",
-        "scryfallId": "02aea379-b444-46a3-82f4-3038f698d4f4",
-        "oracleId": "c396db03-bf11-4e20-b630-4f9aa8fd78da",
-        "firstSet": "bro",
-        "firstPrintId": "02aea379-b444-46a3-82f4-3038f698d4f4",
-        "firstPrintSet": "bro"
-    },
-    {
         "name": "The Monumental Facade",
         "scryfallId": "d6785057-0d06-4f91-b45f-c05f7c4e2b19",
         "oracleId": "63e8d282-d038-4a8c-a0cb-f51ddf87d8ea",
@@ -84465,15 +84367,6 @@
         "firstPrintSet": "mh1"
     },
     {
-        "name": "Urza, Lord Protector",
-        "scryfallId": "8aefe8bd-216a-4ec1-9362-3f9dbf7fd083",
-        "oracleId": "df2af646-3e5b-43a3-8f3e-50565889f456",
-        "firstSet": "bro",
-        "firstPrintId": "8aefe8bd-216a-4ec1-9362-3f9dbf7fd083",
-        "firstPrintSet": "bro",
-        "rarity": "mythic"
-    },
-    {
         "name": "Urza's Avenger",
         "scryfallId": "448e1811-fb16-4390-ac22-b7066a4a019c",
         "oracleId": "1cfeb5c4-a2d0-4872-a907-a6d484be85a5",
@@ -85810,16 +85703,6 @@
         "firstSet": "inv",
         "firstPrintId": "4a94aeb4-349c-4394-848d-c1c9133856e2",
         "firstPrintSet": "inv",
-        "rarity": "common",
-        "source": "compiled"
-    },
-    {
-        "name": "Viashino Lashclaw",
-        "scryfallId": "3457e346-a5de-4624-b577-f59d4c186537",
-        "oracleId": "02358f98-99d5-45a3-b7e3-f2cbf08fa52c",
-        "firstSet": "mh2",
-        "firstPrintId": "3457e346-a5de-4624-b577-f59d4c186537",
-        "firstPrintSet": "mh2",
         "rarity": "common",
         "source": "compiled"
     },
@@ -88409,16 +88292,6 @@
         "firstPrintId": "7019912c-bd9b-4b96-9388-400794909aa1",
         "firstPrintSet": "ogw",
         "rarity": "common",
-        "source": "compiled"
-    },
-    {
-        "name": "Wastescape Battlemage",
-        "scryfallId": "6bc119b8-429c-4ab6-adba-b65b03810e98",
-        "oracleId": "3cc6475d-aae9-4592-a26b-0fbb4269759d",
-        "firstSet": "mh3",
-        "firstPrintId": "6bc119b8-429c-4ab6-adba-b65b03810e98",
-        "firstPrintSet": "mh3",
-        "rarity": "uncommon",
         "source": "compiled"
     },
     {

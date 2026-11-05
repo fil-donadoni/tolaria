@@ -31,6 +31,11 @@
             "key": "(op) › recallCapturedBinding",
             "op": "recallCapturedBinding",
             "issue": 5186
+        },
+        {
+            "key": "(op) › reduceSpellCostThisTurn",
+            "op": "reduceSpellCostThisTurn",
+            "issue": 5180
         }
     ],
     "claims": [
@@ -717,7 +722,7 @@
         {
             "kind": "grammar",
             "key": "(card) › the meld keyword action (CR 701.42) is not in grammar v0",
-            "issue": 8176
+            "issue": 3341
         },
         {
             "kind": "grammar",

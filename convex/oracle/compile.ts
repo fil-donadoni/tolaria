@@ -45,7 +45,6 @@ import {
 } from "../cards/abilities/classLevels";
 import { resolveCompiledStatic } from "../cards/compiledStatics";
 import { MECHANICS_REGISTRY } from "../cards/mechanicsRegistry";
-import type { TokenStaticEffectKey } from "../cards/types";
 import { MELD_CLAUSE, MELD_LAYOUT } from "./meldPairs";
 
 /**
@@ -1066,11 +1065,8 @@ function compileMeldLayout(card: OracleCard): CompileOutcome {
             ...(backOutcome.state === "unparsed" ? backOutcome.gaps : []),
         ]);
     }
-    const backStaticKeys = meldBackStaticKeys(backOutcome.definition);
     const carried = Object.keys(backOutcome.definition).filter(
-        (k) =>
-            !MELD_BACK_FACE_FIELDS.has(k) &&
-            !(k === "compiledStaticEffects" && backStaticKeys !== undefined)
+        (k) => !MELD_BACK_FACE_FIELDS.has(k)
     );
     if (carried.length > 0) {
         return unparsed([
@@ -1102,9 +1098,6 @@ function compileMeldLayout(card: OracleCard): CompileOutcome {
             ...(backDef.staticAbilities
                 ? { staticAbilities: [...backDef.staticAbilities] }
                 : {}),
-            ...(backStaticKeys !== undefined
-                ? { staticEffectKeys: backStaticKeys }
-                : {}),
             ...(backDef.activatedAbilities
                 ? { activatedAbilities: backDef.activatedAbilities }
                 : {}),
@@ -1131,27 +1124,6 @@ function compileMeldLayout(card: OracleCard): CompileOutcome {
     return reasons.length > 0
         ? { state: "quarantine", definition, opsUsed, slots, reasons }
         : { state: "ready", definition, opsUsed, slots };
-}
-
-/** CR 611 — a back face names its continuous effects by key
- *  (`CardBackFace.staticEffectKeys`), so a compiled descriptor crosses only when
- *  a key says the same thing. `undefined` when any descriptor has none, which
- *  leaves `compiledStaticEffects` refused as a carried field. */
-function meldBackStaticKeys(
-    back: CompiledDefinition
-): TokenStaticEffectKey[] | undefined {
-    const statics = back.compiledStaticEffects;
-    if (statics === undefined || statics.length === 0) return undefined;
-    const keys: TokenStaticEffectKey[] = [];
-    for (const effect of statics) {
-        if (
-            effect.kind !== "loyalty-activation-allowance" ||
-            effect.extra !== 1
-        )
-            return undefined;
-        keys.push("loyalty-activation-twice");
-    }
-    return keys;
 }
 
 /** CR 701.42a — the gaps on the meld ability's line, re-keyed to ONE gap

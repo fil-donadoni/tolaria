@@ -6413,44 +6413,6 @@ export const OP_EXECUTORS: {
                 : resolvePlayerRef(ctx, op.controller);
         ctx.exileAndReturnTransformed(target, controllerId);
     },
-    // CR 701.42a / 712.4a (issue #3341, ADR 0161) — "If you both own and control
-    // <this> and <partner>, exile them, then meld them". The condition is read
-    // on resolution: false, or no counterpart, exiles nothing. A token copy
-    // passes it (a token has an owner), which is how CR 701.42c's exile-and-stay
-    // case is reached, inside the primitive.
-    meld(ctx, op) {
-        const holder = ctx.sourceInstanceId;
-        if (holder === undefined) return;
-        const you = ctx.controller;
-        if (
-            ctx.getOwnerId(holder) !== you ||
-            !ctx.getBattlefieldIds(you).includes(holder)
-        ) {
-            return;
-        }
-        const filter = toPermanentFilter(ctx, op.partner);
-        if (filter === UNMATCHABLE_FILTER) return;
-        const eligible = ctx
-            .getBattlefieldIds(you, filter)
-            .filter((id) => id !== holder && ctx.getOwnerId(id) === you);
-        if (eligible.length === 0) return;
-        let partner = eligible[0];
-        if (eligible.length > 1) {
-            const picks = ctx.requestChoice({
-                playerId: you,
-                choiceId: "meld-partner",
-                kind: "choose-permanents",
-                zone: "battlefield",
-                count: 1,
-                prompt: "Choose the permanent to meld with.",
-                candidateIds: eligible,
-            });
-            if (picks === undefined) return "suspend";
-            if (picks[0] === undefined) return;
-            partner = picks[0];
-        }
-        ctx.meldPermanents(holder, partner);
-    },
     // CR 111 / 701.7 (issue #847) — create token permanents. A thin declarative
     // skin over the single SpellContext primitive `createToken`, ONE execution
     // path (ADR 0045): the JSON-pure `token` spec is passed verbatim, the tokens

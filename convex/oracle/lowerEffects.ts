@@ -2289,14 +2289,6 @@ function lowerSentenceBody(
             ]);
         }
         case "grant-ability": {
-            // CR 613.1f — a group grant is the same Op over a sweep.
-            if (sentence.subject.kind === "mass")
-                return sweepOps(sentence.subject, site, slots, (target) => ({
-                    op: "grantAbility",
-                    target,
-                    ability: sentence.keyword.ability,
-                    duration: durationSpec(sentence.duration),
-                }));
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             return lowered([
@@ -6013,35 +6005,6 @@ function lowerFrameChain(
                     op: "sacrificeAndReturn",
                     sacrificed: sacrificed.value,
                     returned: returned.value,
-                });
-                break;
-            }
-            // CR 701.42a — the holder is the Op's own source, never a field.
-            case "meld":
-                ops.push({
-                    op: "meld",
-                    partner: {
-                        type: frame.partnerType,
-                        name: frame.partnerName,
-                    },
-                });
-                break;
-            // CR 601.2f — `SpellFilter` has no controller: the Op's `player`
-            // says whose spells these are.
-            case "reduceSpellCostThisTurn": {
-                const { types, subtypes, colors, excludeTypes } = frame.filter;
-                ops.push({
-                    op: "reduceSpellCostThisTurn",
-                    player: "controller",
-                    amount: { X: frame.amount },
-                    filter: {
-                        ...(types ? { types: [...types] } : {}),
-                        ...(subtypes ? { subtypes: [...subtypes] } : {}),
-                        ...(colors ? { colors: [...colors] } : {}),
-                        ...(excludeTypes
-                            ? { excludeTypes: [...excludeTypes] }
-                            : {}),
-                    },
                 });
                 break;
             }

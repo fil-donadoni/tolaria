@@ -3,8 +3,6 @@
 import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
-import type { ActivatedAbilityContext } from "../../types";
-import { urzaPlaneswalkerFace } from "./urzaPlaneswalkerFace.cards";
 
 // Haywire Mite — {1} Artifact Creature — Insect, 1/1 (Vintage Cube FREE:
 // ETB/dies/attack triggers, issue #679). "When this creature dies, you gain
@@ -134,70 +132,5 @@ export const portalToPhyrexia = defineCard(() => ({
                 },
             ],
         }),
-    ],
-}));
-
-// The Mightstone and Weakstone — {5} Legendary Artifact — Powerstone, the half
-// of the Urza meld pair that carries no meld ability (CR 712.4a). A MODAL
-// trigger and a restricted-mana rider are outside grammar v0; every other
-// clause of the card compiles.
-//
-// compiler-gap: "When The Mightstone and Weakstone enters, choose one — • Draw two cards. • Target creature gets -5/-5 until end of turn." (#8285)
-// compiler-gap: "{T}: Add {C}{C}. This mana can't be spent to cast nonartifact spells." (#8285)
-export const theMightstoneAndWeakstone = defineCard(() => ({
-    id: "02aea379-b444-46a3-82f4-3038f698d4f4",
-    name: "The Mightstone and Weakstone",
-    rarity: "rare",
-    oracleText:
-        "When The Mightstone and Weakstone enters, choose one —\n• Draw two cards.\n• Target creature gets -5/-5 until end of turn.\n{T}: Add {C}{C}. This mana can't be spent to cast nonartifact spells.\n(Melds with Urza, Lord Protector.)",
-    manaCost: { X: 5 },
-    types: ["Artifact"],
-    subtypes: ["Powerstone"],
-    supertypes: ["Legendary"],
-    backFace: urzaPlaneswalkerFace,
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "the-mightstone-and-weakstone-etb",
-            oracleText:
-                "When The Mightstone and Weakstone enters, choose one —\n• Draw two cards.\n• Target creature gets -5/-5 until end of turn.",
-            scope: "self",
-            modes: [
-                {
-                    id: "draw-two",
-                    label: "Draw two cards",
-                    oracleText: "Draw two cards.",
-                    effects: [{ op: "draw", player: "controller", count: 2 }],
-                },
-                {
-                    id: "minus-five",
-                    label: "Target creature gets -5/-5 until end of turn",
-                    oracleText: "Target creature gets -5/-5 until end of turn.",
-                    targetRequirement: { type: "Creature", count: 1 },
-                    effects: [
-                        {
-                            op: "pump",
-                            target: { target: 0 },
-                            power: -5,
-                            toughness: -5,
-                            duration: { phase: "end-of-turn" },
-                        },
-                    ],
-                },
-            ],
-        }),
-    ],
-    activatedAbilities: [
-        {
-            id: "the-mightstone-and-weakstone-mana",
-            oracleText:
-                "{T}: Add {C}{C}. This mana can't be spent to cast nonartifact spells.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => {
-                ctx.addMana({ C: 2 });
-            },
-            manaProduced: { C: 2 },
-            manaRestriction: "not-nonartifact-spell",
-        },
     ],
 }));

@@ -239,7 +239,6 @@ const MANA_RESTRICTION_PRESENCE = {
     "cumulative-upkeep": true,
     "artifact-ability": true,
     "legendary-spell": true,
-    "not-nonartifact-spell": true,
 } satisfies Record<ManaRestriction, true>;
 
 /** The restriction members a spec may name, derived from the mirror above. */

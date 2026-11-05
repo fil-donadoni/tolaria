@@ -357,19 +357,13 @@ export type RealizedOutcome = {
  *    (`RestrictedMana.cantBeCounteredRider`) — the restriction decides WHICH
  *    spells the mana may pay for, the rider decides what happens to the
  *    spell once mana carrying it is actually spent; a unit can carry either,
- *    both, or neither.
- *  - `not-nonartifact-spell`: "This mana can't be spent to cast nonartifact
- *    spells" (The Mightstone and Weakstone). A PROHIBITION rather
- *    than `artifact-spell`'s permission: the two agree on spells and differ on
- *    everything else, because this mana may still pay to activate an ability
- *    (CR 106.6 restricts only what the text names). */
+ *    both, or neither. */
 export type ManaRestriction =
     | "creature-spell"
     | "artifact-spell"
     | "cumulative-upkeep"
     | "artifact-ability"
-    | "legendary-spell"
-    | "not-nonartifact-spell";
+    | "legendary-spell";
 /** Pile-division divide-then-choose family (ADR 0053, CR-generic "separate
  *  into two piles" cycle — Fact or Fiction, Do or Die, …). Two ordered
  *  members driven by ONE `divideIntoPiles` Effect Script Op:

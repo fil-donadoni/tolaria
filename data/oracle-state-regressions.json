@@ -1,4 +1,83 @@
 {
     "note": "Acknowledged `ready` -> lesser state transitions, read by `bun run check:oracle` (issue #2696). An entry lets ONE card leave the compiled pool in ONE change; once that change lands on the base branch the entry matches nothing and should be deleted. Every entry names its disposition: `trackedBy` (the issue that undoes the loss) or `intended: true` (a deliberate drop). Written by `bun run oracle:mark-regressions --acknowledge`; stale entries are pruned after merge by `oracle:prune-regressions`, never by a PR author (issue #6061).",
-    "acknowledged": []
+    "acknowledged": [
+        {
+            "oracleId": "173e86f4-17f3-44f5-8073-78e7e2e12c4a",
+            "name": "Bitter Reunion",
+            "reason": "RED-ladder revert of PR #8301 + PR #8322 drops it from ready; the fresh pass of issue #3341 re-ships it",
+            "trackedBy": 3341
+        },
+        {
+            "oracleId": "91e33674-b13a-41de-8998-4b57016ae42f",
+            "name": "Burst of Speed",
+            "reason": "RED-ladder revert of PR #8301 + PR #8322 drops it from ready; the fresh pass of issue #3341 re-ships it",
+            "trackedBy": 3341
+        },
+        {
+            "oracleId": "328d5ef0-b25e-4f2a-80fe-35c6ae419e8a",
+            "name": "Crashing Drawbridge",
+            "reason": "RED-ladder revert of PR #8301 + PR #8322 drops it from ready; the fresh pass of issue #3341 re-ships it",
+            "trackedBy": 3341
+        },
+        {
+            "oracleId": "c0516c2c-d7c9-4763-9180-980f60205a28",
+            "name": "Dauntless Escort",
+            "reason": "RED-ladder revert of PR #8301 + PR #8322 drops it from ready; the fresh pass of issue #3341 re-ships it",
+            "trackedBy": 3341
+        },
+        {
+            "oracleId": "e96e68b4-cb32-4b75-a885-e1781f4b74ab",
+            "name": "Nightscape Battlemage",
+            "reason": "RED-ladder revert of PR #8301 + PR #8322 drops it from ready; the fresh pass of issue #3341 re-ships it",
+            "trackedBy": 3341
+        },
+        {
+            "oracleId": "7d3f542a-de64-4de8-9de0-0e25004467f1",
+            "name": "Rally at the Hornburg",
+            "reason": "RED-ladder revert of PR #8301 + PR #8322 drops it from ready; the fresh pass of issue #3341 re-ships it",
+            "trackedBy": 3341
+        },
+        {
+            "oracleId": "4899595e-e626-432c-9c9f-f9d5c243a64b",
+            "name": "Scampering Scorcher",
+            "reason": "RED-ladder revert of PR #8301 + PR #8322 drops it from ready; the fresh pass of issue #3341 re-ships it",
+            "trackedBy": 3341
+        },
+        {
+            "oracleId": "71d785a9-ddc8-472e-a778-a551b444a4bd",
+            "name": "Selfless Spirit",
+            "reason": "RED-ladder revert of PR #8301 + PR #8322 drops it from ready; the fresh pass of issue #3341 re-ships it",
+            "trackedBy": 3341
+        },
+        {
+            "oracleId": "add500e1-8eeb-45d7-a10d-2fae2cc69233",
+            "name": "Soul of New Phyrexia",
+            "reason": "RED-ladder revert of PR #8301 + PR #8322 drops it from ready; the fresh pass of issue #3341 re-ships it",
+            "trackedBy": 3341
+        },
+        {
+            "oracleId": "63a19c7c-49d7-4b75-aac8-d0ff36c45fb8",
+            "name": "Sowing Mycospawn",
+            "reason": "RED-ladder revert of PR #8301 + PR #8322 drops it from ready; the fresh pass of issue #3341 re-ships it",
+            "trackedBy": 3341
+        },
+        {
+            "oracleId": "df2af646-3e5b-43a3-8f3e-50565889f456",
+            "name": "Urza, Lord Protector",
+            "reason": "RED-ladder revert of PR #8301 + PR #8322 drops it from ready; the fresh pass of issue #3341 re-ships it",
+            "trackedBy": 3341
+        },
+        {
+            "oracleId": "02358f98-99d5-45a3-b7e3-f2cbf08fa52c",
+            "name": "Viashino Lashclaw",
+            "reason": "RED-ladder revert of PR #8301 + PR #8322 drops it from ready; the fresh pass of issue #3341 re-ships it",
+            "trackedBy": 3341
+        },
+        {
+            "oracleId": "3cc6475d-aae9-4592-a26b-0fbb4269759d",
+            "name": "Wastescape Battlemage",
+            "reason": "RED-ladder revert of PR #8301 + PR #8322 drops it from ready; the fresh pass of issue #3341 re-ships it",
+            "trackedBy": 3341
+        }
+    ]
 }

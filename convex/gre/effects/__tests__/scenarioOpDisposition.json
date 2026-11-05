@@ -217,10 +217,6 @@
         "code": "suspends-for-input",
         "reason": "Op \"mayPay\" suspends for a Pay/Skip decision — covered by the Op's own suspension/resume tests"
     },
-    "meld": {
-        "code": "op-own-tests",
-        "reason": "Op \"meld\" needs a real meld pair on the battlefield — covered by the Op's own interpreter tests"
-    },
     "mill": {
         "code": "op-own-tests",
         "reason": "Op \"mill\" moves top-of-library cards to the graveyard — covered by the Op's interpreter tests"

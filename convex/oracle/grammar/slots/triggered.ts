@@ -253,14 +253,11 @@ const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
             span
         );
     // CR 702.33e — the same holds for the intervening-if form: "it" is the
-    // permanent this trigger is printed on, entering. CR 702.33d — or the spell
-    // itself behind "when you cast this spell", the one other head whose "it"
-    // is the kicked object.
+    // permanent this trigger is printed on, entering.
     if (
         parsed.value.tail.condition?.kind === "kicked-permanent" &&
         !(
-            (parsed.value.head.kind === "enters" ||
-                parsed.value.head.kind === "spell-cast") &&
+            parsed.value.head.kind === "enters" &&
             parsed.value.head.scope === "self"
         )
     )
