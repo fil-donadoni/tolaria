@@ -959,8 +959,11 @@ export function useBattlefieldInteraction(player: Player) {
         // their cost, through `activateManaAbility` — the same menu entry the
         // priority window offers. Nothing else is: the choice still freezes
         // every non-mana ability.
+        //
+        // CR 702.132a — the player Assist named is in such a window while
+        // someone else's `pendingCast` stands.
         if (
-            !pendingCast &&
+            (!pendingCast || pendingChoices?.[0]?.assistPayment) &&
             !pendingActivation &&
             !pendingTarget &&
             !manaTapOtherPick &&

@@ -2096,7 +2096,15 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Assist",
         kind: "keyword-ability",
         cr: "702.132",
-        status: "planned",
+        status: "implemented",
+        // CR 702.132a — a cast with a generic component parks on
+        // `PendingCast.assistChoice` (`gre/assist.ts`). The caster may name
+        // another player; that player gets a mana window, then the caster
+        // (the two `number-pick` choices are the named player's steps), then
+        // the named player pays any amount of the generic, spent from their
+        // pool at the cast's commit. The castability probe counts what the
+        // other players could pay; the Bot names no one and pays nothing.
+        binding: "assist",
     },
     // 702.133 Jump-Start
     {

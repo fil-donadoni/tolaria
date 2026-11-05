@@ -466,3 +466,50 @@ describe("PendingChoicePrompt — may-pay hand leg verb (issue #2048)", () => {
         );
     });
 });
+
+describe("PendingChoicePrompt on Assist's steps (CR 702.132a)", () => {
+    const assistChoice = (
+        stage: "mana" | "pay",
+        numberMax: number
+    ): PendingChoice => ({
+        stackItemId: "",
+        step: 0,
+        choiceId: `assist:${stage}`,
+        playerId: "me",
+        kind: "number-pick",
+        count: 1,
+        prompt: "Assist the spell.",
+        numberMax,
+        paysMana: true,
+        assistPayment: {
+            stage,
+            spellCardId: "spell",
+            spellTypes: ["Creature"],
+            spellSupertypes: [],
+        },
+    });
+
+    it("the mana step asks for no amount: Continue answers it with 0", async () => {
+        mutationSpy.mockClear();
+        const { queryByLabelText, getByRole } = renderPrompt(
+            assistChoice("mana", 0)
+        );
+        expect(queryByLabelText("Amount")).toBeNull();
+        fireEvent.click(getByRole("button", { name: "Continue" }));
+        await waitFor(() =>
+            expect(mutationSpy).toHaveBeenCalledWith({
+                gameId: "game-id",
+                playerId: "me",
+                amount: 0,
+            })
+        );
+    });
+
+    it("the payment step is the bounded stepper", () => {
+        const { getByLabelText, queryByRole } = renderPrompt(
+            assistChoice("pay", 4)
+        );
+        expect(getByLabelText("Amount")).toBeTruthy();
+        expect(queryByRole("button", { name: "Continue" })).toBeNull();
+    });
+});

@@ -342,6 +342,7 @@ for it is `dlg-<slug>`:
 | `mana-choice`         | `[data-slot="dialog-content"]`         | `mana-choice-picker.tsx`                |
 | `mana-spend`          | `role=dialog` Choose mana to spend     | `mana-spend-choice-dialog.tsx`          |
 | `restricted-x-split`  | `role=dialog` Apply the cost reduction | `restricted-x-split-dialog.tsx`         |
+| `assist-player`       | `role=dialog` Assist Magma Hellion     | `assist-player-dialog.tsx`              |
 | `manual-game-over`    | `role=dialog` Game Over                | `manual-game-over-dialog.tsx`           |
 | `manual-verb`         | `role=dialog` Draw how many?           | `manual-verb-popover.tsx`               |
 | `pause-menu`          | `role=dialog` Game Menu                | `pause-menu-dialog.tsx`                 |

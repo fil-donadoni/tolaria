@@ -2851,6 +2851,47 @@ export type RestrictedXSplitChoice = {
     picked?: number;
 };
 
+/** The assistant's half of Assist (CR 702.132a), raised as a paying nomination
+ *  so the assistant gets the mana window of `isManaPaymentChoiceWindow`. */
+export type AssistPaymentWindow = {
+    stage: "mana" | "pay";
+    spellCardId: string;
+    spellTypes: string[];
+    spellSupertypes: string[];
+};
+
+/** Where a cast with Assist stands (CR 702.132a), in rule order:
+ *  - `choose-player`  — the caster may name another player;
+ *  - `assistant-mana` — that player's chance to activate mana abilities;
+ *  - `caster-mana`    — the caster's chance to activate mana abilities;
+ *  - `assistant-pay`  — that player names how much generic mana they pay;
+ *  - `settled`        — nothing further is owed to Assist. */
+export type AssistStage =
+    | "choose-player"
+    | "assistant-mana"
+    | "caster-mana"
+    | "assistant-pay"
+    | "settled";
+
+/** CR 702.132a — the Assist exchange of one cast. */
+export type AssistChoice = {
+    stage: AssistStage;
+    /** The other players the caster may name. */
+    candidateIds: string[];
+    /** The spell, as the assistant's prompts and restricted-mana check read it:
+     *  the card itself may be in a zone they cannot see. */
+    spell: Omit<AssistPaymentWindow, "stage"> & { spellName: string };
+    /** The player the caster named. Absent while unnamed or declined. */
+    assistantId?: string;
+    /** Generic mana the assistant pays. Reserved here and already taken off
+     *  `PendingCast.manaCost`; spent from their pool when the cast commits, with
+     *  the rest of the cost (CR 601.2h). */
+    paid?: number;
+    /** The assistant's sources tapped for mana during this exchange, for
+     *  rollback on cancel (the assistant's half of `tappedLandIds`). */
+    assistantTappedIds?: string[];
+};
+
 /** Tracks an in-progress spell cast during the payment phase (CR 601.2). */
 export type PendingCast = {
     playerId: string;
@@ -3151,6 +3192,10 @@ export type PendingCast = {
         coloredPips?: Partial<Record<Color, number>>;
         pickedCreatureIds?: string[];
     };
+    /** CR 702.132a — Assist's four-step exchange between the caster and the
+     *  player they name, walked by `gre/assist.ts`. Rides inside `pendingCast`,
+     *  persisted with the parent (no separate serialize key). */
+    assistChoice?: AssistChoice;
     /** CR 601.2g — an ambiguous generic-mana payment parked awaiting the caster's
      *  choice of which mana in the pool pays the generic cost. Set at the payment
      *  finalize point (`tryAutoCommitPendingCast`) when
@@ -3968,6 +4013,12 @@ export type PendingChoice = {
      *  `manaRestriction` exactly as every other may-pay leg does. Absent for a
      *  bare nomination that spends nothing. */
     paysMana?: true;
+    /** For `kind: "number-pick"` only — this nomination is a step of Assist
+     *  (CR 702.132a) on the cast being announced, not a resolution choice: it
+     *  answers into `PendingCast.assistChoice` and has no stack item
+     *  (`stackItemId: ""`). The spell's characteristics decide which restricted
+     *  mana the assistant may spend on it (CR 106.6). */
+    assistPayment?: AssistPaymentWindow;
 };
 
 /** Tracks target selection for a spell being announced (CR 601.2c) or an

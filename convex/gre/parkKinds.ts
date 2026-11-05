@@ -56,7 +56,7 @@
 
 import type { ParkKind } from "./owedPayment";
 
-/** The CAST-side park kinds — the six parks a cast announcement can raise. */
+/** The CAST-side park kinds — the parks a cast announcement can raise. */
 export type CastParkKind = Extract<ParkKind, `cast:${string}`>;
 
 /** K per CAST-side park kind — how many variants the enumerator emits. `1` =
@@ -72,5 +72,7 @@ export const PARK_VARIANT_K: Record<CastParkKind, number> = {
     "cast:exileFromGraveyardChoice": 1,
     "cast:alternativeCostHandChoice": 1,
     "cast:restrictedXSplitChoice": 1,
+    // Not fungible, but the Bot always names no one: one plan all the same.
+    "cast:assistChoice": 1,
     "cast:manaSpendChoice": 1,
 };

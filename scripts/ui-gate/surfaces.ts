@@ -1868,6 +1868,22 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
         },
     },
     {
+        slug: "assist-player",
+        module: "board/assist-player-dialog.tsx",
+        label: "Assist player chooser",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Assist Magma Hellion",
+            locator: { role: "dialog", name: "Assist Magma Hellion" },
+            check: "visible",
+        },
+        entry: {
+            label: "decline: Pay it yourself",
+            locator: { role: "button", name: "Pay it yourself" },
+            check: "reachable",
+        },
+    },
+    {
         slug: "manual-game-over",
         module: "board/manual-game-over-dialog.tsx",
         label: "Manual Game Over",

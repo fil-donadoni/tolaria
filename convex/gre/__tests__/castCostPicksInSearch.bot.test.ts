@@ -76,7 +76,7 @@ describe("cast-side payment parks travel on the move (issue #2135)", () => {
         // asserts the cast side really is all-K=1, so a future cast park that
         // earns a variant axis cannot ship with a table that forgot it.
         const castKinds = Object.values(PARK_VARIANT_K);
-        expect(castKinds.length).toBe(7);
+        expect(castKinds.length).toBe(8);
         expect(castKinds.every((k) => k === 1)).toBe(true);
     });
 

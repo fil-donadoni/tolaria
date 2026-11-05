@@ -86,6 +86,8 @@ function recorder() {
         selectAdditionalCost: wrap("selectAdditionalCost"),
         selectConvokeCreatures: wrap("selectConvokeCreatures"),
         selectRestrictedXSplit: wrap("selectRestrictedXSplit"),
+        selectAssistPlayer: wrap("selectAssistPlayer"),
+        finishAssistCasterMana: wrap("finishAssistCasterMana"),
         selectCastExileCost: wrap("selectCastExileCost"),
         selectCastAlternativeHandCost: wrap("selectCastAlternativeHandCost"),
         selectActivationCost: wrap("selectActivationCost"),
@@ -248,6 +250,95 @@ describe("the restricted-X split park (CR 601.2f)", () => {
             { mutation: "selectRestrictedXSplit", args: { pointsOnX: 0 } },
         ]);
     });
+});
+
+describe("Assist (CR 702.132a)", () => {
+    const assistCast = (
+        stage: "choose-player" | "caster-mana"
+    ): PendingCast => ({
+        playerId: BOT,
+        cardInstanceId: "spell",
+        manaCost: { X: 4, W: 1 },
+        tappedLandIds: [],
+        keepPriority: false,
+        assistChoice: {
+            stage,
+            candidateIds: [HUMAN],
+            ...(stage === "caster-mana" ? { assistantId: HUMAN } : {}),
+            spell: {
+                spellCardId: "spell",
+                spellName: "Spell",
+                spellTypes: ["Creature"],
+                spellSupertypes: [],
+            },
+        },
+    });
+
+    it("the Bot casting names no one, though the other player has mana to offer", async () => {
+        const { calls } = await realise(
+            baseState(
+                { hand: [inst(WURM, "spell", "hand")] },
+                { pendingCast: assistCast("choose-player") }
+            )
+        );
+        expect(calls).toEqual([{ mutation: "selectAssistPlayer", args: {} }]);
+    });
+
+    it("a Bot caster in its mana step hands on, so the window cannot hang", async () => {
+        const { calls } = await realise(
+            baseState(
+                { hand: [inst(WURM, "spell", "hand")] },
+                { pendingCast: assistCast("caster-mana") }
+            )
+        );
+        expect(calls).toEqual([
+            { mutation: "finishAssistCasterMana", args: {} },
+        ]);
+    });
+
+    it.each([
+        ["mana", 0],
+        ["pay", 4],
+    ] as const)(
+        "the Bot named on an opponent's cast pays nothing at the %s step, with mana in its pool",
+        (stage, numberMax) => {
+            const state = baseState(
+                { manaPool: { W: 4, U: 0, B: 0, R: 0, G: 0, C: 0 } },
+                {
+                    pendingCast: {
+                        ...assistCast(
+                            stage === "mana" ? "choose-player" : "caster-mana"
+                        ),
+                        playerId: HUMAN,
+                    },
+                }
+            );
+            state.priorityPlayerId = HUMAN;
+            state.pendingChoices = [
+                {
+                    stackItemId: "",
+                    step: 0,
+                    choiceId: `assist:${stage}`,
+                    playerId: BOT,
+                    kind: "number-pick",
+                    count: 1,
+                    prompt: "Assist",
+                    numberMax,
+                    paysMana: true,
+                    assistPayment: {
+                        stage,
+                        spellCardId: "spell",
+                        spellTypes: ["Creature"],
+                        spellSupertypes: [],
+                    },
+                },
+            ];
+            expect(botActionOn(state)).toEqual({
+                kind: "number-choice",
+                amount: 0,
+            });
+        }
+    );
 });
 
 describe("the waterbend tap offer (CR 701.67a)", () => {

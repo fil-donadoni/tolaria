@@ -10740,6 +10740,65 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "CR 107.3f numeric-nomination reachability (issue #1701). Also the end-to-end cover for the `number-pick` entry in CHOICE_CANDIDATE_GENERATORS: unregister it and the brain's minimal-legal fallback nominates 0, which is lethal here. The generator half is guarded deterministically too — `numberPickCandidates.bot.test.ts` asserts the emitted set spans both ends of the live range.",
     },
     {
+        // CR 702.132a — the announcement parks on Assist (`cast:assistChoice`),
+        // where the Bot names no one and then pays from its own lands. The claim
+        // is reachability: a park nothing answers is a card the Bot never lands.
+        label: "assist: casts an assist creature from its own mana",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "the Bot one land short of the creature's cost",
+            },
+        },
+        spec: {
+            cards: [{ name: "Magma Hellion", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 9,
+            landCount: 7,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) => move !== null && move.kind === "cast-spell",
+            describe: "casts the assist creature",
+        },
+        note: "CR 702.132a. Pair of the entry below (issue #4005).",
+    },
+    {
+        // CR 702.132a — the castability probe counts what the other player could
+        // pay, so a human is offered this cast. The Bot's tap plan is priced from
+        // its own mana and it names no one, so the same position is no Move: a
+        // cast it announced on the opponent's lands could never be paid.
+        label: "assist NEGATIVE CONTROL: does not cast on the opponent's mana",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "a seventh land for the Bot",
+            },
+        },
+        spec: {
+            cards: [{ name: "Magma Hellion", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 9,
+            landCount: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) => move === null || move.kind !== "cast-spell",
+            describe: "does not announce a cast it cannot pay for",
+        },
+        note: "CR 702.132a. Pair of the entry above (issue #4005).",
+    },
+    {
         label: "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict",
         classification: {
             kind: "conditional",
