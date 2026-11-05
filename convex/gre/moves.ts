@@ -178,7 +178,10 @@ import {
     phyrexianPipCount,
 } from "./phyrexian";
 import { getEffectivePower } from "./layers";
-import { getEffectiveActivatedAbilities } from "./activatedAbilities";
+import {
+    getEffectiveActivatedAbilities,
+    isAnimatedCreature,
+} from "./activatedAbilities";
 import { canPayTapOtherCost, crewPowerContribution } from "./tapOtherCost";
 import type { ActivationCostPicks } from "./activationCostPicks";
 import {
@@ -5085,8 +5088,9 @@ function enumerateAbilityMoves(
         // animation at a time; `state.ts` `animateAsCreature` returns early
         // when `card.animation` is set). Enumerating it would let the bot pay
         // the activation cost for zero gain, so it's not a legal macro-move
-        // while animated.
-        if (ability.animatesSelf && perm.animation) {
+        // while animated — unless a later effect took the creature type away,
+        // when activating again does change something (issue #7212).
+        if (isAnimatedCreature(ability, perm)) {
             continue;
         }
         // CR 702.171a/b — saddling an already-saddled permanent is legal but

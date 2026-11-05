@@ -108,6 +108,7 @@ import { basicLandsForColors, getColorsFromCost } from "../cards/colors";
 import { findTokenSpec, listTokenCatalogue } from "../cards/tokenCatalogue";
 import type {
     AnimateSpec,
+    AnimateSpecWithPT,
     CardType,
     Color,
     TargetSelection,
@@ -2742,7 +2743,7 @@ function lowerAnimation(
     card: CardInstanceState,
     label: string,
     dropped: string[]
-): AnimateSpec | undefined {
+): AnimateSpecWithPT | undefined {
     const anim = card.animation;
     if (!anim) return undefined;
     const power = anim.setPower ?? card.power;
@@ -2753,7 +2754,7 @@ function lowerAnimation(
         );
         return undefined;
     }
-    const lowered: AnimateSpec = { power, toughness };
+    const lowered: AnimateSpecWithPT = { power, toughness };
     if (anim.addedSubtype !== undefined) lowered.subtype = anim.addedSubtype;
     if (anim.addedTypes && anim.addedTypes.length > 0) {
         lowered.additionalTypes = [...anim.addedTypes];

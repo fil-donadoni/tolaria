@@ -1176,6 +1176,7 @@ describe("enumerateMoves — self-animate guard (issue #546, CR 611.1)", () => {
             controllerId: "p1",
             ownerId: "p1",
             // Already a 2/2 Assembly-Worker creature land this turn.
+            types: ["Land", "Creature"],
             animation: {
                 savedPower: undefined,
                 savedToughness: undefined,
