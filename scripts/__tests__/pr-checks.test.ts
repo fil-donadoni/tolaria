@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    jobPrBody,
     repairProofCheck,
     runPrCheck,
     type PrCheckContext,
@@ -7,6 +8,52 @@ import {
 import { fileReadsCorpus, repairProofRun } from "../lib/repair-proof";
 import { DERIVED_PATHS } from "../lib/derive-sync";
 import type { Lineage } from "../lib/health-verdict-store";
+
+describe("jobPrBody — a re-run judges the live body (issue #8291)", () => {
+    const reRun = {
+        PR_BODY: "before the edit",
+        GITHUB_RUN_ATTEMPT: "2",
+        GITHUB_EVENT_PATH: "/event.json",
+        GITHUB_REPOSITORY: "o/r",
+    };
+    const deps = (over: Partial<Parameters<typeof jobPrBody>[1]> = {}) => ({
+        readEvent: () => JSON.stringify({ pull_request: { number: 7 } }),
+        readBody: (repo: string, pr: number) => `live ${repo}#${pr}`,
+        warn: () => {},
+        ...over,
+    });
+
+    it("reads the live body from the second attempt on", () => {
+        expect(jobPrBody(reRun, deps())).toBe("live o/r#7");
+    });
+
+    it("keeps the payload's on a first attempt, reading nothing", () => {
+        const never = () => {
+            throw new Error("read");
+        };
+        const first = deps({ readEvent: never, readBody: never });
+        expect(jobPrBody({ ...reRun, GITHUB_RUN_ATTEMPT: "1" }, first)).toBe(
+            "before the edit"
+        );
+        expect(jobPrBody({ PR_BODY: "local" }, first)).toBe("local");
+    });
+
+    it("falls back to the payload's, and says so, when the live one is unreadable", () => {
+        const said: string[] = [];
+        expect(
+            jobPrBody(
+                reRun,
+                deps({
+                    readBody: () => {
+                        throw new Error("HTTP 502\ndetail");
+                    },
+                    warn: (l) => said.push(l),
+                })
+            )
+        ).toBe("before the edit");
+        expect(said[0]).toContain("HTTP 502");
+    });
+});
 
 // The PR checks (issue #5639). Each check is a pure function tested beside it
 // (`pr-refusals.test.ts`); what is pinned here is the wiring — the

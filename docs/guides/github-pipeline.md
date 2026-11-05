@@ -1493,6 +1493,10 @@ is to re-run that run, which goes back into the same suite:
 - `pr-gate` keeps `queue:held` on such a PR (`heldPrAction` → `twin`), never
   requeues or releases it, and says why on the PR, once per head.
 
+A re-run replays its event's payload, so `pr:checks` reads the live PR body from
+the second attempt on (`jobPrBody`): the cancelled half of a push plus a body
+edit would otherwise judge the body from before the edit.
+
 **Known gap:** a twin that appears after the label, on a PR not `queue:held`,
 still reaches the repair-pick rule. Only `.mergify.yml` or `pr-check.yml` can
 close that. [The repair pass](#the-merge-queue) sees a red lane that is not

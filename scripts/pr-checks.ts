@@ -14,11 +14,12 @@
 //                       verdict's failing tests green (issue #5462)
 //
 // Inputs: the PR body in `PR_BODY` (a workflow passes it through `env:`, never
-// interpolated into a shell line), or `--pr <N>` read with `gh`. The diff is
+// interpolated into a shell line; on a re-run the live body, `jobPrBody`), or
+// `--pr <N>` read with `gh`. The diff is
 // `origin/<base>...HEAD` of the working tree — on a runner, the merge ref.
 // Exit 0 = every named check passed, 1 = at least one refused (one line each).
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ROBUSTNESS_BASELINE } from "../convex/gre/ai/blade/robustnessBaseline";
 import { corpusExcluded } from "./lib/corpus-exclusion";
@@ -188,6 +189,42 @@ function parseNames(args: string[]): PrCheckName[] | string {
         : (named as PrCheckName[]);
 }
 
+/**
+ * The body a job judges (issue #8291). A re-run replays its event's payload, so
+ * `PR_BODY` is the body as it was when the run was CREATED, and re-running the
+ * cancelled half of a push plus a body edit would judge the body from before
+ * the edit: a false red, on a highest-suite check, is a false `land-failed`. So
+ * from the second attempt on the live body wins. Unreadable → the payload's,
+ * said: a first attempt judges that one too.
+ */
+export function jobPrBody(
+    env: Record<string, string | undefined>,
+    deps: {
+        readEvent: (path: string) => string;
+        readBody: (repo: string, pr: number) => string;
+        warn: (line: string) => void;
+    }
+): string {
+    const payload = env.PR_BODY ?? "";
+    if (Number(env.GITHUB_RUN_ATTEMPT ?? "1") <= 1) return payload;
+    try {
+        const event = JSON.parse(
+            deps.readEvent(env.GITHUB_EVENT_PATH ?? "")
+        ) as {
+            pull_request: { number: number };
+        };
+        return deps.readBody(
+            env.GITHUB_REPOSITORY ?? "",
+            event.pull_request.number
+        );
+    } catch (e) {
+        deps.warn(
+            `pr:checks: re-run judging the event's PR body, the live one is unreadable (${(e as Error).message.split("\n")[0]})`
+        );
+        return payload;
+    }
+}
+
 function prBodyOf(args: string[]): string {
     const i = args.indexOf("--pr");
     if (i >= 0 && args[i + 1])
@@ -196,7 +233,18 @@ function prBodyOf(args: string[]): string {
                 body: string;
             }
         ).body;
-    return process.env.PR_BODY ?? "";
+    return jobPrBody(process.env, {
+        readEvent: (path) => readFileSync(path, "utf8"),
+        // REST, not `gh pr view`: this job's token has no `pull-requests`
+        // scope, and a public repository's PR needs none over REST.
+        readBody: (repo, pr) =>
+            (
+                JSON.parse(gh(["api", `repos/${repo}/pulls/${pr}`])) as {
+                    body: string | null;
+                }
+            ).body ?? "",
+        warn: (line) => console.warn(line),
+    });
 }
 
 function main(): number {
