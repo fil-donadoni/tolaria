@@ -116,6 +116,64 @@ function offeredIds(cardDefId: string, opts: { swamps: number; life: number }) {
     ).map((k) => k.id);
 }
 
+describe("affordableKickersForCard — a Kicker priced on top of the cast's own sacrifices (CR 601.2f)", () => {
+    // Bog Down — {2}{B}, "Kicker—Sacrifice two lands". Under Drought it also owes
+    // a Swamp, so the toggle needs three lands, through the wire projection.
+    function offeredUnderDrought(swamps: number) {
+        const spell = makeInstance(getCardByName("Bog Down").id, {
+            id: "spell1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [spell],
+                    battlefield: [
+                        makeInstance(getCardByName("Drought").id, {
+                            id: "drought",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        ...Array.from({ length: swamps }, (_, i) =>
+                            makeInstance(swamp.id, {
+                                id: `sw${i}`,
+                                controllerId: "p1",
+                                ownerId: "p1",
+                            })
+                        ),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const view = projectPublicState(state, 1, "p1") as unknown as {
+            players: Player[];
+            activePlayerId: string;
+        };
+        const card = view.players[0].hand.find(
+            (c) => c?.id === "spell1"
+        ) as CardInstance;
+        return affordableKickersForCard(
+            card,
+            "p1",
+            view.players,
+            view.activePlayerId
+        ).map((k) => k.id);
+    }
+
+    it("HIDES the leg when the board covers it alone but not beside the tax", () => {
+        expect(offeredUnderDrought(2)).toEqual([]);
+    });
+
+    it("OFFERS the leg once the board covers both", () => {
+        expect(offeredUnderDrought(3)).toEqual(["kicker"]);
+    });
+});
+
 describe("affordableKickersForCard — cast-cost dialog gate (CR 702.33a, ADR 0079)", () => {
     it("OFFERS a mana-only kicker even with no mana available", () => {
         // The mana leg folds into the spell's total and is paid by the ordinary

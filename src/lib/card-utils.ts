@@ -123,6 +123,7 @@ import {
     isCasterChosenCostEntry,
     perExtraModeAffordableModeCap,
 } from "@convex/gre/kicker";
+import { canPayKickerAlongsideCastSacrifices } from "@convex/gre/castCostPicks";
 import { spliceAugmentedDefinition } from "@convex/gre/splice";
 import {
     checkPermanentTargetFilters,
@@ -2207,18 +2208,30 @@ export function affordableKickersForCard(
     } as unknown as GameState;
     // CR 702.120a (issue #2267) — an escalate entry is not a toggle: its count
     // follows the modes the caster ticks, written by the server.
-    return kickers
-        .filter(isCasterChosenCostEntry)
-        .filter((k) =>
+    return kickers.filter(isCasterChosenCostEntry).filter((k) => {
+        const single = { ...def, kickers: [k] } as CardDefinition;
+        const payment = { [k.id]: 1 };
+        return (
             canPayKickerLegs(
                 state,
                 caster as unknown as PlayerState,
-                { ...def, kickers: [k] } as CardDefinition,
-                { [k.id]: 1 },
+                single,
+                payment,
                 card.id,
                 card as unknown as CardInstanceState
+            ) &&
+            // CR 601.2f — the leg is owed on top of the cast's own
+            // sacrifices (Drought's tax), from distinct permanents.
+            canPayKickerAlongsideCastSacrifices(
+                state,
+                caster as unknown as PlayerState,
+                card as unknown as CardInstanceState,
+                single,
+                undefined,
+                payment
             )
         );
+    });
 }
 
 /** CR 702.120a / 601.2h (issue #2267) — the most modes, up to `upTo`, whose

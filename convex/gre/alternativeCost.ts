@@ -928,13 +928,16 @@ export function buildCostLegsPermanentChoice(
  *  together: can the payer cover every leg's requirement from DISTINCT
  *  permanents? Threshold legs (`{ minTotalPower }`) have no alternative/kicker
  *  picker and read as unpayable, matching `altCostPermanentCardinal`'s
- *  fail-closed answer. */
+ *  fail-closed answer. `alongside` is what the same payment already owes ahead
+ *  of these legs (the cast's own additional-cost sacrifices), reserved first in
+ *  the order the selection allocates its picks. */
 export function canAffordCostLegsPermanents(
     state: GameState,
     playerId: string,
-    legs: CastCostLegs[]
+    legs: CastCostLegs[],
+    alongside: readonly SacrificeRequirement[] = []
 ): boolean {
-    const requirements: SacrificeRequirement[] = [];
+    const requirements: SacrificeRequirement[] = [...alongside];
     for (const leg of legs) {
         if (!leg.permanent) continue;
         const count = altCostPermanentCardinal(leg);

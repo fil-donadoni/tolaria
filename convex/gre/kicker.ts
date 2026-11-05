@@ -34,7 +34,7 @@ import type {
     TargetRequirement,
 } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
-import { getStaticAdditionalSacrifices, normalizeManaCost } from "./state";
+import { normalizeManaCost } from "./state";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { splicedCardIdsOfEntries } from "./splice";
 import {
@@ -43,8 +43,10 @@ import {
     canPayHandCost,
     canAffordCostLegsPermanents,
 } from "./alternativeCost";
-import type { SacrificeSelection } from "./sacrificeChoice";
-import { getInstanceManaCost } from "../cards/registry";
+import type {
+    SacrificeRequirement,
+    SacrificeSelection,
+} from "./sacrificeChoice";
 import type { PendingCast } from "./state/declarations";
 import {
     canCollectEvidence,
@@ -841,12 +843,9 @@ export function kickerCostLegs(
 }
 
 /** Does any paid Kicker owe a PERMANENT leg (CR 702.33a — "sacrifice two
- *  lands", "return a creature you control")? The only leg kind that claims the
- *  cast's single `SacrificeSelection` slot; a mana leg folds into the total and
- *  a life leg into `payLife`, neither of which needs a picker. Returns `true`
- *  whenever a PAID Kicker declares a permanent leg — Magma Burst (`pls/red.cards.ts`,
- *  "Kicker—Sacrifice two lands", issue #1951) is one such card, not
- *  necessarily the only or first one in the catalogue. */
+ *  lands", "return a creature you control")? The only leg kind that joins the
+ *  cast's `SacrificeSelection`; a mana leg folds into the total and a life leg
+ *  into `payLife`, neither of which needs a picker. */
 export function hasKickerPermanentLeg(
     cardDef: CardDefinition,
     payments: KickerPayments | undefined
@@ -874,51 +873,74 @@ function bindCastSpellColors(
     };
 }
 
-/** Does any paid Kicker owe a permanent leg that GIVES the permanent up? A tap
- *  leg (CR 702.78a) leaves it where it is, so it can share the cast's selection
- *  with a sacrifice the cast also owes. */
-function hasKickerGiveUpLeg(
+/** CR 601.2f / 601.2h — the total cost includes every additional cost, so a paid
+ *  Kicker's permanent legs are owed ALONGSIDE the cast's own sacrifices: can the
+ *  caster cover both from DISTINCT permanents? The joint question
+ *  {@link canPayKickerLegs} cannot ask, because it prices the Kicker alone: Bog
+ *  Down under Drought owes a Swamp and two lands, so two Swamps pass each half
+ *  and cannot pay the whole. A tap leg counts too — the selection holds one pick
+ *  per permanent whatever each pick does to it. */
+export function canPayKickerLegsAlongside(
+    state: GameState,
+    playerId: string,
     cardDef: CardDefinition,
-    payments: KickerPayments | undefined
+    payments: KickerPayments | undefined,
+    ownSacrifices: readonly SacrificeRequirement[],
+    /** CR 702.78a — the instance being cast, for a leg priced against its
+     *  colours. */
+    castCard: CardInstanceState | undefined
 ): boolean {
-    return kickerCostLegs(cardDef, payments).some(
-        (leg) => leg.permanent !== undefined && leg.permanent.action !== "tap"
+    return canAffordCostLegsPermanents(
+        state,
+        playerId,
+        kickerCostLegs(cardDef, payments).map((leg) =>
+            bindCastSpellColors(leg, castCard)
+        ),
+        ownSacrifices
     );
 }
 
-/** CR 601.2f / 601.2h — the cast has exactly ONE permanent-cost selection slot,
- *  and a paid Kicker's permanent leg OR the chosen ALTERNATIVE cost's own
- *  permanent leg (CR 118.9 — Gush's "return two Islands", Fireblast's
- *  "sacrifice two Mountains") claims it. When the cast ALSO owes its own
- *  additional-cost sacrifice — the card's own (CR 601.2f) or a board-wide one
- *  (Drought's "Sacrifice a Swamp", CR 118.8) — one of the two would have to be
- *  dropped, i.e. the spell would reach the stack having silently MISPAID a
- *  cost. Fail CLOSED at announcement instead, exactly as `resolveKickerPayments`
- *  refuses a mixed sacrifice/return composition. `hasKickerPermanentLeg` is no
- *  longer vacuously `false` (Magma Burst, issue #1951, is a permanent-leg
- *  Kicker), so this `throw` branch is reachable in principle — but only for a
- *  card that ALSO owes its own additional-cost sacrifice on top of a
- *  permanent-leg Kicker or alt-cost permanent leg, which no shipped card
- *  combines yet (no permanent-leg alt-cost card carries a black pip for
- *  Drought to key off, issue #1985); merging the two selections remains the
- *  work the first card that needs BOTH at once pays for. */
-export function assertKickerPermanentSlotFree(
+/** CR 601.2f / 601.2h — the gate on the cast's permanent costs, run at
+ *  announcement before anything parks. A paid Kicker's permanent legs join the
+ *  cast's own additional-cost sacrifices in one selection
+ *  ({@link resolveCastPermanentSelection}), so the only refusal they earn is a
+ *  board that cannot cover both (CR 601.2h: unpayable costs can't be paid).
+ *
+ *  The chosen ALTERNATIVE cost's permanent leg still fails closed against an own
+ *  sacrifice, a deviation from CR 118.9d tracked-by issue #8259: an emerge victim
+ *  is read off the selection's first pick and the merge declares own sacrifices
+ *  first, so that pair needs its own ordering before it can share a selection. */
+export function assertCastPermanentCostsPayable(
+    state: GameState,
+    playerId: string,
     cardDef: CardDefinition,
     payments: KickerPayments | undefined,
     ownSacrifice: SacrificeSelection | undefined,
-    /** CR 118.9 — the chosen alternative cost, so its OWN permanent leg is
-     *  weighed against `ownSacrifice` the same way a Kicker's is. Omitted by
-     *  callers that never see an alternative cost (the non-alt commit
-     *  branch). */
-    altCost?: CostLegs
+    /** CR 118.9 — the chosen alternative cost. Omitted by callers that never
+     *  see one (the non-alt commit branch). */
+    altCost: CostLegs | undefined,
+    castCard: CardInstanceState | undefined
 ): void {
     if (!ownSacrifice) return;
-    if (!hasKickerGiveUpLeg(cardDef, payments) && !altCost?.permanent) {
-        return;
+    if (altCost?.permanent) {
+        throw new Error(
+            "This spell's alternative cost cannot be paid alongside its other additional costs"
+        );
     }
-    throw new Error(
-        "This spell's kicker cost cannot be paid alongside its other additional costs"
-    );
+    if (
+        !canPayKickerLegsAlongside(
+            state,
+            playerId,
+            cardDef,
+            payments,
+            ownSacrifice.requirements,
+            castCard
+        )
+    ) {
+        throw new Error(
+            "Can't pay the additional cost (not enough permanents to sacrifice)"
+        );
+    }
 }
 
 /** CR 601.2f / 601.2h — the cast's ONE permanent-cost selection, folding the
@@ -955,21 +977,21 @@ export function buildCastPermanentCostChoice(
     );
 }
 
-/** CR 601.2f / 601.2h — the cast's SINGLE permanent-cost selection: trust
- *  what `buildCastPermanentCostChoice` actually produced (the chosen alt
- *  cost's own permanent leg + every paid Kicker's), falling back to the
- *  board-wide/own additional-cost sacrifice (`buildCastSacrificeSelection`'s
- *  `selection` — Drought's "Sacrifice a Swamp", CR 118.8, or the card's own)
- *  ONLY when the former yields nothing. Shared verbatim by all three commit
- *  paths (`finalizeTargetSelection`'s targeted path, `announceCast`'s
- *  no-target alt-cost branch, and its no-target plain/kicker branch) so the
- *  fallback rule can never drift between them again — issue #1985 was
- *  exactly that drift: the alt-cost branch special-cased away the fallback
- *  entirely and dropped `ownSacrifice` unconditionally. A genuine collision
- *  (both legs claim the slot) is rejected upstream, fail-closed, by
- *  `assertKickerPermanentSlotFree` — by the time this runs, both sides exist
- *  only when the kicker side is TAP legs (CR 702.78a), which join the selection
- *  after the sacrifice: conspire does not take the slot Drought's tax needs. */
+/** CR 601.2f / 601.2h — the cast's SINGLE permanent-cost selection: what
+ *  `buildCastPermanentCostChoice` produced (the chosen alt cost's own permanent
+ *  leg + every paid Kicker's) joined with the board-wide/own additional-cost
+ *  sacrifice (`buildCastSacrificeSelection`'s `selection` — Drought's "Sacrifice
+ *  a Swamp", CR 118.8, or the card's own). Shared by all three commit paths
+ *  (`finalizeTargetSelection`'s targeted path, `announceCast`'s no-target
+ *  alt-cost branch and its no-target plain/kicker branch) so the rule cannot
+ *  drift between them.
+ *
+ *  The own sacrifices stay first: they may already hold auto-resolved picks, and
+ *  picks are allocated to requirements in order, with `explicit` Kicker legs
+ *  last. Each joining requirement carries its own terminal action, because the
+ *  merged selection keeps the own side's: without it Arctic Merfolk's returned
+ *  creature would be sacrificed instead. `assertCastPermanentCostsPayable` has
+ *  already refused a board that cannot cover the whole selection. */
 export function resolveCastPermanentSelection(
     castPermSel: SacrificeSelection | undefined,
     ownSacrifice: SacrificeSelection | undefined
@@ -979,7 +1001,10 @@ export function resolveCastPermanentSelection(
         ...ownSacrifice,
         requirements: [
             ...ownSacrifice.requirements,
-            ...castPermSel.requirements,
+            ...castPermSel.requirements.map((req) => ({
+                ...req,
+                action: req.action ?? castPermSel.action,
+            })),
         ],
     };
 }
@@ -1292,96 +1317,6 @@ export function firstUnfillableCastGroup(
 // cast enumerates paying it — tracked by the same guard that already fails a
 // shipped-but-inert mechanic (Guard A, `.claude/rules/gre-development.md`).
 
-/** CR 601.2f / 601.2h (issue #2081 fixup, review round 1) — would offering
- *  `payments` as a Move collide with the cast's OWN permanent-cost sacrifice
- *  slot, the same one-slot rule `assertKickerPermanentSlotFree` enforces at
- *  announcement (`game.ts`)? `canPayKickerLegs` only checks that the paid
- *  Kicker's OWN legs are affordable — it says nothing about whether the cast
- *  ALSO owes a sacrifice of its own, so without this check the enumerator
- *  could emit a kicked cast `announceCast`'s prelude gate then rejects
- *  (`assertKickerAnnouncementLegal` throwing "This spell's kicker cost cannot
- *  be paid alongside its other additional costs") — live, that is the bot
- *  stalling on a move it generated itself (AC #3).
- *
- *  Mirrors `buildCastSacrificeSelection`'s TWO own-sacrifice sources that
- *  matter here (`game.ts`), read through exports that live outside `game.ts`
- *  so this needs no edit there:
- *   - the card's OWN BASE `additionalCosts.sacrificeFilter` (CR 601.2f /
- *     118.8) — none of the catalogue's 7 permanent-leg Kicker cards declare
- *     one today (census, issue #2081), so this branch is defence-in-depth for
- *     the next one that does. It reads the BASE field only — a CASTER-CHOSEN
- *     `oneOf` leg's own `sacrificeFilter` is a SEPARATE collision this
- *     function cannot see (this runs once, before `moves.ts` crosses
- *     `kickerVariants` with `legVariants`, so no specific leg is known yet);
- *     {@link kickerLegPermanentSlotWouldCollide} is the leg-aware companion
- *     check, run AFTER that cross (issue #2081 fixup, review round 2);
- *   - a board-wide STATIC additional sacrifice (Drought, CR 118.8), scanned
- *     via the SAME `getStaticAdditionalSacrifices` (`gre/state.ts`)
- *     `buildCastSacrificeSelection` calls — the live trigger today (Drought +
- *     Bog Down).
- *  `buildCastSacrificeSelection`'s THIRD source — a flashback-only "Sacrifice
- *  a <filter>" cost (CR 702.34a), added only when `castFromZone ===
- *  "graveyard"` — is deliberately NOT modelled: no Flashback/Escape cast is
- *  enumerated by the Bot at all yet (`docs/findings/2358-graveyard-cast-moves.md`),
- *  so there is no live call site where this function could even see a
- *  graveyard cast. It must grow that branch the day flashback casts are
- *  enumerated. */
-export function kickerPermanentSlotWouldCollide(
-    state: GameState,
-    cardDef: CardDefinition,
-    card: CardInstanceState,
-    payments: KickerPayments | undefined
-): boolean {
-    if (!hasKickerPermanentLeg(cardDef, payments)) return false;
-    if (cardDef.additionalCosts?.sacrificeFilter) return true;
-    const rawManaCost = getInstanceManaCost(card);
-    return (
-        getStaticAdditionalSacrifices(state, rawManaCost, card, "spell")
-            .length > 0
-    );
-}
-
-/** CR 601.2b / 601.2f / 601.2h (issue #2081 fixup, review round 2) — the
- *  LEG-AWARE half of the same one-slot collision {@link
- *  kickerPermanentSlotWouldCollide} checks: would a PAID Kicker's permanent
- *  leg collide with the CASTER-CHOSEN `oneOf` leg `additionalCostLegId`
- *  names, specifically? `kickerPermanentSlotWouldCollide` only ever sees the
- *  card's BASE `additionalCosts.sacrificeFilter` (no leg resolved) — it runs
- *  inside `enumerateKickerVariants`, which `moves.ts` calls BEFORE crossing
- *  `kickerVariants` with `legVariants`, so it structurally cannot know which
- *  leg any given Move will end up carrying. A `oneOf` leg reuses the exact
- *  same field vocabulary as the base spec (`AdditionalCostLeg.sacrificeFilter`,
- *  `resolveAdditionalCosts` flattens it on), so a leg like "sacrifice a Swamp
- *  or pay 3 life" (the Bitter Triumph disjunction SHAPE, `lci/black.cards.ts`, with
- *  a sacrifice leg instead of a discard one) claims the cast's ONE
- *  permanent-cost selection slot exactly like the base field does the moment
- *  the caster picks it — and `assertKickerAnnouncementLegal` (`game.ts`)
- *  prices the EFFECTIVE spec (`resolveAdditionalCosts`, the chosen leg
- *  flattened on), not the base one, so a Kicker+leg pairing this check misses
- *  reopens the exact live stall round 1 fixed for the board-wide case
- *  (`announceCast`'s prelude throws "This spell's kicker cost cannot be paid
- *  alongside its other additional costs" on a Move the enumerator itself
- *  offered).
- *
- *  Callers run this AFTER `legVariants`/`kickerVariants` are crossed
- *  (`moves.ts`'s `announceVariants` construction), one call per
- *  (leg, kickerPayments) pair — the same place the leg becomes known. No
- *  shipped card pairs a permanent-leg Kicker with a `oneOf` sacrifice leg
- *  (census, issue #2081), so this is defence-in-depth for the next one that
- *  does, exactly like the base-field branch above. */
-export function kickerLegPermanentSlotWouldCollide(
-    cardDef: CardDefinition,
-    payments: KickerPayments | undefined,
-    additionalCostLegId: string | undefined
-): boolean {
-    if (!hasKickerPermanentLeg(cardDef, payments)) return false;
-    if (!additionalCostLegId) return false;
-    const leg = cardDef.additionalCosts?.oneOf?.find(
-        (l) => l.id === additionalCostLegId
-    );
-    return leg?.sacrificeFilter !== undefined;
-}
-
 /** How many DISTINCT repeat counts (beyond 0) a MULTIKICKER leg samples,
  *  bounded rather than searched to the affordable maximum. See the bound
  *  rationale above. */
@@ -1413,11 +1348,10 @@ const MAX_KICKER_COMBINATIONS = 16;
  *  the caller (`foldKickerCosts`) into the ordinary per-(mode, X) tap-plan
  *  loop, which already drops an unaffordable combination exactly like every
  *  other cost axis it crosses. A HAND-leg combo is skipped outright (fail
- *  CLOSED — see the file-level bound comment above). A combo whose PERMANENT
- *  leg would collide with the cast's own additional-cost sacrifice slot is
- *  likewise skipped outright ({@link kickerPermanentSlotWouldCollide} — issue
- *  #2081 fixup, review round 1: AC #3 previously let such a combo through and
- *  `announceCast` rejected it live). */
+ *  CLOSED — see the file-level bound comment above). A permanent leg's price
+ *  alongside the cast's own sacrifices depends on the `oneOf` leg, which is not
+ *  known yet: `moves.ts` asks `canPayKickerAlongsideCastSacrifices` once the two
+ *  axes cross. */
 export function enumerateKickerVariants(
     state: GameState,
     player: PlayerState,
@@ -1477,13 +1411,6 @@ export function enumerateKickerVariants(
         seen.add(key);
         // Fail CLOSED on a hand leg — see the file-level bound comment.
         if (kickerCostLegs(cardDef, canonical).some((leg) => leg.hand)) {
-            continue;
-        }
-        // Fail CLOSED on a permanent-cost-slot collision with the cast's own
-        // additional-cost sacrifice (own `additionalCosts.sacrificeFilter` or
-        // a board-wide static one, Drought) — see
-        // `kickerPermanentSlotWouldCollide`'s doc.
-        if (kickerPermanentSlotWouldCollide(state, cardDef, card, canonical)) {
             continue;
         }
         if (
