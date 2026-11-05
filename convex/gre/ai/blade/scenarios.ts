@@ -2126,6 +2126,87 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #4008. Discriminating pair for the dethrone entry: only one life point changed.",
     },
     {
+        // Epic (CR 702.50a) — the tutor finds the enchantment that stops the Craw
+        // Wurms the Bot cannot otherwise survive, and the lock costs it nothing with
+        // an empty hand. Pair: a board with no enchantment to find (next entry).
+        label: "epic: casts the tutor whose hit stops the attackers it cannot survive",
+        spec: {
+            cards: [
+                { name: "Enduring Ideal", owner: "me", zone: "hand" },
+                { name: "Moat", owner: "me", zone: "library" },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 7,
+            libraryCount: 20,
+            life: { me: 10, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", cards: ["Enduring Ideal"] }],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the library holds an enchantment the search can find",
+            },
+        },
+        note: "Issue #6745. The search sees the static of the permanent the script fetches.",
+    },
+    {
+        // The pair of the entry above: nothing to find, so casting it only gives up
+        // the Grizzly Bears in hand for the rest of the game.
+        label: "epic pair: keeps its other spell castable when the search would find nothing",
+        spec: {
+            cards: [
+                { name: "Enduring Ideal", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 7,
+            libraryCount: 20,
+            life: { me: 10, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", cards: ["Enduring Ideal"] }],
+        },
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the library holds no enchantment, so the lock buys nothing",
+            },
+        },
+        note: "Issue #6745. Discriminating pair for the epic entry.",
+    },
+    {
         // CR 702.149a — beside a 3-power partner the 2/1 flier gets the counter, and
         // 3 + 3 is exactly lethal past a tapped Craw Wurm. Unseen, the double swing
         // leaves the opponent at 1 with no chump left for the crackback. Pair: a

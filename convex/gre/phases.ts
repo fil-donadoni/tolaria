@@ -106,6 +106,7 @@ import {
     buildWarpExileTrigger,
     placeTriggersOnStack,
 } from "./triggers";
+import { buildEpicCopyTrigger } from "./epic";
 import {
     hasAnyLegalBlock,
     getRequiredAttackerIds,
@@ -2132,7 +2133,9 @@ export function fireDelayedTriggers(
             (t.targetPlayerId === undefined ||
                 t.targetPlayerId === state.activePlayerId) &&
             (t.scheduledOnTurn === undefined || state.turn > t.scheduledOnTurn);
-        (matches ? firing : remaining).push(t);
+        if (matches) firing.push(t);
+        // CR 702.50a — "each of your upkeeps": firing leaves it queued.
+        if (!matches || t.timing === "each-own-upkeep") remaining.push(t);
     }
     state.delayedTriggers = remaining.length > 0 ? remaining : undefined;
     if (firing.length === 0) return;
@@ -2173,6 +2176,17 @@ export function fireDelayedTriggers(
                     t.warpCardInstanceId,
                     t.controller
                 )
+            );
+            continue;
+        }
+        // CR 702.50a — Epic copies a spell, which no Op body can name once the
+        // spell is gone: the instance carries it.
+        if (t.spellToCopy) {
+            state.stack.push(
+                buildEpicCopyTrigger(state, {
+                    ...t,
+                    spellToCopy: t.spellToCopy,
+                })
             );
             continue;
         }
@@ -2371,6 +2385,7 @@ function performPhaseEntry(state: GameState): void {
             // is. They carry no `targetPlayerId`, so a single fire dequeues each
             // one exactly once at the first upkeep reached after scheduling.
             fireDelayedTriggers(state, "next-upkeep");
+            fireDelayedTriggers(state, "each-own-upkeep");
             break;
         case "DRAW":
             drawStep(state);

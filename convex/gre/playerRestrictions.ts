@@ -15,7 +15,7 @@ import type {
  *  `playerRestrictions` slice only, so a projected wire state (which carries
  *  the field through the `...state` spread) answers the same as the engine. */
 export function playerHasRestriction(
-    state: Pick<GameState, "playerRestrictions">,
+    state: { playerRestrictions?: ReadonlyArray<PlayerRestriction> },
     playerId: string,
     kind: PlayerRestrictionKind
 ): boolean {

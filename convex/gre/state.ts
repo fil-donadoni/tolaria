@@ -247,6 +247,7 @@ import type {
 } from "../cards/filters";
 import { damageSourceChoiceIds } from "./damageSourceChoice";
 import { castProhibitionReason } from "../cards/castRestrictions";
+import { applyEpicAbilities } from "./epic";
 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared "cast off sorcery
 // timing" snapshot predicate, called only inside function bodies below
 // (never at module top level), so this is safe despite `phases.ts` itself
@@ -4411,6 +4412,9 @@ function finalizeSpellResolution(
         // CR 707.10 / 707.10a — a copy of an instant/sorcery spell is not a real
         // card: once it finishes resolving it simply ceases to exist instead
         // of being put into a graveyard.
+        // CR 702.50a — ahead of that: a copy that still has epic (a Fork of an
+        // epic spell) has the abilities too.
+        applyEpicAbilities(state, item);
         if (item.isCopy) return;
         const owner = getPlayer(state, item.ownerId);
         // CR 608.2 / 701.24 (issue #898) — a spell that instructs "Shuffle
